@@ -18,7 +18,7 @@ The top of `/rooms` is three columns, drawn to Tyler's design of 7 Oct 2026
   It reads "<first name>'s room · Always open · just you". While you are in
   another room it is unlit and its button is Go back to it.
 - **Go back to it leaves the room you are in.** It asks first. A member is
-  told they go back to their own sound and theme. A host is told leaving ends
+  told they go back to their own sound and background. A host is told leaving ends
   the room, and for how many other people.
 - **The room you are in has a Leave button beside Open room.** Tyler, 9 Oct
   2026: "add a leave room button here". It reads Leave room on Room I joined
@@ -94,6 +94,11 @@ is not logged in, that should link to the login page."
   more the moment you come back to the tab, so a room that has closed leaves
   the page within a minute. These reads are quiet: one that fails keeps the
   cards already showing and puts up no toast. A hidden tab reads nothing.
+- **Nothing is called empty before the first read answers.** On `/rooms` and
+  on the front page, Open to join shows "Loading rooms…" until the list
+  arrives. If that first read fails it shows "Rooms could not be loaded." with
+  Try again, which reads at once. "No rooms here yet." is only for a read that
+  worked and found none. Once a list is showing, a failed refresh keeps it.
 - **An Open to join card**, drawn to Tyler's design of 7 Oct 2026
   (`assets/pasted-image-1791404158696439000.png`, `OpenRoomCard` in
   `src/components/pomodoro/room-card.tsx`), has a tall picture with the LIVE
@@ -101,8 +106,13 @@ is not logged in, that should link to the login page."
   room's name in large type. Under the name: "waiting to start" in green,
   "starting in 1:23" while a countdown runs, or "on break · 3:12" in amber,
   each counting down every second; then the faces of up to three people
-  inside and "3 focusing"; then "Next: 25 min focus" beside a black Join
+  inside and "3 in the room"; then "Next: 25 min focus" beside a black Join
   pill. The dot on the host's picture is green or amber to match.
+- **A head count is always "N in the room".** The card, your room's column on
+  `/rooms`, the invite page and the chat's "In the room · N" all use the same
+  words. The cards only list rooms that are waiting or on a break, so they never
+  say "focusing" (Polish 3 task 06). An invite to a room mid-focus still says
+  "3 focusing right now", because they are.
 - **The faces are real.** Tyler, 9 Oct 2026: "this need to show real
   avatars" and "The cards show the avatar". The host and the first three
   people in show their own uploaded photo, or their coloured initials when
@@ -116,27 +126,27 @@ is not logged in, that should link to the login page."
 - **When every room is counting down**, Starting soon holds them and Open to
   join is left out rather than saying "No rooms here yet". A room leaves
   Starting soon the moment its countdown ends.
-- **The picture is the room's own scene**, with its sound named in the top
+- **The picture is the room's own background**, with its sound named in the top
   right corner, so people can pick a room by its mood. A room from before
   rooms carried a pair keeps one of four gradients, picked from the room's own
   id so a card keeps its colour when the list shuffles. The section heading is
   "Open to join" in large type, and an empty list shows a dashed box saying
   so. Upcoming still uses the shorter card.
-- **Pointing at a card plays its scene's film.** Tyler, 9 Oct 2026: "hovering
-  over the card should play the clip", the same as the theme cards on
+- **Pointing at a card plays its background's film.** Tyler, 9 Oct 2026: "hovering
+  over the card should play the clip", the same as the background cards on
   Backgrounds. Only while the mouse is on the card, so a page of cards loads
   no films until one is pointed at; never on a phone, and never with reduced
-  motion. A room without a scene keeps its still gradient. The gradients live in
+  motion. A room without a background keeps its still gradient. The gradients live in
   `src/lib/pomodoro/room-vibe.ts` and the two animations in
   `src/components/pomodoro/theme.css`.
 - **Hosting is Pro** (`requirePomodoroPerk("hostRooms")`): name, public or
-  unlisted, three durations, auto-start, a sound and a theme. One room per
+  unlisted, three durations, auto-start, a sound and a background. One room per
   person; hosting again or joining another room closes the old one so nobody
   is stranded hostless.
-- **A room has its own sound and theme, and both are required.** Tyler, 7 Oct
+- **A room has its own sound and background, and both are required.** Tyler, 7 Oct
   2026: "User must select sound and theme." Nothing is picked to start with,
   and Create room stays pressable: pressing it with a pick missing names the
-  missing one and marks its field. The picks are the Live sounds and scenes
+  missing one and marks its field. The picks are the Live sounds and backgrounds
   in the catalogue, shuffle, or one tag, never an upload. House presets an
   admin keeps come first in the Rhythm picker, and a featured room sits first
   on Browse rooms; see [Rooms in the admin](rooms-admin.md). A host may shuffle
@@ -151,7 +161,9 @@ is not logged in, that should link to the login page."
   and the summary ("50 · 10 · 30 min"). The room stores plain numbers, so
   nothing downstream knows a preset was used. If your own presets fail to
   load, the built-ins are still offered and a line says so
-  (`matchRoomPreset` in `src/lib/pomodoro/timer-presets.ts`).
+  (`matchRoomPreset` in `src/lib/pomodoro/timer-presets.ts`). If the house
+  presets an admin keeps fail to load, a muted line says "Pomoder presets
+  could not be loaded." and the rest of the window works.
 - **The dialog's three minute boxes are the shared ones**,
   `RhythmMinutesFields`, the same component the Settings card and a custom
   preset use. [Timer settings](timer-settings.md) has what they do. Two
@@ -162,15 +174,25 @@ is not logged in, that should link to the login page."
   nothing. The ids are now `room-focus`, `room-short` and `room-long`.
 - **Create room is pressable with a box empty.** The field keeps the last good
   number, so the press creates the room with that rather than going dead.
+- **The window opens clean every time.** Cancel, the X and Escape all close it
+  through one handler, which waits while a save is running. Whichever way it
+  closed, and after a room is made or booked, the next opening starts from the
+  defaults: no name, Public, Classic timers, no sound or background, Now, no
+  addresses and no red line (`HostRoomDialog` in
+  `src/components/pomodoro/rooms-page.tsx`).
+- **A problem is said once.** A missing sound or background is one red line
+  under the form. A bad booking time or address is drawn live under the form,
+  and pressing Book with it showing does nothing more, so the same sentence
+  never appears twice.
 - **Invite links** live at `/rooms/$slug` (the `rooms_` route file keeps
   it from nesting under the browse page — the old routing trap) with the
   old seven states: checking, failed, not found, closed, banned, already a
   member, locked mid-focus, joinable. The lookup endpoint works signed out
   (listed in `src/app/open-endpoints.ts`) and answers a status, a name,
-  a member count, and the room's sound and theme, which the page shows as
-  the scene's picture and the sound's name. Joining from an invite lands on
+  a member count, and the room's sound and background, which the page shows as
+  the background's picture and the sound's name. Joining from an invite lands on
   the front page, inside the room.
-- **Signing in brings you back.** Signed out, "Sign in" on `/rooms` and "Sign
+- **Logging in brings you back.** Signed out, "Log in" on `/rooms` and "Log
   in to join" on an invite carry `?redirect=` with the page you were on, so
   after signing in you are on Rooms or on that invite again, not the
   dashboard. Both are router links, so the press does not reload the app. The
@@ -181,10 +203,10 @@ is not logged in, that should link to the login page."
 - **The front page is the room you are in.** Tyler, 7 Oct 2026: "the index
   page will be replaced with the joined room." Joining, hosting, or opening an
   invite takes you to `/`, which draws the room's panel instead of the timer,
-  in the room's sound and theme (`HomeRoom` and `JoinedRoom`,
+  in the room's sound and background (`HomeRoom` and `JoinedRoom`,
   `src/components/pomodoro/home-room.tsx` and `active-room.tsx`). `/rooms`
   lights that room's column, with Open room. Leaving puts the timer
-  and your own pair back on `/`. The panel names the room's sound and theme;
+  and your own pair back on `/`. The panel names the room's sound and background;
   the host is pointed at Sounds and Backgrounds to change them.
 - **How the joined room is drawn**, from Tyler's design of 8 Oct 2026 ("revamp
   the room a user joined ui to look like this"), top to bottom:
@@ -193,7 +215,11 @@ is not logged in, that should link to the login page."
     "Waiting for Theo to start" for a member, or the host's Start focus /
     Start break and Next phase. A full-screen button sits under them, and
     under that "1 / 4 sessions" (Tyler, 9 Oct 2026: "move the sessions text
-    here").
+    here"). The full-screen button reads "Full screen" with an expand icon,
+    and "Exit full screen" with a shrink icon while the ring fills the screen.
+    It follows the browser's own state, so leaving with Escape flips it back
+    too. Its tooltip says the same words, but only outside full screen: a
+    tooltip draws outside the ring, and the browser shows nothing above it.
   - **The sound, just under the ring** (Tyler, 9 Oct 2026: "move the sound
     control just under the timer"), the same row as on the timer; see "The
     player sits under the clock" in [Sounds](sounds.md).
@@ -245,7 +271,7 @@ is not logged in, that should link to the login page."
   every change; the client reconnects on drop and recomputes the
   countdown locally from server timestamps, so the clock's up-to-15s
   advance lag never shows on the ring. Snapshots carry display names,
-  roles, chat bodies and the room's sound and theme — never emails or user
+  roles, chat bodies and the room's sound and background — never emails or user
   ids. A host changing the pair sends a snapshot like any other change. A viewer whose
   membership ends gets `room_gone`.
 - **A host leaving closes the room for everyone**; a member leaving only
@@ -353,7 +379,7 @@ Under the clock, the card for the room you are in (Tyler, 10 Oct 2026):
 - **The line under the name** says the phase, the session and the breaks,
   short: "Waiting to start · Session 1 of 4 · 5m short, 15m long breaks". The longer
   "5m breaks · 15m long break after session 4 · set by you" under the session
-  chips is gone, and the line no longer names the room's sound and theme.
+  chips is gone, and the line no longer names the room's sound and background.
 - **A cog after Close room** opens Room settings, for the host only: the
   Countdown before a focus (see "Starting in" below) and People in the room,
   from 2 to 50 or No limit (`rooms.max_people`, migration 0151). Each saves
@@ -397,9 +423,9 @@ while they're in the room".
 ## Shared files in a room
 
 A host can play their own shared file, or a shared file they saved, as the
-room's sound or theme (uploads-and-sharing task 04, 10 Oct 2026). Host a room
+room's sound or background (uploads-and-sharing task 04, 10 Oct 2026). Host a room
 lists them after the catalogue, and each snapshot resolves the file for its
 viewer with the owner's credit under the player and "Add this to mine" beside
 it. Once the file stops being shared, the room plays silence or the default
-scene for everybody within a second or two. See "Rooms" in
+background for everybody within a second or two. See "Rooms" in
 [Shared sounds and backgrounds](shared-media.md).

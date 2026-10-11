@@ -1,8 +1,7 @@
 import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
-import { AwardIcon, UndoIcon, XIcon } from "lucide-react"
+import { AwardIcon, UndoIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
@@ -11,6 +10,7 @@ import {
 } from "@/components/shared/dashboard-toolbar"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import { AdminListTable, AdminSelectCell, useAdminList } from "@/components/pomodoro/admin-list"
+import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -109,6 +109,14 @@ export function AdminAchievementsDashboard({
         onSort={toggleSort}
         trailing={<TableHead column="meta">Actions</TableHead>}
         selection={{ noun: "badges", rowIds, state: selection }}
+        filters={
+          userId ? (
+            <AdminPersonFilter
+              name={filteredMemberName}
+              onClear={() => setListSearch({ user: undefined, page: undefined })}
+            />
+          ) : undefined
+        }
         list={list}
         page={page}
         onPageChange={setPage}
@@ -120,18 +128,6 @@ export function AdminAchievementsDashboard({
               label="Revoke"
               icon={<UndoIcon className="size-4" />}
             />
-            {userId ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 gap-2"
-                onClick={() => setListSearch({ user: undefined, page: undefined })}
-              >
-                <XIcon className="size-4" />
-                {filteredMemberName ? `Only ${filteredMemberName}` : "One member only"}
-              </Button>
-            ) : null}
             <DashboardToolbarSearch
               name="achievement-search"
               aria-label="Search badges"

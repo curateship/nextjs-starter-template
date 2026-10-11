@@ -59,8 +59,8 @@ export function BackdropLookFields() {
         </div>
         <DimSlider id="backdrop-dim" className="max-w-sm" />
         <p className="text-sm text-muted-foreground">
-          Darkens the scene behind the timer so the numbers stay easy to read.
-          At 0% the scene shows as it is.
+          Darkens the background behind the timer so the numbers stay easy to
+          read. At 0% the background shows as it is.
         </p>
       </div>
       {authenticated ? (
@@ -76,7 +76,7 @@ export function BackdropLookFields() {
           </div>
           <p id="backdrop-drift-help" className="text-sm text-muted-foreground">
             A picture you uploaded zooms in very slowly and back, over a minute
-            each way. Films and the catalogue&apos;s scenes are left as they are,
+            each way. Films and the catalogue&apos;s backgrounds are left as they are,
             and so is everything when your device asks for less movement.
           </p>
         </div>

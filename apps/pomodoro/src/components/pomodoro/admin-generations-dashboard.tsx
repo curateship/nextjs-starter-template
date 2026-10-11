@@ -1,9 +1,8 @@
 import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
-import { SparklesIcon, XIcon } from "lucide-react"
+import { SparklesIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
@@ -12,6 +11,7 @@ import {
 } from "@/components/shared/dashboard-toolbar"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import { AdminListTable, AdminSelectCell, useAdminList } from "@/components/pomodoro/admin-list"
+import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -115,24 +115,20 @@ export function AdminGenerationsDashboard({
         onSort={toggleSort}
         trailing={<TableHead column="meta">Actions</TableHead>}
         selection={{ noun: "generations", rowIds, state: selection }}
+        filters={
+          userId ? (
+            <AdminPersonFilter
+              name={filteredOwner}
+              onClear={() => setListSearch({ user: undefined, page: undefined })}
+            />
+          ) : undefined
+        }
         list={list}
         page={page}
         onPageChange={setPage}
         controls={
           <>
             <AdminBulkDeleteButton del={del} ids={selectedIds} label="Delete files" />
-            {userId ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 gap-2"
-                onClick={() => setListSearch({ user: undefined, page: undefined })}
-              >
-                <XIcon className="size-4" />
-                {filteredOwner ? `Only ${filteredOwner}` : "One member only"}
-              </Button>
-            ) : null}
             <DashboardToolbarSearch
               name="generation-search"
               aria-label="Search generations"
@@ -229,7 +225,7 @@ export function AdminGenerationsDashboard({
       <AdminDeleteConfirm
         del={del}
         title={`Delete ${del.ids.length} ${plural(del.ids.length, "file", "files")}?`}
-        description="The file is removed from storage and from the member's picker. A room background using it goes back to the default scene, a room sound to silence. The request stays on this page with its prompt and result, marked File deleted. The credit is not given back, and the member is not told. This cannot be undone."
+        description="The file is removed from storage and from the member's picker. A room background using it goes back to the default background, a room sound to silence. The request stays on this page with its prompt and result, marked File deleted. The credit is not given back, and the member is not told. This cannot be undone."
         confirmLabel={plural(del.ids.length, "Delete file", "Delete files")}
       />
     </>

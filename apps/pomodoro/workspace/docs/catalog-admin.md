@@ -1,7 +1,7 @@
-# Themes and sounds in the admin
+# Backgrounds and sounds in the admin
 
-The themes and sounds members pick from live in the database, and an admin adds,
-edits, orders, prices, hides and deletes them on two admin pages, Themes and
+The backgrounds and sounds members pick from live in the database, and an admin adds,
+edits, orders, prices, hides and deletes them on two admin pages, Backgrounds and
 Sounds. A change reaches members on their next page load, with no deploy. Tyler
 asked for this on 8 Oct 2026: "Media should be in 2 dashboard, one for themes
 and one for sounds. Add ability to add sound and theme in admin dashboard
@@ -17,20 +17,20 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
   with the app run 44 to 53 seconds and were copied in as they were. They need
   longer versions before shuffle (`03-shuffle-tags-and-defaults.md`) ships.
 - **A Draft or deleted item falls back at once.** Tyler, 8 Oct 2026. Anybody
-  who had it in their personal room or a room gets the default scene (Lofi
+  who had it in their personal room or a room gets the default background (Lofi
   girl) or silence on their next load. Their saved choice is left as it was,
   so it comes back if the item is made Live again.
 
-- **A theme's still is never uploaded; it comes from the middle of its
+- **A background's still is never uploaded; it comes from the middle of its
   film.** Tyler, 9 Oct 2026: "remove the ability to add a still image and just
-  let the app capture an image in the middle of the clip". The theme window
+  let the app capture an image in the middle of the clip". The background window
   has no Still field. It shows the still the worker took, or "Taken from the
   middle of the film once it is prepared." Every new film brings a new still,
   and the old one leaves the bucket. The server ignores a still sent with a
-  theme save, so nothing but the worker sets it.
-- **Themes made before that rule caught up on their own.** Tyler, the same
+  background save, so nothing but the worker sets it.
+- **Backgrounds made before that rule caught up on their own.** Tyler, the same
   day: "lofi girl still shows old image". When the worker has no new file
-  waiting, it takes one theme whose film is in the bucket but whose still was
+  waiting, it takes one background whose film is in the bucket but whose still was
   not taken from the middle of it, and replaces the still with the film's
   middle frame. Nothing is re-encoded. A middle still is stored as
   `pomodoro-catalog/themes/middle-<id>.jpg`, which is how the worker tells it
@@ -47,12 +47,12 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
   window has no picture field for a sound. A sound goes Live with its file
   alone. The eight built-in graphics under `public/sounds/` were deleted.
   Older rows still hold their `picture_url`, which nothing reads for a sound
-  any more; the column stays because a theme's still lives in it.
+  any more; the column stays because a background's still lives in it.
 
 ## Where the list lives
 
 - **`pomodoro_catalog_items`**, migration `0123_pomodoro_catalog_items.sql`.
-  One row per theme or sound: name, hint, kind, Free or Pro, Draft or Live,
+  One row per background or sound: name, hint, kind, Free or Pro, Draft or Live,
   position, the file and the picture, credits, starting volume, and where the
   worker has got to with a new file.
 - **The sixteen built-in items** were copied in with the keys they always had,
@@ -68,13 +68,13 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
   `src/server/pomodoro/catalog.ts`), holds the answer for five seconds, and
   drops it the moment an admin saves anything.
 - **It travels with the room media bootstrap**, the same data that already
-  carries the theme and sound of the room you are in, so the server and the
+  carries the background and sound of the room you are in, so the server and the
   browser draw from the same list and the first frame is still right. A
   member's comes from `loadRoomMediaBootstrap`. A guest's comes from
   `loadGuestMediaBootstrap`, the one door here open without an account
   (`src/app/open-endpoints.ts`), which also picks the guest's random free pair.
 - **Pages read it with `useMediaCatalog()`** (`room-media-store.ts`): the
-  Sounds and Theme pages, the room pickers, the room cards, the invite page,
+  Sounds and Backgrounds pages, the room pickers, the room cards, the invite page,
   the profile banner picker and the plan cards' counts.
 - **A saved choice is filled in from the list.** `resolveSoundReference` and
   `resolveBackgroundReference` attach the file, the name and the volume, so
@@ -86,14 +86,14 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
 ## The two pages
 
 `/admin/pomodoro-themes` and `/admin/pomodoro-sounds`, one component
-(`admin-catalog-dashboard.tsx`). `/admin/pomodoro-media` forwards to Themes.
+(`admin-catalog-dashboard.tsx`). `/admin/pomodoro-media` forwards to Backgrounds.
 
 - **A row** shows the picture, the name, its kind, a sound's length, Free or
   Pro, a note while a new file is being prepared, or "File refused:" with the
   reason, "No licence set" on a Live item with none, Draft or Live, and how
   many personal rooms and open rooms have it.
 - **The name or the cog opens the window**, with `?open=<id>` in the address,
-  so Back closes it. New theme or New sound opens it with `?open=new`.
+  so Back closes it. New background or New sound opens it with `?open=new`.
 - **A sound row has a play button** that plays in the page only and stops when
   another plays.
 - **A tag filter** sits beside Draft or Live and Free or Pro once anything is
@@ -106,15 +106,15 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
   button back to members' order.
 - **Upload several** takes up to 25 files. Each becomes a Draft named after
   its file. On Sounds, a file outside 2 to 5 minutes is left out and counted.
-  On Themes, a picture becomes a still at once and a film is prepared by the
+  On Backgrounds, a picture becomes a still at once and a film is prepared by the
   worker.
 
 ## Import from Pixabay
 
 "Import from Pixabay" sits beside Upload several on both pages. On Sounds the
-button reads "Pixabay"; a screen reader hears "Import from Pixabay". On Themes
+button reads "Pixabay"; a screen reader hears "Import from Pixabay". On Backgrounds
 it is "Pixabay links" in the Import menu, which also holds "YouTube clip" (see
-[Make a theme from a YouTube clip](#make-a-theme-from-a-youtube-clip)). One
+[Make a background from a YouTube clip](#make-a-background-from-a-youtube-clip)). One
 button holding both keeps the toolbar on one line at 1440px. The admin
 pastes up to 25 pixabay.com page links, one per line, and each good link
 becomes a Draft with its name, source link and the licence "Free to use"
@@ -128,13 +128,13 @@ from pixabay."
   blocks. So a music or sound-effect link makes a Draft with the name, source
   link and licence, and nothing is ever fetched from pixabay.com for a sound.
   The admin downloads the MP3 from Pixabay and drops it in the sound's window.
-- **Which links each page takes.** Themes takes `/photos/` and
+- **Which links each page takes.** Backgrounds takes `/photos/` and
   `/illustrations/` (a still) and `/videos/` (a film). Sounds takes `/music/`
   (music) and `/sound-effects/` (ambient, because the rain and fire loops live
   there). `/vectors/` is refused on both. A language in front
   (`/de/photos/…`), `www.` and a query string are ignored.
 - **Each line's problem shows under the box as it is typed**: "Line 4 is not a
-  pixabay.com link.", "Line 2 is a photo, paste it on Themes.", "Line 3 is a
+  pixabay.com link.", "Line 2 is a photo, paste it on Backgrounds.", "Line 3 is a
   number, not the page link.", "Line 5 is a search, not one item.", "Line 6
   repeats line 1." Import sends only the good lines, and the server reads them
   again (`src/lib/pomodoro/pixabay-links.ts`, one reader for both).
@@ -146,12 +146,12 @@ from pixabay."
   kind, and refuses a repeat with "is already in the catalogue as Forest fog".
   Photos, films and sounds each count their own ids, so photo 28470 and film
   28470 are different items.
-- **The result line** copies Upload several: "18 themes added as drafts. 2
+- **The result line** copies Upload several: "18 backgrounds added as drafts. 2
   were refused: line 4 is not a pixabay.com link; line 9 is already in the
   catalogue as Forest fog." Sounds add "Each needs its file from Pixabay." With
   more than three refusals, or none added, the window stays open holding only
   the refused lines, each reason under the box, and the toast gives counts.
-- **Themes need the Pixabay API key**, saved on Settings → Pixabay (see
+- **Backgrounds need the Pixabay API key**, saved on Settings → Pixabay (see
   [Admin settings](admin-settings.md)). With none, the window opens and says
   "Add the Pixabay API key in Settings → Pixabay first." with a button there.
   Sounds never call Pixabay, so they need no key.
@@ -216,10 +216,10 @@ from Pixabay" meanwhile.
 - **Live is refused until the file is ready**, by the check every sound
   already has.
 
-## Make a theme from a YouTube clip
+## Make a background from a YouTube clip
 
-"YouTube clip" in the Import menu on Themes opens a window with a YouTube link
-and a "Start at" time. Create theme makes a Draft holding the 5 seconds from
+"YouTube clip" in the Import menu on Backgrounds opens a window with a YouTube link
+and a "Start at" time. Create background makes a Draft holding the 5 seconds from
 that start, with no sound. Tyler asked on 10 Oct 2026: "Is it possible to add a
 theme by enter in a youtube url and the app capture 5 seconds of that video and
 add it?"
@@ -250,7 +250,7 @@ add it?"
   `https://www.youtube.com/watch?v=<id>&t=<seconds>`, in both the source link
   and `import_url`. The same address again is refused under the link: "That
   stretch is already in the catalogue as Big Buck Bunny." Another start of the
-  same video is a different scene and is let through.
+  same video is a different background and is let through.
 - **One request, one Draft** (`importThemeFromYoutube` in
   `youtube-import.ts`), with one `catalog_import` audit row. At most 20 clips
   per admin in ten minutes, the same as Pixabay.
@@ -316,12 +316,12 @@ queue (`link-imports.ts`).
   Making something Pro does not take it from a free member who already has it;
   it is checked the next time they pick.
 - **Files.** For a sound, the card picture (the shared image field and media
-  library), then the sound file. For a theme, its still, shown and never
+  library), then the sound file. For a background, its still, shown and never
   chosen, then its film. A file is uploaded the moment it is chosen and
   prepared after Save. A sound has a starting volume from 10 to 100,
-  multiplied into each member's own volume. A theme's film can be replaced but
+  multiplied into each member's own volume. A background's film can be replaced but
   not dropped, because the still comes from it.
-  A theme with a film shows a player under "Film" (the browser's own, as the
+  A background with a film shows a player under "Film" (the browser's own, as the
   media library uses), the same size as the still, so the admin can watch the
   film members get before making it Live. While a new film is being prepared
   the player still plays the current one.
@@ -335,8 +335,8 @@ the built-in files under `public/` never are.
 Going Live needs a picture, and for a sound a file (or one on its way). A
 sound always has a picture, because one of the built-in graphics is picked
 when none is given. A
-theme gets its still from the middle of its film once the worker has prepared
-it, so a new theme can be saved Live while its film is on the way.
+background gets its still from the middle of its film once the worker has prepared
+it, so a new background can be saved Live while its film is on the way.
 
 ## Copied from a member's shared file
 
@@ -344,7 +344,7 @@ Member uploads has "Add to catalogue" in a shared file's sharing menu
 (uploads-and-sharing task 05, part 7). It copies the file into the catalogue
 as a Draft, with the file's name and tags, the artist "@handle", the file's
 page as the source and the licence "other" with a note that the member
-confirmed the right to share it. The theme or sound window then opens on it.
+confirmed the right to share it. The background or sound window then opens on it.
 The copy goes through the worker below like any upload, so a sound outside 2
 to 5 minutes is refused with the usual sentence.
 
@@ -369,7 +369,7 @@ holds theirs back.
 
 ## The NEW label
 
-A theme or sound made Live in the last 14 days shows NEW beside its name on the
+A background or sound made Live in the last 14 days shows NEW beside its name on the
 member pages, in the same orange capitals as PRO. The days count from when it
 first went Live (`published_at`), not from when it was made as a Draft or last
 edited. The built-in items carry a 1 Jan 2026 date, so they never show it.

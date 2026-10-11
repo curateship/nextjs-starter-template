@@ -226,7 +226,7 @@ appear as buttons while you type. Tyler set the cap at three on 7 Oct 2026.
   tasks carry it. Deleting it takes the label off those tasks and leaves the
   tasks alone, and History stops offering it as a filter. The member is not
   told. One `pomodoro_audit_logs` row per press, resource `task_tags`. These
-  are task tags, not the theme and sound tags on the Themes and Sounds pages.
+  are task tags, not the background and sound tags on the Backgrounds and Sounds pages.
 
 The tables are `pomodoro_tags` and the join `pomodoro_task_tags`; the logic is
 `src/server/pomodoro/task-tags.ts`, and the admin list is

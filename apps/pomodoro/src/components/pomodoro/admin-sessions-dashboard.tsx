@@ -1,6 +1,6 @@
 import * as React from "react"
 import { getRouteApi, Link } from "@tanstack/react-router"
-import { ListChecksIcon, TimerIcon, XIcon } from "lucide-react"
+import { ListChecksIcon, TimerIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,7 @@ import {
   AdminListTable,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
 import { MemberName } from "@/components/pomodoro/admin-member-name"
 import {
   AdminBulkDeleteButton,
@@ -165,28 +166,20 @@ export function AdminSessionsDashboard({
         onSort={toggleSort}
         trailing={<TableHead column="meta">Actions</TableHead>}
         selection={{ noun: "sessions", rowIds, state: selection }}
+        filters={
+          userId ? (
+            <AdminPersonFilter
+              name={filteredMemberName}
+              onClear={() => setListSearch({ user: undefined, page: undefined })}
+            />
+          ) : undefined
+        }
         list={list}
         page={page}
         onPageChange={setPage}
         controls={
           <>
             <AdminBulkDeleteButton del={del} ids={selectedIds} />
-            {userId ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 gap-2"
-                onClick={() =>
-                  setListSearch({ user: undefined, page: undefined })
-                }
-              >
-                <XIcon className="size-4" />
-                {filteredMemberName
-                  ? `Only ${filteredMemberName}`
-                  : "One member only"}
-              </Button>
-            ) : null}
             <DashboardToolbarSearch
               name="session-search"
               aria-label="Search sessions"

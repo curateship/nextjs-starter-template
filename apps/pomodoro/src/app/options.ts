@@ -252,7 +252,7 @@ export const appOptions: AppOptions = {
       },
       {
         id: POMODORO_SETTINGS_TABS.media,
-        label: "Themes and sounds",
+        label: "Backgrounds and sounds",
         panel: () => settingsTab("MediaSettingsTab"),
       },
       {

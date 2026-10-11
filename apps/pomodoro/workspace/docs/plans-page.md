@@ -2,7 +2,7 @@
 
 `/plans` is what the product's Pricing link opens: the old app's pricing
 screen, drawn inside the product shell with the sidebar, the header and the
-scene behind it, like every other member screen.
+background behind it, like every other member screen.
 
 The shell also has a pricing page, at `/pricing`. Nothing in the product links
 to it. The two are explained under "Why there are two" below.
@@ -13,7 +13,7 @@ Drawn to Tyler's design of 7 Oct 2026
 (`assets/pasted-image-1791403503197534000.png`).
 
 - **A headline over the hero:** "Focus longer, together." and "The timer,
-  tasks and rooms are free. Pro unlocks every sound and scene, AI mixes,
+  tasks and rooms are free. Pro unlocks every sound and background, AI mixes,
   hosting and your full history." Both lines sit on the left edge, in line
   with the cards, at the same size as every other page's title (36px, with
   the line under it at the body size). The "Paid plans can't be bought just
@@ -68,7 +68,7 @@ The yearly card's figures are worked out from the real prices:
 - **Anything else on the plan's feature record** ("Priority support") follows
   the app's own lines, worded the shell's way.
 - **The sound and background counts come from the catalogues**, so adding a
-  scene changes the card without anyone editing it.
+  background changes the card without anyone editing it.
 
 ## What each button does
 

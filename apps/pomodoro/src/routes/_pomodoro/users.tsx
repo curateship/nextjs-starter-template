@@ -54,6 +54,7 @@ export const Route = createFileRoute("/_pomodoro/users")({
   errorComponent: routeErrorComponent(
     () => "The directory could not be loaded. Reload to try again."
   ),
+  head: () => ({ meta: [{ title: "Users — Pomoder" }] }),
   component: UsersRoute,
 })
 

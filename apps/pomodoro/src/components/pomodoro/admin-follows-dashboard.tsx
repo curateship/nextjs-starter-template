@@ -1,20 +1,18 @@
 import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
-import { HeartHandshakeIcon, PartyPopperIcon, UserPlusIcon, XIcon } from "lucide-react"
+import { HeartHandshakeIcon, PartyPopperIcon, UserPlusIcon } from "lucide-react"
 
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DashboardCardHeaderIcon } from "@/components/shared/dashboard-card-header"
-import {
-  DashboardToolbarButton,
-  DashboardToolbarSearch,
-} from "@/components/shared/dashboard-toolbar"
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import {
   AdminListTable,
   AdminSelectCell,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -176,22 +174,20 @@ function FollowsTable({
         onSort={toggleSort}
         trailing={<TableHead column="meta">Actions</TableHead>}
         selection={{ noun: many, rowIds, state: selection }}
+        filters={
+          userId ? (
+            <AdminPersonFilter
+              name={filteredName}
+              onClear={() => setListSearch({ user: undefined, page: undefined })}
+            />
+          ) : undefined
+        }
         list={list}
         page={page}
         onPageChange={setPage}
         controls={
           <>
             <AdminBulkDeleteButton del={del} ids={selectedIds} />
-            {userId ? (
-              <DashboardToolbarButton
-                type="button"
-                variant="outline"
-                onClick={() => setListSearch({ user: undefined, page: undefined })}
-              >
-                <XIcon className="size-4" />
-                {filteredName ? `Only ${filteredName}` : "One member only"}
-              </DashboardToolbarButton>
-            ) : null}
             <DashboardToolbarSearch
               name="follows-search"
               aria-label={`Search ${many}`}

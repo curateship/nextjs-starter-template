@@ -407,7 +407,7 @@ export function OpenRoomCard({
               ))}
             </span>
           ) : null}
-          {memberCount} focusing
+          {memberCount} in the room
         </p>
         <div className="mt-2 flex items-center justify-between gap-3">
           <span className="text-[15px] text-[rgba(var(--p-text-rgb),0.6)]">

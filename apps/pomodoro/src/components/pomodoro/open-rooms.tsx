@@ -3,7 +3,9 @@ import { Link } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { InlineError } from "@/components/ui/inline-error"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { enterRoomFromSnapshot } from "@/components/pomodoro/active-room"
 import { OpenRoomCard, RoomGroupEmpty } from "@/components/pomodoro/room-card"
 import { joinRoom, listRooms, listRoomsForGuest } from "@/lib/api/pomodoro/rooms"
@@ -37,6 +39,8 @@ export function OpenRoomsSection({
   onJoin,
   className,
   loginRedirect,
+  loadFailed = false,
+  onRetry,
 }: {
   /**
    * Set for a logged-out visitor: every card is a link to the login page,
@@ -47,7 +51,15 @@ export function OpenRoomsSection({
   loginRedirect?: string
   /** Browse open rooms on `/rooms` scrolls here. */
   sectionRef?: React.Ref<HTMLElement>
-  rooms: readonly OpenRoomRow[]
+  /**
+   * Null until the first read answers. Until then the group shows a loading
+   * row, or the failure with Try again, never "No rooms here yet.", which
+   * would claim there are none before anybody asked.
+   */
+  rooms: readonly OpenRoomRow[] | null
+  /** The first read failed. Ignored once a list has loaded. */
+  loadFailed?: boolean
+  onRetry?: () => void
   /** The room a join is in flight for; every Join waits while one is. */
   joiningSlug: string
   /** Why the last join was refused, drawn on that room's own card. */
@@ -62,6 +74,7 @@ export function OpenRoomsSection({
   // countdown ends, so a finished one leaves Starting soon on time.
   const [now, setNow] = React.useState<number | null>(null)
   React.useEffect(() => {
+    if (!rooms) return
     const ends =
       now === null
         ? []
@@ -76,6 +89,21 @@ export function OpenRoomsSection({
   // The three soonest only. Tyler, 9 Oct 2026: "Only 3 starting in.. shows".
   // Any other room counting down stays under Open to join, its card saying
   // "starting in".
+  if (!rooms)
+    return (
+      <section
+        ref={sectionRef}
+        aria-label="Rooms to join"
+        className={`flex scroll-mt-6 flex-col gap-5 ${className ?? ""}`}
+      >
+        <h3 className="text-3xl font-bold tracking-tight">Open to join</h3>
+        {loadFailed ? (
+          <ErrorRow message="Rooms could not be loaded." onRetry={onRetry} />
+        ) : (
+          <LoadingRow label="Loading rooms…" />
+        )}
+      </section>
+    )
   const soon = rooms
     .filter(({ room }) => now !== null && isStartingSoon(room, now))
     .sort((a, b) => new Date(a.room.startingAt ?? 0).getTime() - new Date(b.room.startingAt ?? 0).getTime())
@@ -192,25 +220,32 @@ export function OpenRoomsSection({
 export function HomeOpenRooms({ className }: { className?: string }) {
   const { known, authenticated } = useProductAuth()
   const [rooms, setRooms] = React.useState<OpenRoomRow[] | null>(null)
+  const [failed, setFailed] = React.useState(false)
+  // Bumped by Try again, which reads at once rather than waiting a minute.
+  const [attempt, setAttempt] = React.useState(0)
   const [joiningSlug, setJoiningSlug] = React.useState("")
   const [joinProblem, setJoinProblem] = React.useState<JoinProblem>(null)
   const joiningRef = React.useRef("")
   const pageVisible = usePageVisible()
 
   // Read on arrival and every minute while the tab is on screen, quietly: a
-  // failed read keeps the cards already showing. A logged-out visitor gets
-  // the guest list, with no account names in it.
+  // failed read keeps the cards already showing, and only a failure before
+  // any list arrived is drawn. A logged-out visitor gets the guest list, with
+  // no account names in it.
   React.useEffect(() => {
     if (!known || !pageVisible) return
     const read = () =>
       void (authenticated ? listRooms() : listRoomsForGuest()).then(
-        (rows) => setRooms(rows.filter(({ room }) => room.phase !== "focus")),
-        () => setRooms((current) => current ?? [])
+        (rows) => {
+          setFailed(false)
+          setRooms(rows.filter(({ room }) => room.phase !== "focus"))
+        },
+        () => setFailed(true)
       )
     read()
     const interval = window.setInterval(read, 60_000)
     return () => window.clearInterval(interval)
-  }, [known, authenticated, pageVisible])
+  }, [known, authenticated, pageVisible, attempt])
 
   const join = async (slug: string) => {
     if (joiningRef.current) return
@@ -230,11 +265,17 @@ export function HomeOpenRooms({ className }: { className?: string }) {
     }
   }
 
-  if (!known || rooms === null) return null
+  if (!known) return null
   return (
     <OpenRoomsSection
       className={className}
       rooms={rooms}
+      loadFailed={failed}
+      onRetry={() => {
+        dismissErrorToast()
+        setFailed(false)
+        setAttempt((count) => count + 1)
+      }}
       joiningSlug={joiningSlug}
       joinProblem={joinProblem}
       onJoin={(slug) => void join(slug)}

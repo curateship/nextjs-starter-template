@@ -48,7 +48,6 @@ import {
 } from "@/components/pomodoro/admin-delete"
 import {
   deletePomodoroRooms,
-  getPomodoroAdminErrorMessage,
   listPomodoroRooms,
   previewPomodoroRoomDeletion,
   type AdminRoomRow,
@@ -197,27 +196,30 @@ export function AdminRoomsDashboard({
     [navigate]
   )
 
-  const [featuring, setFeaturing] = React.useState(false)
+  // Which of Feature and Unfeature is running, so only the pressed one spins.
+  const [featuring, setFeaturing] = React.useState<"feature" | "unfeature" | null>(null)
+  // One running action holds every other button on the list until it ends.
+  const busy = featuring !== null || del.deleting || close.deleting
   const feature = async (featured: boolean) => {
-    setFeaturing(true)
+    setFeaturing(featured ? "feature" : "unfeature")
     try {
       const { changed, same } = await featurePomodoroRooms(selectedIds, featured)
-      toast.success(
-        describeBulkResult({
-          done: changed.length,
-          same: same.length,
-          kept: 0,
-          one: "room",
-          many: "rooms",
-          verb: featured ? "featured" : "unfeatured",
-        })
-      )
+      const line = describeBulkResult({
+        done: changed.length,
+        same: same.length,
+        kept: 0,
+        one: "room",
+        many: "rooms",
+        verb: featured ? "featured" : "unfeatured",
+      })
+      if (changed.length) toast.success(line)
+      else showErrorToast(line)
       selection.clear()
       await list.refresh()
     } catch (error) {
       showErrorToast(getRoomsAdminErrorMessage(error))
     } finally {
-      setFeaturing(false)
+      setFeaturing(null)
     }
   }
 
@@ -238,31 +240,40 @@ export function AdminRoomsDashboard({
         onPageChange={setPage}
         controls={
           <>
-            <AdminBulkDeleteButton del={del} ids={selectedIds} />
+            <AdminBulkDeleteButton del={del} ids={selectedIds} busy={busy} />
             <AdminBulkDeleteButton
               del={close}
               ids={openIds}
               label="Close"
               icon={<DoorClosedIcon className="size-4" />}
+              busy={busy}
             />
             {selectedIds.length ? (
               <>
                 <DashboardToolbarButton
                   type="button"
                   variant="outline"
-                  disabled={featuring}
+                  disabled={busy}
                   onClick={() => void feature(true)}
                 >
-                  <StarIcon className="size-4" />
+                  {featuring === "feature" ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <StarIcon className="size-4" />
+                  )}
                   Feature
                 </DashboardToolbarButton>
                 <DashboardToolbarButton
                   type="button"
                   variant="outline"
-                  disabled={featuring}
+                  disabled={busy}
                   onClick={() => void feature(false)}
                 >
-                  <StarOffIcon className="size-4" />
+                  {featuring === "unfeature" ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <StarOffIcon className="size-4" />
+                  )}
                   Unfeature
                 </DashboardToolbarButton>
               </>
@@ -383,6 +394,7 @@ export function AdminRoomsDashboard({
                     id={row.id}
                     label={`Close ${row.name}`}
                     icon={<DoorClosedIcon className="size-4" />}
+                    busy={busy}
                   />
                   <Button
                     type="button"
@@ -399,6 +411,7 @@ export function AdminRoomsDashboard({
                 del={del}
                 id={row.id}
                 label={`Delete ${row.name}`}
+                busy={busy}
               />
             </TableCell>
           </TableRow>
@@ -444,7 +457,9 @@ function RoomDeletionSummary({ ids }: { ids: string[] }) {
     reports: number
     inRoom: number
   } | null>(null)
-  const [failed, setFailed] = React.useState<string | null>(null)
+  // The selection whose count failed, like `counts.for`, so a failure belongs
+  // to that one window and the next selection is counted afresh.
+  const [failedFor, setFailedFor] = React.useState<string | null>(null)
   const key = ids.join(",")
 
   React.useEffect(() => {
@@ -454,8 +469,8 @@ function RoomDeletionSummary({ ids }: { ids: string[] }) {
       (result) => {
         if (live) setCounts({ for: key, ...result })
       },
-      (error) => {
-        if (live) setFailed(getPomodoroAdminErrorMessage(error))
+      () => {
+        if (live) setFailedFor(key)
       }
     )
     return () => {
@@ -465,7 +480,10 @@ function RoomDeletionSummary({ ids }: { ids: string[] }) {
 
   const rooms = plural(ids.length, "This room", `These ${ids.length} rooms`)
   const kept = `Focus sessions people ran in ${ids.length === 1 ? "it" : "them"} are kept. This cannot be undone.`
-  if (failed) return <>{`${rooms} and their chat will be deleted. ${kept}`}</>
+  if (failedFor === key)
+    return (
+      <>{`${rooms} and their chat will be deleted. What goes with ${ids.length === 1 ? "it" : "them"} could not be counted. ${kept}`}</>
+    )
   if (!counts || counts.for !== key) {
     return (
       <span className="inline-flex items-center gap-2">

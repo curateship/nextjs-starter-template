@@ -455,7 +455,7 @@ function UploadActions({
   const reason = !known
     ? null
     : !signedIn
-      ? "Sign in on a Pro plan to put your own backgrounds and sounds here."
+      ? "Log in on a Pro plan to put your own backgrounds and sounds here."
       : locked
         ? PRO_PERKS.uploadMedia.lockedReason
         : fullReason

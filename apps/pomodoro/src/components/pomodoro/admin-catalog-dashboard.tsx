@@ -139,7 +139,7 @@ const WORDS: Record<
   CatalogKind,
   { title: string; one: string; many: string; create: string }
 > = {
-  theme: { title: "Themes", one: "theme", many: "themes", create: "New theme" },
+  theme: { title: "Backgrounds", one: "background", many: "backgrounds", create: "New background" },
   sound: { title: "Sounds", one: "sound", many: "sounds", create: "New sound" },
 }
 
@@ -259,6 +259,8 @@ export function AdminCatalogDashboard({
   const asked = list.rows.filter((row) => del.ids.includes(row.id))
 
   const [bulkBusy, setBulkBusy] = React.useState<BulkAction | "upload" | null>(null)
+  // One running action holds every other button on the list until it ends.
+  const busy = bulkBusy !== null || del.deleting
   const runBulk = async (action: BulkAction) => {
     setBulkBusy(action)
     try {
@@ -387,32 +389,36 @@ export function AdminCatalogDashboard({
           <>
             {selectedIds.length ? (
               <>
-                <AdminBulkDeleteButton del={del} ids={selectedIds} />
+                <AdminBulkDeleteButton del={del} ids={selectedIds} busy={busy} />
                 <BulkButton
                   icon={<LockOpenIcon className="size-4" />}
                   label="Free"
-                  busy={bulkBusy}
+                  running={bulkBusy}
+                  disabled={busy}
                   action="free"
                   onClick={() => void runBulk("free")}
                 />
                 <BulkButton
                   icon={<LockIcon className="size-4" />}
                   label="Pro"
-                  busy={bulkBusy}
+                  running={bulkBusy}
+                  disabled={busy}
                   action="pro"
                   onClick={() => void runBulk("pro")}
                 />
                 <BulkButton
                   icon={<EyeOffIcon className="size-4" />}
                   label="Draft"
-                  busy={bulkBusy}
+                  running={bulkBusy}
+                  disabled={busy}
                   action="draft"
                   onClick={() => void runBulk("draft")}
                 />
                 <BulkButton
                   icon={<EyeIcon className="size-4" />}
                   label="Live"
-                  busy={bulkBusy}
+                  running={bulkBusy}
+                  disabled={busy}
                   action="live"
                   onClick={() => void runBulk("live")}
                 />
@@ -500,7 +506,7 @@ export function AdminCatalogDashboard({
             <DashboardToolbarButton
               type="button"
               variant="outline"
-              disabled={bulkBusy === "upload"}
+              disabled={busy}
               onClick={() => bulkInputRef.current?.click()}
             >
               {bulkBusy === "upload" ? (
@@ -562,6 +568,7 @@ export function AdminCatalogDashboard({
               selection={selection}
               onOpen={() => setOpen(row.id)}
               del={del}
+              busy={busy}
               preview={preview}
             />
           ))}
@@ -631,7 +638,7 @@ export function AdminCatalogDashboard({
 function describeDeletion(rows: AdminCatalogRow[], one: string) {
   const people = rows.reduce((sum, row) => sum + row.personalCount, 0)
   const openRooms = rows.reduce((sum, row) => sum + row.roomCount, 0)
-  const fallback = one === "sound" ? "silence" : "the default scene, Lofi girl"
+  const fallback = one === "sound" ? "silence" : "the default background, Lofi girl"
   const using =
     people || openRooms
       ? `${people} ${plural(people, "person has", "people have")} it in their personal room and ${openRooms} open ${plural(openRooms, "room uses", "rooms use")} it. They get ${fallback} instead.`
@@ -646,6 +653,7 @@ function CatalogRow({
   selection,
   onOpen,
   del,
+  busy,
   preview,
 }: {
   kind: CatalogKind
@@ -654,6 +662,8 @@ function CatalogRow({
   selection: ReturnType<typeof useSelection>
   onOpen: () => void
   del: ReturnType<typeof useAdminDelete>
+  /** Any action on the list is running. */
+  busy: boolean
   preview: ReturnType<typeof usePreviewAudio>
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -775,7 +785,7 @@ function CatalogRow({
         >
           <SettingsIcon className="size-4" />
         </Button>
-        <AdminRowDeleteButton del={del} id={row.id} label={`Delete ${row.label}`} />
+        <AdminRowDeleteButton del={del} id={row.id} label={`Delete ${row.label}`} busy={busy} />
       </TableCell>
     </TableRow>
   )
@@ -799,23 +809,26 @@ function BulkButton({
   icon,
   label,
   action,
-  busy,
+  running,
+  disabled,
   onClick,
 }: {
   icon: React.ReactNode
   label: string
   action: BulkAction
-  busy: BulkAction | "upload" | null
+  /** The toolbar action waiting on the server; only its own button spins. */
+  running: BulkAction | "upload" | null
+  disabled: boolean
   onClick: () => void
 }) {
   return (
     <DashboardToolbarButton
       type="button"
       variant="outline"
-      disabled={busy !== null}
+      disabled={disabled}
       onClick={onClick}
     >
-      {busy === action ? <Loader2Icon className="size-4 animate-spin" /> : icon}
+      {running === action ? <Loader2Icon className="size-4 animate-spin" /> : icon}
       {label}
     </DashboardToolbarButton>
   )

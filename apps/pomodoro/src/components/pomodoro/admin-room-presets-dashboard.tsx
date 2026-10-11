@@ -127,7 +127,7 @@ export function AdminRoomPresetsDashboard({
                 {row.focusMinutes} · {row.shortBreakMinutes} · {row.longBreakMinutes} min
                 {row.autoStart ? " · auto" : ""}
                 {row.sound ? ` · ${soundLabelFor(catalog, row.sound) ?? "a sound that is gone"}` : ""}
-                {row.background ? ` · ${themeLabelFor(catalog, row.background) ?? "a theme that is gone"}` : ""}
+                {row.background ? ` · ${themeLabelFor(catalog, row.background) ?? "a background that is gone"}` : ""}
               </span>
             </TableCell>
             <TableCell column="actions">

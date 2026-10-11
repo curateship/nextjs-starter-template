@@ -1,6 +1,6 @@
 # The personal room
 
-Every page shows the sound and theme of the room you are in. Signed in,
+Every page shows the sound and background of the room you are in. Signed in,
 that's your personal room unless you have joined or opened a hosted room.
 Then it is the pair the host picked, until you leave.
 
@@ -21,7 +21,7 @@ Then it is the pair the host picked, until you leave.
 ## What a personal room is
 
 - **Every account has exactly one.** It is a row in `pomodoro_personal_rooms`
-  holding a sound and a theme (`src/server/pomodoro/schema.ts`). Accounts that
+  holding a sound and a background (`src/server/pomodoro/schema.ts`). Accounts that
   existed on 7 Oct 2026 got theirs from migration
   `0122_pomodoro_personal_rooms.sql`, filled from the pair they had already
   picked. Any later account gets one the first time it is read
@@ -34,12 +34,12 @@ Then it is the pair the host picked, until you leave.
 - **It is what `/` and `/timer` show** when you are in no hosted room: the
   timer (`HomeRoom` in `src/components/pomodoro/home-room.tsx`).
 - **Silence is saved as `none`.** The player's "Turn sound off" saved it until
-  Tyler removed that button on 9 Oct 2026; rows saved that way still read it. An empty sound or theme means the member never picked, and gets the
+  Tyler removed that button on 9 Oct 2026; rows saved that way still read it. An empty sound or background means the member never picked, and gets the
   admin's pair: shuffle when that switch is on, otherwise the default sound and
-  theme, otherwise silence and Lofi girl. See [Admin settings](admin-settings.md).
+  background, otherwise silence and Lofi girl. See [Admin settings](admin-settings.md).
   Silence was saved as empty before 8 Oct 2026, so those rows now count as never
   picked.
-- **A sound or theme can be a group**, shuffle or some tags; see
+- **A sound or background can be a group**, shuffle or some tags; see
   [Shuffle and tags](shuffle-and-tags.md).
 - **The old columns stay.** `user_preferences.selected_sound` and
   `selected_background` are no longer written. They are kept because stored
@@ -49,7 +49,7 @@ Then it is the pair the host picked, until you leave.
 
 - **The room's pair replaces yours while you are in it.** Joining, hosting,
   or opening an invite link switches the backdrop, Zen mode and the header's
-  player to the room's sound and theme. Leaving, being removed, or the room
+  player to the room's sound and background. Leaving, being removed, or the room
   closing puts your own pair back. The room never writes over your personal
   room.
 - **The front page becomes the room.** See [Focus rooms](rooms.md).
@@ -65,11 +65,11 @@ Then it is the pair the host picked, until you leave.
   work. The power button is hidden in a hosted room, because taking the sound
   away is the host's to do.
 - **Pro items play for everyone.** A free member hears and sees the Pro sound
-  or scene a Pro host picked. The lock still holds for their own room.
+  or background a Pro host picked. The lock still holds for their own room.
 
 ## Guests
 
-- **A guest gets a random free sound and theme on every visit.** The page's
+- **A guest gets a random free sound and background on every visit.** The page's
   loader picks them (`guestMediaBootstrap` in `src/lib/pomodoro/media-pair.ts`),
   so the server draws the same pair the browser then holds and nothing swaps
   on the first frame.
@@ -85,8 +85,8 @@ Then it is the pair the host picked, until you leave.
   so it can't fight the timer's Start. One preview plays at a time, and a
   second click or leaving the page stops it. Hovering plays nothing
   (Tyler, 10 Oct 2026). See [Sounds](sounds.md).
-- **Hovering over a theme on Backgrounds plays it inside its card.** The page
-  behind never changes until a theme is added. Tyler swapped the preview
+- **Hovering over a background on Backgrounds plays it inside its card.** The
+  page behind never changes until a background is added. Tyler swapped the preview
   popover for this on 9 Oct 2026. See [Backgrounds](backgrounds.md).
 - **The Add choices sit behind the "+" in each card's bottom-right corner**
   (`MediaAddMenu` in `src/components/pomodoro/media-add-actions.tsx`). The tags
@@ -101,17 +101,17 @@ Then it is the pair the host picked, until you leave.
   over its picture, and outlined in orange. Tyler asked for the label on
   7 Oct 2026. Sounds, Backgrounds and your own uploads all carry it
   (`CurrentlySelectedLabel` in `media-add-actions.tsx`).
-- **The header's Theme pill no longer picks anything.** It says whose room the
+- **The header's Background pill no longer picks anything.** It says whose room the
   pair belongs to and links to Sounds and Backgrounds.
 
 ## A hosted room takes catalogue items and shared files
 
-Host a room asks for a sound and a theme, and both are required. They come
-from the Live sounds and scenes in the catalogue, a shuffle or tags group, or
+Host a room asks for a sound and a background, and both are required. They come
+from the Live sounds and backgrounds in the catalogue, a shuffle or tags group, or
 a shared file: the host's own shared file, or a shared file the host saved
 (uploads-and-sharing task 04, 10 Oct 2026). A file nobody chose to share is
 still never shown to whoever joins, which is why private uploads stay out. A
-shared file that stops being shared falls back to the default scene or to
+shared file that stops being shared falls back to the default background or to
 silence for everybody in the room. See "Rooms" in
 [Shared sounds and backgrounds](shared-media.md).
 
@@ -123,8 +123,8 @@ silence for everybody in the room. See "Rooms" in
   (`src/lib/api/pomodoro/personal-room.ts`).
 - **The browser takes that answer into one store** before its first render
   (`src/lib/pomodoro/room-media-store.ts`). Every reader works out what to draw
-  from that store: the backdrop, Zen mode, the Theme pill, both pages and the
+  from that store: the backdrop, Zen mode, the Background pill, both pages and the
   player under the clock. The sound engine follows the store through `followSound`
   and keeps only volume, mute, the alerts and the chimes of its own.
-- **A failed read draws the default scene with no sound**, and the next page
+- **A failed read draws the default background with no sound**, and the next page
   load asks again.

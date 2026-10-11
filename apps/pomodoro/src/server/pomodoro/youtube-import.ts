@@ -10,9 +10,9 @@ import {
 } from "@/lib/pomodoro/youtube-links"
 
 /**
- * "Make a theme from a YouTube clip": one Draft theme that waits for the
+ * "Make a background from a YouTube clip": one Draft theme that waits for the
  * `pomodoro-youtube-imports` worker with `import_url` set
- * (`youtube-worker.ts`). See "Make a theme from a YouTube clip" in
+ * (`youtube-worker.ts`). See "Make a background from a YouTube clip" in
  * `workspace/docs/catalog-admin.md`. Admins only (Tyler, 10 Oct 2026).
  *
  * The licence is "other", never "free": a YouTube video belongs to whoever

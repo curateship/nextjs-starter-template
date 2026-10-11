@@ -1,6 +1,6 @@
 # Shuffle and tags
 
-A member can pick a group of sounds or themes instead of one: some tags, or
+A member can pick a group of sounds or backgrounds instead of one: some tags, or
 shuffle. Something from the group plays at once, and the next one comes when the
 sound ends. The idea is Tyler's own, from 8 Oct 2026.
 
@@ -8,14 +8,14 @@ sound ends. The idea is Tyler's own, from 8 Oct 2026.
 
 - **"Add in app settings to checkbox shuffling sounds and themes for anon users
   and users that have not set their own custom themes and sounds."** The switch
-  is on Settings → Themes and sounds; see [Admin settings](admin-settings.md).
+  is on Settings → Backgrounds and sounds; see [Admin settings](admin-settings.md).
 - **"Add tag ability to sounds and themes and let user select tags as default
   first tab with another tab to select individual sound and theme. User can also
   select shuffle for both."** The tabs part was replaced on 9 Oct 2026 by the
   filter below; the tags and shuffle stay.
 - **The next one comes when the sound ends.** Tyler: "It should change when the
   sound ends and because of that, we have to make each sound 2-5 mins each." The
-  theme changes at the same moment as the sound.
+  background changes at the same moment as the sound.
 - **"Shuffle is on automatically for all users until they choose a song or
   theme."** Tyler, 9 Oct 2026. The admin switch above now starts on, so a guest
   and a member who has never picked hear shuffle from their first visit.
@@ -31,7 +31,7 @@ sound ends. The idea is Tyler's own, from 8 Oct 2026.
 
 ## The pages
 
-The Sounds and Theme pages show one grid of cards. Beside the title sit two
+The Sounds and Backgrounds pages show one grid of cards. Beside the title sit two
 round pills, the tag filter and Shuffle (`media-pool-panel.tsx`), drawn with the
 Leaderboard's pill classes (`src/lib/pomodoro/pill-tabs.ts`). Tyler, 9 Oct
 2026: "should match the button like the leaderboard". With nothing tagged, the
@@ -58,9 +58,9 @@ filter is not drawn and only Shuffle shows.
   ticked tags, or everything with every tag ticked. Off, the one playing now
   stays as your pick.
 - **The header player shows a Next button** while the sound is a group. It moves
-  the sound on, and the theme too when the theme is a group.
+  the sound on, and the background too when the background is a group.
 - **Hosting a room** offers "Shuffle every sound" and "Only <tag> sounds" above
-  the single sounds, and the same for themes. The pages no longer put a group of
+  the single sounds, and the same for backgrounds. The pages no longer put a group of
   tags in a hosted room; the room's own picker does.
 
 ## Your own files join by their tags
@@ -125,24 +125,24 @@ has not picked a sound since.
   already right (`firstPicks` in `media-pair.ts`).
 - **The player says when the sound is about to end**, a moment before, so the
   next one crossfades in (`onCycleEnding` in `sound-fade.ts`). The room media
-  store then picks the next sound and theme of every group on screen
+  store then picks the next sound and background of every group on screen
   (`playNextFromPools`). It never repeats the same item twice in a row while
   there is another.
-- **A theme group with a single sound** changes each time that sound comes round
-  to its start again. A theme group with no sound playing stays put until one
+- **A background group with a single sound** changes each time that sound comes round
+  to its start again. A background group with no sound playing stays put until one
   plays.
 - **A room re-read every few seconds keeps what it is playing**, because the
   store compares the room's stored choice, not the item picked from it.
 
 ## Tags
 
-An admin sets an item's tags in its window on the Themes and Sounds admin pages:
+An admin sets an item's tags in its window on the Backgrounds and Sounds admin pages:
 words separated by commas, lower case, up to eight, with the tags already in use
 offered underneath. The sixteen built-in items came with starter tags (rain,
 nature, cozy, music and the like), which an admin can change. See
-[Themes and sounds in the admin](catalog-admin.md).
+[Backgrounds and sounds in the admin](catalog-admin.md).
 
 ## Still to know
 
 Today's eight built-in sounds run 44 to 53 seconds, so a shuffle changes the
-sound and theme about every minute until longer versions exist.
+sound and background about every minute until longer versions exist.

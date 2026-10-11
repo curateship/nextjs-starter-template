@@ -86,7 +86,7 @@ const NAV_LINKS = [
   { to: "/timer", label: "Dashboard", icon: LayoutDashboardIcon },
   { to: "/rooms", label: "Rooms", icon: Users2Icon },
   { to: "/plans", label: "Pricing", icon: TagIcon },
-  { to: "/backgrounds", label: "Theme", icon: ImageIcon },
+  { to: "/backgrounds", label: "Backgrounds", icon: ImageIcon },
   { to: "/sounds", label: "Sounds", icon: Music2Icon },
   { to: "/leaderboard", label: "Leaderboard", icon: BarChart3Icon },
   // Beside the leaderboard, because both are about other members. Rooms
@@ -339,7 +339,7 @@ export function PomodoroShell({
             window with a sound playing still scrolled at 1100.
 
             How much room the row needs depends on what is in it — the sound
-            player only exists while a sound is chosen, and Log in plus Register
+            player only exists while a sound is chosen, and Log in plus Sign up
             is wider than the account photo — so no single breakpoint covers
             every case.
             `flex-wrap` does, because it asks the question at the width the
@@ -435,11 +435,11 @@ export function PomodoroShell({
                     default size is the 32px the rulebook asks for; only the
                     colours are the app's. */}
                 <Button asChild className={cn(accentButtonClass, "max-md:hidden")}>
-                  <Link to="/register">Register</Link>
+                  <Link to="/register">Sign up</Link>
                 </Button>
                 {/* On a phone, Log in alone as the orange button. Tyler,
                     10 Oct 2026: "in mobile. dont show login and register.
-                    just show only login in primary button". Register is
+                    just show only login in primary button". Sign up is
                     one link away on the sign-in page. */}
                 <Button asChild className={cn(accentButtonClass, "md:hidden")}>
                   <Link to="/login" search={loginSearch}>

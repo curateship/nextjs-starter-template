@@ -142,12 +142,12 @@ export function PricingPage({
         </h2>
         <p className="title-halo max-w-xl text-muted-foreground">
           The timer, tasks and rooms are free. Pro unlocks every sound and
-          scene, AI mixes, hosting and your full history.
+          background, AI mixes, hosting and your full history.
         </p>
         {welcome ? (
           <p role="status" className="max-w-xl text-sm">
             {isPaid
-              ? "You're on Pro. Every sound and scene, AI mixes, hosting and your full history are unlocked, and your receipt is in your inbox."
+              ? "You're on Pro. Every sound and background, AI mixes, hosting and your full history are unlocked, and your receipt is in your inbox."
               : "Stripe is confirming your payment. This usually takes a few seconds."}
           </p>
         ) : null}

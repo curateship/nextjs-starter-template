@@ -122,12 +122,12 @@ function SyncCard() {
       </CardHeader>
       <CardContent className="flex flex-col items-start gap-3">
         <p className="text-sm text-muted-foreground">
-          Everything here saves in this browser. Sign in to keep your focus
+          Everything here saves in this browser. Log in to keep your focus
           history, join rooms and appear on the leaderboard.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button asChild>
-            <Link to="/register">Create free account</Link>
+            <Link to="/register">Sign up</Link>
           </Button>
           <SignInButton size="default" />
         </div>

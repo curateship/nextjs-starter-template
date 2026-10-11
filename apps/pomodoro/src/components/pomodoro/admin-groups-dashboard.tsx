@@ -1,6 +1,6 @@
 import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
-import { SettingsIcon, Trash2Icon, UsersIcon, XIcon } from "lucide-react"
+import { SettingsIcon, Trash2Icon, UsersIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,16 +16,14 @@ import {
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
-import {
-  DashboardToolbarButton,
-  DashboardToolbarSearch,
-} from "@/components/shared/dashboard-toolbar"
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import {
   AdminListTable,
   AdminSelectCell,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -140,22 +138,20 @@ export function AdminGroupsDashboard({
         onSort={toggleSort}
         trailing={<TableHead column="meta">Actions</TableHead>}
         selection={{ noun: "groups", rowIds, state: selection }}
+        filters={
+          userId ? (
+            <AdminPersonFilter
+              name={list.rows.find((row) => row.ownerId === userId)?.ownerName ?? null}
+              onClear={() => setListSearch({ user: undefined, page: undefined })}
+            />
+          ) : undefined
+        }
         list={list}
         page={page}
         onPageChange={setPage}
         controls={
           <>
             <AdminBulkDeleteButton del={del} ids={selectedIds} />
-            {userId ? (
-              <DashboardToolbarButton
-                type="button"
-                variant="outline"
-                onClick={() => setListSearch({ user: undefined, page: undefined })}
-              >
-                <XIcon className="size-4" />
-                One member's groups
-              </DashboardToolbarButton>
-            ) : null}
             <DashboardToolbarSearch
               name="group-search"
               aria-label="Search groups"

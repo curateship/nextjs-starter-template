@@ -655,7 +655,7 @@ function LeaderboardQuickControl() {
         {!authenticated ? (
           <div className="flex flex-col items-start gap-2">
             <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-              Sign in to see this week's ranking.
+              Log in to see this week's ranking.
             </p>
             <SignInButton />
           </div>
@@ -747,15 +747,15 @@ function ThemeQuickControl() {
       <PopoverTrigger asChild>
         <button
           className={cn(quickPillClass, phoneHiddenClass)}
-          aria-label="Theme quick controls"
+          aria-label="Background quick controls"
         >
           <PaletteIcon className="size-[18px]" aria-hidden="true" />
-          <QuickPillLabel>Theme</QuickPillLabel>
+          <QuickPillLabel>Background</QuickPillLabel>
         </button>
       </PopoverTrigger>
       <PopoverContent className={cn("w-72 gap-3.5 p-4", quickPopoverGlassClass)}>
         <span className="flex flex-col gap-0.5">
-          <strong className="text-sm font-semibold">Theme</strong>
+          <strong className="text-sm font-semibold">Background</strong>
           <small className="text-xs text-muted-foreground">{owner}</small>
         </span>
         <div className="flex flex-col gap-1">
@@ -765,7 +765,7 @@ function ThemeQuickControl() {
           </Link>
           <Link to="/backgrounds" className={quickRowClass}>
             <ImageIcon className="size-4 shrink-0" aria-hidden="true" />
-            <strong className="text-[13.5px]">Choose a theme</strong>
+            <strong className="text-[13.5px]">Choose a background</strong>
           </Link>
         </div>
         <BackdropDimRow />

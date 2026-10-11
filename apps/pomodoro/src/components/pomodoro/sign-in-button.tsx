@@ -3,7 +3,7 @@ import { Link, useRouterState } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 
 /**
- * The Sign in button that sits beside every sentence telling a guest to sign
+ * The Log in button that sits beside every sentence telling a guest to log
  * in, so nobody has to go looking for it. It sends the page they are on as
  * `redirect`, and the sign-in screen brings them back to it afterwards. The
  * sign-in screen checks that value itself (`safeRedirectPath`), so this only
@@ -20,7 +20,7 @@ export function SignInButton({
   return (
     <Button asChild size={size} variant={variant}>
       <Link to="/login" search={{ redirect: here }}>
-        Sign in
+        Log in
       </Link>
     </Button>
   )

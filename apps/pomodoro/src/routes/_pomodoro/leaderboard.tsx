@@ -26,6 +26,7 @@ export const Route = createFileRoute("/_pomodoro/leaderboard")({
       window: window && window !== DEFAULT_LEADERBOARD_WINDOW ? window : undefined,
     }
   },
+  head: () => ({ meta: [{ title: "Leaderboard — Pomoder" }] }),
   component: LeaderboardRoute,
 })
 

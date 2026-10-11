@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { SignInButton } from "@/components/pomodoro/sign-in-button"
 import {
   joinFocusGroup,
   lookupFocusGroupInvite,
@@ -82,16 +83,12 @@ export function GroupInvitePage() {
             </p>
           ) : !authenticated ? (
             <>
-              <h2 className="text-xl font-bold">Sign in to join</h2>
+              <h2 className="text-xl font-bold">Log in to join</h2>
               <p className="text-sm text-muted-foreground">
                 A focus group is a board of the people in it, so joining needs an
-                account. Sign in and this link will still work.
+                account. Log in and this link will still work.
               </p>
-              <Button asChild>
-                <Link to="/login" search={{ redirect: `/groups/join/${token}` }}>
-                  Sign in
-                </Link>
-              </Button>
+              <SignInButton size="default" variant="default" />
             </>
           ) : problem ? (
             <>

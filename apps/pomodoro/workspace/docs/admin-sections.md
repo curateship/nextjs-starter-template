@@ -12,7 +12,7 @@ Every delete and every report decision is written to `pomodoro_audit_logs`.
 | `/admin/pomodoro-tasks` | Everybody's tasks |
 | `/admin/pomodoro-sessions` | Every timer run |
 | `/admin/pomodoro-rooms` | Every focus room, open and closed |
-| `/admin/pomodoro-themes` | Every theme, Draft or Live, and who has it |
+| `/admin/pomodoro-themes` | Every background, Draft or Live, and who has it |
 | `/admin/pomodoro-sounds` | Every sound, Draft or Live, and who has it |
 | `/admin/pomodoro-reports` | The moderation queue |
 | `/admin/pomodoro-room-repeats` | Every weekly room rule |
@@ -55,8 +55,27 @@ tasks, since 8 Oct 2026, and the live menu needs that link too.
 Focus data is the page an operator starts on. Each row is one account, with how
 many focus sessions it has finished, how long that adds up to, how many tasks it
 completed and the last day it focused. The timer button at the end of a row
-opens Focus sessions already filtered to that person, and the toolbar then says
-"Only <their name>" with a way to clear it.
+opens Focus sessions already filtered to that person, and the list then shows
+the "Only <their name>" chip described below.
+
+### One member at a time
+
+Every admin list that can be limited to one member shows it the same way
+(Polish 3 task 10, 10 Oct 2026): a grey chip in the strip under the toolbar
+saying "Only Sam", with a × that takes `?user=` out of the address and shows
+everyone again. It is `AdminPersonFilter` in
+`src/components/pomodoro/admin-person-filter.tsx`, passed to the list's
+`filters` slot, the same chip the shell's own lists use for a filter that is on.
+
+- **The lists that take one member:** Tasks, Focus sessions, Repeating tasks,
+  Projects, Groups, Blocks, Follows, Tags, Member uploads, Generations, Badges,
+  and Room reports, which uses `?person=` because it means reports by or about
+  that person.
+- **The name comes from the rows on screen.** A page with no rows for that
+  person, such as an empty one, says "Only one member" rather than nothing.
+- **Tasks used to say nothing at all.** Arriving from a member's Focus
+  sessions row, the list was already limited to them with no sign of it. It
+  now shows the chip like the rest.
 
 The totals on Focus data come from `daily_focus_stats`, which is the same daily
 rollup the member's own history screen reads, so the two always agree. Focus
@@ -152,7 +171,7 @@ edge of a 1280px screen by 47px, 50px and 216px, measured. With the dates
 hidden, every list fits at 1280. Below that the table scrolls sideways inside
 its box, as it did before.
 
-Every list has a selection column and an actions column. Themes and Sounds
+Every list has a selection column and an actions column. Backgrounds and Sounds
 add Free, Pro, Draft and Live to the ticked-row buttons.
 
 One file owns the table. `admin-list.tsx` draws the selection column, the header
@@ -183,6 +202,29 @@ reports was read-only on purpose. That rule is gone.
   removed nothing is shown as a failure, with the same words.
 - **Only the deleted rows lose their tick.** Deleting one row on its own leaves
   the rest of a selection ticked.
+
+### The rule for every toolbar and row button
+
+Tyler's Polish 3 task 09, 10 Oct 2026: a button tells the truth while it works.
+
+- **Green only when something changed.** Every multi-row action ends with one
+  line from `describeBulkResult`. It is a green toast when at least one row
+  changed, and the red error toast when none did, with the same words. That
+  holds for Delete, Close, Feature and Unfeature on Focus rooms and Weekly
+  rooms, Resolve, Dismiss, Reopen, Hide and Unhide on Room reports, Let through
+  on Chat, Approve on Member uploads, and Free, Pro, Draft and Live on
+  Backgrounds and Sounds. On those four the line also counts rows already in
+  that state, so a run that only finds them is still green.
+- **Only the pressed button spins.** Hide and Unhide have their own spinner,
+  so pressing Hide no longer spins Resolve. Feature, Unfeature and each Let
+  through spin on their own too.
+- **One action at a time per list.** Each list works out one `busy` from every
+  action it can run. While any of them runs, every toolbar button and every
+  row button that changes something waits: Delete, Close, the decisions, Hide,
+  Feature, Let through, Approve, the sharing menu and the bins. The cog that
+  opens a record's window stays pressable.
+- **Hide and Unhide are toolbar buttons like the rest**, 32px and labelled
+  "Hide (N)" and "Unhide (N)", counting the ticked profile reports.
 - **One transaction per press**, with one `pomodoro_audit_logs` row naming every
   id that actually went. A press that removed nothing writes no log row.
 
@@ -258,7 +300,7 @@ that day: "there is no admin projects dashboard".
   for the page on screen only. Sorting by Tasks or Focused has to count every
   project the filters let through.
 - **The owner's name opens the member window.** `?user=<id>` narrows the list
-  to one member, with "One member's projects" in the toolbar to clear it.
+  to one member, with the "Only <name>" chip to clear it.
 
 ### The project window
 
@@ -315,13 +357,13 @@ same way report decisions and a host's moderation already do. There is no page
 that lists it. Tyler had the Action log page built on 8 Oct 2026 and took it
 out the same day, so the record is read from the database when it is needed.
 
-## Themes and Sounds
+## Backgrounds and Sounds
 
 Two pages, one for each kind, replaced the single read-only Media table on
 8 Oct 2026. An admin adds, edits, orders, prices, hides and deletes every
-theme and sound there, and members see the change on their next page load.
-`/admin/pomodoro-media` now forwards to Themes. The rules, the window and the
-worker are in [Themes and sounds in the admin](catalog-admin.md).
+background and sound there, and members see the change on their next page load.
+`/admin/pomodoro-media` now forwards to Backgrounds. The rules, the window and the
+worker are in [Backgrounds and sounds in the admin](catalog-admin.md).
 
 ## What these pages will not do
 

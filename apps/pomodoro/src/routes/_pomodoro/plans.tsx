@@ -69,11 +69,11 @@ export const Route = createFileRoute("/_pomodoro/plans")({
   },
   head: () => ({
     meta: [
-      { title: "Plans — Pomoder" },
+      { title: "Pricing — Pomoder" },
       {
         name: "description",
         content:
-          "Focus alone for free. A paid plan adds focus rooms, premium sounds and scenes, your own uploads and the long history ranges.",
+          "Focus alone for free. A paid plan adds focus rooms, premium sounds and backgrounds, your own uploads and the long history ranges.",
       },
     ],
   }),

@@ -189,7 +189,7 @@ export function ProfileActions({
       ) : known ? (
         <Button asChild variant="outline">
           <Link to="/login" search={{ redirect: `/u/${handle}` }}>
-            Sign in to follow
+            Log in to follow
           </Link>
         </Button>
       ) : null}

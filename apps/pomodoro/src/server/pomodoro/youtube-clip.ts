@@ -12,7 +12,7 @@ import {
 
 /**
  * Cutting 5 seconds of a YouTube video, in 4K when the video has it. See
- * "Make a theme from a YouTube clip" in `workspace/docs/catalog-admin.md`.
+ * "Make a background from a YouTube clip" in `workspace/docs/catalog-admin.md`.
  * Tyler, 10 Oct 2026: "it should be capturing the 4k version".
  *
  * Two programs, each doing one thing. yt-dlp, a free program that reads

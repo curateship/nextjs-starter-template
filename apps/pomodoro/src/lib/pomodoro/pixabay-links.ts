@@ -123,11 +123,11 @@ export function readPixabayLink(raw: string, kind: CatalogKind): PixabayLinkResu
   const { section, link } = address
   // Tyler, 9 Oct 2026: a vector is refused on both pages.
   if (section.page === null)
-    return { ok: false, reason: "is a vector, and vectors are not used as themes" }
+    return { ok: false, reason: "is a vector, and vectors are not used as backgrounds" }
   if (section.page !== kind)
     return {
       ok: false,
-      reason: `is ${section.noun}, paste it on ${section.page === "theme" ? "Themes" : "Sounds"}`,
+      reason: `is ${section.noun}, paste it on ${section.page === "theme" ? "Backgrounds" : "Sounds"}`,
     }
   return { ok: true, link }
 }

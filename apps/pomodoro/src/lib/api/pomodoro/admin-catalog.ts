@@ -61,12 +61,12 @@ export const getCatalogAdminErrorMessage = createErrorMessage(
     CATALOG_ITEM_NOT_FOUND:
       "That item is no longer there. The list has been refreshed.",
     CATALOG_NEEDS_PICTURE:
-      "This theme has no still yet. Add its film; the still is taken from the middle.",
+      "This background has no still yet. Add its film; the still is taken from the middle.",
     CATALOG_NEEDS_FILE: "Add the sound's file before making it Live.",
     CATALOG_BAD_DESCRIPTOR: "Pick what kind it is from the list.",
     CATALOG_BAD_FILE: "That upload could not be found. Choose the file again.",
     CATALOG_WRONG_FILE_KIND:
-      "That file is the wrong kind: a sound needs an audio file, and a theme a film.",
+      "That file is the wrong kind: a sound needs an audio file, and a background a film.",
     INVALID_FILE_CONTENT:
       "That file is not what its name says. Use an MP3, WAV, OGG, MP4, WebM, PNG, JPEG or WebP.",
     FILE_TOO_LARGE:
@@ -269,7 +269,7 @@ const importPixabayFn = createServerFn({ method: "POST" })
   })
 
 /**
- * "Make a theme from a YouTube clip": the link and the start time as typed.
+ * "Make a background from a YouTube clip": the link and the start time as typed.
  * The server reads both again, so the window's checks are only a courtesy.
  */
 const importYoutubeFn = createServerFn({ method: "POST" })

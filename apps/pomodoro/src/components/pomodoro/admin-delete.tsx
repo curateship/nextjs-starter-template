@@ -103,9 +103,12 @@ export function AdminBulkDeleteButton({
   ids,
   label = "Delete",
   icon = <Trash2Icon className="size-4" />,
+  busy = false,
 }: {
   del: AdminDelete
   ids: string[]
+  /** Another action on the same list is running, so this one waits for it. */
+  busy?: boolean
   /** For an action that is not a delete but asks the same way: "Cancel". */
   label?: string
   icon?: React.ReactNode
@@ -115,7 +118,7 @@ export function AdminBulkDeleteButton({
     <DashboardToolbarButton
       type="button"
       variant="destructive"
-      disabled={del.deleting}
+      disabled={del.deleting || busy}
       onClick={() => del.ask(ids)}
     >
       {icon}
@@ -133,18 +136,21 @@ export function AdminRowDeleteButton({
   id,
   label,
   icon = <Trash2Icon className="size-4" />,
+  busy = false,
 }: {
   del: AdminDelete
   id: string
   label: string
   icon?: React.ReactNode
+  /** Another action on the same list is running, so this one waits for it. */
+  busy?: boolean
 }) {
   return (
     <Button
       type="button"
       variant="ghost"
       size="icon"
-      disabled={del.deleting}
+      disabled={del.deleting || busy}
       onClick={() => del.ask([id])}
       aria-label={label}
     >

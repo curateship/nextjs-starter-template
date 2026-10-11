@@ -158,7 +158,7 @@ export function LeaderboardPage({
         {!authenticated ? (
           <div className="flex flex-col items-start gap-2 py-2">
             <p className="text-sm text-muted-foreground">
-              Sign in and opt in from{" "}
+              Log in and opt in from{" "}
               <TextLink to="/settings" search={{ tab: "profile" }}>
                 Settings
               </TextLink>{" "}

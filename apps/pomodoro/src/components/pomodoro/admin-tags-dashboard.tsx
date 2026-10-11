@@ -1,12 +1,13 @@
 import * as React from "react"
 import { getRouteApi, Link } from "@tanstack/react-router"
-import { ListChecksIcon, TagIcon, XIcon } from "lucide-react"
+import { ListChecksIcon, TagIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import { AdminListTable, AdminSelectCell, useAdminList } from "@/components/pomodoro/admin-list"
+import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -93,24 +94,20 @@ export function AdminTagsDashboard({
         onSort={toggleSort}
         trailing={<TableHead column="meta">Actions</TableHead>}
         selection={{ noun: "tags", rowIds, state: selection }}
+        filters={
+          userId ? (
+            <AdminPersonFilter
+              name={filteredOwner}
+              onClear={() => setListSearch({ user: undefined, page: undefined })}
+            />
+          ) : undefined
+        }
         list={list}
         page={page}
         onPageChange={setPage}
         controls={
           <>
             <AdminBulkDeleteButton del={del} ids={selectedIds} />
-            {userId ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 gap-2"
-                onClick={() => setListSearch({ user: undefined, page: undefined })}
-              >
-                <XIcon className="size-4" />
-                {filteredOwner ? `Only ${filteredOwner}` : "One member only"}
-              </Button>
-            ) : null}
             <DashboardToolbarSearch
               name="tag-search"
               aria-label="Search tags"

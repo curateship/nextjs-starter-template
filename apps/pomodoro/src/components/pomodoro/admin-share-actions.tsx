@@ -123,9 +123,12 @@ export type ShareActions = ReturnType<typeof useShareActions>
 export function ShareBulkButtons({
   actions,
   ids,
+  busy = false,
 }: {
   actions: ShareActions
   ids: string[]
+  /** Another action on the same list is running, so these wait for it. */
+  busy?: boolean
 }) {
   if (!ids.length) return null
   return (
@@ -133,7 +136,7 @@ export function ShareBulkButtons({
       <DashboardToolbarButton
         type="button"
         variant="outline"
-        disabled={actions.busy}
+        disabled={actions.busy || busy}
         onClick={() => void actions.approve(ids)}
       >
         <CheckIcon className="size-4" />
@@ -142,7 +145,7 @@ export function ShareBulkButtons({
       <DashboardToolbarButton
         type="button"
         variant="outline"
-        disabled={actions.busy}
+        disabled={actions.busy || busy}
         onClick={() => actions.setUnsharing(ids)}
       >
         <EyeOffIcon className="size-4" />
@@ -157,9 +160,12 @@ export function ShareRowMenu({
   row,
   actions,
   onDeleteFile,
+  busy = false,
 }: {
   row: ShareRow
   actions: ShareActions
+  /** Another action on the same list is running, so this menu waits for it. */
+  busy?: boolean
   /** The report queue's "Delete the file", which Member uploads has as a row button. */
   onDeleteFile?: () => void
 }) {
@@ -209,7 +215,7 @@ export function ShareRowMenu({
           type="button"
           variant="ghost"
           size="icon"
-          disabled={working}
+          disabled={working || busy}
           aria-label={`Sharing for ${row.name}`}
         >
           {working ? (
@@ -319,7 +325,7 @@ export function UnshareDialog({ actions }: { actions: ShareActions }) {
           <DialogDescription>
             The owner keeps the file but cannot share it again. Their bell
             names the file and the reason you pick. Anybody using it falls back
-            to the default scene or to silence.
+            to the default background or to silence.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>

@@ -5,6 +5,7 @@ import {
   ChevronDownIcon,
   CopyIcon,
   MaximizeIcon,
+  MinimizeIcon,
   WifiOffIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -14,6 +15,7 @@ import { Card } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   applyRoomAction,
   banMember,
@@ -299,7 +301,6 @@ export function ActiveRoomPanel({
   const [copied, setCopied] = React.useState(false)
   const [copyFailed, setCopyFailed] = React.useState(false)
   const [confirm, setConfirm] = React.useState<ConfirmRequest | null>(null)
-  const [panelNotice, setPanelNotice] = React.useState("")
   const [reactionPending, setReactionPending] = React.useState<
     ReadonlySet<string>
   >(() => new Set())
@@ -383,11 +384,12 @@ export function ActiveRoomPanel({
     failureNotice: string
   ) => {
     dismissErrorToast()
-    setPanelNotice("")
     setPending(key)
     try {
       onSnapshot(await action())
-      setPanelNotice(successNotice)
+      // A toast that clears itself, never a line left under the header for
+      // the rest of the session.
+      toast.success(successNotice)
     } catch (cause) {
       const text = cause instanceof Error ? cause.message : ""
       showErrorToast(
@@ -637,11 +639,6 @@ export function ActiveRoomPanel({
               Copying failed — the link is {inviteUrl}
             </p>
           ) : null}
-          {panelNotice ? (
-            <p role="status" className="basis-full text-xs text-muted-foreground">
-              {panelNotice}
-            </p>
-          ) : null}
         </header>
 
         {/* Folded, the chat stays mounted so a half-typed message and the
@@ -663,7 +660,7 @@ export function ActiveRoomPanel({
           }
           onDeleteMessage={confirmDeleteMessage}
           onError={showErrorToast}
-          onNotice={setPanelNotice}
+          onNotice={(notice) => toast(notice)}
           aside={
             <RoomMemberList
               members={members}
@@ -723,6 +720,18 @@ function RoomRing({
   const { room, you } = snapshot
   const isHost = you.role === "host"
   const ringRef = React.useRef<HTMLDivElement>(null)
+  // Follows the browser's own state, so Escape or the browser's exit flips the
+  // button back as well as a press on it.
+  const [fullScreen, setFullScreen] = React.useState(false)
+  React.useEffect(() => {
+    const follow = () =>
+      setFullScreen(
+        Boolean(ringRef.current) && document.fullscreenElement === ringRef.current
+      )
+    document.addEventListener("fullscreenchange", follow)
+    return () => document.removeEventListener("fullscreenchange", follow)
+  }, [])
+  const fullScreenLabel = fullScreen ? "Exit full screen" : "Full screen"
   const secondsLeft = useRoomSecondsLeft(room.phaseEndsAt)
   // "Starting in": a countdown the host began from waiting, shown to
   // everybody in the ring until the focus starts (9 Oct 2026).
@@ -852,18 +861,30 @@ function RoomRing({
               Waiting for {hostName} to start
             </span>
           ) : null}
-          <Button
-            variant="outline"
-            size="icon-lg"
-            className={cn("mt-4 rounded-full", ringIconButtonClass)}
-            aria-label="Full screen"
-            onClick={() => {
-              if (document.fullscreenElement) void document.exitFullscreen()
-              else void ringRef.current?.requestFullscreen?.()
-            }}
-          >
-            <MaximizeIcon className="size-[17px]" aria-hidden="true" />
-          </Button>
+          {/* The tooltip draws outside the ring, so in full screen only the
+              label and the shrink icon say it; the browser shows nothing
+              above the full-screen ring. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon-lg"
+                className={cn("mt-4 rounded-full", ringIconButtonClass)}
+                aria-label={fullScreenLabel}
+                onClick={() => {
+                  if (document.fullscreenElement) void document.exitFullscreen()
+                  else void ringRef.current?.requestFullscreen?.()
+                }}
+              >
+                {fullScreen ? (
+                  <MinimizeIcon className="size-4" aria-hidden="true" />
+                ) : (
+                  <MaximizeIcon className="size-4" aria-hidden="true" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{fullScreenLabel}</TooltipContent>
+          </Tooltip>
           {/* Inside the ring, under Full screen. Tyler, 9 Oct 2026: "move the
               sessions text here". */}
           <p className="mt-3 font-mono text-sm text-muted-foreground">

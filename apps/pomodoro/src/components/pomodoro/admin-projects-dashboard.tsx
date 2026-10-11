@@ -1,6 +1,6 @@
 import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
-import { ArchiveIcon, ArchiveRestoreIcon, FolderIcon, Loader2Icon, SettingsIcon, Trash2Icon, XIcon } from "lucide-react"
+import { ArchiveIcon, ArchiveRestoreIcon, FolderIcon, Loader2Icon, SettingsIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -22,12 +22,12 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
-  DashboardToolbarButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import { AdminListTable, AdminSelectCell, useAdminList } from "@/components/pomodoro/admin-list"
+import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -236,22 +236,20 @@ export function AdminProjectsDashboard({
         }}
         trailing={<TableHead column="meta">Actions</TableHead>}
         selection={{ noun: "projects", rowIds, state: selection }}
+        filters={
+          userId ? (
+            <AdminPersonFilter
+              name={list.rows.find((row) => row.ownerId === userId)?.ownerName ?? null}
+              onClear={() => setListSearch({ user: undefined, page: undefined })}
+            />
+          ) : undefined
+        }
         list={list}
         page={page}
         onPageChange={setPage}
         controls={
           <>
             <AdminBulkDeleteButton del={del} ids={selectedIds} />
-            {userId ? (
-              <DashboardToolbarButton
-                type="button"
-                variant="outline"
-                onClick={() => setListSearch({ user: undefined, page: undefined })}
-              >
-                <XIcon className="size-4" />
-                One member's projects
-              </DashboardToolbarButton>
-            ) : null}
             <DashboardToolbarSearch
               name="project-search"
               aria-label="Search projects"

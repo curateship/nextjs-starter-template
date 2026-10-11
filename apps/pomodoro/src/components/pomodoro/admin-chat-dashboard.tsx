@@ -3,6 +3,7 @@ import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import {
   CheckIcon,
   InboxIcon,
+  Loader2Icon,
   MegaphoneIcon,
   MessagesSquareIcon,
   SearchIcon,
@@ -351,28 +352,32 @@ function ChatMessagesTable({
     selection,
     onDone: list.refresh,
   })
-  const [releasing, setReleasing] = React.useState(false)
-  const release = async (ids: string[]) => {
-    setReleasing(true)
+  // Which Let through is running: "toolbar", or the row's own id. Only that
+  // button spins.
+  const [releasing, setReleasing] = React.useState<string | null>(null)
+  // One running action holds every other button on the list until it ends.
+  const busy = releasing !== null || del.deleting
+  const release = async (ids: string[], from: string) => {
+    setReleasing(from)
     try {
       const { changed, skipped } = await releasePomodoroMessages(ids)
-      toast.success(
-        describeBulkResult({
-          done: changed.length,
-          same: 0,
-          kept: skipped.length,
-          keptReason: "already let through or removed",
-          one: "message",
-          many: "messages",
-          verb: "let through",
-        })
-      )
+      const line = describeBulkResult({
+        done: changed.length,
+        same: 0,
+        kept: skipped.length,
+        keptReason: "already let through or removed",
+        one: "message",
+        many: "messages",
+        verb: "let through",
+      })
+      if (changed.length) toast.success(line)
+      else showErrorToast(line)
       selection.clear()
       await list.refresh()
     } catch (error) {
       showErrorToast(getSafetyErrorMessage(error))
     } finally {
-      setReleasing(false)
+      setReleasing(null)
     }
   }
 
@@ -394,15 +399,19 @@ function ChatMessagesTable({
         onPageChange={setPage}
         controls={
           <>
-            <AdminBulkDeleteButton del={del} ids={selectedIds} />
+            <AdminBulkDeleteButton del={del} ids={selectedIds} busy={busy} />
             {held && selectedIds.length ? (
               <DashboardToolbarButton
                 type="button"
                 variant="outline"
-                disabled={releasing}
-                onClick={() => void release(selectedIds)}
+                disabled={busy}
+                onClick={() => void release(selectedIds, "toolbar")}
               >
-                <CheckIcon className="size-4" />
+                {releasing === "toolbar" ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <CheckIcon className="size-4" />
+                )}
                 Let through ({selectedIds.length})
               </DashboardToolbarButton>
             ) : null}
@@ -454,14 +463,18 @@ function ChatMessagesTable({
                   variant="ghost"
                   size="icon"
                   aria-label={`Let the message from ${row.authorName} through`}
-                  disabled={releasing}
-                  onClick={() => void release([row.id])}
+                  disabled={busy}
+                  onClick={() => void release([row.id], row.id)}
                 >
-                  <CheckIcon className="size-4" />
+                  {releasing === row.id ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <CheckIcon className="size-4" />
+                  )}
                 </Button>
               ) : null}
               {row.deletedAt ? null : (
-                <AdminRowDeleteButton del={del} id={row.id} label={`Delete the message from ${row.authorName}`} />
+                <AdminRowDeleteButton del={del} id={row.id} label={`Delete the message from ${row.authorName}`} busy={busy} />
               )}
             </TableCell>
           </TableRow>

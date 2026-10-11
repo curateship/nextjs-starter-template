@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm"
 
 import { PROFILE_HIDDEN_MESSAGE } from "@/lib/pomodoro/notices"
 import {
@@ -130,41 +130,42 @@ export async function setProfilesHidden({
     ]
     if (!userIds.length) return { changed: [], skipped: reportIds }
 
-    // Only a profile that was showing until now is newly hidden, so a second
+    // Only a profile not already in the asked-for state changes. A second
     // hide, or a hide over several reports about one person, tells its owner
-    // once.
-    const newlyHidden = hidden
-      ? (
-          await tx
-            .select({ userId: pomodoroProfiles.userId })
-            .from(pomodoroProfiles)
-            .where(
-              and(
-                inArray(pomodoroProfiles.userId, userIds),
-                isNull(pomodoroProfiles.hiddenAt)
-              )
-            )
-        ).map((row) => row.userId)
-      : []
-
+    // once, and a run that changes nothing says so instead of claiming it did.
     const updated = await tx
       .update(pomodoroProfiles)
       .set({ hiddenAt: hidden ? new Date() : null, updatedAt: new Date() })
-      .where(inArray(pomodoroProfiles.userId, userIds))
-      .returning({ handle: pomodoroProfiles.handle })
+      .where(
+        and(
+          inArray(pomodoroProfiles.userId, userIds),
+          hidden
+            ? isNull(pomodoroProfiles.hiddenAt)
+            : isNotNull(pomodoroProfiles.hiddenAt)
+        )
+      )
+      .returning({
+        userId: pomodoroProfiles.userId,
+        handle: pomodoroProfiles.handle,
+      })
+    const changedUsers = new Set(updated.map((row) => row.userId))
+    const changed = reports
+      .filter((report) => report.profileUserId && changedUsers.has(report.profileUserId))
+      .map((report) => report.id)
 
-    await tx.insert(pomodoroAuditLogs).values({
-      actorUserId,
-      action: hidden ? "hide" : "unhide",
-      resource: "pomodoro_profile",
-      recordIds: reports.map((report) => report.id),
-    })
+    if (changed.length)
+      await tx.insert(pomodoroAuditLogs).values({
+        actorUserId,
+        action: hidden ? "hide" : "unhide",
+        resource: "pomodoro_profile",
+        recordIds: changed,
+      })
 
     // The owner hears it in the bell as well as on their Settings card, which
     // they may never open. It names neither the operator nor the reporter.
     await writeNotices(
       tx,
-      newlyHidden.map((userId) => ({
+      (hidden ? [...changedUsers] : []).map((userId) => ({
         recipientUserId: userId,
         kind: "profile_hidden" as const,
         message: PROFILE_HIDDEN_MESSAGE,
@@ -173,10 +174,8 @@ export async function setProfilesHidden({
     )
 
     return {
-      changed: reports.map((report) => report.id),
-      skipped: reportIds.filter(
-        (id) => !reports.some((report) => report.id === id)
-      ),
+      changed,
+      skipped: reportIds.filter((id) => !changed.includes(id)),
       // Handed back so the caller can drop the held copies outside the
       // transaction; a hide must take effect on the very next request.
       handles: updated.map((row) => row.handle),

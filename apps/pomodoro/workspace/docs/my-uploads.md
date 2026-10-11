@@ -87,7 +87,7 @@ A file in the bin:
   the tabs, the room's player, the profile banner, the Add menu, the cog,
   the tag suggestions, the download and the worker's queue.
 - **lets go of whatever used it.** A room using it falls back to the default
-  scene or to silence, and a banner to none, at once, exactly as a final
+  background or to silence, and a banner to none, at once, exactly as a final
   delete always did. Bringing it back does not put it back where it was.
 - **still counts toward the member's space**, because its files are still in
   the bucket.

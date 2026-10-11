@@ -37,7 +37,7 @@ export function ThemeArrows({ shown }: { shown: BackgroundReference }) {
     try {
       await stepPersonalBackground(direction)
     } catch {
-      showErrorToast("That theme did not save. Try again.")
+      showErrorToast("That background did not save. Try again.")
     } finally {
       setBusy(false)
     }
@@ -49,7 +49,7 @@ export function ThemeArrows({ shown }: { shown: BackgroundReference }) {
       <button
         type="button"
         disabled={busy}
-        aria-label={direction === 1 ? "Next theme" : "Previous theme"}
+        aria-label={direction === 1 ? "Next background" : "Previous background"}
         onClick={() => void step(direction)}
         className={cn(
           quickPillSurfaceClass,

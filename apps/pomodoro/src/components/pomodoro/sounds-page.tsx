@@ -154,7 +154,7 @@ export function SoundsPage() {
                     aria-pressed={locked ? undefined : playing}
                     aria-label={
                       locked
-                        ? `${sound.label}, a Pro sound. ${signedIn ? "See the plans" : "Sign in to see the plans"}`
+                        ? `${sound.label}, a Pro sound. ${signedIn ? "See the plans" : "Log in to see the plans"}`
                         : playing
                           ? `Stop the ${sound.label} preview`
                           : `Preview ${sound.label}`

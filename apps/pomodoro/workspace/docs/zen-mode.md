@@ -48,9 +48,9 @@ While zen mode is up, every other part of the page is marked inert. The
 shell's sidebar and header drop out of the tab order and out of a screen
 reader's reach, which is what the screen already claims by being a modal.
 
-## The scene behind it
+## The background behind it
 
-The theme of the room you are in fills the whole screen, under a wash that
+The background of the room you are in fills the whole screen, under a wash that
 dims it: your personal room's, or a hosted room's while you are in one. The dashboard shades the same picture differently, because there the
 ring sits over the part of the hero that has already faded, and in zen mode it
 sits over the middle of the picture. Both draw the same `<img>` or `<video>`

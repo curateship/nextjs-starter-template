@@ -4,13 +4,13 @@ The Live sounds from the catalogue on `/sounds`, free and Pro, in the order an
 admin set. The player sits under the clock, the sound survives page
 changes, and the header's timer pill shows music bars that mute it from any
 page. An admin adds and edits them on the Sounds admin page; see
-[Themes and sounds in the admin](catalog-admin.md). Eight shipped with the app:
+[Backgrounds and sounds in the admin](catalog-admin.md). Eight shipped with the app:
 Lofi beats, Rain, Café ambience and Brown noise free; Forest birds, Ocean
 waves, Fireplace and Soft piano for Pro.
 
 - **One grid of cards**, with the tag filter and Shuffle pills beside the
   title. See [Shuffle and tags](shuffle-and-tags.md). Cards sit 24px apart on a
-  wide screen and 16px on a phone, the same on Sounds and Theme (Tyler, 9 Oct
+  wide screen and 16px on a phone, the same on Sounds and Backgrounds (Tyler, 9 Oct
   2026: "add a bigger gap between the theme cards, match that same gap with
   sound cards too").
 - **A sound added in the last 14 days shows NEW** beside its name, in the
@@ -51,10 +51,10 @@ Tyler sent a design on 7 Oct 2026 with "revamp the sound page", and
   numbers and Next beside it. The design showed 20 sounds over three pages;
   there are 8, so the pager stays hidden until there is a second page. The
   line and the pager are `CatalogPager` in `catalog-pager.tsx`, paged by
-  `use-catalog-page.ts`, and the Theme page uses both.
+  `use-catalog-page.ts`, and the Backgrounds page uses both.
 - **"Your own" and "Generate your own" are cards below.** See
   [Your own backgrounds and sounds](own-media-uploads.md) and
-  [AI backgrounds and soundscapes](ai-generation.md). The Theme page shares
+  [AI backgrounds and soundscapes](ai-generation.md). The Backgrounds page shares
   both.
 - **A member's own sounds loop without a seam.** An AI soundscape comes back
   two minutes long, crossfaded into itself, and every sound a member uploads
@@ -76,7 +76,7 @@ goes for the sound library as well."
   off the card does not stop it. The header's player, the timer and what is
   saved are never touched.
 - **Hovering shows the play button and nothing more.** The same goes for a
-  member's own sounds on My uploads. Themes still play on hover, because a
+  member's own sounds on My uploads. Backgrounds still play on hover, because a
   film makes no sound.
 - **The "+" in the card's bottom-right corner opens the Add choices**
   (`MediaAddMenu` in `media-add-actions.tsx`): "Add to my personal room", and
@@ -217,7 +217,7 @@ belongs to the personal room (`savePersonalRoomSound` in
 `src/lib/api/pomodoro/personal-room.ts`). Adding a premium loop to the
 personal room on a free account is refused server-side
 (`UPGRADE_REQUIRED:premiumMedia`). A locked card leads
-to the plans page, exactly as a locked scene does on
+to the plans page, exactly as a locked background does on
 [Backgrounds](backgrounds.md): `/plans` for a member, sign-in first for a
 guest, reachable by Tab, never a dead button. Audio files are first-party, copied from the old app into
 `public/sounds/`.

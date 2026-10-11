@@ -397,7 +397,7 @@ export function TimerDashboard() {
                 </Button>
               ) : null}
               {/* The shared Button at its 36px size in the orange, the same
-                  skin as Register in the header. Shared rather than
+                  skin as Sign up in the header. Shared rather than
                   hand-rolled so the keyboard focus ring is the one every
                   other button draws. */}
               <Button

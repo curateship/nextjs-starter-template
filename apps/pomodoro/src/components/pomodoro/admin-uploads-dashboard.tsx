@@ -1,6 +1,6 @@
 import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
-import { FolderUpIcon, MusicIcon, PauseIcon, PlayIcon, XIcon } from "lucide-react"
+import { FolderUpIcon, MusicIcon, PauseIcon, PlayIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
@@ -11,6 +11,7 @@ import {
 } from "@/components/shared/dashboard-toolbar"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import { AdminListTable, AdminSelectCell, useAdminList } from "@/components/pomodoro/admin-list"
+import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -107,6 +108,8 @@ export function AdminUploadsDashboard({
   })
   const asked = list.rows.filter((row) => del.ids.includes(row.mediaId))
   const shareActions = useShareActions({ onDone: list.refresh })
+  // One running action holds every other button on the list until it ends.
+  const busy = shareActions.busy || del.deleting
   const preview = usePreviewAudio()
   // Whose files these are, off the first row: every row the filter returns is theirs.
   const filteredOwner = userId ? (list.rows[0]?.ownerName ?? null) : null
@@ -123,25 +126,21 @@ export function AdminUploadsDashboard({
         onSort={toggleSort}
         trailing={<TableHead column="meta">Actions</TableHead>}
         selection={{ noun: "uploads", rowIds, state: selection }}
+        filters={
+          userId ? (
+            <AdminPersonFilter
+              name={filteredOwner}
+              onClear={() => setListSearch({ user: undefined, page: undefined })}
+            />
+          ) : undefined
+        }
         list={list}
         page={page}
         onPageChange={setPage}
         controls={
           <>
-            <ShareBulkButtons actions={shareActions} ids={selectedIds} />
-            <AdminBulkDeleteButton del={del} ids={selectedIds} />
-            {userId ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 gap-2"
-                onClick={() => setListSearch({ user: undefined, page: undefined })}
-              >
-                <XIcon className="size-4" />
-                {filteredOwner ? `Only ${filteredOwner}` : "One member only"}
-              </Button>
-            ) : null}
+            <ShareBulkButtons actions={shareActions} ids={selectedIds} busy={busy} />
+            <AdminBulkDeleteButton del={del} ids={selectedIds} busy={busy} />
             <DashboardToolbarSearch
               name="upload-search"
               aria-label="Search uploads"
@@ -238,8 +237,8 @@ export function AdminUploadsDashboard({
             </TableCell>
             <TableCell column="actions">
               <PreviewPlayButton preview={preview} mediaId={row.mediaId} url={row.url} kind={row.kind} name={row.name} />
-              <ShareRowMenu row={row} actions={shareActions} />
-              <AdminRowDeleteButton del={del} id={row.mediaId} label={`Delete ${row.name}`} />
+              <ShareRowMenu row={row} actions={shareActions} busy={busy} />
+              <AdminRowDeleteButton del={del} id={row.mediaId} label={`Delete ${row.name}`} busy={busy} />
             </TableCell>
           </TableRow>
         ))}
@@ -261,7 +260,7 @@ function describeUploadDeletion(rows: { usedAs: string[] }[]) {
   return [
     "The file is removed from storage, and the owner loses it from their picker.",
     inUse
-      ? `${inUse} ${plural(inUse, "is", "are")} in use: a room background goes back to the default scene, a room sound to silence, and a profile banner to none.`
+      ? `${inUse} ${plural(inUse, "is", "are")} in use: a room background goes back to the default background, a room sound to silence, and a profile banner to none.`
       : null,
     "The owner is not told.",
     "This cannot be undone.",

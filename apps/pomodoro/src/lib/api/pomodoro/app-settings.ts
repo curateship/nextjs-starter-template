@@ -22,7 +22,7 @@ import type { MediaCatalog } from "@/lib/pomodoro/catalog"
 export const getAppSettingsErrorMessage = createErrorMessage(
   {
     SETTING_NOT_FREE:
-      "Pick a free, Live sound and theme. Guests cannot play Pro items.",
+      "Pick a free, Live sound and background. Guests cannot play Pro items.",
     SETTING_SEASONS: "Those seasons cannot be saved.",
   },
   "That setting did not save. Please try again."

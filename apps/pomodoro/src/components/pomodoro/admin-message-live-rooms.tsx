@@ -39,6 +39,9 @@ export function MessageLiveRoomsDialog({
 }) {
   const [body, setBody] = React.useState("")
   const [count, setCount] = React.useState(liveRooms)
+  // A failed count is said, so the number the dashboard last read is never
+  // passed off as current.
+  const [countFailed, setCountFailed] = React.useState(false)
   const [sending, setSending] = React.useState(false)
   const bodyId = React.useId()
   const [wasOpen, setWasOpen] = React.useState(false)
@@ -47,6 +50,7 @@ export function MessageLiveRoomsDialog({
     if (open) {
       setBody("")
       setCount(liveRooms)
+      setCountFailed(false)
     }
   }
   React.useEffect(() => {
@@ -54,9 +58,13 @@ export function MessageLiveRoomsDialog({
     let live = true
     countPomodoroLiveRooms()
       .then((total) => {
-        if (live) setCount(total)
+        if (!live) return
+        setCount(total)
+        setCountFailed(false)
       })
-      .catch(() => {})
+      .catch(() => {
+        if (live) setCountFailed(true)
+      })
     return () => {
       live = false
     }
@@ -65,6 +73,12 @@ export function MessageLiveRoomsDialog({
   const send = async () => {
     if (!body.trim()) {
       showErrorToast("Write the message first.")
+      return
+    }
+    // Send stays pressable (no greyed-out idle buttons), and says why nothing
+    // goes. Without a count the server decides, and says the same if none.
+    if (!countFailed && !count) {
+      showErrorToast("No room is open right now, so there is nobody to send it to.")
       return
     }
     setSending(true)
@@ -90,7 +104,9 @@ export function MessageLiveRoomsDialog({
           <DialogHeader>
             <DialogTitle>Message live rooms</DialogTitle>
             <DialogDescription>
-              {count
+              {countFailed
+                ? "The number of open rooms could not be loaded. It goes to every room open when you send it, pinned at the top of the chat from Pomoder with a STAFF label."
+                : count
                 ? `It goes to the ${count} ${plural(count, "room", "rooms")} open now, pinned at the top of the chat from Pomoder with a STAFF label, until the room ends or you delete it from that room's chat.`
                 : "No room is open right now, so it would reach nobody."}
             </DialogDescription>
@@ -126,7 +142,7 @@ export function MessageLiveRoomsDialog({
               </Button>
               <Button type="submit" disabled={sending}>
                 {sending ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                {count ? `Send to ${count} ${plural(count, "room", "rooms")}` : "Send"}
+                {count && !countFailed ? `Send to ${count} ${plural(count, "room", "rooms")}` : "Send"}
               </Button>
             </DialogFooter>
           </form>

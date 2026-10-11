@@ -203,7 +203,7 @@ describe("importing a list", () => {
       ],
       actorUserId: admin,
     })
-    expect(result).toEqual({ added: 1, refused: [{ line: 2, reason: "is a photo, paste it on Themes" }] })
+    expect(result).toEqual({ added: 1, refused: [{ line: 2, reason: "is a photo, paste it on Backgrounds" }] })
     expect(fetchSpy).not.toHaveBeenCalled()
 
     const [sound] = await rows()

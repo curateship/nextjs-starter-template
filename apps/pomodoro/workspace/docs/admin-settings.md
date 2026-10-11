@@ -1,7 +1,7 @@
 # Admin settings
 
 Pomoder's own admin settings are nine tabs under Settings → App settings, in
-the rail on `/admin/settings`: Emergency switches, Themes and sounds, Seasons,
+the rail on `/admin/settings`: Emergency switches, Backgrounds and sounds, Seasons,
 Breaks, New accounts, Rooms, Room chat, Pixabay and Made-up members. Each lives at
 `/admin/settings/pomodoro-<name>` (the ids are `POMODORO_SETTINGS_TABS` in
 `src/lib/pomodoro/app-settings.ts`), is listed in `settings.tabs` in
@@ -36,7 +36,7 @@ app's own Settings screen goes", and the UI standard's Settings section.
   edit goes into the held copy before its save is sent and comes back out if
   the save is refused, so leaving a tab mid-edit and coming straight back
   still shows the edit. A later open also reads the server again quietly, but
-  takes only the list of themes and sounds from it, so a theme made Live on
+  takes only the list of backgrounds and sounds from it, so a background made Live on
   another page reaches the pickers. A setting changed by another admin shows
   after a reload, the same as the shell's own settings.
 - **Only removing the Pixabay key asks first.**
@@ -46,18 +46,18 @@ each checked against its shape in `src/lib/pomodoro/app-settings.ts` on every re
 and write. A missing row, or one that no longer fits, reads as the default, so
 nothing changes until an admin saves. The server holds them for five seconds.
 
-## Themes and sounds
+## Backgrounds and sounds
 
 - **Shuffle for guests and for members who haven't picked their own.** Tyler,
   8 Oct 2026. On, they get shuffle for both, from free items for a guest. Off,
   they get the defaults below. It starts on: Tyler, 9 Oct 2026, "shuffle is on
   automatically for all users until they choose a song or theme." A site where
   an admin already saved it off keeps it off. "Haven't picked" means the personal room's sound
-  or theme is still empty; a member who chose silence saved `none` and keeps it.
-- **Default sound and default theme**, from free Live items only, because guests
+  or background is still empty; a member who chose silence saved `none` and keeps it.
+- **Default sound and default background**, from free Live items only, because guests
   get them too. With none set, a guest gets a random free pair as before, and a
   member who never picked gets silence and Lofi girl.
-- **The default theme is also the fallback** for anybody whose theme was made a
+- **The default background is also the fallback** for anybody whose background was made a
   Draft or deleted. Lofi girl stays the last fallback, because its files ship
   with the app.
 - **Suggest a name and tags with AI**, on the Member uploads card. On, the
@@ -73,19 +73,19 @@ nothing changes until an admin saves. The server holds them for five seconds.
 
 ## Seasons
 
-A sound and theme that replace the defaults between two dates, such as a snow
-scene through December. Two seasons may not share a day, and the page says which
+A sound and background that replace the defaults between two dates, such as a
+snow background through December. Two seasons may not share a day, and the page says which
 two clash. Members who picked their own are not touched. Today is the server's
 UTC day, near enough for a season measured in weeks.
 
 ## Breaks
 
-A break theme and a break message, shown to everybody while a short or long
+A break background and a break message, shown to everybody while a short or long
 break is on. Both start empty, which changes nothing. See
 [The break card](break-card.md) for what people see.
 
-- **The break theme** is a free, Live theme, because guests take breaks too.
-  "None" leaves everybody's own theme alone.
+- **The break background** is a free, Live background, because guests take
+  breaks too. "None" leaves everybody's own background alone.
 - **The break message** is up to 600 characters. Typing saves the same way as
   every other box. Over 600 reads "Not saved." under the box and is not sent.
 
@@ -112,8 +112,8 @@ comes from the code rather than the page's data.
 
 ## Pixabay
 
-The API key "Import from Pixabay" uses on the Themes page to copy pictures and
-films (see [Themes and sounds in the admin](catalog-admin.md)). A free key
+The API key "Import from Pixabay" uses on the Backgrounds page to copy pictures and
+films (see [Backgrounds and sounds in the admin](catalog-admin.md)). A free key
 comes with a Pixabay account at pixabay.com/api/docs. Music links need no key,
 because nothing is fetched for a sound.
 
