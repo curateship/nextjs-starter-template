@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Select,
   SelectContent,
@@ -26,6 +28,7 @@ import {
   type TaskDetail,
 } from "@/lib/api/project/tasks"
 import { dateFromKey, keyFromDate } from "@/lib/project/dates"
+import { getProjectErrorMessage } from "@/lib/project/errors"
 import { WEEK_DAYS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -230,23 +233,30 @@ function WaitingOnField({
 }) {
   const { task } = detail
   const [query, setQuery] = React.useState("")
-  const [choices, setChoices] = React.useState<TaskChoice[]>([])
   const [picking, setPicking] = React.useState(false)
+  const [tries, setTries] = React.useState(0)
+  // Each answer carries the search it answers, so a search still out reads as
+  // Searching… rather than as the last search's result.
+  const searchKey = `${tries}:${query}`
+  const [found, setFound] = React.useState<
+    { key: string; choices: TaskChoice[] } | { key: string; error: string } | null
+  >(null)
+  const answer = found?.key === searchKey ? found : null
 
   React.useEffect(() => {
     if (!picking) return
     let live = true
     const timer = setTimeout(() => {
       findTasksToWaitFor(task.id, query).then(
-        (found) => live && setChoices(found),
-        () => live && setChoices([])
+        (choices) => live && setFound({ key: searchKey, choices }),
+        (error: unknown) => live && setFound({ key: searchKey, error: getProjectErrorMessage(error) })
       )
     }, 200)
     return () => {
       live = false
       clearTimeout(timer)
     }
-  }, [picking, query, task.id])
+  }, [picking, query, searchKey, task.id])
 
   async function pick(choice: TaskChoice | null) {
     const ok = await change(() => setTaskWaitingOn(task.id, choice?.id ?? null))
@@ -283,9 +293,13 @@ function WaitingOnField({
             autoFocus
             onChange={(event) => setQuery(event.target.value)}
           />
-          {choices.length ? (
+          {answer === null ? (
+            <LoadingRow label="Searching…" />
+          ) : "error" in answer ? (
+            <ErrorRow message={answer.error} className="py-4" onRetry={() => setTries((n) => n + 1)} />
+          ) : answer.choices.length ? (
             <ul className="grid gap-1">
-              {choices.map((choice) => (
+              {answer.choices.map((choice) => (
                 <li key={choice.id}>
                   <Button
                     type="button"

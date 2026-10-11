@@ -4,6 +4,7 @@ import { InvitePage } from "@/components/project/invite-page"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { loadTeamInvite } from "@/lib/api/project/teams"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { pageTitleHead } from "@/lib/project/page-title"
 
 /**
  * Where an emailed invite link opens. It sits under /projects so the page is
@@ -12,6 +13,7 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
  */
 export const Route = createFileRoute("/_authenticated/projects/invite/$token")({
   loader: ({ params }) => loadTeamInvite(params.token),
+  head: ({ matches }) => pageTitleHead("Invite", matches),
   component: InviteRoute,
   errorComponent: routeErrorComponent(getProjectErrorMessage),
 })

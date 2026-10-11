@@ -220,7 +220,7 @@ function NewLabelDialog({
               </Button>
               <Button type="submit" disabled={busy}>
                 {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                Make label
+                Create label
               </Button>
             </DialogFooter>
           </form>

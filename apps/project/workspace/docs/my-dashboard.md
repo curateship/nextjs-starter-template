@@ -4,6 +4,8 @@
 for it on 10 Oct 2026: three panels, me on the left, my tasks in the middle,
 my inbox on the right. The panels resize and collapse like the project page's.
 Below 1280px wide one panel shows at a time, with My tasks, Me and Inbox tabs.
+Switching tabs keeps each panel as it was: My tasks stays on Open, and Time
+off doesn't load again.
 
 ## Left: me
 

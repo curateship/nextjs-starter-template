@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router"
 
+import { ProjectRouteError } from "@/components/project/project-route-error"
 import { ProjectWorkspace } from "@/components/project/project-workspace"
-import { routeErrorComponent } from "@/components/shell/route-error"
 import { loadProject } from "@/lib/api/project/projects"
-import { getProjectErrorMessage } from "@/lib/project/errors"
 import { readTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
+import { pageTitleHead } from "@/lib/project/page-title"
 
 type ProjectSearch = TaskFilters & {
   /** The task open in the middle panel, so a bell notice can open it. */
@@ -23,8 +23,9 @@ export const Route = createFileRoute("/_authenticated/projects/$projectId")({
   // Opening a task must not reload the project under it; the window loads its own.
   loaderDeps: () => ({}),
   loader: ({ params }) => loadProject(params.projectId),
+  head: ({ loaderData, matches }) => pageTitleHead(loaderData?.project.name ?? "Project", matches),
   component: ProjectRoute,
-  errorComponent: routeErrorComponent(getProjectErrorMessage),
+  errorComponent: ProjectRouteError,
 })
 
 function ProjectRoute() {

@@ -22,6 +22,7 @@ export const PROJECT_ERRORS = {
   projectNotFound: "That project doesn't exist or you can't see it.",
   projectArchived: "This project is archived. Bring it back to change it.",
   taskNotFound: "That task doesn't exist or you can't see it.",
+  taskInBin: "That task is in the project's bin. Bring it back from the Bin to open it.",
   notProjectMember: "Tasks can only be handed to members of the project.",
   stuckNeedsReason: "Say in a line why the task is stuck.",
   notAssignee: "Only the person the task is assigned to can do that.",

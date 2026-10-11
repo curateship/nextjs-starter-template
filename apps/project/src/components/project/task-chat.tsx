@@ -21,7 +21,7 @@ import {
   type TaskComment,
   type TaskDetail,
 } from "@/lib/api/project/tasks"
-import { formatDateTime } from "@/lib/format/format-time"
+import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { messageParts, messageText, tagPeople, tagQueryBefore } from "@/lib/project/mentions"
 import { LIMITS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -49,6 +49,8 @@ export function TaskChatCard({
 }) {
   const [text, setText] = React.useState("")
   const [sending, setSending] = React.useState(false)
+  // A ref as well as the state: two Enters in one frame both see the old state.
+  const inFlight = React.useRef(false)
   const end = React.useRef<HTMLDivElement>(null)
   const people = detail.assignable
   const count = detail.comments.length
@@ -61,17 +63,22 @@ export function TaskChatCard({
   }, [count])
 
   async function send() {
-    const next = text.trim()
+    if (inFlight.current) return
+    const sent = text
+    const next = sent.trim()
     if (!next) {
       showErrorToast("Write the message first.")
       return
     }
+    inFlight.current = true
     setSending(true)
     const ok = await change(() =>
       addTaskComment({ taskId: detail.task.id, body: tagPeople(next, people) })
     )
+    inFlight.current = false
     setSending(false)
-    if (ok) setText("")
+    // Only the words that went out are cleared; anything typed meanwhile stays.
+    if (ok) setText((current) => (current === sent ? "" : current))
   }
 
   return (
@@ -124,11 +131,15 @@ function MessageRow({
   const [draft, setDraft] = React.useState("")
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
+  const inFlight = React.useRef(false)
   const name = comment.author?.name ?? "Former member"
 
   async function work(task: () => Promise<unknown>, successText?: string) {
+    if (inFlight.current) return false
+    inFlight.current = true
     setBusy(true)
     const ok = await change(task, successText)
+    inFlight.current = false
     setBusy(false)
     return ok
   }
@@ -151,7 +162,9 @@ function MessageRow({
       <div className="grid min-w-0 flex-1 gap-1">
         <p className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{name}</span> ·{" "}
-          {formatDateTime(comment.createdAt)}
+          <time dateTime={comment.createdAt} title={formatDateTime(comment.createdAt)}>
+            {formatTimeAgo(comment.createdAt)}
+          </time>
           {comment.editedAt && !comment.deleted ? " · edited" : ""}
         </p>
         {comment.deleted ? (

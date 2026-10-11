@@ -3,16 +3,10 @@ import { useRouter } from "@tanstack/react-router"
 import { ClockIcon } from "lucide-react"
 
 import { SaveLine } from "@/components/project/save-line"
+import { TimeZoneSelect } from "@/components/project/time-zone-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { saveMyCheckinTime, type CheckinClock } from "@/lib/api/project/checkins"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { clockLabel } from "@/lib/project/days"
@@ -32,11 +26,10 @@ export function MyCheckinTime({ clock }: { clock: CheckinClock }) {
   const busy = saveState === "saving"
   const [time, setTime] = useSyncedDraft(clock.time)
   const [timeInvalid, setTimeInvalid] = React.useState(false)
-  const zones = React.useMemo(() => {
-    const all =
-      typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : []
-    return clock.ownZone && !all.includes(clock.ownZone) ? [clock.ownZone, ...all] : all
-  }, [clock.ownZone])
+  const pinned = React.useMemo(
+    () => [{ value: TEAM_ZONE, label: `The team's (${clock.teamZone.replaceAll("_", " ")})` }],
+    [clock.teamZone]
+  )
 
   async function save(patch: Parameters<typeof saveMyCheckinTime>[0]) {
     const ok = await track(() => saveMyCheckinTime(patch))
@@ -92,25 +85,14 @@ export function MyCheckinTime({ clock }: { clock: CheckinClock }) {
           </div>
           <div className="grid gap-2">
             <Label htmlFor="my-checkin-zone">My time zone</Label>
-            <Select
+            <TimeZoneSelect
+              id="my-checkin-zone"
               value={clock.ownZone ?? TEAM_ZONE}
+              pinned={pinned}
+              teamZone={clock.teamZone}
               disabled={busy}
-              onValueChange={(value) => void save({ timeZone: value === TEAM_ZONE ? null : value })}
-            >
-              <SelectTrigger id="my-checkin-zone" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={TEAM_ZONE}>
-                  The team's ({clock.teamZone.replaceAll("_", " ")})
-                </SelectItem>
-                {zones.map((zone) => (
-                  <SelectItem key={zone} value={zone}>
-                    {zone.replaceAll("_", " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(value) => void save({ timeZone: value === TEAM_ZONE ? null : value })}
+            />
           </div>
         </div>
         {following ? null : (

@@ -6,6 +6,7 @@ import { listNotificationPage } from "@/lib/api/notification"
 import { loadMyDashboardPage } from "@/lib/api/project/checkins"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { readTaskFilters } from "@/lib/project/task-filters"
+import { pageTitleHead } from "@/lib/project/page-title"
 
 const ID = /^[\w-]{1,36}$/
 
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
     ])
     return { ...page, notifications: inbox.notifications }
   },
+  head: ({ matches }) => pageTitleHead("My dashboard", matches),
   component: DashboardRoute,
   errorComponent: routeErrorComponent(getProjectErrorMessage),
 })

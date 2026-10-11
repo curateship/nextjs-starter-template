@@ -2,17 +2,12 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { Loader2Icon, MailIcon, UsersIcon } from "lucide-react"
 
+import { TimeZoneSelect } from "@/components/project/time-zone-select"
 import { CardTop, FeedCard } from "@/components/shared/feed-card"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   acceptTeamInvite,
   createProjectTeam,
@@ -21,6 +16,7 @@ import {
 } from "@/lib/api/project/teams"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { pageGutter } from "@/lib/layout/shell-gutter"
+import { browserTimeZone } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS, TEAM_ROLE_LABEL } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -39,26 +35,11 @@ export function TeamStart({ invites }: { invites: InviteForMe[] }) {
   )
 }
 
-/** Every time zone this browser knows, with the reader's own first. */
-function timeZones(own: string) {
-  const all =
-    typeof Intl.supportedValuesOf === "function"
-      ? Intl.supportedValuesOf("timeZone")
-      : ["UTC"]
-  return [own, ...all.filter((zone) => zone !== own)]
-}
-
-function browserTimeZone() {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-}
-
 function CreateTeamCard() {
   const router = useRouter()
   const [name, setName] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
-  const own = React.useMemo(() => browserTimeZone(), [])
-  const [timeZone, setTimeZone] = React.useState(own)
-  const zones = React.useMemo(() => timeZones(own), [own])
+  const [timeZone, setTimeZone] = React.useState(browserTimeZone)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
 
   async function create(event: React.FormEvent) {
@@ -95,18 +76,7 @@ function CreateTeamCard() {
         </div>
         <div className="grid gap-2">
           <Label htmlFor="team-time-zone">Time zone</Label>
-          <Select value={timeZone} onValueChange={setTimeZone}>
-            <SelectTrigger id="team-time-zone" className="w-full sm:w-fit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {zones.map((zone) => (
-                <SelectItem key={zone} value={zone}>
-                  {zone.replaceAll("_", " ")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <TimeZoneSelect id="team-time-zone" value={timeZone} onChange={setTimeZone} className="sm:w-72" />
         </div>
         <div>
           <Button type="submit" disabled={busy}>
@@ -128,13 +98,17 @@ const BLOCKER_TEXT: Record<NonNullable<InviteForMe["blocker"]>, string> = {
 export function InvitesForMe({ invites }: { invites: InviteForMe[] }) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  // Declining throws the invite away, so it asks first; joining doesn't need to.
+  const [declining, setDeclining] = React.useState<InviteForMe | null>(null)
 
   async function answer(invite: InviteForMe, join: boolean) {
     const ok = await run(
       () => (join ? acceptTeamInvite(invite.id) : declineTeamInvite(invite.id)),
       join ? `You joined ${invite.teamName}.` : "Invite declined."
     )
-    if (ok) await router.invalidate()
+    if (!ok) return
+    setDeclining(null)
+    await router.invalidate()
   }
 
   return (
@@ -159,7 +133,7 @@ export function InvitesForMe({ invites }: { invites: InviteForMe[] }) {
                 type="button"
                 variant="outline"
                 disabled={busy}
-                onClick={() => void answer(invite, false)}
+                onClick={() => setDeclining(invite)}
               >
                 Decline
               </Button>
@@ -172,6 +146,18 @@ export function InvitesForMe({ invites }: { invites: InviteForMe[] }) {
           </li>
         ))}
       </ul>
+      <ConfirmDialog
+        open={Boolean(declining)}
+        onOpenChange={(open) => {
+          if (!open && !busy) setDeclining(null)
+        }}
+        title={declining ? `Decline the invite to ${declining.teamName}?` : "Decline the invite?"}
+        description="You'd need a new invite to join."
+        confirmLabel="Decline"
+        cancelLabel="Keep it"
+        loading={busy}
+        onConfirm={() => declining && void answer(declining, false)}
+      />
     </FeedCard>
   )
 }

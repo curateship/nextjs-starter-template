@@ -83,7 +83,7 @@ export function TeamFiguresGrid({ figures }: { figures: TeamFigures }) {
       <Figure label="Completed" value={String(figures.completedThisWeek)} detail="this week" />
       <Figure
         label="Check-in rate"
-        value={rate === null ? "–" : `${rate}%`}
+        value={rate === null ? "None" : `${rate}%`}
         detail={expected ? `${checkedIn} of ${expected}, last 7 days` : "No work days in the last 7 days"}
       />
     </dl>

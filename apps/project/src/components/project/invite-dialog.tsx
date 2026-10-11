@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useRouter } from "@tanstack/react-router"
+import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { CopyIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -153,8 +153,15 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
   )
 }
 
-/** The link, and whether an email really went out. Shared with Resend. */
+const authenticatedRoute = getRouteApi("/_authenticated")
+
+/**
+ * The link, and whether an email really went out: emailed, refused, or no
+ * email set up. Shared with Resend. Settings → Email is named only to an app
+ * admin, the one person who can open it.
+ */
 export function SentInviteCard({ sent, email }: { sent: SentInvite; email: string }) {
+  const appAdmin = authenticatedRoute.useLoaderData().user.role === "admin"
   async function copy() {
     try {
       await navigator.clipboard.writeText(sent.link)
@@ -167,15 +174,23 @@ export function SentInviteCard({ sent, email }: { sent: SentInvite; email: strin
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>{sent.emailed ? `Emailed to ${email}` : "Email isn't set up, so nothing was sent"}</CardTitle>
+        <CardTitle>
+          {sent.emailed
+            ? `Emailed to ${email}`
+            : sent.emailError
+              ? "The email didn't go out"
+              : "Email isn't set up"}
+        </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
         <p className="text-sm text-muted-foreground">
           {sent.emailed
             ? "You can also send them this link yourself."
             : sent.emailError
-              ? `The email was refused: ${sent.emailError}. Send them this link yourself.`
-              : "Send them this link yourself. An admin can set up email in Settings → Email."}
+              ? `It was refused: ${sent.emailError}. Send them this link yourself.`
+              : appAdmin
+                ? "Send them this link yourself. You can set up email in Settings → Email."
+                : "Send them this link yourself."}
         </p>
         <div className="grid gap-2">
           <Label htmlFor="invite-link">Invite link</Label>

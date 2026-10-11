@@ -1,7 +1,12 @@
 import * as React from "react"
 import { Trash2Icon } from "lucide-react"
 
-import { TaskView, type TaskParts } from "@/components/project/task-body"
+import {
+  DELETE_TASK_DETAIL,
+  DELETE_TASK_QUESTION,
+  TaskView,
+  type TaskParts,
+} from "@/components/project/task-body"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -120,8 +125,8 @@ function TaskPanel({ parts, onBack }: { parts: TaskParts; onBack: () => void }) 
         <ConfirmDialog
           open={confirmDelete}
           onOpenChange={setConfirmDelete}
-          title="Delete this task?"
-          description={`"${parts.title}" moves to the project's bin with its steps, chat and files. It can be brought back for 30 days.`}
+          title={DELETE_TASK_QUESTION}
+          description={DELETE_TASK_DETAIL}
           confirmLabel="Delete task"
           destructive
           loading={remove.busy}

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, useRouter } from "@tanstack/react-router"
+import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 import { BellIcon, CheckIcon, PlusIcon, UndoIcon } from "lucide-react"
 
@@ -7,7 +7,7 @@ import { TaskChatCard } from "@/components/project/task-chat"
 import { TaskFilesCard } from "@/components/project/task-files-card"
 import { TaskHistoryCard } from "@/components/project/task-history-card"
 import { TaskNotesField } from "@/components/project/task-notes"
-import { TaskMoreMenu } from "@/components/project/task-more-menu"
+import { MoveTaskCard, TaskMoreMenu } from "@/components/project/task-more-menu"
 import { TaskPlanCard } from "@/components/project/task-plan-card"
 import { StepMenu } from "@/components/project/step-menu"
 import { TaskLabelsField, TaskSectionField } from "@/components/project/task-sorting-fields"
@@ -51,17 +51,23 @@ import {
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { dateFromKey, keyFromDate } from "@/lib/project/dates"
-import { getProjectErrorMessage } from "@/lib/project/errors"
+import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import {
+  BIN_DAYS,
   LIMITS,
   TASK_STATUSES,
   TASK_STATUS_LABEL,
   type TaskStatus,
 } from "@/lib/project/rules"
+import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
 const NOBODY = "nobody"
+
+/** The one question before deleting a task, in the window and in the middle panel alike. */
+export const DELETE_TASK_QUESTION = "Delete this task?"
+export const DELETE_TASK_DETAIL = `It moves to the project's bin with its steps, chat and files, and can be brought back for ${BIN_DAYS} days.`
 
 /**
  * What a task shows, split into the pieces its two frames place differently:
@@ -101,6 +107,7 @@ export function TaskView({
   children: (parts: TaskParts) => React.ReactNode
 }) {
   const router = useRouter()
+  const navigate = useNavigate()
   const me = authenticatedRoute.useLoaderData().user
   const [loaded, setLoaded] = React.useState<Loaded>({ state: "loading" })
   const [reloads, setReloads] = React.useState(0)
@@ -137,6 +144,27 @@ export function TaskView({
     body:
       loaded.state === "loading" ? (
         <LoadingRow label="Loading the task…" />
+      ) : GONE.has(loaded.message) ? (
+        // Trying again can't bring it back, so this offers the way out instead.
+        <div className="grid justify-items-center gap-3 px-4 py-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            {loaded.message === PROJECT_ERRORS.taskInBin
+              ? loaded.message
+              : "That task is gone or you can't see it."}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              void navigate({
+                to: ".",
+                search: (previous: Record<string, unknown>) => ({ ...previous, task: undefined }),
+              })
+            }
+          >
+            Close
+          </Button>
+        </div>
       ) : (
         <ErrorRow message={loaded.message} onRetry={() => setReloads((n) => n + 1)} />
       ),
@@ -145,6 +173,9 @@ export function TaskView({
     remove: null,
   })
 }
+
+/** Answers that no retry can change. */
+const GONE = new Set<string>([PROJECT_ERRORS.taskNotFound, PROJECT_ERRORS.taskInBin])
 
 export type Change = (work: () => Promise<unknown>, successText?: string) => Promise<boolean>
 
@@ -168,6 +199,7 @@ function TaskForm({
   const [stuckReason, setStuckReason] = React.useState("")
   const [handingBack, setHandingBack] = React.useState(false)
   const [handBackReason, setHandBackReason] = React.useState("")
+  const [moving, setMoving] = React.useState(false)
 
   const isMine = task.assignee?.id === myUserId
   const canHandBack = isMine && Boolean(task.assignedBy) && task.assignedBy?.id !== myUserId
@@ -248,6 +280,7 @@ function TaskForm({
 
   const body = (
     <>
+      {moving && !readOnly ? <MoveTaskCard detail={detail} onDone={() => setMoving(false)} /> : null}
       {task.waiting && isMine && !readOnly ? (
         <Card size="sm">
           <CardHeader>
@@ -481,7 +514,7 @@ function TaskForm({
         {detail.following ? "Following" : "Follow"}
       </Button>
     ),
-    more: readOnly ? null : <TaskMoreMenu detail={detail} />,
+    more: readOnly ? null : <TaskMoreMenu detail={detail} onMove={() => setMoving(true)} />,
     remove: detail.canDelete && !readOnly ? { busy, run: remove } : null,
   })
 }
@@ -505,8 +538,10 @@ function ReasonRow({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  const frame = React.useRef<HTMLDivElement>(null)
+  useEscapeCancels(frame, onCancel)
   return (
-    <div className="grid gap-2">
+    <div ref={frame} className="grid gap-2">
       <Label htmlFor={id}>{label}</Label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
@@ -584,6 +619,7 @@ function StepsCard({
                 myUserId={myUserId}
                 readOnly={readOnly}
                 change={change}
+                busy={busy}
               />
             ))}
           </ul>
@@ -620,12 +656,14 @@ function StepRow({
   myUserId,
   readOnly,
   change,
+  busy,
 }: {
   step: TaskStep
   people: TaskDetail["assignable"]
   myUserId: string
   readOnly: boolean
   change: Change
+  busy: boolean
 }) {
   const [text, setText] = useSyncedDraft(step.text)
   const checkboxId = `step-${step.id}`
@@ -662,7 +700,7 @@ function StepRow({
           }}
         />
         {readOnly ? null : (
-          <StepMenu step={step} people={people} myUserId={myUserId} change={change} />
+          <StepMenu step={step} people={people} myUserId={myUserId} change={change} saving={busy} />
         )}
       </div>
       {step.assignee || step.dueDate ? (

@@ -3,6 +3,7 @@ import { useRouter } from "@tanstack/react-router"
 
 import { JoinLinkCard } from "@/components/project/join-link-card"
 import { SaveLine } from "@/components/project/save-line"
+import { TimeZoneSelect } from "@/components/project/time-zone-select"
 import { TeamLabelsCard } from "@/components/project/team-labels-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,13 +19,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import type { Label as TeamLabel } from "@/lib/api/project/sorting"
 import type { JoinLinkState } from "@/lib/api/project/team-running"
 import { updateProjectTeam, type TeamSummary } from "@/lib/api/project/teams"
@@ -105,11 +99,7 @@ function TeamSettingsFields({
   const [name, setName] = useSyncedDraft(team.name)
   const [checkinTime, setCheckinTime] = useSyncedDraft(team.checkinTime)
   const [nameInvalid, setNameInvalid] = React.useState(false)
-  const zones = React.useMemo(() => {
-    const all =
-      typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : []
-    return all.includes(team.timeZone) ? all : [team.timeZone, ...all]
-  }, [team.timeZone])
+  const [timeInvalid, setTimeInvalid] = React.useState(false)
 
   async function save(patch: Parameters<typeof updateProjectTeam>[0]) {
     const ok = await track(() => updateProjectTeam(patch))
@@ -130,7 +120,7 @@ function TeamSettingsFields({
   function commitTime() {
     if (checkinTime === team.checkinTime) return
     if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(checkinTime)) {
-      setCheckinTime(team.checkinTime)
+      setTimeInvalid(true)
       showErrorToast("Pick a time like 09:00.")
       return
     }
@@ -187,7 +177,11 @@ function TeamSettingsFields({
                 className="w-full sm:w-36"
                 value={checkinTime}
                 disabled={!canEdit}
-                onChange={(event) => setCheckinTime(event.target.value)}
+                aria-invalid={timeInvalid || undefined}
+                onChange={(event) => {
+                  setCheckinTime(event.target.value)
+                  setTimeInvalid(false)
+                }}
                 onBlur={commitTime}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") event.currentTarget.blur()
@@ -196,22 +190,13 @@ function TeamSettingsFields({
             </div>
             <div className="grid gap-2">
               <Label htmlFor="team-settings-zone">Time zone</Label>
-              <Select
+              <TimeZoneSelect
+                id="team-settings-zone"
                 value={team.timeZone}
-                onValueChange={(timeZone) => void save({ timeZone })}
                 disabled={!canEdit || busy}
-              >
-                <SelectTrigger id="team-settings-zone" className="w-full sm:w-fit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {zones.map((zone) => (
-                    <SelectItem key={zone} value={zone}>
-                      {zone.replaceAll("_", " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                className="sm:w-fit sm:max-w-full"
+                onChange={(timeZone) => void save({ timeZone })}
+              />
             </div>
           </div>
           <fieldset className="grid gap-2">

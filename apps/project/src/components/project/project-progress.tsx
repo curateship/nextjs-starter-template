@@ -1,6 +1,6 @@
 import { Meter } from "@/components/ui/meter"
-import { formatUtcDate } from "@/lib/format/format-time"
 import { todayKey } from "@/lib/project/dates"
+import { dayLabel } from "@/lib/project/days"
 import type { TaskStatus } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
 
@@ -35,7 +35,7 @@ export function ProjectProgress({
       </span>
       {dueDate ? (
         <span className={cn("text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>
-          {overdue ? "Overdue · " : ""}Due {formatUtcDate(`${dueDate}T00:00:00Z`)}
+          {overdue ? "Overdue · " : ""}Due {dayLabel(dueDate)}
         </span>
       ) : null}
     </div>

@@ -273,12 +273,20 @@ export async function loadTaskDetail(
   taskId: string,
   database = db
 ): Promise<TaskDetail> {
-  const { membership, project, task } = await requireTaskAccess(
-    userId,
-    taskId,
-    database,
-    { allowArchived: true }
-  )
+  const { membership, project, task } = await requireTaskAccess(userId, taskId, database, {
+    allowArchived: true,
+  }).catch(async (error: unknown) => {
+    // Someone who can see the project is told a binned task is in its bin,
+    // so a bell link to it explains itself. Anyone else still learns nothing.
+    if (error instanceof Error && error.message === PROJECT_ERRORS.taskNotFound) {
+      const binned = await requireTaskAccess(userId, taskId, database, {
+        allowArchived: true,
+        allowDeleted: true,
+      }).catch(() => null)
+      if (binned?.task.deletedAt) throw new Error(PROJECT_ERRORS.taskInBin)
+    }
+    throw error
+  })
   const [card] = await listTaskCards(eq(projectTasks.id, taskId), database)
   const stepRows = await database
     .select({

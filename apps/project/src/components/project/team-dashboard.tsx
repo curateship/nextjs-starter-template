@@ -127,10 +127,13 @@ function Dashboard({
       }),
     [navigate]
   )
+  // On a phone, picking a day on the calendar shows that day's panel.
+  const [dayPicks, setDayPicks] = React.useState(0)
 
   return (
     <ThreePanels
       layoutKey={TEAM_PANEL_LAYOUT_KEY}
+      showRightFor={dayPicks ? String(dayPicks) : undefined}
       left={{
         label: "Team",
         showLabel: "Show the team",
@@ -150,13 +153,17 @@ function Dashboard({
               go({ month: next, day: next === month.today.slice(0, 7) ? undefined : `${next}-01` })
             }
             onToday={() => go({ month: undefined, day: undefined })}
-            onSelect={(next) => go({ day: next })}
+            onSelect={(next) => {
+              go({ day: next })
+              setDayPicks((n) => n + 1)
+            }}
           />
         ),
       }}
       right={{
-        label: "Check-ins",
-        showLabel: "Show the check-ins",
+        // "Day", so the phone's tab doesn't sit over the panel's own Check-ins tab.
+        label: "Day",
+        showLabel: "Show the day",
         content: (
           <RightPanel
             canRun={runsTheTeam(data.myRole)}
@@ -528,7 +535,13 @@ function CheckinsPanel({
           <p className="text-sm">{shortDayLabel(requested)} hasn't happened yet. Showing today.</p>
         ) : null}
         {day.expected === 0 ? (
-          <p className="text-sm text-muted-foreground">A day off for the team.</p>
+          // A day with no saved rows at all (before the team began, or a day
+          // the end-of-day job never ran) isn't a day off; it's a day unknown.
+          <p className="text-sm text-muted-foreground">
+            {day.people.every((row) => row.state === "no_record")
+              ? "Nothing was saved for this day."
+              : "A day off for the team."}
+          </p>
         ) : (
           <>
             <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">

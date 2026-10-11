@@ -3,8 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { StatusBadge } from "@/components/project/task-bits"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { TaskDetail } from "@/lib/api/project/tasks"
-import { formatDateTime } from "@/lib/format/format-time"
-import { shortDayLabel } from "@/lib/project/days"
+import { shortDayLabel, shortDayTimeLabel } from "@/lib/project/days"
 import { isTaskStatus } from "@/lib/project/rules"
 
 type Entry = TaskDetail["history"][number]
@@ -47,7 +46,7 @@ export function TaskHistoryCard({ detail }: { detail: TaskDetail }) {
 }
 
 function whenOf(entry: Entry) {
-  return "day" in entry ? shortDayLabel(entry.day) : formatDateTime(entry.at)
+  return "day" in entry ? shortDayLabel(entry.day) : shortDayTimeLabel(entry.at)
 }
 
 function EntryText({ entry }: { entry: Entry }) {

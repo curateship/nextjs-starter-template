@@ -26,7 +26,9 @@ type Side = { label: string; content: React.ReactNode; showLabel: string }
  * (`crm-workspace.tsx`). The side panels collapse by being dragged shut or by
  * a double-click on blank space, and widths are remembered under `layoutKey`.
  * The page fills the screen and each panel scrolls on its own. Below 1280px
- * one panel shows at a time, with a tab for each.
+ * one panel shows at a time, with a tab for each. All three stay mounted and
+ * the hidden two are `inert`, so switching tabs keeps each panel's own tab,
+ * scroll and loaded lists instead of starting it over.
  */
 export function ThreePanels({
   layoutKey,
@@ -34,6 +36,7 @@ export function ThreePanels({
   middle,
   right,
   showMiddleFor,
+  showRightFor,
   children,
 }: {
   layoutKey: string
@@ -45,6 +48,8 @@ export function ThreePanels({
    * tab: a task opened from the inbox or a notice shows at once.
    */
   showMiddleFor?: string
+  /** The same for the right panel: each new value switches to its tab. */
+  showRightFor?: string
   /** Windows that open over the screen. */
   children?: React.ReactNode
 }) {
@@ -54,6 +59,11 @@ export function ThreePanels({
   if (showMiddleFor !== shownFor) {
     setShownFor(showMiddleFor)
     if (showMiddleFor) setNarrowView("middle")
+  }
+  const [rightFor, setRightFor] = React.useState(showRightFor)
+  if (showRightFor !== rightFor) {
+    setRightFor(showRightFor)
+    if (showRightFor) setNarrowView("right")
   }
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)
   const rightRef = React.useRef<PanelImperativeHandle | null>(null)
@@ -75,9 +85,15 @@ export function ThreePanels({
             <TabsTrigger value="right">{right.label}</TabsTrigger>
           </TabsList>
         </Tabs>
-        <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
-          {narrowView === "middle" ? middle.content : narrowView === "left" ? left.content : right.content}
-        </WorkspacePanel>
+        {(["middle", "left", "right"] as const).map((side) => (
+          <WorkspacePanel
+            key={side}
+            className={narrowView === side ? "flex min-w-0 flex-1 flex-col" : "hidden"}
+            inert={narrowView !== side}
+          >
+            {side === "middle" ? middle.content : side === "left" ? left.content : right.content}
+          </WorkspacePanel>
+        ))}
         {children}
       </div>
     )

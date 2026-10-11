@@ -72,6 +72,9 @@ the code. If the code disagrees with a line here, the code is wrong.
 - **The project page.** Tyler asked for "the existing 4 panel dashboard (except
   the bottom panel)": project details on the left, the tasks in the middle as
   Board and List tabs, and the project's members on the right.
+- **No long dashes on screen.** Tyler, 11 Oct 2026: "I dont like the em
+  dashes." Text people read uses no em or en dash: an empty cell is blank,
+  a missing figure reads "None", and a time range reads "10:00 to 10:45 AM".
 - **Price.** Project will become its own paid subscription product. It is free
   for now, and there is no billing work until Tyler decides on pricing.
 

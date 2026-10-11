@@ -1,4 +1,4 @@
-import { useNavigate, useRouter } from "@tanstack/react-router"
+import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import { Loader2Icon, MailIcon } from "lucide-react"
 
 import { CardTop, FeedCard } from "@/components/shared/feed-card"
@@ -13,7 +13,7 @@ const BLOCKED: Record<NonNullable<InviteForMe["blocker"]>, (invite: InviteForMe)
   "wrong-email": (invite) =>
     `This invite was sent to ${invite.email}. Sign out and sign in with that address to accept it.`,
   "already-on-team": () =>
-    "You're already on a team. Leave it from the Team page first, then open this link again.",
+    "You're already on a team. Leave it from the Members page first, then open this link again.",
 }
 
 /** Where an invite link lands, once the person is signed in. */
@@ -26,7 +26,7 @@ export function InvitePage({ invite }: { invite: InviteForMe | null }) {
     const ok = await run(() => acceptTeamInvite(target.id), `You joined ${target.teamName}.`)
     if (!ok) return
     await router.invalidate()
-    await navigate({ to: "/projects" })
+    await navigate({ to: "/dashboard" })
   }
 
   return (
@@ -40,7 +40,16 @@ export function InvitePage({ invite }: { invite: InviteForMe | null }) {
               or already accepted. Ask whoever sent it for a new one.
             </p>
           ) : invite.blocker ? (
-            <p className="text-sm text-muted-foreground">{BLOCKED[invite.blocker](invite)}</p>
+            <>
+              <p className="text-sm text-muted-foreground">{BLOCKED[invite.blocker](invite)}</p>
+              {invite.blocker === "already-on-team" ? (
+                <div>
+                  <Button asChild variant="outline">
+                    <Link to="/team/members">Open Members</Link>
+                  </Button>
+                </div>
+              ) : null}
+            </>
           ) : (
             <>
               <p className="text-sm text-muted-foreground">

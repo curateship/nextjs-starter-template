@@ -14,6 +14,13 @@ Project has no workspaces.
   time zone, and its work days (Monday to Friday to begin with). Each person
   can shift the time and time zone to their own hours on My dashboard
   (see [The morning check-in](morning-check-in.md)).
+- **One time-zone picker.** The team's zone, a person's own zone and a new
+  team's zone use the same list you can type into: "tor" finds
+  America/Toronto. The browser's zone and the team's sit at the top, and a
+  saved zone the browser doesn't know is kept (`time-zone-select.tsx`).
+- **A wrong value stays in its box, marked red,** until it's fixed: a check-in
+  time that isn't a time, an empty label name, an empty section name. The
+  error says why, and a refused save keeps what was typed too.
 
 ## Roles
 
@@ -39,6 +46,11 @@ Project has no workspaces.
   the `CUSTOM_SHELL_RESEND_API_KEY` setting. When neither is set, nothing is
   sent, and the invite window says so and shows the link to copy. The link is
   always shown, so it can be shared by hand either way.
+- **The invite window's heading says what happened:** "Emailed to
+  leo@example.com", "The email didn't go out" with the refusal under it, or
+  "Email isn't set up". Settings → Email is only named to an app admin, the
+  one person who can open it; a team owner is told to send the link
+  themselves.
 - **How often invites can be sent.** Each person can send 30 invite emails an
   hour, and one address can receive at most 5 a day from all teams together.
   Resend counts too. The cap exists because anyone can start a team, so without
@@ -52,9 +64,13 @@ Project has no workspaces.
   A signed-out visitor is sent to sign in and brought back. A brand-new account
   doesn't come back to the link, because `/register` doesn't remember where you
   were going. So any open invite to your address also shows at the top of the
-  Projects page, with Join and Decline.
+  Projects page, with Join and Decline. Decline asks first: "Decline the
+  invite to Acme? You'd need a new invite to join."
+- **Joining lands on My dashboard**, by invite or by join link alike.
 - **Someone already on a team** sees the invite with "Leave your current team
-  to join this one", and Join is refused until they leave.
+  to join this one", and Join is refused until they leave. The invite and
+  join pages say "Leave it from the Members page first" with an Open Members
+  button.
 
 ## The join link
 
@@ -66,7 +82,9 @@ One link to paste in a message, instead of inviting people one by one.
 - **Shown once.** Like an invite, only a fingerprint (sha256) of the link's
   secret is kept, so the link is shown when it is made and never again.
   "Make a new link" replaces it, and the old one stops working at once. "Turn
-  it off" stops it too.
+  it off" stops it too. Both ask first, inside the card rather than in a
+  window over Team settings: "Make a new link? The old one stops working at
+  once." Turning the link on from off doesn't ask.
 - **It works for 7 days.**
 - **Against a leaked link:** at most 20 people a day can join through one
   link, and the owner and admins get "Leo joined the team through the link" in
@@ -106,7 +124,9 @@ For when someone leaves or goes away, so their work isn't left with nobody.
 - **One notice**, "Anna gave you 9 tasks", opens the receiver's My dashboard,
   rather than nine.
 - **Projects the receiver isn't on.** Those tasks are left with nobody
-  assigned ("Nobody (was Ben)") and listed in the window with the reason. The
+  assigned ("Nobody (was Ben)") and listed in the window with the reason,
+  "isn't on the project" or "isn't on these projects". The window keeps the
+  person's name while it closes. The
   receiver is never added to a project (Tyler's choice, 10 Oct 2026).
 - **Left alone:** tasks in archived projects and "Just me" tasks.
 
@@ -114,7 +134,9 @@ For when someone leaves or goes away, so their work isn't left with nobody.
 
 `/team` is three panels, from Tyler's mockup of 10 Oct 2026
 (`assets/pasted-image-1791659665679304000.png`). The panels resize and
-collapse like the project page's, and below 1280px wide one shows at a time.
+collapse like the project page's, and below 1280px wide one shows at a time,
+under Calendar, Team and Day tabs. Picking a day on the calendar switches to
+Day. The tab is "Day" so it doesn't sit over the panel's own Check-ins tab.
 
 - **Left: the team.** The team photo, its name, the day it was created and its
   time zone, the four figures, the check-in schedule ("Daily at 9:00 AM,
@@ -134,7 +156,8 @@ collapse like the project page's, and below 1280px wide one shows at a time.
     Only the time moves: late is still judged on the teammate's own clock and
     check-in time, and they stay on their own day.
   - **A day nobody is expected** reads "A day off for the team." with no bar,
-    instead of "0 of 0 checked in".
+    instead of "0 of 0 checked in". A day with nothing saved at all, such as
+    one before the team began, reads "Nothing was saved for this day."
   - **A day still to come** shows today, and says so: "Wed, Oct 14 hasn't
     happened yet. Showing today." Workload, for
   everyone, and Needs attention, for the owner and admins (see
@@ -207,9 +230,13 @@ for app admins and a customer who owns a team is not one.
 - **Members.** Everyone on the team with their job title, role and the date
   they joined.
   The owner and admins change roles from the Settings button and remove people
-  from the Delete button, one at a time or several at once.
+  from the Delete button, one at a time or several at once. Searching clears
+  the ticks, so Remove never acts on someone the search has hidden. An empty
+  job title is a blank cell.
 - **Pending invites.** Only the owner and admins see this table. Each row can
-  be sent again or cancelled.
+  be sent again or cancelled. Resend's hover label says "Resend the invite.
+  The old link stops working." before it's pressed, and Cancel waits while a
+  resend runs.
 - **Leave team.** Everyone but the owner sees it at the bottom.
 
 ## Where it lives

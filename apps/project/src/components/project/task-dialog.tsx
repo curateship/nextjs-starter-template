@@ -1,7 +1,12 @@
 import * as React from "react"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
 
-import { TaskView, type TaskParts } from "@/components/project/task-body"
+import {
+  DELETE_TASK_DETAIL,
+  DELETE_TASK_QUESTION,
+  TaskView,
+  type TaskParts,
+} from "@/components/project/task-body"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 
 /**
  * One task as a window over the page, which is how the Team dashboard opens a
@@ -42,6 +48,9 @@ export function TaskDialog({
 function TaskWindow({ parts, onClose }: { parts: TaskParts; onClose: () => void }) {
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   const { remove } = parts
+  // The question stays in the footer, never a second window; Escape keeps the task.
+  const footer = React.useRef<HTMLDivElement>(null)
+  useEscapeCancels(footer, () => setConfirmDelete(false))
 
   return (
     <>
@@ -55,45 +64,50 @@ function TaskWindow({ parts, onClose }: { parts: TaskParts; onClose: () => void 
         </DialogDescription>
       </DialogHeader>
       <DialogBody>{parts.body}</DialogBody>
-      <DialogFooter>
-        {remove ? (
-          confirmDelete ? (
-            <div className="mr-auto flex flex-wrap items-center gap-2">
-              <span className="text-sm">Move this task to the bin?</span>
-              <Button type="button" variant="outline" onClick={() => setConfirmDelete(false)}>
-                Keep it
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={remove.busy}
-                onClick={() =>
-                  void remove.run().then((ok) => {
-                    if (ok) onClose()
-                  })
-                }
-              >
-                {remove.busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                Delete task
-              </Button>
-            </div>
-          ) : (
+      <DialogFooter ref={footer} className="flex-wrap">
+        {remove && confirmDelete ? (
+          <>
+            <p className="mr-auto basis-full text-sm sm:basis-auto sm:flex-1">
+              <span className="font-medium">{DELETE_TASK_QUESTION}</span> {DELETE_TASK_DETAIL}
+            </p>
+            <Button type="button" variant="outline" disabled={remove.busy} onClick={() => setConfirmDelete(false)}>
+              Keep it
+            </Button>
             <Button
               type="button"
-              variant="outline"
-              className="mr-auto"
-              onClick={() => setConfirmDelete(true)}
+              variant="destructive"
+              autoFocus
+              disabled={remove.busy}
+              onClick={() =>
+                void remove.run().then((ok) => {
+                  if (ok) onClose()
+                })
+              }
             >
-              <Trash2Icon className="size-4" />
-              Delete
+              {remove.busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              Delete task
             </Button>
-          )
-        ) : null}
-        {parts.more}
-        {parts.follow}
-        <Button type="button" onClick={onClose}>
-          Done
-        </Button>
+          </>
+        ) : (
+          <>
+            {remove ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="mr-auto"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2Icon className="size-4" />
+                Delete task
+              </Button>
+            ) : null}
+            {parts.follow}
+            {parts.more}
+            <Button type="button" onClick={onClose}>
+              Done
+            </Button>
+          </>
+        )}
       </DialogFooter>
     </>
   )

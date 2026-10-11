@@ -666,6 +666,7 @@ function PickRow({
                 Cancel
               </Button>
               <Button type="button" disabled={saving} onClick={() => void markStuck()}>
+                {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
                 Mark Stuck
               </Button>
             </div>
@@ -771,7 +772,7 @@ function AddTaskRow({
           </Select>
         </div>
         <Button type="submit" variant="outline" disabled={busy} className="shrink-0">
-          <PlusIcon className="size-4" />
+          {busy ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
           Add task
         </Button>
       </div>

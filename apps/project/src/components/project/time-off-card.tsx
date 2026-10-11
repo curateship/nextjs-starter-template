@@ -9,15 +9,13 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { addDaysOff, loadDaysOff, removeDaysOff, type TimeOff } from "@/lib/api/project/checkins"
-import { formatUtcDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { keyFromDate } from "@/lib/project/dates"
+import { dayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-const dayLabel = (day: string) => formatUtcDate(`${day}T00:00:00Z`)
-
-/** "Oct 14, 2026", or "Oct 14, 2026 to Oct 16, 2026". */
+/** "Oct 14", or "Oct 14 to Oct 16", with the year only when it isn't this one. */
 const spanLabel = (entry: TimeOff) =>
   entry.firstDay === entry.lastDay
     ? dayLabel(entry.firstDay)

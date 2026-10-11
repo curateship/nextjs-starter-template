@@ -1,4 +1,4 @@
-import { useNavigate, useRouter } from "@tanstack/react-router"
+import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import { Link2Icon, Loader2Icon } from "lucide-react"
 
 import { CardTop, FeedCard } from "@/components/shared/feed-card"
@@ -10,7 +10,7 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 const BLOCKED: Record<NonNullable<JoinOffer["blocker"]>, string> = {
   expired: "This join link has expired. Ask the team for a new one.",
   "already-on-team":
-    "You're already on a team, and an account can be on one team at a time. Leave it from the Team page first, then open this link again.",
+    "You're already on a team, and an account can be on one team at a time. Leave it from the Members page first, then open this link again.",
 }
 
 /** Where a team's join link lands, once the person is signed in. */
@@ -37,7 +37,16 @@ export function JoinPage({ offer, token }: { offer: JoinOffer | null; token: str
               new one.
             </p>
           ) : offer.blocker ? (
-            <p className="text-sm text-muted-foreground">{BLOCKED[offer.blocker]}</p>
+            <>
+              <p className="text-sm text-muted-foreground">{BLOCKED[offer.blocker]}</p>
+              {offer.blocker === "already-on-team" ? (
+                <div>
+                  <Button asChild variant="outline">
+                    <Link to="/team/members">Open Members</Link>
+                  </Button>
+                </div>
+              ) : null}
+            </>
           ) : (
             <>
               <p className="text-sm text-muted-foreground">

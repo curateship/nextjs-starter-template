@@ -1,5 +1,5 @@
 import * as React from "react"
-import { SettingsIcon } from "lucide-react"
+import { Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react"
 
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
@@ -50,8 +50,14 @@ export function TaskNotesField({
     return ok
   }
 
+  // Done spins while the notes save, and a second press waits for the first.
+  const [finishing, setFinishing] = React.useState(false)
   async function finish() {
-    if (await save()) setEditing(false)
+    if (finishing) return
+    setFinishing(true)
+    const ok = await save()
+    setFinishing(false)
+    if (ok) setEditing(false)
   }
 
   return (
@@ -61,13 +67,23 @@ export function TaskNotesField({
           <span>Notes</span>
         </Label>
         {readOnly ? null : editing ? (
-          <Button type="button" variant="outline" size="sm" onClick={() => void finish()}>
+          <Button type="button" variant="outline" size="sm" disabled={finishing} onClick={() => void finish()}>
+            {finishing ? <Loader2Icon className="size-4 animate-spin" /> : null}
             Done
           </Button>
         ) : (
           <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(true)}>
-            <SettingsIcon className="size-4" />
-            {taskNotesAreEmpty(saved) ? "Add notes" : "Edit notes"}
+            {taskNotesAreEmpty(saved) ? (
+              <>
+                <PlusIcon className="size-4" />
+                Add notes
+              </>
+            ) : (
+              <>
+                <SettingsIcon className="size-4" />
+                Edit notes
+              </>
+            )}
           </Button>
         )}
       </div>

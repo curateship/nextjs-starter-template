@@ -62,12 +62,12 @@ const WEEKDAY_NAMES = [
   "Saturday",
 ] as const
 
-/** "10:00 – 10:45 AM", or "11:30 AM – 12:15 PM" across noon, read in the zone. */
+/** "10:00 to 10:45 AM", or "11:30 AM to 12:15 PM" across noon, read in the zone. No dashes on screen. */
 export function timeRangeLabel(startsAt: string, endsAt: string, timeZone: string) {
   const start = clockLabel(localNow(new Date(startsAt), timeZone).time)
   const end = clockLabel(localNow(new Date(endsAt), timeZone).time)
   const [startClock, startHalf] = start.split(" ")
-  return startHalf === end.split(" ")[1] ? `${startClock} – ${end}` : `${start} – ${end}`
+  return startHalf === end.split(" ")[1] ? `${startClock} to ${end}` : `${start} to ${end}`
 }
 
 const KNOWN_SERVICES: { name: string; matches: (host: string) => boolean }[] = [

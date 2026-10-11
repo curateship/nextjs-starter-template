@@ -69,14 +69,26 @@ panels and nothing along the bottom.
   or drag it shut, to collapse it, and the tab on the middle panel's edge opens
   it again. Widths are remembered in this browser under the key in
   `src/lib/project/panel-keys.ts`, not in the shell's list.
+- **A project that's gone**, or that this person can't see, shows "That
+  project doesn't exist or you can't see it." with Back to Projects, from the
+  route's own error screen (`project-route-error.tsx`). Other load failures
+  keep the shell's card with Try again.
+- **Browser tabs** name the page: "My dashboard · Project", the project's own
+  name on its page, "Team", "Members", "Invite" and "Join". Each route sets
+  its title in its `head` (`src/lib/project/page-title.ts`). After a full
+  reload the shell renames the tab to the app name alone until the next page
+  change; that is the shell's `useShellDocumentTitle`.
 - **Narrow screens.** Below 1280px wide, the page shows one panel at a time
-  with Tasks, Details and Members tabs above it.
+  with Tasks, Details and Members tabs above it. All three stay loaded and
+  the hidden two can't take the keyboard, so switching tabs keeps each one's
+  own tab, scroll and lists (`three-panels.tsx`, shared with My dashboard and
+  the Team dashboard).
 
 ## Activity
 
 The Activity tab, beside Board and List, is the project's own feed: "Priya
 marked Build the contact form Done", newest first, 50 at a time with "Show
-older".
+older". Each line says how long ago, with the exact time on hover.
 
 - **What it lists:** a task made, its status changed, handed over, accepted,
   handed back, commented on, put in the bin and brought back, a step made its
@@ -135,6 +147,9 @@ without leaving the page and without a window over it.
   task that arrived by link shows the list without leaving the page.
 - **Narrow screens.** Below 1280px the Tasks tab shows the task the same way,
   and opening one from the inbox switches to that tab.
+- **A task that's gone** shows "That task is gone or you can't see it." with
+  Close, which takes `?task` out of the address. There's no Try again and no
+  red message, since trying again can't bring it back.
 - **The Team dashboard and the check-in keep the window.** Their middle panel
   isn't a task list, so a task opens there as a window over the page. Tyler
   chose this on 10 Oct 2026.
@@ -157,7 +172,9 @@ without leaving the page and without a window over it.
 - **Steps.** Up to 50 per task. Progress reads as "3 of 5 steps done". Tyler
   chose steps over a percentage because a percentage is a guess.
 - **Due dates** are whole days. A task past its due date and not Done shows
-  "Overdue".
+  "Overdue". A date this year reads "Nov 30", and the year shows only for
+  another year ("Jan 4, 2027"); snooze dates and time off read the same way.
+  History lists each moment as "Fri, Oct 10, 3:04 PM".
 
 ### Making tasks quickly
 
@@ -193,8 +210,11 @@ without leaving the page and without a window over it.
   would be noise.
 - **The List waits for the last save.** While a reorder or status change is
   saving, rows can't be dragged, so two quick drags save in the order made.
-- **Move to project**, from the "More" menu, lists my other open projects. If
-  the person assigned isn't on the new one, the window says so and the task
+- **Move to project**, from the "More" menu, opens a card at the top of the
+  task, never a second window, with my other open projects, Move task and
+  Cancel. Escape cancels the card before it closes the task's window. Greyed
+  out, it says "You're not on any other project." If
+  the person assigned isn't on the new one, the card says so and the task
   moves with nobody assigned (and their name kept). Steps, chat, files,
   labels and history go with it; the section stays behind, since sections are
   one project's own. People on its steps who aren't on the new project come
@@ -204,6 +224,9 @@ without leaving the page and without a window over it.
 - **Make it a task.** A step that grew too big becomes its own task in the
   same project, from the step's own menu, with the step's text, person and
   date. The step leaves the old task, and both histories link to each other.
+- **Delete step** asks first inside the step's menu ("Delete this step?" with
+  Keep it), and says "Step deleted." The step's person, date and Clear wait
+  while a change to the task is saving.
 
 ### Planning ahead
 
@@ -218,6 +241,8 @@ Each task has a Plan card with three fields that save the moment they change.
   now" ends the snooze. A task left over from yesterday's check-in still has
   to be carried over or dropped with a reason: snoozing never answers for it.
 - **Waiting on** another task in the team, picked by searching titles. The
+  search says Searching… while it looks, offers Try again when it fails, and
+  says "No tasks match." only for a real empty result. The
   waiting task shows "Waiting on: Get the logo approved", and the other one
   shows "Holding up: Launch the site". When the other task becomes Done, the
   waiting one shows "Ready to start" and its person gets "Anna finished what
@@ -245,14 +270,23 @@ Each task has a Plan card with three fields that save the moment they change.
 ### The bin
 
 - **Delete moves a task to its project's bin** for 30 days, with "Undo" on
-  the message. It leaves every list at once, and its history notes who
+  the message. Both ways a task opens ask the same question first: "Delete
+  this task? It moves to the project's bin with its steps, chat and files,
+  and can be brought back for 30 days." In the middle panel that's a confirm
+  window; in the task's window it's a line in the footer, so a window never
+  opens over a window. The buttons read Follow, More, Delete in both. It leaves every list at once, and its history notes who
   deleted it.
 - **The Bin button** on the project's details panel lists what was deleted,
   by whom and when, with Bring back. A task comes back whole: steps, chat,
   files, labels and history.
 - **Who may bring it back:** the same people who may delete it, that is
   whoever made it, the owner and admins (Tyler's choice, 10 Oct 2026).
-- **Empty bin** is for the owner and admins, and asks first.
+- **Empty bin** is for the owner and admins, and asks first in the Bin
+  window's own footer: "Empty the bin? This can't be undone." with Keep them
+  and Empty bin. Bring back spins on the row being brought back.
+- **A link to a binned task** says "That task is in the project's bin. Bring
+  it back from the Bin to open it." to anyone who can see the project. Anyone
+  else is told only that the task is gone or they can't see it.
 - **After 30 days** the daily job deletes the task for good, files first. If
   storage can't remove a file, the task stays in the bin and the job tries
   again on its next pass, so no file is left behind without its task.

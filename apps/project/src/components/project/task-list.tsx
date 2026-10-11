@@ -362,7 +362,7 @@ function TaskRow({
         <DueDate dueDate={task.dueDate} status={task.status} />
       </TableCell>
       <TableCell column="preview">
-        {task.steps.total ? `${task.steps.done} of ${task.steps.total}` : "—"}
+        {task.steps.total ? `${task.steps.done} of ${task.steps.total}` : null}
       </TableCell>
       <TableCell column="actions">
         <Button

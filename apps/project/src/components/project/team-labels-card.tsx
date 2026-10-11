@@ -58,18 +58,20 @@ function LabelRow({ label }: { label: Label }) {
   const router = useRouter()
   const [name, setName] = useSyncedDraft(label.name)
   const [confirming, setConfirming] = React.useState(false)
+  // A refused or empty name stays in the box, marked, until it's fixed.
+  const [invalid, setInvalid] = React.useState(false)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
 
   async function save(patch: { name?: string; color?: Label["color"] }) {
     if (await run(() => saveLabel({ labelId: label.id, ...patch }))) await router.invalidate()
-    else setName(label.name)
+    else if (patch.name !== undefined) setInvalid(true)
   }
 
   function commitName() {
     const next = name.trim()
     if (next === label.name) return
     if (!next) {
-      setName(label.name)
+      setInvalid(true)
       showErrorToast("A label needs a name.")
       return
     }
@@ -83,7 +85,11 @@ function LabelRow({ label }: { label: Label }) {
         className="min-w-0 flex-1"
         value={name}
         maxLength={LIMITS.labelName}
-        onChange={(event) => setName(event.target.value)}
+        aria-invalid={invalid || undefined}
+        onChange={(event) => {
+          setName(event.target.value)
+          setInvalid(false)
+        }}
         onBlur={commitName}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur()

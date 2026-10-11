@@ -242,7 +242,10 @@ describe("the bin", () => {
     await deleteTask(actor(anna), id, database)
     expect(await titlesIn()).toEqual([])
     expect(await loadMyWork(ben.id, database)).toEqual([])
-    await expect(loadTaskDetail(anna.id, id, database)).rejects.toThrow(PROJECT_ERRORS.taskNotFound)
+    // Someone who can see the project is told it's in the bin; Carla, who isn't
+    // on the project, still can't learn that it exists.
+    await expect(loadTaskDetail(anna.id, id, database)).rejects.toThrow(PROJECT_ERRORS.taskInBin)
+    await expect(loadTaskDetail(carla.id, id, database)).rejects.toThrow(PROJECT_ERRORS.taskNotFound)
     expect((await loadProjectBin(anna.id, website, database)).entries).toMatchObject([
       { id, title: "Wrong one", deletedByName: "Anna" },
     ])

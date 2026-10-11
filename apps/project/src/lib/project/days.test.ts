@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { addDays, clockIn, clockLabel, isRealDay, localNow, momentOf, zoneCity } from "@/lib/project/days"
+import { addDays, clockIn, clockLabel, dayLabel, isRealDay, localNow, momentOf, zoneCity } from "@/lib/project/days"
+import { timeRangeLabel } from "@/lib/project/meetings"
 
 describe("a person's day", () => {
   it("reads the day and time in the person's own zone", () => {
@@ -39,5 +40,12 @@ describe("a person's day", () => {
     expect(zoneCity("America/Toronto")).toBe("Toronto")
     expect(zoneCity("America/Argentina/Buenos_Aires")).toBe("Buenos Aires")
     expect(zoneCity("UTC")).toBe("UTC")
+  })
+
+  it("writes a due day without the year when it's this year, and a meeting time with no dash", () => {
+    expect(dayLabel("2026-11-30", 2026)).toBe("Nov 30")
+    expect(dayLabel("2027-01-04", 2026)).toBe("Jan 4, 2027")
+    expect(timeRangeLabel("2026-10-12T14:00:00Z", "2026-10-12T14:45:00Z", "UTC")).toBe("2:00 to 2:45 PM")
+    expect(timeRangeLabel("2026-10-12T11:30:00Z", "2026-10-12T12:15:00Z", "UTC")).toBe("11:30 AM to 12:15 PM")
   })
 })

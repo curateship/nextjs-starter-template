@@ -118,6 +118,35 @@ function utcNoonOf(day: string) {
   return new Date(Date.UTC(year, month - 1, date, 12))
 }
 
+const SHORT_DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+const SHORT_DATE_YEAR = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+})
+const SHORT_DAY_TIME = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+})
+
+/**
+ * "Nov 30" for a due or snooze day this year, "Nov 30, 2027" for any other
+ * year. `thisYear` is the reader's, and is only passed in by tests.
+ */
+export function dayLabel(day: string, thisYear = new Date().getFullYear()) {
+  const date = utcNoonOf(day)
+  return Number(day.slice(0, 4)) === thisYear ? SHORT_DATE.format(date) : SHORT_DATE_YEAR.format(date)
+}
+
+/** "Fri, Oct 10, 3:04 PM", in the reader's own clock: History's one style for a moment. */
+export function shortDayTimeLabel(at: string | Date) {
+  return SHORT_DAY_TIME.format(new Date(at))
+}
+
 /** "Fri, Oct 10". */
 export function shortDayLabel(day: string) {
   return SHORT_DAY.format(utcNoonOf(day))
@@ -126,6 +155,11 @@ export function shortDayLabel(day: string) {
 /** "Friday, October 10". */
 export function longDayLabel(day: string) {
   return LONG_DAY.format(utcNoonOf(day))
+}
+
+/** The zone this browser is in, "UTC" when it won't say. */
+export function browserTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
 }
 
 /** "Toronto" from "America/Toronto", "UTC" from "UTC". */

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { toast } from "sonner"
 import { FileIcon, Loader2Icon, Trash2Icon, UploadIcon } from "lucide-react"
 
 import type { Change } from "@/components/project/task-body"
@@ -9,6 +10,7 @@ import type { TaskDetail, TaskFile } from "@/lib/api/project/tasks"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { taskFileHref } from "@/lib/project/files"
+import { plural } from "@/lib/format/plural"
 import { LIMITS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -17,7 +19,8 @@ import { cn } from "@/lib/utils"
  * Files on a task: drop them on the card or browse for them. Pictures show
  * small and open full size in a new tab; anything else is a name to download.
  * Up to 10 files of 10 MB each, and 5 GB for the whole team, which the server
- * checks too.
+ * checks too. A full task locks the drop area before anything is picked, and
+ * a drop while files are still going up is ignored.
  *
  * This is a file field, not an image field, so it doesn't use the shared
  * `ImageUpload`: that puts pictures in the public media library, and a task's
@@ -38,24 +41,28 @@ export function TaskFilesCard({
   const input = React.useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = React.useState<string[]>([])
   const [dragging, setDragging] = React.useState(false)
+  // A ref as well as the list: a second drop can land before the list redraws.
+  const inFlight = React.useRef(false)
   const room = LIMITS.filesPerTask - files.length
+  const full = room <= 0
+  const busy = uploading.length > 0
+  const maxSize = formatFileSize(LIMITS.fileBytes)
 
   async function upload(picked: File[]) {
-    if (picked.length === 0) return
+    if (picked.length === 0 || inFlight.current || full) return
     const tooBig = picked.filter((file) => file.size > LIMITS.fileBytes)
     for (const file of tooBig) {
-      showErrorToast(`"${file.name}" is ${formatFileSize(file.size)}. A file can be at most 10 MB.`)
+      showErrorToast(`"${file.name}" is ${formatFileSize(file.size)}. A file can be at most ${maxSize}.`)
     }
     const fitting = picked.filter((file) => file.size <= LIMITS.fileBytes)
     if (fitting.length > room) {
       showErrorToast(
-        room === 0
-          ? "A task can hold at most 10 files. Delete one to add another."
-          : `This task has room for ${room} more ${room === 1 ? "file" : "files"}, so only the first ${room} were added.`
+        `This task has room for ${room} more ${plural(room, "file")}, so only the first ${room} ${room === 1 ? "was" : "were"} added.`
       )
     }
-    const sending = fitting.slice(0, Math.max(room, 0))
+    const sending = fitting.slice(0, room)
     if (sending.length === 0) return
+    inFlight.current = true
     setUploading(sending.map((file) => file.name))
     let added = 0
     for (const file of sending) {
@@ -67,7 +74,11 @@ export function TaskFilesCard({
       }
       setUploading((current) => current.slice(1))
     }
-    if (added) await refresh()
+    inFlight.current = false
+    if (added) {
+      toast.success(`${added} ${plural(added, "file")} added.`)
+      await refresh()
+    }
   }
 
   return (
@@ -103,7 +114,7 @@ export function TaskFilesCard({
             )}
             onDragOver={(event) => {
               event.preventDefault()
-              setDragging(true)
+              if (!full && !busy) setDragging(true)
             }}
             onDragLeave={() => setDragging(false)}
             onDrop={(event) => {
@@ -113,12 +124,14 @@ export function TaskFilesCard({
             }}
           >
             <p className="text-sm text-muted-foreground">
-              Drop files here, up to 10 MB each.
+              {full
+                ? `This task has ${LIMITS.filesPerTask} files. Delete one to add another.`
+                : `Drop files here, up to ${maxSize} each.`}
             </p>
             <Button
               type="button"
               variant="outline"
-              disabled={uploading.length > 0}
+              disabled={busy || full}
               onClick={() => input.current?.click()}
             >
               <UploadIcon className="size-4" />

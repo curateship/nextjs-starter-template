@@ -5,7 +5,7 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { loadActivity, type ActivityEntry } from "@/lib/api/project/projects"
-import { formatDateTime } from "@/lib/format/format-time"
+import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { isTaskStatus, TASK_STATUS_LABEL } from "@/lib/project/rules"
 
@@ -68,7 +68,13 @@ export function ProjectActivity({
               <span className="min-w-0 break-words">
                 <Line entry={entry} onOpenTask={onOpenTask} />
               </span>
-              <span className="text-xs text-muted-foreground sm:text-right">{formatDateTime(entry.at)}</span>
+              <time
+                dateTime={entry.at}
+                title={formatDateTime(entry.at)}
+                className="text-xs text-muted-foreground sm:text-right"
+              >
+                {formatTimeAgo(entry.at)}
+              </time>
             </li>
           ))}
         </ol>

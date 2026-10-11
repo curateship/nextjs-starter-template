@@ -11,7 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { initialsFor } from "@/lib/crm/inbox-time"
-import { formatUtcDate } from "@/lib/format/format-time"
+import { dayLabel } from "@/lib/project/days"
 import {
   PICKED_MANY_DAYS,
   PROJECT_COLOR_DOT,
@@ -94,7 +94,7 @@ export function DueDate({
   return (
     <span className={cn(overdue ? "text-destructive" : "text-muted-foreground", className)}>
       {overdue ? "Overdue · " : null}
-      {formatUtcDate(`${dueDate}T00:00:00Z`)}
+      {dayLabel(dueDate)}
     </span>
   )
 }
@@ -144,7 +144,7 @@ export function SnoozedBadge({ until, today }: { until: string | null; today: st
   return (
     <Badge variant="outline">
       <MoonIcon aria-hidden />
-      Snoozed until {formatUtcDate(`${until}T00:00:00Z`)}
+      Snoozed until {dayLabel(until)}
     </Badge>
   )
 }

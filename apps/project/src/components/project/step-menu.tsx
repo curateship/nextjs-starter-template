@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { ListPlusIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
+import { ListPlusIcon, Loader2Icon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 
 import type { Change } from "@/components/project/task-body"
 import { PersonAvatar } from "@/components/project/task-bits"
@@ -39,16 +39,26 @@ export function StepMenu({
   people,
   myUserId,
   change,
+  saving,
 }: {
   step: TaskStep
   people: TaskDetail["assignable"]
   myUserId: string
   change: Change
+  /** A change to the task is saving, this step's included: its fields wait. */
+  saving: boolean
 }) {
   const router = useRouter()
   const navigate = useNavigate()
-  const [open, setOpen] = React.useState(false)
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  const [open, setOpenState] = React.useState(false)
+  const [confirmDelete, setConfirmDelete] = React.useState(false)
+  const [run, making] = useAsyncAction(getProjectErrorMessage)
+  const busy = saving || making
+
+  function setOpen(next: boolean) {
+    setOpenState(next)
+    if (!next) setConfirmDelete(false)
+  }
   const personId = `step-person-${step.id}`
   const dateId = `step-due-${step.id}`
 
@@ -78,6 +88,7 @@ export function StepMenu({
           <Label htmlFor={personId}>Who does it</Label>
           <Select
             value={step.assignee?.id ?? NOBODY}
+            disabled={busy}
             onValueChange={(value) =>
               void change(() =>
                 updateTaskStep({ stepId: step.id, assigneeUserId: value === NOBODY ? null : value })
@@ -104,6 +115,7 @@ export function StepMenu({
             id={dateId}
             value={dateFromKey(step.dueDate)}
             placeholder="No due date"
+            disabled={busy}
             onChange={(date) =>
               void change(() => updateTaskStep({ stepId: step.id, dueDate: keyFromDate(date) }))
             }
@@ -114,31 +126,47 @@ export function StepMenu({
                 type="button"
                 variant="ghost"
                 size="sm"
+                disabled={busy}
                 onClick={() => void change(() => updateTaskStep({ stepId: step.id, dueDate: null }))}
               >
-                Clear the date
+                Clear
               </Button>
             </div>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void makeTask()}>
-            <ListPlusIcon className="size-4" />
-            Make it a task
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setOpen(false)
-              void change(() => deleteTaskStep(step.id))
-            }}
-          >
-            <Trash2Icon className="size-4" />
-            Delete step
-          </Button>
-        </div>
+        {confirmDelete ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm">Delete this step?</span>
+            <Button type="button" variant="outline" size="sm" onClick={() => setConfirmDelete(false)}>
+              Keep it
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={busy}
+              onClick={() =>
+                void change(() => deleteTaskStep(step.id), "Step deleted.").then((ok) => {
+                  if (ok) setOpen(false)
+                })
+              }
+            >
+              {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              Delete step
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void makeTask()}>
+              {making ? <Loader2Icon className="size-4 animate-spin" /> : <ListPlusIcon className="size-4" />}
+              Make it a task
+            </Button>
+            <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setConfirmDelete(true)}>
+              <Trash2Icon className="size-4" />
+              Delete step
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )

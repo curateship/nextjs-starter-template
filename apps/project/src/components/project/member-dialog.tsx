@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
+import { Loader2Icon } from "lucide-react"
 
 import { SaveLine } from "@/components/project/save-line"
 import { PersonAvatar } from "@/components/project/task-bits"
@@ -156,6 +157,7 @@ export function MemberDialog({
                           Cancel
                         </Button>
                         <Button type="button" disabled={busy} onClick={() => void handOver()}>
+                          {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
                           Make owner
                         </Button>
                       </div>

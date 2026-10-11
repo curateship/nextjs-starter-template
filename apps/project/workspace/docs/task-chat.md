@@ -10,9 +10,11 @@ disagrees.
 ## The chat
 
 - **A running conversation.** Messages read oldest at the top and newest at
-  the bottom, each with the writer's photo, name and time. The box to write in
-  sits under them.
-- **Enter sends, Shift+Enter starts a new line.**
+  the bottom, each with the writer's photo, name and how long ago ("3 minutes
+  ago"), with the exact date and time on hover. The box to write in sits
+  under them.
+- **Enter sends, Shift+Enter starts a new line.** A message goes once however
+  fast Enter is pressed, and anything typed while it sends stays in the box.
 - **Who sees it:** everyone who can open the task, which is the project's
   members plus the team's owner and admins. An archived project's chat can be
   read but not written in.
@@ -81,6 +83,10 @@ disagrees.
   eleventh file, or one that would take the team past 5 GB, is refused with
   the reason. The server checks again under a lock, so two uploads at once
   can't both squeeze into the last space.
+- **A full task says so before anything is picked.** At 10 files the card
+  reads "This task has 10 files. Delete one to add another." and Browse is
+  greyed out. A drop while files are still going up is ignored, and a finished
+  upload says "2 files added."
 - **Only people who can see the task can download its files.** Files are kept
   in the template's storage bucket under a random name that never leaves the
   server. People download through `/api/project/task-files/<id>`, which checks

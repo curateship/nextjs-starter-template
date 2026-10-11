@@ -7,6 +7,7 @@ import { loadMeetings } from "@/lib/api/project/meetings"
 import { isRealDay } from "@/lib/project/days"
 import { loadFigures, loadMyTeamInvites, loadTeamDashboardPage } from "@/lib/api/project/teams"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { pageTitleHead } from "@/lib/project/page-title"
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/
 const ID = /^[\w-]{1,36}$/
@@ -38,6 +39,7 @@ export const Route = createFileRoute("/_authenticated/team/")({
     ])
     return { data, checkins, meetings, figures, invites: data ? [] : await loadMyTeamInvites() }
   },
+  head: ({ matches }) => pageTitleHead("Team", matches),
   component: TeamRoute,
   errorComponent: routeErrorComponent(getProjectErrorMessage),
 })

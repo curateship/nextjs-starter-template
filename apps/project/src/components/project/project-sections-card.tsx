@@ -102,17 +102,20 @@ function SectionRow({ section, readOnly }: { section: Section; readOnly: boolean
   const router = useRouter()
   const [name, setName] = useSyncedDraft(section.name)
   const [confirming, setConfirming] = React.useState(false)
+  // A refused or empty name stays in the box, marked, until it's fixed.
+  const [invalid, setInvalid] = React.useState(false)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
 
   async function rename() {
     const next = name.trim()
     if (next === section.name) return
     if (!next) {
-      setName(section.name)
+      setInvalid(true)
       showErrorToast("A section needs a name.")
       return
     }
     if (await run(() => saveSectionName(section.id, next))) await router.invalidate()
+    else setInvalid(true)
   }
 
   return (
@@ -122,7 +125,11 @@ function SectionRow({ section, readOnly }: { section: Section; readOnly: boolean
         value={name}
         maxLength={LIMITS.sectionName}
         disabled={readOnly}
-        onChange={(event) => setName(event.target.value)}
+        aria-invalid={invalid || undefined}
+        onChange={(event) => {
+          setName(event.target.value)
+          setInvalid(false)
+        }}
         onBlur={() => void rename()}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur()

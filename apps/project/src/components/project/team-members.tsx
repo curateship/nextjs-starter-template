@@ -40,6 +40,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   cancelTeamInvites,
   leaveProjectTeam,
@@ -54,6 +55,7 @@ import {
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useClientPage } from "@/lib/hooks/use-client-page"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
@@ -115,6 +117,8 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
   const selection = useSelection()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const report = useBulkReport("person", "people", "removed from the team")
+  // A search hides people, so it clears the ticks: Remove never acts on someone out of sight.
+  useClearSelectionOnListChange(selection.setSelected, query)
 
   // The owner and you can't be picked: neither can be removed from here.
   const removable = (member: TeamMemberRow) =>
@@ -256,7 +260,7 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
                 </span>
               </TableCell>
               <TableCell column="preview">
-                {member.title ?? <span className="text-muted-foreground">—</span>}
+                {member.title}
               </TableCell>
               <TableCell column="preview">{TEAM_ROLE_LABEL[member.role]}</TableCell>
               <TableCell column="preview">{formatDate(member.joinedAt)}</TableCell>
@@ -468,21 +472,28 @@ function InvitesTable({ invites }: { invites: TeamInviteRow[] }) {
               )}
             </TableCell>
             <TableCell column="actions">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`Resend the invite to ${invite.email}`}
-                disabled={busy}
-                onClick={() => void resend(invite)}
-              >
-                <RefreshCwIcon className="size-4" />
-              </Button>
+              {/* The tooltip says it before the press: resending stops the old link. */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Resend the invite to ${invite.email}. The old link stops working.`}
+                    disabled={busy}
+                    onClick={() => void resend(invite)}
+                  >
+                    <RefreshCwIcon className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Resend the invite. The old link stops working.</TooltipContent>
+              </Tooltip>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 aria-label={`Cancel the invite to ${invite.email}`}
+                disabled={busy}
                 onClick={() => setCancelling([invite.id])}
               >
                 <Trash2Icon className="size-4" />
