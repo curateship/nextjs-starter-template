@@ -40,6 +40,7 @@ import {
 import { customShellMedia, customShellUsers as users } from "@/server/schema"
 import { getPublicMediaUrl } from "@/server/media/storage"
 import { shareStateOf } from "@/server/pomodoro/shared-media"
+import { boardWeekStart, isReal } from "@/server/pomodoro/simulated-controls"
 import type {
   FocusSortColumn,
   ReportSortColumn,
@@ -98,12 +99,17 @@ function ordered(direction: "asc" | "desc") {
  * Left-joined from the accounts table on purpose: an operator searching for
  * somebody who has never run a timer should find them on zero, not find an
  * empty table and wonder whether the search is broken.
+ *
+ * `realOnly` leaves every made-up member out of the rows and the totals (live
+ * activity task 05, Part 6). The totals cover every row the search matches,
+ * not only the page on screen.
  */
 export async function listAdminFocusUsers(
-  query: ListPage & { search: string; sort: FocusSortColumn }
+  query: ListPage & { search: string; sort: FocusSortColumn; realOnly?: boolean; now?: Date }
 ) {
   const search = query.search.trim()
-  const where = search ? matchesPerson(search) : undefined
+  const filters = [search ? matchesPerson(search) : undefined, query.realOnly ? isReal(users.id) : undefined].filter(Boolean)
+  const where = filters.length ? and(...filters) : undefined
 
   const totals = {
     focusSessions: sql<number>`coalesce(sum(${dailyFocusStats.focusSessions}), 0)::int`,
@@ -122,7 +128,8 @@ export async function listAdminFocusUsers(
     last: totals.lastActiveDate,
   }[query.sort]
 
-  const [rows, [totalRow]] = await Promise.all([
+  const weekStart = boardWeekStart(query.now ?? new Date())
+  const [rows, [totalRow], [sums]] = await Promise.all([
     db
       .select({
         userId: users.id,
@@ -140,9 +147,21 @@ export async function listAdminFocusUsers(
       .limit(limit)
       .offset(offset),
     db.select({ total: count() }).from(users).where(where),
+    db
+      .select({
+        focusSeconds: sql<number>`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)::bigint`.mapWith(Number),
+        weekSeconds: sql<number>`coalesce(sum(${dailyFocusStats.focusSeconds}) filter (where ${dailyFocusStats.localDate} >= ${weekStart}), 0)::bigint`.mapWith(Number),
+      })
+      .from(users)
+      .innerJoin(dailyFocusStats, eq(dailyFocusStats.userId, users.id))
+      .where(where),
   ])
 
-  return { rows, total: totalRow?.total ?? 0 }
+  return {
+    rows,
+    total: totalRow?.total ?? 0,
+    sums: { focusSeconds: sums?.focusSeconds ?? 0, weekSeconds: sums?.weekSeconds ?? 0 },
+  }
 }
 
 // ---------------------------------------------------------------------------

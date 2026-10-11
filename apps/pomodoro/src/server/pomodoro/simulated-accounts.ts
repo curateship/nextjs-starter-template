@@ -57,6 +57,14 @@ import {
   tasks,
 } from "@/server/pomodoro/schema"
 import { forgetUsersPages } from "@/server/pomodoro/public-profile"
+import {
+  cancelGhostSessions,
+  fadeDialOnceAWeek,
+  readLastFade,
+  realWeekCeiling,
+  secondsUnderCeiling,
+  type SimulatedFade,
+} from "@/server/pomodoro/simulated-controls"
 import { toggleTaskStatus } from "@/server/pomodoro/tasks"
 import { customShellUsers as users } from "@/server/schema"
 
@@ -123,11 +131,13 @@ export type SimulatedStatus = {
   focusingNow: number
   /** Hosts Remove all left until the real people in their rooms go. */
   leaving: number
+  /** What the weekly fade last did to Hours a day (task 05, Part 1). */
+  fade: SimulatedFade | null
 }
 
 export async function loadSimulatedStatus(now = new Date()): Promise<SimulatedStatus> {
   const settings = (await loadAppSettings())["simulated.accounts"]
-  const [[made], [rush], [focusing], [leaving]] = await Promise.all([
+  const [[made], [rush], [focusing], [leaving], fade] = await Promise.all([
     db
       .select({ total: count() })
       .from(pomodoroSimulatedAccounts)
@@ -153,6 +163,7 @@ export async function loadSimulatedStatus(now = new Date()): Promise<SimulatedSt
       .select({ total: count() })
       .from(pomodoroSimulatedAccounts)
       .where(isNotNull(pomodoroSimulatedAccounts.removeRequestedAt)),
+    readLastFade(),
   ])
   const total = made?.total ?? 0
   return {
@@ -161,6 +172,7 @@ export async function loadSimulatedStatus(now = new Date()): Promise<SimulatedSt
     making: Boolean(rush) && total < settings.target,
     focusingNow: focusing?.total ?? 0,
     leaving: leaving?.total ?? 0,
+    fade,
   }
 }
 
@@ -277,20 +289,27 @@ export async function removeAllSimulated(actorUserId: string) {
 
 let lastDayPassAt = 0
 let passRunning = false
+let booted = false
 
 /**
  * The `pomodoro-simulated-days` worker. Making accounts runs on every tick
  * while Make them now is going, so forty are made in about a minute; the
  * working day moves once a minute. A pass still running when the next tick
- * comes is left to finish.
+ * comes is left to finish. The first pass after the worker starts clears the
+ * sessions a crash left running (task 05, Part 10).
  */
 export async function runSimulatedPass(now = new Date()) {
   if (passRunning) return
   passRunning = true
   try {
+    if (!booted) {
+      booted = true
+      await cancelGhostSessions(now)
+    }
     await makeDueAccounts(now)
     if (now.getTime() - lastDayPassAt >= DAY_PASS_EVERY_MS) {
       lastDayPassAt = now.getTime()
+      await fadeDialOnceAWeek(now)
       await runSimulatedDays(now)
     }
   } finally {
@@ -388,11 +407,14 @@ export async function makeDueAccounts(now = new Date()) {
  * One pass of the working day: finish every made-up session whose time is up,
  * then start one for anybody whose day says they should be focusing now.
  * Accounts are claimed first, with SKIP LOCKED, so two server copies never
- * look after the same account at once. Pause everything stops the starting;
- * running sessions still finish.
+ * look after the same account at once. Pause everything, and the Sessions
+ * switch (task 05, Part 8), stop the starting; running sessions still finish.
+ * Once a real member leads the week, nobody starts past them (Part 1).
  */
 export async function runSimulatedDays(now = new Date()) {
-  const { hoursCap, paused } = (await loadAppSettings())["simulated.accounts"]
+  const settings = await loadAppSettings()
+  const { hoursCap } = settings["simulated.accounts"]
+  const paused = settings["simulated.accounts"].paused || !settings["simulated.switches"].sessions
   const staleBefore = new Date(now.getTime() - CLAIM_TIMEOUT_MS)
   const claimed = await db
     .update(pomodoroSimulatedAccounts)
@@ -416,6 +438,7 @@ export async function runSimulatedDays(now = new Date()) {
   let finished = 0
   let started = 0
   try {
+    const ceiling = paused ? null : await realWeekCeiling(now)
     const live = await db
       .select({
         id: focusSessions.id,
@@ -453,7 +476,7 @@ export async function runSimulatedDays(now = new Date()) {
           } else busy = true
         }
         if (busy || paused || account.pausedAt || account.removeRequestedAt || inRooms.has(account.userId)) continue
-        if (await startDueSession(account, hoursCap, now)) started += 1
+        if (await startDueSession(account, hoursCap, ceiling, now)) started += 1
       } catch (error) {
         console.error("a made-up member's day could not move on", error)
       }
@@ -515,7 +538,7 @@ async function finishSession(
 }
 
 /** Starts the session the day says is due now, if there is one. */
-async function startDueSession(account: Account, hoursCap: number, now: Date) {
+async function startDueSession(account: Account, hoursCap: number, ceiling: number | null, now: Date) {
   const localDate = localDateFor(account.habits.timezone, now)
   const plan = planSimulatedDay(account.userId, account.habits, localDate, hoursCap)
   const due = sessionAt(plan, now)
@@ -528,7 +551,7 @@ async function startDueSession(account: Account, hoursCap: number, now: Date) {
     .where(and(eq(dailyFocusStats.userId, account.userId), eq(dailyFocusStats.localDate, localDate)))
   const left = hoursCap * 3_600 - (today?.seconds ?? 0)
   const untilEnd = Math.floor((due.startsAt.getTime() + due.minutes * 60_000 - now.getTime()) / 1_000)
-  const plannedSeconds = Math.min(untilEnd, left)
+  const plannedSeconds = await secondsUnderCeiling(account.userId, Math.min(untilEnd, left), ceiling, now)
   if (plannedSeconds < 60) return false
 
   const dayTasks = await ensureDayTasks(account.userId, plan)

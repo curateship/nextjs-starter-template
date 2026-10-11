@@ -136,7 +136,12 @@ because nothing is fetched for a sound.
 ## Made-up members
 
 How many made-up members there should be, the most hours any of them focuses
-in a day, and a switch that pauses them, plus the Make them now and Remove all
-buttons. Flipping the pause writes a `simulated_pause` audit row with the
-resource `simulated` instead of a `settings` one. Everything else about them
-is in [Made-up members](made-up-members.md).
+in a day (in quarter hours), a switch that pauses them, one switch per
+behaviour (`simulated.switches`), the "Keep real members above" and "Fade
+after" hours (`simulated.realFirst`), the soonest and latest seconds before a
+made-up member visits a real room (`simulated.realRoomVisit`, 10 and 60 to
+start; the soonest may not be later than the latest), plus the Make them now and Remove all
+buttons. The voice card holds the daily chat cap (`simulated.chatCap`).
+Flipping the pause writes a `simulated_pause` audit row with the resource
+`simulated` instead of a `settings` one. Everything else about them is in
+[Made-up members](made-up-members.md).

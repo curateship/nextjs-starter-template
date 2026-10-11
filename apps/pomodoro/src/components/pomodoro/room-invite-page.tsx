@@ -8,6 +8,7 @@ import {
   UsersIcon,
 } from "lucide-react"
 import { joinRefusalMessage } from "@/lib/pomodoro/room-join"
+import { useSwitchRoomConfirm } from "@/components/pomodoro/switch-room-confirm"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -41,6 +42,7 @@ export function RoomInvitePage() {
   const [checking, setChecking] = React.useState(false)
   const [joining, setJoining] = React.useState(false)
   const [error, setError] = React.useState("")
+  const switchRoom = useSwitchRoomConfirm()
   // When a pressed Check again last answered, so the card can say what it
   // found. Null until one has, and again while the next one runs.
   const [checkedAt, setCheckedAt] = React.useState<Date | null>(null)
@@ -260,7 +262,13 @@ export function RoomInvitePage() {
               {authenticated ? (
                 <Button
                   disabled={joining}
-                  onClick={() => void join()}
+                  // Asks first when you are in another room.
+                  onClick={() =>
+                    switchRoom.confirmJoin(
+                      { slug, name: lookup.name, background: lookup.background, sound: lookup.sound },
+                      () => void join()
+                    )
+                  }
                 >
                   {joining ? "Joining…" : "Join room"}
                 </Button>
@@ -287,6 +295,7 @@ export function RoomInvitePage() {
           )}
         </CardContent>
       </Card>
+      {switchRoom.dialog}
     </div>
   )
 }

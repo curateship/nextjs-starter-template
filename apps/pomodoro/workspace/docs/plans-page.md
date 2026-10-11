@@ -22,7 +22,8 @@ Drawn to Tyler's design of 7 Oct 2026
   align the header and subheader left", then "the header font is a bit bigger
   than the other pages header. match it".
 - **Three cards, side by side on a wide screen and stacked on a phone:** Free,
-  Pro monthly and Pro yearly. Each has a small capitals label, a large price,
+  Pro yearly and Pro monthly. Pro yearly sits in the middle: Tyler, 11 Oct
+  2026, "move the pro yearly to middle". Each has a small capitals label, a large price,
   a line under it, a full-width button, then the plan's feature list under
   "Everything you need to start" (Free) or "Everything in Free, plus" (Pro).
 - **Pro yearly is the featured card:** an orange outline, a soft glow, a "Best

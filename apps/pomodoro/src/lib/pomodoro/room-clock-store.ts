@@ -54,6 +54,36 @@ let clockSeen = false
 // The room whose ending the person's own action already explained, so a
 // broadcast arriving afterwards does not explain it again in vaguer words.
 let endExplained = ""
+// The people in the room at the last snapshot, for the host's "joined" and
+// "left" word. Null until a snapshot after the connection (re)opened.
+let lastPeople: { slug: string; people: Map<string, string> } | null = null
+
+/** "Brooke", "Brooke and Sam", "Brooke and 2 others". */
+function peopleNamed(names: string[]) {
+  if (names.length === 1) return names[0]
+  if (names.length === 2) return `${names[0]} and ${names[1]}`
+  return `${names[0]} and ${names.length - 1} others`
+}
+
+/**
+ * The host's pop-up when somebody joins or leaves their room, on any page
+ * while this tab holds the room's live connection (Tyler, 11 Oct 2026: "Add
+ * notifications when someone join and leave my room"). The bell gets every
+ * join and leave as well. Each snapshot's people are compared with the last
+ * one's. When the connection opens again after the tab was hidden, the first
+ * snapshot only sets the starting point, so coming back is not a burst of
+ * pop-ups for what the bell already holds.
+ */
+function tellComingsAndGoings(snapshot: RoomSnapshotClient) {
+  const people = new Map(snapshot.members.filter((member) => !member.mine).map((member) => [member.id, member.name]))
+  const before = lastPeople
+  lastPeople = { slug: snapshot.room.slug, people }
+  if (snapshot.you.role !== "host" || !before || before.slug !== snapshot.room.slug) return
+  const joined = [...people].filter(([id]) => !before.people.has(id)).map(([, name]) => name)
+  const left = [...before.people].filter(([id]) => !people.has(id)).map(([, name]) => name)
+  if (joined.length) toast(`${peopleNamed(joined)} joined your room.`)
+  if (left.length) toast(`${peopleNamed(left)} left your room.`)
+}
 
 function setState(next: Partial<RoomClockState>) {
   state = { ...state, ...next }
@@ -139,6 +169,7 @@ export function applyRoomSnapshot(
   // The sound plays only while the room is in a focus; a break is quiet.
   followRoomRunning(snapshot.room.phase === "focus", !clockSeen)
   clockSeen = true
+  tellComingsAndGoings(snapshot)
   setState({ snapshot, checkFailed: false })
   syncStream()
 }
@@ -190,6 +221,8 @@ function syncStream() {
   source?.close()
   source = null
   sourceSlug = wanted
+  // A new connection starts the comparison afresh: see `tellComingsAndGoings`.
+  lastPeople = null
   if (!wanted) return
   const opened = new EventSource(`/api/pomodoro/rooms/${wanted}/events`)
   opened.addEventListener("snapshot", (event) => {

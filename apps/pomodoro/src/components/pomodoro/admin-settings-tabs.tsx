@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -46,7 +47,11 @@ import {
 import {
   BREAK_MESSAGE_MAX,
   PIXABAY_DAILY_LIMIT_MAX,
+  REAL_ROOM_VISIT_MAX_SECONDS,
+  SIMULATED_CHAT_CAP_MAX,
+  SIMULATED_HOURS_FLOOR,
   SIMULATED_HOURS_MAX,
+  SIMULATED_HOURS_STEP,
   SHARE_DAILY_LIMIT_MAX,
   SIMULATED_TARGET_MAX,
   VOICE_BRIEF_MAX,
@@ -199,8 +204,13 @@ export function MadeUpMembersSettingsTab() {
     <SettingsTab>
       {({ settings }) => (
         <>
-          <MadeUpMembersCard initial={settings["simulated.accounts"]} />
-          <HowTheySoundCard initial={settings["simulated.voice"]} />
+          <MadeUpMembersCard
+            initial={settings["simulated.accounts"]}
+            initialSwitches={settings["simulated.switches"]}
+            initialRealFirst={settings["simulated.realFirst"]}
+            initialVisit={settings["simulated.realRoomVisit"]}
+          />
+          <HowTheySoundCard initial={settings["simulated.voice"]} initialCap={settings["simulated.chatCap"]} />
           <MadeUpSharesCard />
         </>
       )}
@@ -1378,8 +1388,46 @@ const MAKING_POLL_MS = 3_000
  * Remove all are actions, and only Remove all asks first. See
  * `workspace/docs/made-up-members.md`.
  */
-function MadeUpMembersCard({ initial }: { initial: AppSettingValue<"simulated.accounts"> }) {
+/** Every quarter hour the Hours a day dial can be set to. */
+const HOURS_CHOICES = Array.from(
+  { length: (SIMULATED_HOURS_MAX - SIMULATED_HOURS_FLOOR) / SIMULATED_HOURS_STEP + 1 },
+  (_, index) => SIMULATED_HOURS_FLOOR + index * SIMULATED_HOURS_STEP
+)
+
+/** "2.75" as "2 h 45 m", so a faded dial reads as time. */
+function hoursLabel(hours: number) {
+  const whole = Math.floor(hours)
+  const minutes = Math.round((hours - whole) * 60)
+  return minutes ? `${whole} h ${minutes} m` : `${whole} h`
+}
+
+/** The five behaviours, each its own switch (live activity task 05, Part 8). */
+const SWITCH_ROWS: Array<{ key: keyof AppSettingValue<"simulated.switches">; label: string; hint: string }> = [
+  { key: "sessions", label: "Sessions: they start focus sessions on their working day", hint: "Off: nobody starts a new focus. Sessions already running finish." },
+  { key: "rooms", label: "Rooms: they open rooms and sit in them", hint: "Off: no room opens and nobody new sits in one. Open rooms run on and close as planned." },
+  { key: "chat", label: "Chat: they talk in their rooms", hint: "Off: every room goes silent. Rooms keep running." },
+  { key: "follows", label: "Follows and cheers: they follow and cheer one another and real members", hint: "Off: no new follows or cheers. Nothing already sent is taken back." },
+  { key: "joinReal", label: "Join real rooms: they sit in a real member's public room for a while", hint: "Off: none of them walks into a real member's room. Those inside leave on time." },
+]
+
+function MadeUpMembersCard({
+  initial,
+  initialSwitches,
+  initialRealFirst,
+  initialVisit,
+}: {
+  initial: AppSettingValue<"simulated.accounts">
+  initialSwitches: AppSettingValue<"simulated.switches">
+  initialRealFirst: AppSettingValue<"simulated.realFirst">
+  initialVisit: AppSettingValue<"simulated.realRoomVisit">
+}) {
+  const [visit, setVisit] = React.useState(initialVisit)
+  const visitBackwards = visit.minSeconds > visit.maxSeconds
   const [dial, setDial] = React.useState(initial)
+  const [switches, setSwitches] = React.useState(initialSwitches)
+  const [realFirst, setRealFirst] = React.useState(initialRealFirst)
+  const hoursId = React.useId()
+  const switchIds = React.useId()
   const [status, setShownStatus] = React.useState<SimulatedStatus | null>(() =>
     inBrowser() ? heldMadeUp : null
   )
@@ -1429,6 +1477,27 @@ function MadeUpMembersCard({ initial }: { initial: AppSettingValue<"simulated.ac
     if (typing) save.soon("simulated.accounts", next)
     else void save.now("simulated.accounts", next)
   }
+
+  const flip = (key: keyof typeof switches, on: boolean) => {
+    const next = { ...switches, [key]: on }
+    setSwitches(next)
+    void save.now("simulated.switches", next)
+  }
+  const changeRealFirst = (patch: Partial<typeof realFirst>) => {
+    const next = { ...realFirst, ...patch }
+    setRealFirst(next)
+    save.soon("simulated.realFirst", next)
+  }
+  const changeVisit = (patch: Partial<typeof visit>) => {
+    const next = { ...visit, ...patch }
+    setVisit(next)
+    if (next.minSeconds > next.maxSeconds) {
+      save.refuse("simulated.realRoomVisit", "The soonest visit cannot be later than the latest.")
+      return
+    }
+    save.soon("simulated.realRoomVisit", next)
+  }
+  const fade = status?.fade && status.fade.to < status.fade.from ? status.fade : null
 
   const makeNow = async () => {
     setMakeBusy(true)
@@ -1503,15 +1572,77 @@ function MadeUpMembersCard({ initial }: { initial: AppSettingValue<"simulated.ac
           onChange={(target) => change({ target }, true)}
           onCommit={() => save.flush("simulated.accounts")}
         />
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor={hoursId}
+            hint="The most any of them focuses in one day. At three, a real member who works hard can still reach the top. Lowered a quarter of an hour a week on its own once real members pass Fade after."
+          >
+            Hours a day
+          </FieldLabel>
+          <Select value={String(dial.hoursCap)} onValueChange={(value) => change({ hoursCap: Number(value) }, false)}>
+            <SelectTrigger id={hoursId} className="w-fit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {HOURS_CHOICES.map((hours) => (
+                <SelectItem key={hours} value={String(hours)}>
+                  {hoursLabel(hours)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {fade ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          Lowered on its own from {hoursLabel(fade.from)} to {hoursLabel(fade.to)} in the week of {fade.week}, because
+          real members focused {fade.realHours} hours the week before.
+        </p>
+      ) : null}
+      <div className="flex flex-wrap gap-4">
         <NumberField
-          id="made-up-hours"
-          label="Hours a day"
-          hint="The most any of them focuses in one day. At three, a real member who works hard can still reach the top."
-          value={dial.hoursCap}
+          id="made-up-real-above"
+          label="Keep real members above"
+          hint="Hours a week. Once a real member on the leaderboard passes this, no made-up member's week is let past theirs. Nothing already focused is taken away."
+          value={realFirst.aboveHours}
           min={1}
-          max={SIMULATED_HOURS_MAX}
-          onChange={(hoursCap) => change({ hoursCap }, true)}
-          onCommit={() => save.flush("simulated.accounts")}
+          max={80}
+          onChange={(aboveHours) => changeRealFirst({ aboveHours })}
+          onCommit={() => save.flush("simulated.realFirst")}
+        />
+        <NumberField
+          id="made-up-fade-after"
+          label="Fade after"
+          hint="Hours a week, all real members together. Over this, Hours a day drops a quarter of an hour the week after, never under one hour."
+          value={realFirst.fadeAfterHours}
+          min={1}
+          max={100_000}
+          onChange={(fadeAfterHours) => changeRealFirst({ fadeAfterHours })}
+          onCommit={() => save.flush("simulated.realFirst")}
+        />
+      </div>
+      <div className="flex flex-wrap gap-4">
+        <NumberField
+          id="made-up-visit-soonest"
+          label="Visit a real room after, soonest"
+          hint="Seconds after a real member's public room opens before a made-up member walks in, and after the first before a second. Each visit is drawn between the soonest and the latest."
+          value={visit.minSeconds}
+          min={0}
+          max={REAL_ROOM_VISIT_MAX_SECONDS}
+          inputClassName={visitBackwards ? "border-destructive" : undefined}
+          onChange={(minSeconds) => changeVisit({ minSeconds })}
+          onCommit={() => save.flush("simulated.realRoomVisit")}
+        />
+        <NumberField
+          id="made-up-visit-latest"
+          label="Latest"
+          hint="Seconds. The room must be waiting or on a break; during a focus the visitor waits for the break."
+          value={visit.maxSeconds}
+          min={0}
+          max={REAL_ROOM_VISIT_MAX_SECONDS}
+          inputClassName={visitBackwards ? "border-destructive" : undefined}
+          onChange={(maxSeconds) => changeVisit({ maxSeconds })}
+          onCommit={() => save.flush("simulated.realRoomVisit")}
         />
       </div>
       <SettingsSwitchRow
@@ -1519,8 +1650,18 @@ function MadeUpMembersCard({ initial }: { initial: AppSettingValue<"simulated.ac
         checked={dial.paused}
         onCheckedChange={(paused) => change({ paused }, false)}
         label="Pause everything: no new sessions start and no new faces arrive"
-        hint="Sessions already running finish. Make them now still works."
+        hint="Sessions already running finish. Make them now still works. Outranks the five switches below."
       />
+      {SWITCH_ROWS.map((row) => (
+        <SettingsSwitchRow
+          key={row.key}
+          id={`${switchIds}-${row.key}`}
+          checked={switches[row.key]}
+          onCheckedChange={(on) => flip(row.key, on)}
+          label={row.label}
+          hint={row.hint}
+        />
+      ))}
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" disabled={makeBusy} onClick={() => void makeNow()}>
           {makeBusy ? <Loader2Icon className="size-4 animate-spin" aria-hidden /> : null}
@@ -1539,7 +1680,11 @@ function MadeUpMembersCard({ initial }: { initial: AppSettingValue<"simulated.ac
         </Button>
       </div>
       <p className="text-sm text-muted-foreground">
-        A new account can take up to five minutes to show on /users.
+        A new account can take up to five minutes to show on /users. What each one did today is on{" "}
+        <Link to="/admin/pomodoro-simulated" className="underline underline-offset-4">
+          the watch page
+        </Link>
+        .
       </p>
       <ConfirmDialog
         open={removing}
@@ -1582,8 +1727,15 @@ const TYPO_LABELS: Record<Voice["typo"], string> = {
  * values on the card and sends them nowhere, and the rooms stay silent until
  * it has been pressed once.
  */
-function HowTheySoundCard({ initial }: { initial: Voice }) {
+function HowTheySoundCard({
+  initial,
+  initialCap,
+}: {
+  initial: Voice
+  initialCap: AppSettingValue<"simulated.chatCap">
+}) {
   const [voice, setVoice] = React.useState(initial)
+  const [cap, setCap] = React.useState(initialCap)
   const [neverSayText, setNeverSayText] = React.useState(initial.neverSay.join("\n"))
   const [preview, setPreview] = React.useState<VoicePreview | null>(null)
   const [previewBusy, setPreviewBusy] = React.useState(false)
@@ -1687,6 +1839,22 @@ function HowTheySoundCard({ initial }: { initial: Voice }) {
             </SelectContent>
           </Select>
         </div>
+      </div>
+      <div className="flex flex-wrap gap-4">
+        <NumberField
+          id="made-up-chat-cap"
+          label="Chat cap, cents a day"
+          hint="The most the room chat spends on AI lines between midnight and midnight UTC. Over it, every line is a fixed one until midnight. Preview is not counted."
+          value={cap.centsPerDay}
+          min={0}
+          max={SIMULATED_CHAT_CAP_MAX}
+          onChange={(centsPerDay) => {
+            const next = { centsPerDay }
+            setCap(next)
+            save.soon("simulated.chatCap", next)
+          }}
+          onCommit={() => save.flush("simulated.chatCap")}
+        />
       </div>
       <SettingsSwitchRow
         id={lowerId}

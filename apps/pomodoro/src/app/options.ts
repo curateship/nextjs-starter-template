@@ -83,6 +83,8 @@ const NOTICE_LOOK: Record<PomodoroNoticeKind, AppNoticeDetail> = {
   // The detail holds the first joiner's name for folding, and the heading
   // already says it, so the line under the heading is left empty.
   room_join: { icon: UserPlusIcon, toneClassName: GOOD, body: "" },
+  // The same: the detail holds the first leaver's name for folding.
+  room_leave: { icon: UserMinusIcon, toneClassName: PLAIN, body: "" },
   room_chat: { icon: MessageSquareIcon, toneClassName: GOOD },
   room_mention: { icon: AtSignIcon, toneClassName: GOOD },
   room_reaction: { icon: SmilePlusIcon, toneClassName: GOOD },

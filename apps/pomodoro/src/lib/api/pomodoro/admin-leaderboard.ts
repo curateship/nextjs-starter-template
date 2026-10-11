@@ -28,6 +28,8 @@ const querySchema = z.object({
   search: z.string().trim().max(120).default(""),
   page: z.number().int().min(1).max(10_000).default(1),
   pageSize: z.number().int().min(5).max(ADMIN_PAGE_SIZE_MAX).default(25),
+  /** "Real members only" (live activity task 05, Part 6). */
+  realOnly: z.boolean().default(false),
 })
 export type LeaderboardQuery = z.input<typeof querySchema>
 

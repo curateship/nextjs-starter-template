@@ -115,6 +115,11 @@ room"".
 
 ## How it behaves
 
+- **A real host's public room gets company.** One or two made-up members join
+  it a few minutes after it opens, say hi, and leave on a break; never in an
+  unlisted room, and never one the host blocked, banned or removed. See
+  "Touching real members" in [Made-up members](made-up-members.md).
+
 - **Browse** shows "Open to join" (waiting or on break) under the three
   columns, three cards across on a wide screen. A room mid-focus is not
   listed, because nobody can join it until its break. Tyler removed the "In
@@ -334,6 +339,26 @@ room"".
   asked, since the room still ends, but is told nobody else is affected.
   Cancel leaves the host in the room with the clock running. A member's
   "Leave room" closes nothing and still acts on one click.
+- **The whole card joins.** Tyler, 11 Oct 2026: "Link the whole card to the
+  room instead of just the join button". A press anywhere on an Open to join
+  or Starting soon card joins that room; the Join pill is drawn, not a second
+  control, and dims while the pointer is on the card. The pill is black with
+  white text in every theme (Tyler, 11 Oct 2026); it used to follow the page's
+  ink, which made it light in dark mode. For a logged-out visitor
+  the card goes to the login page, as before.
+- **Joining while in another room asks first.** Tyler, 11 Oct 2026: "if I join
+  a room while I'm in another room then a modal confirmation will popup
+  telling me that I would leave the currant room I'm in and also show me the
+  room name, background and sound", then "Make what the user leave and what
+  the user will join more obvious". The question shows both rooms with their
+  picture, name, sound and background: the one you leave on top, faded, under
+  a red "Leaving", an arrow, then the one you join, lit, with an orange border
+  under an orange "Joining". When you host the room you are in it says
+  "Closing" and that joining ends it for everyone in it, and the button reads
+  "Close my room and join"; otherwise "Leave and join". Cancel keeps you where
+  you are. In no room, or pressing the room you are already in, nothing is
+  asked. It is the same on `/`, `/rooms` and an invite page
+  (`src/components/pomodoro/switch-room-confirm.tsx`).
 - **Join is pressed once.** While a join is out, every Join button on the page
   is disabled and the pressed one reads "Joining…" with the spinner. A second
   press, or a press on another card, sends nothing. Join, Host a room, Locked
@@ -411,8 +436,8 @@ and the "focused with" index: `0116_pomodoro_rooms_that_stick.sql`.
 
 ## Notices
 
-The host hears in the bell when somebody joins while the host is away from the
-room, folded per room. Followers of the host hear when a public room opens, at
+The host hears in the bell whenever somebody joins or leaves, folded per room,
+and gets a pop-up while the site is on screen. Followers of the host hear when a public room opens, at
 most three a day, and the notice disappears if the room closes before they read
 it. Opening your room from the Rooms page marks that room's notices read. The
 live connection that keeps a room on screen is also what tells the server you

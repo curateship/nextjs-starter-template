@@ -21,6 +21,7 @@ import {
   pomodoroAuditLogs,
   pomodoroProfiles,
   pomodoroRoomRepeats,
+  pomodoroSimulatedAccounts,
   roomBans,
   roomMemberships,
   roomMessageReactions,
@@ -39,11 +40,13 @@ import {
   mentionedHandles,
   roomChatMessage,
   roomJoinMessage,
+  roomLeaveMessage,
   roomMentionMessage,
   roomReactionMessage,
   roomRemovedMessage,
 } from "@/lib/pomodoro/notices"
 import { resolveRoomFiles } from "@/server/pomodoro/shared-media"
+import { noteRealVisit } from "@/server/pomodoro/simulated-controls"
 import type { RoomFiles } from "@/lib/pomodoro/media-pair"
 
 type PomoderDb = CustomShellDb
@@ -248,6 +251,10 @@ export async function joinRoomBySlug(slug: string, userId: string, database: Pom
   // second connection.
   const [target] = await database.select({ hostUserId: rooms.hostUserId }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
   const blockedFromHost = target ? await isBlockedBetween(target.hostUserId, userId) : false
+  // The room they are sitting in now, which this join takes them out of, and
+  // whether its host may hear that they left. Read here for the same reason.
+  const [seat] = await database.select({ roomId: roomMemberships.roomId, hostUserId: rooms.hostUserId }).from(roomMemberships).innerJoin(rooms, eq(rooms.id, roomMemberships.roomId)).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
+  const tellLeft = seat && seat.hostUserId !== userId && !(await isBlockedBetween(seat.hostUserId, userId))
   // A suspended member joins nothing, their own room included.
   await assertMayUseRooms(userId, database, timestamp)
   // The admin's people limit (admin task 04), read before the transaction for
@@ -273,20 +280,36 @@ export async function joinRoomBySlug(slug: string, userId: string, database: Pom
       if (inRoom >= limit) throw new Error("ROOM_FULL")
     }
     const closedRoomIds = await closeRoomsHostedBy(tx, userId, timestamp, room.id)
-    await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
+    const ended = await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).returning({ roomId: roomMemberships.roomId })
+    // Moving to another room is leaving the one they were in.
+    if (tellLeft && seat.roomId !== room.id && ended.some((row) => row.roomId === seat.roomId)) {
+      const [left] = await tx.select().from(rooms).where(eq(rooms.id, seat.roomId)).limit(1)
+      if (left && !left.closedAt) await noteRoomLeave(tx, left, userId)
+    }
     await tx.insert(roomMemberships).values({ roomId: room.id, userId, role: room.hostUserId === userId ? "host" : "member", joinedAt: timestamp }).onConflictDoNothing()
-    if (!already && room.hostUserId !== userId && !blockedFromHost) await noteRoomJoin(tx, room, userId, timestamp)
+    if (!already && room.hostUserId !== userId && !blockedFromHost) await noteRoomJoin(tx, room, userId)
     return { room, closedRoomIds }
   })
 }
 
 /**
- * Tells the host somebody joined, folding into their unread notice about the
- * same room. A host with the room on screen already sees the join, so the
- * bell stays quiet for them.
+ * A made-up member hosts this room (live activity task 02): its tray is read
+ * by nobody, and its rooms see comings and goings all day, so joins and
+ * leaves are not written for it.
  */
-async function noteRoomJoin(tx: PomoderTransaction, room: Room, joinerId: string, timestamp: Date) {
-  if (await isWatching(tx, room.id, room.hostUserId, timestamp)) return
+async function hostIsMadeUp(tx: PomoderTransaction, room: Room) {
+  const [row] = await tx.select({ userId: pomodoroSimulatedAccounts.userId }).from(pomodoroSimulatedAccounts).where(eq(pomodoroSimulatedAccounts.userId, room.hostUserId)).limit(1)
+  return Boolean(row)
+}
+
+/**
+ * Tells the host somebody joined, folding into their unread notice about the
+ * same room. Always, the room on screen or not: Tyler, 11 Oct 2026, "I need it
+ * in the notification tray too". With the room live in a tab the host also
+ * gets a pop-up (`room-clock-store.ts`).
+ */
+async function noteRoomJoin(tx: PomoderTransaction, room: Room, joinerId: string) {
+  if (await hostIsMadeUp(tx, room)) return
   const joinerName = await roomName(tx, joinerId)
   await foldNotice(tx, {
     recipientUserId: room.hostUserId,
@@ -304,9 +327,36 @@ async function noteRoomJoin(tx: PomoderTransaction, room: Room, joinerId: string
   })
 }
 
+/**
+ * Tells the host somebody left, folding into their unread notice about the
+ * same room, the way joins do, and like them whether the room is on screen
+ * or not.
+ */
+async function noteRoomLeave(tx: PomoderTransaction, room: Room, leaverId: string) {
+  if (await hostIsMadeUp(tx, room)) return
+  const leaverName = await roomName(tx, leaverId)
+  await foldNotice(tx, {
+    recipientUserId: room.hostUserId,
+    actorUserId: leaverId,
+    kind: "room_leave",
+    subject: { roomId: room.id },
+    href: roomHref(room.slug),
+    compose: (waiting) => {
+      const first = waiting?.detail ?? leaverName
+      const foldCount = (waiting?.foldCount ?? 0) + 1
+      return { message: roomLeaveMessage(first, foldCount - 1, room.name), detail: first, foldCount }
+    },
+  })
+}
+
 // A room cannot run without its host, so a host leaving closes the room; a
-// member leaving only ends their own membership.
+// member leaving only ends their own membership, and the host hears of it
+// while away (see `noteRoomLeave`).
 export async function leaveRoom(slug: string, userId: string, database: PomoderDb = db, timestamp = new Date()) {
+  // Whether a block stands between the leaver and the host, read before the
+  // transaction like the join's.
+  const [target] = await database.select({ hostUserId: rooms.hostUserId }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  const blockedFromHost = target && target.hostUserId !== userId ? await isBlockedBetween(target.hostUserId, userId) : false
   return database.transaction(async (tx) => {
     const [room] = await tx.select().from(rooms).where(eq(rooms.slug, slug)).for("update").limit(1)
     if (!room) throw new Error("ROOM_NOT_FOUND")
@@ -321,6 +371,7 @@ export async function leaveRoom(slug: string, userId: string, database: PomoderD
       return { room: updated, closed: true, left: true }
     }
     const ended = await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).returning({ id: roomMemberships.id })
+    if (ended.length && !blockedFromHost && !room.closedAt && room.phase !== "closed") await noteRoomLeave(tx, room, userId)
     return { room, closed: false, left: ended.length > 0 }
   })
 }
@@ -870,6 +921,11 @@ export async function reportRoomMessage(slug: string, reporterId: string, messag
     if (!message) throw new Error("MESSAGE_NOT_FOUND")
     if (message.userId === reporterId) throw new Error("CANNOT_REPORT_OWN_MESSAGE")
     const inserted = await tx.insert(roomReports).values({ roomId: room.id, reporterUserId: reporterId, messageId, reason }).onConflictDoNothing().returning({ id: roomReports.id })
+    // A made-up member somebody reported goes quiet at once, in the same
+    // transaction as the report (live activity task 05, Part 5). Reviewing
+    // the report does not undo it; the watch page's pause switch does. A real
+    // author matches no row here.
+    await tx.update(pomodoroSimulatedAccounts).set({ pausedAt: new Date() }).where(and(eq(pomodoroSimulatedAccounts.userId, message.userId), sql`${pomodoroSimulatedAccounts.pausedAt} is null`))
     // A repeat report of the same line adds no row, so it tells nobody again.
     if (inserted.length) await noteNewReport(tx, { adminIds, reporterUserId: reporterId, thing: "message" })
     return { reported: inserted.length > 0 }
@@ -999,6 +1055,11 @@ export async function removeRoomMember(slug: string, hostId: string, membershipI
     const membership = await findRoomMembership(tx, room.id, membershipId, hostId)
     const ended = await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.id, membershipId), sql`${roomMemberships.leftAt} is null`)).returning({ id: roomMemberships.id })
     if (ended.length) {
+      // A made-up member a host removed never comes back to this room or to
+      // any later room by the same host (live activity task 04, Part 4). It is
+      // remembered on its habit; a real member matches no row here.
+      const removal = JSON.stringify([{ roomId: room.id, hostUserId: hostId, removedAt: timestamp.toISOString() }])
+      await tx.update(pomodoroSimulatedAccounts).set({ habits: sql`jsonb_set(${pomodoroSimulatedAccounts.habits}, '{removedFrom}', coalesce(${pomodoroSimulatedAccounts.habits} -> 'removedFrom', '[]'::jsonb) || ${removal}::jsonb)` }).where(eq(pomodoroSimulatedAccounts.userId, membership.userId))
       await writeModerationAudit(tx, hostId, "remove_member", [membership.id])
       if (tell) await writeNotices(tx, [removedNotice(room, membership.userId, false)])
     }
@@ -1090,6 +1151,9 @@ async function isWatching(database: PomoderDb | PomoderTransaction, roomId: stri
  * heartbeat; `stopWatching` clears it when the connection closes.
  */
 export async function keepWatching(roomId: string, userId: string, timestamp = new Date()) {
+  // Somebody real has a room open, which the made-up members' workers read
+  // (live activity task 05, Part 7).
+  void noteRealVisit(timestamp)
   await db.update(roomMemberships).set({ watchingUntil: new Date(timestamp.getTime() + 40_000) }).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
 }
 

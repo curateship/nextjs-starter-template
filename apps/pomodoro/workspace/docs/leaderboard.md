@@ -133,6 +133,10 @@ a day. Taken off means:
   same line in place of the "switch it on" one. Nothing goes to the bell, and
   neither line names the admin.
 - **It lasts until an admin puts them back.** There is no end date.
+- **Made-up members are never taken off, they are trimmed.** Once a real
+  member on the board passes "Keep real members above" in a week, no made-up
+  member's week is let past theirs; hours already focused stay. See "Your
+  controls" in [Made-up members](made-up-members.md).
 
 The admin page's Board tab is the global board as members see it, a hundred
 people at most, with one more column: the hours a day on the days they

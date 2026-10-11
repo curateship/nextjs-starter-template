@@ -12,6 +12,7 @@ import {
   useAdminList,
 } from "@/components/pomodoro/admin-list"
 import { MemberName } from "@/components/pomodoro/admin-member-name"
+import { RealOnlySwitch, useRealOnly } from "@/components/pomodoro/admin-real-only"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -34,6 +35,8 @@ import {
 import type { FocusSortColumn } from "@/lib/pomodoro/admin-lists"
 
 const route = getRouteApi("/_authenticated/admin/pomodoro-focus")
+
+type FocusSums = { focusSeconds: number; weekSeconds: number }
 
 type SortColumn = FocusSortColumn
 
@@ -60,14 +63,19 @@ const COLUMNS: TableHeaderColumn<SortColumn>[] = [
  * The totals come from `daily_focus_stats`, which is the same rollup the
  * member's own history screen reads, so the two can never disagree. An account
  * that has never run a timer is still listed, on zero.
+ *
+ * "Real members only" (live activity task 05, Part 6) leaves the made-up
+ * members out of the rows and of the totals line under the toolbar.
  */
 export function AdminFocusDashboard({
   initial,
   initialPageSize,
 }: {
-  initial: { rows: AdminFocusRow[]; total: number }
+  initial: { rows: AdminFocusRow[]; total: number; sums: FocusSums }
   initialPageSize: number
 }) {
+  const { realOnly, setRealOnly } = useRealOnly()
+  const [sums, setSums] = React.useState(initial.sums)
   const search = route.useSearch()
   const setListSearch = useListSearchNavigate()
   const query = search.q ?? ""
@@ -86,15 +94,19 @@ export function AdminFocusDashboard({
   )
 
   const load = React.useCallback(
-    (pageSize: number) =>
-      listPomodoroFocusUsers({
+    async (pageSize: number) => {
+      const result = await listPomodoroFocusUsers({
         search: query,
         sort,
         direction,
         page,
         pageSize,
-      }),
-    [direction, page, query, sort]
+        realOnly,
+      })
+      setSums(result.sums)
+      return result
+    },
+    [direction, page, query, sort, realOnly]
   )
 
   const list = useAdminList({
@@ -139,6 +151,12 @@ export function AdminFocusDashboard({
         list={list}
         page={page}
         onPageChange={setPage}
+        filters={
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            {realOnly ? "Real members" : "Everybody listed"} focused {totalHours(sums.weekSeconds)} in the
+            last 7 days and {totalHours(sums.focusSeconds)} in all.
+          </p>
+        }
         controls={
           <>
             <AdminBulkDeleteButton del={del} ids={selectedIds} />
@@ -149,6 +167,7 @@ export function AdminFocusDashboard({
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
             />
+            <RealOnlySwitch checked={realOnly} onCheckedChange={setRealOnly} />
           </>
         }
       >
@@ -216,6 +235,16 @@ export function AdminFocusDashboard({
       />
     </>
   )
+}
+
+/**
+ * A total as hours, "622h", because a long one in days ("25d 22h") reads as
+ * calendar days rather than time focused.
+ */
+function totalHours(seconds: number) {
+  return seconds < 3_600
+    ? formatDuration(seconds * 1000, { zero: "0m" })
+    : `${Math.round(seconds / 3_600).toLocaleString()}h`
 }
 
 function describeFocusDataDeletion(rows: AdminFocusRow[]) {

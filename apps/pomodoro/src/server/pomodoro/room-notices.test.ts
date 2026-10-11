@@ -26,6 +26,7 @@ import {
   pomodoroBlocks,
   pomodoroNoticeLinks,
   pomodoroProfiles,
+  pomodoroSimulatedAccounts,
   roomMemberships,
   roomMessages,
   rooms,
@@ -143,11 +144,13 @@ describe("joined your room", () => {
     ])
   })
 
-  it("says nothing to a host who is watching, or about a blocked joiner", async () => {
+  it("tells a host who is watching too, and says nothing about a blocked joiner", async () => {
     const host = await person("Host")
     const room = await hostRoom(host)
     await watching(room.id, host)
     await joinRoomBySlug(room.slug, await person("Sam"), db)
+    // Tyler, 11 Oct 2026: "I need it in the notification tray too".
+    expect(await noticesFor(host)).toMatchObject([{ message: "Sam joined your room Deep Work.", kind: "room_join" }])
 
     const other = await person("Other host")
     const otherRoom = await hostRoom(other)
@@ -155,8 +158,70 @@ describe("joined your room", () => {
     await db.insert(pomodoroBlocks).values({ blockerUserId: other, blockedUserId: blocked })
     await joinRoomBySlug(otherRoom.slug, blocked, db)
 
-    expect(await noticesFor(host)).toEqual([])
     expect(await noticesFor(other)).toEqual([])
+  })
+})
+
+describe("left your room", () => {
+  const leaves = async (userId: string) =>
+    (await noticesFor(userId)).filter((notice) => notice.kind === "room_leave")
+
+  it("tells the host and folds later leaves into one line, a move to another room included", async () => {
+    const host = await person("Host")
+    const room = await hostRoom(host)
+    const sam = await person("Sam")
+    const priya = await person("Priya")
+    await joinRoomBySlug(room.slug, sam, db)
+    await joinRoomBySlug(room.slug, priya, db)
+
+    await leaveRoom(room.slug, sam, db)
+    // Priya goes to somebody else's room, which takes her out of this one.
+    const elsewhere = await hostRoom(await person("Other host"))
+    await joinRoomBySlug(elsewhere.slug, priya, db)
+
+    expect(await leaves(host)).toMatchObject([
+      {
+        message: "Sam and 1 other left your room Deep Work.",
+        kind: "room_leave",
+        href: `/rooms/${room.slug}`,
+        foldCount: 2,
+      },
+    ])
+  })
+
+  it("tells a host who is watching too, and says nothing about a blocked leaver, a removal, or the room closing", async () => {
+    const host = await person("Host")
+    const room = await hostRoom(host)
+    const sam = await person("Sam")
+    await joinRoomBySlug(room.slug, sam, db)
+    await watching(room.id, host)
+    await leaveRoom(room.slug, sam, db)
+    expect(await leaves(host)).toMatchObject([{ message: "Sam left your room Deep Work." }])
+
+    const other = await person("Other host")
+    const otherRoom = await hostRoom(other)
+    const blocked = await person("Blocked")
+    const removed = await person("Removed")
+    await joinRoomBySlug(otherRoom.slug, blocked, db)
+    await joinRoomBySlug(otherRoom.slug, removed, db)
+    await db.insert(pomodoroBlocks).values({ blockerUserId: other, blockedUserId: blocked })
+    await leaveRoom(otherRoom.slug, blocked, db)
+    await removeRoomMember(otherRoom.slug, other, await membershipOf(otherRoom.id, removed), db)
+    // The host closing their own room tells them nothing either.
+    await leaveRoom(otherRoom.slug, other, db)
+    expect(await leaves(other)).toEqual([])
+  })
+})
+
+describe("joins and leaves in a made-up member's room", () => {
+  it("are written for nobody, since nobody reads a made-up member's tray", async () => {
+    const host = await person("Made-up host")
+    await db.insert(pomodoroSimulatedAccounts).values({ userId: host, habits: { timezone: "UTC", city: "", startHour: 9, hoursADay: 3, daysOff: [], sessionMinutes: [25, 25], breakMinutes: [5, 5], historyDays: 0, taskTitles: [] }, personality: "" })
+    const room = await hostRoom(host)
+    const sam = await person("Sam")
+    await joinRoomBySlug(room.slug, sam, db)
+    await leaveRoom(room.slug, sam, db)
+    expect(await noticesFor(host)).toEqual([])
   })
 })
 
@@ -363,6 +428,7 @@ describe("reading a room notice's kind from its words", () => {
   it("recognises every room sentence", () => {
     const cases: [string, string][] = [
       ["Sam and 2 others joined your room Deep Work.", "room_join"],
+      ["Sam and 2 others left your room Deep Work.", "room_leave"],
       ["Sam wrote in Deep Work.", "room_chat"],
       ["4 new messages in Deep Work.", "room_chat"],
       ["Sam mentioned you in Deep Work.", "room_mention"],

@@ -40,6 +40,7 @@ import {
   type RoomHostAction,
 } from "@/server/pomodoro/rooms"
 import { REAL_START_DELAY_MS, startDueRoom } from "@/server/pomodoro/simulated-rooms"
+import { timeFirstVisit } from "@/server/pomodoro/simulated-social"
 import { isStartDelay } from "@/lib/pomodoro/room-countdown"
 import { ROOM_REACTION_EMOJIS } from "@/lib/pomodoro/room-reactions"
 import {
@@ -256,6 +257,9 @@ const createRoomFn = createServerFn({ method: "POST" })
     )
     for (const closedRoomId of closedRoomIds)
       await notifyRoom(closedRoomId, "phase")
+    // A made-up member's visit to a real public room, timed to the second
+    // (live activity task 04). Not awaited into the answer.
+    void timeFirstVisit(room)
     // Opening a room is the other moment a badge counter moves. The room is
     // already committed, so a failed award must not take the room down with
     // it; the next finished focus checks the same badges again.

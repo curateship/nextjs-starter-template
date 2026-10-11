@@ -46,6 +46,7 @@ import {
   pomodoroMediaUploads,
   pomodoroProfiles,
   pomodoroProjects,
+  pomodoroSimulatedAccounts,
   rooms,
   tasks,
 } from "@/server/pomodoro/schema"
@@ -527,6 +528,7 @@ async function buildPublicProfile(
     room,
     [followerRow],
     [followingRow],
+    [madeUp],
   ] = await Promise.all([
       resolveBannerUrl(userId, profile.bannerRef),
       profile.showFigures ? readFigures(userId, todayLocalDate) : null,
@@ -547,6 +549,10 @@ async function buildPublicProfile(
         .select({ value: count() })
         .from(pomodoroFollows)
         .where(eq(pomodoroFollows.followerUserId, userId)),
+      db
+        .select({ userId: pomodoroSimulatedAccounts.userId })
+        .from(pomodoroSimulatedAccounts)
+        .where(eq(pomodoroSimulatedAccounts.userId, userId)),
     ])
   const followers = followerRow?.value ?? 0
   const following = followingRow?.value ?? 0
@@ -589,6 +595,7 @@ async function buildPublicProfile(
     // nobody's.
     shared: null,
     isOwner: false,
+    noindex: Boolean(madeUp),
     },
   }
 }
@@ -1176,7 +1183,7 @@ export function forgetUsersPages() {
  *
  * Only listed ones. A profile somebody switched on but did not list stays
  * reachable by its address and out of search results, which is the whole
- * point of the second switch.
+ * point of the second switch. Made-up members are left out too.
  */
 export async function listedProfilePaths() {
   const rows = await db
@@ -1186,7 +1193,10 @@ export async function listedProfilePaths() {
       and(
         eq(pomodoroProfiles.profilePublic, true),
         eq(pomodoroProfiles.listed, true),
-        isNull(pomodoroProfiles.hiddenAt)
+        isNull(pomodoroProfiles.hiddenAt),
+        // A made-up member's page is never offered to a search engine (live
+        // activity task 05, Part 9); a real member's link to one still works.
+        sql`not exists (select 1 from pomodoro_simulated_accounts s where s.user_id = ${pomodoroProfiles.userId})`
       )
     )
     .limit(5_000)

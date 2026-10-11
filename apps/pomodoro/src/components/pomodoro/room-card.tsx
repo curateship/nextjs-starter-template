@@ -337,7 +337,7 @@ export function OpenRoomCard({
   const reducedMotion = usePrefersReducedMotion()
   return (
     <article
-      className="relative flex flex-col overflow-hidden rounded-[24px] border bg-[var(--p-surface)] pb-6"
+      className="group/room-card relative flex flex-col overflow-hidden rounded-[24px] border bg-[var(--p-surface)] pb-6"
       onPointerEnter={(event) => {
         if (event.pointerType === "mouse") setHovered(true)
       }}

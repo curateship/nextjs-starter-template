@@ -8,10 +8,10 @@ apart.
 
 Tyler asked for this on 9 Oct 2026: "I need to create a task that auto
 populate the app with users so that the app appears more busy", and then "We
-just need real accounts that mimic live activities." Rooms, chat, follows and
-the admin's controls over all of it are tasks 02 to 05 in
-`workspace/tasks/live-activity/`; this page covers the accounts and their
-working days.
+just need real accounts that mimic live activities." The five task files are
+in `workspace/tasks/live-activity/`: the accounts and their days (01), rooms
+(02), chat (03), how they touch real members (04) and the admin's controls
+(05). This page covers all five.
 
 ## Tyler's rules
 
@@ -43,12 +43,14 @@ saves itself with no Save button ([Admin settings](admin-settings.md)).
 - **How many** (0 to 200, 130 to start) is how many there should be.
   Lowering it never removes anybody; it only stops new ones. It was 100 until
   Tyler's "Add 30 more made up profiles" on 10 Oct 2026 (see "Rooms").
-- **Hours a day** (1 to 6, 3 to start) is the most any of them focuses in one
-  day. No account ever plans more, and the worker shortens or skips a session
-  that would take today past it, even on a day the number was lowered half way
-  through.
+- **Hours a day** (1 to 6 in quarter hours, 3 to start) is the most any of
+  them focuses in one day. No account ever plans more, and the worker shortens
+  or skips a session that would take today past it, even on a day the number
+  was lowered half way through. The fade lowers it on its own (see "Your
+  controls"), which is why it moves in quarter hours.
 - **Pause everything** stops the worker starting new sessions and stops new
   faces arriving. Sessions already running finish. Make them now still works.
+  It outranks the five switches under it (see "Your controls").
 - **Make them now** queues the work and answers at once. The worker makes up
   to ten accounts every 15 seconds until the count is met, so forty take
   about a minute and a half-made batch is harmless. Measured locally on 9 Oct
@@ -332,8 +334,6 @@ soon, then six to join.
   deleted at once: it is marked, starts nothing new, and goes with its room as
   soon as no real person is left in it. The card says how many are waiting.
   Everybody else goes at once.
-- **What hosts do not do yet.** They never join a real member's room (task
-  04).
 
 ## Chat and the voice card
 
@@ -385,8 +385,8 @@ writes a `simulated.voicePreviewed` row, and the worker checks for it.
 
 - **Claude Haiku 4.5**, through the shell's `runAiCall`, so every line shows
   on the AI usage page under the feature `simulated-chat`. The call is
-  `userId: null`, a call nobody owns, so no allowance limits it; task 05 adds
-  the daily cap. About 400 tokens in and 12 out, so a line costs about a
+  `userId: null`, a call nobody owns, so no allowance limits it; the voice
+  card's daily cap does (see "Your controls"). About 400 tokens in and 12 out, so a line costs about a
   twentieth of a cent.
 - **The brief** (`buildBrief` in `src/server/pomodoro/simulated-voice.ts`)
   holds the card's style brief, the account's personality line, its name and
@@ -440,7 +440,7 @@ which room, the message it became (empty when thrown away), the moment that
 asked for it, AI or fixed, the model, the cost in fractions of a cent, the
 brief sent, the text, and why it was refused. A moment is answered once,
 because the worker skips a moment that already has a row. Rows older than 30
-days are deleted once an hour. Task 05's watch page reads this table.
+days are deleted once an hour. The watch page reads this table.
 
 ### Choices left to Tyler
 
@@ -462,6 +462,260 @@ presses Give them files. These files skip the daily limit and the first-share
 check, because the admin is the one choosing them. Migration 0147 marks the
 imports.
 
+## Touching real members
+
+Task 04, built 11 Oct 2026. The made-up members reach real ones in four ways:
+they follow and cheer one another so no count reads zero, they follow and
+cheer a real member who publishes a profile, they sit in a real host's public
+room for a while, and any "no" a real member says holds for good.
+
+**What Tyler accepted, 9 Oct 2026, as the task file records it:** follows and
+cheers among themselves, follows and cheers to real members, and joining a
+real host's room, "knowing it is the most deceptive item on the list". So a
+real member will hear from accounts that do not exist. This section keeps it
+to that: one or two follows, one cheer a week, at most two in a room, public
+rooms only.
+
+The worker is `pomodoro-simulated-social` (`src/server/pomodoro/simulated-social.ts`),
+once a minute, one server copy at a time. Every step goes through the code a
+member's own button runs: `followByHandle`, `sendCheer`, `joinRoomBySlug`,
+`leaveRoom`.
+
+### Among themselves
+
+- **Each account follows five to twenty of the others, once.** Most follow
+  five to nine. One account in ten is popular and five times as likely to be
+  picked. Measured on 130 accounts, 11 Oct 2026: 89 have three to eight
+  followers, and the ten most followed have 22 to 33.
+- **A follow is a plain row and nobody is told**, the way following works for
+  everybody. Each is dated some time after both accounts joined.
+- **Picked once per account**, marked `followedAt` on its habit, so a follow
+  an admin deletes is never put back. A new face picks on the next pass;
+  nobody follows a new face back.
+- **A handful of cheers a day.** About one account in twelve cheers somebody
+  it follows on a given day, at a local time between 9am and 9pm, three times
+  as likely somebody who focused each of the last three days. Through
+  `sendCheer`, so the three a day per pair cap holds. The notice lands in a
+  bell nobody reads.
+
+### Following and cheering real members
+
+A real member here is an active account with a public profile and a handle,
+not hidden, and not made up.
+
+- **One follow within 48 hours.** The worker notes when it first sees the
+  profile public, and one made-up account follows between one and forty hours
+  later.
+- **A second a week later, only if they focused that week.** Never a third.
+  The count is of follows ever sent (`follows_sent` in
+  `pomodoro_simulated_reach`, migration 0154), so a follow an admin deleted or
+  a block dropped is never sent again.
+- **The follower is awake where it lives** (8am to 10pm) when one can be, and
+  is never an account with a block either way.
+- **One cheer a week on a streak of three days or more**, from a made-up
+  account that follows them, "Nice streak." in the bell under Social. Nothing
+  when their cheers are off.
+- **Nothing new once the profile is off or hidden.** What was sent stays, as it
+  would from a person.
+- **Their own streak notices reach made-up followers too** (`tellFollowersOfStreak`).
+  Those are bell rows nobody reads. Kept, because skipping them would need a
+  change to the shared notice code.
+
+### A real host's public room
+
+- **One or two visitors**, drawn once per room. The first comes between the
+  card's **Visit a real room after** soonest and latest (10 to 60 seconds to
+  start) after the room opens, the second the same after the first, and only
+  while the room is waiting or on a break; during a focus the visitor waits for
+  the break. Tyler, 11 Oct 2026: "The join is a bit slow. I think it should be
+  around 10sec to 1 min and something I can edit in settings". It was two to
+  six minutes before.
+- **On the second.** Opening a public room sets a timer for the first visit
+  (`timeFirstVisit`, from the open-a-room endpoint), and the worker looks for
+  due visits every 15 seconds as well, which covers a restart and the second
+  visitor.
+- **Who comes, in this order**: a made-up member free and at work by its own
+  day right now; then one at work sitting in a made-up room with nobody real
+  in it and not mid-focus, which says goodbye there and moves over, because a
+  real host matters more than a made-up room; then one free and awake where it
+  lives, 7am to 11pm. Nobody awake and free means nobody comes. Tyler, 11 Oct
+  2026: "I tried opening a room but no simulated users join". On that Sunday
+  afternoon every member at work was already in a made-up room and the rest
+  had the day off, so the first rule alone found nobody.
+- **Never more than two at once**, and never a third visitor after one leaves.
+- **Public rooms only.** An unlisted room is somebody's private choice.
+- **They say hi** as they walk in (the "arrive" moment; fixed lines or the
+  AI, under the chat switch and cap), and the host hears in the bell and gets
+  a pop-up, as for anybody.
+- **Their timer runs with the room**, so the hours count like any member's.
+- **Each stays one to three focuses** and leaves on a break or while the room
+  waits, with a goodbye, never mid-focus.
+- **Never two leave in the same minute, and the last one stays until three
+  focuses have passed** since the first came, so the host is never left alone
+  all at once. After three focuses the room is the host's again.
+
+### No means no
+
+- **A removal is remembered.** `removeRoomMember` writes the room, the host and
+  the moment onto the made-up account's habit (`removedFrom`) in the same step.
+  That account never joins that room or any later room by that host, and no
+  other made-up member comes into the room it was removed from.
+- **A ban holds the same way**, across every room by that host.
+- **A block, either way, stops every follow, cheer and join.** A blocked
+  account inside the blocker's room leaves on the next pass, even mid-focus,
+  without a goodbye. `blockAccount` already drops the follow in the same step
+  as the block.
+- **In made-up rooms they never greet, answer, @reply or react** to a real
+  member across a block.
+
+### Choices left to Tyler
+
+- **One follow in 48 hours and one cheer a week**: keep, more, or less?
+- **Join a real room only while the host is alone, or also when real members
+  are there?** Built: they join either way, up to two.
+
+## Your controls
+
+Task 05, built 11 Oct 2026. Tasks 01 to 04 make the app look busy; these make
+sure Tyler is the one person not fooled by it. The code is
+`src/server/pomodoro/simulated-controls.ts`; the watch page reads are in
+`src/server/pomodoro/simulated-watch.ts`.
+
+### The watch page
+
+`/admin/pomodoro-simulated`. The task put "Made-up members" under Members in
+the admin menu; the menu has no Members group, so on the local workspace it
+sits under Profiles, beside Leaderboard and Achievements, since 11 Oct 2026.
+The live site's menu needs the link added by hand after a deploy, like
+Projects.
+
+- **The line across the top**: how many focused today, made-up rooms open,
+  lines said and what they cost against the chat cap (UTC day), how many are
+  paused, when somebody real was last on the site, and any switch that is off.
+  Read again every minute.
+- **Today's schedule**: the next 24 hours by hour, in your own time. Who starts
+  a focus in each hour by their own day, and which rooms open: a host's room at
+  the start of its working day, and the weekly bookings. It only reads; nothing
+  is written. Paused accounts are left out, and rooms opened to keep Open to
+  join full depend on the moment, so they are not in it.
+- **The accounts**: tabs Today (focused, talked or in a room today), Paused,
+  All. Each row has the name, handle, local time, today's hours on its own
+  calendar day, its room, lines today and their cost, a pause switch, and the
+  cog that opens the member window. Ticked rows pause or unpause in one
+  request; each change is a `simulated_pause_account` or
+  `simulated_unpause_account` audit row.
+- **A paused account** finishes the session it is in, leaves its room at the
+  next break, and starts nothing new. A paused host closes its room at the next
+  break, unless somebody real is in it: that rule outranks the pause.
+- **Lines** at the foot: every line attempt newest first, with who, which
+  room, the moment, AI or fixed, the cost, and why it was not sent. Clicking a
+  line opens the brief the AI was sent, so a bad line is traced to the setting
+  that made it.
+
+### Real members stay on top
+
+- **Keep real members above**, 8 hours a week to start. Once any real member on
+  the global board passes it in the board's week (the last 7 days, UTC days, as
+  the admin board counts), no made-up member's week is let past the top real
+  member's, less a quarter of an hour. Every made-up session, its own or a room
+  timer, is cut to fit, and one already at the line starts nothing.
+- **Nothing is ever taken away.** A made-up account that was already above the
+  real member when they passed the line stays above until those days leave the
+  7-day window. The rule is read on every pass, not once a day, so it follows a
+  real member's week as it grows.
+- **The fade.** On the first pass after Monday 00:00 UTC, when real members
+  together focused more than **Fade after** hours (100 to start) in the week
+  before, Hours a day drops a quarter of an hour, never under one hour, once a
+  week. The card says when it did and why. Raising the dial again is allowed; it
+  fades again the next week if real hours are still over.
+- **The leaderboard never hides them**: they are trimmed, never taken off.
+
+### The chat cap
+
+- **Chat cap, cents a day** on the voice card, 50 to start. The day runs
+  midnight to midnight UTC. Over it, every line is a fixed one until midnight;
+  checked line by line, so it holds to the cent.
+- **Counted from `pomodoro_simulated_lines`**, which keeps each line's cost to
+  the fraction of a cent. The AI usage page stores each call in whole cents, so
+  a line costing a twentieth of a cent shows there as nothing and could never
+  reach a cap. The usage page still lists the calls under `simulated-chat`.
+- **Preview is not counted.** It is the admin's own deliberate spend and has
+  its own limit.
+
+### A report mutes
+
+When somebody reports a made-up member's line in a room, that account is
+paused in the same step as the report (`reportRoomMessage`). The report queue
+says "Made-up account" under the line with a link to the watch page's Paused
+tab. Reviewing the report does not unpause it; the watch page does.
+
+### Real members only
+
+A switch on `/admin/pomodoro-focus` and on the Leaderboard's Board tab,
+remembered in this browser. On, every made-up member is left out of the rows,
+the count, and the Focus page's totals line, which reads like "Real members
+focused 14h in the last 7 days and 312h in all." On the leaderboard, the places become places among real
+members.
+
+- **The AI usage page and the shell's admin dashboard cards are shell pages**
+  and are not changed. The made-up members' chat calls belong to no account,
+  so they show there under the feature `simulated-chat`, never as a person.
+
+### Somebody real on the site
+
+- **Noted when a real member's timer polls or their room's live connection
+  beats**, at most twice a minute per server copy, as one row in
+  `pomodoro_settings` (`simulated.realSeen`). The task asked for a timestamp in
+  memory; in production the workers run as a separate program and never see a
+  poll, so it lives in the database.
+- **Seen in the last two minutes**: a host opens its day's room up to half an
+  hour early, and the chat talks one notch more (quiet like normal, normal like
+  talkative).
+- **Nobody real for an hour**: no new room opens, of either kind, and chat
+  drops to a room's opening line. Sessions and hours are not touched, so the
+  leaderboard and the front page figure stay steady. Rooms already open run on.
+- **Before any real visit has ever been noted**, on a new database, neither
+  applies, so a site nobody has signed into yet still has rooms.
+- **A signed-out visitor is not counted.** Only a signed-in member's timer or
+  room says somebody is here. See "What is left and what to watch".
+
+### One switch per behaviour
+
+Five switches on the Made-up members card, saved as `simulated.switches`:
+Sessions, Rooms, Chat, Follows and cheers, Join real rooms. Off stops that
+behaviour on the next pass and leaves the others alone. Pause everything still
+outranks all five.
+
+- **Chat off**: rooms keep running, silent.
+- **Rooms off**: open rooms finish as planned, no room opens, no weekly rule is
+  booked, nobody new sits in one.
+- **Sessions off**: nobody starts a focus, on its own day or with a room.
+- **Join real rooms off**: nobody walks into a real room; those inside leave on
+  time.
+
+### Kept out of search engines
+
+`/sitemap.xml` never lists a made-up member's page, and its `/u/` page carries
+`<meta name="robots" content="noindex">`. Nothing else on the page differs.
+The share card at `/badge/profile/<handle>.png` still works, so a link a real
+member pastes still unfurls. The sitemap is held by the shell, so a change
+shows on its next build.
+
+### A restart leaves no ghost
+
+The day worker's first pass after it starts cancels any made-up session still
+running whose end passed over an hour ago, the line past which the timer stops
+calling a session live. One that ended within the hour is finished by the
+normal pass through `completeProductivitySession`. Rooms need nothing extra:
+the room clock reads `phase_ends_at` and `starting_at` from the database every
+15 seconds, so a room carries on from where it was.
+
+### Choices left to Tyler
+
+- **Eight hours a week** as the line a real member must pass to be kept first:
+  keep, higher or lower?
+- **Fifty cents a day** for chat: keep?
+
 ## What the admin sees
 
 - **"Made up" beside the name** on every Pomoder admin list that shows a
@@ -471,7 +725,8 @@ imports.
   after a minute.
 - **The shell's own admin pages do not carry the mark**: the Users list, the
   admin dashboard's member counts and the AI usage page count them as members.
-  Task 05 adds a way to leave them out.
+  Those are shell pages and are not changed. "Real members only" on the
+  Focus and Leaderboard pages leaves them out (see "Your controls").
 
 ## What is left and what to watch
 
@@ -483,5 +738,10 @@ imports.
 - **/users is held for five minutes.** Remove all clears the held pages at
   once on the server it ran on. Accounts the worker makes in production show
   within five minutes, because the worker is a separate program.
-- **A real member can block one of these accounts.** Nothing here needs to
-  care; task 04 does.
+- **A real member can block one of these accounts.** The block holds the way
+  it does between people; see "Touching real members".
+- **An hour with nobody signed in stops new rooms.** A signed-out visitor is
+  not counted as somebody real, so at a quiet hour on pomoder.com the rooms on
+  `/` and `/rooms` close one by one and none replace them until a member signs
+  in. That is the task's rule as written; counting a signed-out visit too is
+  Tyler's call.

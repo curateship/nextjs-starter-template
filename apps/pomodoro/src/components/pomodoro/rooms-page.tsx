@@ -68,7 +68,9 @@ import { SignInButton } from "@/components/pomodoro/sign-in-button"
 import {
   OpenRoomsSection,
   type JoinProblem,
+  type OpenRoomRow,
 } from "@/components/pomodoro/open-rooms"
+import { previewOf, useSwitchRoomConfirm } from "@/components/pomodoro/switch-room-confirm"
 import { joinRefusalMessage, roomRefusalSentence } from "@/lib/pomodoro/room-join"
 import { RhythmMinutesFields } from "@/components/pomodoro/rhythm-minutes-fields"
 import {
@@ -198,6 +200,7 @@ export function RoomsPage() {
   // list on its own would tell somebody sitting in a room that they had left
   // it. The room itself is drawn on the front page; this page links to it.
   const live = useRoomClock({ check: true, onEnded: refreshRooms })
+  const switchRoom = useSwitchRoomConfirm()
   const activeRoom = live.snapshot
   const roomCheckFailed = live.checkFailed
 
@@ -253,22 +256,13 @@ export function RoomsPage() {
     }
   }
 
-  const joinBySlug = async (slug: string) => {
+  const joinFromCard = (row: OpenRoomRow) => {
     if (!authenticated) {
       void navigate({ to: "/login", search: { redirect: "/rooms" } })
       return
     }
-    if (activeRoom?.you.role === "host") {
-      setConfirm({
-        title: "Join another room?",
-        description:
-          "Joining another room closes the room you currently host and ends it for its members.",
-        confirmLabel: "Join room",
-        onConfirm: () => void performJoin(slug),
-      })
-      return
-    }
-    await performJoin(slug)
+    // Asks first when you are in another room, hosting it or not.
+    switchRoom.confirmJoin(previewOf(row), () => void performJoin(row.room.slug))
   }
 
   const cancelBooking = async (room: UpcomingRoomRow) => {
@@ -482,6 +476,7 @@ export function RoomsPage() {
           refreshRooms()
         }}
       />
+      {switchRoom.dialog}
       {confirm ? (
         <ConfirmDialog
           open
@@ -551,7 +546,7 @@ export function RoomsPage() {
             onRetry={retryRooms}
             joiningSlug={joiningSlug}
             joinProblem={joinProblem}
-            onJoin={(slug) => void joinBySlug(slug)}
+            onJoin={joinFromCard}
           />
           <UpcomingRooms
             rooms={upcoming}

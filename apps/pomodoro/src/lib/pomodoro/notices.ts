@@ -12,6 +12,7 @@
 
 export const POMODORO_NOTICE_KINDS = [
   "room_join",
+  "room_leave",
   "room_chat",
   "room_mention",
   "room_reaction",
@@ -69,6 +70,7 @@ export const NOTICE_KIND_CATEGORY: Record<
   PomodoroNoticeCategoryId
 > = {
   room_join: "rooms",
+  room_leave: "rooms",
   room_chat: "rooms",
   room_mention: "rooms",
   room_reaction: "rooms",
@@ -158,6 +160,7 @@ export function noticeName(profile: {
 // ---------------------------------------------------------------------------
 
 const ROOM_JOIN_INFIX = " joined your room "
+const ROOM_LEAVE_INFIX = " left your room "
 const ROOM_CHAT_INFIX = " wrote in "
 const ROOM_CHAT_FOLDED = /^\d+ new messages in .+\.$/
 const ROOM_MENTION_INFIX = " mentioned you in "
@@ -197,6 +200,15 @@ export function roomJoinMessage(
   roomName: string
 ) {
   return `${nameAndOthers(joinerName, others)}${ROOM_JOIN_INFIX}${roomName}.`
+}
+
+/**
+ * Somebody left the room you host while you were away from it (Tyler, 11 Oct
+ * 2026: "Add notifications when someone join and leave my room"); later
+ * leaves fold into the same line, as joins do.
+ */
+export function roomLeaveMessage(leaverName: string, others: number, roomName: string) {
+  return `${nameAndOthers(leaverName, others)}${ROOM_LEAVE_INFIX}${roomName}.`
 }
 
 /**
@@ -493,6 +505,7 @@ export function noticeKindFromWords(notice: {
   const message = notice.message
   if (notice.type !== "app_activity" || !message) return null
   if (message.includes(ROOM_JOIN_INFIX)) return "room_join"
+  if (message.includes(ROOM_LEAVE_INFIX)) return "room_leave"
   if (message.includes(ROOM_MENTION_INFIX)) return "room_mention"
   if (message.includes(ROOM_REACTION_INFIX)) return "room_reaction"
   if (message.includes(ROOM_INVITE_INFIX)) return "room_invite"

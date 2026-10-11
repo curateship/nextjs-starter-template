@@ -58,6 +58,10 @@ export const Route = createFileRoute("/_pomodoro/u/$handle")({
         { name: "twitter:title", content: `${profile.name} · Focus profile` },
         { name: "twitter:description", content: description },
         { name: "twitter:image", content: card },
+        // A made-up member's page stays out of search engines (live activity
+        // task 05, Part 9). The card above still unfurls when a real member
+        // pastes the link somewhere.
+        ...(profile.noindex ? [{ name: "robots", content: "noindex" }] : []),
       ],
     }
   },

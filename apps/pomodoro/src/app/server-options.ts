@@ -18,6 +18,7 @@ import { runStreakReminderPass } from "@/server/pomodoro/streak-reminder"
 import { runSimulatedPass } from "@/server/pomodoro/simulated-accounts"
 import { runSimulatedRoomsPass } from "@/server/pomodoro/simulated-rooms"
 import { runSimulatedChatPass } from "@/server/pomodoro/simulated-chat"
+import { runSimulatedSocialPass } from "@/server/pomodoro/simulated-social"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -128,6 +129,17 @@ export const appServerOptions: AppServerOptions = {
         name: "pomodoro-simulated-chat",
         tick: async () => {
           await runSimulatedChatPass()
+        },
+      },
+      {
+        // How the made-up members touch real ones (live activity task 04),
+        // once a minute: they follow and cheer one another, follow and cheer
+        // real members with a public profile, and sit in a real host's public
+        // room for a while. A block, a ban or a removal by a real member
+        // holds for good.
+        name: "pomodoro-simulated-social",
+        tick: async () => {
+          await runSimulatedSocialPass()
         },
       },
       {

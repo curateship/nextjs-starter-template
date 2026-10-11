@@ -2231,6 +2231,23 @@ export const pomodoroSimulatedLines = pgTable(
   ]
 )
 
+/**
+ * What the made-up members have done towards one real member (live activity
+ * task 04, Part 2): when the worker first saw their profile public, how many
+ * follows it has ever sent them, and the last cheer. See "Touching real
+ * members" in `workspace/docs/made-up-members.md`.
+ */
+export const pomodoroSimulatedReach = pgTable("pomodoro_simulated_reach", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  seenPublicAt: timestamp("seen_public_at", { withTimezone: true }).notNull(),
+  /** Follows ever sent, so one an admin or a block removed is never sent again. */
+  followsSent: integer("follows_sent").notNull().default(0),
+  lastFollowAt: timestamp("last_follow_at", { withTimezone: true }),
+  lastCheerAt: timestamp("last_cheer_at", { withTimezone: true }),
+})
+
 export type Room = typeof rooms.$inferSelect
 export type PomodoroRoomRepeat = typeof pomodoroRoomRepeats.$inferSelect
 export type RoomInvite = typeof roomInvites.$inferSelect

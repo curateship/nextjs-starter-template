@@ -97,6 +97,8 @@ const userIdSchema = z.string().trim().min(1).max(36).nullable().default(null)
 const focusQuerySchema = z.object({
   ...pageSchema,
   sort: z.enum(FOCUS_SORT_COLUMNS).default("focus"),
+  /** "Real members only" (live activity task 05, Part 6). */
+  realOnly: z.boolean().default(false),
 })
 
 const taskQuerySchema = z.object({

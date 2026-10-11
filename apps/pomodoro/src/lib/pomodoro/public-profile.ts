@@ -233,6 +233,11 @@ export type PublicProfileView = {
    * cheers, reports or blocks themselves, so the actions row is not drawn.
    */
   isOwner: boolean
+  /**
+   * Kept out of search engines: a made-up member's page (live activity task
+   * 05, Part 9). Only the page's head reads it; nothing on the page changes.
+   */
+  noindex: boolean
 }
 
 export type YearInReviewView = {

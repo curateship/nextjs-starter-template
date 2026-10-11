@@ -33,6 +33,18 @@ export type SimulatedHabits = {
   taskTitles: string[]
   /** Set for the accounts that host rooms (task 02); see `simulated-rooms.ts`. */
   host?: SimulatedHost
+  /**
+   * When this account picked the other made-up accounts it follows (task 04,
+   * Part 1), so it is done once and never again after an admin deletes them.
+   */
+  followedAt?: string
+  /** The local date this account last cheered another made-up member, so it is once a day. */
+  cheeredOn?: string
+  /**
+   * Every real host who removed this account from a room (task 04, Part 4).
+   * It never joins that room again, nor any later room by the same host.
+   */
+  removedFrom?: Array<{ roomId: string; hostUserId: string; removedAt: string }>
 }
 
 type PlannedSession = {

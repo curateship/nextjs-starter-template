@@ -123,7 +123,8 @@ cover this one.
   leaderboard, and the private admin notes.
 - [Made-up members](made-up-members.md) — the accounts that focus every day
   so the site never looks empty: the Settings tab, their working day, the
-  worker, their history, and the mark only the admin sees.
+  worker, their history, the mark only the admin sees, how they touch real
+  members, and Tyler's controls and watch page.
 - [My uploads](my-uploads.md) — the page that manages every own file: marks,
   tick boxes, the 30-day bin, stills for clips, the space warning, Download,
   and AI files named after their prompt.

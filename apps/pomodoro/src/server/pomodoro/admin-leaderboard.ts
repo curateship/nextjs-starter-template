@@ -4,6 +4,7 @@ import { alias } from "drizzle-orm/pg-core"
 import { db } from "@/server/db"
 import { globalBoardRule } from "@/server/pomodoro/leaderboard"
 import { localDateFor } from "@/server/pomodoro/productivity"
+import { isReal } from "@/server/pomodoro/simulated-controls"
 import { dailyFocusStats, pomodoroAuditLogs, pomodoroProfiles } from "@/server/pomodoro/schema"
 import { customShellUsers as users } from "@/server/schema"
 import { leaderboardStartDate, type LeaderboardWindow } from "@/lib/pomodoro/leaderboard-windows"
@@ -25,14 +26,18 @@ const BOARD_LIMIT = 100
  * The global board from the window's first day, as members see it, with the
  * account ids members never get. Days are counted in UTC: each member's own
  * board starts on their own calendar day, which can be a day either side.
+ * `realOnly` leaves the made-up members out (live activity task 05, Part 6),
+ * so the places are the places among real members.
  */
 export async function listAdminBoard(query: {
   window: LeaderboardWindow
   page: number
   pageSize: number
+  realOnly?: boolean
   now?: Date
 }) {
   const start = leaderboardStartDate(query.window, localDateFor("UTC", query.now))
+  const listed = query.realOnly ? and(globalBoardRule(), isReal(pomodoroProfiles.userId)) : globalBoardRule()
   const focusSeconds = sql<number>`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)::int`
   const offset = (query.page - 1) * query.pageSize
   const [rows, [total]] = await Promise.all([
@@ -58,13 +63,13 @@ export async function listAdminBoard(query: {
             dailyFocusStats,
             and(eq(dailyFocusStats.userId, pomodoroProfiles.userId), gte(dailyFocusStats.localDate, start))
           )
-          .where(globalBoardRule())
+          .where(listed)
           .groupBy(pomodoroProfiles.userId, users.name, users.email, pomodoroProfiles.publicDisplayName, pomodoroProfiles.handle)
           // The board's own order, so a place here is the place members see.
           .orderBy(desc(focusSeconds), asc(pomodoroProfiles.userId))
           .limit(Math.min(query.pageSize, BOARD_LIMIT - offset))
           .offset(offset),
-    db.select({ total: count() }).from(pomodoroProfiles).where(globalBoardRule()),
+    db.select({ total: count() }).from(pomodoroProfiles).where(listed),
   ])
   return {
     rows: rows.map((row, index) => ({ ...row, place: offset + index + 1 })),

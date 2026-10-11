@@ -1,6 +1,6 @@
 # Admin sections
 
-Twenty-three operator pages inside the shell's `/admin`. They let an operator see
+Twenty-four operator pages inside the shell's `/admin`. They let an operator see
 what members are doing, decide reports, and delete what should not be there.
 Every delete and every report decision is written to `pomodoro_audit_logs`.
 
@@ -28,6 +28,7 @@ Every delete and every report decision is written to `pomodoro_audit_logs`.
 | `/admin/pomodoro-follows` | Follows and cheers, two tabs, with Delete |
 | `/admin/pomodoro-blocks` | Who blocked whom, and the most blocked accounts. Read-only |
 | `/admin/pomodoro-achievements` | Who earned which badge, with Revoke |
+| `/admin/pomodoro-simulated` | The made-up members' watch page: today's figures and chat cost, the next 24 hours, a pause switch per account, and every line with its brief. "Made-up members" under Profiles in the menu; see [Made-up members](made-up-members.md) |
 | `/admin/pomodoro-groups` | Every private focus group, its members, and Delete |
 | `/admin/pomodoro-generations` | Every AI background and soundscape request, with Delete for the file |
 | `/admin/pomodoro-projects` | Every member's projects with their tasks, hours and target, a window to rename, retarget or archive one, and Delete |
