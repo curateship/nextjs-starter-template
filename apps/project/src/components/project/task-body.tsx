@@ -1,12 +1,18 @@
 import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
-import { BellIcon, CheckIcon, PlusIcon, Trash2Icon, UndoIcon } from "lucide-react"
+import { toast } from "sonner"
+import { BellIcon, CheckIcon, PlusIcon, UndoIcon } from "lucide-react"
 
 import { TaskChatCard } from "@/components/project/task-chat"
 import { TaskFilesCard } from "@/components/project/task-files-card"
 import { TaskHistoryCard } from "@/components/project/task-history-card"
 import { TaskNotesField } from "@/components/project/task-notes"
+import { TaskMoreMenu } from "@/components/project/task-more-menu"
+import { TaskPlanCard } from "@/components/project/task-plan-card"
+import { StepMenu } from "@/components/project/step-menu"
+import { TaskLabelsField, TaskSectionField } from "@/components/project/task-sorting-fields"
 import {
+  DueDate,
   PersonAvatar,
   PickedDaysBadge,
   StatusBadge,
@@ -32,10 +38,10 @@ import {
   addTaskStep,
   assignProjectTask,
   deleteProjectTask,
-  deleteTaskStep,
   followProjectTask,
   handBackProjectTask,
   loadTask,
+  restoreProjectTask,
   saveTask,
   setStatus,
   updateTaskStep,
@@ -71,6 +77,8 @@ export type TaskParts = {
   body: React.ReactNode
   /** The Follow button, once the task has loaded. */
   follow: React.ReactNode
+  /** Duplicate and Move to project, once the task has loaded and can change. */
+  more: React.ReactNode
   /** Deletes the task and refreshes the page under it. Null when this person can't. */
   remove: { busy: boolean; run: () => Promise<boolean> } | null
 }
@@ -133,6 +141,7 @@ export function TaskView({
         <ErrorRow message={loaded.message} onRetry={() => setReloads((n) => n + 1)} />
       ),
     follow: null,
+    more: null,
     remove: null,
   })
 }
@@ -221,9 +230,20 @@ function TaskForm({
   }
 
   async function remove() {
-    const ok = await run(() => deleteProjectTask(task.id), "Task deleted.")
-    if (ok) await router.invalidate()
-    return ok
+    const ok = await run(() => deleteProjectTask(task.id))
+    if (!ok) return false
+    toast.success("Task moved to the bin.", {
+      action: {
+        label: "Undo",
+        onClick: () =>
+          void restoreProjectTask(task.id).then(
+            () => router.invalidate(),
+            (error: unknown) => showErrorToast(getProjectErrorMessage(error))
+          ),
+      },
+    })
+    await router.invalidate()
+    return true
   }
 
   const body = (
@@ -344,6 +364,9 @@ function TaskForm({
                     <SelectItem key={person.id} value={person.id}>
                       <PersonAvatar name={person.name} avatarUrl={person.avatarUrl} />
                       {person.id === myUserId ? `${person.name} (you)` : person.name}
+                      {person.title ? (
+                        <span className="text-muted-foreground"> · {person.title}</span>
+                      ) : null}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -395,6 +418,10 @@ function TaskForm({
               ) : null}
             </div>
           </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TaskSectionField detail={detail} readOnly={readOnly} busy={busy} change={change} />
+            <TaskLabelsField detail={detail} readOnly={readOnly} busy={busy} change={change} />
+          </div>
           <TaskNotesField
             key={task.id}
             notes={task.notes}
@@ -412,7 +439,8 @@ function TaskForm({
         </CardContent>
       </Card>
 
-      <StepsCard taskId={task.id} steps={detail.steps} readOnly={readOnly} change={change} busy={busy} />
+      <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} />
+      <StepsCard detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} busy={busy} />
       <TaskFilesCard detail={detail} readOnly={readOnly} refresh={refresh} change={change} />
       <TaskChatCard detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} />
       <TaskHistoryCard detail={detail} />
@@ -453,6 +481,7 @@ function TaskForm({
         {detail.following ? "Following" : "Follow"}
       </Button>
     ),
+    more: readOnly ? null : <TaskMoreMenu detail={detail} />,
     remove: detail.canDelete && !readOnly ? { busy, run: remove } : null,
   })
 }
@@ -507,18 +536,20 @@ function ReasonRow({
 }
 
 function StepsCard({
-  taskId,
-  steps,
+  detail,
+  myUserId,
   readOnly,
   change,
   busy,
 }: {
-  taskId: string
-  steps: TaskStep[]
+  detail: TaskDetail
+  myUserId: string
   readOnly: boolean
   change: Change
   busy: boolean
 }) {
+  const taskId = detail.task.id
+  const steps = detail.steps
   const [text, setText] = React.useState("")
   const done = steps.filter((step) => step.done).length
 
@@ -546,7 +577,14 @@ function StepsCard({
         ) : (
           <ul className="grid gap-2">
             {steps.map((step) => (
-              <StepRow key={step.id} step={step} readOnly={readOnly} change={change} />
+              <StepRow
+                key={step.id}
+                step={step}
+                people={detail.assignable}
+                myUserId={myUserId}
+                readOnly={readOnly}
+                change={change}
+              />
             ))}
           </ul>
         )}
@@ -578,57 +616,66 @@ function StepsCard({
 
 function StepRow({
   step,
+  people,
+  myUserId,
   readOnly,
   change,
 }: {
   step: TaskStep
+  people: TaskDetail["assignable"]
+  myUserId: string
   readOnly: boolean
   change: Change
 }) {
   const [text, setText] = useSyncedDraft(step.text)
   const checkboxId = `step-${step.id}`
   return (
-    <li className="flex items-center gap-2">
-      <Checkbox
-        id={checkboxId}
-        checked={step.done}
-        disabled={readOnly}
-        aria-label={`${step.text}, ${step.done ? "done" : "not done"}`}
-        onCheckedChange={(checked) =>
-          void change(() => updateTaskStep({ stepId: step.id, done: checked === true }))
-        }
-      />
-      <Input
-        aria-label="Step"
-        value={text}
-        maxLength={LIMITS.stepText}
-        disabled={readOnly}
-        className={step.done ? "text-muted-foreground line-through" : undefined}
-        onChange={(event) => setText(event.target.value)}
-        onBlur={() => {
-          const next = text.trim()
-          if (next === step.text) return
-          if (!next) {
-            setText(step.text)
-            return
+    <li className="grid gap-1">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={checkboxId}
+          checked={step.done}
+          disabled={readOnly}
+          aria-label={`${step.text}, ${step.done ? "done" : "not done"}`}
+          onCheckedChange={(checked) =>
+            void change(() => updateTaskStep({ stepId: step.id, done: checked === true }))
           }
-          void change(() => updateTaskStep({ stepId: step.id, text: next }))
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur()
-        }}
-      />
-      {readOnly ? null : (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={`Delete the step "${step.text}"`}
-          onClick={() => void change(() => deleteTaskStep(step.id))}
-        >
-          <Trash2Icon className="size-4" />
-        </Button>
-      )}
+        />
+        <Input
+          aria-label="Step"
+          value={text}
+          maxLength={LIMITS.stepText}
+          disabled={readOnly}
+          className={step.done ? "text-muted-foreground line-through" : undefined}
+          onChange={(event) => setText(event.target.value)}
+          onBlur={() => {
+            const next = text.trim()
+            if (next === step.text) return
+            if (!next) {
+              setText(step.text)
+              return
+            }
+            void change(() => updateTaskStep({ stepId: step.id, text: next }))
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur()
+          }}
+        />
+        {readOnly ? null : (
+          <StepMenu step={step} people={people} myUserId={myUserId} change={change} />
+        )}
+      </div>
+      {step.assignee || step.dueDate ? (
+        <p className="flex flex-wrap items-center gap-2 pl-6 text-xs text-muted-foreground">
+          {step.assignee ? (
+            <span className="flex items-center gap-1">
+              <PersonAvatar name={step.assignee.name} avatarUrl={step.assignee.avatarUrl} />
+              {step.assignee.id === myUserId ? "You" : step.assignee.name}
+            </span>
+          ) : null}
+          {step.dueDate ? <DueDate dueDate={step.dueDate} status={step.done ? "done" : "todo"} /> : null}
+        </p>
+      ) : null}
     </li>
   )
 }

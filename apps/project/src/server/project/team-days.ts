@@ -3,11 +3,13 @@ import { and, desc, eq, gte, inArray, isNotNull, lt, lte } from "drizzle-orm"
 import { addDays, weekdayOf } from "@/lib/project/days"
 import type { TeamRole } from "@/lib/project/rules"
 import { db } from "@/server/db"
-import { visibleProjectIds } from "@/server/project/access"
+import { visibleProjectIds, type ProjectDb } from "@/server/project/access"
 import { clockOf, isLate, loadClock, personDay } from "@/server/project/checkins"
+import { awayOn } from "@/server/project/time-off"
 import {
   projectCheckinItems,
   projectCheckins,
+  projectProjects,
   projectTasks,
   projectTeamMembers,
   projectTeams,
@@ -66,62 +68,153 @@ export async function loadTeamMonth(
         lte(projectCheckins.day, last)
       )
     )
-  const stuckRows = rows.length
-    ? await database
-        .select({
-          checkinId: projectCheckinItems.checkinId,
-          endStatus: projectCheckinItems.endStatus,
-          liveStatus: projectTasks.status,
-        })
-        .from(projectCheckinItems)
-        .leftJoin(projectTasks, eq(projectTasks.id, projectCheckinItems.taskId))
-        .where(
-          and(
-            inArray(
-              projectCheckinItems.checkinId,
-              rows.map((row) => row.id)
-            ),
-            eq(projectCheckinItems.kind, "pick")
-          )
-        )
-    : []
-
-  // Today has rows only for people who have checked in so far, so who is
-  // expected is worked out from the team's work days and its size.
-  const [team] = await database
-    .select({ workDays: projectTeams.workDays })
-    .from(projectTeams)
-    .where(eq(projectTeams.id, membership.teamId))
-  const teamSize = (
-    await database
-      .select({ userId: projectTeamMembers.userId })
-      .from(projectTeamMembers)
-      .where(eq(projectTeamMembers.teamId, membership.teamId))
-  ).length
-
-  // A check-in is blocked when one of its picks was Stuck: at the end of the
-  // day once the day is saved, and now while it is still going.
-  const closed = new Map(rows.map((row) => [row.id, Boolean(row.closedAt)]))
-  const blockedCheckins = new Set(
-    stuckRows
-      .filter((item) => (closed.get(item.checkinId) ? item.endStatus : item.liveStatus) === "stuck")
-      .map((item) => item.checkinId)
+  const blockedCheckins = await blockedCheckinIds(rows, database)
+  const { workDays, teamSize, memberIds } = await teamShape(membership.teamId, database)
+  const awayToday = await awayNotCheckedIn(
+    memberIds,
+    today,
+    rows.filter((row) => row.day === today),
+    database
   )
 
   const days: TeamMonthDay[] = []
   for (let day = first; day <= last && day <= today; day = addDays(day, 1)) {
     const mine = rows.filter((row) => row.day === day)
-    const checkedIn = mine.filter((row) => row.checkedInAt).length
-    const expected =
-      day === today
-        ? team?.workDays.includes(weekdayOf(day))
-          ? teamSize
-          : checkedIn
-        : mine.filter((row) => row.workDay || row.checkedInAt).length
-    const blocked = mine.filter((row) => blockedCheckins.has(row.id)).length
-    if (mine.length || day === today) days.push({ day, checkedIn, expected, blocked })
+    if (mine.length || day === today) {
+      days.push(
+        squareOf(day, day === today, mine, blockedCheckins, workDays, teamSize, day === today ? awayToday : 0)
+      )
+    }
   }
   return { month: shown, today, days }
+}
+
+type DayRow = {
+  id: string
+  userId: string
+  workDay: boolean
+  checkedInAt: Date | null
+  closedAt: Date | null
+}
+
+/**
+ * One square of the calendar. Today has rows only for people who have
+ * checked in so far, so who is expected today is worked out from the team's
+ * work days and its size.
+ */
+function squareOf(
+  day: string,
+  isToday: boolean,
+  rows: DayRow[],
+  blockedCheckins: Set<string>,
+  workDays: number[],
+  teamSize: number,
+  /** People on time off today who haven't checked in anyway. */
+  awayToday = 0
+): TeamMonthDay {
+  const checkedIn = rows.filter((row) => row.checkedInAt).length
+  const expected = isToday
+    ? workDays.includes(weekdayOf(day))
+      ? teamSize - awayToday
+      : checkedIn
+    : rows.filter((row) => row.workDay || row.checkedInAt).length
+  const blocked = rows.filter((row) => blockedCheckins.has(row.id)).length
+  return { day, checkedIn, expected, blocked }
+}
+
+/**
+ * The check-ins with a pick that was Stuck: at the end of the day once the
+ * day is saved, and now while it is still going.
+ */
+async function blockedCheckinIds(rows: DayRow[], database: ProjectDb) {
+  if (rows.length === 0) return new Set<string>()
+  const stuckRows = await database
+    .select({
+      checkinId: projectCheckinItems.checkinId,
+      endStatus: projectCheckinItems.endStatus,
+      liveStatus: projectTasks.status,
+      deletedAt: projectTasks.deletedAt,
+    })
+    .from(projectCheckinItems)
+    .leftJoin(projectTasks, eq(projectTasks.id, projectCheckinItems.taskId))
+    .where(
+      and(
+        inArray(
+          projectCheckinItems.checkinId,
+          rows.map((row) => row.id)
+        ),
+        eq(projectCheckinItems.kind, "pick")
+      )
+    )
+  const closed = new Map(rows.map((row) => [row.id, Boolean(row.closedAt)]))
+  return new Set(
+    stuckRows
+      .filter(
+        (item) =>
+          (closed.get(item.checkinId) ? item.endStatus : !item.deletedAt && item.liveStatus) ===
+          "stuck"
+      )
+      .map((item) => item.checkinId)
+  )
+}
+
+async function teamShape(teamId: string, database: ProjectDb) {
+  const [team] = await database
+    .select({ workDays: projectTeams.workDays })
+    .from(projectTeams)
+    .where(eq(projectTeams.id, teamId))
+  const members = await database
+    .select({ userId: projectTeamMembers.userId })
+    .from(projectTeamMembers)
+    .where(eq(projectTeamMembers.teamId, teamId))
+  return {
+    workDays: team ? [...team.workDays] : [],
+    teamSize: members.length,
+    memberIds: members.map((member) => member.userId),
+  }
+}
+
+/** How many people are away today and haven't checked in anyway. */
+async function awayNotCheckedIn(
+  memberIds: string[],
+  day: string,
+  rows: { userId: string; checkedInAt: Date | null }[],
+  database: ProjectDb
+) {
+  const away = await awayOn(memberIds, day, database)
+  const checkedIn = new Set(rows.filter((row) => row.checkedInAt).map((row) => row.userId))
+  return [...away].filter((userId) => !checkedIn.has(userId)).length
+}
+
+/**
+ * Today's square for one team, counted exactly as the Team dashboard's
+ * calendar counts it, for the morning notice.
+ */
+export async function countTeamToday(
+  teamId: string,
+  day: string,
+  database: ProjectDb = db
+): Promise<TeamMonthDay> {
+  const rows = await database
+    .select({
+      id: projectCheckins.id,
+      userId: projectCheckins.userId,
+      workDay: projectCheckins.workDay,
+      checkedInAt: projectCheckins.checkedInAt,
+      closedAt: projectCheckins.closedAt,
+    })
+    .from(projectCheckins)
+    .where(and(eq(projectCheckins.teamId, teamId), eq(projectCheckins.day, day)))
+  const { workDays, teamSize, memberIds } = await teamShape(teamId, database)
+  return squareOf(
+    day,
+    true,
+    rows,
+    await blockedCheckinIds(rows, database),
+    workDays,
+    teamSize,
+    await awayNotCheckedIn(memberIds, day, rows, database)
+  )
 }
 
 export type TeamDayTask = {
@@ -129,11 +222,14 @@ export type TeamDayTask = {
   taskId: string | null
   /** Null when the task is in a project the viewer can't see. */
   title: string | null
+  /** Someone's own "Just me" task: it reads as "a personal task", for everyone. */
+  personal: boolean
 }
 
 export type TeamDayPerson = {
   person: { id: string; name: string; avatarUrl: string; role: TeamRole }
-  state: "checked_in" | "not_yet" | "missed" | "day_off" | "no_record"
+  /** `away`: on time off that day, so not expected. */
+  state: "checked_in" | "not_yet" | "missed" | "day_off" | "away" | "no_record"
   checkedInAt: string | null
   timeZone: string
   late: boolean
@@ -212,9 +308,12 @@ export async function loadTeamDay(
           endStatus: projectCheckinItems.endStatus,
           liveStatus: projectTasks.status,
           stuckReason: projectTasks.stuckReason,
+          deletedAt: projectTasks.deletedAt,
+          personal: projectProjects.personalUserId,
         })
         .from(projectCheckinItems)
         .leftJoin(projectTasks, eq(projectTasks.id, projectCheckinItems.taskId))
+        .leftJoin(projectProjects, eq(projectProjects.id, projectCheckinItems.projectId))
         .where(
           and(
             inArray(projectCheckinItems.checkinId, checkinIds),
@@ -224,9 +323,16 @@ export async function loadTeamDay(
         .orderBy(projectCheckinItems.createdAt, projectCheckinItems.taskTitle)
     : []
   const visible = await visibleProjectIds(membership, database)
+  const away = await awayOn(ids, day, database)
   const shown = (item: (typeof items)[number]): TeamDayTask => {
+    if (item.personal) return { taskId: null, title: null, personal: true }
     const seen = item.projectId !== null && visible.has(item.projectId)
-    return { taskId: seen ? item.taskId : null, title: seen ? item.title : null }
+    return {
+      // A task in the bin keeps its line, without a way to open it.
+      taskId: seen && !item.deletedAt ? item.taskId : null,
+      title: seen ? item.title : null,
+      personal: false,
+    }
   }
 
   const rows: TeamDayPerson[] = people.map((person) => {
@@ -234,16 +340,21 @@ export async function loadTeamDay(
     const row = onDay.find((r) => r.userId === person.id) ?? null
     const previous = before.find((r) => r.userId === person.id) ?? null
     const own = personDay(personClock, at)
+    // A day already saved keeps what it said; time off only names a day off "Away".
     const state: TeamDayPerson["state"] = row?.checkedInAt
       ? "checked_in"
       : row
         ? row.workDay
           ? "missed"
-          : "day_off"
-        : day === own.day
-          ? own.workDay
-            ? "not_yet"
+          : away.has(person.id)
+            ? "away"
             : "day_off"
+        : day === own.day
+          ? away.has(person.id)
+            ? "away"
+            : own.workDay
+              ? "not_yet"
+              : "day_off"
           : "no_record"
     const picks = row ? items.filter((item) => item.checkinId === row.id) : []
     const closed = Boolean(row?.closedAt)
@@ -261,7 +372,7 @@ export async function loadTeamDay(
       before: previous ? items.filter((item) => item.checkinId === previous.id).map(shown) : [],
       picked: picks.map(shown),
       blockers: picks
-        .filter((item) => (closed ? item.endStatus : item.liveStatus) === "stuck")
+        .filter((item) => (closed ? item.endStatus : !item.deletedAt && item.liveStatus) === "stuck")
         .map((item) => {
           const task = shown(item)
           const stillStuck = item.liveStatus === "stuck"
@@ -271,7 +382,13 @@ export async function loadTeamDay(
   })
 
   const rank = (row: TeamDayPerson) =>
-    row.blockers.length ? 0 : row.state === "checked_in" ? 1 : row.state === "day_off" ? 3 : 2
+    row.blockers.length
+      ? 0
+      : row.state === "checked_in"
+        ? 1
+        : row.state === "day_off" || row.state === "away"
+          ? 3
+          : 2
   rows.sort(
     (a, b) =>
       rank(a) - rank(b) ||
@@ -283,7 +400,7 @@ export async function loadTeamDay(
     day,
     today,
     checkedIn: rows.filter((row) => row.state === "checked_in").length,
-    expected: rows.filter((row) => row.state !== "day_off" && row.state !== "no_record").length,
+    expected: rows.filter((row) => !["day_off", "away", "no_record"].includes(row.state)).length,
     blocked: rows.filter((row) => row.blockers.length).length,
     people: rows,
   }

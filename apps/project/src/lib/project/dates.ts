@@ -6,7 +6,7 @@ import type { TaskStatus } from "@/lib/project/rules"
  */
 
 /** Today's date as the calendar shows it, "YYYY-MM-DD", in the reader's own day. */
-function todayKey(now = new Date()) {
+export function todayKey(now = new Date()) {
   const month = String(now.getMonth() + 1).padStart(2, "0")
   const day = String(now.getDate()).padStart(2, "0")
   return `${now.getFullYear()}-${month}-${day}`

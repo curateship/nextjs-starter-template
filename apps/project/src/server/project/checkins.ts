@@ -1,8 +1,13 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { localNow, momentOf } from "@/lib/project/days"
-import { LIMITS, type ProjectColor } from "@/lib/project/rules"
+import {
+  LIMITS,
+  PERSONAL_PROJECT_ID,
+  PERSONAL_PROJECT_NAME,
+  type ProjectColor,
+} from "@/lib/project/rules"
 import { uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
@@ -22,6 +27,7 @@ import {
   projectTeams,
 } from "@/server/project/schema"
 import { listTaskCards, type TaskCard } from "@/server/project/tasks"
+import { awayOn } from "@/server/project/time-off"
 
 /**
  * The morning check-in. The rules Tyler set are in
@@ -147,8 +153,8 @@ export type CheckinAnswer = {
 
 export type CheckinPage = {
   clock: CheckinClock
-  /** `pastDue`: checking in now would be marked late. */
-  today: { day: string; workDay: boolean; dueAt: string; pastDue: boolean }
+  /** `pastDue`: checking in now would be marked late. `away`: the person's time off. */
+  today: { day: string; workDay: boolean; dueAt: string; pastDue: boolean; away: boolean }
   /** Null until the person checks in today. */
   checkin: { checkedInAt: string; late: boolean } | null
   pickedTaskIds: string[]
@@ -168,7 +174,7 @@ export async function loadCheckinPage(
   at = new Date()
 ): Promise<CheckinPage> {
   const { membership, clock } = await loadClock(userId, database)
-  const today = personDay(clock, at)
+  const today = await personWorkDay(userId, clock, at, database)
   const row = await findDay(userId, today.day, database)
   const checkedIn = Boolean(row?.checkedInAt)
   const items = row && checkedIn ? await itemsOf(row.id, database) : []
@@ -186,18 +192,23 @@ export async function loadCheckinPage(
       name: projectProjects.name,
       color: projectProjects.color,
       archivedAt: projectProjects.archivedAt,
+      personalUserId: projectProjects.personalUserId,
     })
     .from(projectProjects)
     .where(visibleProjectsWhere(membership))
-    .orderBy(asc(projectProjects.name))
+    // Shared projects by name, then "Just me" last.
+    .orderBy(sql`${projectProjects.personalUserId} IS NOT NULL`, asc(projectProjects.name))
   const openProjectIds = projects.filter((p) => !p.archivedAt).map((p) => p.id)
 
+  // A snoozed task stays out of the pick list until the person's own morning
+  // of its date.
   const mine = openProjectIds.length
     ? await listTaskCards(
         and(
           inArray(projectTasks.projectId, openProjectIds),
           eq(projectTasks.assigneeUserId, userId),
-          ne(projectTasks.status, "done")
+          ne(projectTasks.status, "done"),
+          or(isNull(projectTasks.snoozedUntil), lte(projectTasks.snoozedUntil, today.day))
         ),
         database
       )
@@ -229,6 +240,7 @@ export async function loadCheckinPage(
       workDay: today.workDay,
       dueAt: today.dueAt.toISOString(),
       pastDue: today.workDay && at > today.dueAt,
+      away: today.away,
     },
     checkin:
       row?.checkedInAt
@@ -245,10 +257,23 @@ export async function loadCheckinPage(
         reason: item.reason,
       })),
     groups: [...byProject.values()].filter((group) => group.tasks.length > 0),
-    projects: projects
-      .filter((p) => !p.archivedAt)
-      .map((p) => ({ id: p.id, name: p.name, color: p.color })),
+    projects: [
+      ...projects
+        .filter((p) => !p.archivedAt)
+        .map((p) => ({ id: p.id, name: p.name, color: p.color })),
+      // "Just me" by its stand-in id until the person has used it once.
+      ...(projects.some((p) => p.personalUserId)
+        ? []
+        : [{ id: PERSONAL_PROJECT_ID, name: PERSONAL_PROJECT_NAME, color: "slate" as const }]),
+    ],
   }
+}
+
+/** The person's own day, with time off making a work day a day off. */
+async function personWorkDay(userId: string, clock: CheckinClock, at: Date, database: ProjectDb) {
+  const day = personDay(clock, at)
+  const away = (await awayOn([userId], day.day, database)).has(userId)
+  return { ...day, workDay: day.workDay && !away, away }
 }
 
 async function findDay(userId: string, day: string, database: ProjectDb) {
@@ -340,7 +365,8 @@ export async function submitCheckin(
 ) {
   await database.transaction(async (tx) => {
     const { membership, clock } = await loadClock(userId, tx)
-    const today = personDay(clock, at)
+    // A check-in on time off is saved as a day off, so it is never late.
+    const today = await personWorkDay(userId, clock, at, tx)
     const existing = await findDay(userId, today.day, tx)
     if (existing?.checkedInAt) throw new Error(PROJECT_ERRORS.alreadyCheckedIn)
 

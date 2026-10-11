@@ -168,7 +168,8 @@ async function sendInvite(
     .from(projectTeams)
     .where(eq(projectTeams.id, teamId))
     .limit(1)
-  const link = appUrlFor(`/invite/${encodeURIComponent(token)}`)
+  // The invite page lives under /projects (`routes/_authenticated/projects/invite.$token.tsx`).
+  const link = appUrlFor(`/projects/invite/${encodeURIComponent(token)}`)
   const sent = await sendInviteEmail(
     {
       to: email,

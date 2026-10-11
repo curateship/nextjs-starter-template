@@ -1,8 +1,11 @@
+import { Link } from "@tanstack/react-router"
+
 import { StatusBadge } from "@/components/project/task-bits"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { TaskDetail } from "@/lib/api/project/tasks"
 import { formatDateTime } from "@/lib/format/format-time"
 import { shortDayLabel } from "@/lib/project/days"
+import { isTaskStatus } from "@/lib/project/rules"
 
 type Entry = TaskDetail["history"][number]
 
@@ -89,5 +92,58 @@ function EntryText({ entry }: { entry: Entry }) {
           {entry.targetName ? ` to ${entry.targetName}` : ""}: {entry.reason}
         </span>
       )
+    case "became_task":
+      return (
+        <span className="break-words">
+          {entry.actorName} made the step "{entry.reason}" its own task
+          {entry.relatedTask ? (
+            <>
+              : <RelatedTaskLink task={entry.relatedTask} />
+            </>
+          ) : null}
+        </span>
+      )
+    case "from_step":
+      return (
+        <span className="break-words">
+          {entry.actorName} made this from a step in{" "}
+          {entry.relatedTask ? <RelatedTaskLink task={entry.relatedTask} /> : "another task"}
+        </span>
+      )
+    case "moved":
+      return (
+        <span className="break-words">
+          {entry.actorName} moved it here from {entry.fromProjectName ?? "another project"}
+        </span>
+      )
+    case "created":
+      return <span>{entry.actorName} made it</span>
+    case "status_changed":
+      return (
+        <>
+          <span>{entry.actorName} marked it</span>
+          {isTaskStatus(entry.reason) ? <StatusBadge status={entry.reason} /> : null}
+        </>
+      )
+    case "deleted":
+      return <span>{entry.actorName} put it in the bin</span>
+    case "restored":
+      return <span>{entry.actorName} brought it back from the bin</span>
+    case "commented":
+      return null
   }
+}
+
+/** The other task a history line points at, opened in its own project. */
+function RelatedTaskLink({ task }: { task: { id: string; projectId: string; title: string } }) {
+  return (
+    <Link
+      to="/projects/$projectId"
+      params={{ projectId: task.projectId }}
+      search={{ task: task.id }}
+      className="font-medium underline-offset-4 hover:underline"
+    >
+      {task.title}
+    </Link>
+  )
 }

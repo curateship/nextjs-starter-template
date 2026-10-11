@@ -42,7 +42,8 @@ export function ProjectMembersPanel({
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [removing, setRemoving] = React.useState<ProjectMemberRow | null>(null)
-  const readOnly = page.project.archived
+  // A "Just me" list is one person's, so nobody can be added to it.
+  const readOnly = page.project.archived || page.project.personal
 
   async function add(userId: string) {
     const person = page.addable.find((p) => p.userId === userId)
@@ -117,6 +118,7 @@ export function ProjectMembersPanel({
                         {member.userId === page.myUserId ? " (you)" : ""}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
+                        {member.title ? `${member.title} · ` : ""}
                         {TEAM_ROLE_LABEL[member.role]} · {member.openTasks} open{" "}
                         {member.openTasks === 1 ? "task" : "tasks"}
                         {selected ? " · showing their tasks" : ""}

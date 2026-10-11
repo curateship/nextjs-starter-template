@@ -1,0 +1,134 @@
+import * as React from "react"
+import { useRouter } from "@tanstack/react-router"
+import { PlaneIcon, PlusIcon, Trash2Icon } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { DatePicker } from "@/components/ui/date-picker"
+import { Label } from "@/components/ui/label"
+import { addDaysOff, loadDaysOff, removeDaysOff, type TimeOff } from "@/lib/api/project/checkins"
+import { formatUtcDate } from "@/lib/format/format-time"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { keyFromDate } from "@/lib/project/dates"
+import { getProjectErrorMessage } from "@/lib/project/errors"
+import { showErrorToast } from "@/lib/toast/error-toast"
+
+const dayLabel = (day: string) => formatUtcDate(`${day}T00:00:00Z`)
+
+/**
+ * Days off for one person: my own on My dashboard, or a teammate's in their
+ * window on the Members page for the owner and admins. On those days there
+ * is no reminder and the Team dashboard reads "Away".
+ */
+export function TimeOffSection({
+  userId,
+  idPrefix,
+}: {
+  /** Left out for my own. */
+  userId?: string
+  idPrefix: string
+}) {
+  const router = useRouter()
+  const [entries, setEntries] = React.useState<TimeOff[] | null>(null)
+  const [reloads, setReloads] = React.useState(0)
+  const [adding, setAdding] = React.useState(false)
+  const [first, setFirst] = React.useState<Date | undefined>()
+  const [last, setLast] = React.useState<Date | undefined>()
+  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+
+  React.useEffect(() => {
+    let live = true
+    loadDaysOff(userId).then(
+      (found) => live && setEntries(found),
+      (error: unknown) => live && showErrorToast(getProjectErrorMessage(error))
+    )
+    return () => {
+      live = false
+    }
+  }, [userId, reloads])
+
+  async function add() {
+    const firstDay = keyFromDate(first)
+    const lastDay = keyFromDate(last ?? first)
+    if (!firstDay || !lastDay) {
+      showErrorToast("Pick the first day off.")
+      return
+    }
+    const ok = await run(() => addDaysOff({ userId, firstDay, lastDay }), "Time off saved.")
+    if (!ok) return
+    setAdding(false)
+    setFirst(undefined)
+    setLast(undefined)
+    setReloads((n) => n + 1)
+    await router.invalidate()
+  }
+
+  async function remove(entry: TimeOff) {
+    if (await run(() => removeDaysOff(entry.id), "Time off removed.")) {
+      setReloads((n) => n + 1)
+      await router.invalidate()
+    }
+  }
+
+  return (
+    <div className="grid gap-3">
+      {entries === null ? null : entries.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No time off coming up.</p>
+      ) : (
+        <ul className="grid gap-2">
+          {entries.map((entry) => (
+            <li key={entry.id} className="flex items-center gap-2 text-sm">
+              <PlaneIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 flex-1">
+                {entry.firstDay === entry.lastDay
+                  ? dayLabel(entry.firstDay)
+                  : `${dayLabel(entry.firstDay)} to ${dayLabel(entry.lastDay)}`}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Remove time off from ${dayLabel(entry.firstDay)}`}
+                disabled={busy}
+                onClick={() => void remove(entry)}
+              >
+                <Trash2Icon className="size-4" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {adding ? (
+        <div className="grid gap-3">
+          <div className="grid gap-2">
+            <Label htmlFor={`${idPrefix}-first`}>First day off</Label>
+            <DatePicker id={`${idPrefix}-first`} value={first} onChange={setFirst} placeholder="Pick a day" />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor={`${idPrefix}-last`}>Last day off</Label>
+            <DatePicker
+              id={`${idPrefix}-last`}
+              value={last}
+              onChange={setLast}
+              placeholder="Same as the first"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={() => setAdding(false)}>
+              Cancel
+            </Button>
+            <Button type="button" disabled={busy} onClick={() => void add()}>
+              Save time off
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <Button type="button" variant="outline" onClick={() => setAdding(true)}>
+            <PlusIcon className="size-4" />
+            Add time off
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}

@@ -85,6 +85,7 @@ function TaskPanel({ parts, onBack }: { parts: TaskParts; onBack: () => void }) 
         action={
           <div className="flex items-center gap-2">
             {parts.follow}
+            {parts.more}
             {remove ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -120,7 +121,7 @@ function TaskPanel({ parts, onBack }: { parts: TaskParts; onBack: () => void }) 
           open={confirmDelete}
           onOpenChange={setConfirmDelete}
           title="Delete this task?"
-          description={`"${parts.title}" and its steps, chat and files are deleted for everyone.`}
+          description={`"${parts.title}" moves to the project's bin with its steps, chat and files. It can be brought back for 30 days.`}
           confirmLabel="Delete task"
           destructive
           loading={remove.busy}

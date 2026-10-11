@@ -18,6 +18,7 @@ import {
   projectTaskComments,
 } from "@/server/project/schema"
 import { followerIds } from "@/server/project/task-followers"
+import { recordTaskEvent } from "@/server/project/task-history"
 import type { Actor, Person } from "@/server/project/tasks"
 import { customShellUsers } from "@/server/schema"
 
@@ -98,6 +99,7 @@ export async function addComment(
       createdAt: now(),
     })
     await saveTags(id, tagged, tx)
+    await recordTaskEvent(tx, { taskId: task.id, kind: "commented", actorUserId: actor.id })
 
     const told = new Set(await whoCanStillSee(project, tagged, tx))
     const others = await whoCanStillSee(

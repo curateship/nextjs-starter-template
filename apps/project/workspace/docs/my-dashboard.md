@@ -13,6 +13,16 @@ Below 1280px wide one panel shows at a time, with My tasks, Me and Inbox tabs.
   today is 9:00 AM." or "You checked in at 9:12 AM. That was late…"), and a
   Check in button. After checking in, the button reads "Change today's picks".
   Both open the check-in window (see [The morning check-in](morning-check-in.md)).
+- **My check-in record.** Under today's check-in, one line: "On time 18 of
+  the last 20 work days", counted from my saved rows only: my last 20 work
+  days, on time when I checked in by my check-in time. Days off and time off
+  are saved as days off, so they're left out, and today counts once I've
+  checked in. **It's mine alone**: nobody else can read it, not the owner or
+  an admin, and it never shows on the Team dashboard. It's there to keep my
+  own streak going, not to watch anyone.
+- **Time off**: my days off coming up, with Add time off (a first and last
+  day) and a bin button to take one off. See Time off in
+  [The morning check-in](morning-check-in.md#time-off).
 - **My check-in time**: my own time and time zone, saved on change.
 
 ## Middle: my tasks
@@ -21,9 +31,15 @@ Three tabs, in the same sortable table as a project's List tab:
 
 - **Today**: what I picked on today's check-in. It is the tab the page opens on
   when I have picks.
-- **Open**: every task assigned to me that isn't Done, Waiting ones first, with
-  a line saying how many wait for my answer.
+- **Open**: every task assigned to me that isn't Done, split into Waiting
+  for my answer, Overdue, Today, This week (the next seven days), Later and No
+  date, each with its count. Empty groups are hidden. "Today" is my own day,
+  in my time zone, the same day the check-in uses.
 - **Done**: my finished tasks.
+
+A search box and Status and Label filters sit above all three tabs, and live
+in the address like the project page's. There is no Person filter here, since
+every task is mine.
 
 Ticked rows can be marked Done together. Clicking a task opens it in the
 middle panel, in my tasks' place, with Back at the top. Back and the browser's

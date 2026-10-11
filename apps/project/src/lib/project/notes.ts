@@ -52,3 +52,18 @@ export function storedTaskNotes(value: unknown): string {
   const body = cleanWrittenPageBody(value)
   return writtenPageBodyIsEmpty(body) ? "" : JSON.stringify(body)
 }
+
+/** The notes' words alone, for searching. */
+export function taskNotesText(stored: string): string {
+  const notes = readTaskNotes(stored)
+  if (notes.kind === "text") return notes.text
+  const words: string[] = []
+  const walk = (node: WrittenPageNode) => {
+    if (node.text) words.push(node.text)
+    node.content?.forEach(walk)
+    // Blocks end a line, so words from two paragraphs don't run together.
+    if (node.type !== "text") words.push("\n")
+  }
+  walk(notes.body)
+  return words.join("").replace(/\n+/g, "\n").trim()
+}

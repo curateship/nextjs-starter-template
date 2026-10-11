@@ -1,12 +1,14 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { createProjectSchema, updateProjectSchema } from "@/lib/project/rules"
+import { copyProjectSchema, createProjectSchema, updateProjectSchema } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
 import { listInvitesForMe } from "@/server/project/invites"
+import { loadProjectActivity } from "@/server/project/project-activity"
 import { eachOf } from "@/server/project/teams"
 import {
   addProjectMember,
+  copyProject,
   createProject,
   loadProjectPage,
   loadProjectsPage,
@@ -15,6 +17,7 @@ import {
   updateProject,
 } from "@/server/project/projects"
 
+export type { ActivityEntry, ProjectActivity } from "@/server/project/project-activity"
 export type {
   ProjectListRow,
   ProjectMemberRow,
@@ -75,6 +78,21 @@ const addMemberFn = createServerFn({ method: "POST" })
     addProjectMember(context.user.id, data.projectId, data.userId)
   )
 
+const copyProjectFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(copyProjectSchema)
+  .handler(async ({ data, context }) => copyProject(context.user.id, data))
+
+const loadActivityFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(
+    z.object({
+      projectId: id,
+      before: z.object({ at: z.string().datetime(), id }).optional(),
+    })
+  )
+  .handler(async ({ data, context }) => loadProjectActivity(context.user.id, data))
+
 const removeMemberFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ projectId: id, userId: id }))
@@ -102,6 +120,12 @@ export function archiveProjects(projectIds: string[], archived: boolean) {
 }
 export function addMemberToProject(projectId: string, userId: string) {
   return addMemberFn({ data: { projectId, userId } })
+}
+export function copyOfProject(projectId: string, name: string) {
+  return copyProjectFn({ data: { projectId, name } })
+}
+export function loadActivity(projectId: string, before?: { at: string; id: string }) {
+  return loadActivityFn({ data: { projectId, before } })
 }
 export function removeMemberFromProject(projectId: string, userId: string) {
   return removeMemberFn({ data: { projectId, userId } })

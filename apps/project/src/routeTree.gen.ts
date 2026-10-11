@@ -73,6 +73,7 @@ import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
 import { Route as AuthenticatedProjectsInviteTokenRouteImport } from './routes/_authenticated/projects/invite.$token'
+import { Route as AuthenticatedProjectsJoinTokenRouteImport } from './routes/_authenticated/projects/join.$token'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
 import { Route as ApiProjectTaskFilesFileIdRouteImport } from './routes/api/project/task-files.$fileId'
 import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
@@ -428,6 +429,12 @@ const AuthenticatedProjectsInviteTokenRoute =
     path: '/projects/invite/$token',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedProjectsJoinTokenRoute =
+  AuthenticatedProjectsJoinTokenRouteImport.update({
+    id: '/projects/join/$token',
+    path: '/projects/join/$token',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   id: '/api/auth/google_/callback',
   path: '/api/auth/google/callback',
@@ -531,6 +538,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/projects/invite/$token': typeof AuthenticatedProjectsInviteTokenRoute
+  '/projects/join/$token': typeof AuthenticatedProjectsJoinTokenRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/project/task-files/$fileId': typeof ApiProjectTaskFilesFileIdRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
@@ -601,6 +609,7 @@ export interface FileRoutesByTo {
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/projects/invite/$token': typeof AuthenticatedProjectsInviteTokenRoute
+  '/projects/join/$token': typeof AuthenticatedProjectsJoinTokenRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/project/task-files/$fileId': typeof ApiProjectTaskFilesFileIdRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
@@ -675,6 +684,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/_authenticated/projects/invite/$token': typeof AuthenticatedProjectsInviteTokenRoute
+  '/_authenticated/projects/join/$token': typeof AuthenticatedProjectsJoinTokenRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/project/task-files/$fileId': typeof ApiProjectTaskFilesFileIdRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
@@ -749,6 +759,7 @@ export interface FileRouteTypes {
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
     | '/projects/invite/$token'
+    | '/projects/join/$token'
     | '/api/auth/google/callback'
     | '/api/project/task-files/$fileId'
     | '/api/v1/media/resized'
@@ -819,6 +830,7 @@ export interface FileRouteTypes {
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
     | '/projects/invite/$token'
+    | '/projects/join/$token'
     | '/api/auth/google/callback'
     | '/api/project/task-files/$fileId'
     | '/api/v1/media/resized'
@@ -892,6 +904,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
     | '/_authenticated/projects/invite/$token'
+    | '/_authenticated/projects/join/$token'
     | '/api/auth/google_/callback'
     | '/api/project/task-files/$fileId'
     | '/api/v1/media/resized'
@@ -1382,6 +1395,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProjectsInviteTokenRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/projects/join/$token': {
+      id: '/_authenticated/projects/join/$token'
+      path: '/projects/join/$token'
+      fullPath: '/projects/join/$token'
+      preLoaderRoute: typeof AuthenticatedProjectsJoinTokenRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/auth/google_/callback': {
       id: '/api/auth/google_/callback'
       path: '/api/auth/google/callback'
@@ -1558,6 +1578,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProjectsIndexRoute: typeof AuthenticatedProjectsIndexRoute
   AuthenticatedTeamIndexRoute: typeof AuthenticatedTeamIndexRoute
   AuthenticatedProjectsInviteTokenRoute: typeof AuthenticatedProjectsInviteTokenRoute
+  AuthenticatedProjectsJoinTokenRoute: typeof AuthenticatedProjectsJoinTokenRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -1572,6 +1593,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProjectsIndexRoute: AuthenticatedProjectsIndexRoute,
   AuthenticatedTeamIndexRoute: AuthenticatedTeamIndexRoute,
   AuthenticatedProjectsInviteTokenRoute: AuthenticatedProjectsInviteTokenRoute,
+  AuthenticatedProjectsJoinTokenRoute: AuthenticatedProjectsJoinTokenRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

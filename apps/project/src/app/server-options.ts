@@ -1,6 +1,8 @@
 import type { AppServerOptions } from "@/server/app-options"
 import { runCheckinJobs } from "@/server/project/checkin-jobs"
 import { addProjectNavigation } from "@/server/project/navigation"
+import { runPlanningJobs } from "@/server/project/planning-jobs"
+import { runReminderJobs } from "@/server/project/reminder-jobs"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -29,6 +31,10 @@ export const appServerOptions: AppServerOptions = {
       { name: "project-navigation", tick: () => addProjectNavigation() },
       // Sends each person's check-in reminder and saves each finished day.
       { name: "project-checkins", tick: () => runCheckinJobs() },
+      // Due-date reminders and the owner's morning notice.
+      { name: "project-reminders", tick: () => runReminderJobs() },
+      // Each day's copy of a repeating task, and bins emptied after 30 days.
+      { name: "project-planning", tick: () => runPlanningJobs() },
     ],
   },
 }

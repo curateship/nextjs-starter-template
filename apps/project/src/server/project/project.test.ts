@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
+import { JOINS_PER_LINK_PER_DAY } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
 import { setEmailProviderFactoryForTests } from "@/server/email/provider"
 import {
@@ -36,9 +37,19 @@ import {
   setTaskStatus,
 } from "@/server/project/tasks"
 import {
+  handOverAllTasks,
+  joinTeamByLink,
+  loadJoinOffer,
+  loadNeedsAttention,
+  loadWorkload,
+  makeJoinLink,
+  setMemberTitle,
+} from "@/server/project/team-running"
+import {
   changeMemberRole,
   createTeam,
   leaveTeam,
+  loadTeamDashboard,
   removeTeamMember,
   transferOwnership,
 } from "@/server/project/teams"
@@ -117,6 +128,8 @@ describe("teams and invites", () => {
     const sent = await createInvite(actor(anna), { email: "Ben@Example.test", role: "member" }, database)
     expect(sent.emailed).toBe(false)
     expect(sent.link).toMatch(/\/invite\/[0-9a-f]{64}$/)
+    // The page the link opens is under /projects; a bare /invite/ was a 404.
+    expect(sent.link).toContain("/projects/invite/")
     const token = sent.link.split("/invite/")[1]
     const seen = await loadInviteByToken(ben, token, database)
     expect(seen).toMatchObject({ teamName: "Acme", blocker: null })
@@ -370,3 +383,161 @@ function newTask(
     ...overrides,
   }
 }
+
+describe("running the team", () => {
+  let website: string
+  let brand: string
+  let dave: CustomShellUser
+
+  /** Anna owns the team; Ben and Carla are members, on Website; only Ben is on Brand. */
+  beforeEach(async () => {
+    await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
+    for (const person of [ben, carla]) {
+      const sent = await createInvite(actor(anna), { email: person.email, role: "member" }, database)
+      await acceptInvite(person, sent.inviteId, database)
+    }
+    website = (await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+    brand = (await createProject(anna.id, { name: "Brand", color: "pink", description: "" }, database)).id
+    await addProjectMember(anna.id, website, ben.id, database)
+    await addProjectMember(anna.id, website, carla.id, database)
+    await addProjectMember(anna.id, brand, ben.id, database)
+    dave = await insertUser(database, { name: "Dave", email: "dave@example.test" })
+  })
+
+  async function taskFor(
+    person: CustomShellUser | null,
+    title: string,
+    projectId = website,
+    dueDate: string | null = null
+  ) {
+    return (
+      await createTask(
+        actor(anna),
+        { projectId, title, notes: "", assigneeUserId: person?.id ?? null, dueDate, steps: [] },
+        database
+      )
+    ).id
+  }
+
+  it("lists stuck, unanswered, dragging and overdue tasks for the owner, and drops one once it's fixed", async () => {
+    const stuck = await taskFor(ben, "Redirects")
+    await acceptTask(actor(ben), stuck, database)
+    await setTaskStatus(actor(ben), { taskId: stuck, status: "stuck", stuckReason: "No page list" }, database)
+    // Listed the same day it is marked Stuck.
+    expect((await loadNeedsAttention(anna.id, database)).find((r) => r.taskId === stuck)).toMatchObject({
+      kind: "stuck",
+      howLong: "Stuck since today",
+    })
+    const waiting = await taskFor(carla, "Copy for the home page")
+    const late = await taskFor(ben, "Logo files", website, "2020-01-01")
+    await acceptTask(actor(ben), late, database)
+
+    const at = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+    const rows = await loadNeedsAttention(anna.id, database, at)
+    const kinds = (taskId: string) => rows.filter((r) => r.taskId === taskId).map((r) => r.kind)
+    expect(kinds(stuck)).toEqual(["stuck"])
+    expect(kinds(late)).toEqual(["overdue"])
+    expect(kinds(waiting)).toEqual(["not_accepted"])
+    expect(rows.find((r) => r.taskId === stuck)).toMatchObject({ personName: "Ben", projectName: "Website" })
+
+    await setTaskStatus(actor(ben), { taskId: stuck, status: "doing", stuckReason: null }, database)
+    expect((await loadNeedsAttention(anna.id, database, at)).some((r) => r.taskId === stuck)).toBe(false)
+    await expect(loadNeedsAttention(ben.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+  })
+
+  it("counts each person's workload, from only the projects the viewer can see", async () => {
+    await taskFor(ben, "Website one")
+    const doing = await taskFor(ben, "Website two")
+    await setTaskStatus(actor(ben), { taskId: doing, status: "doing", stuckReason: null }, database)
+    await taskFor(ben, "Brand only", brand)
+
+    const owner = await loadWorkload(anna.id, database)
+    const benRow = owner.find((r) => r.person.id === ben.id)!
+    expect(benRow.counts).toMatchObject({ open: 3, doing: 1, stuck: 0 })
+    const fromDb = await database.select().from(projectTasks).where(eq(projectTasks.assigneeUserId, ben.id))
+    expect(benRow.counts.open).toBe(fromDb.filter((t) => t.status !== "done").length)
+
+    // Carla isn't on Brand, so Ben's Brand task isn't counted for her.
+    const member = await loadWorkload(carla.id, database)
+    expect(member.find((r) => r.person.id === ben.id)!.counts.open).toBe(2)
+    expect(member.find((r) => r.person.id === ben.id)!.tasks.open.map((t) => t.title)).not.toContain("Brand only")
+  })
+
+  it("hands all of one person's open tasks on, with one notice, and leaves the rest with nobody", async () => {
+    const ids = [await taskFor(ben, "One"), await taskFor(ben, "Two"), await taskFor(ben, "Three")]
+    const brandTask = await taskFor(ben, "Brand job", brand)
+    const done = await taskFor(ben, "Finished")
+    await setTaskStatus(actor(ben), { taskId: done, status: "done", stuckReason: null }, database)
+
+    const outcome = await handOverAllTasks(actor(anna), { fromUserId: ben.id, toUserId: carla.id }, database)
+    expect(outcome.handed.map((t) => t.title).sort()).toEqual(["One", "Three", "Two"])
+    expect(outcome.left).toEqual([{ id: brandTask, title: "Brand job", projectName: "Brand" }])
+    for (const id of ids) {
+      const detail = await loadTaskDetail(anna.id, id, database)
+      expect(detail.task.assignee?.id).toBe(carla.id)
+      expect(detail.task.waiting).toBe(true)
+      expect(detail.history.filter((e) => e.kind === "handed_over").at(-1)).toMatchObject({ targetName: "Carla" })
+    }
+    expect((await loadTaskDetail(anna.id, brandTask, database)).task).toMatchObject({
+      assignee: null,
+      formerAssigneeName: "Ben",
+    })
+    expect((await loadTaskDetail(anna.id, done, database)).task.assignee?.id).toBe(ben.id)
+
+    const notices = await database
+      .select({ message: customShellNotifications.message, kind: projectNoticeLinks.kind })
+      .from(customShellNotifications)
+      .innerJoin(projectNoticeLinks, eq(projectNoticeLinks.noticeId, customShellNotifications.id))
+      .where(eq(customShellNotifications.recipientUserId, carla.id))
+    expect(notices).toEqual([{ message: "Anna gave you 3 tasks", kind: "tasks_handed" }])
+    await expect(
+      handOverAllTasks(actor(ben), { fromUserId: carla.id, toUserId: ben.id }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+  })
+
+  it("lets someone with no team join through the link, and refuses a reset link or someone on a team", async () => {
+    const { link } = await makeJoinLink(anna.id, database)
+    const token = decodeURIComponent(link.split("/projects/join/")[1])
+    expect(await loadJoinOffer(dave.id, token, database)).toEqual({ teamName: "Acme", blocker: null })
+    expect((await loadJoinOffer(ben.id, token, database))?.blocker).toBe("already-on-team")
+    await expect(joinTeamByLink(ben, token, database)).rejects.toThrow(PROJECT_ERRORS.alreadyOnTeam)
+
+    await joinTeamByLink(dave, token, database)
+    expect((await loadTeamDashboard(anna.id, database))?.members.map((m) => m.name)).toContain("Dave")
+    const told = await database
+      .select({ message: customShellNotifications.message })
+      .from(customShellNotifications)
+      .where(eq(customShellNotifications.recipientUserId, anna.id))
+    expect(told.map((n) => n.message)).toContain("Dave joined the team through the link")
+
+    const erin = await insertUser(database, { name: "Erin", email: "erin@example.test" })
+    await makeJoinLink(anna.id, database)
+    expect(await loadJoinOffer(erin.id, token, database)).toBeNull()
+    await expect(joinTeamByLink(erin, token, database)).rejects.toThrow(PROJECT_ERRORS.joinLinkNotFound)
+    await expect(makeJoinLink(ben.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+  })
+
+  it("caps joins through one link per day", async () => {
+    const { link } = await makeJoinLink(anna.id, database)
+    const token = decodeURIComponent(link.split("/projects/join/")[1])
+    for (let i = 0; i < JOINS_PER_LINK_PER_DAY; i++) {
+      const person = await insertUser(database, { name: `Joiner ${i}`, email: `joiner${i}@example.test` })
+      await joinTeamByLink(person, token, database)
+    }
+    const late = await insertUser(database, { name: "Late", email: "late@example.test" })
+    await expect(joinTeamByLink(late, token, database)).rejects.toThrow(PROJECT_ERRORS.joinLinkBusy)
+  })
+
+  it("lets each person set their own job title, and the owner set anyone's", async () => {
+    await setMemberTitle(ben.id, { title: "Copywriter" }, database)
+    await setMemberTitle(anna.id, { userId: carla.id, title: "Designer" }, database)
+    await expect(setMemberTitle(ben.id, { userId: carla.id, title: "Intern" }, database)).rejects.toThrow(
+      PROJECT_ERRORS.notRunningTeam
+    )
+    const members = (await loadTeamDashboard(anna.id, database))!.members
+    expect(members.find((m) => m.userId === ben.id)?.title).toBe("Copywriter")
+    expect(members.find((m) => m.userId === carla.id)?.title).toBe("Designer")
+    const page = await loadProjectPage(ben.id, website, database)
+    expect(page.members.find((m) => m.userId === carla.id)?.title).toBe("Designer")
+  })
+})

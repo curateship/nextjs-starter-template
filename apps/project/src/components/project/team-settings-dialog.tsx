@@ -1,6 +1,8 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 
+import { JoinLinkCard } from "@/components/project/join-link-card"
+import { TeamLabelsCard } from "@/components/project/team-labels-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -22,6 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import type { Label as TeamLabel } from "@/lib/api/project/sorting"
+import type { JoinLinkState } from "@/lib/api/project/team-running"
 import { updateProjectTeam, type TeamSummary } from "@/lib/api/project/teams"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
@@ -30,17 +34,22 @@ import { LIMITS, WEEK_DAYS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * The team's name, check-in time, time zone and work days, in a window opened
+ * The team's name, check-in time, time zone, work days and labels, in a window opened
  * from the Team dashboard. Each field saves when it is left or picked, so the
  * window ends with Done. The owner and admins edit; everyone else reads.
  */
 export function TeamSettingsDialog({
   team,
+  labels,
+  joinLink,
   canEdit,
   open,
   onClose,
 }: {
   team: TeamSummary
+  labels: TeamLabel[]
+  /** Null for anyone who doesn't run the team. */
+  joinLink: JoinLinkState | null
   canEdit: boolean
   open: boolean
   onClose: () => void
@@ -65,6 +74,8 @@ export function TeamSettingsDialog({
         </DialogHeader>
         <DialogBody>
           <TeamSettingsFields team={team} canEdit={canEdit} />
+          {joinLink && canEdit ? <JoinLinkCard state={joinLink} /> : null}
+          <TeamLabelsCard labels={labels} canEdit={canEdit} />
         </DialogBody>
         <DialogFooter>
           <Button type="button" onClick={close}>
