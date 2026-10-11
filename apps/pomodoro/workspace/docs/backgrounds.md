@@ -84,7 +84,10 @@ scene. A screen with no pointer, such as a phone, shows them all the time.
   behind the title and fades into the page colour behind the first row of
   cards. Tyler, 8 Oct 2026: "Let the gradient flow lower", then "a bit
   higher". It used to be 720px tall and reached the page colour there, so the
-  picture was gone by the title. The heights are in `pomodoro-shell.tsx`; the
+  picture was gone by the title. On a phone (below 768px wide) both are less:
+  a 660px band with the content starting 429px down, so the scene is not a
+  tall empty stretch above the timer (Tyler, 10 Oct 2026: "on mobile this
+  background is too tall", 30% less, then "10% higher on mobile"). The heights are in `pomodoro-shell.tsx`; the
   fade's stops are the `hero` shading in `scene-backdrop.tsx`. Zen mode keeps
   its own even wash.
 - **Failures fall back:** a scene or upload whose file errors falls back to

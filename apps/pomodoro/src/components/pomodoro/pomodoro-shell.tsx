@@ -73,9 +73,14 @@ import { useGuestsStayDark } from "@/lib/pomodoro/guest-theme"
  * Tailwind only generates classes it can read in the source. The hover is
  * marked important because the shell button's own dark-mode hover is the more
  * specific rule and otherwise turns it muted grey.
+ *
+ * The count badge is solid red with a white number, red-600 so the white
+ * reads at 4.8 to 1. The shell's badge is a faint red tint with red text,
+ * which disappeared on a photo (Tyler, 10 Oct 2026: "the notification alert
+ * is not to see. Make to all red with white number").
  */
 const bellPillClass =
-  "contents [&>button]:size-9 [&>button]:rounded-full [&>button]:border [&>button]:border-border [&>button]:bg-[rgba(var(--p-fg-rgb),0.07)] [&>button]:backdrop-blur-[12px] [&>button]:hover:bg-[rgba(var(--p-fg-rgb),0.16)]! [&>button_svg]:size-[18px]"
+  "contents [&>button]:size-9 [&>button]:rounded-full [&>button]:border [&>button]:border-border [&>button]:bg-[rgba(var(--p-fg-rgb),0.07)] [&>button]:backdrop-blur-[12px] [&>button]:hover:bg-[rgba(var(--p-fg-rgb),0.16)]! [&>button_svg]:size-[18px] [&_[data-slot=badge]]:border-red-600! [&_[data-slot=badge]]:bg-red-600! [&_[data-slot=badge]]:text-white!"
 
 const NAV_LINKS = [
   { to: "/timer", label: "Dashboard", icon: LayoutDashboardIcon },
@@ -453,8 +458,12 @@ export function PomodoroShell({
               which is 140px more than the 720px hero had, so the page starts
               where it did and the scene fades out further down behind it.
               Tyler, 8 Oct 2026: "Let the gradient flow lower", then "a bit
-              higher". */}
-          <div className="group/hero relative -mt-[86px] h-[860px] overflow-hidden">
+              higher". On a phone both are less, 660px and 231px, so the scene
+              is not a tall empty band above the timer and it still fades out
+              behind it. Tyler, 10 Oct 2026: "on mobile this background is too
+              tall. We need to reduce the height by about 30%", then "10%
+              higher on mobile". */}
+          <div className="group/hero relative -mt-[86px] h-[860px] overflow-hidden max-md:h-[660px]">
             <SceneBackdrop
               background={background}
               onMediaError={fallBackToDefault}
@@ -465,7 +474,7 @@ export function PomodoroShell({
               <ThemeArrows shown={background} />
             ) : null}
           </div>
-          <div className={cn("relative z-[4] -mt-[300px] pb-20", pageGutterClass)}>
+          <div className={cn("relative z-[4] -mt-[300px] pb-20 max-md:-mt-[231px]", pageGutterClass)}>
             {children}
           </div>
         </main>
