@@ -32,7 +32,9 @@ promo created, which has no shell version and so can never conflict.
 
 `src/app/server-options.ts`, which the browser never sees:
 
-- **`background.workers`** — three quick jobs on the shell's ticker: re-testing the
+- **`background.workers`** — four quick jobs on the shell's ticker. Every ten
+  minutes one [tidies away old posts](reddit/finding-posts.md#old-posts-are-tidied-away),
+  one delete and one update each capped at 500 rows. The other three: re-testing the
   three proxies that have waited longest, looking after the browsers (closing an idle one,
   marking a dead one, removing a container nothing claims), and asking once a
   day for each Reddit account's [health reading](reddit/account-health.md).
@@ -40,7 +42,7 @@ promo created, which has no shell version and so can never conflict.
 
 ## The tables it owns
 
-Eighteen, all named `promo_*`, in two files of promo's own. The shell's tables
+Twenty, all named `promo_*`, in two files of promo's own. The shell's tables
 stay in `src/server/schema.ts`, which promo never opens.
 
 - `src/server/browser/schema.ts`: `promo_proxies`, `promo_proxy_addresses`,
@@ -48,8 +50,8 @@ stay in `src/server/schema.ts`, which promo never opens.
   `promo_profile_events`, `promo_browser_sessions`, `promo_browser_settings`,
   `promo_profile_backups`. These belong to no network.
 - `src/server/social/schema.ts`: `promo_voices`, `promo_accounts`, `promo_keywords`,
-  `promo_blocked_subreddits`, `promo_searches`, `promo_finds`, `promo_drafts`,
-  `promo_comments`, `promo_jobs`.
+  `promo_blocked_subreddits`, `promo_subreddit_rules`, `promo_reddit_settings`,
+  `promo_searches`, `promo_finds`, `promo_drafts`, `promo_comments`, `promo_jobs`.
 
 The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
 `drizzle/0092_promo_reddit_relevance.sql`,
@@ -59,8 +61,12 @@ The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
 `drizzle/0097_promo_identity_and_site_check.sql`,
 `drizzle/0098_promo_limits_lanes_backups.sql`,
 `drizzle/0099_promo_account_health.sql`,
-`drizzle/0100_promo_blocked_subreddits.sql` and
-`drizzle/0101_promo_comment_examples.sql`. The runner records each file by its
+`drizzle/0100_promo_blocked_subreddits.sql`,
+`drizzle/0101_promo_comment_examples.sql`,
+`drizzle/0102_promo_subreddit_watches.sql`,
+`drizzle/0103_promo_subreddit_rules.sql`,
+`drizzle/0104_promo_tidy_old_posts.sql` and
+`drizzle/0105_promo_comment_checks.sql`. The runner records each file by its
 whole name, so a shell file that happens to share a number does not collide
 with a promo one.
 
@@ -89,7 +95,13 @@ with a shell key.
 **The Reddit screen is reachable because somebody added it to the sidebar.** The
 admin sidebar is saved settings, edited in Settings → Navigation, not a list in a
 file. A route file on its own is not a reachable screen. The entry points at
-`/admin/reddit`, is admin-only, and has to be added once per install.
+`/admin/reddit` and is admin-only.
+
+`drizzle/0105_promo_comment_checks.sql` writes into those saved settings once:
+it puts Comments (`/admin/comments`) under the Reddit link, or adds a Reddit
+link with Comments under it to the Administration section where there is no
+Reddit link. A sidebar that already has Comments, or was never saved, is left
+alone. After that the entries are an admin's to move or remove like any other.
 
 ## Two shell hazards worth knowing
 

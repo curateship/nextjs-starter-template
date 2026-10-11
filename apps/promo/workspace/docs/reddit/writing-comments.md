@@ -51,7 +51,8 @@ network routines, so the next network types the same way.
 - **What you make**, from the same voice, and only when it genuinely answers
   what was asked. Leave that box empty and no draft will ever mention a product.
 - **Your rules**, the lines it must not cross, from the same voice.
-
+- **The subreddit's own rules**, as its moderators posted them, in a block of
+  their own. See below.
 - **Comments you really posted**, up to three, as examples of how you write.
 
 An account with no voice is told none of the first three, and the Reddit
@@ -71,16 +72,60 @@ their substance, because they answered other posts.
   edited by you, since the answer panel stops claiming a draft the moment its
   words change. Those come before ones the AI wrote and you sent as they were,
   then the newest.
-- **A weak one can be left out.** Settings → Reddit account lists the last ten
-  sent comments under "Comments the AI copies your voice from", each with a
-  tick. Untick one and the next draft stops using it. The comment itself is
-  kept. Each says whether it is in the next draft.
+- **A weak one can be left out.** Each row of the
+  [Comments screen](sent-comments.md) has a Voice example switch. Switch one
+  off and the next draft stops using it. The comment itself is kept. "Next
+  draft" beside the switch marks the ones the next draft will carry.
 - **The voice still counts.** Before anything has been sent there are no
   examples, and the prompt is exactly what it was without them. After that the
   examples sit beside the voice's words rather than replacing them.
 
-The list lives on the settings tab because there is no screen of sent comments
-yet. When one is built, the tick belongs there.
+The switch used to be a tick on Settings → Reddit account, because there was no
+screen of sent comments. It moved to the Comments screen when that was built,
+and the settings card was deleted, so there is one place to change it.
+
+### The subreddit's own rules
+
+Plenty of subreddits ban links, or any mention of your own product, and
+breaking a posted rule is how an account gets banned. So the app reads each
+subreddit's rules and shows them before you write, and the AI gets them too.
+
+- **Read once, when a post from the subreddit first turns up.** After a search
+  or a watch, a `rules` job is queued for each subreddit its posts came from
+  that has no reading yet, at most 25, behind the search in the same browser.
+  One subreddit a job, because a read can take two minutes on a slow Reddit and
+  a job still running after the queue's ten minutes is handed back to another
+  driver. Not on every search, and never for a subreddit nobody has a post
+  from.
+- **Kept for 30 days.** Rules barely change. A subreddit Reddit refused is asked
+  again a day later.
+- **Read from Reddit's own `about/rules.json`**, asked from the subreddit's rules
+  page so the request carries the cookie that got past Reddit's challenge,
+  exactly as the search does. If that is refused, the rules drawn on the page
+  are read instead.
+- **Shown first in the writing area**, above the drafts and the box, folded to
+  one line that opens: "r/SaaS has 7 rules, including "No self-promotion"". The
+  line names the rule about promotion, links or advertising when there is one,
+  because that is the rule a comment from this app is most likely to break.
+  Every rule is one press away.
+- **Four answers, never confused.** Not read yet, with a Read them button. The
+  rules. "r/x has posted no rules of its own" when the subreddit answered with
+  none. Reddit's reason, such as "Reddit says r/x is private", with Try again,
+  when it would not answer. Never an empty box.
+- **Handed to the AI labelled as the subreddit's**, under "THE RULES OF r/x,
+  posted by its moderators. These are the subreddit's own rules, not mine", in a
+  block apart from MY RULES so the two cannot be mixed up. The hard rules then
+  add one line: break none of them, and where they ban self-promotion or links,
+  do not mention what I make and do not link to anything. A subreddit with no
+  rules read leaves the prompt exactly as it was.
+
+Nothing judges a draft against the rules or stops the Post button. The app shows
+what the subreddit says and a person decides.
+
+The code is `src/server/social/reddit/rules.ts`, `reddit_rules` in
+`docker/browser/routines/reddit.py`, and the line itself in
+`src/components/social/reddit/subreddit-rules.tsx`. The readings are in
+`promo_subreddit_rules`, one row per subreddit per person.
 
 It is also told, every time, that a comment reading as an advert gets the
 account banned, which is worse than a comment nobody clicks.

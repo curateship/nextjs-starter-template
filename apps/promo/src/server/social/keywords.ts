@@ -4,6 +4,7 @@ import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import { fitBand, rankReason, type FitBand } from "./reddit/rank"
+import { rulesForSubreddit } from "./reddit/rules"
 import {
   type FindStatus,
 } from "@/lib/social/options"
@@ -50,6 +51,7 @@ const MAX_SUBREDDITS = 10
 
 export type KeywordRow = {
   id: string
+  /** The words, or "" for a watch, which lists one subreddit's new posts. */
   term: string
   subreddits: string[]
   sort: RedditSort
@@ -195,13 +197,27 @@ export function cleanSubreddits(raw: string[]): string[] {
   return [...seen].slice(0, MAX_SUBREDDITS)
 }
 
+/**
+ * Saves a search: words, or a watch.
+ *
+ * A watch has no words and exactly one subreddit, and lists that subreddit's
+ * new posts in Reddit's own order, which is newest first. Words or a
+ * subreddit are required, never neither, because a search for nothing
+ * anywhere is all of Reddit's new posts.
+ */
 export async function addKeyword(
   userId: string,
   input: SaveKeywordInput,
   db: CustomShellDb = defaultDb
 ): Promise<string> {
   const term = input.term.trim()
-  if (!term) throw new Error("Type a keyword first.")
+  const subreddits = cleanSubreddits(input.subreddits)
+  if (!term && !subreddits.length) {
+    throw new Error("Type a keyword first, or name one subreddit to watch.")
+  }
+  if (!term && subreddits.length > 1) {
+    throw new Error("A watch takes one subreddit. Type a keyword to search several.")
+  }
   if (term.length > 200) throw new Error("That keyword is too long.")
   if (!REDDIT_SORTS.includes(input.sort)) throw new Error("Unknown sort.")
   if (!REDDIT_WINDOWS.includes(input.timeWindow)) {
@@ -214,14 +230,19 @@ export async function addKeyword(
       id,
       userId,
       term,
-      subreddits: cleanSubreddits(input.subreddits),
-      sort: input.sort,
+      subreddits,
+      // A watch is read newest first whatever is picked, so it is stored that
+      // way rather than claiming an order it does not use.
+      sort: term ? input.sort : "new",
       timeWindow: input.timeWindow,
     })
   } catch {
-    // The only unique rule on this table is one keyword per person, so there
-    // is one thing this can mean and it is worth saying rather than "failed".
-    throw new Error(`"${term}" is already saved.`)
+    // The only unique rules on this table are one search per set of words and
+    // one watch per subreddit, so there is one thing this can mean and it is
+    // worth saying rather than "failed".
+    throw new Error(
+      term ? `"${term}" is already saved.` : `r/${subreddits[0]} is already watched.`
+    )
   }
   return id
 }
@@ -265,6 +286,20 @@ export async function listFinds(
     .orderBy(desc(promoFinds.rank), desc(promoFinds.postedAt))
     .limit(Math.min(Math.max(query.limit ?? 100, 1), 500))
 
+  // A watch's posts are in the subreddit's newest-first order rather than a
+  // search's best-match order, and each row's reason says which.
+  const keywordIds = [...new Set(rows.map((row) => row.keywordId))]
+  const watches = new Set(
+    keywordIds.length
+      ? (
+          await db
+            .select({ id: promoKeywords.id })
+            .from(promoKeywords)
+            .where(and(inArray(promoKeywords.id, keywordIds), eq(promoKeywords.term, "")))
+        ).map((row) => row.id)
+      : []
+  )
+
   return rows.map((row) => ({
     id: row.id,
     keywordId: row.keywordId,
@@ -283,7 +318,8 @@ export async function listFinds(
         commentCount: row.commentCount,
         postedAt: row.postedAt,
       },
-      now
+      now,
+      { watch: watches.has(row.keywordId) }
     ),
     status: row.status,
     threadRead: Boolean(row.thread),
@@ -303,11 +339,14 @@ export async function loadFindDetail(
     .limit(1)
   if (!find) return null
 
-  const drafts = await db
-    .select()
-    .from(promoDrafts)
-    .where(and(eq(promoDrafts.userId, userId), eq(promoDrafts.findId, findId)))
-    .orderBy(desc(promoDrafts.createdAt))
+  const [drafts, rules] = await Promise.all([
+    db
+      .select()
+      .from(promoDrafts)
+      .where(and(eq(promoDrafts.userId, userId), eq(promoDrafts.findId, findId)))
+      .orderBy(desc(promoDrafts.createdAt)),
+    rulesForSubreddit(userId, find.subreddit, db),
+  ])
 
   return {
     id: find.id,
@@ -324,6 +363,8 @@ export async function loadFindDetail(
     thread: find.thread,
     threadReadAt: find.threadReadAt,
     body: find.thread?.body || find.body,
+    /** The subreddit's own posted rules, to read before writing. */
+    rules,
     drafts: drafts.map((draft) => ({
       id: draft.id,
       text: draft.text,

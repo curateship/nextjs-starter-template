@@ -29,6 +29,39 @@ A saved search: the words, which subreddits to look in, Reddit's own order, and
 how far back to look. Running it again adds whatever is new and leaves alone
 every decision already made about the posts it found before.
 
+## Watching a subreddit
+
+People describe your problem without using your words. Somebody in r/SaaS
+asking "how do you find anyone to talk to about your product" is the ideal post
+and matches no keyword you would think to save. So a saved search can name one
+subreddit and no words, and list that subreddit's new posts instead: a watch.
+
+- **Leave the words empty and name one subreddit.** The form says "No words,
+  one subreddit: this watches r/SaaS's new posts, newest first", drops the
+  order and how-far-back boxes, which mean nothing to a watch, and the button
+  reads Watch it.
+- **Neither words nor a subreddit is still refused**, and so is a watch on two
+  subreddits: "A watch takes one subreddit. Type a keyword to search several."
+- **One watch per subreddit.** r/SaaS and r/saas are the same watch.
+- **The browser reads `/r/<name>/new`** rather than searching. Reddit's order
+  there is newest first, so a post's place in it is how new it is, and the
+  freshness and replies parts of the order below do the rest.
+- **The card says what it watches**: "r/SaaS" over "Watching · 25 posts ·
+  Newest first". The subreddit comes first because the keywords panel opens at
+  its narrowest: at a 1440px window a card has about 50px for its name, and
+  "Watching r/SaaS" was cut to "Watc…". Hovering either line shows it whole.
+  The list's heading reads "New posts in r/SaaS", and each row's reason starts
+  "The subreddit's newest post" rather than "Reddit's best match".
+- **Everything else is a keyword.** Same three bands, same statuses, same Skip,
+  same blocked list, same composer. A watch on a blocked subreddit reads
+  nothing.
+
+A watch is a row in `promo_keywords` with an empty term and one subreddit. The
+unique rule on the words covers searches with words only, and a second one
+keeps one watch per subreddit (`drizzle/0102_promo_subreddit_watches.sql`).
+
+## Reddit's order
+
 **Reddit's order defaults to Best match**, and that was measured rather than
 guessed. Against "project management tool" over one week on 5 October 2026:
 
@@ -131,7 +164,8 @@ Three panels in a row, built from the same parts as the Automation Canvas and
 the CRM rather than a second system.
 
 - **Keywords**, on the left. Each saved search is a card saying what it searches
-  — "25 posts · Past week · All of Reddit" — with a button to run it again and
+  — "25 posts · Past week · All of Reddit", or "r/SaaS" over "Watching · 25 posts ·
+  Newest first" for a watch — with a button to run it again and
   one to remove it. The box that adds a keyword is pinned to the bottom of the
   panel, because a keyword is added once and pressed many times.
 - **The posts**, in the middle, under the keyword's own name in quotes. Three
@@ -191,3 +225,31 @@ They just do not move the order.
 
 A re-run of the keyword never moves any of these. It only brings the figures and
 the score up to date.
+
+## Old posts are tidied away
+
+A year of daily searches is tens of thousands of stored posts, most of them
+skipped months ago and each carrying its stored replies. Every ten minutes the
+shell's ticker takes a pass over them (`tidyOldFinds` in
+`src/server/social/tidy.ts`).
+
+- **The clock is when a search last saw the post**, not when it went up. A post
+  a search still returns is still in front of someone.
+- **A skipped post past the age is deleted.**
+- **A post still waiting to be looked at keeps its row and loses its stored
+  replies**, the big part. The answer panel then reads it as not read yet and
+  offers Read the replies.
+- **A post with any comment against it is never touched**, sent or failed. That
+  record is the point of the app. Nor is a skipped post with drafts, because
+  deleting the post would take its drafts with it.
+- **One number, on Settings → Reddit account**, under "Tidying up old posts":
+  days unseen before a skipped post goes. 30 to begin with. 0 switches the
+  tidy-up off entirely, and nothing is deleted or cleared. It saves itself.
+- **500 of each a pass**, oldest first, so a backlog never holds up the other
+  jobs on the shared ticker. The rest go on the next pass.
+- **The log says how many went**: "Tidied old Reddit posts: deleted 3 skipped
+  post(s), cleared the stored replies of 12 open one(s)".
+
+A deleted skipped post that a later search returns again comes back as new,
+because nothing remembers it was skipped. Waiting for the post to go unseen for
+the whole period first is what keeps that rare.

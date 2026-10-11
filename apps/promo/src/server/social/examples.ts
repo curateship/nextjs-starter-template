@@ -22,9 +22,6 @@ import { promoComments } from "./schema"
 /** How many examples a prompt carries. */
 export const EXAMPLES_PER_PROMPT = 3
 
-/** How many sent comments the settings tab lists, to tick in and out. */
-const LISTED = 10
-
 /** Hand-written first, then newest. The one order both reads below use. */
 const exampleOrder = [
   desc(sql`(${promoComments.draftId} IS NULL)`),
@@ -53,62 +50,36 @@ export async function exampleComments(
   return rows.map((row) => row.text)
 }
 
-export type SentComment = {
-  id: string
-  text: string
-  postedAt: Date
-  commentUrl: string
-  /** True when it was sent with no draft behind it, so the words are the person's. */
-  handWritten: boolean
-  /** True when a person marked it as not a good example. */
-  notExample: boolean
-  /** True when the next draft will carry it as an example. */
-  inNextDraft: boolean
-}
-
 /**
- * An account's most recent sent comments, in the order examples are picked,
- * each saying whether the next draft will use it.
+ * The ids of the comments the next draft will carry, for every account the
+ * person has: the first three by the order above that nobody marked as not a
+ * good example. The comments screen marks these.
  */
-export async function listSentComments(
+export async function nextExampleIds(
   userId: string,
-  accountId: string,
   db: CustomShellDb = defaultDb
-): Promise<SentComment[]> {
+): Promise<Set<string>> {
   const rows = await db
-    .select({
-      id: promoComments.id,
-      text: promoComments.text,
-      postedAt: promoComments.postedAt,
-      commentUrl: promoComments.commentUrl,
-      draftId: promoComments.draftId,
-      notExample: promoComments.notExample,
-    })
+    .select({ id: promoComments.id, accountId: promoComments.accountId })
     .from(promoComments)
     .where(
       and(
         eq(promoComments.userId, userId),
-        eq(promoComments.accountId, accountId),
-        eq(promoComments.status, "posted")
+        eq(promoComments.status, "posted"),
+        eq(promoComments.notExample, false)
       )
     )
     .orderBy(...exampleOrder)
-    .limit(LISTED)
 
-  let picked = 0
-  return rows.map((row) => {
-    const inNextDraft = !row.notExample && picked < EXAMPLES_PER_PROMPT
-    if (inNextDraft) picked += 1
-    return {
-      id: row.id,
-      text: row.text,
-      postedAt: row.postedAt,
-      commentUrl: row.commentUrl,
-      handWritten: row.draftId === null,
-      notExample: row.notExample,
-      inNextDraft,
-    }
-  })
+  const perAccount = new Map<string, number>()
+  const picked = new Set<string>()
+  for (const row of rows) {
+    const taken = perAccount.get(row.accountId) ?? 0
+    if (taken >= EXAMPLES_PER_PROMPT) continue
+    perAccount.set(row.accountId, taken + 1)
+    picked.add(row.id)
+  }
+  return picked
 }
 
 /** Marks a sent comment as a good example or not. The record itself never changes. */

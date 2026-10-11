@@ -15,9 +15,11 @@ import {
   DRAFTS_PER_PRESS,
   MAX_COMMENT_CHARS,
   type FindThread,
+  type SubredditRule,
 } from "@/lib/social/options"
 
 import { exampleComments } from "./examples"
+import { promptRules } from "./reddit/rules"
 import { promoAccounts, promoDrafts, promoFinds } from "./schema"
 import { wordsForAccount } from "./voices"
 
@@ -203,6 +205,11 @@ export function buildDraftPrompt(input: {
    * leaves the prompt exactly as it was before examples existed.
    */
   examples?: string[]
+  /**
+   * The rules the subreddit's moderators posted. Empty when they have not
+   * been read or there are none, which leaves the prompt as it was.
+   */
+  subredditRules?: SubredditRule[]
   count: number
 }): string {
   const replies = input.replies.slice(0, REPLY_CONTEXT)
@@ -228,6 +235,7 @@ export function buildDraftPrompt(input: {
     examplesBlock(input.examples ?? []),
     input.product ? `WHAT I MAKE, if it is genuinely relevant:\n${input.product}` : "",
     input.commentRules ? `MY RULES:\n${input.commentRules}` : "",
+    subredditRulesBlock(input.subreddit, input.subredditRules ?? []),
     "",
     "Write " + input.count + " different comments I could post.",
     "",
@@ -236,6 +244,9 @@ export function buildDraftPrompt(input: {
     "- Answer the post. Do not open by restating the question.",
     "- Do not repeat a point one of the replies above already made.",
     "- Do not mention what I make unless it directly answers what was asked. A comment that reads as an advert gets me banned, which is worse than a comment nobody clicks.",
+    input.subredditRules?.length
+      ? `- Break none of r/${input.subreddit}'s own rules above. Where they ban self-promotion or links, do not mention what I make and do not link to anything.`
+      : "",
     "- No em dashes. No bullet lists. No sign-off. Write the way a person types into a reply box.",
     "- Do not use the words 'delve', 'leverage', 'navigate', 'landscape' or 'game-changer'.",
     "",
@@ -243,6 +254,24 @@ export function buildDraftPrompt(input: {
   ]
     .filter((line) => line !== "")
     .join("\n")
+}
+
+/** Longest stretch of one rule's description handed to the model. */
+const RULE_DESCRIPTION_CHARS = 500
+
+/**
+ * The subreddit's own rules, labelled as its moderators' so the model never
+ * mixes them up with mine, which are a block of their own above.
+ */
+function subredditRulesBlock(subreddit: string, rules: SubredditRule[]): string {
+  if (!rules.length) return ""
+  return [
+    `THE RULES OF r/${subreddit}, posted by its moderators. These are the subreddit's own rules, not mine:`,
+    ...rules.map((rule, index) => {
+      const description = rule.description.replace(/\s+/g, " ").trim().slice(0, RULE_DESCRIPTION_CHARS)
+      return `${index + 1}. ${rule.title || "(no title)"}${description ? `: ${description}` : ""}`
+    }),
+  ].join("\n")
 }
 
 /**
@@ -323,6 +352,8 @@ export async function draftComments(
   // The comments this account really sent, as examples of its voice. None
   // before the first one goes out, and the voice box carries it alone.
   const examples = await exampleComments(request.userId, account.id, db)
+  // The rules the subreddit posted, read when its first post turned up.
+  const subredditRules = await promptRules(request.userId, find.subreddit, db)
   const prompt = buildDraftPrompt({
     subreddit: find.subreddit,
     title: find.title,
@@ -330,6 +361,7 @@ export async function draftComments(
     replies: find.thread?.replies ?? [],
     ...words,
     examples,
+    subredditRules,
     count: DRAFT_COUNT,
   })
 

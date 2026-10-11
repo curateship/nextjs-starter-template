@@ -1,6 +1,7 @@
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import { queueDueHealthChecks } from "./health"
+import { tidyOldFinds } from "./tidy"
 import {
   markDeadSessions,
   reapIdleSessions,
@@ -44,4 +45,31 @@ export async function reapBrowsers(db: CustomShellDb = defaultDb): Promise<void>
 export async function queueAccountHealth(db: CustomShellDb = defaultDb): Promise<void> {
   const queued = await queueDueHealthChecks(db)
   if (queued) console.log(`Asked for ${queued} Reddit account health reading(s)`)
+}
+
+/**
+ * How often the tidy-up runs. Nothing about a post's age changes in fifteen
+ * seconds, so most ticks skip it.
+ */
+const TIDY_GAP_MS = 10 * 60_000
+
+let lastTidyAt = 0
+
+/**
+ * Deletes long-skipped posts and clears the stored replies of old open ones,
+ * a bounded number each pass, and says how many. See `tidy.ts` for what is
+ * never touched.
+ */
+export async function tidyOldPosts(
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<void> {
+  if (now.getTime() - lastTidyAt < TIDY_GAP_MS) return
+  lastTidyAt = now.getTime()
+  const { deleted, cleared } = await tidyOldFinds(db, now)
+  if (deleted || cleared) {
+    console.log(
+      `Tidied old Reddit posts: deleted ${deleted} skipped post(s), cleared the stored replies of ${cleared} open one(s)`
+    )
+  }
 }
