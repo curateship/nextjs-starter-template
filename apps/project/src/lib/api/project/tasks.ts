@@ -4,6 +4,11 @@ import { z } from "zod"
 import {
   LIMITS,
   assignTaskSchema,
+  bulkChangeSchema,
+  createTasksFromLinesSchema,
+  setRepeatSchema,
+  setWaitingOnSchema,
+  updateStepSchema,
   commentSchema,
   createTaskSchema,
   editCommentSchema,
@@ -12,8 +17,25 @@ import {
   updateTaskSchema,
 } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
+import { findMembership } from "@/server/project/access"
 import { projectNoticeDetailsFor } from "@/server/project/notices"
+import {
+  changeManyTasks,
+  createTasksFromLines as createTasksFromLinesOnServer,
+  duplicateTask,
+  listNewTaskProjects,
+  moveTask,
+  promoteStep,
+} from "@/server/project/task-changes"
 import { addComment, deleteComment, editComment } from "@/server/project/task-chat"
+import {
+  emptyProjectBin,
+  findTasksToWaitOn,
+  loadProjectBin,
+  restoreTask,
+  setRepeat,
+  setWaitingOn,
+} from "@/server/project/planning"
 import { followTask, unfollowTask } from "@/server/project/task-followers"
 import { eachOf } from "@/server/project/teams"
 import {
@@ -31,6 +53,13 @@ import {
 } from "@/server/project/tasks"
 
 export type { TaskComment } from "@/server/project/task-chat"
+export type { BinEntry, ProjectBin, RepeatRule, TaskChoice } from "@/server/project/planning"
+export type {
+  BulkChange,
+  BulkOutcome,
+  MoveTarget,
+  NewTaskProject,
+} from "@/server/project/task-changes"
 export type { TaskFile } from "@/server/project/task-files"
 export type { TaskCard, TaskDetail, TaskStep } from "@/server/project/tasks"
 
@@ -93,10 +122,77 @@ const addStepFn = createServerFn({ method: "POST" })
 
 const updateStepFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(
-    z.object({ stepId: id, text: stepText.optional(), done: z.boolean().optional() })
-  )
+  .inputValidator(updateStepSchema)
   .handler(async ({ data, context }) => updateStep(context.user, data))
+
+const createManyFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(createTasksFromLinesSchema)
+  .handler(async ({ data, context }) => createTasksFromLinesOnServer(context.user, data))
+
+const duplicateFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ taskId: id }))
+  .handler(async ({ data, context }) => duplicateTask(context.user, data.taskId))
+
+const moveFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ taskId: id, projectId: id }))
+  .handler(async ({ data, context }) => moveTask(context.user, data))
+
+const promoteStepFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ stepId: id }))
+  .handler(async ({ data, context }) => promoteStep(context.user, data.stepId))
+
+const changeManyFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(bulkChangeSchema)
+  .handler(async ({ data, context }) => changeManyTasks(context.user, data))
+
+const setRepeatFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(setRepeatSchema)
+  .handler(async ({ data, context }) => setRepeat(context.user, data))
+
+const setWaitingOnFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(setWaitingOnSchema)
+  .handler(async ({ data, context }) => setWaitingOn(context.user, data))
+
+const findTasksFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ taskId: id, q: z.string().max(200) }))
+  .handler(async ({ data, context }) => findTasksToWaitOn(context.user.id, data))
+
+const restoreFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ taskId: id }))
+  .handler(async ({ data, context }) => restoreTask(context.user, data.taskId))
+
+const loadBinFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ projectId: id }))
+  .handler(async ({ data, context }) => loadProjectBin(context.user.id, data.projectId))
+
+const emptyBinFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ projectId: id }))
+  .handler(async ({ data, context }) => emptyProjectBin(context.user.id, data.projectId))
+
+/** The projects New task can make a task in, for the header's button. */
+const loadNewTaskProjectsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) => {
+    const membership = await findMembership(context.user.id)
+    return membership
+      ? listNewTaskProjects(membership, {
+          id: context.user.id,
+          name: context.user.name,
+          avatarUrl: context.user.avatarUrl ?? "",
+        })
+      : []
+  })
 
 const deleteStepFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -168,8 +264,44 @@ export function deleteProjectTask(taskId: string) {
 export function addTaskStep(taskId: string, text: string) {
   return addStepFn({ data: { taskId, text } })
 }
-export function updateTaskStep(data: { stepId: string; text?: string; done?: boolean }) {
+export function updateTaskStep(data: z.input<typeof updateStepSchema>) {
   return updateStepFn({ data })
+}
+export function createTasksFromLines(data: z.input<typeof createTasksFromLinesSchema>) {
+  return createManyFn({ data })
+}
+export function duplicateProjectTask(taskId: string) {
+  return duplicateFn({ data: { taskId } })
+}
+export function moveProjectTask(taskId: string, projectId: string) {
+  return moveFn({ data: { taskId, projectId } })
+}
+export function turnStepIntoTask(stepId: string) {
+  return promoteStepFn({ data: { stepId } })
+}
+export function changeTasks(data: z.input<typeof bulkChangeSchema>) {
+  return changeManyFn({ data })
+}
+export function setTaskRepeat(data: z.input<typeof setRepeatSchema>) {
+  return setRepeatFn({ data })
+}
+export function setTaskWaitingOn(taskId: string, waitingOnTaskId: string | null) {
+  return setWaitingOnFn({ data: { taskId, waitingOnTaskId } })
+}
+export function findTasksToWaitFor(taskId: string, q: string) {
+  return findTasksFn({ data: { taskId, q } })
+}
+export function restoreProjectTask(taskId: string) {
+  return restoreFn({ data: { taskId } })
+}
+export function loadBin(projectId: string) {
+  return loadBinFn({ data: { projectId } })
+}
+export function emptyBin(projectId: string) {
+  return emptyBinFn({ data: { projectId } })
+}
+export function loadNewTaskProjects() {
+  return loadNewTaskProjectsFn()
 }
 export function deleteTaskStep(stepId: string) {
   return deleteStepFn({ data: { stepId } })

@@ -9,3 +9,9 @@ export const TEAM_PANEL_LAYOUT_KEY = "project-team-dashboard-horizontal"
 
 /** The Board or List tab the project page opened on last. */
 export const PROJECT_TASK_VIEW_KEY = "project-page-task-view"
+
+/** The project New task in the header chose last, so it is chosen first next time. */
+export const NEW_TASK_PROJECT_KEY = "project-new-task-project"
+
+/** The Team dashboard's right-hand tab opened last: Check-ins, Workload or Needs attention. */
+export const TEAM_RIGHT_TAB_KEY = "project-team-right-tab"

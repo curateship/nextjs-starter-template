@@ -137,12 +137,20 @@ try {
         [projectId, member.id, now]
       )
     }
+    let position = 0
     for (const [title, status, assignee, giver, waiting, due, [done, total], stuck] of tasksByProject[index]) {
       const taskId = randomUUID()
+      position += 1
+      // A Done task finished three times as many days ago as its due date
+      // passed, so "Cookie banner" (due a week ago) is three weeks old and
+      // waits behind the Board's "Show older".
+      const finishedAt =
+        status === "done" ? new Date(now.getTime() - Math.abs(due ?? 1) * 3 * day) : null
       await client.query(
         `INSERT INTO project_tasks (id, project_id, title, notes, status, stuck_reason, assignee_user_id,
-           assigned_by_user_id, accepted_at, due_date, created_by_user_id, created_at, updated_at)
-         VALUES ($1, $2, $3, '', $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
+           assigned_by_user_id, accepted_at, due_date, created_by_user_id, created_at, updated_at,
+           position, completed_at)
+         VALUES ($1, $2, $3, '', $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13)`,
         [
           taskId,
           projectId,
@@ -155,6 +163,8 @@ try {
           due === null ? null : dateKey(due),
           giver?.id ?? me.id,
           now,
+          position,
+          finishedAt,
         ]
       )
       tasks.set(title, { id: taskId, projectId, title })

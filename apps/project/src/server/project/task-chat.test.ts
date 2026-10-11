@@ -28,6 +28,7 @@ import {
 } from "@/server/project/tasks"
 import { createTeam } from "@/server/project/teams"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
+import { emptyProjectBin, loadProjectBin } from "@/server/project/planning"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
 let client: PGlite
@@ -322,19 +323,25 @@ describe("files on a task", () => {
     expect((await loadTaskDetail(ben.id, taskId, database)).files).toEqual([])
   })
 
-  it("takes a deleted task's files out of storage, and keeps the task if it can't", async () => {
+  it("keeps a binned task's files, and takes them out of storage when the bin is emptied", async () => {
     const { taskId } = await setUp()
     const { stored, storage } = memoryStorage()
     await addTaskFile(ben, { taskId, name: "a.txt", mimeType: "text/plain", data: bytes(1) }, database, storage)
+    const projectId = (await loadTaskDetail(anna.id, taskId, database)).task.projectId
 
+    await deleteTask(anna, taskId, database)
+    expect(stored.size).toBe(1)
+
+    // Storage that can't remove the file leaves the task in the bin.
     const broken: FileStorage = { ...storage, remove: () => Promise.reject(new Error("down")) }
-    await expect(deleteTask(anna, taskId, database, broken)).rejects.toThrow(
+    await expect(emptyProjectBin(anna.id, projectId, database, broken)).rejects.toThrow(
       PROJECT_ERRORS.fileNotRemoved
     )
-    expect((await loadTaskDetail(anna.id, taskId, database)).task.id).toBe(taskId)
+    expect((await loadProjectBin(anna.id, projectId, database)).entries.map((e) => e.id)).toEqual([taskId])
 
-    await deleteTask(anna, taskId, database, storage)
+    await emptyProjectBin(anna.id, projectId, database, storage)
     expect(stored.size).toBe(0)
+    expect((await loadProjectBin(anna.id, projectId, database)).entries).toEqual([])
   })
 })
 

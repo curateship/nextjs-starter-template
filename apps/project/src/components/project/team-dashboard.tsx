@@ -12,11 +12,13 @@ import {
 import { InviteDialog } from "@/components/project/invite-dialog"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskDialog } from "@/components/project/task-dialog"
+import { AttentionPanel, WorkloadPanel } from "@/components/project/team-work-panels"
 import { TeamSettingsDialog } from "@/components/project/team-settings-dialog"
 import { TeamStart } from "@/components/project/team-start"
 import { ThreePanels } from "@/components/project/three-panels"
 import {
   DashboardCardHeader,
+  DashboardCardTabsHeader,
   DashboardCardTitleHeader,
   dashboardCardHeadingClassName,
 } from "@/components/shared/dashboard-card-header"
@@ -25,6 +27,7 @@ import { Button } from "@/components/ui/button"
 import { Meter } from "@/components/ui/meter"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsTrigger } from "@/components/ui/tabs"
 import type {
   TeamDay,
   TeamDayPerson,
@@ -34,7 +37,8 @@ import type {
 import type { InviteForMe, TeamDashboard as TeamDashboardData } from "@/lib/api/project/teams"
 import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
 import { addDays, clockIn, clockLabel, longDayLabel, shortDayLabel, weekdayOf } from "@/lib/project/days"
-import { TEAM_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
+import { TEAM_PANEL_LAYOUT_KEY, TEAM_RIGHT_TAB_KEY } from "@/lib/project/panel-keys"
+import { useRememberedChoice } from "@/lib/remembered-choice"
 import { TEAM_ROLE_LABEL, WEEK_DAYS, runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
 
@@ -116,10 +120,16 @@ function Dashboard({
         label: "Check-ins",
         showLabel: "Show the check-ins",
         content: (
-          <CheckinsPanel
-            day={day}
-            myUserId={data.myUserId}
-            onDay={(next) => go({ day: next, month: next.slice(0, 7) })}
+          <RightPanel
+            canRun={runsTheTeam(data.myRole)}
+            checkins={
+              <CheckinsPanel
+                day={day}
+                myUserId={data.myUserId}
+                onDay={(next) => go({ day: next, month: next.slice(0, 7) })}
+              />
+            }
+            onOpenTask={(taskId) => go({ task: taskId })}
           />
         ),
       }}
@@ -209,9 +219,14 @@ function TeamPanel({ data }: { data: TeamDashboardData }) {
               {data.members.map((member) => (
                 <li key={member.userId} className="flex items-center gap-3 text-sm">
                   <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} size="default" />
-                  <span className="min-w-0 flex-1 truncate">
-                    {member.name}
-                    {member.userId === data.myUserId ? " (you)" : ""}
+                  <span className="grid min-w-0 flex-1">
+                    <span className="truncate">
+                      {member.name}
+                      {member.userId === data.myUserId ? " (you)" : ""}
+                    </span>
+                    {member.title ? (
+                      <span className="truncate text-xs text-muted-foreground">{member.title}</span>
+                    ) : null}
                   </span>
                   <span className="shrink-0 text-muted-foreground">{TEAM_ROLE_LABEL[member.role]}</span>
                 </li>
@@ -222,6 +237,8 @@ function TeamPanel({ data }: { data: TeamDashboardData }) {
       </ScrollArea>
       <TeamSettingsDialog
         team={team}
+        labels={data.labels}
+        joinLink={data.joinLink}
         canEdit={canRun}
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -338,6 +355,46 @@ function CalendarPanel({
   )
 }
 
+const RIGHT_TABS = ["checkins", "workload", "attention"] as const
+type RightTab = (typeof RIGHT_TABS)[number]
+
+/**
+ * The right panel's three tabs: one day's check-ins, everyone's workload, and,
+ * for the owner and admins, the tasks that need attention (Tyler's choice: a
+ * tab here rather than a page of its own).
+ */
+function RightPanel({
+  canRun,
+  checkins,
+  onOpenTask,
+}: {
+  canRun: boolean
+  checkins: React.ReactNode
+  onOpenTask: (taskId: string) => void
+}) {
+  const [chosen, setTab] = useRememberedChoice<RightTab>(TEAM_RIGHT_TAB_KEY, "checkins", RIGHT_TABS)
+  const tab = chosen === "attention" && !canRun ? "checkins" : chosen
+  return (
+    <>
+      <Tabs value={tab} onValueChange={(value) => setTab(value as RightTab)}>
+        <DashboardCardTabsHeader>
+          <TabsTrigger value="checkins">Check-ins</TabsTrigger>
+          <TabsTrigger value="workload">Workload</TabsTrigger>
+          {/* "Attention" rather than "Needs attention", so three tabs fit the panel. */}
+          {canRun ? <TabsTrigger value="attention">Attention</TabsTrigger> : null}
+        </DashboardCardTabsHeader>
+      </Tabs>
+      {tab === "checkins" ? (
+        checkins
+      ) : tab === "workload" ? (
+        <WorkloadPanel onOpenTask={onOpenTask} />
+      ) : (
+        <AttentionPanel onOpenTask={onOpenTask} />
+      )}
+    </>
+  )
+}
+
 function CheckinsPanel({
   day,
   myUserId,
@@ -349,8 +406,8 @@ function CheckinsPanel({
 }) {
   return (
     <>
-      <DashboardCardHeader className="gap-2">
-        <h2 className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>Check-ins</h2>
+      <div className="flex items-center gap-2 border-b px-3 py-2">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{shortDayLabel(day.day)}</span>
         <Button
           type="button"
           variant="outline"
@@ -360,7 +417,6 @@ function CheckinsPanel({
         >
           <ChevronLeftIcon className="size-4" />
         </Button>
-        <span className="shrink-0 text-sm font-medium">{shortDayLabel(day.day)}</span>
         <Button
           type="button"
           variant="outline"
@@ -371,7 +427,7 @@ function CheckinsPanel({
         >
           <ChevronRightIcon className="size-4" />
         </Button>
-      </DashboardCardHeader>
+      </div>
       <div className="grid gap-2 border-b px-4 py-3">
         <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
           <span>
@@ -408,6 +464,8 @@ function stateLine(row: TeamDayPerson) {
       return "Didn't check in"
     case "day_off":
       return "Day off"
+    case "away":
+      return "Away"
     case "no_record":
       return "Nothing saved for this day"
   }
@@ -436,7 +494,8 @@ function PersonCheckin({ row, isMe }: { row: TeamDayPerson; isMe: boolean }) {
         ) : null}
         {row.blockers.map((blocker, index) => (
           <p key={blocker.taskId ?? index} className="text-sm break-words text-destructive">
-            Blocker · {blocker.title ?? "a task in another project"}
+            Blocker ·{" "}
+            {blocker.title ?? (blocker.personal ? "a personal task" : "a task in another project")}
             {blocker.reason ? `: ${blocker.reason}` : ""}
           </p>
         ))}
@@ -445,10 +504,15 @@ function PersonCheckin({ row, isMe }: { row: TeamDayPerson; isMe: boolean }) {
   )
 }
 
-/** "Today · Brief, Logo, 1 task in another project". */
+/** "Today · Brief, Logo, 1 task in another project, 1 personal task". */
 function TaskLine({ label, tasks }: { label: string; tasks: TeamDayTask[] }) {
   const seen = tasks.filter((task) => task.title !== null)
-  const hidden = tasks.length - seen.length
+  const personal = tasks.filter((task) => task.personal).length
+  const hidden = tasks.length - seen.length - personal
+  const unnamed = [
+    hidden ? (hidden === 1 ? "1 task in another project" : `${hidden} tasks in other projects`) : null,
+    personal ? (personal === 1 ? "1 personal task" : `${personal} personal tasks`) : null,
+  ].filter(Boolean)
   return (
     <p className="text-sm break-words">
       <span className="text-muted-foreground">{label} · </span>
@@ -468,10 +532,10 @@ function TaskLine({ label, tasks }: { label: string; tasks: TeamDayTask[] }) {
           )}
         </React.Fragment>
       ))}
-      {hidden ? (
+      {unnamed.length ? (
         <span className="text-muted-foreground">
           {seen.length ? ", " : ""}
-          {hidden === 1 ? "1 task in another project" : `${hidden} tasks in other projects`}
+          {unnamed.join(", ")}
         </span>
       ) : null}
     </p>

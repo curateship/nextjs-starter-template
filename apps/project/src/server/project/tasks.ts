@@ -2,6 +2,8 @@ import { and, asc, count, countDistinct, eq, inArray, isNull, max, type SQL } fr
 import { alias } from "drizzle-orm/pg-core"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
+import type { TaskNoticeKind } from "@/lib/project/notices"
+import { taskNotesText } from "@/lib/project/notes"
 import { LIMITS, runsTheTeam, type TaskStatus } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
@@ -10,18 +12,24 @@ import {
   isProjectMember,
   requireOpenProject,
   requireTaskAccess,
+  visibleProjectIds,
   whoCanStillSee,
   type ProjectDb,
   type TaskRow,
 } from "@/server/project/access"
 import { taskRef, writeTaskNotices, type TaskNotice } from "@/server/project/notices"
-import { loadTaskComments, type TaskComment } from "@/server/project/task-chat"
+import { labelsForTasks, listTeamLabels, type Label } from "@/server/project/labels"
 import {
-  listTaskFiles,
-  removeTaskFilesFromStorage,
-  type FileStorage,
-  type TaskFile,
-} from "@/server/project/task-files"
+  listSections,
+  nextTaskPosition,
+  requireSectionOf,
+  type Section,
+} from "@/server/project/sections"
+import { loadTaskComments, type TaskComment } from "@/server/project/task-chat"
+import { listTaskFiles, type TaskFile } from "@/server/project/task-files"
+import { resolveProjectId } from "@/server/project/personal"
+import { repeatRuleOf, tellWaitingTasks, waitingOnThis, type RepeatRule } from "@/server/project/planning"
+import { listMoveTargets, type MoveTarget } from "@/server/project/task-changes"
 import { followerIds } from "@/server/project/task-followers"
 import {
   loadTaskHistory,
@@ -33,10 +41,12 @@ import {
   projectCheckins,
   projectProjectMembers,
   projectProjects,
+  projectSections,
   projectTaskComments,
   projectTaskFollowers,
   projectTaskSteps,
   projectTasks,
+  projectTeamMembers,
 } from "@/server/project/schema"
 import { customShellUsers } from "@/server/schema"
 
@@ -52,7 +62,13 @@ import { customShellUsers } from "@/server/schema"
 
 export type Actor = { id: string; name: string }
 
-export type Person = { id: string; name: string; avatarUrl: string }
+export type Person = {
+  id: string
+  name: string
+  avatarUrl: string
+  /** A job title, where one is shown beside the name (the hand-to picker). */
+  title?: string | null
+}
 
 export type TaskCard = {
   id: string
@@ -72,9 +88,26 @@ export type TaskCard = {
   commentCount: number
   /** How many days anyone picked this task on a check-in. */
   pickedDays: number
+  labels: Label[]
+  section: { id: string; name: string } | null
+  /** The task's place in its project's own order. */
+  position: number
+  /** When it last became Done. */
+  completedAt: string | null
+  /** The notes' words, so a search can find them. */
+  notesText: string
+  /** Out of the check-in and My tasks until this day. */
+  snoozedUntil: string | null
+  /**
+   * The task that has to happen first. Its title shows only when it is in the
+   * same project; one elsewhere reads "1 task in another project".
+   */
+  waitingOn: { taskId: string; title: string | null; ready: boolean } | null
+  repeat: RepeatRule | null
 }
 
 const assignee = alias(customShellUsers, "assignee")
+const blocker = alias(projectTasks, "blocker")
 const assigner = alias(customShellUsers, "assigner")
 const returner = alias(customShellUsers, "returner")
 
@@ -90,14 +123,23 @@ export async function listTaskCards(
       assigneeAvatar: assignee.avatarUrl,
       assignerName: assigner.name,
       returnerName: returner.name,
+      sectionName: projectSections.name,
+      blockerTitle: blocker.title,
+      blockerProjectId: blocker.projectId,
+      blockerStatus: blocker.status,
+      blockerDeletedAt: blocker.deletedAt,
     })
     .from(projectTasks)
     .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
     .leftJoin(assignee, eq(assignee.id, projectTasks.assigneeUserId))
     .leftJoin(assigner, eq(assigner.id, projectTasks.assignedByUserId))
     .leftJoin(returner, eq(returner.id, projectTasks.handedBackByUserId))
-    .where(where)
-    .orderBy(asc(projectTasks.dueDate), asc(projectTasks.createdAt))
+    .leftJoin(projectSections, eq(projectSections.id, projectTasks.sectionId))
+    .leftJoin(blocker, eq(blocker.id, projectTasks.waitingOnTaskId))
+    // A task in the bin is gone from every list until it is brought back.
+    .where(and(isNull(projectTasks.deletedAt), where))
+    // Each project's own order, which the team sets by dragging.
+    .orderBy(asc(projectTasks.position), asc(projectTasks.createdAt))
 
   const ids = rows.map((row) => row.task.id)
   const stepRows = ids.length
@@ -119,6 +161,7 @@ export async function listTaskCards(
         .groupBy(projectTaskComments.taskId)
     : []
   const pickedRows = ids.length ? await pickedDaysFor(ids, database) : []
+  const labels = await labelsForTasks(ids, database)
 
   return rows.map(({ task, ...row }) => {
     const steps = stepRows.filter((step) => step.taskId === task.id)
@@ -154,6 +197,25 @@ export async function listTaskCards(
       },
       commentCount: commentRows.find((c) => c.taskId === task.id)?.total ?? 0,
       pickedDays: pickedRows.find((p) => p.taskId === task.id)?.days ?? 0,
+      labels: labels.get(task.id) ?? [],
+      section:
+        task.sectionId && row.sectionName !== null
+          ? { id: task.sectionId, name: row.sectionName }
+          : null,
+      position: task.position,
+      completedAt: task.completedAt?.toISOString() ?? null,
+      notesText: taskNotesText(task.notes),
+      snoozedUntil: task.snoozedUntil,
+      // A task waiting on one in the bin isn't held up by anything.
+      waitingOn:
+        task.waitingOnTaskId && row.blockerStatus && !row.blockerDeletedAt
+          ? {
+              taskId: task.waitingOnTaskId,
+              title: row.blockerProjectId === task.projectId ? row.blockerTitle : null,
+              ready: row.blockerStatus === "done",
+            }
+          : null,
+      repeat: repeatRuleOf(task),
     }
   })
 }
@@ -172,7 +234,14 @@ function isWaiting(task: Pick<TaskRow, "assigneeUserId" | "acceptedAt">) {
   return Boolean(task.assigneeUserId) && !task.acceptedAt
 }
 
-export type TaskStep = { id: string; text: string; done: boolean }
+export type TaskStep = {
+  id: string
+  text: string
+  done: boolean
+  /** Someone on the project doing this step. It shows only inside the task. */
+  assignee: Person | null
+  dueDate: string | null
+}
 
 export type TaskDetail = {
   task: TaskCard & { notes: string }
@@ -187,6 +256,16 @@ export type TaskDetail = {
   canDelete: boolean
   /** Every day it was picked or dropped, and every hand-over, oldest first. */
   history: TaskHistoryEntry[]
+  /** The project's sections, for the task's Section field. */
+  sections: Section[]
+  /** The team's labels, for the task's Labels field. */
+  labels: Label[]
+  /** Other open projects this person can move the task to. */
+  moveTargets: MoveTarget[]
+  /** The task this one waits on, named when this person can see it. */
+  waitingOnTitle: string | null
+  /** Tasks waiting on this one: those this person can see, and how many elsewhere. */
+  holdingUp: { tasks: { id: string; title: string; projectId: string }[]; elsewhere: number }
 }
 
 export async function loadTaskDetail(
@@ -201,17 +280,33 @@ export async function loadTaskDetail(
     { allowArchived: true }
   )
   const [card] = await listTaskCards(eq(projectTasks.id, taskId), database)
-  const steps = await database
+  const stepRows = await database
     .select({
       id: projectTaskSteps.id,
       text: projectTaskSteps.text,
       done: projectTaskSteps.done,
+      dueDate: projectTaskSteps.dueDate,
+      assigneeId: projectTaskSteps.assigneeUserId,
+      assigneeName: assignee.name,
+      assigneeAvatar: assignee.avatarUrl,
     })
     .from(projectTaskSteps)
+    .leftJoin(assignee, eq(assignee.id, projectTaskSteps.assigneeUserId))
     .where(eq(projectTaskSteps.taskId, taskId))
     .orderBy(asc(projectTaskSteps.position))
+  const steps: TaskStep[] = stepRows.map((row) => ({
+    id: row.id,
+    text: row.text,
+    done: row.done,
+    dueDate: row.dueDate,
+    assignee:
+      row.assigneeId && row.assigneeName !== null
+        ? { id: row.assigneeId, name: row.assigneeName, avatarUrl: row.assigneeAvatar ?? "" }
+        : null,
+  }))
   const archived = Boolean(project.archivedAt)
   const viewer = { userId, role: membership.role }
+  const visible = await visibleProjectIds(membership, database)
   const [follow] = await database
     .select({ userId: projectTaskFollowers.userId })
     .from(projectTaskFollowers)
@@ -222,9 +317,17 @@ export async function loadTaskDetail(
       id: customShellUsers.id,
       name: customShellUsers.name,
       avatarUrl: customShellUsers.avatarUrl,
+      title: projectTeamMembers.title,
     })
     .from(projectProjectMembers)
     .innerJoin(customShellUsers, eq(customShellUsers.id, projectProjectMembers.userId))
+    .leftJoin(
+      projectTeamMembers,
+      and(
+        eq(projectTeamMembers.userId, projectProjectMembers.userId),
+        eq(projectTeamMembers.teamId, project.teamId)
+      )
+    )
     .where(eq(projectProjectMembers.projectId, project.id))
     .orderBy(asc(customShellUsers.name))
 
@@ -237,8 +340,26 @@ export async function loadTaskDetail(
     following: Boolean(follow),
     archived,
     canDelete: task.createdByUserId === userId || runsTheTeam(membership.role),
-    history: await loadTaskHistory(taskId, database),
+    history: await loadTaskHistory(taskId, database, visible),
+    sections: await listSections(project.id, database),
+    labels: await listTeamLabels(membership.teamId, database),
+    moveTargets: await listMoveTargets(membership, task, database),
+    waitingOnTitle: await waitingOnTitleFor(task.waitingOnTaskId, visible, database),
+    holdingUp: await waitingOnThis(taskId, visible, database),
   }
+}
+
+async function waitingOnTitleFor(
+  blockerId: string | null,
+  visible: ReadonlySet<string>,
+  database: ProjectDb
+) {
+  if (!blockerId) return null
+  const [row] = await database
+    .select({ title: projectTasks.title, projectId: projectTasks.projectId })
+    .from(projectTasks)
+    .where(eq(projectTasks.id, blockerId))
+  return row && visible.has(row.projectId) ? row.title : null
 }
 
 /** My tasks on My dashboard: every task assigned to me, across every project I can see. */
@@ -256,7 +377,7 @@ export async function loadMyWork(userId: string, database = db): Promise<TaskCar
   return [...cards.filter((card) => card.waiting), ...cards.filter((card) => !card.waiting)]
 }
 
-async function requireAssignable(projectId: string, userId: string, database: ProjectDb) {
+export async function requireAssignable(projectId: string, userId: string, database: ProjectDb) {
   if (!(await isProjectMember(projectId, userId, database))) {
     throw new Error(PROJECT_ERRORS.notProjectMember)
   }
@@ -272,14 +393,17 @@ export async function createTask(
     dueDate: string | null
     steps: string[]
   },
-  database = db
+  database: ProjectDb = db
 ): Promise<{ id: string }> {
   return database.transaction(async (tx) => {
+    const projectId = await resolveProjectId(actor.id, input.projectId, tx)
+    input = { ...input, projectId }
     await requireOpenProject(actor.id, input.projectId, tx)
     if (input.assigneeUserId) await requireAssignable(input.projectId, input.assigneeUserId, tx)
     const at = now()
     const handedToSomeoneElse =
       input.assigneeUserId !== null && input.assigneeUserId !== actor.id
+    const position = await nextTaskPosition(input.projectId, tx)
     const task = {
       id: uuid(),
       projectId: input.projectId,
@@ -294,8 +418,10 @@ export async function createTask(
       createdByUserId: actor.id,
       createdAt: at,
       updatedAt: at,
+      position,
     }
     await tx.insert(projectTasks).values(task)
+    await recordTaskEvent(tx, { taskId: task.id, kind: "created", actorUserId: actor.id })
     if (input.steps.length) {
       await tx.insert(projectTaskSteps).values(
         input.steps.map((text, position) => ({
@@ -330,11 +456,19 @@ export async function createTask(
 
 export async function updateTask(
   actor: Actor,
-  patch: { taskId: string; title?: string; notes?: string; dueDate?: string | null },
+  patch: {
+    taskId: string
+    title?: string
+    notes?: string
+    dueDate?: string | null
+    sectionId?: string | null
+    snoozedUntil?: string | null
+  },
   database = db
 ) {
   const { taskId, ...fields } = patch
-  await requireTaskAccess(actor.id, taskId, database)
+  const { task } = await requireTaskAccess(actor.id, taskId, database)
+  if (fields.sectionId) await requireSectionOf(task.projectId, fields.sectionId, database)
   await database
     .update(projectTasks)
     .set({ ...fields, updatedAt: now() })
@@ -357,40 +491,60 @@ export async function setTaskStatus(
         status: input.status,
         // The reason shows on the task until it leaves Stuck.
         stuckReason: input.status === "stuck" ? input.stuckReason : null,
+        // When it became Done, kept while it stays Done and cleared when it leaves.
+        completedAt: input.status === "done" ? (task.status === "done" ? task.completedAt : now()) : null,
         updatedAt: now(),
       })
       .where(eq(projectTasks.id, task.id))
+    if (input.status !== task.status) {
+      await recordTaskEvent(tx, {
+        taskId: task.id,
+        kind: "status_changed",
+        actorUserId: actor.id,
+        reason: input.status,
+      })
+    }
 
-    // Stuck tells whoever handed it out and the followers; Done tells the
-    // followers, once, when it becomes Done.
-    const becameDone = input.status === "done" && task.status !== "done"
-    if (input.status !== "stuck" && !becameDone) return
+    // Stuck, Done and leaving Stuck each tell whoever handed the task out (or
+    // made it, when nobody did) and its followers, once per change.
+    const kind = statusNoticeKind(task.status, input.status)
+    if (kind === "task_done") await tellWaitingTasks(actor, task.id, tx)
+    if (!kind) return
     const handedOutBy = task.assignedByUserId ?? task.createdByUserId
-    const followers = await followerIds(task.id, tx)
     const recipients = await whoCanStillSee(
       project,
-      input.status === "stuck" ? [handedOutBy, ...followers] : followers,
+      [handedOutBy, ...(await followerIds(task.id, tx))],
       tx
     )
     await writeTaskNotices(
       tx,
       recipients.map(
         (recipientUserId): TaskNotice => ({
-          kind: input.status === "stuck" ? "task_stuck" : "task_done",
+          kind,
           recipientUserId,
           actor,
           task: taskRef(task),
-          extra: input.status === "stuck" ? input.stuckReason : null,
+          extra: kind === "task_stuck" ? input.stuckReason : null,
         })
       )
     )
   })
 }
 
+/** Which notice a status change sends: Stuck, Done, or unblocked when it leaves Stuck. */
+function statusNoticeKind(from: TaskStatus, to: TaskStatus): TaskNoticeKind | null {
+  if (to === "stuck") return "task_stuck"
+  if (to === "done") return from === "done" ? null : "task_done"
+  if (from === "stuck") return "task_unblocked"
+  return null
+}
+
 export async function assignTask(
   actor: Actor,
   input: { taskId: string; assigneeUserId: string | null },
-  database = db
+  database: ProjectDb = db,
+  /** Off when the caller sends one notice for many hand-overs. */
+  { notify = true }: { notify?: boolean } = {}
 ) {
   await database.transaction(async (tx) => {
     const { task } = await requireTaskAccess(actor.id, input.taskId, tx)
@@ -416,14 +570,16 @@ export async function assignTask(
         actorUserId: actor.id,
         targetUserId: input.assigneeUserId,
       })
-      await writeTaskNotices(tx, [
-        {
-          kind: "task_assigned",
-          recipientUserId: input.assigneeUserId,
-          actor,
-          task: taskRef(task),
-        },
-      ])
+      if (notify) {
+        await writeTaskNotices(tx, [
+          {
+            kind: "task_assigned",
+            recipientUserId: input.assigneeUserId,
+            actor,
+            task: taskRef(task),
+          },
+        ])
+      }
     }
   })
 }
@@ -490,18 +646,23 @@ export async function handBackTask(
   })
 }
 
-export async function deleteTask(
-  actor: Actor,
-  taskId: string,
-  database = db,
-  storage?: FileStorage
-) {
-  const { membership, task } = await requireTaskAccess(actor.id, taskId, database)
-  if (task.createdByUserId !== actor.id && !runsTheTeam(membership.role)) {
-    throw new Error(PROJECT_ERRORS.cantDeleteTask)
-  }
-  await removeTaskFilesFromStorage(task.id, database, storage)
-  await database.delete(projectTasks).where(eq(projectTasks.id, task.id))
+/**
+ * Puts the task in its project's bin. It leaves every list at once and can
+ * be brought back whole for 30 days, after which the daily job deletes it
+ * and its files for good (`planning-jobs.ts`).
+ */
+export async function deleteTask(actor: Actor, taskId: string, database = db) {
+  await database.transaction(async (tx) => {
+    const { membership, task } = await requireTaskAccess(actor.id, taskId, tx)
+    if (task.createdByUserId !== actor.id && !runsTheTeam(membership.role)) {
+      throw new Error(PROJECT_ERRORS.cantDeleteTask)
+    }
+    await tx
+      .update(projectTasks)
+      .set({ deletedAt: now(), deletedByUserId: actor.id })
+      .where(eq(projectTasks.id, task.id))
+    await recordTaskEvent(tx, { taskId: task.id, kind: "deleted", actorUserId: actor.id })
+  })
 }
 
 export async function addStep(
@@ -526,19 +687,42 @@ export async function addStep(
     }
     await tx.insert(projectTaskSteps).values(step)
     await touchTask(task.id, tx)
-    return { id: step.id, text: step.text, done: step.done }
+    return { id: step.id, text: step.text, done: step.done, assignee: null, dueDate: null }
   })
 }
 
 export async function updateStep(
   actor: Actor,
-  input: { stepId: string; text?: string; done?: boolean },
+  input: {
+    stepId: string
+    text?: string
+    done?: boolean
+    assigneeUserId?: string | null
+    dueDate?: string | null
+  },
   database = db
 ) {
-  const { stepId, ...fields } = input
-  const step = await requireStep(actor.id, stepId, database)
-  await database.update(projectTaskSteps).set(fields).where(eq(projectTaskSteps.id, step.id))
-  await touchTask(step.taskId, database)
+  await database.transaction(async (tx) => {
+    const { stepId, ...fields } = input
+    const step = await requireStep(actor.id, stepId, tx)
+    const { task } = await requireTaskAccess(actor.id, step.taskId, tx)
+    if (fields.assigneeUserId) await requireAssignable(task.projectId, fields.assigneeUserId, tx)
+    await tx.update(projectTaskSteps).set(fields).where(eq(projectTaskSteps.id, step.id))
+    await touchTask(step.taskId, tx)
+    // A step given to someone else tells them, once, when it is given.
+    const given = fields.assigneeUserId
+    if (given && given !== step.assigneeUserId) {
+      await writeTaskNotices(tx, [
+        {
+          kind: "task_step",
+          recipientUserId: given,
+          actor,
+          task: taskRef(task),
+          extra: fields.text ?? step.text,
+        },
+      ])
+    }
+  })
 }
 
 export async function deleteStep(actor: Actor, stepId: string, database = db) {
@@ -547,9 +731,14 @@ export async function deleteStep(actor: Actor, stepId: string, database = db) {
   await touchTask(step.taskId, database)
 }
 
-async function requireStep(userId: string, stepId: string, database: ProjectDb) {
+export async function requireStep(userId: string, stepId: string, database: ProjectDb) {
   const [step] = await database
-    .select({ id: projectTaskSteps.id, taskId: projectTaskSteps.taskId })
+    .select({
+      id: projectTaskSteps.id,
+      taskId: projectTaskSteps.taskId,
+      text: projectTaskSteps.text,
+      assigneeUserId: projectTaskSteps.assigneeUserId,
+    })
     .from(projectTaskSteps)
     .where(eq(projectTaskSteps.id, stepId))
     .limit(1)
@@ -558,7 +747,7 @@ async function requireStep(userId: string, stepId: string, database: ProjectDb) 
   return step
 }
 
-async function touchTask(taskId: string, database: ProjectDb) {
+export async function touchTask(taskId: string, database: ProjectDb) {
   await database
     .update(projectTasks)
     .set({ updatedAt: now() })

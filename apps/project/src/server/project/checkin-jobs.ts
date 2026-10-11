@@ -23,7 +23,7 @@ const BATCH = 200
  * Postgres knows it (`requireKnownZone`), so this only matters for a zone
  * Postgres stopped knowing after an upgrade.
  */
-const PEOPLE = sql.raw(`
+export const PEOPLE = sql.raw(`
   people AS MATERIALIZED (
     SELECT m.user_id, m.team_id, m.joined_at, t.work_days,
       coalesce(m.time_zone, t.time_zone) AS zone,
@@ -40,7 +40,7 @@ export async function runCheckinJobs(database: CustomShellDb = db, at = new Date
 
 /**
  * One bell notice per person per work day, once their check-in time has come,
- * and never after they have checked in. Each reminder is claimed by writing
+ * and never after they have checked in, nor on their time off. Each reminder is claimed by writing
  * its row first, in the same transaction as the notice.
  */
 export async function sendCheckinReminders(database: CustomShellDb = db, at = new Date()) {
@@ -61,6 +61,10 @@ export async function sendCheckinReminders(database: CustomShellDb = db, at = ne
       AND NOT EXISTS (
         SELECT 1 FROM project_checkin_reminders r
         WHERE r.user_id = p.user_id AND r.day = l.day
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM project_time_off o
+        WHERE o.user_id = p.user_id AND l.day BETWEEN o.first_day AND o.last_day
       )
     LIMIT ${BATCH}
   `)
@@ -107,12 +111,13 @@ export async function saveFinishedDays(database: CustomShellDb = db, at = new Da
         .where(and(eq(projectCheckins.id, id), isNull(projectCheckins.closedAt)))
         .returning({ id: projectCheckins.id })
       if (!claimed.length) return
-      // A deleted task keeps no status: its line reads as deleted.
+      // A deleted task, or one in the bin, keeps no status: its line reads as deleted.
       await tx.execute(sql`
         UPDATE project_checkin_items i
         SET end_status = t.status
         FROM project_tasks t
         WHERE i.checkin_id = ${id} AND i.kind = 'pick' AND i.task_id = t.id
+          AND t.deleted_at IS NULL
       `)
     })
   }
@@ -122,7 +127,11 @@ export async function saveFinishedDays(database: CustomShellDb = db, at = new Da
     INSERT INTO project_checkins
       (id, team_id, user_id, day, time_zone, work_day, due_at, checked_in_at, closed_at, created_at)
     SELECT gen_random_uuid()::text, p.team_id, p.user_id, y.day, p.zone,
-      extract(dow FROM y.day)::int = ANY (p.work_days),
+      -- Time off makes the day a day off, so it isn't "Didn't check in".
+      extract(dow FROM y.day)::int = ANY (p.work_days) AND NOT EXISTS (
+        SELECT 1 FROM project_time_off o
+        WHERE o.user_id = p.user_id AND y.day BETWEEN o.first_day AND o.last_day
+      ),
       (y.day + p.at_time::time) AT TIME ZONE p.zone,
       NULL, ${at.toISOString()}::timestamptz, ${at.toISOString()}::timestamptz
     FROM people p

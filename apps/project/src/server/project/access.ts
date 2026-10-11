@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, isNull, or } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { runsTheTeam, type TeamRole } from "@/lib/project/rules"
@@ -20,6 +20,9 @@ import {
  *   project in their team, so no project can be left with nobody able to open
  *   it.
  * - A record someone can't see answers exactly like one that doesn't exist.
+ * - A "Just me" project (`personalUserId`) is its person's alone. Not even
+ *   the owner or an admin can open it.
+ * - A task in the bin answers as missing, except to the bin itself.
  */
 
 /** The database a check runs on: the shared handle or an open transaction. */
@@ -65,9 +68,15 @@ export async function requireTeamRunner(
   return membership
 }
 
-/** Owner and admins see the whole team's projects; everyone else, their own. */
+/**
+ * Owner and admins see the whole team's projects; everyone else, their own.
+ * Nobody sees another person's "Just me" project.
+ */
 export function visibleProjectsWhere(membership: Membership) {
-  const inTeam = eq(projectProjects.teamId, membership.teamId)
+  const inTeam = and(
+    eq(projectProjects.teamId, membership.teamId),
+    or(isNull(projectProjects.personalUserId), eq(projectProjects.personalUserId, membership.userId))
+  )
   if (runsTheTeam(membership.role)) return inTeam
   return and(
     inTeam,
@@ -131,6 +140,10 @@ export async function requireProjectAccess(
     )
     .limit(1)
   if (!project) throw new Error(PROJECT_ERRORS.projectNotFound)
+  if (project.personalUserId) {
+    if (project.personalUserId !== userId) throw new Error(PROJECT_ERRORS.projectNotFound)
+    return { membership, project }
+  }
   if (
     !runsTheTeam(membership.role) &&
     !(await isProjectMember(projectId, userId, database))
@@ -158,7 +171,10 @@ export async function requireTaskAccess(
   userId: string,
   taskId: string,
   database: ProjectDb = db,
-  { allowArchived = false }: { allowArchived?: boolean } = {}
+  {
+    allowArchived = false,
+    allowDeleted = false,
+  }: { allowArchived?: boolean; allowDeleted?: boolean } = {}
 ): Promise<{ membership: Membership; project: ProjectRow; task: TaskRow }> {
   const [task] = await database
     .select()
@@ -166,6 +182,7 @@ export async function requireTaskAccess(
     .where(eq(projectTasks.id, taskId))
     .limit(1)
   if (!task) throw new Error(PROJECT_ERRORS.taskNotFound)
+  if (task.deletedAt && !allowDeleted) throw new Error(PROJECT_ERRORS.taskNotFound)
   try {
     const access = allowArchived
       ? await requireProjectAccess(userId, task.projectId, database)
@@ -186,12 +203,13 @@ export async function requireTaskAccess(
  * tasks but must never be sent a notice that shows a task's title.
  */
 export async function whoCanStillSee(
-  project: { id: string; teamId: string },
+  project: { id: string; teamId: string; personalUserId: string | null },
   userIds: readonly (string | null)[],
   database: ProjectDb
 ): Promise<string[]> {
   const wanted = [...new Set(userIds.filter((id): id is string => Boolean(id)))]
   if (wanted.length === 0) return []
+  if (project.personalUserId) return wanted.filter((id) => id === project.personalUserId)
   const members = await database
     .select({ userId: projectProjectMembers.userId })
     .from(projectProjectMembers)

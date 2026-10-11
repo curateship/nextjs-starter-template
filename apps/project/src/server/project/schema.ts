@@ -2,6 +2,7 @@ import {
   boolean,
   date,
   integer,
+  type AnyPgColumn,
   pgTable,
   primaryKey,
   smallint,
@@ -12,7 +13,9 @@ import {
 
 import type {
   CheckinItemKind,
+  DueReminderKind,
   ProjectColor,
+  RepeatEvery,
   TaskEventKind,
   TaskStatus,
   TeamInviteRole,
@@ -42,7 +45,26 @@ export const projectTeams = pgTable("project_teams", {
   workDays: smallint("work_days").array().notNull(),
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  /** A fingerprint of the join link's secret, never the link itself. */
+  joinTokenHash: varchar("join_token_hash", { length: 64 }),
+  joinExpiresAt: timestamp("join_expires_at", { withTimezone: true }),
 })
+
+/** Each join through a team's link, for the daily cap. */
+export const projectTeamJoins = pgTable(
+  "project_team_joins",
+  {
+    teamId: varchar("team_id", { length: 36 })
+      .notNull()
+      .references(() => projectTeams.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.teamId, table.userId, table.joinedAt] })]
+)
 
 export const projectTeamMembers = pgTable(
   "project_team_members",
@@ -59,6 +81,8 @@ export const projectTeamMembers = pgTable(
     checkinTime: varchar("checkin_time", { length: 5 }),
     /** The person's own time zone. Null uses the team's. */
     timeZone: text("time_zone"),
+    /** A short job title, such as "Copywriter" (`drizzle/0104_project_running_the_team.sql`). */
+    title: varchar("title", { length: 40 }),
   },
   (table) => [primaryKey({ columns: [table.teamId, table.userId] })]
 )
@@ -95,6 +119,12 @@ export const projectProjects = pgTable("project_projects", {
   ),
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  /** The project's own optional due date (`drizzle/0102_project_projects.sql`). */
+  dueDate: date("due_date", { mode: "string" }),
+  /** Set on one person's own "Just me" project, which only they can open. */
+  personalUserId: varchar("personal_user_id", { length: 36 }).references(userRef, {
+    onDelete: "cascade",
+  }),
 })
 
 export const projectProjectMembers = pgTable(
@@ -141,7 +171,95 @@ export const projectTasks = pgTable("project_tasks", {
   ),
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  /** The project's own heading this task sits under (`drizzle/0099_project_finding_and_sorting.sql`). */
+  sectionId: varchar("section_id", { length: 36 }).references(() => projectSections.id, {
+    onDelete: "set null",
+  }),
+  /** One order for the whole project, set by dragging. */
+  position: integer("position").notNull().default(0),
+  /** When it last became Done; cleared when it leaves Done. */
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  /** The repeat rule, on the newest copy only (`drizzle/0101_project_planning_ahead.sql`). */
+  repeatEvery: varchar("repeat_every", { length: 8 }).$type<RepeatEvery>(),
+  repeatWeekDays: smallint("repeat_week_days").array(),
+  repeatMonthDay: smallint("repeat_month_day"),
+  /** The first task of a repeating series, carried by every copy. */
+  repeatSeriesId: varchar("repeat_series_id", { length: 36 }),
+  snoozedUntil: date("snoozed_until", { mode: "string" }),
+  waitingOnTaskId: varchar("waiting_on_task_id", { length: 36 }).references(
+    (): AnyPgColumn => projectTasks.id,
+    { onDelete: "set null" }
+  ),
+  /** In the bin since then; emptied for good after 30 days. */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedByUserId: varchar("deleted_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
 })
+
+/** One copy of a repeating task per day, claimed before it is made. */
+export const projectRepeatRuns = pgTable(
+  "project_repeat_runs",
+  {
+    seriesId: varchar("series_id", { length: 36 }).notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    madeAt: timestamp("made_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.seriesId, table.day] })]
+)
+
+/** A project's own headings, such as "Design" and "Build". */
+export const projectSections = pgTable("project_sections", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  projectId: varchar("project_id", { length: 36 })
+    .notNull()
+    .references(() => projectProjects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  position: integer("position").notNull(),
+  createdAt: createdAt(),
+})
+
+/** The team's labels, such as "Bug" or "Client", which cut across projects. */
+export const projectLabels = pgTable("project_labels", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  teamId: varchar("team_id", { length: 36 })
+    .notNull()
+    .references(() => projectTeams.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  color: varchar("color", { length: 16 }).$type<ProjectColor>().notNull(),
+  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  createdAt: createdAt(),
+})
+
+export const projectTaskLabels = pgTable(
+  "project_task_labels",
+  {
+    taskId: varchar("task_id", { length: 36 })
+      .notNull()
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
+    labelId: varchar("label_id", { length: 36 })
+      .notNull()
+      .references(() => projectLabels.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.labelId] })]
+)
+
+/** Each person's own starred projects, which sit first on the Projects page. */
+export const projectProjectStars = pgTable(
+  "project_project_stars",
+  {
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => projectProjects.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ columns: [table.projectId, table.userId] })]
+)
 
 export const projectTaskSteps = pgTable("project_task_steps", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -152,6 +270,11 @@ export const projectTaskSteps = pgTable("project_task_steps", {
   done: boolean("done").notNull(),
   position: integer("position").notNull(),
   createdAt: createdAt(),
+  /** Someone on the project doing this step (`drizzle/0100_project_making_and_changing.sql`). */
+  assigneeUserId: varchar("assignee_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  dueDate: date("due_date", { mode: "string" }),
 })
 
 export const projectTaskComments = pgTable("project_task_comments", {
@@ -286,6 +409,36 @@ export const projectCheckinReminders = pgTable(
 )
 
 /**
+ * One "Due tomorrow" and one "Overdue" per task per due date, written before
+ * the bell notice (`drizzle/0098_project_reminders.sql`).
+ */
+export const projectDueReminders = pgTable(
+  "project_due_reminders",
+  {
+    taskId: varchar("task_id", { length: 36 })
+      .notNull()
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 16 }).$type<DueReminderKind>().notNull(),
+    dueDate: date("due_date", { mode: "string" }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.kind, table.dueDate] })]
+)
+
+/** One morning notice per team per day, written before the bell notices. */
+export const projectTeamMorningNotices = pgTable(
+  "project_team_morning_notices",
+  {
+    teamId: varchar("team_id", { length: 36 })
+      .notNull()
+      .references(() => projectTeams.id, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.teamId, table.day] })]
+)
+
+/**
  * Handing a task over, accepting it and handing it back, saved as they happen
  * (`drizzle/0096_project_task_events.sql`) for the task's history.
  */
@@ -302,5 +455,26 @@ export const projectTaskEvents = pgTable("project_task_events", {
     onDelete: "set null",
   }),
   reason: text("reason"),
+  createdAt: createdAt(),
+  /** The task a step became, or the one it came from. */
+  relatedTaskId: varchar("related_task_id", { length: 36 }).references(() => projectTasks.id, {
+    onDelete: "set null",
+  }),
+})
+
+/** A person's days off, first to last inclusive (`drizzle/0103_project_time_off.sql`). */
+export const projectTimeOff = pgTable("project_time_off", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  teamId: varchar("team_id", { length: 36 })
+    .notNull()
+    .references(() => projectTeams.id, { onDelete: "cascade" }),
+  userId: varchar("user_id", { length: 36 })
+    .notNull()
+    .references(userRef, { onDelete: "cascade" }),
+  firstDay: date("first_day", { mode: "string" }).notNull(),
+  lastDay: date("last_day", { mode: "string" }).notNull(),
+  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
   createdAt: createdAt(),
 })

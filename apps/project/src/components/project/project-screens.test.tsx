@@ -15,6 +15,7 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
   useRouter: () => ({ invalidate: vi.fn() }),
   useNavigate: () => vi.fn(),
+  useRouterState: () => ({}),
   getRouteApi: () => ({ useLoaderData: () => ({ user: { id: "me", name: "Tyler" } }) }),
 }))
 // The real check reads the incoming request, which a render to HTML doesn't have.
@@ -40,6 +41,14 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     steps: { done: 0, total: 0 },
     commentCount: 0,
     pickedDays: 0,
+    labels: [],
+    section: null,
+    position: 0,
+    completedAt: new Date().toISOString(),
+    notesText: "",
+    snoozedUntil: null,
+    waitingOn: null,
+    repeat: null,
     ...overrides,
   }
 }
@@ -50,11 +59,19 @@ const tasks = [
   card({ id: "c", title: "Old copy", status: "doing", assignee: null, formerAssigneeName: "Leo" }),
   card({ id: "d", title: "Fonts", status: "done", steps: { done: 3, total: 3 } }),
   card({ id: "e", title: "Late thing", status: "doing", dueDate: "2020-01-02", steps: { done: 1, total: 4 } }),
+  card({ id: "f", title: "Ancient", status: "done", completedAt: "2020-01-01T00:00:00Z" }),
+  card({ id: "g", title: "Tagged", labels: [{ id: "l1", name: "Client", color: "pink" }], section: { id: "s1", name: "Design" } }),
 ]
 
 describe("the board", () => {
   const html = renderToStaticMarkup(
-    <TaskBoard tasks={tasks} readOnly={false} onOpenTask={() => {}} onMove={() => {}} />
+    <TaskBoard
+      tasks={tasks}
+      readOnly={false}
+      onOpenTask={() => {}}
+      onMove={() => {}}
+      onReorder={() => {}}
+    />
   )
 
   it("draws one column per status, in order, with its count", () => {
@@ -70,6 +87,13 @@ describe("the board", () => {
     expect(html).toContain("Nobody (was Leo)")
     expect(html).toContain("3 of 3 steps done")
     expect(html).toContain("Overdue · ")
+  })
+
+  it("shows labels and the section on a card, and keeps old Done tasks behind Show older", () => {
+    expect(html).toContain("Client")
+    expect(html).toContain("Design")
+    expect(html).toContain("Show 1 older")
+    expect(html).not.toContain("Ancient")
   })
 })
 
@@ -141,6 +165,8 @@ describe("the Projects dashboard", () => {
               name: "Website",
               color: "blue",
               archived: false,
+              starred: false,
+              dueDate: "2020-01-01",
               memberCount: 3,
               counts: { todo: 2, doing: 1, done: 4, stuck: 1 },
             },
@@ -149,6 +175,8 @@ describe("the Projects dashboard", () => {
               name: "Old launch",
               color: "red",
               archived: true,
+              starred: false,
+              dueDate: null,
               memberCount: 1,
               counts: { todo: 0, doing: 0, done: 2, stuck: 0 },
             },
@@ -175,20 +203,36 @@ describe("the invite page", () => {
 
 describe("the project page", () => {
   const page: ProjectPage = {
-    project: { id: "p1", name: "Website", color: "blue", description: "New site", archived: false },
+    project: {
+      id: "p1",
+      name: "Website",
+      color: "blue",
+      description: "New site",
+      archived: false,
+      starred: true,
+      dueDate: null,
+      personal: false,
+    },
+    sections: [{ id: "s1", name: "Design" }],
+    labels: [{ id: "l1", name: "Client", color: "pink" }],
     myUserId: "me",
     myRole: "owner",
     members: [
-      { userId: "me", name: "Tyler", email: "t@example.test", avatarUrl: "", role: "owner", openTasks: 1 },
-      { userId: "ben", name: "Ben Ortiz", email: "b@example.test", avatarUrl: "", role: "member", openTasks: 3 },
+      { userId: "me", name: "Tyler", email: "t@example.test", avatarUrl: "", role: "owner", title: null, openTasks: 1 },
+      { userId: "ben", name: "Ben Ortiz", email: "b@example.test", avatarUrl: "", role: "member", title: "Designer", openTasks: 3 },
     ],
     addable: [{ userId: "leo", name: "Leo", email: "l@example.test", avatarUrl: "" }],
     tasks,
+    otherProjects: [],
   }
 
   it("draws details, tasks and members", () => {
-    const html = renderToStaticMarkup(<ProjectWorkspace page={page} openTaskId={undefined} />)
+    const html = renderToStaticMarkup(
+      <ProjectWorkspace page={page} openTaskId={undefined} filters={{}} />
+    )
     expect(html).toContain(`aria-label="Project settings"`)
+    expect(html).toContain(`aria-label="Unstar Website"`)
+    expect(html).toContain("Search tasks")
     expect(html).toContain("New site")
     expect(html).toContain("Board")
     expect(html).toContain("New task")
@@ -199,10 +243,22 @@ describe("the project page", () => {
 
   it("locks an archived project", () => {
     const html = renderToStaticMarkup(
-      <ProjectWorkspace page={{ ...page, project: { ...page.project, archived: true } }} openTaskId={undefined} />
+      <ProjectWorkspace
+        page={{ ...page, project: { ...page.project, archived: true } }}
+        openTaskId={undefined}
+        filters={{}}
+      />
     )
     expect(html).toContain("This project is archived")
     expect(html).toContain("Bring it back from the cog")
     expect(html).not.toContain("New task")
+  })
+
+  it("says so when a search matches nothing", () => {
+    const html = renderToStaticMarkup(
+      <ProjectWorkspace page={page} openTaskId={undefined} filters={{ q: "zebra" }} />
+    )
+    expect(html).toContain("No tasks match")
+    expect(html).toContain("zebra")
   })
 })

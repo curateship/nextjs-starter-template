@@ -74,6 +74,32 @@ the code. If the code disagrees with a line here, the code is wrong.
 - **Price.** Project will become its own paid subscription product. It is free
   for now, and there is no billing work until Tyler decides on pricing.
 
+## Choices for the next features
+
+Tyler answered these on 10 Oct 2026, before the Next features tasks 02 to 08
+were built.
+
+- **The team's morning notice** goes out 30 minutes after the latest check-in
+  time in the team, so its numbers are complete.
+- **Dragging tasks into order** sets one order for the whole project, which
+  everyone on it sees.
+- **A step given to someone** shows only inside its task, never in their My
+  tasks or check-in. Work they should pick at check-in becomes its own task.
+- **A repeating task** whose last copy isn't Done skips its turn, so copies
+  never pile up.
+- **A "Just me" task** can later be moved into a project.
+- **The bin.** Whoever could delete a task can bring it back. Emptying the bin
+  early is for owners and admins.
+- **Copying a project** leaves every task's due date empty.
+- **Time off.** Each person marks their own days off, and owners and admins can
+  mark them for anyone.
+- **Needs attention** is a tab in the Team dashboard's right panel, beside the
+  day's check-ins, for owners and admins.
+- **Handing over all of someone's tasks** never adds the receiver to a
+  project. Tasks in projects they aren't on are left with nobody assigned.
+- **The team join link** lets people in straight away, with no approval.
+  Owners and admins hear about each join in the bell.
+
 ## The first version
 
 - Teams, email invites, projects and tasks.

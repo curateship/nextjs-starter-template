@@ -1,9 +1,12 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { ArchiveIcon, ArchiveRestoreIcon, PlusIcon } from "lucide-react"
+import { ArchiveIcon, ArchiveRestoreIcon, CopyIcon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { CopyProjectDialog } from "@/components/project/copy-project-dialog"
 import { NewProjectDialog } from "@/components/project/new-project-dialog"
+import { ProjectProgress } from "@/components/project/project-progress"
+import { StarButton } from "@/components/project/star-button"
 import { ProjectDot } from "@/components/project/task-bits"
 import { InvitesForMe, TeamStart } from "@/components/project/team-start"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -37,11 +40,12 @@ import { pageGutter } from "@/lib/layout/shell-gutter"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-type Column = "name" | "open" | "stuck" | "members"
+type Column = "name" | "progress" | "open" | "stuck" | "members"
 type Group = "active" | "archived"
 
 const COLUMNS: SortableColumn<Column>[] = [
   { key: "name", label: "Project", column: "main", className: "min-w-0 md:min-w-72" },
+  { key: "progress", label: "Progress", column: "preview" },
   { key: "open", label: "Open tasks", column: "preview" },
   { key: "stuck", label: "Stuck", column: "preview" },
   { key: "members", label: "Members", column: "preview" },
@@ -70,6 +74,7 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
   const [group, setGroup] = React.useState<Group>("active")
   const [query, setQuery] = React.useState("")
   const [creating, setCreating] = React.useState(false)
+  const [copyingRow, setCopyingRow] = React.useState<ProjectListRow | null>(null)
   const { sort, direction, toggleSort } = useTableSort<Column>("name")
   const selection = useSelection()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
@@ -83,11 +88,19 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
     const sign = direction === "asc" ? 1 : -1
     const needle = query.trim().toLowerCase()
     const valueOf = (row: ProjectListRow) =>
-      sort === "open" ? openTasks(row) : sort === "stuck" ? row.counts.stuck : row.memberCount
+      sort === "progress"
+        ? row.counts.done / Math.max(1, openTasks(row) + row.counts.done)
+        : sort === "open"
+          ? openTasks(row)
+          : sort === "stuck"
+            ? row.counts.stuck
+            : row.memberCount
     return projects
       .filter((row) => row.archived === (group === "archived"))
       .filter((row) => !needle || row.name.toLowerCase().includes(needle))
       .sort((a, b) => {
+        // Starred projects come first whatever the sort, as each person's own shortcut.
+        if (a.starred !== b.starred) return a.starred ? -1 : 1
         if (sort === "name") return a.name.localeCompare(b.name) * sign
         return (valueOf(a) - valueOf(b)) * sign || a.name.localeCompare(b.name)
       })
@@ -195,7 +208,7 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
               ? "No archived projects."
               : "No projects yet. Make one with New project."
         }
-        emptyColSpan={6}
+        emptyColSpan={7}
         footer={footer}
       >
         {visible.map((row) => {
@@ -216,10 +229,23 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
                   <span className="truncate font-medium">{row.name}</span>
                 </span>
               </TableCell>
+              <TableCell column="preview">
+                <ProjectProgress counts={row.counts} dueDate={row.dueDate} />
+              </TableCell>
               <TableCell column="preview">{openTasks(row)}</TableCell>
               <TableCell column="preview">{row.counts.stuck}</TableCell>
               <TableCell column="preview">{row.memberCount}</TableCell>
               <TableCell column="actions">
+                <StarButton project={row} />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Copy ${row.name}`}
+                  onClick={() => setCopyingRow(row)}
+                >
+                  <CopyIcon className="size-4" />
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
@@ -240,6 +266,9 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
         })}
       </DashboardTable>
       <NewProjectDialog open={creating} onClose={() => setCreating(false)} />
+      {copyingRow ? (
+        <CopyProjectDialog project={copyingRow} open onClose={() => setCopyingRow(null)} />
+      ) : null}
     </>
   )
 }

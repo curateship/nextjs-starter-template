@@ -106,8 +106,36 @@ export const INVITE_LIFETIME_DAYS = 7
 /** What a check-in holds: a task worked on that day, or one let go from the last check-in. */
 export type CheckinItemKind = "pick" | "drop"
 
-/** The moments of a task's life its history shows beside the days it was picked. */
-export type TaskEventKind = "handed_over" | "accepted" | "handed_back"
+/** A due date coming up, or one that has passed. */
+export type DueReminderKind = "due_soon" | "overdue"
+
+/** More due reminders than this for one person at once become one notice. */
+export const DUE_REMINDERS_BEFORE_GROUPING = 3
+
+/** The team's morning notice waits this long after the latest check-in time. */
+export const MORNING_NOTICE_DELAY_MINUTES = 30
+
+/**
+ * The moments of a task's life its history shows beside the days it was
+ * picked. Saved kinds are never renamed; new ones are added.
+ */
+export type TaskEventKind =
+  | "handed_over"
+  | "accepted"
+  | "handed_back"
+  /** On the task a step came from: the step became its own task. */
+  | "became_task"
+  /** On the new task: it was a step in another task. */
+  | "from_step"
+  /** Moved here from another project; the reason holds that project's name. */
+  | "moved"
+  /** Put in the bin, and brought back out of it. */
+  | "deleted"
+  | "restored"
+  /** For the project's Activity tab, from 11 Oct 2026; the reason holds the new status. */
+  | "created"
+  | "status_changed"
+  | "commented"
 
 /**
  * A task picked on this many days and still not Done gets a mark saying so,
@@ -132,7 +160,32 @@ export const LIMITS = {
   filesPerTask: 10,
   fileBytes: 10 * 1024 * 1024,
   teamFileBytes: 5 * 1024 * 1024 * 1024,
+  labelName: 40,
+  labelsPerTeam: 100,
+  sectionName: 60,
+  sectionsPerProject: 30,
+  /** Tasks one pasted list can make. */
+  tasksPerPaste: 50,
+  memberTitle: 40,
 } as const
+
+/** People who can join through one team link in a day, so a leaked link can't fill the team. */
+export const JOINS_PER_LINK_PER_DAY = 20
+
+/** How a task repeats: every team work day, on chosen week days, or on a date each month. */
+export const REPEAT_EVERY = ["workday", "week", "month"] as const
+export type RepeatEvery = (typeof REPEAT_EVERY)[number]
+
+/** A deleted task waits in its project's bin this long before it is gone for good. */
+export const BIN_DAYS = 30
+
+/** What "Just me" tasks sit under, as a project name nobody else ever sees. */
+export const PERSONAL_PROJECT_NAME = "Just me"
+/** How a screen names a person's "Just me" project before it exists. */
+export const PERSONAL_PROJECT_ID = "personal"
+
+/** The Board's Done column shows tasks finished in this many days; older ones wait behind "Show older". */
+export const DONE_RECENT_DAYS = 14
 
 const id = z.string().min(1).max(36)
 const trimmed = (max: number, what: string) =>
@@ -206,6 +259,11 @@ export const createProjectSchema = z.object({
 
 export const updateProjectSchema = z.object({
   projectId: id,
+  dueDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date from the calendar.")
+    .nullable()
+    .optional(),
   name: trimmed(LIMITS.projectName, "The project name").optional(),
   color: projectColorSchema.optional(),
   description: z.string().trim().max(LIMITS.projectDescription).optional(),
@@ -218,6 +276,26 @@ const notesSchema = z
   .unknown()
   .transform(storedTaskNotes)
   .refine((notes) => notes.length <= LIMITS.taskNotes, "The notes are too long. Split them up or attach a file.")
+
+const dayKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date from the calendar.")
+
+export const timeOffSchema = z.object({
+  userId: id.optional(),
+  firstDay: dayKey,
+  lastDay: dayKey,
+})
+
+export const memberTitleSchema = z.object({
+  userId: id.optional(),
+  title: z.string().trim().max(LIMITS.memberTitle, "A job title can be at most 40 characters.").nullable(),
+})
+
+export const handOverAllSchema = z.object({ fromUserId: id, toUserId: id })
+
+export const copyProjectSchema = z.object({
+  projectId: id,
+  name: trimmed(LIMITS.projectName, "The project name"),
+})
 
 const dueDateSchema = z
   .string()
@@ -241,6 +319,80 @@ export const updateTaskSchema = z.object({
   title: trimmed(LIMITS.taskTitle, "The task title").optional(),
   notes: notesSchema.optional(),
   dueDate: dueDateSchema.optional(),
+  sectionId: id.nullable().optional(),
+  snoozedUntil: dueDateSchema.optional(),
+})
+
+export const setRepeatSchema = z.object({
+  taskId: id,
+  repeat: z
+    .discriminatedUnion("every", [
+      z.object({ every: z.literal("workday") }),
+      z.object({
+        every: z.literal("week"),
+        weekDays: z
+          .array(z.number().int().min(0).max(6))
+          .min(1, "Pick at least one day of the week.")
+          .max(7)
+          .transform((days) => [...new Set(days)].sort()),
+      }),
+      z.object({ every: z.literal("month"), monthDay: z.number().int().min(1).max(31) }),
+    ])
+    .nullable(),
+})
+
+export const setWaitingOnSchema = z.object({
+  taskId: id,
+  waitingOnTaskId: id.nullable(),
+})
+
+export const createTasksFromLinesSchema = z.object({
+  projectId: id,
+  titles: z.array(trimmed(LIMITS.taskTitle, "The task title")).min(1).max(LIMITS.tasksPerPaste),
+  assigneeUserId: id.nullable(),
+  dueDate: dueDateSchema.default(null),
+})
+
+export const updateStepSchema = z.object({
+  stepId: id,
+  text: trimmed(LIMITS.stepText, "A step").optional(),
+  done: z.boolean().optional(),
+  assigneeUserId: id.nullable().optional(),
+  dueDate: dueDateSchema.optional(),
+})
+
+export const bulkChangeSchema = z.object({
+  taskIds: z.array(id).min(1).max(200),
+  change: z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("status"),
+      status: z.enum(TASK_STATUSES),
+      stuckReason: reasonSchema.nullable().default(null),
+    }),
+    z.object({ kind: z.literal("assign"), assigneeUserId: id.nullable() }),
+    z.object({ kind: z.literal("due"), dueDate: dueDateSchema }),
+    z.object({ kind: z.literal("move"), projectId: id }),
+  ]),
+})
+
+export const labelSchema = z.object({
+  name: trimmed(LIMITS.labelName, "The label name"),
+  color: projectColorSchema,
+})
+
+export const updateLabelSchema = labelSchema.partial().extend({ labelId: id })
+
+export const setTaskLabelsSchema = z.object({
+  taskId: id,
+  labelIds: z.array(id).max(LIMITS.labelsPerTeam),
+})
+
+export const sectionNameSchema = trimmed(LIMITS.sectionName, "The section name")
+
+export const reorderTasksSchema = z.object({
+  projectId: id,
+  /** The tasks being arranged, in their new order. */
+  taskIds: z.array(id).min(1).max(1000),
 })
 
 export const setTaskStatusSchema = z.object({

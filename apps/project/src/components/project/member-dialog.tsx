@@ -2,6 +2,7 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 
 import { PersonAvatar } from "@/components/project/task-bits"
+import { TimeOffSection } from "@/components/project/time-off-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -13,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -26,9 +28,13 @@ import {
   makeTeamOwner,
   type TeamMemberRow,
 } from "@/lib/api/project/teams"
+import { saveMemberTitle } from "@/lib/api/project/team-running"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import {
+  LIMITS,
+  runsTheTeam,
   TEAM_INVITE_ROLES,
   TEAM_ROLE_LABEL,
   type TeamInviteRole,
@@ -119,8 +125,19 @@ export function MemberDialog({
                       Admins can invite and remove people and change the team's settings.
                     </p>
                   </div>
+                  {runsTheTeam(myRole) ? <JobTitleField member={member} /> : null}
                 </CardContent>
               </Card>
+              {runsTheTeam(myRole) ? (
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Time off</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <TimeOffSection userId={member.userId} idPrefix="member-time-off" />
+                  </CardContent>
+                </Card>
+              ) : null}
               {myRole === "owner" && member.role !== "owner" ? (
                 <Card size="sm">
                   <CardHeader>
@@ -160,5 +177,37 @@ export function MemberDialog({
         ) : null}
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Their job title, beside their name everywhere. Saves when the field is left. */
+function JobTitleField({ member }: { member: TeamMemberRow }) {
+  const router = useRouter()
+  const [title, setTitle] = useSyncedDraft(member.title ?? "")
+  const [run] = useAsyncAction(getProjectErrorMessage)
+
+  async function save() {
+    const next = title.trim()
+    if (next === (member.title ?? "")) return
+    if (await run(() => saveMemberTitle({ userId: member.userId, title: next || null }), "Job title saved.")) {
+      await router.invalidate()
+    }
+  }
+
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor="member-title">Job title</Label>
+      <Input
+        id="member-title"
+        value={title}
+        maxLength={LIMITS.memberTitle}
+        placeholder="Copywriter, Designer…"
+        onChange={(event) => setTitle(event.target.value)}
+        onBlur={() => void save()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur()
+        }}
+      />
+    </div>
   )
 }

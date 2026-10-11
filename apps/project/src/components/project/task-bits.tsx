@@ -1,4 +1,12 @@
-import { CircleAlertIcon, ClockIcon, RepeatIcon } from "lucide-react"
+import {
+  CircleAlertIcon,
+  ClockIcon,
+  HourglassIcon,
+  MoonIcon,
+  PlayIcon,
+  Repeat2Icon,
+  RepeatIcon,
+} from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -117,5 +125,62 @@ export function PickedDaysBadge({
       <RepeatIcon aria-hidden />
       Picked on {pickedDays} days
     </Badge>
+  )
+}
+
+/** A label on a card or row: its colour as a dot, and always its name. */
+export function LabelChip({ label }: { label: { name: string; color: ProjectColor } }) {
+  return (
+    <Badge variant="outline" className="max-w-40">
+      <ProjectDot color={label.color} className="size-2" />
+      <span className="truncate">{label.name}</span>
+    </Badge>
+  )
+}
+
+/** "Snoozed until Dec 1", while the day hasn't come. */
+export function SnoozedBadge({ until, today }: { until: string | null; today: string }) {
+  if (!until || until <= today) return null
+  return (
+    <Badge variant="outline">
+      <MoonIcon aria-hidden />
+      Snoozed until {formatUtcDate(`${until}T00:00:00Z`)}
+    </Badge>
+  )
+}
+
+/** "Waiting on: Get the logo approved", or "Ready to start" once it is Done. */
+export function WaitingOnBadge({
+  waitingOn,
+}: {
+  waitingOn: { title: string | null; ready: boolean } | null
+}) {
+  if (!waitingOn) return null
+  if (waitingOn.ready) {
+    return (
+      <Badge variant="outline">
+        <PlayIcon aria-hidden />
+        Ready to start
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="max-w-56">
+      <HourglassIcon aria-hidden />
+      <span className="truncate">
+        Waiting on: {waitingOn.title ?? "1 task in another project"}
+      </span>
+    </Badge>
+  )
+}
+
+/** A small mark on a task that comes back on its own. */
+export function RepeatMark({ repeat }: { repeat: unknown }) {
+  if (!repeat) return null
+  return (
+    <span className="flex items-center gap-1 text-muted-foreground">
+      <Repeat2Icon className="size-3" aria-hidden />
+      Repeats
+    </span>
   )
 }

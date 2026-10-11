@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { and, eq, ne } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import type { TaskEventKind, TaskStatus } from "@/lib/project/rules"
@@ -8,6 +8,7 @@ import type { ProjectDb } from "@/server/project/access"
 import {
   projectCheckinItems,
   projectCheckins,
+  projectProjects,
   projectTaskEvents,
   projectTasks,
 } from "@/server/project/schema"
@@ -30,6 +31,7 @@ export async function recordTaskEvent(
     actorUserId: string
     targetUserId?: string | null
     reason?: string | null
+    relatedTaskId?: string | null
   }
 ) {
   await database.insert(projectTaskEvents).values({
@@ -39,6 +41,7 @@ export async function recordTaskEvent(
     actorUserId: event.actorUserId,
     targetUserId: event.targetUserId ?? null,
     reason: event.reason ?? null,
+    relatedTaskId: event.relatedTaskId ?? null,
     createdAt: new Date(),
   })
 }
@@ -57,11 +60,20 @@ export type TaskHistoryEntry =
     }
   | { kind: "dropped"; at: string; day: string; personName: string; reason: string }
   | {
-      kind: TaskEventKind
+      kind: Exclude<TaskEventKind, "moved">
       at: string
       actorName: string
       targetName: string | null
       reason: string | null
+      /** The task a step became or came from, when the reader can see it. */
+      relatedTask: { id: string; projectId: string; title: string } | null
+    }
+  | {
+      kind: "moved"
+      at: string
+      actorName: string
+      /** The project it came from, named only when the reader can see it. */
+      fromProjectName: string | null
     }
 
 const FORMER_MEMBER = "A former member"
@@ -72,7 +84,9 @@ const FORMER_MEMBER = "A former member"
  */
 export async function loadTaskHistory(
   taskId: string,
-  database: ProjectDb = db
+  database: ProjectDb = db,
+  /** Projects the reader can see; a linked task elsewhere loses its link. */
+  visibleProjects: ReadonlySet<string> = new Set()
 ): Promise<TaskHistoryEntry[]> {
   const days = await database
     .select({
@@ -94,6 +108,8 @@ export async function loadTaskHistory(
 
   const actor = alias(customShellUsers, "actor")
   const target = alias(customShellUsers, "target")
+  const related = alias(projectTasks, "related")
+  const movedFrom = alias(projectProjects, "moved_from")
   const events = await database
     .select({
       kind: projectTaskEvents.kind,
@@ -101,11 +117,23 @@ export async function loadTaskHistory(
       reason: projectTaskEvents.reason,
       actorName: actor.name,
       targetName: target.name,
+      relatedId: related.id,
+      relatedProjectId: related.projectId,
+      relatedTitle: related.title,
+      movedFromId: movedFrom.id,
+      movedFromName: movedFrom.name,
     })
     .from(projectTaskEvents)
     .leftJoin(actor, eq(actor.id, projectTaskEvents.actorUserId))
     .leftJoin(target, eq(target.id, projectTaskEvents.targetUserId))
-    .where(eq(projectTaskEvents.taskId, taskId))
+    .leftJoin(related, eq(related.id, projectTaskEvents.relatedTaskId))
+    // A move keeps the old project's id in its reason.
+    .leftJoin(
+      movedFrom,
+      and(eq(projectTaskEvents.kind, "moved"), eq(movedFrom.id, projectTaskEvents.reason))
+    )
+    // A message is already in the task's chat, so its history doesn't repeat it.
+    .where(and(eq(projectTaskEvents.taskId, taskId), ne(projectTaskEvents.kind, "commented")))
 
   const entries: TaskHistoryEntry[] = [
     ...days.map((row): TaskHistoryEntry =>
@@ -127,14 +155,26 @@ export async function loadTaskHistory(
             liveStatus: row.closedAt ? null : row.liveStatus,
           }
     ),
-    ...events.map(
-      (row): TaskHistoryEntry => ({
-        kind: row.kind,
-        at: row.at.toISOString(),
-        actorName: row.actorName ?? FORMER_MEMBER,
-        targetName: row.targetName,
-        reason: row.reason,
-      })
+    ...events.map((row): TaskHistoryEntry =>
+      row.kind === "moved"
+        ? {
+            kind: "moved",
+            at: row.at.toISOString(),
+            actorName: row.actorName ?? FORMER_MEMBER,
+            fromProjectName:
+              row.movedFromId && visibleProjects.has(row.movedFromId) ? row.movedFromName : null,
+          }
+        : {
+            kind: row.kind,
+            at: row.at.toISOString(),
+            actorName: row.actorName ?? FORMER_MEMBER,
+            targetName: row.targetName,
+            reason: row.reason,
+            relatedTask:
+              row.relatedId && row.relatedProjectId && visibleProjects.has(row.relatedProjectId)
+                ? { id: row.relatedId, projectId: row.relatedProjectId, title: row.relatedTitle ?? "" }
+                : null,
+          }
     ),
   ]
   return entries.sort((a, b) => a.at.localeCompare(b.at))

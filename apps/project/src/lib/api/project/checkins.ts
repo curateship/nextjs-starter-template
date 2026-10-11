@@ -2,16 +2,18 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { isRealDay } from "@/lib/project/days"
-import { myCheckinTimeSchema, submitCheckinSchema } from "@/lib/project/rules"
+import { myCheckinTimeSchema, submitCheckinSchema, timeOffSchema } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
 import { findMembership } from "@/server/project/access"
 import { addPick, removePick, setMyCheckinTime, submitCheckin } from "@/server/project/checkins"
 import { listInvitesForMe } from "@/server/project/invites"
 import { loadMyDashboard } from "@/server/project/my-dashboard"
 import { loadTeamDay, loadTeamMonth } from "@/server/project/team-days"
+import { addTimeOff, listTimeOffFor, removeTimeOff } from "@/server/project/time-off"
 
 export type { CheckinAnswer, CheckinClock, CheckinPage } from "@/server/project/checkins"
 export type { MyDashboard } from "@/server/project/my-dashboard"
+export type { CheckinRecord, TimeOff } from "@/server/project/time-off"
 export type {
   TeamDay,
   TeamDayPerson,
@@ -83,4 +85,29 @@ export function saveMyCheckinTime(data: z.input<typeof myCheckinTimeSchema>) {
 }
 export function loadTeamCheckins(data: { month?: string; day?: string }) {
   return loadTeamCheckinsFn({ data })
+}
+
+const addTimeOffFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(timeOffSchema)
+  .handler(async ({ data, context }) => addTimeOff(context.user.id, data))
+
+const removeTimeOffFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ timeOffId: id }))
+  .handler(async ({ data, context }) => removeTimeOff(context.user.id, data.timeOffId))
+
+const listTimeOffFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ userId: id.optional() }))
+  .handler(async ({ data, context }) => listTimeOffFor(context.user.id, data.userId))
+
+export function addDaysOff(data: z.input<typeof timeOffSchema>) {
+  return addTimeOffFn({ data })
+}
+export function removeDaysOff(timeOffId: string) {
+  return removeTimeOffFn({ data: { timeOffId } })
+}
+export function loadDaysOff(userId?: string) {
+  return listTimeOffFn({ data: { userId } })
 }
