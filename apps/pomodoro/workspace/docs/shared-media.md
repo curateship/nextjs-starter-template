@@ -79,7 +79,7 @@ check", or "Taken off".
 
 - **The "+" adds it to your personal room.** The server lets a member pick a
   file that is theirs, or one shared with them, with nobody blocked. If the
-  owner unshares, bins or deletes it, the room falls back to the default scene
+  owner unshares, bins or deletes it, the room falls back to the default background
   or to silence on the next load.
 - **The heart saves it** to your Saved list without changing what plays
   (`pomodoro_saved_media`). A file that stops being shared drops out of Saved
@@ -119,7 +119,7 @@ A host can play a shared file in their room (task 04).
   with its name and credit. The room's line reads the file's name.
 - **The fallback.** Once the file is unshared, binned or taken off, or its
   owner and the host block each other, the room plays silence or draws the
-  default scene for everybody. When one viewer and the owner block each other,
+  default background for everybody. When one viewer and the owner block each other,
   it stops for that viewer only. Unsharing, binning and an admin's take-down
   nudge every open room playing the file, so the change shows within a second
   or two rather than at the room's next phase. Measured: a member in the room
@@ -194,7 +194,7 @@ same menu plus "Delete the file". Each press writes one row to
   minute, like the live figures, so visits cost no queries.
 - **Add to catalogue** copies the file into the catalogue as a Draft credited
   "@sarah", with its page as the source and a licence note saying the member
-  confirmed the right to share. It opens the theme or sound window. The
+  confirmed the right to share. It opens the background or sound window. The
   catalogue's worker still holds sounds to 2 to 5 minutes, so a short loop is
   refused there with the usual sentence.
 - **Made-up members share free files.** Settings → App settings → Made-up

@@ -31,6 +31,7 @@ import {
   AdminListTable,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
 import { MemberName } from "@/components/pomodoro/admin-member-name"
 import {
   AdminBulkDeleteButton,
@@ -74,7 +75,11 @@ type SortColumn = ReportSortColumn
 type Decision = "pending" | "resolved" | "dismissed"
 
 /** The press the screen is waiting on, or null when nothing is in flight. */
-type PendingDecision = { rowId: string | null; decision: Decision } | null
+/** Hide and Unhide wait on the server too, under their own names. */
+type PendingDecision = {
+  rowId: string | null
+  decision: Decision | "hide" | "unhide"
+} | null
 
 /** Where a press came from. A toolbar press is a bulk one even over one row. */
 type PressFrom = "row" | "toolbar"
@@ -190,7 +195,7 @@ export function AdminReportsDashboard({
   const personName = person
     ? (list.rows.find((row) => row.subjectUserId === person)?.subjectName ??
       list.rows.find((row) => row.reporterUserId === person)?.reporterName ??
-      "one person")
+      null)
     : null
 
   const { clear: clearSelection } = selection
@@ -216,15 +221,15 @@ export function AdminReportsDashboard({
           decision
         )
         if (bulk) {
-          toast.success(
-            describeBulkResult({
-              done: reviewed.length,
-              kept: skipped.length,
-              one: "report",
-              many: "reports",
-              verb: DONE_VERB[decision],
-            })
-          )
+          const line = describeBulkResult({
+            done: reviewed.length,
+            kept: skipped.length,
+            one: "report",
+            many: "reports",
+            verb: DONE_VERB[decision],
+          })
+          if (reviewed.length) toast.success(line)
+          else showErrorToast(line)
           clearSelection()
         } else if (reviewed.length) {
           toast.success(DONE_TEXT[decision])
@@ -276,21 +281,22 @@ export function AdminReportsDashboard({
    */
   const hide = React.useCallback(
     async (reportIds: string[], hidden: boolean) => {
-      setPending({ rowId: null, decision: "resolved" })
+      setPending({ rowId: null, decision: hidden ? "hide" : "unhide" })
       try {
         const { changed, skipped } = await hidePomodoroProfiles(
           reportIds,
           hidden
         )
-        toast.success(
-          describeBulkResult({
-            done: changed.length,
-            kept: skipped.length,
-            one: "profile",
-            many: "profiles",
-            verb: hidden ? "hidden" : "restored",
-          })
-        )
+        const line = describeBulkResult({
+          done: changed.length,
+          kept: skipped.length,
+          one: "profile",
+          many: "profiles",
+          verb: hidden ? "hidden" : "restored",
+          keptReason: hidden ? "already hidden" : "already showing",
+        })
+        if (changed.length) toast.success(line)
+        else showErrorToast(line)
         clearSelection()
         await refresh()
       } catch (error) {
@@ -321,6 +327,9 @@ export function AdminReportsDashboard({
     selection,
     onDone: refresh,
   })
+  // One running action holds every other button on the list until it ends.
+  const busy =
+    pending !== null || del.deleting || fileDel.deleting || shareActions.busy
 
   return (
     <>
@@ -336,17 +345,10 @@ export function AdminReportsDashboard({
         selection={{ noun: "reports", rowIds, state: selection }}
         filters={
           person ? (
-            <p className="flex items-center gap-2 text-sm">
-              Reports by or about {personName}.
-              <Button
-                type="button"
-                variant="link"
-                className="h-auto p-0"
-                onClick={() => setListSearch({ person: undefined, page: undefined })}
-              >
-                Show everyone
-              </Button>
-            </p>
+            <AdminPersonFilter
+              name={personName}
+              onClear={() => setListSearch({ person: undefined, page: undefined })}
+            />
           ) : undefined
         }
         list={list}
@@ -365,6 +367,7 @@ export function AdminReportsDashboard({
                   label="Resolve"
                   count={selectedIds.length}
                   pending={pending}
+                  busy={busy}
                   onClick={() => void decide(selectedIds, "resolved", "toolbar")}
                 />
                 <BulkDecisionButton
@@ -373,6 +376,7 @@ export function AdminReportsDashboard({
                   label="Dismiss"
                   count={selectedIds.length}
                   pending={pending}
+                  busy={busy}
                   onClick={() => void decide(selectedIds, "dismissed", "toolbar")}
                 />
                 <BulkDecisionButton
@@ -381,35 +385,44 @@ export function AdminReportsDashboard({
                   label="Reopen"
                   count={selectedIds.length}
                   pending={pending}
+                  busy={busy}
                   onClick={() => void decide(selectedIds, "pending", "toolbar")}
                 />
                 {/* Hiding is the one power an operator has over a profile, and
                     it means nothing for a message report. */}
                 {selectedProfileIds.length ? (
                   <>
-                    <Button
+                    <DashboardToolbarButton
+                      type="button"
                       variant="outline"
-                      size="sm"
-                      disabled={Boolean(pending)}
+                      disabled={busy}
                       onClick={() => void hide(selectedProfileIds, true)}
                     >
-                      <EyeOffIcon className="size-4" aria-hidden="true" />
-                      Hide {selectedProfileIds.length}
-                    </Button>
-                    <Button
+                      {pending?.decision === "hide" ? (
+                        <Loader2Icon className="size-4 animate-spin" />
+                      ) : (
+                        <EyeOffIcon className="size-4" aria-hidden="true" />
+                      )}
+                      Hide ({selectedProfileIds.length})
+                    </DashboardToolbarButton>
+                    <DashboardToolbarButton
+                      type="button"
                       variant="outline"
-                      size="sm"
-                      disabled={Boolean(pending)}
+                      disabled={busy}
                       onClick={() => void hide(selectedProfileIds, false)}
                     >
-                      <EyeIcon className="size-4" aria-hidden="true" />
-                      Unhide
-                    </Button>
+                      {pending?.decision === "unhide" ? (
+                        <Loader2Icon className="size-4 animate-spin" />
+                      ) : (
+                        <EyeIcon className="size-4" aria-hidden="true" />
+                      )}
+                      Unhide ({selectedProfileIds.length})
+                    </DashboardToolbarButton>
                   </>
                 ) : null}
               </>
             ) : null}
-            <AdminBulkDeleteButton del={del} ids={selectedIds} />
+            <AdminBulkDeleteButton del={del} ids={selectedIds} busy={busy} />
             <DashboardToolbarSearch
               name="report-search"
               aria-label="Search reports"
@@ -521,6 +534,7 @@ export function AdminReportsDashboard({
                     label={`Resolve the report about ${reportSubject(row)}`}
                     rowId={row.id}
                     pending={pending}
+                    busy={busy}
                     onClick={() => void decide([row.id], "resolved", "row")}
                   />
                   <RowDecisionButton
@@ -529,6 +543,7 @@ export function AdminReportsDashboard({
                     label={`Dismiss the report about ${reportSubject(row)}`}
                     rowId={row.id}
                     pending={pending}
+                    busy={busy}
                     onClick={() => void decide([row.id], "dismissed", "row")}
                   />
                 </>
@@ -539,6 +554,7 @@ export function AdminReportsDashboard({
                   label={`Reopen the report about ${reportSubject(row)}`}
                   rowId={row.id}
                   pending={pending}
+                  busy={busy}
                   onClick={() => void decide([row.id], "pending", "row")}
                 />
               )}
@@ -553,12 +569,14 @@ export function AdminReportsDashboard({
                   }}
                   actions={shareActions}
                   onDeleteFile={() => fileDel.ask([row.mediaId!])}
+                  busy={busy}
                 />
               ) : null}
               <AdminRowDeleteButton
                 del={del}
                 id={row.id}
                 label={`Delete the report about ${reportSubject(row)}`}
+                busy={busy}
               />
             </TableCell>
           </TableRow>
@@ -573,7 +591,7 @@ export function AdminReportsDashboard({
       <AdminDeleteConfirm
         del={fileDel}
         title="Delete this file?"
-        description="The file is removed from storage and leaves its owner's uploads. Anybody using it falls back to the default scene or to silence. The owner is not told. This cannot be undone."
+        description="The file is removed from storage and leaves its owner's uploads. Anybody using it falls back to the default background or to silence. The owner is not told. This cannot be undone."
         confirmLabel="Delete file"
       />
       <UnshareDialog actions={shareActions} />
@@ -723,6 +741,7 @@ function RowDecisionButton({
   label,
   rowId,
   pending,
+  busy,
   onClick,
 }: {
   decision: Decision
@@ -730,6 +749,8 @@ function RowDecisionButton({
   label: string
   rowId: string
   pending: PendingDecision
+  /** Any action on the list is running. */
+  busy: boolean
   onClick: () => void
 }) {
   const spinning = pending?.rowId === rowId && pending.decision === decision
@@ -739,7 +760,7 @@ function RowDecisionButton({
       type="button"
       variant="ghost"
       size="icon"
-      disabled={pending !== null}
+      disabled={busy}
       onClick={onClick}
       aria-label={label}
     >
@@ -755,6 +776,7 @@ function BulkDecisionButton({
   label,
   count,
   pending,
+  busy,
   onClick,
 }: {
   decision: Decision
@@ -762,6 +784,8 @@ function BulkDecisionButton({
   label: string
   count: number
   pending: PendingDecision
+  /** Any action on the list is running. */
+  busy: boolean
   onClick: () => void
 }) {
   const spinning = pending?.rowId === null && pending?.decision === decision
@@ -770,7 +794,7 @@ function BulkDecisionButton({
     <DashboardToolbarButton
       type="button"
       variant={decision === "resolved" ? "default" : "outline"}
-      disabled={pending !== null}
+      disabled={busy}
       onClick={onClick}
     >
       {spinning ? <Loader2Icon className="size-4 animate-spin" /> : icon}

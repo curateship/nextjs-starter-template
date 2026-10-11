@@ -23,6 +23,7 @@ export const Route = createFileRoute("/_pomodoro/uploads")({
       ? { purchase: search.purchase }
       : {}),
   }),
+  head: () => ({ meta: [{ title: "My uploads — Pomoder" }] }),
   component: UploadsRoute,
 })
 

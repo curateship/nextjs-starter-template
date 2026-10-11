@@ -103,7 +103,7 @@ function RoomPairFields({
         </Select>
       </div>
       <div className="grid gap-2">
-        <FieldLabel htmlFor={`${idPrefix}-theme`}>Theme</FieldLabel>
+        <FieldLabel htmlFor={`${idPrefix}-theme`}>Background</FieldLabel>
         <Select
           value={background || "none"}
           onValueChange={(value) => onBackground(value === "none" ? "" : value)}
@@ -113,10 +113,10 @@ function RoomPairFields({
           </SelectTrigger>
           <SelectContent position="popper">
             {optional ? <SelectItem value="none">Left to the host</SelectItem> : null}
-            <SelectItem value="shuffle">Shuffle every theme</SelectItem>
+            <SelectItem value="shuffle">Shuffle every background</SelectItem>
             {catalogTags(catalog.themes).map(({ tag }) => (
               <SelectItem key={`tag-${tag}`} value={`tags:${tag}`}>
-                Only {tag} themes
+                Only {tag} backgrounds
               </SelectItem>
             ))}
             {catalog.themes.map((item) => (
@@ -335,7 +335,7 @@ export function AdminRoomDialog({
                   </Card>
                   <Card size="sm">
                     <CardHeader>
-                      <CardTitle>Sound and theme</CardTitle>
+                      <CardTitle>Sound and background</CardTitle>
                     </CardHeader>
                     <CardContent className="grid gap-4">
                       <RoomPairFields

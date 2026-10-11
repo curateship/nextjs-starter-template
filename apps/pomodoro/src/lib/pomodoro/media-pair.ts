@@ -278,11 +278,11 @@ export function roomPairProblemMessage(problem: RoomPairProblem) {
     case "no_sound":
       return "Pick a sound for the room."
     case "no_background":
-      return "Pick a theme for the room."
+      return "Pick a background for the room."
     case "bad_sound":
       return "That sound cannot be used in a room. Pick one from the list."
     case "bad_background":
-      return "That theme cannot be used in a room. Pick one from the list."
+      return "That background cannot be used in a room. Pick one from the list."
   }
 }
 
@@ -320,7 +320,7 @@ export function soundLabelFor(catalog: MediaCatalog, sound: string | null) {
 export function themeLabelFor(catalog: MediaCatalog, background: string | null) {
   const pool = parseMediaPool(background)
   if (pool)
-    return pool.mode === "shuffle" ? "Shuffled themes" : `${pool.tags.join(", ")} themes`
+    return pool.mode === "shuffle" ? "Shuffled backgrounds" : `${pool.tags.join(", ")} backgrounds`
   if (parseBackgroundReference(background)?.type === "media") return "A shared background"
   return sceneFor(catalog, background)?.label ?? null
 }

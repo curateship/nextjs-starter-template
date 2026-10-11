@@ -4,7 +4,21 @@ The whole product works without an account: timer, tasks, settings, sound,
 background, theme and presets all save in the browser. The `_pomodoro`
 layout admits guests (it only forwards to `/login` for pages that truly
 need an account, like History's data), and the product header shows Log in
-/ Register instead of the account menu.
+and Sign up instead of the account menu.
+
+## One word for logging in, one for signing up
+
+Tyler, 10 Oct 2026 (Polish 3 task 07), picked **"Log in"** and **"Sign up"**.
+Every button, link and sentence on Pomoder's own screens uses them: the
+header, Rooms, the room and group invites, History, Settings, the Leaderboard,
+Sounds, Backgrounds, the follow button and the Pro-only notes ("Log in on a
+Pro plan…"). A button that sends a guest to log in and back is the shared
+`SignInButton` (`src/components/pomodoro/sign-in-button.tsx`), which reads
+"Log in". Sign up always goes to `/register`.
+
+The sign-in and register pages themselves belong to the shell, so they still
+say "Sign in" and "Create an account" until the shell changes. That is a shell
+change for Tyler to decide, not one made from here.
 
 ## How it is wired
 
@@ -16,7 +30,7 @@ need an account, like History's data), and the product header shows Log in
   the page, so the fact is the account and not only "signed in or not". When
   it was only a yes or no, logging out and straight back in as somebody else
   in the same tab changed nothing, and a free account kept the previous
-  admin's Pro scenes and sounds unlocked until a reload.
+  admin's Pro backgrounds and sounds unlocked until a reload.
 - **Guest storage** (`src/lib/pomodoro/guest-storage.ts`) wraps every read
   and write, so blocked storage (private windows, cleared site data) never
   breaks the page — it just means a fresh start. Keys:
@@ -27,9 +41,9 @@ need an account, like History's data), and the product header shows Log in
   finished focus bumps today's count and the picked task locally, and the
   day resets at the browser's midnight. Ticks are never written to
   storage.
-- **Premium stays locked for guests** (sounds, scenes), and guests keep
-  curated scenes only — they never own uploads.
-- **A guest's sound and theme are random on every visit**, free items only,
+- **Premium stays locked for guests** (sounds, backgrounds), and guests keep
+  curated backgrounds only — they never own uploads.
+- **A guest's sound and background are random on every visit**, free items only,
   and nothing about them is kept in the browser. See
   [The personal room](personal-room.md).
 

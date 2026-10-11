@@ -21,6 +21,14 @@ Close sits on a room's row, and over ticked rows as "Close (N)". It asks first.
   cancel it, with its unsent invitations stopped.
 - **A closed room cannot be opened again**, and closing it twice is skipped.
 
+## Delete
+
+Delete asks first, and its window counts what goes with the rooms: the chat
+messages, the reports and the people still inside. If the count fails, that
+window says what goes "could not be counted" and still lets the admin delete.
+The failure belongs to that one selection, so the next Delete window counts
+again rather than staying blank until a reload.
+
 ## The room window
 
 A room's name or its cog opens a window, kept in the address as `?open=<id>`.
@@ -31,7 +39,7 @@ A room's name or its cog opens a window, kept in the address as `?open=<id>`.
   next focus starts by itself. New minutes apply from the next phase, so a
   focus under way keeps its time. A room always takes its long break after four
   focuses; that is fixed in code and not a setting.
-- **The sound and theme**: one Live item, shuffle, or one tag, the same choices
+- **The sound and background**: one Live item, shuffle, or one tag, the same choices
   a host has.
 - **Saving tells everybody inside**, whose screens read the room again, and the
   host hears "An admin changed your room <name>." in the bell.
@@ -57,9 +65,9 @@ the host cancels.
 A preset's breaks go up to 90 minutes, the same as a room a host opens.
 
 `/admin/pomodoro-room-presets` keeps named room setups: a rhythm, whether the
-next focus starts by itself, and if wanted a sound and theme. Hosts see them
+next focus starts by itself, and if wanted a sound and background. Hosts see them
 first in the Rhythm picker when they open a room, as "Pomoder: <name>". Picking
-one fills the timers, and the sound and theme when the preset has them. A room
+one fills the timers, and the sound and background when the preset has them. A room
 made from a preset copies it, so changing the preset later does not change that
 room.
 

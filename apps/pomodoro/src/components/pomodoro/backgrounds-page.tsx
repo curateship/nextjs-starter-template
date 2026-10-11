@@ -134,7 +134,7 @@ export function BackgroundsPage() {
                   label={scene.label}
                   selected={sameBackgroundReference(inUse, reference)}
                   locked={locked}
-                  lockedLabel={`${scene.label}, a Pro scene. ${signedIn ? "See the plans" : "Sign in to see the plans"}`}
+                  lockedLabel={`${scene.label}, a Pro background. ${signedIn ? "See the plans" : "Log in to see the plans"}`}
                   onLockedClick={openPlans}
                   badges={
                     scene.locked || isNewItem(scene.publishedAt, now) ? (

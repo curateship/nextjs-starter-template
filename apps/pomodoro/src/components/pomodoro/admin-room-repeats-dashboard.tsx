@@ -1,6 +1,6 @@
 import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
-import { CalendarSyncIcon, StarIcon, StarOffIcon } from "lucide-react"
+import { CalendarSyncIcon, Loader2Icon, StarIcon, StarOffIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -136,27 +136,30 @@ export function AdminRoomRepeatsDashboard({
   const asked = list.rows.filter((row) => del.ids.includes(row.id))
 
   // A featured rule features every room it books, on Browse rooms.
-  const [featuring, setFeaturing] = React.useState(false)
+  // Which of Feature and Unfeature is running, so only the pressed one spins.
+  const [featuring, setFeaturing] = React.useState<"feature" | "unfeature" | null>(null)
+  // One running action holds every other button on the list until it ends.
+  const busy = featuring !== null || del.deleting
   const feature = async (featured: boolean) => {
-    setFeaturing(true)
+    setFeaturing(featured ? "feature" : "unfeature")
     try {
       const { changed, same } = await featurePomodoroRoomRepeats(selectedIds, featured)
-      toast.success(
-        describeBulkResult({
-          done: changed.length,
-          same: same.length,
-          kept: 0,
-          one: "weekly room",
-          many: "weekly rooms",
-          verb: featured ? "featured" : "unfeatured",
-        })
-      )
+      const line = describeBulkResult({
+        done: changed.length,
+        same: same.length,
+        kept: 0,
+        one: "weekly room",
+        many: "weekly rooms",
+        verb: featured ? "featured" : "unfeatured",
+      })
+      if (changed.length) toast.success(line)
+      else showErrorToast(line)
       selection.clear()
       await list.refresh()
     } catch (error) {
       showErrorToast(getRoomsAdminErrorMessage(error))
     } finally {
-      setFeaturing(false)
+      setFeaturing(null)
     }
   }
 
@@ -177,25 +180,33 @@ export function AdminRoomRepeatsDashboard({
         onPageChange={setPage}
         controls={
           <>
-            <AdminBulkDeleteButton del={del} ids={selectedIds} />
+            <AdminBulkDeleteButton del={del} ids={selectedIds} busy={busy} />
             {selectedIds.length ? (
               <>
                 <DashboardToolbarButton
                   type="button"
                   variant="outline"
-                  disabled={featuring}
+                  disabled={busy}
                   onClick={() => void feature(true)}
                 >
-                  <StarIcon className="size-4" />
+                  {featuring === "feature" ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <StarIcon className="size-4" />
+                  )}
                   Feature
                 </DashboardToolbarButton>
                 <DashboardToolbarButton
                   type="button"
                   variant="outline"
-                  disabled={featuring}
+                  disabled={busy}
                   onClick={() => void feature(false)}
                 >
-                  <StarOffIcon className="size-4" />
+                  {featuring === "unfeature" ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <StarOffIcon className="size-4" />
+                  )}
                   Unfeature
                 </DashboardToolbarButton>
               </>
@@ -270,6 +281,7 @@ export function AdminRoomRepeatsDashboard({
                 del={del}
                 id={row.id}
                 label={`Delete the weekly room ${row.name}`}
+                busy={busy}
               />
             </TableCell>
           </TableRow>

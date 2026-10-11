@@ -467,7 +467,7 @@ function MediaDefaultsCard({
   return (
     <CollapsibleSettingsCard
       storageId="pomodoro-media-defaults"
-      title="Themes and sounds"
+      title="Backgrounds and sounds"
       description="What guests, and members who never picked their own, see and hear."
       contentClassName="grid gap-4"
     >
@@ -478,8 +478,8 @@ function MediaDefaultsCard({
           setShuffle(checked)
           void save.now("media.shuffleUnset", checked)
         }}
-        label="Shuffle themes and sounds for guests and for members who haven't picked their own"
-        hint="A new sound and theme come each time the sound ends, from the free ones for guests. Off, they get the defaults below."
+        label="Shuffle backgrounds and sounds for guests and for members who haven't picked their own"
+        hint="A new sound and background come each time the sound ends, from the free ones for guests. Off, they get the defaults below."
       />
       <div className="flex flex-wrap gap-4">
         <PairSelect
@@ -494,8 +494,8 @@ function MediaDefaultsCard({
         />
         <PairSelect
           id={themeId}
-          label="Default theme"
-          hint="Also what anybody gets when the theme they picked is made a Draft or deleted."
+          label="Default background"
+          hint="Also what anybody gets when the background they picked is made a Draft or deleted."
           value={defaults.background}
           options={freeThemes}
           prefix="scene:"
@@ -585,12 +585,12 @@ function BreakLookCard({
     >
       <PairSelect
         id={themeId}
-        label="Break theme"
-        hint="Replaces everybody's own theme until the break ends. Only free, Live themes, because guests take breaks too."
+        label="Break background"
+        hint="Replaces everybody's own background until the break ends. Only free, Live backgrounds, because guests take breaks too."
         value={look.background}
         options={freeThemes}
         prefix="scene:"
-        emptyLabel="None: everybody keeps their own theme"
+        emptyLabel="None: everybody keeps their own background"
         onChange={(background) => {
           const next = { ...look, background }
           setLook(next)
@@ -680,7 +680,7 @@ function SeasonsCard({
     <CollapsibleSettingsCard
       storageId="pomodoro-seasons"
       title="Seasons"
-      description="A sound and theme that replace the defaults between two dates, such as a snow scene through December. Members who picked their own are not touched."
+      description="A sound and background that replace the defaults between two dates, such as a snowy background through December. Members who picked their own are not touched."
       contentClassName="grid gap-4"
     >
       {seasons.length === 0 ? (
@@ -798,11 +798,11 @@ function SeasonRow({
         />
         <PairSelect
           id={themeId}
-          label="Theme"
+          label="Background"
           value={season.background}
           options={freeThemes}
           prefix="scene:"
-          emptyLabel="Keep the default theme"
+          emptyLabel="Keep the default background"
           onChange={(background) => onChange({ background }, false)}
         />
       </div>
@@ -1206,7 +1206,7 @@ function PixabayCard() {
     <CollapsibleSettingsCard
       storageId="pomodoro-pixabay"
       title="Pixabay"
-      description="The API key Import from Pixabay uses to copy pictures and films onto the Themes page. A free one comes with a Pixabay account at pixabay.com/api/docs. Music links need no key. Pasting a key saves it."
+      description="The API key Import from Pixabay uses to copy pictures and films onto the Backgrounds page. A free one comes with a Pixabay account at pixabay.com/api/docs. Music links need no key. Pasting a key saves it."
       contentClassName="grid gap-4"
     >
       {loadError ? (
@@ -1474,7 +1474,7 @@ function MadeUpMembersCard({ initial }: { initial: AppSettingValue<"simulated.ac
     <CollapsibleSettingsCard
       storageId="pomodoro-made-up-members"
       title="Made-up members"
-      description="Ordinary-looking accounts that focus every day on a habit of their own, so the site never looks empty. Nobody can sign in as one and none is ever emailed. Admin lists mark them Made up; members never see the mark."
+      description="Ordinary-looking accounts that focus every day on a habit of their own, so the site never looks empty. Nobody can log in as one and none is ever emailed. Admin lists mark them Made up; members never see the mark."
       contentClassName="grid gap-4"
     >
       {loadError ? (

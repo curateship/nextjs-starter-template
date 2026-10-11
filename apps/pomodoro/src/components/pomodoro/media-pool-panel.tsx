@@ -55,7 +55,7 @@ type Kind = "sound" | "background"
 
 const NOUN: Record<Kind, { one: string; many: string }> = {
   sound: { one: "sound", many: "sounds" },
-  background: { one: "theme", many: "themes" },
+  background: { one: "background", many: "backgrounds" },
 }
 
 /**

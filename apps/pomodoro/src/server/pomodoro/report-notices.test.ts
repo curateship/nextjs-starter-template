@@ -215,4 +215,25 @@ describe("a hidden profile", () => {
       actorUserId: null,
     })
   })
+  it("counts only the profiles that really changed, so a repeat press says nothing changed", async () => {
+    const admin = await person("Ada", "admin")
+    await person("Sam")
+    await reportProfile({ handle: "sam", reason: "words", reporterUserId: null })
+    const ids = await reportIds()
+
+    expect(await setProfilesHidden({ reportIds: ids, hidden: false, actorUserId: admin })).toMatchObject({
+      changed: [],
+      skipped: ids,
+    })
+    expect(await setProfilesHidden({ reportIds: ids, hidden: true, actorUserId: admin })).toMatchObject({
+      changed: ids,
+      skipped: [],
+    })
+    expect(await setProfilesHidden({ reportIds: ids, hidden: true, actorUserId: admin })).toMatchObject({
+      changed: [],
+    })
+    expect(await setProfilesHidden({ reportIds: ids, hidden: false, actorUserId: admin })).toMatchObject({
+      changed: ids,
+    })
+  })
 })

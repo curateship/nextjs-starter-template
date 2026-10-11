@@ -165,6 +165,20 @@ export function evmMarkets(chain: MarketsChain) {
         item.chainId !== chain.dexChain
       )
         continue
+      // A pair that is not a pool is passed over, not treated as a broken
+      // answer. DexScreener lists a four.meme launch-curve coin under an id
+      // like `0x04ab…ffff:4meme`, which has no chart at GeckoTerminal and no
+      // pool to swap through. Failing the page on it left every BNB Chain
+      // wallet unreadable from late on 8 Oct 2026, and the Active trades
+      // button sat on a two-day-old total because that wallet never answered.
+      if (
+        typeof item === "object" &&
+        item !== null &&
+        "pairAddress" in item &&
+        typeof item.pairAddress === "string" &&
+        !poolId.safeParse(item.pairAddress).success
+      )
+        continue
       const parsed = pairSchema.safeParse(item)
       if (!parsed.success) throw failure("DexScreener")
       const pair = parsed.data

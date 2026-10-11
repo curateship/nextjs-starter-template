@@ -129,7 +129,7 @@ export function RoomColumns({
               </Tooltip>
             </>
           ) : (
-            <p>Sign in to host your own room.</p>
+            <p>Log in to host your own room.</p>
           )}
         </EmptyRoomColumn>
       )}
@@ -160,7 +160,7 @@ function ActiveRoomColumn({
       <RoomIdentity
         avatarName={host?.name ?? snapshot.room.name}
         title={snapshot.room.name}
-        line={`${count} focusing${snapshot.you.role === "host" ? " · you host" : host ? ` · hosted by ${host.name}` : ""}`}
+        line={`${count} in the room${snapshot.you.role === "host" ? " · you host" : host ? ` · hosted by ${host.name}` : ""}`}
       />
       <div className="flex flex-wrap gap-2">
         <Button asChild className="rounded-full">

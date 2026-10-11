@@ -32,7 +32,7 @@ the uploads in a grid once there are any.
 
 - **Two buttons, no drop box.** Tyler, 7 Oct 2026: "remove the upload box
   ... Clicking the button is enough." Sounds has Upload sound and Generate
-  with AI. Theme has Upload clip and Generate with AI. Dragging a file onto
+  with AI. Backgrounds has Upload clip and Generate with AI. Dragging a file onto
   the page does nothing.
 - **Upload opens the upload window**, described below. The file is chosen
   inside it.
@@ -42,7 +42,7 @@ the uploads in a grid once there are any.
 - **The cards are drawn like the catalogue's.** Tyler, 10 Oct 2026: "it needs
   to look similiar in size and structure". A sound is a Sounds card (a wide
   waveform picture, the name in bold, the "+" beside it) and a picture or clip
-  is a Theme card. The cog and the bin sit on the picture's top corner, so the
+  is a Backgrounds card. The cog and the bin sit on the picture's top corner, so the
   name keeps its room, and "Currently selected" moves to the picture's foot.
   A finished file shows its name alone; a line under it appears only for
   "Getting it ready…", "Making the new cut…" or a failure. A sound plays on a
@@ -250,7 +250,7 @@ Name label while it waits.
 - **The file name is passed as quoted data**, and the prompt says never to
   follow instructions inside it. The answer only fills the member's own form,
   and is checked against the same rules as typed tags.
-- **An admin can switch it off** in Settings → App settings → Themes and
+- **An admin can switch it off** in Settings → App settings → Backgrounds and
   sounds, Member uploads (`uploads.aiLabels`, on by default). Forty calls per
   member per ten minutes at most.
 
@@ -284,7 +284,7 @@ becomes the member's own upload.
   Pixabay tab for the same reason. A vector is refused too.
 - **Ten links a day per member** by default, counted over the last 24 hours,
   because every import spends the site's one Pixabay key. An admin changes
-  it in Settings → App settings → Themes and sounds, Member uploads
+  it in Settings → App settings → Backgrounds and sounds, Member uploads
   (`uploads.pixabayDailyLimit`). A link past the limit is refused on its own
   line: "Line 3 is over today's limit of 10."
 - **The window lists the member's last ten imports** with how each went
@@ -299,7 +299,7 @@ becomes the member's own upload.
 Every upload's card ends with three buttons: the "+" that adds it to a room,
 a cog, and the bin. Tyler, 10 Oct 2026: "There is no edit icon for the
 uploaded background, add the cog icon here", and "I should be able to reclip
-the file too". The "+" on every theme and sound card is a plain icon with no
+the file too". The "+" on every background and sound card is a plain icon with no
 background, the same as the bin (Tyler, same day).
 
 The cog opens a window with the upload's Name, Tags and Share tick, and for a
@@ -434,11 +434,11 @@ to fetch one file is worse than having one.
 The preference still stores `media:<uuid>`, never an address. The server
 resolves the address when it loads the preference and hands it to the browser,
 so a deleted or half-prepared upload simply comes back without one and the
-backdrop falls back to the default scene.
+backdrop falls back to the default background.
 
 ## Picking, and deleting
 
-Picking an upload saves `media:<uuid>` the same way picking a scene saves
+Picking an upload saves `media:<uuid>` the same way picking a background saves
 `scene:<key>`. The server checks the upload is **theirs, or shared with them**
 (see [Shared sounds and backgrounds](shared-media.md)) and **has a finished file**
 (a first prepare is done, or an older cut plays while a new one is made)
@@ -474,7 +474,7 @@ up — rather than a row pointing at a file that is gone.
 
 `/admin/pomodoro-uploads` lists every background and sound members uploaded
 or had made by AI (admin task 06, 8 Oct 2026). It is "Member uploads" under
-Themes in the admin's left menu, beside "AI generations". The menu is saved
+Backgrounds in the admin's left menu, beside "AI generations". The menu is saved
 on the workspace (Settings → Navigation), not in code, so the two links were
 added to the local workspace on 10 Oct 2026 and still have to be added on the
 live site. Each row's name is the one the member typed, and the search finds

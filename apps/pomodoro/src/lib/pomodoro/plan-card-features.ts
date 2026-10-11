@@ -38,7 +38,7 @@ function freeLines(catalog: MediaCatalog, features: PlanFeatures) {
   return [
     "Pomodoro timer with tasks, steps and projects",
     `${freeSounds} sounds and ${freeScenes} backgrounds`,
-    "A personal room with your own sound and theme",
+    "A personal room with your own sound and background",
     "Join any open focus room",
     "Leaderboard, private groups and a public profile",
     // Every plan, unless a plan switches it off (task 03, part 10).

@@ -71,10 +71,10 @@ describe("readPixabayLink", () => {
   it("refuses a link for the other page and says which page takes it", () => {
     expect(readPixabayLink("https://pixabay.com/photos/sea-1/", "sound")).toEqual({
       ok: false,
-      reason: "is a photo, paste it on Themes",
+      reason: "is a photo, paste it on Backgrounds",
     })
     expect(readPixabayLink("https://pixabay.com/videos/sea-1/", "sound")).toMatchObject({
-      reason: "is a film, paste it on Themes",
+      reason: "is a film, paste it on Backgrounds",
     })
     expect(readPixabayLink("https://pixabay.com/music/beats-1/", "theme")).toMatchObject({
       reason: "is a music link, paste it on Sounds",
@@ -83,7 +83,7 @@ describe("readPixabayLink", () => {
 
   it("refuses vectors, bare numbers, searches, profiles and other sites", () => {
     expect(readPixabayLink("https://pixabay.com/vectors/tree-1/", "theme")).toMatchObject({
-      reason: "is a vector, and vectors are not used as themes",
+      reason: "is a vector, and vectors are not used as backgrounds",
     })
     expect(readPixabayLink("573883", "sound")).toMatchObject({
       reason: "is a number, not the page link",

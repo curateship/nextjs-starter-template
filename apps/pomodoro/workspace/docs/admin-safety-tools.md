@@ -33,7 +33,10 @@ lines get Delete at the top.
 - **Message live rooms** pins one line at the top of every room open right
   now (members cannot react to it or report it, and a host cannot remove it), signed Pomoder with a STAFF label, until the room ends or an admin
   deletes it from that room's window. The window says how many rooms it
-  reaches before sending.
+  reaches before sending. If that count cannot be loaded, the window says so
+  instead of showing the dashboard's older number, and Send goes to every room
+  open at that moment. With the count at none, Send stays pressable and says in
+  a red message that there is nobody to send it to, rather than greying out.
 
 ## Bans (`/admin/pomodoro-bans`)
 
@@ -53,7 +56,9 @@ Three tabs, each with Lift on its row and over ticked rows.
 On a report row (under the reported message) and in the Chat window's menu.
 The admin edits a ready line, "Please keep room chat friendly. Further
 messages like this will get you suspended.", and sends. The window lists the
-member's earlier warnings.
+member's earlier warnings. If they cannot be read, it says "Earlier warnings
+could not be loaded." in red, never "None. This would be the first.", so a
+repeat offender is not treated as a first one.
 
 - **The member gets it in the bell**, as "You have a warning from the Pomoder
   team." with the admin's words under it, **and by email**, as Tyler chose on
@@ -129,5 +134,6 @@ Each Room reports row says how many times the person it is about was reported
 before it, and under the reporter how many of their earlier reports were
 dismissed ("3 of 10 past reports dismissed"). Only earlier reports count, so an
 old report reads as it did on the day. Either count opens Room reports showing
-only the reports by or about that person (`?person=<id>`), with "Show
-everyone" to go back.
+only the reports by or about that person (`?person=<id>`), with the "Only
+<name>" chip whose × shows everyone again (see "One member at a time" in
+[Admin sections](admin-sections.md)).

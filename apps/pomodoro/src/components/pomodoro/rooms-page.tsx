@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, Link, useNavigate } from "@tanstack/react-router"
+import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import { PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -61,6 +61,7 @@ import {
   type UpcomingRoomRow,
 } from "@/components/pomodoro/upcoming-rooms"
 import { RoomColumns } from "@/components/pomodoro/room-columns"
+import { SignInButton } from "@/components/pomodoro/sign-in-button"
 import {
   OpenRoomsSection,
   type JoinProblem,
@@ -127,9 +128,23 @@ export function RoomsPage() {
   const openRoomsRef = React.useRef<HTMLElement>(null)
   const [leavingRoom, setLeavingRoom] = React.useState(false)
   const navigate = useNavigate()
-  const [roomRows, setRoomRows] = React.useState<
-    Awaited<ReturnType<typeof listRooms>>
-  >([])
+  // Null until the first read answers, so the list never says there are no
+  // rooms before it has asked. A failed first read is drawn with Try again;
+  // a failed refresh keeps the rooms already showing and says so in a toast.
+  const [roomRows, setRoomRows] = React.useState<Awaited<
+    ReturnType<typeof listRooms>
+  > | null>(null)
+  const [roomsFailed, setRoomsFailed] = React.useState(false)
+  // Read inside the readers' callbacks, which outlive the render they came from.
+  const roomsLoadedRef = React.useRef(false)
+  const showRooms = React.useCallback(
+    (rows: Awaited<ReturnType<typeof listRooms>>) => {
+      roomsLoadedRef.current = true
+      setRoomsFailed(false)
+      setRoomRows(rows)
+    },
+    []
+  )
   const [showHostForm, setShowHostForm] = React.useState(false)
   // The room a Join is in flight for. One join at a time, however many
   // presses: the ref answers at once, the state redraws the button.
@@ -146,22 +161,24 @@ export function RoomsPage() {
 
   const refreshRooms = React.useCallback(() => {
     if (!known) return
+    // Before any list arrived, the failure row under Open to join raises the
+    // toast with its Try again; after, the toast alone says so.
+    const failed = () => {
+      if (roomsLoadedRef.current) showErrorToast("Rooms could not be loaded.")
+      else setRoomsFailed(true)
+    }
     if (!authenticated) {
-      void listRoomsForGuest()
-        .then(setRoomRows)
-        .catch(() => showErrorToast("Rooms could not be loaded."))
+      void listRoomsForGuest().then(showRooms, failed)
       return
     }
-    void listRooms()
-      .then(setRoomRows)
-      .catch(() => showErrorToast("Rooms could not be loaded."))
+    void listRooms().then(showRooms, failed)
     void listUpcoming()
       .then(setUpcoming)
       .catch(() => showErrorToast("Upcoming rooms could not be loaded."))
     void listMyRepeats()
       .then(setSeries)
       .catch(() => showErrorToast("Your weekly rooms could not be loaded."))
-  }, [known, authenticated])
+  }, [known, authenticated, showRooms])
   React.useEffect(refreshRooms, [refreshRooms])
 
   // Which room you are in, kept live by the same hook the front page uses.
@@ -187,12 +204,12 @@ export function RoomsPage() {
   const refreshListsQuietly = React.useCallback(() => {
     if (!known) return
     if (!authenticated) {
-      void listRoomsForGuest().then(setRoomRows, () => {})
+      void listRoomsForGuest().then(showRooms, () => {})
       return
     }
-    void listRooms().then(setRoomRows, () => {})
+    void listRooms().then(showRooms, () => {})
     void listUpcoming().then(setUpcoming, () => {})
-  }, [known, authenticated])
+  }, [known, authenticated, showRooms])
   const wasVisibleRef = React.useRef(pageVisible)
   React.useEffect(() => {
     const cameBack = pageVisible && !wasVisibleRef.current
@@ -374,7 +391,7 @@ export function RoomsPage() {
         : {
             title: `Leave ${activeRoom.room.name}?`,
             description:
-              "You go back to your personal room, with your own sound and theme. You can join again while the room is open.",
+              "You go back to your personal room, with your own sound and background. You can join again while the room is open.",
             confirmLabel: "Leave room",
             onConfirm: () => void backToPersonal(),
           }
@@ -391,7 +408,13 @@ export function RoomsPage() {
       onConfirm: () => void cancelBooking(room),
     })
 
-  const openRooms = roomRows.filter(({ room }) => room.phase !== "focus")
+  const openRooms =
+    roomRows?.filter(({ room }) => room.phase !== "focus") ?? null
+  const retryRooms = () => {
+    dismissErrorToast()
+    setRoomsFailed(false)
+    refreshRooms()
+  }
 
   // Tyler, 9 Oct 2026: Host a room never disappears; a tooltip says which
   // room hosting takes you out of. Making the room leaves it on the server.
@@ -467,18 +490,16 @@ export function RoomsPage() {
           <Card>
             <CardContent className="flex flex-col items-start gap-2 py-6">
               <p className="text-sm text-muted-foreground">
-                Rooms are where people focus together on one clock. Sign in to
+                Rooms are where people focus together on one clock. Log in to
                 join one.
               </p>
-              <Button asChild size="sm">
-                <Link to="/login" search={{ redirect: "/rooms" }}>
-                  Sign in
-                </Link>
-              </Button>
+              <SignInButton variant="default" />
             </CardContent>
           </Card>
           <OpenRoomsSection
             rooms={openRooms}
+            loadFailed={roomsFailed}
+            onRetry={retryRooms}
             joiningSlug=""
             joinProblem={null}
             onJoin={() => undefined}
@@ -514,6 +535,8 @@ export function RoomsPage() {
           <OpenRoomsSection
             sectionRef={openRoomsRef}
             rooms={openRooms}
+            loadFailed={roomsFailed}
+            onRetry={retryRooms}
             joiningSlug={joiningSlug}
             joinProblem={joinProblem}
             onJoin={(slug) => void joinBySlug(slug)}
@@ -540,9 +563,13 @@ function startValueAsDate(value: string) {
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
-/** The datetime-local value for "in about an hour", on the host's own clock. */
+/**
+ * The datetime-local value for "in about an hour", on the host's own clock: the
+ * top of the hour 30 to 90 minutes ahead. Rounding down from one hour ahead
+ * gave a start seconds away at 22:59, which the window then called too soon.
+ */
 function defaultStartValue() {
-  const date = new Date(Date.now() + 60 * 60 * 1000)
+  const date = new Date(Date.now() + 90 * 60 * 1000)
   date.setMinutes(0, 0, 0)
   const pad = (value: number) => String(value).padStart(2, "0")
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
@@ -588,6 +615,7 @@ export function HostRoomDialog({
   // The house presets an admin keeps (admin task 04), offered above the
   // host's own, and the admin's invite limit, read with them.
   const [housePresets, setHousePresets] = React.useState<HousePreset[]>([])
+  const [houseFailed, setHouseFailed] = React.useState(false)
   // The host's own shared files and shared files they saved (rooms task 04),
   // offered under the catalogue. Without them the window still works.
   const [fileChoices, setFileChoices] = React.useState<RoomFileChoices | null>(null)
@@ -608,6 +636,7 @@ export function HostRoomDialog({
     loadHostingOptions().then(
       (options) => {
         if (cancelled) return
+        setHouseFailed(false)
         setHousePresets(
           options.presets.map((preset) => ({
             ...preset,
@@ -618,8 +647,11 @@ export function HostRoomDialog({
         setMaxInvites(options.maxInvitesPerRoom)
       },
       // Without them the window still works with the host's own presets and
-      // the usual invite limit; the server checks the real one.
-      () => undefined
+      // the usual invite limit; the server checks the real one. A line says
+      // the house ones are missing rather than leaving them silently out.
+      () => {
+        if (!cancelled) setHouseFailed(true)
+      }
     )
     loadRoomFileChoices().then(
       (choices) => {
@@ -660,8 +692,37 @@ export function HostRoomDialog({
   )
   const [repeatTime, setRepeatTime] = React.useState("09:00")
   const [invitesTyped, setInvitesTyped] = React.useState("")
+  // An address problem waits until the field is left, so "sam@" half typed
+  // is not called wrong. Pressing Book shows it at once.
+  const [invitesLeft, setInvitesLeft] = React.useState(false)
   const [creating, setCreating] = React.useState(false)
   const [error, setError] = React.useState("")
+  // Every opening starts from a clean form, however the last one ended:
+  // Cancel, the X, Escape, or a room made or booked. Reset while rendering
+  // the opening, so the old choices never show for a frame.
+  const [wasOpen, setWasOpen] = React.useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setRoomName("")
+      setVisibility("public")
+      setFocusMinutes(25)
+      setShortBreakMinutes(5)
+      setLongBreakMinutes(15)
+      setAutoStart(false)
+      setRoomSound("")
+      setRoomBackground("")
+      setPairProblem(null)
+      setStartMode("now")
+      setStartValue(defaultStartValue())
+      setRepeatDays(1 << new Date().getDay())
+      setRepeatTime("09:00")
+      setInvitesTyped("")
+      setInvitesLeft(false)
+      setError("")
+      setHouseFailed(false)
+    }
+  }
   const invites = parseInviteEmails(invitesTyped)
   // The dialog checks the same rules the endpoint does, so the problem is
   // named beside the field instead of arriving as a failed save. The server
@@ -674,6 +735,10 @@ export function HostRoomDialog({
     startMode === "weekly"
       ? roomRepeatProblem(repeatDays, parseClockTime(repeatTime), invites, maxInvites)
       : null
+  const waitsForInvites = (problem: string | null) =>
+    !invitesLeft && (problem === "bad_email" || problem === "too_many_invites")
+  const shownBooking = waitsForInvites(booking) ? null : booking
+  const shownRepeatProblem = waitsForInvites(repeatProblem) ? null : repeatProblem
 
   const submit = async () => {
     setError("")
@@ -687,12 +752,10 @@ export function HostRoomDialog({
       setError(roomPairProblemMessage(missing))
       return
     }
-    if (startMode === "later" && booking) {
-      setError(scheduleProblemMessage(booking, maxInvites))
-      return
-    }
-    if (startMode === "weekly" && repeatProblem) {
-      setError(roomRepeatProblemMessage(repeatProblem, maxInvites))
+    // The time or address problem is already drawn under the form, live, so
+    // it is not copied into a second identical line.
+    if (booking || repeatProblem) {
+      setInvitesLeft(true)
       return
     }
     setCreating(true)
@@ -715,8 +778,6 @@ export function HostRoomDialog({
           timezone: browserTimezone(),
           invitesTyped,
         })
-        setRoomName("")
-        setInvitesTyped("")
         onBooked(
           `${repeating.name} repeats ${describeRoomRepeat(repeatDays, parseClockTime(repeatTime)!)}. The first one is ${formatRoomStart(new Date(repeating.nextStartsAt), browserTimezone())}.`
         )
@@ -729,8 +790,6 @@ export function HostRoomDialog({
           startsAt: startsAt!.toISOString(),
           invitesTyped,
         })
-        setRoomName("")
-        setInvitesTyped("")
         onBooked(
           invites.length
             ? `${booked.name} is booked. ${invites.length} ${invites.length === 1 ? "invitation goes" : "invitations go"} out in a moment.`
@@ -738,9 +797,7 @@ export function HostRoomDialog({
         )
         return
       }
-      const created = await createRoom(settings)
-      setRoomName("")
-      onCreated(created)
+      onCreated(await createRoom(settings))
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ""
       setError(
@@ -762,21 +819,18 @@ export function HostRoomDialog({
     }
   }
 
+  // Cancel, the X and Escape all close the same way, and never mid-save.
+  const changeOpen = (next: boolean) => {
+    if (!creating) onOpenChange(next)
+  }
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!creating) {
-          setError("")
-          onOpenChange(next)
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>Host a room</DialogTitle>
           <DialogDescription>
-            Pick the timers, the sound and the theme, then start it now, book a
+            Pick the timers, the sound and the background, then start it now, book a
             time, or book the same time every week. You control the session
             once people join.
           </DialogDescription>
@@ -851,6 +905,11 @@ export function HostRoomDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {houseFailed ? (
+                <span className="text-xs text-muted-foreground">
+                  Pomoder presets could not be loaded.
+                </span>
+              ) : null}
               {presetsFailed ? (
                 <span className="text-xs text-muted-foreground">
                   Your own presets could not be loaded. The built-in ones are
@@ -934,7 +993,7 @@ export function HostRoomDialog({
                 htmlFor="room-theme"
                 hint="Everyone in the room sees it behind the page while they are in the room."
               >
-                Theme
+                Background
               </FieldLabel>
               <Select
                 value={roomBackground}
@@ -945,19 +1004,19 @@ export function HostRoomDialog({
               >
                 <SelectTrigger
                   id="room-theme"
-                  aria-label="Theme"
+                  aria-label="Background"
                   aria-invalid={
                     pairProblem === "no_background" ||
                     pairProblem === "bad_background"
                   }
                 >
-                  <SelectValue placeholder="Pick a theme" />
+                  <SelectValue placeholder="Pick a background" />
                 </SelectTrigger>
                 <SelectContent position="popper">
-                  <SelectItem value="shuffle">Shuffle every theme</SelectItem>
+                  <SelectItem value="shuffle">Shuffle every background</SelectItem>
                   {catalogTags(catalog.themes).map(({ tag }) => (
                     <SelectItem key={`tag-${tag}`} value={`tags:${tag}`}>
-                      Only {tag} themes
+                      Only {tag} backgrounds
                     </SelectItem>
                   ))}
                   {catalog.themes.map((scene) => (
@@ -1008,7 +1067,7 @@ export function HostRoomDialog({
                   <div
                     role="group"
                     aria-labelledby="room-repeat-days-label"
-                    aria-invalid={repeatProblem === "no_days"}
+                    aria-invalid={shownRepeatProblem === "no_days"}
                     className="flex gap-1"
                   >
                     {weekdayInitials.map((initial, weekday) => {
@@ -1046,7 +1105,7 @@ export function HostRoomDialog({
                     required
                     className="w-auto"
                     value={repeatTime}
-                    aria-invalid={repeatProblem === "not_a_time"}
+                    aria-invalid={shownRepeatProblem === "not_a_time"}
                     onChange={(event) => setRepeatTime(event.target.value)}
                   />
                 </div>
@@ -1066,9 +1125,9 @@ export function HostRoomDialog({
                   required
                   value={startValue}
                   aria-invalid={
-                    booking === "not_a_time" ||
-                    booking === "too_soon" ||
-                    booking === "too_far"
+                    shownBooking === "not_a_time" ||
+                    shownBooking === "too_soon" ||
+                    shownBooking === "too_far"
                   }
                   onChange={(event) => setStartValue(event.target.value)}
                 />
@@ -1088,12 +1147,14 @@ export function HostRoomDialog({
                   placeholder="sam@example.com, alex@example.com"
                   value={invitesTyped}
                   aria-invalid={
-                    booking === "bad_email" ||
-                    booking === "too_many_invites" ||
-                    repeatProblem === "bad_email" ||
-                    repeatProblem === "too_many_invites"
+                    shownBooking === "bad_email" ||
+                    shownBooking === "too_many_invites" ||
+                    shownRepeatProblem === "bad_email" ||
+                    shownRepeatProblem === "too_many_invites"
                   }
                   onChange={(event) => setInvitesTyped(event.target.value)}
+                  onFocus={() => setInvitesLeft(false)}
+                  onBlur={() => setInvitesLeft(true)}
                 />
                 <p className="text-xs text-muted-foreground">
                   {invites.length
@@ -1102,14 +1163,14 @@ export function HostRoomDialog({
                 </p>
               </div>
             ) : null}
-            {booking ? (
+            {shownBooking ? (
               <p role="alert" className="text-sm text-destructive">
-                {scheduleProblemMessage(booking, maxInvites)}
+                {scheduleProblemMessage(shownBooking, maxInvites)}
               </p>
             ) : null}
-            {repeatProblem ? (
+            {shownRepeatProblem ? (
               <p role="alert" className="text-sm text-destructive">
-                {roomRepeatProblemMessage(repeatProblem, maxInvites)}
+                {roomRepeatProblemMessage(shownRepeatProblem, maxInvites)}
               </p>
             ) : null}
             {error ? (
@@ -1123,7 +1184,7 @@ export function HostRoomDialog({
           <Button
             variant="outline"
             disabled={creating}
-            onClick={() => onOpenChange(false)}
+            onClick={() => changeOpen(false)}
           >
             Cancel
           </Button>

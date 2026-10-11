@@ -51,7 +51,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 const REFUSALS_IN_TOAST = 3
 
 const WORDS: Record<CatalogKind, { one: string; many: string }> = {
-  theme: { one: "theme", many: "themes" },
+  theme: { one: "background", many: "backgrounds" },
   sound: { one: "sound", many: "sounds" },
 }
 
@@ -192,7 +192,7 @@ export function AdminCatalogImportDialog({
             <DialogTitle>Import from Pixabay</DialogTitle>
             <DialogDescription>
               {kind === "theme"
-                ? "Each photo or video link becomes a Draft theme. Its picture or film, artist and tags are fetched from Pixabay within a minute or two."
+                ? "Each photo or video link becomes a Draft background. Its picture or film, artist and tags are fetched from Pixabay within a minute or two."
                 : "Each music or sound effect link becomes a Draft sound with its name, source link and licence. Pixabay does not let its music be fetched, so download each MP3 from the link and drop it in the sound's window."}
             </DialogDescription>
           </DialogHeader>

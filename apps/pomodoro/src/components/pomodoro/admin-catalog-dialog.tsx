@@ -81,7 +81,7 @@ type Draft = {
   source: { path: string; kind: "audio" | "video" | "image"; name: string } | null
 }
 
-const NOUN: Record<CatalogKind, string> = { theme: "theme", sound: "sound" }
+const NOUN: Record<CatalogKind, string> = { theme: "background", sound: "sound" }
 
 function emptyDraft(kind: CatalogKind): Draft {
   return {
@@ -256,7 +256,7 @@ export function AdminCatalogDialog({
       })
       toast.success(
         creating
-          ? `${kind === "sound" ? "Sound" : "Theme"} created.`
+          ? `${kind === "sound" ? "Sound" : "Background"} created.`
           : "Changes saved."
       )
       // The list is read again before the window goes, so the row behind it
@@ -286,7 +286,7 @@ export function AdminCatalogDialog({
             <DialogDescription>
               {kind === "sound"
                 ? "Members hear a Live sound on the Sounds page and in rooms. A sound runs 2 to 5 minutes."
-                : "Members see a Live theme on the Theme page, behind every page and in rooms."}
+                : "Members see a Live background on the Backgrounds page, behind every page and in rooms."}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -343,7 +343,7 @@ export function AdminCatalogDialog({
                       </div>
                       <TagsField
                         id={tagsId}
-                        hint="Members filter sounds and themes by these words, and tick them to shuffle. Separate them with commas, up to eight."
+                        hint="Members filter sounds and backgrounds by these words, and tick them to shuffle. Separate them with commas, up to eight."
                         value={draft.tags}
                         onChange={(value) => update("tags", value)}
                         knownTags={knownTags}

@@ -167,14 +167,14 @@ chat are unchanged.
 
 ## The banner
 
-A strip behind the name: one of the Live scenes from
+A strip behind the name: one of the Live backgrounds from
 [Backgrounds](backgrounds.md), or one of your own pictures. None is the
 default and the page looks finished without one.
 
-Every catalogue scene is free here, Pro or not, and your own picture is a Pro perk, which is how
+Every catalogue background is free here, Pro or not, and your own picture is a Pro perk, which is how
 every other own-upload in this app already works. Tyler's call, 2 Oct 2026.
 
-What is stored is the scene's key or the upload's id, never an address
+What is stored is the background's key or the upload's id, never an address
 anybody typed, in exactly the spelling a chosen background already uses
 (`scene:<key>` or `media:<uuid>`) and read back by the same parser. A banner
 pointing at a deleted upload falls back to no banner.
@@ -333,7 +333,7 @@ the `/users` directory. The code is `src/server/pomodoro/admin-profiles.ts`.
 ## It draws in the app's own layout, not the shell's
 
 The profile is a screen of this app, so it lives under `_pomodoro` and draws
-inside `PomodoroShell`: the sidebar, the header and the scene behind it, the
+inside `PomodoroShell`: the sidebar, the header and the background behind it, the
 same as `/history` and every other screen here. A signed-out visitor gets Log
 in and Register in the header instead of the account menu, and nothing else
 changes.

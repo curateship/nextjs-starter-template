@@ -106,6 +106,12 @@ jump to the bottom on every message wherever you were (`room-chat.tsx`).
   gone. An admin can lift one from the Bans page.
 - Every one of these asks for confirmation first, and the host cannot
   moderate themselves.
+- **The host is told in a toast that clears itself**, such as "The message was
+  deleted." A failure uses the red error toast. Nothing is left under the room
+  header afterwards (Polish 3 task 12, 10 Oct 2026; it used to stay there for
+  the rest of the session). The chat's own notes go the same way: "Your
+  message is waiting for a check" after a held message, and the thanks after a
+  report, are toasts too.
 - **Removal and bans name a membership, never a user.** Snapshots carry
   membership ids and display names only, so the screen has no user id to
   send and no way to guess one.

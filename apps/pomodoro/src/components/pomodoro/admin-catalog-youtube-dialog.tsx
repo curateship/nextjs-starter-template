@@ -23,10 +23,10 @@ import { readStartTime, readYoutubeLink } from "@/lib/pomodoro/youtube-links"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * "Make a theme from a YouTube clip": one link and a start time become a Draft
- * theme holding those 5 seconds, with no sound. See "Make a theme from a
- * YouTube clip" in `workspace/docs/catalog-admin.md`. Themes page only, and
- * admins only (Tyler, 10 Oct 2026).
+ * "Make a background from a YouTube clip": one link and a start time become a
+ * Draft background holding those 5 seconds, with no sound. See "Make a
+ * background from a YouTube clip" in `workspace/docs/catalog-admin.md`.
+ * Backgrounds page only, and admins only (Tyler, 10 Oct 2026).
  *
  * A field's problem shows under it once the field is left or Create is
  * pressed. The server reads both again and refuses a stretch already in the
@@ -110,10 +110,10 @@ export function AdminCatalogYoutubeDialog({
       {(requestClose) => (
         <DialogContent variant="admin">
           <DialogHeader>
-            <DialogTitle>Make a theme from a YouTube clip</DialogTitle>
+            <DialogTitle>Make a background from a YouTube clip</DialogTitle>
             <DialogDescription>
-              The 5 seconds from the start you pick become a Draft theme, with no
-              sound. The clip, its name and its channel arrive within a minute or two.
+              The 5 seconds from the start you pick become a Draft background, with
+              no sound. The clip, its name and its channel arrive within a minute or two.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -129,7 +129,7 @@ export function AdminCatalogYoutubeDialog({
                   <CardTitle>Clip</CardTitle>
                   <CardDescription>
                     Only use videos you own or that are marked Creative Commons.
-                    Set the licence in the theme's window before making it Live.
+                    Set the licence in the background's window before making it Live.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4">
@@ -194,7 +194,7 @@ export function AdminCatalogYoutubeDialog({
               </Button>
               <Button type="submit" disabled={busy}>
                 {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                Create theme
+                Create background
               </Button>
             </DialogFooter>
           </form>

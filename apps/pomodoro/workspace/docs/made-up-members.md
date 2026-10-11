@@ -93,7 +93,7 @@ saves itself with no Save button ([Admin settings](admin-settings.md)).
   shape and then gets digits.
 - **Coloured initials, no photo.** The shell only lets an account use a
   picture it uploaded itself.
-- **A banner** from the free Live themes, and **up to three pinned badges** from
+- **A banner** from the free Live backgrounds, and **up to three pinned badges** from
   the ones its history earned.
 - **Three to five projects**, two of them public, from the person's work and
   their city ("Moot court", "Client memo", "Surf trip plan"), so the profile's
@@ -236,12 +236,12 @@ soon, then six to join.
   rooms are open, hosts between 7am and 10pm locally open more, as many as it
   takes in one pass, each no sooner than 20 minutes after its own last room
   closed. Real rooms count toward the nine.
-- **Hosts follow the theme catalogue.** Tyler, 9 Oct 2026: "the rooms is not
+- **Hosts follow the background catalogue.** Tyler, 9 Oct 2026: "the rooms is not
   taking on the new themes I added". Every pass (`keepScenesLive`): a host on
-  a theme or sound no longer Live gets the Live one fewest hosts have; while
-  one Live theme has two more hosts than another, a host moves across, so a
-  new theme is spread over the hosts within a minute; an open made-up room
-  takes its host's new pair at once when its theme was removed, and otherwise
+  a background or sound no longer Live gets the Live one fewest hosts have; while
+  one Live background has two more hosts than another, a host moves across, so a
+  new background is spread over the hosts within a minute; an open made-up room
+  takes its host's new pair at once when its background was removed, and otherwise
   only while nobody real is in it; a weekly booking takes it too.
 - **Half the accounts host**, and a host is picked to join somebody else's
   room only when nobody else is free, so hosts stay free to open rooms.
@@ -287,10 +287,10 @@ soon, then six to join.
 ### The rest
 
 - **Hosts are picked to spread round the clock.** Each host's rhythm, room name and
-  scene and sound pair are saved on its habit. Rhythms come from 25 · 5 · 15,
+  background and sound pair are saved on its habit. Rhythms come from 25 · 5 · 15,
   30 · 5 · 20, 45 · 10 · 20, 50 · 10 · 30, 90 · 20 · 30 and the house presets,
-  each new host taking the one fewest hosts have. No two hosts share a scene
-  and sound pair, and none shares a scene while the catalogue has an unused
+  each new host taking the one fewest hosts have. No two hosts share a background
+  and sound pair, and none shares a background while the catalogue has an unused
   one. The pair can be any Live item, Pro ones included, because hosting is a
   Pro thing anyway. Names come from a bundled list ("Night shift, rain",
   "Morning pages", "Rainy Lisbon study").

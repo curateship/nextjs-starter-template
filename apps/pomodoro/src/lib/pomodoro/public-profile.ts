@@ -172,7 +172,7 @@ export type ProfileSectionKey = (typeof PROFILE_SECTIONS)[number]["key"]
  * anybody typed.
  */
 export const BANNER_UPLOAD_LOCKED_REASON =
-  "Your own banner picture is a Pro perk. The eight scenes are free."
+  "Your own banner picture is a Pro perk. The catalogue's backgrounds are free."
 
 /**
  * What a public profile page is handed. Every field a switch controls is

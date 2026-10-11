@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
+import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -70,6 +71,9 @@ function WarnDialog({ person: asked, onClose }: { person: SafetyPerson | null; o
   const [shownFor, setShownFor] = React.useState<string | null>(null)
   const [sending, setSending] = React.useState(false)
   const [past, setPast] = React.useState<{ id: string; message: string; createdAt: Date }[] | null>(null)
+  // A failed read is said, never shown as "None": an admin about to warn a
+  // repeat offender must not be told this would be the first.
+  const [pastFailed, setPastFailed] = React.useState(false)
   const messageId = React.useId()
   const personId = open ? (person?.id ?? null) : null
   // Opening for somebody starts fresh; closing clears nothing.
@@ -78,6 +82,7 @@ function WarnDialog({ person: asked, onClose }: { person: SafetyPerson | null; o
     setShownFor(personId)
     setMessage(WARNING_STARTER)
     setPast(null)
+    setPastFailed(false)
   }
   React.useEffect(() => {
     if (!personId) return
@@ -87,7 +92,7 @@ function WarnDialog({ person: asked, onClose }: { person: SafetyPerson | null; o
         if (live) setPast(rows)
       })
       .catch(() => {
-        if (live) setPast([])
+        if (live) setPastFailed(true)
       })
     return () => {
       live = false
@@ -154,7 +159,9 @@ function WarnDialog({ person: asked, onClose }: { person: SafetyPerson | null; o
                   <CardTitle>Earlier warnings</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {past === null ? (
+                  {pastFailed ? (
+                    <InlineError>Earlier warnings could not be loaded.</InlineError>
+                  ) : past === null ? (
                     <p className="text-sm text-muted-foreground">Reading…</p>
                   ) : past.length ? (
                     <ul className="grid gap-3">

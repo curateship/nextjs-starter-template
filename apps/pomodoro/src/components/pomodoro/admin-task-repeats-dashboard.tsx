@@ -1,8 +1,7 @@
 import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
-import { Repeat2Icon, XIcon } from "lucide-react"
+import { Repeat2Icon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
@@ -11,6 +10,7 @@ import {
   AdminListTable,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
 import { MemberName } from "@/components/pomodoro/admin-member-name"
 import {
   AdminBulkDeleteButton,
@@ -129,28 +129,20 @@ export function AdminTaskRepeatsDashboard({
         onSort={toggleSort}
         trailing={<TableHead column="meta">Actions</TableHead>}
         selection={{ noun: "repeating tasks", rowIds, state: selection }}
+        filters={
+          userId ? (
+            <AdminPersonFilter
+              name={filteredMemberName}
+              onClear={() => setListSearch({ user: undefined, page: undefined })}
+            />
+          ) : undefined
+        }
         list={list}
         page={page}
         onPageChange={setPage}
         controls={
           <>
             <AdminBulkDeleteButton del={del} ids={selectedIds} />
-            {userId ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 gap-2"
-                onClick={() =>
-                  setListSearch({ user: undefined, page: undefined })
-                }
-              >
-                <XIcon className="size-4" />
-                {filteredMemberName
-                  ? `Only ${filteredMemberName}`
-                  : "One member only"}
-              </Button>
-            ) : null}
             <DashboardToolbarSearch
               name="task-repeat-search"
               aria-label="Search repeating tasks"

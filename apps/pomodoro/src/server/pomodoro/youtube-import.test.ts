@@ -41,7 +41,7 @@ import { processYoutubeImports } from "@/server/pomodoro/youtube-worker"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
 /**
- * "Make a theme from a YouTube clip" against a real database, with the
+ * "Make a background from a YouTube clip" against a real database, with the
  * yt-dlp download stubbed, so no request leaves the machine.
  */
 

@@ -16,6 +16,13 @@ the link and the time, and the room opens itself with nobody's browser open.
   address. `src/lib/pomodoro/scheduled-rooms.ts` holds all four so the two
   sides cannot disagree. One person may have 10 bookings at a time and may
   book 10 times an hour.
+- **The window shows a booking problem once, and an address problem only
+  after the box is left.** A bad time is one red line under the form, drawn
+  as it is typed; pressing Book with it showing does nothing more. A
+  half-typed address such as "sam@" is not called wrong until the Invite by
+  email box loses focus, or until Book is pressed. The default time is the
+  top of the hour 30 to 90 minutes ahead, so it is never seconds away and
+  "too soon" at a minute to the hour.
 - **A booked room is a room nobody can get into.** Its phase is `scheduled`.
   It is not in "Open to join" or "In session", a join is refused with
   `ROOM_NOT_OPEN_YET`, and a host action on it is refused the same way. The
@@ -91,12 +98,12 @@ hand.
   rule keeps the timezone, so 9am stays 9am for the host through a clock
   change. A day whose time the clock skips, such as 2:30am on the night the
   clocks go forward, has no room that week.
-- **A booked room carries the sound and theme the host picked**, like any
+- **A booked room carries the sound and background the host picked**, like any
   room, and its card under Upcoming shows them. A weekly rule saved before
-  7 Oct 2026 has no pair, and the rooms it books draw the default scene with
+  7 Oct 2026 has no pair, and the rooms it books draw the default background with
   no sound.
 - **A weekly rule is not a room.** It lives in `pomodoro_room_repeats`: days,
-  time, timezone, the room settings (sound and theme included) and the invite
+  time, timezone, the room settings (sound and background included) and the invite
   list. The worker turns each
   day into an ordinary booked room 24 hours before it starts, so everything
   above about booked rooms holds for each week's room: it opens itself, it

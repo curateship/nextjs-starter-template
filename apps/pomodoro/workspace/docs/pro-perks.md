@@ -1,6 +1,6 @@
 # Pro perks
 
-What a paid plan unlocks: hosting focus rooms, premium sounds and scenes,
+What a paid plan unlocks: hosting focus rooms, premium sounds and backgrounds,
 uploading your own media, history beyond two weeks, and AI credits, plus the
 numeric allowances (2GB storage, 5 backgrounds and 20 soundscapes a month on
 the old app's Pro).
@@ -37,7 +37,7 @@ the old app's Pro).
   part 10). Unlike the Pro perks, a plan that says nothing has it, so a plan
   only loses it by setting `sharedMedia: false`. The Free card on `/plans`
   lists it while it is on. See [Shared sounds and backgrounds](shared-media.md).
-- **A Pro host's sound and theme play for everyone in the room.** The Pro
+- **A Pro host's sound and background play for everyone in the room.** The Pro
   check happens when the host saves the room's pair, so a free member hears
   and sees it while in the room. Their own personal room stays locked.
 - **Locked controls always say why** — the sentences live with the perk

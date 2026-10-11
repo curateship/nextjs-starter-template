@@ -114,6 +114,13 @@ only a display name, so two coins called BTR remain separate markets.
 - **Pool ids:** a Uniswap v4 or PancakeSwap Infinity pool is named by a
   64-character hash instead of a 40-character address. The pair check accepts
   both. Until 23 Sep 2026 one such pair made DexScreener's whole page fail.
+- **Launch-curve pairs are passed over:** DexScreener lists a coin still on
+  four.meme's launch curve under an id like `0x04ab…ffff:4meme`. That is not
+  a pool, so it has no chart at GeckoTerminal and nothing to swap through. The
+  coin is priced from its next pool, or left out if it has none. From late on
+  8 Oct 2026, before this rule, one such pair failed the whole list. That left
+  the BNB wallet unreadable, and the Active trades button sat on an old total
+  because one wallet never answered, even though that wallet held nothing.
 - **Search:** the existing Find button asks DexScreener by name or address,
   keeps only BNB results, and requests GoPlus checks immediately. An exact
   address query cannot return a different same-name coin. Found tokens join

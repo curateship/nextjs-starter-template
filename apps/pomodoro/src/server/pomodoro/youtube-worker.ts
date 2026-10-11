@@ -28,9 +28,9 @@ import {
 
 /**
  * The `pomodoro-youtube-imports` worker: fetches the 5 seconds behind a row
- * "Make a theme from a YouTube clip" made, up to 4K, then hands the clip to
+ * "Make a background from a YouTube clip" made, up to 4K, then hands the clip to
  * the catalogue worker. That worker keeps the clip at its own size and takes
- * its middle frame as the still. See "Make a theme from a YouTube clip" in
+ * its middle frame as the still. See "Make a background from a YouTube clip" in
  * `workspace/docs/catalog-admin.md`. One clip per pass.
  */
 

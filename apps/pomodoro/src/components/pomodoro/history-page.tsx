@@ -957,15 +957,15 @@ export function HistoryPage({
         </header>
         <Card>
           <CardContent className="flex flex-col items-start gap-3 py-8">
-            <h3 className="text-lg font-bold">Sign in to see your history</h3>
+            <h3 className="text-lg font-bold">Log in to see your history</h3>
             <p className="text-sm text-muted-foreground">
-              Sign in and every focus is kept for you, which is what this page
+              Log in and every focus is kept for you, which is what this page
               is built from. Your reports are private. Only you can see them.
             </p>
             <div className="flex gap-2">
               <SignInButton size="default" variant="default" />
               <Button asChild variant="outline">
-                <Link to="/register">Create free account</Link>
+                <Link to="/register">Sign up</Link>
               </Button>
             </div>
           </CardContent>

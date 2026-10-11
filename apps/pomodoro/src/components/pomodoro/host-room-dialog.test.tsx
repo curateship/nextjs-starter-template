@@ -171,7 +171,7 @@ describe("Host a room's Rhythm picker", () => {
     await change(pickerWith("curated:rain"), "curated:cafe")
     await submit()
     expect(api.createRoom).not.toHaveBeenCalled()
-    expect(document.body.textContent).toContain("Pick a theme for the room.")
+    expect(document.body.textContent).toContain("Pick a background for the room.")
   })
 
   it("still offers the built-ins when your own presets fail to load, and says so", async () => {
@@ -179,5 +179,98 @@ describe("Host a room's Rhythm picker", () => {
     await open()
     expect(rhythmPicker().querySelector('option[value="builtin:deep-work"]')).not.toBeNull()
     expect(document.body.textContent).toContain("Your own presets could not be loaded.")
+  })
+})
+
+describe("Host a room's errors and fresh start", () => {
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    globalThis.ResizeObserver ??= class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver
+    api.createRoom.mockReset().mockResolvedValue({ room: { slug: "x" } })
+    api.listTimerPresets.mockReset().mockResolvedValue([])
+  })
+  afterEach(() => document.body.replaceChildren())
+
+  function mount() {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const render = (isOpen: boolean) =>
+      act(async () => {
+        root.render(
+          <MediaBootstrapContext.Provider value={guestMediaBootstrap(seededCatalog, () => 0)}>
+            <TooltipProvider>
+              <HostRoomDialog open={isOpen} onOpenChange={vi.fn()} onCreated={vi.fn()} onBooked={vi.fn()} />
+            </TooltipProvider>
+          </MediaBootstrapContext.Provider>
+        )
+      })
+    return render
+  }
+  const alerts = () =>
+    [...document.querySelectorAll('[role="alert"]')].map((element) => element.textContent)
+  const pickPair = async () => {
+    await change(document.getElementById("room-name") as HTMLInputElement, "Booked room")
+    await change(pickerWith("curated:rain"), "curated:rain")
+    await change(pickerWith("scene:fireplace"), "scene:fireplace")
+  }
+
+  it("shows a bad time once, not again under it after Book", async () => {
+    const render = mount()
+    await render(true)
+    await pickPair()
+    await change(pickerWith("later"), "later")
+    await change(document.getElementById("room-starts-at") as HTMLInputElement, "2000-01-01T09:00")
+    expect(alerts()).toHaveLength(1)
+    await submit()
+    expect(api.createRoom).not.toHaveBeenCalled()
+    expect(alerts()).toHaveLength(1)
+  })
+
+  it("waits for the invite field to be left before calling an address wrong", async () => {
+    const render = mount()
+    await render(true)
+    await pickPair()
+    await change(pickerWith("later"), "later")
+    const invites = document.getElementById("room-invites") as HTMLTextAreaElement
+    await act(async () => invites.focus())
+    await change(invites as unknown as HTMLInputElement, "sam@")
+    expect(alerts()).toEqual([])
+    await act(async () => invites.blur())
+    expect(alerts()).toHaveLength(1)
+  })
+
+  it("starts a booking at least half an hour away, even at a minute to the hour", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date(2026, 9, 10, 22, 59, 52))
+    try {
+      const render = mount()
+      await render(true)
+      await change(pickerWith("later"), "later")
+      expect((document.getElementById("room-starts-at") as HTMLInputElement).value).toBe(
+        "2026-10-11T00:00"
+      )
+      expect(alerts()).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("opens again to a clean form after it was closed", async () => {
+    const render = mount()
+    await render(true)
+    await pickPair()
+    await change(pickerWith("later"), "later")
+    await submit()
+    await render(false)
+    await render(true)
+    expect((document.getElementById("room-name") as HTMLInputElement).value).toBe("")
+    expect(pickerWith("later").value).toBe("now")
+    expect(pickerWith("curated:rain").value).toBe("")
+    expect(alerts()).toHaveLength(0)
   })
 })

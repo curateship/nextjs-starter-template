@@ -2,8 +2,8 @@ import { formatClock } from "@/lib/pomodoro/admin-catalog"
 
 /**
  * Reading a pasted YouTube link and the start time typed beside it, in the
- * browser as the admin types and again on the server. See "Make a theme from
- * a YouTube clip" in `workspace/docs/catalog-admin.md`.
+ * browser as the admin types and again on the server. See "Make a background
+ * from a YouTube clip" in `workspace/docs/catalog-admin.md`.
  *
  * Every refusal is a whole sentence, shown under its own field.
  */

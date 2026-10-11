@@ -195,7 +195,7 @@ export function MediaGeneratorSection({
   const blockedReason = !known
     ? null
     : !signedIn
-      ? "Sign in on a Pro plan to make your own with AI."
+      ? "Log in on a Pro plan to make your own with AI."
       : !allowed
         ? "AI generation is a Pro perk. Upgrade to make your own."
         : !ready

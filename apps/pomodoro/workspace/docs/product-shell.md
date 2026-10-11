@@ -4,17 +4,30 @@ The member-facing app is its own world, matched to the old app side by
 side: the `_pomodoro` layout route (`src/routes/_pomodoro.tsx`) wraps
 every product page in `src/components/pomodoro/pomodoro-shell.tsx` — the
 translucent blurred sidebar of pill links (Dashboard, Rooms, Pricing,
-Theme, Sounds, Leaderboard, History, Tasks; Settings at the foot), the
-transparent sticky header (brand; the glassy Timer / Leaderboard / Theme
-pills in the middle; then on the right Log in + orange Register or
+Backgrounds, Sounds, Leaderboard, History, Tasks; Settings at the foot), the
+transparent sticky header (brand; the glassy Timer / Leaderboard / Background
+pills in the middle; then on the right Log in + orange Sign up or
 [the bell](notifications.md) and [the account menu](account-menu.md)),
-and the chosen scene as a 720px hero
+and the chosen background as a 720px hero
 that fades into the canvas on every edge. Pages overlap the hero's lower
 half (the shell's -mt-40), which is what makes the timer ring float on
 the image exactly like the old dashboard. **The product is dark by
 default**: a guest is always dark, and a member with no saved choice starts
 dark and can switch to light. How dark the dark is belongs to Settings →
 Appearance; see [The dark mode shade](dark-mode-shade.md).
+
+## Page titles
+
+Every member page names itself in the browser tab as "<Page> — Pomoder", with
+the left menu's word for it, so the tab and the menu agree: "Dashboard —
+Pomoder" on `/timer`, "Pricing — Pomoder" on `/plans`. Each route under
+`src/routes/_pomodoro/` sets its own `head` title, and a route's title wins
+over the shell's "Page · <app name>" fallback in `src/routes/__root.tsx`, which
+is a shell file and is not edited from here. The two invite links have no
+loader, so they read "Room invite — Pomoder" and "Join a group — Pomoder"
+rather than the room's or group's name. Public profiles keep their own titles,
+which name the person. While the timer runs, [the tab countdown](tab-countdown.md)
+writes over the title and gives the page's own back when it stops.
 
 ## Light and dark
 
@@ -73,8 +86,8 @@ transparent".
   "The music bars in the header" in [Sounds](sounds.md).
 - **The three dropdowns are frosted glass.** Tyler, 10 Oct 2026: "Add the
   currant background scene under the dropdown here". Timer settings,
-  Leaderboard and Theme draw their surface at 72% of the popover colour with
-  a 20px blur, so the scene shows through blurred and the words stay
+  Leaderboard and Background draw their surface at 72% of the popover colour with
+  a 20px blur, so the background shows through blurred and the words stay
   readable over a bright one (`quickPopoverGlassClass` in
   `quick-controls-header.tsx`). The class is put on this app's three
   `PopoverContent` calls, never in the shell's popover file.
@@ -116,14 +129,14 @@ than the content's 48px, because the row of controls fits a 1024px window with
 
 **The header row is allowed a second line.** It holds the menu button, the
 brand, three pills and either the bell and the account photo or Log in plus
-Register, and how much room that needs depends on what is in it: Log in
-plus Register is wider than the photo. So no single breakpoint covers every
+Sign up, and how much room that needs depends on what is in it: Log in
+plus Sign up is wider than the photo. So no single breakpoint covers every
 case, and the row wraps instead. A window wide enough for one line is unchanged, and the header's resting
 height is still 86px.
 
 **Below 768px a second line is not enough either**, so the header keeps only
 the Timer pill in the middle, without its word. It keeps its countdown and its
-music bars, because those are the reasons to look at it. Leaderboard and Theme
+music bars, because those are the reasons to look at it. Leaderboard and Background
 are not drawn at all. Tyler, 10 Oct 2026: "remove the leaderboard and theme
 button in mobile". Both pages stay one tap away in the left menu
 (`phoneHiddenClass` in `quick-controls-header.tsx`).
@@ -140,10 +153,10 @@ notification alert is not to see. Make to all red with white number". The
 bell is the shell's, so the colour is put on from Pomoder's wrapper
 (`bellPillClass` in `pomodoro-shell.tsx`), and other apps keep the tint.
 
-**A guest on a phone sees one orange Log in, and no Register.** Tyler,
+**A guest on a phone sees one orange Log in, and no Sign up.** Tyler,
 10 Oct 2026: "in mobile. dont show login and register. just show only login
 in primary button". From 768px up it is the plain Log in link and the orange
-Register, as before. Both Log in versions carry the page you were on, and the
+Sign up, as before. Both Log in versions carry the page you were on, and the
 sign-in page links to registering ("Create an account").
 
 Measured on 10 Oct 2026: below 768px the header is one 86px line at every
@@ -207,14 +220,14 @@ app.
   for this, off by default, so every other app keeps the public frame until it
   sets one. The two shell files it changed, `app-options.ts` and
   `auth-shell.tsx`, are the same in both apps.
-- **The card floats on the scene.** It sits 280px from the top, the way the
+- **The card floats on the background.** It sits 280px from the top, the way the
   timer ring does, rather than at the product's usual content height. At that
   height the form started 600px down a 900px window and its Google and passkey
   buttons fell below the fold. The Sign in button is on screen at every size
   from 320×640 up, measured.
 - **Who is signed in is asked from the browser**, the way the shell's own
   public header asks, because these pages have no product loader. Most are
-  reached signed out and show Log in and Register; change email, reached
+  reached signed out and show Log in and Sign up; change email, reached
   signed in, shows the account photo.
 - **Maintenance gets the frame too.** During maintenance the left menu's links
   only lead back to the maintenance page, which Tyler accepted on 6 Oct 2026
@@ -259,9 +272,9 @@ when the window is too narrow to hold it.
   are in it, so no real name ever appears; your own row is in the accent
   colour. Signed out, it says so rather than showing an empty list, and
   it loads when the popover is first opened rather than on every page.
-- **Theme** says whose room the sound and theme belong to (your personal
+- **Background** says whose room the sound and background belong to (your personal
   room, a hosted room, or a guest's random pair) and links to Sounds and
-  Backgrounds. It picks nothing itself: since 7 Oct 2026 a sound or theme is
+  Backgrounds. It picks nothing itself: since 7 Oct 2026 a sound or background is
   previewed on its page first and then added. See
   [The personal room](personal-room.md).
 
@@ -277,7 +290,7 @@ the shell's signed-in chrome — `src/app/options.ts` is empty again.
 **A new screen a member can reach is a route file under
 `src/routes/_pomodoro/`, and nothing else.** Put it anywhere else in
 `src/routes/` and it draws the shell's public frame: a different header, no
-sidebar, no scene, different fonts. A person clicking a link in the product
+sidebar, no background, different fonts. A person clicking a link in the product
 sidebar then watches the whole page change shape, which is the one thing this
 layout exists to prevent.
 
@@ -306,7 +319,7 @@ signed-out pages in its own frame, which would mean changing
 
 ## Pages an admin added
 
-**They are drawn in this frame**, the same sidebar, header and scene as every
+**They are drawn in this frame**, the same sidebar, header and background as every
 product screen. Tyler, 10 Oct 2026: a written page "should be wired to the
 _pomodoro layout". The shell serves written pages from its catch-all route,
 and Pomoder answers first through `pages.catchAll` in `src/app/options.ts`:

@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_pomodoro/copyright")({
   component: CopyrightPage,
   head: () => ({
     meta: [
-      { title: "Copyright · Pomoder" },
+      { title: "Copyright — Pomoder" },
       {
         name: "description",
         content: "Ask for a shared sound or background that copies your work to be taken down.",

@@ -1,26 +1,33 @@
 # Backgrounds
 
-The Live scenes from the catalogue on `/backgrounds`, free and Pro, in the
+The Live backgrounds from the catalogue on `/backgrounds`, free and Pro, in the
 order an admin set, and the chosen one draws behind every member screen's
 content with a canvas-tinted shade so text stays readable. An admin adds and
-edits them on the Themes admin page; see
-[Themes and sounds in the admin](catalog-admin.md). Eight shipped with the
+edits them on the Backgrounds admin page; see
+[Backgrounds and sounds in the admin](catalog-admin.md). Eight shipped with the
 app: Lofi girl (an mp4 video), Ambient glow, Plain dark and Starry night free;
 Rainy window, Night forest, Ocean waves and Fireplace for Pro.
 
+The picture or film behind the timer is a "background" on every screen,
+members' and admins' alike. "Theme" only ever means light or dark. Code
+names and stored values keep their old names (`theme`, `scene:<key>`,
+`/admin/pomodoro-themes`), because a stored field is never renamed. Tyler
+chose this on 10 Oct 2026 (task Polish 3/03), the admin screens included.
+Before, the screens mixed "Theme" and "scene" for the same thing.
+
 - **One grid of cards**, with the tag filter and Shuffle pills beside the
   title. See [Shuffle and tags](shuffle-and-tags.md). Cards sit 24px apart on a
-  wide screen and 16px on a phone, the same on Sounds and Theme (Tyler, 9 Oct
+  wide screen and 16px on a phone, the same on Sounds and Backgrounds (Tyler, 9 Oct
   2026: "add a bigger gap between the theme cards, match that same gap with
   sound cards too").
-- **Any theme can be a film**, with its still as the poster and the fallback.
+- **Any background can be a film**, with its still as the poster and the fallback.
   A film that will not play, or anybody who asked for less movement, gets
   the still. Before 8 Oct 2026 only Lofi girl had a film.
-- **A scene added in the last 14 days shows NEW**, beside PRO.
+- **A background added in the last 14 days shows NEW**, beside PRO.
 - **Lofi girl's own files ship with the app** and stay the last fallback,
   whatever happens to its catalogue row, so the default can always be drawn.
 
-## Under the scenes
+## Under the backgrounds
 
 A line under the cards counts them, "1–16 of 17 backgrounds", the same line the
 Sounds page has. Tyler asked for it on 7 Oct 2026 ("the theme page is missing
@@ -29,33 +36,33 @@ page since 10 Oct 2026 ("the background and sound page should list 16 items"),
 eight before, and Prev, page numbers and Next appear beside the count once there is a
 second page.
 
-## Changing the theme from the dashboard
+## Changing the background from the dashboard
 
 Tyler, 9 Oct 2026: "can you add a hover over back and forth arrow here to
 change themes". Round arrows sit at the left and right edges of the
-dashboard's scene (`theme-arrows.tsx`), shown while the pointer is over the
-scene. A screen with no pointer, such as a phone, shows them all the time.
+dashboard's background (`theme-arrows.tsx`), shown while the pointer is over
+the background. A screen with no pointer, such as a phone, shows them all the time.
 
-- **With one theme picked**, an arrow steps to the theme before or after it,
-  in the order the Theme page shows, skipping Pro themes on a free account,
-  and saves it as your theme. The last one wraps round to the first.
+- **With one background picked**, an arrow steps to the background before or
+  after it, in the order the Backgrounds page shows, skipping Pro backgrounds
+  on a free account, and saves it as your background. The last one wraps round to the first.
 - **On shuffle or ticked tags**, an arrow steps through that group and the
   group stays, the same as the header's Next button. The next shuffle still
   comes when the sound ends.
-- **They hide** in a hosted room, whose theme is the room's, while a break
-  theme is showing, and when there is only one theme to step to.
-- **Only on the dashboard** (`/timer`). Other pages share the scene but not
+- **They hide** in a hosted room, whose background is the room's, while a break
+  background is showing, and when there is only one background to step to.
+- **Only on the dashboard** (`/timer`). Other pages share the background but not
   the arrows.
 
 ## How it works
 
-- **The theme belongs to the room you are in.** Your personal room's theme,
+- **The background belongs to the room you are in.** Your personal room's background,
   or a hosted room's while you are in one. See
   [The personal room](personal-room.md). It is held in the room media store
   (`src/lib/pomodoro/room-media-store.ts`), serialized as `scene:<key>`, or
   `media:<uuid>` for one of your own uploads (see
   [Your own backgrounds and sounds](own-media-uploads.md)).
-- **Hovering over a scene plays it inside its card.** Tyler, 9 Oct 2026:
+- **Hovering over a background plays it inside its card.** Tyler, 9 Oct 2026:
   "Remove this dropdown and instead make it so that the video will play when
   hover over". The film loads only while the pointer is on the card, so a page
   of cards loads no films until one is hovered. A tap plays or stops it on a
@@ -64,7 +71,7 @@ scene. A screen with no pointer, such as a phone, shows them all the time.
 - **The "+" on the picture's top-right corner opens the Add choices.** Tyler,
   9 Oct 2026: "add a "+" icon here to open a dropdown to add to room". "Add
   to my personal room" saves it, "Add to this room" is there for a host, and
-  the theme in use is labelled "Currently selected". The card is `ThemeCard`
+  the background in use is labelled "Currently selected". The card is `ThemeCard`
   in `backgrounds-page.tsx`; the menu is `MediaAddMenu`.
 - **The "+" shows while the pointer is over the card.** Tyler, 10 Oct 2026,
   pointing at the corner: "move the + icon on hover here". It is a round dark
@@ -76,24 +83,24 @@ scene. A screen with no pointer, such as a phone, shows them all the time.
   Video, Animated or Still went the same day: "remove the "video" label".
 - **The product shell renders the backdrop** under its content column
   (`SceneBackdrop` in `pomodoro-shell.tsx`), so it appears behind every
-  frontend page and no shell file changes. The lofi scene is the one real
+  frontend page and no shell file changes. The lofi background is the one real
   video (`public/backgrounds/uploads-265816_small.mp4`, autoplay muted
-  loop); the other scenes render their stills.
-- **The scene fades out low.** It is an 860px band at the top of every page,
+  loop); the other backgrounds render their stills.
+- **The background fades out low.** It is an 860px band at the top of every page,
   and the page's content starts 560px down as before, so the picture runs on
   behind the title and fades into the page colour behind the first row of
   cards. Tyler, 8 Oct 2026: "Let the gradient flow lower", then "a bit
   higher". It used to be 720px tall and reached the page colour there, so the
   picture was gone by the title. On a phone (below 768px wide) both are less:
-  a 660px band with the content starting 429px down, so the scene is not a
+  a 660px band with the content starting 429px down, so the background is not a
   tall empty stretch above the timer (Tyler, 10 Oct 2026: "on mobile this
   background is too tall", 30% less, then "10% higher on mobile"). The heights are in `pomodoro-shell.tsx`; the
   fade's stops are the `hero` shading in `scene-backdrop.tsx`. Zen mode keeps
   its own even wash.
-- **Failures fall back:** a scene or upload whose file errors falls back to
+- **Failures fall back:** a background or upload whose file errors falls back to
   the default (Lofi girl) and saves that, so a deleted upload cannot leave
   a black screen. Lofi girl is the default, so it cannot fall back to itself:
-  when its film will not load, the scene is drawn as its own first frame
+  when its film will not load, the background is drawn as its own first frame
   (`thumbs-lofi_girl.png`), which is a picture rather than a black hero.
 - **A film that failed before the page came alive still counts.** The server
   sends the `<video>` tag, the browser gives up on the file during hydration,
@@ -101,27 +108,27 @@ scene. A screen with no pointer, such as a phone, shows them all the time.
   `onError` alone missed the usual case. The element remembers its own failure,
   so `SceneBackdrop` asks the element once on the way in as well.
 
-## Dimming the scene
+## Dimming the background
 
 Uploads-and-sharing task 08, Part 4 (10 Oct 2026). A member's own photo is not
-picked to sit behind white text the way the catalogue's scenes are, so one
-slider darkens whatever scene is behind the timer.
+picked to sit behind white text the way the catalogue's backgrounds are, so one
+slider darkens whatever background is behind the timer.
 
 - **0 to 70%, in steps of 5**, on Settings → Appearance ("Dim the
-  background") and in the header's Theme dropdown, under "Choose a theme".
+  background") and in the header's Background dropdown, under "Choose a background".
   Tyler, 10 Oct 2026: "The dimming should not be in the background
   dashboard. It should be in theme dropdown."
 - **0 is the default and draws nothing**, so nobody sees a change until they
   move it.
-- **It is a black layer over the scene and under the shading**, so the fade
+- **It is a black layer over the background and under the shading**, so the fade
   into the page colour at the edges is unchanged (`scene-backdrop.tsx`). It
   covers the hero on every member page and Zen mode. The cards' hover
-  previews on this page show a scene as it is.
-- **It saves by itself.** The scene follows the slider while it moves, and the
+  previews on this page show a background as it is.
+- **It saves by itself.** The background follows the slider while it moves, and the
   value is saved when it is let go (or 700ms after the last move from the
   keyboard). A refused save puts the last saved value back and says so.
 - **A member's is in their settings** (`backdrop_dim` on `user_preferences`,
-  migration 0150) and comes with the page's first frame, so a dimmed scene is
+  migration 0150) and comes with the page's first frame, so a dimmed background is
   dim from the start. **A guest's stays in this browser.** It is not copied to
   the account when a guest signs up.
 
@@ -132,7 +139,7 @@ uploaded zooms in very slowly and back, 5% over 60 seconds each way with a
 slight pan, so it feels alive the way a film does. The keyframes are
 `pomodoro-drift` in `theme.css`.
 
-- **Only a picture the member uploaded.** Films, catalogue scenes and Lofi
+- **Only a picture the member uploaded.** Films, catalogue backgrounds and Lofi
   girl's still never drift.
 - **On by default**, with a switch on Settings → Appearance ("Slow drift on
   picture backgrounds"), saved the moment it flips (`backdrop_drift`,
@@ -140,28 +147,28 @@ slight pan, so it feels alive the way a film does. The keyframes are
   once signed in.
 - **Never for anybody who asked their computer for less movement**, whatever
   the switch says.
-- **The hero and Zen mode clip it**, so the zoom never spills past the scene.
+- **The hero and Zen mode clip it**, so the zoom never spills past the background.
 
 ## The first frame is the saved background
 
-**Every page is drawn with the right theme from the very first frame.** The
+**Every page is drawn with the right background from the very first frame.** The
 product layout (`src/routes/_pomodoro.tsx`) and the front page's loader read
 the room you are in with the rest of the page's data. The server draws with
 it, and the browser takes it into the room media store before its first
 render, so the two agree and nothing swaps.
 
-Before 6 Oct 2026 the server always drew the default lofi scene and the
+Before 6 Oct 2026 the server always drew the default lofi background and the
 browser asked for the real choice only after the page was up. Tyler, with rain
 saved, saw the lofi girl and then rain on every load: 320ms on `/` and 570ms on
 `/timer`, measured, longer on a slower connection. Every reader of the
 background shares the loader's answer through `MediaBootstrapContext`: the
-hero, the header's Theme pill, Zen mode and the backgrounds page.
+hero, the header's Background pill, Zen mode and the backgrounds page.
 
 - **The loader's answer is used once.** After the first render the store is the
   truth, so a background picked on the page is never put back by a stale page
   load.
 - **A failed read draws the default**, the same as before.
-- **A guest gets a random free scene on every visit**, picked by the loader,
+- **A guest gets a random free background on every visit**, picked by the loader,
   so a guest's first frame is right too.
 
 ## Reduce Motion
@@ -173,7 +180,7 @@ behind their timer.
   land in the `prefers-reduced-motion: reduce` media query.
   `src/lib/pomodoro/use-reduced-motion.ts` reads it and follows a change, the
   same query the sound engine reads to decide whether a fade snaps.
-- **The scene does not change, only its movement.** Lofi girl becomes its own
+- **The background does not change, only its movement.** Lofi girl becomes its own
   still frame; an uploaded film is held on its first frame rather than swapped
   for something else. Nobody loses the picture they chose.
 - **Changing the setting takes effect without a reload.** Switching it on stops
@@ -183,15 +190,15 @@ behind their timer.
 - **The server renders as though motion is fine**, since it cannot know the
   setting, and the first paint in the browser corrects it.
 
-- **Pro gating:** adding a locked scene to a free account's personal room is
+- **Pro gating:** adding a locked background to a free account's personal room is
   refused server-side (`UPGRADE_REQUIRED:premiumMedia` in
-  `src/server/pomodoro/personal-room.ts`). A Pro host's scene still shows for
+  `src/server/pomodoro/personal-room.ts`). A Pro host's background still shows for
   a free member while they are in that room.
 - **A locked card leads to the plans page.** It keeps the padlock, the faded
   picture and the Pro tag, and pressing it opens `/plans` for a member, or
   sign-in with a return to `/plans` for a guest (`use-open-plans.ts`). It is
   never a disabled button, so Tab reaches it and a screen reader hears
-  "Fireplace, a Pro scene. See the plans". The tooltip with the reason stays
+  "Fireplace, a Pro background. See the plans". The tooltip with the reason stays
   for anyone hovering. A locked card used to be `disabled`, so a click did
   nothing and the keyboard skipped it.
 

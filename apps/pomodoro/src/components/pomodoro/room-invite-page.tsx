@@ -150,7 +150,7 @@ export function RoomInvitePage() {
                   </Button>
                 ) : (
                   <Button asChild variant="outline">
-                    <Link to="/register">Create free account</Link>
+                    <Link to="/register">Sign up</Link>
                   </Button>
                 )}
               </div>
@@ -225,18 +225,18 @@ export function RoomInvitePage() {
               ) : (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    Sign in and you come straight back to this invite to join.
+                    Log in and you come straight back to this invite to join.
                   </p>
                   <div className="flex gap-2">
                     <Button asChild>
                       {/* The login page re-checks this is a path inside the
                           app before following it (`safeRedirectPath`). */}
                       <Link to="/login" search={{ redirect: `/rooms/${slug}` }}>
-                        Sign in to join
+                        Log in to join
                       </Link>
                     </Button>
                     <Button asChild variant="outline">
-                      <Link to="/register">Create free account</Link>
+                      <Link to="/register">Sign up</Link>
                     </Button>
                   </div>
                 </>

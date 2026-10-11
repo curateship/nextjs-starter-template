@@ -14,9 +14,9 @@ export const PRO_PERKS = {
   },
   premiumMedia: {
     key: "premiumMedia",
-    label: "Premium sounds and scenes",
+    label: "Premium sounds and backgrounds",
     lockedReason:
-      "Premium sounds and scenes are a Pro perk. Upgrade to use them.",
+      "Premium sounds and backgrounds are a Pro perk. Upgrade to use them.",
   },
   uploadMedia: {
     key: "uploadMedia",

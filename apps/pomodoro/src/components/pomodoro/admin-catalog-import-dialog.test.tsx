@@ -123,7 +123,7 @@ describe("Import from Pixabay", () => {
       { line: 5, url: FILM },
     ])
     expect(api.success).toHaveBeenCalledWith(
-      "1 theme added as a draft. 3 were refused: line 2 is a music link, paste it on Sounds; line 4 is a number, not the page link; line 5 is already in the catalogue as Rain window."
+      "1 background added as a draft. 3 were refused: line 2 is a music link, paste it on Sounds; line 4 is a number, not the page link; line 5 is already in the catalogue as Rain window."
     )
     expect(onImported).toHaveBeenCalled()
     expect(onClose).toHaveBeenCalled()
@@ -139,7 +139,7 @@ describe("Import from Pixabay", () => {
     await pressImport()
 
     expect(api.error).toHaveBeenCalledWith(
-      "0 themes added as drafts. 5 were refused. Their lines are left in the window with the reasons."
+      "0 backgrounds added as drafts. 5 were refused. Their lines are left in the window with the reasons."
     )
     expect(onClose).not.toHaveBeenCalled()
     expect(box().value).toBe([PHOTO, MUSIC, "1", "2", "https://example.com/a-1/"].join("\n"))

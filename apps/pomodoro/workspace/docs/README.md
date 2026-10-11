@@ -64,7 +64,7 @@ cover this one.
 - [Completion chimes](completion-chimes.md) — a separate chime for a focus
   ending and a break ending, five choices including silence, with Preview.
 - [The personal room](personal-room.md) — every account's own room holding
-  its sound and theme, a hosted room's pair replacing it while you are in
+  its sound and background, a hosted room's pair replacing it while you are in
   one, a guest's random pair, and previewing before adding.
 - [Sounds](sounds.md) — the Live catalogue sounds, the header player that
   survives navigation, the sleep timer and the completion chime.
@@ -72,7 +72,7 @@ cover this one.
   the timer and in a room.
 - [The dark mode shade](dark-mode-shade.md) — the four steps from near black
   to soft grey in Settings → Appearance, which greys move and which stay.
-- [Backgrounds](backgrounds.md) — the Live catalogue scenes and the backdrop every
+- [Backgrounds](backgrounds.md) — the Live catalogue backgrounds and the backdrop every
   member screen draws behind its content.
 - [Focus history](history.md) — the four-range report as Tyler drew it: the
   strip, By day, This week, the hour-of-day chart, top tasks and projects,
@@ -104,16 +104,16 @@ cover this one.
   remove and ban.
 - [Shuffle and tags](shuffle-and-tags.md) — the "Show & shuffle" tag filter
   and the Shuffle switch beside each page's title, shuffle on by default, how
-  the next sound and theme are picked when a sound ends, and a host shuffling
+  the next sound and background are picked when a sound ends, and a host shuffling
   a room.
 - [Admin safety tools](admin-safety-tools.md) — the Chat and Bans pages,
   warnings, suspensions, blocked words, the pause switches and STAFF.
 - [Rooms in the admin](rooms-admin.md) — closing, editing and featuring
   rooms, invitations, house presets and room limits.
 - [Admin settings](admin-settings.md) — Pomoder's tabs under Settings → App settings, saving by themselves: shuffle for
-  guests, the default theme and sound, seasons and the new-account timer.
-- [Themes and sounds in the admin](catalog-admin.md) — the catalogue in the
-  database, the Themes and Sounds dashboards, the window, the 2-to-5-minute
+  guests, the default background and sound, seasons and the new-account timer.
+- [Backgrounds and sounds in the admin](catalog-admin.md) — the catalogue in the
+  database, the Backgrounds and Sounds dashboards, the window, the 2-to-5-minute
   rule, uploads and the worker, and what members fall back to.
 - [Admin sections](admin-sections.md) — every Pomoder operator page under
   `/admin`, from focus data and the report queue to member profiles, uploads,
