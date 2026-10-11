@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { storedTaskNotes } from "@/lib/project/notes"
+
 /**
  * Project's fixed lists and the limits on what people type, shared by the
  * server that checks them and the screens that draw them.
@@ -101,16 +103,35 @@ export const WEEK_DAYS = [
 /** How long an invite link works. */
 export const INVITE_LIFETIME_DAYS = 7
 
+/** What a check-in holds: a task worked on that day, or one let go from the last check-in. */
+export type CheckinItemKind = "pick" | "drop"
+
+/** The moments of a task's life its history shows beside the days it was picked. */
+export type TaskEventKind = "handed_over" | "accepted" | "handed_back"
+
+/**
+ * A task picked on this many days and still not Done gets a mark saying so,
+ * because a task that drags should show up without anyone writing a report.
+ */
+export const PICKED_MANY_DAYS = 3
+
 export const LIMITS = {
   teamName: 80,
   projectName: 80,
   projectDescription: 2000,
   taskTitle: 200,
-  taskNotes: 10_000,
+  /** The notes as saved: the editor's document, which is longer than its words. */
+  taskNotes: 50_000,
   stepText: 200,
   stepsPerTask: 50,
   comment: 4000,
   reason: 200,
+  /** Tasks one check-in can pick. A small team's day is never near this. */
+  picksPerDay: 100,
+  /** Tyler chose these on 10 Oct 2026; Project will be a paid product. */
+  filesPerTask: 10,
+  fileBytes: 10 * 1024 * 1024,
+  teamFileBytes: 5 * 1024 * 1024 * 1024,
 } as const
 
 const id = z.string().min(1).max(36)
@@ -152,6 +173,12 @@ export const createTeamSchema = z.object({
   timeZone: timeZoneSchema,
 })
 
+/** A person's own check-in time and zone. Null goes back to the team's. */
+export const myCheckinTimeSchema = z.object({
+  checkinTime: checkinTimeSchema.nullable().optional(),
+  timeZone: timeZoneSchema.nullable().optional(),
+})
+
 export const updateTeamSchema = z.object({
   name: teamNameSchema.optional(),
   checkinTime: checkinTimeSchema.optional(),
@@ -186,6 +213,12 @@ export const updateProjectSchema = z.object({
 
 export const reasonSchema = trimmed(LIMITS.reason, "The reason")
 
+/** The editor's document, cleaned to what notes may hold and saved as text. */
+const notesSchema = z
+  .unknown()
+  .transform(storedTaskNotes)
+  .refine((notes) => notes.length <= LIMITS.taskNotes, "The notes are too long. Split them up or attach a file.")
+
 const dueDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date from the calendar.")
@@ -194,7 +227,7 @@ const dueDateSchema = z
 export const createTaskSchema = z.object({
   projectId: id,
   title: trimmed(LIMITS.taskTitle, "The task title"),
-  notes: z.string().trim().max(LIMITS.taskNotes).default(""),
+  notes: notesSchema.default(""),
   assigneeUserId: id.nullable(),
   dueDate: dueDateSchema.default(null),
   steps: z
@@ -206,7 +239,7 @@ export const createTaskSchema = z.object({
 export const updateTaskSchema = z.object({
   taskId: id,
   title: trimmed(LIMITS.taskTitle, "The task title").optional(),
-  notes: z.string().trim().max(LIMITS.taskNotes).optional(),
+  notes: notesSchema.optional(),
   dueDate: dueDateSchema.optional(),
 })
 
@@ -221,7 +254,30 @@ export const assignTaskSchema = z.object({
   assigneeUserId: id.nullable(),
 })
 
+const messageSchema = trimmed(LIMITS.comment, "The message")
+
 export const commentSchema = z.object({
   taskId: id,
-  body: trimmed(LIMITS.comment, "The comment"),
+  body: messageSchema,
+})
+
+export const editCommentSchema = z.object({
+  commentId: id,
+  body: messageSchema,
+})
+
+/**
+ * A check-in: an answer for each task left over from the last check-in, and
+ * the tasks picked for today.
+ */
+export const submitCheckinSchema = z.object({
+  answers: z
+    .array(
+      z.discriminatedUnion("action", [
+        z.object({ taskId: id, action: z.literal("carry") }),
+        z.object({ taskId: id, action: z.literal("drop"), reason: reasonSchema }),
+      ])
+    )
+    .max(LIMITS.picksPerDay),
+  picks: z.array(id).max(LIMITS.picksPerDay),
 })

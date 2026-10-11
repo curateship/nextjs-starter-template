@@ -1,9 +1,12 @@
 import { and, eq, inArray } from "drizzle-orm"
 
 import {
+  CHECKIN_HREF,
+  CHECKIN_REMINDER_DETAIL,
+  CHECKIN_REMINDER_HEADING,
   noticeHeading,
   taskHref,
-  type ProjectNoticeKind,
+  type TaskNoticeKind,
 } from "@/lib/project/notices"
 import { uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
@@ -13,12 +16,17 @@ import { projectNoticeLinks } from "@/server/project/schema"
 import { customShellNotifications } from "@/server/schema"
 
 export type TaskNotice = {
-  kind: ProjectNoticeKind
+  kind: TaskNoticeKind
   recipientUserId: string
   actor: { id: string; name: string }
   task: { id: string; projectId: string; title: string }
   /** A reason or a line of the comment, shown after the task's title. */
   extra?: string | null
+}
+
+/** The few things about a task a notice needs. */
+export function taskRef(task: { id: string; projectId: string; title: string }) {
+  return { id: task.id, projectId: task.projectId, title: task.title }
 }
 
 /**
@@ -70,6 +78,28 @@ export async function writeTaskNotices(
     rows.map((row) => row.recipientUserId),
     database
   )
+}
+
+/**
+ * The morning check-in reminder. It has no actor: the app sends it, not a
+ * person. Pass the transaction that claimed the day's reminder, so the claim
+ * and the notice commit or vanish together.
+ */
+export async function writeCheckinReminder(database: ProjectDb, recipientUserId: string) {
+  const id = uuid()
+  await database.insert(customShellNotifications).values({
+    id,
+    recipientUserId,
+    actorUserId: null,
+    type: "app_activity",
+    message: CHECKIN_REMINDER_HEADING,
+    detail: CHECKIN_REMINDER_DETAIL,
+    createdAt: new Date(),
+  })
+  await database
+    .insert(projectNoticeLinks)
+    .values({ noticeId: id, kind: "checkin_reminder", href: CHECKIN_HREF })
+  await publishNotificationCreatedMany([recipientUserId], database)
 }
 
 export type ProjectNoticeDetail = { kind: string; href: string }

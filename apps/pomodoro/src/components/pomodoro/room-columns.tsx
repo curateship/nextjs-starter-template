@@ -175,7 +175,7 @@ function ActiveRoomColumn({
           {leaving ? (
             <Loader2Icon className="animate-spin" aria-hidden="true" />
           ) : null}
-          {snapshot.you.role === "host" ? "Leave & close" : "Leave room"}
+          {snapshot.you.role === "host" ? "Close room" : "Leave room"}
         </Button>
       </div>
     </RoomColumn>

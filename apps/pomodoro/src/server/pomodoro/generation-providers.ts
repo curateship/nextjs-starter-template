@@ -1,5 +1,5 @@
 import { getAiKey } from "@/server/ai/keys"
-import { GENERATION_MODELS } from "@/lib/pomodoro/generation"
+import { GENERATION_MODELS, generationStyle } from "@/lib/pomodoro/generation"
 
 /**
  * The two providers that make the files, ported from the old app
@@ -36,9 +36,37 @@ export async function generationKeysConfigured() {
   return { background: Boolean(gemini), soundscape: Boolean(elevenlabs) }
 }
 
+/**
+ * The member's words, behind a frame that keeps the result usable as scenery:
+ * nothing moving the camera, no text to read, nobody talking at you while you
+ * are trying to concentrate. A style pill's words sit inside the frame, after
+ * those rules, so a style adds a look and never lifts a rule (task 06, part 6).
+ */
+export function backgroundPrompt(prompt: string, style: string | null = null) {
+  const look = generationStyle(style)
+  return [
+    "Ambient focus background, locked camera, seamless visual motion, no text, no people speaking.",
+    look?.words,
+    prompt,
+  ]
+    .filter(Boolean)
+    .join(" ")
+}
+
+/** A picture to start the film from (task 06, part 3), as Veo takes it. */
+export type StartingPicture = { bytes: Uint8Array; mimeType: string }
+
 export async function generateBackgroundVideo(
   prompt: string,
-  signal?: AbortSignal
+  {
+    style = null,
+    picture = null,
+    signal,
+  }: {
+    style?: string | null
+    picture?: StartingPicture | null
+    signal?: AbortSignal
+  } = {}
 ): Promise<GeneratedFile> {
   const apiKey = await requireKey("gemini")
 
@@ -50,23 +78,41 @@ export async function generateBackgroundVideo(
       body: JSON.stringify({
         instances: [
           {
-            // The member's words, behind a frame that keeps the result usable
-            // as scenery: nothing moving the camera, no text to read, nobody
-            // talking at you while you are trying to concentrate.
-            prompt: `Ambient focus background, locked camera, seamless visual motion, no text, no people speaking. ${prompt}`,
+            prompt: backgroundPrompt(prompt, style),
+            // Veo 3.1 Lite takes a first frame to animate. Its
+            // predictLongRunning call refuses `inlineData` ("isn't supported
+            // by this model") and takes these two fields instead, tried
+            // against the live API on 10 Oct 2026.
+            ...(picture
+              ? {
+                  image: {
+                    bytesBase64Encoded: Buffer.from(picture.bytes).toString("base64"),
+                    mimeType: picture.mimeType,
+                  },
+                }
+              : {}),
           },
         ],
         parameters: {
           aspectRatio: "16:9",
           durationSeconds: VIDEO.seconds,
           resolution: "720p",
-          personGeneration: "allow_adult",
+          // Veo refuses "allow_adult" from words alone ("allow_adult for
+          // personGeneration is currently not supported") and "dont_allow"
+          // too, which failed every background until 10 Oct 2026. Words take
+          // "allow_all"; a starting picture takes "allow_adult".
+          personGeneration: picture ? "allow_adult" : "allow_all",
         },
       }),
       signal,
     }
   )
-  if (!started.ok) throw new Error("PROVIDER_REQUEST_FAILED")
+  if (!started.ok) {
+    // The member reads a plain sentence, so the provider's own reason goes to
+    // the worker's log, where a refusal like a used-up quota can be found.
+    console.error("veo refused the request", started.status, await providerReason(started))
+    throw new Error("PROVIDER_REQUEST_FAILED")
+  }
 
   const operation = asObject(await started.json())
   if (typeof operation.name !== "string") {
@@ -88,15 +134,7 @@ export async function generateBackgroundVideo(
 
     const uri = findVideoUri(status.response)
     if (!uri) throw new Error("PROVIDER_INVALID_RESPONSE")
-    // `redirect: "error"` on purpose: the address came out of a provider's
-    // reply, and following wherever it points next is how a reply turns into a
-    // request to somewhere else entirely.
-    const download = await fetch(uri, {
-      headers: { "x-goog-api-key": apiKey },
-      redirect: "error",
-      signal,
-    })
-    if (!download.ok) throw new Error("PROVIDER_REQUEST_FAILED")
+    const download = await downloadVideo(uri, apiKey, signal)
     return {
       bytes: new Uint8Array(await download.arrayBuffer()),
       kind: "video",
@@ -144,6 +182,59 @@ function asObject(value: unknown): Record<string, unknown> {
     throw new Error("PROVIDER_INVALID_RESPONSE")
   }
   return value as Record<string, unknown>
+}
+
+/**
+ * Fetches the finished video. Google answers the file's address by sending
+ * the download on to its own storage (its guide downloads with `curl -L`), so
+ * one hop is followed, and only to a Google host, without the key: the
+ * address came out of a provider's reply, and following wherever it points
+ * is how a reply turns into a request to somewhere else entirely.
+ */
+async function downloadVideo(uri: string, apiKey: string, signal?: AbortSignal) {
+  const first = await fetch(uri, {
+    headers: { "x-goog-api-key": apiKey },
+    redirect: "manual",
+    signal,
+  })
+  if (first.ok) return first
+  const next = first.status >= 300 && first.status < 400 ? first.headers.get("location") : null
+  if (!next || !isGoogleHost(next, uri)) {
+    console.error("veo download refused", first.status)
+    throw new Error("PROVIDER_REQUEST_FAILED")
+  }
+  const second = await fetch(new URL(next, uri), { redirect: "error", signal })
+  if (!second.ok) {
+    console.error("veo download refused", second.status)
+    throw new Error("PROVIDER_REQUEST_FAILED")
+  }
+  return second
+}
+
+/** An https address on one of Google's own hosts. */
+function isGoogleHost(address: string, base: string) {
+  try {
+    const url = new URL(address, base)
+    return (
+      url.protocol === "https:" &&
+      (url.hostname === "googleapis.com" ||
+        url.hostname.endsWith(".googleapis.com") ||
+        url.hostname.endsWith(".googleusercontent.com"))
+    )
+  } catch {
+    return false
+  }
+}
+
+/** The provider's own error sentence, for the log only. */
+async function providerReason(response: Response) {
+  try {
+    const body = asObject(await response.json())
+    const error = asObject(body.error)
+    return typeof error.message === "string" ? error.message.slice(0, 200) : ""
+  } catch {
+    return ""
+  }
 }
 
 /**

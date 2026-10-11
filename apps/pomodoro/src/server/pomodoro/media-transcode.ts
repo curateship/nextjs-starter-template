@@ -38,21 +38,50 @@ export type TranscodeResult = {
 /** Where a member asked a sound or clip to start and end, in milliseconds. */
 export type TranscodeTrim = { startMs: number; endMs: number }
 
+/**
+ * A sound's end crossfaded over its own start, so it loops with no click or
+ * jump: an AI soundscape (task 06, part 2) and a member's sound upload (task
+ * 08, part 3). `minSeconds` repeats the loop until the file runs at least that
+ * long, which is how a 30-second soundscape comes back two minutes long.
+ */
+export type SeamlessLoop = { minSeconds?: number }
+
+/** The crossfade a sound's end makes over its start, in seconds. */
+export const LOOP_FADE_SECONDS = 2
+
 export async function transcodeUpload(
   input: Uint8Array,
   kind: Exclude<PomodoroUploadKind, "image">,
-  trim: TranscodeTrim | null = null
+  trim: TranscodeTrim | null = null,
+  { loop = null }: { loop?: SeamlessLoop | null } = {}
 ): Promise<TranscodeResult> {
   const folder = await mkdtemp(path.join(tmpdir(), "pomodoro-media-"))
   const inputPath = path.join(folder, kind === "video" ? "in.mp4" : "in.audio")
   const outputPath = path.join(folder, kind === "video" ? "out.mp4" : "out.mp3")
+  const looped = kind === "audio" && loop !== null
 
   try {
     await writeFile(inputPath, input)
-    await run("ffmpeg", ffmpegArgs(kind, inputPath, outputPath, trim), {
-      timeout: FFMPEG_TIMEOUT_MS,
-      maxBuffer: 1024 * 1024,
-    })
+    if (looped) {
+      // Two runs: the cut and the loudness first, into plain PCM so nothing is
+      // lost between the two, then the loop, which needs the cut's length.
+      const levelledPath = path.join(folder, "levelled.wav")
+      await run("ffmpeg", levelledAudioArgs(inputPath, levelledPath, trim), {
+        timeout: FFMPEG_TIMEOUT_MS,
+        maxBuffer: 1024 * 1024,
+      })
+      const seconds = await probeFileSeconds(levelledPath)
+      await run(
+        "ffmpeg",
+        seamlessLoopArgs(levelledPath, outputPath, seconds, loop.minSeconds ?? 0),
+        { timeout: FFMPEG_TIMEOUT_MS, maxBuffer: 1024 * 1024 }
+      )
+    } else {
+      await run("ffmpeg", ffmpegArgs(kind, inputPath, outputPath, trim), {
+        timeout: FFMPEG_TIMEOUT_MS,
+        maxBuffer: 1024 * 1024,
+      })
+    }
     const bytes = new Uint8Array(await readFile(outputPath))
     if (!bytes.byteLength) throw new Error("FFmpeg produced an empty file.")
     // FFmpeg seeking past the end still exits cleanly and writes a file with
@@ -95,6 +124,14 @@ export async function probeDurationSeconds(input: Uint8Array) {
   const inputPath = path.join(folder, "in.media")
   try {
     await writeFile(inputPath, input)
+    return await probeFileSeconds(inputPath)
+  } finally {
+    await rm(folder, { recursive: true, force: true })
+  }
+}
+
+async function probeFileSeconds(inputPath: string) {
+  try {
     const { stdout } = await run(
       "ffprobe",
       [
@@ -119,8 +156,6 @@ export async function probeDurationSeconds(input: Uint8Array) {
       )
     }
     throw error
-  } finally {
-    await rm(folder, { recursive: true, force: true })
   }
 }
 
@@ -173,15 +208,87 @@ export async function extractMiddleFrame(input: Uint8Array) {
   }
 }
 
-function ffmpegArgs(
-  kind: "audio" | "video",
+/**
+ * How a sound of `seconds` loops: how long the crossfade is and how many
+ * times the loop repeats. One copy with a 2-second crossfade unless the sound
+ * must run longer; then enough copies to pass `minSeconds`, with the
+ * crossfade stretched so the copies add up to exactly that long. A 30-second
+ * soundscape asked for 120 is five 24-second copies, each joined over 6
+ * seconds. A sound under 2 seconds is too short to loop over itself.
+ */
+export function seamlessLoopPlan(seconds: number, minSeconds = 0) {
+  if (seconds < 2) return null
+  const fade = Math.min(LOOP_FADE_SECONDS, seconds / 4)
+  if (minSeconds <= seconds - fade) return { fade, copies: 1 }
+  const copies = Math.ceil(minSeconds / (seconds - fade))
+  const exact = seconds - minSeconds / copies
+  // Stretching the fade past half the sound would make its start and end
+  // overlap, so then the copies keep the short fade and run a little long.
+  return { fade: exact <= seconds / 2 ? exact : fade, copies }
+}
+
+/** The cut and the loudness, into 44.1 kHz PCM for the loop to read. */
+function levelledAudioArgs(
   inputPath: string,
   outputPath: string,
   trim: TranscodeTrim | null
 ) {
-  // Before the input, so FFmpeg jumps to the start instead of decoding up to
-  // it. Re-encoding makes the cut land on the exact frame, not a keyframe.
-  const input = trim
+  return [
+    "-y",
+    ...inputArgs(inputPath, trim),
+    "-af",
+    "loudnorm",
+    "-ar",
+    "44100",
+    "-c:a",
+    "pcm_s16le",
+    outputPath,
+  ]
+}
+
+/**
+ * The loop: the sound's last `fade` seconds crossfaded over its first, then
+ * the middle. What comes out ends exactly where its own start picks up, so
+ * repeating it, or a player looping it, has no join to hear. Equal-power
+ * curves, because the two ends of an ambient sound are not the same sound
+ * and a straight fade would dip in the middle.
+ */
+function seamlessLoopArgs(
+  inputPath: string,
+  outputPath: string,
+  seconds: number,
+  minSeconds: number
+) {
+  const plan = seamlessLoopPlan(seconds, minSeconds)
+  const encode = ["-codec:a", "libmp3lame", "-b:a", "192k", outputPath]
+  if (!plan) return ["-y", "-i", inputPath, ...encode]
+  const fade = plan.fade.toFixed(3)
+  const middleEnd = (seconds - plan.fade).toFixed(3)
+  const repeat =
+    plan.copies > 1
+      ? `;[once]asplit=${plan.copies}${copyLabels(plan.copies)};${copyLabels(plan.copies)}concat=n=${plan.copies}:v=0:a=1[out]`
+      : ""
+  const graph =
+    `[0:a]asplit=3[a][b][c];` +
+    `[a]atrim=0:${fade},asetpts=PTS-STARTPTS[head];` +
+    `[b]atrim=${fade}:${middleEnd},asetpts=PTS-STARTPTS[middle];` +
+    `[c]atrim=start=${middleEnd},asetpts=PTS-STARTPTS[tail];` +
+    `[tail][head]acrossfade=d=${fade}:c1=qsin:c2=qsin[join];` +
+    `[join][middle]concat=n=2:v=0:a=1[${plan.copies > 1 ? "once" : "out"}]` +
+    repeat
+  return ["-y", "-i", inputPath, "-filter_complex", graph, "-map", "[out]", ...encode]
+}
+
+function copyLabels(copies: number) {
+  return Array.from({ length: copies }, (_, index) => `[copy${index}]`).join("")
+}
+
+/**
+ * Before the input, so FFmpeg jumps to the start instead of decoding up to
+ * it. Re-encoding makes the cut land on the exact frame, not a keyframe.
+ */
+function inputArgs(inputPath: string, trim: TranscodeTrim | null) {
+  return trim
     ? [
         "-ss",
         (trim.startMs / 1000).toFixed(3),
@@ -191,6 +298,15 @@ function ffmpegArgs(
         inputPath,
       ]
     : ["-i", inputPath]
+}
+
+function ffmpegArgs(
+  kind: "audio" | "video",
+  inputPath: string,
+  outputPath: string,
+  trim: TranscodeTrim | null
+) {
+  const input = inputArgs(inputPath, trim)
   if (kind === "video") {
     return [
       "-y",

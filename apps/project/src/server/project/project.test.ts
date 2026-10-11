@@ -25,9 +25,9 @@ import {
   removeProjectMember,
 } from "@/server/project/projects"
 import { projectNoticeLinks, projectTasks } from "@/server/project/schema"
+import { addComment } from "@/server/project/task-chat"
 import {
   acceptTask,
-  addComment,
   assignTask,
   createTask,
   handBackTask,

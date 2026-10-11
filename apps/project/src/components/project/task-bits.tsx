@@ -1,10 +1,11 @@
-import { CircleAlertIcon, ClockIcon } from "lucide-react"
+import { CircleAlertIcon, ClockIcon, RepeatIcon } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { initialsFor } from "@/lib/crm/inbox-time"
 import { formatUtcDate } from "@/lib/format/format-time"
 import {
+  PICKED_MANY_DAYS,
   PROJECT_COLOR_DOT,
   TASK_STATUS_LABEL,
   type ProjectColor,
@@ -96,5 +97,25 @@ export function StepsCount({ steps }: { steps: { done: number; total: number } }
     <span className="text-muted-foreground">
       {steps.done} of {steps.total} steps done
     </span>
+  )
+}
+
+/**
+ * "Picked on 4 days": a task picked on three or more check-ins and still not
+ * Done, so a task that drags shows up without anyone writing a report.
+ */
+export function PickedDaysBadge({
+  pickedDays,
+  status,
+}: {
+  pickedDays: number
+  status: TaskStatus
+}) {
+  if (pickedDays < PICKED_MANY_DAYS || status === "done") return null
+  return (
+    <Badge variant="outline">
+      <RepeatIcon aria-hidden />
+      Picked on {pickedDays} days
+    </Badge>
   )
 }

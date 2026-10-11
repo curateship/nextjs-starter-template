@@ -39,6 +39,7 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     handedBack: null,
     steps: { done: 0, total: 0 },
     commentCount: 0,
+    pickedDays: 0,
     ...overrides,
   }
 }
@@ -88,7 +89,7 @@ describe("the list", () => {
     expect(empty).toContain("Nothing assigned to you right now.")
   })
 
-  it("names the project instead of the person on My work", () => {
+  it("names the project instead of the person on My dashboard", () => {
     const html = renderToStaticMarkup(<TaskList tasks={tasks} readOnly={false} showProject onOpenTask={() => {}} />)
     expect(html).toContain(">Project<")
     expect(html).not.toContain("Assigned to")
@@ -187,7 +188,7 @@ describe("the project page", () => {
 
   it("draws details, tasks and members", () => {
     const html = renderToStaticMarkup(<ProjectWorkspace page={page} openTaskId={undefined} />)
-    expect(html).toContain(`id="project-name"`)
+    expect(html).toContain(`aria-label="Project settings"`)
     expect(html).toContain("New site")
     expect(html).toContain("Board")
     expect(html).toContain("New task")
@@ -201,7 +202,7 @@ describe("the project page", () => {
       <ProjectWorkspace page={{ ...page, project: { ...page.project, archived: true } }} openTaskId={undefined} />
     )
     expect(html).toContain("This project is archived")
-    expect(html).toContain("Bring back")
+    expect(html).toContain("Bring it back from the cog")
     expect(html).not.toContain("New task")
   })
 })

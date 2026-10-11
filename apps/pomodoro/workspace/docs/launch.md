@@ -200,6 +200,37 @@ What the laptop could not prove:
 
 ## Release record
 
+### Uploads, sharing, rooms and the shell merge, 10 Oct 2026 (evening)
+
+- **What shipped:** 22 commits, from a5dff7b88 up to a9ae0ea53: the upload
+  window, My uploads, sharing, rooms, safety, AI, paying and playback
+  (uploads-and-sharing tasks 01 to 08), the room card's settings cog with a
+  host's people limit, the Custom Shell merge (d5885cec8), and the guest room
+  list's entry in the open endpoints. The push also carried another session's
+  Project app commits (99e28a440); Project was not redeployed.
+- **Migrations:** 15 applied by the website on its way in, 0133 to 0138 and
+  0145 to 0153.
+- **First push refused:** `develop` held the Project app's two commits, so
+  `develop` was merged into this branch (a9ae0ea53, no overlapping files) and
+  the deploy run again.
+- **Website:** deployment `yc64x6tmxs679cta0p9tm4at`, 550 seconds, healthy.
+  Website first because migrations shipped.
+- **Worker:** deployment `b8ika5ydmbt2z52s1c85c9rc`, 487 seconds, healthy.
+- **Health:** `https://pomoder.com/api/health` answered `{"status":"ok"}`.
+- **Left menu:** the admin menu differed and was copied; the members' menu was
+  already the same.
+- **AI keys:** all four already there on live (Anthropic, OpenAI, Gemini,
+  ElevenLabs), the same last four characters as the local ones.
+- **Browser check:** as a visitor, `/rooms` lists Starting soon and Open to
+  join, and `/copyright` shows its form. Signed in as Tyler, the timer,
+  Sounds with its Catalogue, Shared by members and Saved tabs, Member uploads
+  and Settings → AI (four keys set) all opened, with no page errors and no
+  failed requests.
+- **Still owed:** a hosted room on live to see the cog and people limit
+  (not opened, because a live room is visible to members), a real purchase
+  and refund of a pack, and the shell's `public-branding.test.ts`, which
+  expects the public header without the merged "menu font size" setting.
+
 ### YouTube clips and the worker fix, 10 Oct 2026
 
 - **Commit:** `a5dff7b88`, 4 commits after `b157fdafa`: the worker crash fix

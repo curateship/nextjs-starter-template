@@ -83,6 +83,10 @@ saved with it.
 | streak_reminder | a member who switched it on, streak alive and today empty | Account | `/timer` |
 | project_changed | a project's owner, when an admin who is not the owner renames it, changes its target, archives it or brings it back | Account | `/tasks`, where the Projects panel is |
 | project_deleted | a project's owner, when an admin who is not the owner deletes it | Account | `/tasks` |
+| followed_share | people who follow someone who shared a file, once a day per person, folding later files in while unread | Social | the sharer's public page, while it opens |
+| share_weekly | an owner whose shared files at least 3 people added in the last seven days, on their own Monday | Account | My uploads, on the top file's kind |
+| share_removed | the owner of a file an admin took off sharing, with the reason as its detail | Account | My uploads, on the file's kind |
+| share_waiting | every active admin, while a member's first share waits for a check | Account | Member uploads, filtered to "Waiting to be shared" |
 
 Rooms is what happens in and around focus rooms. Social is other people outside
 a room. Account is your own badges, files and credits, and moderation: the

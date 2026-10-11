@@ -11,6 +11,19 @@ import {
 } from "@/server/pomodoro/admin-generations"
 import { deleteAdminTags, listAdminTags, type AdminTagRow } from "@/server/pomodoro/admin-tags"
 import { deleteAdminUploads, listAdminUploads, type AdminUploadRow } from "@/server/pomodoro/admin-uploads"
+import { nudgeRoomsPlaying } from "@/server/pomodoro/rooms"
+import {
+  approveSharedFiles,
+  clearShareWaitingNotices,
+  copySharedFileToCatalogue,
+  setFeaturedSharedFile,
+  unshareSharedFiles,
+} from "@/server/pomodoro/admin-shared-media"
+import {
+  UNSHARE_NOTE_MAX,
+  UNSHARE_REASON_IDS,
+  UPLOAD_SHARING_FILTERS,
+} from "@/lib/pomodoro/shared-media-reports"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import {
   ADMIN_PAGE_SIZE_MAX,
@@ -29,7 +42,13 @@ import {
 export type { AdminGenerationRow, AdminTagRow, AdminUploadRow }
 
 export const getMemberFilesErrorMessage = createErrorMessage(
-  { R2_NOT_CONFIGURED: "File storage is not set up, so the files cannot be deleted. Set it up in Settings → Storage." },
+  {
+    R2_NOT_CONFIGURED: "File storage is not set up, so the files cannot be deleted. Set it up in Settings → Storage.",
+    SHARED_MEDIA_NOT_FOUND: "That file is no longer shared.",
+    UPLOAD_NOT_READY: "That file could not be read from storage. Try again.",
+    INVALID_FILE_CONTENT: "That file could not be copied into the catalogue.",
+    FILE_TOO_LARGE: "That file is too big for the catalogue.",
+  },
   "That did not work. Please try again."
 )
 
@@ -55,6 +74,7 @@ const uploadQuerySchema = z.object({
   search,
   purpose: z.enum(UPLOAD_PURPOSE_FILTERS).default("all"),
   user,
+  sharing: z.enum(UPLOAD_SHARING_FILTERS).default("all"),
   sort: z.enum(UPLOAD_SORT_COLUMNS).default("created"),
   direction,
   page,
@@ -81,6 +101,63 @@ const deleteUploadsFn = createServerFn({ method: "POST" })
   .handler(({ data, context }) =>
     deleteAdminUploads({ mediaIds: data.ids, actorUserId: context.user.id }).catch(asStorageError)
   )
+
+// Shared files (uploads-and-sharing task 05)
+
+const unshareFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      ids: mediaIds,
+      reason: z.enum(UNSHARE_REASON_IDS),
+      note: z.string().max(UNSHARE_NOTE_MAX),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    const result = await unshareSharedFiles({
+      mediaIds: data.ids,
+      reason: data.reason,
+      note: data.note,
+      actorUserId: context.user.id,
+    })
+    await clearShareWaitingNotices()
+    await nudgeRoomsPlaying(result.done)
+    return result
+  })
+
+const approveFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids: mediaIds }))
+  .handler(async ({ data, context }) => {
+    const result = await approveSharedFiles({ mediaIds: data.ids, actorUserId: context.user.id })
+    await clearShareWaitingNotices()
+    return result
+  })
+
+const featureFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: z.string().uuid().nullable() }))
+  .handler(({ data, context }) =>
+    setFeaturedSharedFile({ mediaId: data.id, actorUserId: context.user.id })
+  )
+
+const toCatalogueFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(({ data, context }) =>
+    copySharedFileToCatalogue({ mediaId: data.id, actorUserId: context.user.id }).catch(
+      asStorageError
+    )
+  )
+
+export const unsharePomodoroUploads = (data: {
+  ids: string[]
+  reason: (typeof UNSHARE_REASON_IDS)[number]
+  note: string
+}) => unshareFn({ data })
+export const approvePomodoroShares = (ids: string[]) => approveFn({ data: { ids } })
+export const featurePomodoroUpload = (id: string | null) => featureFn({ data: { id } })
+export const copyPomodoroUploadToCatalogue = (id: string) => toCatalogueFn({ data: { id } })
 
 // ---------------------------------------------------------------------------
 // AI generations

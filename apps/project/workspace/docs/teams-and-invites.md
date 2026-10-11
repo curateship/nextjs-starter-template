@@ -8,12 +8,12 @@ Project has no workspaces.
 - **Each account belongs to one team.** Switching between teams is what a later
   workspace switcher would do, and version 1 doesn't build toward it.
 - **Starting a team.** Anyone signed in who isn't on a team sees a "Start a
-  team" card on Projects, Team and My work. Whoever starts the team is its
+  team" card on My dashboard, Projects and Team. Whoever starts the team is its
   owner.
 - **What a team holds.** A name, a daily check-in time (9:00 to begin with), a
-  time zone, and its work days (Monday to Friday to begin with). The check-in
-  itself is task file 02. The time and days are stored now so the Team
-  dashboard can show them.
+  time zone, and its work days (Monday to Friday to begin with). Each person
+  can shift the time and time zone to their own hours on My dashboard
+  (see [The morning check-in](morning-check-in.md)).
 
 ## Roles
 
@@ -62,26 +62,55 @@ Project has no workspaces.
   team, then off the team. They lose access at once.
 - **Their tasks stay.** Each task they were assigned to is left with nobody
   assigned and a note of whose it was, such as "Nobody (was Ben)".
+- **Their check-ins stay**, so task history still shows the days they worked
+  on a task. They no longer appear on the Team dashboard (see
+  [History](history.md)).
 
 ## The Team dashboard
 
-`/team` holds three things:
+`/team` is three panels, from Tyler's mockup of 10 Oct 2026
+(`assets/pasted-image-1791659665679304000.png`). The panels resize and
+collapse like the project page's, and below 1280px wide one shows at a time.
 
-- **Team settings.** Name, daily check-in time, time zone and work days. Each
-  field saves when it is left or picked. There is no Save button. Members see
-  the same card to read.
+- **Left: the team.** Its name, the day it was created and its time zone, the
+  check-in schedule ("Daily at 9:00 AM" and the work days, M T W T F S S, the
+  work days filled in), and the members with their roles. The owner and admins
+  also get an Invite member button. Manage opens the Members page.
+- **Middle: the calendar.** A month of the team's check-ins. See
+  [History](history.md#past-days-on-the-team-dashboard).
+- **Right: check-ins.** One day's check-ins, today to start with, with arrows
+  to step through the days. See [History](history.md#past-days-on-the-team-dashboard).
+- **Not built yet:** the team photo, the four figures (members, open tasks,
+  completed this week, check-in rate), meetings in the calendar, and typed
+  check-in notes. Each has a task file in `workspace/tasks/Team dashboard/`.
+
+### Team settings
+
+The cog in the left panel's header opens the Team settings window: name,
+daily check-in time, time zone and work days. Each field saves when it is
+left or picked, so the window ends with Done. Closing it with Escape or a
+click outside saves the field being typed in too. The owner and admins edit;
+everyone else sees the same window to read. Tyler first asked for these in
+Settings → App settings, then chose the window, because Settings only opens
+for app admins and a customer who owns a team is not one.
+
+### The Members page
+
+`/team/members`, opened from Manage:
+
 - **Members.** Everyone on the team with their role and the date they joined.
   The owner and admins change roles from the Settings button and remove people
   from the Delete button, one at a time or several at once.
 - **Pending invites.** Only the owner and admins see this table. Each row can
   be sent again or cancelled.
-
-People who aren't the owner also see a Leave team card at the bottom.
+- **Leave team.** Everyone but the owner sees it at the bottom.
 
 ## Where it lives
 
 - **Rules:** `src/server/project/teams.ts` and `src/server/project/invites.ts`.
 - **Who may do what:** `src/server/project/access.ts`.
-- **Screens:** `src/components/project/team-dashboard.tsx` and
+- **Screens:** `src/components/project/team-dashboard.tsx`,
+  `src/components/project/team-settings-dialog.tsx`,
+  `src/components/project/team-members.tsx` and
   `src/components/project/team-start.tsx`.
 - **Tests:** `src/server/project/project.test.ts`.

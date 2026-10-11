@@ -338,6 +338,16 @@ when none is given. A
 theme gets its still from the middle of its film once the worker has prepared
 it, so a new theme can be saved Live while its film is on the way.
 
+## Copied from a member's shared file
+
+Member uploads has "Add to catalogue" in a shared file's sharing menu
+(uploads-and-sharing task 05, part 7). It copies the file into the catalogue
+as a Draft, with the file's name and tags, the artist "@handle", the file's
+page as the source and the licence "other" with a note that the member
+confirmed the right to share it. The theme or sound window then opens on it.
+The copy goes through the worker below like any upload, so a sound outside 2
+to 5 minutes is refused with the usual sentence.
+
 ## The worker
 
 `pomodoro-catalog-files` (`catalog-worker.ts`), one file per pass of the

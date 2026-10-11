@@ -69,6 +69,8 @@ const LABELS = {
   name: "Rain on my window",
   tags: ["rain", "night"],
   shared: true,
+  // Sharing needs the right-to-share tick (task 05, part 1).
+  confirmRights: true,
   trim: { startMs: 5000, endMs: 40000 },
 }
 
@@ -219,7 +221,13 @@ describe("editPomodoroUpload", () => {
         tags: ["City", "night"],
         shared: false,
       })
-    ).toEqual({ name: "City at night", tags: ["city", "night"], shared: false })
+    ).toEqual({
+      name: "City at night",
+      tags: ["city", "night"],
+      shared: false,
+      shareState: "off",
+      startedWaiting: false,
+    })
     const [listed] = await listPomodoroUploads(owner, "background")
     expect(listed).toMatchObject({ name: "City at night", tags: ["city", "night"], shared: false })
   })
@@ -318,7 +326,8 @@ describe("re-trimming from the cog", () => {
       trim: { startMs: 0, endMs: 2000 },
     })
     const [copy] = (await mediaPaths(userId)).filter((one) => one !== path)
-    expect(copy).toMatch(new RegExp(`^${userId}/.+_old\\.mp4$`))
+    // Stored under a neutral name, never the member's own file name.
+    expect(copy).toMatch(new RegExp(`^${userId}/.+_file\\.mp4$`))
     // The old cut still plays while the new one is made.
     const [listed] = await listPomodoroUploads(userId, "background")
     expect(listed.url).toBe(`https://files.test/${path}`)

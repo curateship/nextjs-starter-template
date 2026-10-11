@@ -4,6 +4,8 @@
  * shell file and an app never edits one.
  */
 export const PROJECT_PANEL_LAYOUT_KEY = "project-page-horizontal"
+export const MY_DASHBOARD_PANEL_LAYOUT_KEY = "project-my-dashboard-horizontal"
+export const TEAM_PANEL_LAYOUT_KEY = "project-team-dashboard-horizontal"
 
 /** The Board or List tab the project page opened on last. */
 export const PROJECT_TASK_VIEW_KEY = "project-page-task-view"

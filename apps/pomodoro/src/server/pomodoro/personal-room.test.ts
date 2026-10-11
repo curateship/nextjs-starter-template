@@ -1,7 +1,16 @@
 import { PGlite } from "@electric-sql/pglite"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { randomUUID } from "node:crypto"
+
+// Files never really leave for the bucket in a test.
+vi.mock("@/server/media/storage", () => ({
+  deleteFromR2: vi.fn(async () => undefined),
+  uploadToR2: vi.fn(async () => undefined),
+  getPublicMediaUrl: vi.fn(async (path: string) => `https://files.test/${path}`),
+  getFromR2: vi.fn(),
+  R2StorageNotConfiguredError: class extends Error {},
+}))
 
 import { type CustomShellDb } from "@/server/db"
 import { deletePomodoroUpload } from "@/server/pomodoro/media-uploads"
@@ -20,7 +29,11 @@ import {
   saveRoomMedia,
   type RoomSettings,
 } from "@/server/pomodoro/rooms"
-import { pomodoroMediaUploads } from "@/server/pomodoro/schema"
+import {
+  pomodoroBlocks,
+  pomodoroMediaUploads,
+  pomodoroSavedMedia,
+} from "@/server/pomodoro/schema"
 import { customShellMedia } from "@/server/schema"
 import {
   createTestDatabase,
@@ -121,6 +134,82 @@ describe("deleting an upload that is in the personal room", () => {
 
     const room = await loadOrCreatePersonalRoom(memberId, db)
     expect([room.sound, room.background]).toEqual([null, "scene:stars"])
+  })
+})
+
+describe("the member's own files for shuffle, and the look", () => {
+  async function insertUpload(values: {
+    purpose: "sound" | "background"
+    kind: "audio" | "image"
+    tags: string[]
+    status?: string
+    deletedAt?: Date
+    owner?: string
+    shared?: boolean
+  }) {
+    const owner = values.owner ?? memberId
+    const workspace = await insertWorkspace(db)
+    const mediaId = randomUUID()
+    await db.insert(customShellMedia).values({
+      id: mediaId,
+      workspaceId: workspace.id,
+      userId: owner,
+      filename: "file",
+      originalName: "file",
+      fileSize: 1_000,
+      mimeType: values.kind === "audio" ? "audio/mpeg" : "image/png",
+      fileType: values.kind,
+      storagePath: `test/${mediaId}`,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    await db.insert(pomodoroMediaUploads).values({
+      mediaId,
+      userId: owner,
+      purpose: values.purpose,
+      kind: values.kind,
+      status: values.status ?? "ready",
+      originalBytes: 1_000,
+      name: `${values.purpose} ${values.tags.join(" ")}`,
+      tags: values.tags,
+      deletedAt: values.deletedAt ?? null,
+      shared: values.shared ?? false,
+      shareConfirmedAt: values.shared ? new Date() : null,
+    })
+    return mediaId
+  }
+
+  it("sends only tagged, finished files out of the bin, and the default look", async () => {
+    const rain = await insertUpload({ purpose: "sound", kind: "audio", tags: ["rain"] })
+    await insertUpload({ purpose: "sound", kind: "audio", tags: [] })
+    await insertUpload({ purpose: "sound", kind: "audio", tags: ["rain"], status: "queued" })
+    await insertUpload({ purpose: "sound", kind: "audio", tags: ["rain"], deletedAt: new Date() })
+    const desk = await insertUpload({ purpose: "background", kind: "image", tags: ["desk"] })
+
+    const bootstrap = await loadMediaBootstrap(memberId)
+    expect(bootstrap.own.sounds.map((file) => file.mediaId)).toEqual([rain])
+    expect(bootstrap.own.backgrounds).toMatchObject([{ mediaId: desk, kind: "image", tags: ["desk"] }])
+    expect(bootstrap.look).toEqual({ dim: 0, drift: true })
+  })
+
+  it("adds shared files the member saved, until they stop being shared or a block comes between", async () => {
+    const shared = await insertUpload({ purpose: "sound", kind: "audio", tags: ["rain"], owner: hostId, shared: true })
+    const unshared = await insertUpload({ purpose: "sound", kind: "audio", tags: ["rain"], owner: hostId })
+    await db.insert(pomodoroSavedMedia).values([
+      { userId: memberId, mediaId: shared },
+      { userId: memberId, mediaId: unshared },
+    ])
+    expect((await loadMediaBootstrap(memberId)).own.sounds.map((file) => file.mediaId)).toEqual([shared])
+
+    await db.insert(pomodoroBlocks).values({ blockerUserId: hostId, blockedUserId: memberId })
+    expect((await loadMediaBootstrap(memberId)).own.sounds).toEqual([])
+  })
+
+  it("lets an own file be the first pick of the personal room's tags group", async () => {
+    const desk = await insertUpload({ purpose: "background", kind: "image", tags: ["desk"] })
+    await savePersonalBackground(memberId, "tags:desk")
+    const bootstrap = await loadMediaBootstrap(memberId)
+    expect(bootstrap.picks.background).toBe(`media:${desk}`)
   })
 })
 

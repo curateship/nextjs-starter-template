@@ -133,6 +133,13 @@ fill, blur and hover as the bell and the pills. Tyler, 10 Oct 2026: "add a
 background to the hamburger icon so that it matches with the other buttons on
 the menu". It shows below 1024px, where the left menu becomes a drawer.
 
+**The bell's count is solid red with a white number**, red-600 so the white
+reads at 4.8 to 1, in both colour modes. The shell's own badge is a faint red
+tint with red text, which disappeared over a photo. Tyler, 10 Oct 2026: "the
+notification alert is not to see. Make to all red with white number". The
+bell is the shell's, so the colour is put on from Pomoder's wrapper
+(`bellPillClass` in `pomodoro-shell.tsx`), and other apps keep the tint.
+
 **A guest on a phone sees one orange Log in, and no Register.** Tyler,
 10 Oct 2026: "in mobile. dont show login and register. just show only login
 in primary button". From 768px up it is the plain Log in link and the orange

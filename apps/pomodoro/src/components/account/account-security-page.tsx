@@ -68,6 +68,7 @@ export type AccountPasswordDraft = {
 export function AccountSecurityPage({
   user,
   isPaid,
+  passkeys,
   passwordDraft,
   onPasswordDraftChange,
   onPasswordStatusChange,
@@ -75,6 +76,11 @@ export function AccountSecurityPage({
   user: AuthUser
   /** Whether they are on a paid plan, which deleting cancels. */
   isPaid: boolean
+  /**
+   * Whether an admin has passkeys switched on. Off, the card is gone rather
+   * than shown with nothing it can do: a passkey added now could not sign in.
+   */
+  passkeys: boolean
   passwordDraft: AccountPasswordDraft
   onPasswordDraftChange: (draft: AccountPasswordDraft) => void
   onPasswordStatusChange: (status: {
@@ -101,7 +107,7 @@ export function AccountSecurityPage({
           void router.invalidate()
         }}
       />
-      <PasskeysCard />
+      {passkeys ? <PasskeysCard /> : null}
       <SessionsCard devicesChanged={devicesChanged} />
       <DeleteAccountCard
         hasPassword={user.hasPassword}

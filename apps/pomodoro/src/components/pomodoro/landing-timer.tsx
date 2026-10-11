@@ -4,6 +4,7 @@ import { FrontPageRows } from "@/components/marketing/front-page-rows"
 import type { LandingData } from "@/components/pomodoro/landing-page"
 import { PomodoroShell } from "@/components/pomodoro/pomodoro-shell"
 import { HomeRoom } from "@/components/pomodoro/home-room"
+import { FeaturedSharedFile } from "@/components/pomodoro/featured-shared-file"
 import { loadPublicPageBlocks } from "@/lib/api/content/page-blocks"
 import { loadAppFrontPageRows } from "@/lib/api/shell"
 import { APP_FRONT_PAGE_ROW_KIND } from "@/lib/pages/front-page"
@@ -36,6 +37,7 @@ export default function LandingTimer({ data }: { data: LandingData }) {
       bell={data.bell}
     >
       <HomeRoom />
+      {authenticated ? null : <FeaturedSharedFile />}
       {authenticated ? null : <LiveFigureRows />}
     </PomodoroShell>
   )

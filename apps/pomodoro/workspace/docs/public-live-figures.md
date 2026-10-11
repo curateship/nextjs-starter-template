@@ -79,6 +79,14 @@ from the saved front page and the site from the address that was visited, so
 nobody can ask it about a row that is not on that page, and the two figures it
 returns name nobody.
 
+## The featured shared file
+
+Under the timer, beside these rows and also for visitors only, a small card
+shows the one shared file an admin featured from Member uploads, with play and
+its credit (uploads-and-sharing task 05, part 8). It is read the same way: held
+for a minute, so a visit costs no query. It disappears once the file is
+unshared. See [Shared sounds and backgrounds](shared-media.md).
+
 ## Where the code is
 
 - `src/lib/pomodoro/front-page-rows.ts` — the two keys, their wording, the floor

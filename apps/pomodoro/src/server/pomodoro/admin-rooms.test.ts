@@ -13,7 +13,12 @@ import {
   setAdminRoomsFeatured,
 } from "@/server/pomodoro/admin-rooms"
 import { forgetAppSettings, saveAppSetting } from "@/server/pomodoro/app-settings"
-import { createRoomWithHost, joinRoomBySlug, listPublicRooms } from "@/server/pomodoro/rooms"
+import {
+  createRoomWithHost,
+  joinRoomBySlug,
+  listPublicRooms,
+  setRoomPeopleLimit,
+} from "@/server/pomodoro/rooms"
 import { scheduleRoomWithInvites } from "@/server/pomodoro/scheduled-rooms"
 import {
   pomodoroNoticeLinks,
@@ -180,5 +185,18 @@ describe("room limits", () => {
     await joinRoomBySlug(room.slug, sam, db)
     await expect(joinRoomBySlug(room.slug, kim, db)).rejects.toThrow("ROOM_FULL")
     await expect(joinRoomBySlug(room.slug, host, db)).resolves.toBeTruthy()
+  })
+
+  it("lets a host set a lower limit of their own, and only the host", async () => {
+    const [host, sam, kim] = [(await insertUser(db)).id, (await insertUser(db)).id, (await insertUser(db)).id]
+    const room = await openRoom(host, "cosy")
+    await expect(setRoomPeopleLimit(room.slug, sam, 2, db)).rejects.toThrow("ROOM_HOST_REQUIRED")
+    await expect(setRoomPeopleLimit(room.slug, host, 1, db)).rejects.toThrow("ROOM_PEOPLE_LIMIT_INVALID")
+    await setRoomPeopleLimit(room.slug, host, 2, db)
+    await joinRoomBySlug(room.slug, sam, db)
+    await expect(joinRoomBySlug(room.slug, kim, db)).rejects.toThrow("ROOM_FULL")
+    // No limit of its own: anybody may join again.
+    await setRoomPeopleLimit(room.slug, host, null, db)
+    await expect(joinRoomBySlug(room.slug, kim, db)).resolves.toBeTruthy()
   })
 })

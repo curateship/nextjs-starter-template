@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { seededCatalog as catalog } from "@/lib/pomodoro/catalog-fixture"
 import {
+  firstPicks,
   freeBreakLook,
   guestMediaBootstrap,
   pairUsesPro,
@@ -38,10 +39,13 @@ describe("a hosted room's pair", () => {
     expect(roomPairProblem(catalog, "curated:rain", "scene:plain")).toBeNull()
   })
 
-  it("takes catalogue items only, never an upload", () => {
+  it("takes catalogue items and files, leaving which files to the server", () => {
+    // Which shared files a host may pick is checked on the server
+    // (`assertRoomFileUsable`); the shape alone passes here.
     const upload = "media:0b6f3c1e-8a4d-4c55-9e0e-2f6a1b7c9d10"
-    expect(roomPairProblem(catalog, upload, "scene:plain")).toBe("bad_sound")
-    expect(roomPairProblem(catalog, "curated:rain", upload)).toBe("bad_background")
+    expect(roomPairProblem(catalog, upload, "scene:plain")).toBeNull()
+    expect(roomPairProblem(catalog, "curated:rain", upload)).toBeNull()
+    expect(roomPairProblem(catalog, "media:not-a-uuid", "scene:plain")).toBe("bad_sound")
     expect(roomPairProblem(catalog, "curated:nope", "scene:plain")).toBe("bad_sound")
   })
 
@@ -63,7 +67,7 @@ describe("a hosted room's pair", () => {
 describe("the names a person reads", () => {
   it("names a loop, an upload and silence", () => {
     expect(soundLabelFor(catalog, "curated:rain")).toBe("Rain")
-    expect(soundLabelFor(catalog, "media:0b6f3c1e-8a4d-4c55-9e0e-2f6a1b7c9d10")).toBe("Your audio")
+    expect(soundLabelFor(catalog, "media:0b6f3c1e-8a4d-4c55-9e0e-2f6a1b7c9d10")).toBe("A shared sound")
     expect(soundLabelFor(catalog, null)).toBeNull()
   })
 
@@ -144,5 +148,44 @@ describe("the admin's break look", () => {
     })
     expect(boot.breakLook).toEqual({ background: "scene:plain", message })
     expect(guestMediaBootstrap(catalog, () => 0).breakLook).toEqual({ background: null, message: "" })
+  })
+})
+
+describe("the first pick from a group with the member's own files", () => {
+  const tagged = {
+    ...catalog,
+    sounds: catalog.sounds.map((sound) => ({
+      ...sound,
+      tags: sound.key === "rain" ? ["rain"] : [],
+    })),
+  }
+  const own = {
+    sounds: [
+      { mediaId: "0f0f0f0f-0000-4000-8000-000000000001", name: "Desk rain", tags: ["rain"], url: "/a.mp3", kind: "audio" as const },
+    ],
+    backgrounds: [
+      { mediaId: "0f0f0f0f-0000-4000-8000-000000000002", name: "Desk", tags: ["desk"], url: "/a.jpg", kind: "image" as const },
+    ],
+  }
+
+  it("can land on an own file whose tag is ticked", () => {
+    // Two rain sounds, the catalogue's and the member's; a high roll takes the second.
+    expect(firstPicks(tagged, "tags:rain", "tags:desk", true, () => 0.99, own)).toEqual({
+      sound: "media:0f0f0f0f-0000-4000-8000-000000000001",
+      background: "media:0f0f0f0f-0000-4000-8000-000000000002",
+    })
+    expect(firstPicks(tagged, "tags:rain", null, true, () => 0, own).sound).toBe("curated:rain")
+  })
+
+  it("never draws an own file for plain shuffle, or without the member's files", () => {
+    for (const roll of [0, 0.5, 0.99]) {
+      expect(firstPicks(tagged, "shuffle", "shuffle", true, () => roll, own).sound).toMatch(
+        /^curated:/
+      )
+    }
+    expect(firstPicks(tagged, "tags:rain", "tags:desk", true, () => 0.99)).toEqual({
+      sound: "curated:rain",
+      background: null,
+    })
   })
 })

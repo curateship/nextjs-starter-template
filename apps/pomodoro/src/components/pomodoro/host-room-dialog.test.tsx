@@ -11,6 +11,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
 vi.mock("@/lib/api/pomodoro/rooms", () => ({
   createRoom: api.createRoom,
   loadHostingOptions: async () => ({ presets: [], maxInvitesPerRoom: 20 }),
+  loadRoomFileChoices: async () => ({ sounds: [], backgrounds: [] }),
 }))
 vi.mock("@/lib/api/pomodoro/timer-presets", () => ({
   listTimerPresets: api.listTimerPresets,

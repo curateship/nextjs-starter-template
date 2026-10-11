@@ -3,6 +3,7 @@ import type {
   CatalogTheme,
   MediaCatalog,
 } from "@/lib/pomodoro/catalog"
+import type { MediaCredit } from "@/lib/pomodoro/shared-media"
 
 /**
  * A choice that is a group rather than one item: every sound (or theme), or
@@ -95,6 +96,59 @@ export function poolThemes(
 }
 
 /**
+ * One of the member's own ready files, as shuffle sees it (uploads-and-sharing
+ * task 08, Part 1). Only files with at least one tag are sent, because a file
+ * joins a group through its tags and nothing else.
+ */
+export type OwnPoolFile = {
+  mediaId: string
+  name: string
+  tags: string[]
+  url: string
+  kind: "image" | "video" | "audio"
+  /** Who made a saved file, so the player credits them (task 03, part 4). */
+  credit?: MediaCredit | null
+}
+
+export type OwnPoolMedia = { sounds: OwnPoolFile[]; backgrounds: OwnPoolFile[] }
+
+export const NO_OWN_POOL_MEDIA: OwnPoolMedia = { sounds: [], backgrounds: [] }
+
+/**
+ * The member's own files in a group. Only a ticked tag brings them in: plain
+ * shuffle ("All tags") stays the catalogue's, so nobody who has not ticked
+ * one of their own tags hears or sees anything different from before.
+ */
+export function poolOwnFiles(files: OwnPoolFile[], pool: MediaPool) {
+  return pool.mode === "tags"
+    ? files.filter((file) => file.tags.some((tag) => pool.tags.includes(tag)))
+    : []
+}
+
+/**
+ * The tags only the member's own files carry, for the "Your files" group of
+ * the filter. A tag the catalogue also has is one tag, listed with the
+ * catalogue's, so it is left out here.
+ */
+export function ownOnlyTags(files: OwnPoolFile[], catalogTagNames: string[]) {
+  const counts = new Map<string, number>()
+  for (const file of files) {
+    for (const tag of file.tags) {
+      if (catalogTagNames.includes(tag)) continue
+      counts.set(tag, (counts.get(tag) ?? 0) + 1)
+    }
+  }
+  return [...counts.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => a.tag.localeCompare(b.tag))
+}
+
+/** How many of the member's own files carry a tag. */
+export function ownTagCount(files: OwnPoolFile[], tag: string) {
+  return files.filter((file) => file.tags.includes(tag)).length
+}
+
+/**
  * One item from a group, never the one playing now when there is another to
  * play, so shuffle never repeats itself back to back.
  */
@@ -134,12 +188,19 @@ export function describeTags(tags: string[]) {
   return `${tags.slice(0, -1).join(", ")} or ${tags.at(-1)}`
 }
 
-/** The cards with any ticked tag, or every card when every tag is ticked (null). */
+/**
+ * The cards with any ticked tag, or every card when every tag is ticked (null).
+ * A ticked tag no card carries is one of the member's own (see
+ * `ownOnlyTags`) and filters nothing, so ticking only those keeps every card.
+ */
 export function filterByTags<T extends { tags: string[] }>(
   items: T[],
   ticked: string[] | null
 ) {
-  return ticked ? items.filter((item) => item.tags.some((tag) => ticked.includes(tag))) : items
+  const known = ticked?.filter((tag) => items.some((item) => item.tags.includes(tag))) ?? []
+  return known.length
+    ? items.filter((item) => item.tags.some((tag) => known.includes(tag)))
+    : items
 }
 
 /** The tags a page opens with ticked: the shuffle's own, else every tag (null). */

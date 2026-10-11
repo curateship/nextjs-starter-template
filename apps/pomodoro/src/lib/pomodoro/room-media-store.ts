@@ -19,14 +19,19 @@ import {
   guestMediaBootstrap,
   type MediaBootstrap,
   type RoomMedia,
+  type RoomFiles,
 } from "@/lib/pomodoro/media-pair"
 import {
+  NO_OWN_POOL_MEDIA,
   parseMediaPool,
   pickFromPool,
+  poolOwnFiles,
   poolSounds,
   poolThemes,
   serializeMediaPool,
   type MediaPool,
+  type OwnPoolFile,
+  type OwnPoolMedia,
 } from "@/lib/pomodoro/media-pool"
 import {
   parseSoundReference,
@@ -78,6 +83,8 @@ type Snapshot = {
   personal: Side
   room: HostedRoom | null
   canUsePremiumMedia: boolean
+  /** The member's own tagged files, which their personal room's groups may play. */
+  own: OwnPoolMedia
 }
 
 const EMPTY_SIDE: Side = {
@@ -93,6 +100,7 @@ let state: Snapshot = {
   personal: EMPTY_SIDE,
   room: null,
   canUsePremiumMedia: false,
+  own: NO_OWN_POOL_MEDIA,
 }
 const listeners = new Set<() => void>()
 let primed = false
@@ -115,7 +123,75 @@ function setState(next: Partial<Snapshot>, soundChange: "pick" | "room" = "pick"
   if (!sameSoundReference(before, after)) followSound(after, soundChange)
 }
 
-type Pick = { catalog: MediaCatalog; canUsePremium: boolean; fallback: BackgroundReference }
+/**
+ * What a pick may draw from. `own` is the member's own tagged files, and is
+ * empty for a hosted room, whose group is the catalogue's alone.
+ */
+type Pick = {
+  catalog: MediaCatalog
+  canUsePremium: boolean
+  fallback: BackgroundReference
+  own: OwnPoolMedia
+}
+
+/** One playable item of a group, keyed by its stored value. */
+type Entry<T> = { key: string; reference: T }
+
+function ownSound(file: OwnPoolFile): SoundReference {
+  return {
+    type: "media",
+    mediaId: file.mediaId,
+    mediaUrl: file.url,
+    label: file.name,
+    credit: file.credit,
+  }
+}
+
+function ownBackground(file: OwnPoolFile): BackgroundReference {
+  return {
+    type: "media",
+    mediaId: file.mediaId,
+    mediaUrl: file.url,
+    mediaKind: file.kind === "video" ? "video" : "image",
+    credit: file.credit,
+  }
+}
+
+/** Every sound a group may play: the catalogue's, then the member's own. */
+function soundEntries(pool: MediaPool, context: Pick): Entry<SoundReference>[] {
+  const catalogue = poolSounds(context.catalog, pool, context.canUsePremium).flatMap((item) => {
+    const reference = resolveSoundReference(context.catalog, { type: "curated", key: item.key })
+    return reference ? [{ key: `curated:${item.key}`, reference }] : []
+  })
+  const own = poolOwnFiles(context.own.sounds, pool).map((file) => ({
+    key: `media:${file.mediaId}`,
+    reference: ownSound(file),
+  }))
+  return [...catalogue, ...own]
+}
+
+/** Every theme a group may draw: the catalogue's, then the member's own. */
+function themeEntries(pool: MediaPool, context: Pick): Entry<BackgroundReference>[] {
+  const catalogue = poolThemes(context.catalog, pool, context.canUsePremium).flatMap((item) => {
+    const reference = resolveBackgroundReference(context.catalog, { type: "scene", key: item.key })
+    return reference ? [{ key: `scene:${item.key}`, reference }] : []
+  })
+  const own = poolOwnFiles(context.own.backgrounds, pool).map((file) => ({
+    key: `media:${file.mediaId}`,
+    reference: ownBackground(file),
+  }))
+  return [...catalogue, ...own]
+}
+
+/**
+ * One item of a group: the server's first pick when it is still in the group,
+ * else a random one, never `avoidKey` (the stored value playing now) while
+ * there is another.
+ */
+function entryFrom<T>(entries: Entry<T>[], pick: string | null, avoidKey: string | null) {
+  const fromServer = pick ? entries.find((entry) => entry.key === pick) : undefined
+  return fromServer ?? pickFromPool(entries, Math.random, avoidKey)
+}
 
 /** One sound from a stored choice: the item, or one from its group. */
 function soundFrom(
@@ -130,14 +206,8 @@ function soundFrom(
       sound: resolveSoundReference(context.catalog, parseSoundReference(stored)),
       soundPool: null,
     }
-  const fromServer = resolveSoundReference(context.catalog, parseSoundReference(pick))
-  const item = fromServer
-    ? null
-    : pickFromPool(poolSounds(context.catalog, pool, context.canUsePremium), Math.random, avoidKey)
   return {
-    sound:
-      fromServer ??
-      (item ? resolveSoundReference(context.catalog, { type: "curated", key: item.key }) : null),
+    sound: entryFrom(soundEntries(pool, context), pick, avoidKey)?.reference ?? null,
     soundPool: pool,
   }
 }
@@ -157,20 +227,9 @@ function backgroundFrom(
         context.fallback,
       backgroundPool: null,
     }
-  const fromServer = resolveBackgroundReference(
-    context.catalog,
-    parseBackgroundReference(pick)
-  )
-  const item = fromServer
-    ? null
-    : pickFromPool(poolThemes(context.catalog, pool, context.canUsePremium), Math.random, avoidKey)
   return {
     background:
-      fromServer ??
-      (item
-        ? resolveBackgroundReference(context.catalog, { type: "scene", key: item.key })
-        : null) ??
-      context.fallback,
+      entryFrom(themeEntries(pool, context), pick, avoidKey)?.reference ?? context.fallback,
     backgroundPool: pool,
   }
 }
@@ -185,12 +244,56 @@ function hostedRoomFrom(
   context: Pick,
   picks: { sound: string | null; background: string | null } = { sound: null, background: null }
 ): HostedRoom {
+  // The member's own files never join the room's group.
+  const roomContext = { ...context, own: NO_OWN_POOL_MEDIA }
   return {
     ...room,
     stored: { sound: room.sound, background: room.background },
-    ...soundFrom(room.sound, picks.sound, context),
-    ...backgroundFrom(room.background, picks.background, context),
+    ...withRoomFiles(
+      {
+        ...soundFrom(room.sound, picks.sound, roomContext),
+        ...backgroundFrom(room.background, picks.background, roomContext),
+      },
+      room.files,
+      context.fallback
+    ),
   }
+}
+
+/**
+ * A shared file in a hosted room (rooms task 04) plays from the address the
+ * server resolved for this viewer, with its credit. One the server would not
+ * resolve (unshared, binned, blocked) is silence or the fallback scene, never
+ * a player or a backdrop with nothing to load.
+ */
+function withRoomFiles<T extends { sound: SoundReference | null; background: BackgroundReference }>(
+  side: T,
+  files: RoomFiles | undefined,
+  fallback: BackgroundReference
+): T {
+  const sound =
+    side.sound?.type === "media"
+      ? files?.sound
+        ? {
+            ...side.sound,
+            mediaUrl: files.sound.url,
+            label: files.sound.name,
+            credit: files.sound.credit,
+          }
+        : null
+      : side.sound
+  const background: BackgroundReference =
+    side.background.type === "media"
+      ? files?.background
+        ? {
+            ...side.background,
+            mediaUrl: files.background.url,
+            mediaKind: files.background.kind === "video" ? "video" : "image",
+            credit: files.background.credit,
+          }
+        : fallback
+      : side.background
+  return { ...side, sound, background }
 }
 
 /** The store's value for what a loader read. */
@@ -205,6 +308,7 @@ function snapshotFrom(bootstrap: MediaBootstrap): Snapshot {
     catalog,
     canUsePremium: bootstrap.canUsePremiumMedia === true,
     fallback,
+    own: bootstrap.own,
   }
   // The server's first pick belongs to whichever pair is on screen.
   const personalPicks = bootstrap.room ? { sound: null, background: null } : bootstrap.picks
@@ -221,6 +325,7 @@ function snapshotFrom(bootstrap: MediaBootstrap): Snapshot {
             ...scene,
             mediaUrl: personal.backgroundUrl,
             mediaKind: personal.backgroundKind === "video" ? "video" : "image",
+            credit: personal.backgroundCredit,
           }
         : fallback
       : sceneSide.background
@@ -228,7 +333,12 @@ function snapshotFrom(bootstrap: MediaBootstrap): Snapshot {
   const personalSound: SoundReference | null =
     sound?.type === "media"
       ? personal.soundUrl
-        ? { ...sound, mediaUrl: personal.soundUrl }
+        ? {
+            ...sound,
+            mediaUrl: personal.soundUrl,
+            label: personal.soundName ?? undefined,
+            credit: personal.soundCredit,
+          }
         : null
       : soundSide.sound
   return {
@@ -242,14 +352,17 @@ function snapshotFrom(bootstrap: MediaBootstrap): Snapshot {
     },
     room: bootstrap.room ? hostedRoomFrom(bootstrap.room, context, bootstrap.picks) : null,
     canUsePremiumMedia: context.canUsePremium,
+    own: bootstrap.own,
   }
 }
 
+/** What a pick for the personal room draws from now. */
 function contextNow(): Pick {
   return {
     catalog: state.catalog,
     canUsePremium: state.canUsePremiumMedia,
     fallback: state.fallbackBackground,
+    own: state.own,
   }
 }
 
@@ -316,6 +429,8 @@ export function enterHostedRoom(room: {
   role: "host" | "member"
   sound: string | null
   background: string | null
+  /** A shared file in the pair, resolved for this viewer. */
+  files?: RoomFiles
 }) {
   const current = state.room
   // The same room re-read keeps what it is playing, group or not, so a room
@@ -326,10 +441,19 @@ export function enterHostedRoom(room: {
     current.role === room.role &&
     current.name === room.name &&
     current.stored.sound === room.sound &&
-    current.stored.background === room.background
+    current.stored.background === room.background &&
+    // A file unshared or blocked since the last read falls back now.
+    sameRoomFiles(current.files, room.files)
   )
     return
   setState({ room: hostedRoomFrom(room, contextNow()) }, "room")
+}
+
+function sameRoomFiles(a: RoomFiles | undefined, b: RoomFiles | undefined) {
+  return (
+    (a?.sound?.url ?? null) === (b?.sound?.url ?? null) &&
+    (a?.background?.url ?? null) === (b?.background?.url ?? null)
+  )
 }
 
 /** Back to your personal room: you left, the room closed, or you were removed. */
@@ -412,20 +536,28 @@ export async function addBackgroundPoolToPersonalRoom(pool: MediaPool) {
 export function playNextFromPools() {
   const side = shownSide(state)
   if (!side.soundPool && !side.backgroundPool) return
-  const context = contextNow()
+  const context = state.room ? { ...contextNow(), own: NO_OWN_POOL_MEDIA } : contextNow()
   const next: Partial<Side> = {}
   if (side.soundPool) {
-    const currentKey = side.sound?.type === "curated" ? side.sound.key : null
     Object.assign(
       next,
-      soundFrom(serializeMediaPool(side.soundPool), null, context, currentKey)
+      soundFrom(
+        serializeMediaPool(side.soundPool),
+        null,
+        context,
+        serializeSoundReference(side.sound)
+      )
     )
   }
   if (side.backgroundPool) {
-    const currentKey = side.background.type === "scene" ? side.background.key : null
     Object.assign(
       next,
-      backgroundFrom(serializeMediaPool(side.backgroundPool), null, context, currentKey)
+      backgroundFrom(
+        serializeMediaPool(side.backgroundPool),
+        null,
+        context,
+        serializeBackgroundReference(side.background)
+      )
     )
   }
   if (state.room) setState({ room: { ...state.room, ...next } }, "room")
@@ -436,10 +568,17 @@ export function playNextFromPools() {
  * The themes the dashboard's arrows step through: the group's when the theme
  * is a group, otherwise every Live theme the plan allows, in the admin's order.
  */
-function steppableThemes(side: Side, context: Pick) {
-  return side.backgroundPool
-    ? poolThemes(context.catalog, side.backgroundPool, context.canUsePremium)
-    : context.catalog.themes.filter((theme) => context.canUsePremium || !theme.locked)
+function steppableThemes(side: Side, context: Pick): Entry<BackgroundReference>[] {
+  if (side.backgroundPool) return themeEntries(side.backgroundPool, context)
+  return context.catalog.themes
+    .filter((theme) => context.canUsePremium || !theme.locked)
+    .flatMap((theme) => {
+      const reference = resolveBackgroundReference(context.catalog, {
+        type: "scene",
+        key: theme.key,
+      })
+      return reference ? [{ key: `scene:${theme.key}`, reference }] : []
+    })
 }
 
 /**
@@ -455,14 +594,13 @@ export async function stepPersonalBackground(direction: 1 | -1) {
   const context = contextNow()
   const list = steppableThemes(state.personal, context)
   if (!list.length) return
-  const current = state.personal.background
-  const at = current.type === "scene" ? list.findIndex((theme) => theme.key === current.key) : -1
+  const current = serializeBackgroundReference(state.personal.background)
+  const at = list.findIndex((entry) => entry.key === current)
   const next =
     at === -1
       ? list[direction === 1 ? 0 : list.length - 1]
       : list[(at + direction + list.length) % list.length]
-  const reference = resolveBackgroundReference(context.catalog, { type: "scene", key: next.key })
-  if (!reference) return
+  const reference = next.reference
   if (state.personal.backgroundPool) {
     setPersonal({ background: reference })
     return
@@ -542,6 +680,8 @@ export function useRoomMedia(seed?: MediaBootstrap | null) {
     /** The groups on screen, when the pair is shuffle or tags. */
     soundPool: shown.soundPool,
     backgroundPool: shown.backgroundPool,
+    /** Your own tagged files, which your personal room's groups may play. */
+    own: snapshot.own,
     fallBackToDefault: fallBackToDefaultBackground,
   }
 }

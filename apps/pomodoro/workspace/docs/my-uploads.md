@@ -27,7 +27,9 @@ ready…", "Making the new cut…", or why it failed), or else carries the marks
 in the orange spaced capitals the catalogue's NEW uses:
 
 - **AI**: made by the generator, not uploaded.
-- **Shared**: the Share tick is on. What sharing shows to others is task 03.
+- **Shared**: other members can see it. **Waiting for a check** while an
+  admin has not yet approved the member's first share, and **Taken off** once
+  an admin unshared it. See [Shared sounds and backgrounds](shared-media.md).
 - **In use**: it is the background or sound of the member's personal room,
   or their profile banner.
 

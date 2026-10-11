@@ -1,5 +1,6 @@
 import { deleteFromR2, getFromR2, uploadToR2 } from "@/server/media/storage"
 import {
+  bucketFilename,
   claimNextUploadJob,
   failUploadJob,
   findVideoWithoutStill,
@@ -18,7 +19,6 @@ import {
 import { purgeExpiredBin } from "@/server/pomodoro/upload-bin"
 import { drainBucketDeletions } from "@/server/pomodoro/bucket-cleanup"
 import { checkStorageWarning } from "@/server/pomodoro/storage-warning"
-import { storedFilename } from "@/server/media/library"
 
 /**
  * One re-encode per pass of the shell's fifteen-second loop.
@@ -89,12 +89,13 @@ export async function processNextMediaUpload() {
       job.kind === "video" ? "video" : "audio",
       job.trimStartMs !== null && job.trimEndMs !== null
         ? { startMs: job.trimStartMs, endMs: job.trimEndMs }
-        : null
+        : null,
+      // A sound's end is crossfaded over its start so it loops without a
+      // click (task 08, part 3). Every new upload and every new cut; files
+      // prepared before this keep playing as they are.
+      { loop: job.kind === "audio" ? {} : null }
     )
-    const filename = storedFilename(
-      `${file.originalName.replace(/\.[^.]+$/, "")}.${output.extension}`,
-      output.mimeType
-    )
+    const filename = bucketFilename(`file.${output.extension}`, output.mimeType)
     const storagePath = `${job.userId}/${filename}`
     await uploadToR2(storagePath, output.bytes, output.mimeType)
     // A clip's card shows its middle frame and plays the film only on hover.

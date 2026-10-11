@@ -63,6 +63,48 @@ filter is not drawn and only Shuffle shows.
   the single sounds, and the same for themes. The pages no longer put a group of
   tags in a hosted room; the room's own picker does.
 
+## Your own files join by their tags
+
+Uploads-and-sharing task 08, Part 1 (10 Oct 2026). The tags a member gives
+their own uploads and AI files (see
+[Your own backgrounds and sounds](own-media-uploads.md)) now do something:
+shuffle can play those files mixed in with the catalogue's.
+
+- **A "Your files" group sits under the catalogue's tags** in the Show &
+  shuffle list, headed the same way. It holds the tags only the member's own
+  files carry, each with how many files have it.
+- **A tag in both lists is one tag.** It stays in the catalogue's list, its
+  count adds the member's files, and ticking it brings in both. With rain
+  ticked, a rain loop the member recorded can come up between the
+  catalogue's rain sounds.
+- **The member's tags start unticked.** "All tags" still means every
+  catalogue tag and nothing of the member's, and plain shuffle still plays the
+  catalogue only. Somebody who never ticks one of their own tags hears and
+  sees exactly what they did before. Ticking one makes the choice a list of
+  tags, stored the usual way (`tags:desk,nature,rain`). With every catalogue
+  tag still ticked that list can pass the 200 characters, and shuffle then
+  says to untick a few, as it always has.
+- **Files you saved join too.** A shared file kept with the heart (see
+  [Shared sounds and backgrounds](shared-media.md)) counts as one of your
+  files here, while it is still shared and nobody on either side has blocked
+  the other. One that stops being shared drops out on the next page load.
+- **Only files with a finished file, out of the bin, and with at least one
+  tag join.** A file still being prepared, one in the bin, and one with no
+  tags are never picked (`loadOwnPoolMedia` in
+  `src/server/pomodoro/own-pool.ts`). The list is read with the page, so a
+  file tagged or binned on My uploads joins or leaves the group on the next
+  page load.
+- **The grid still shows catalogue cards only.** The member's own files are
+  on My uploads. The last catalogue tag still cannot be unticked, whatever of
+  the member's is ticked, so the grid is never empty.
+- **Only the personal room.** A hosted room's group draws from the catalogue
+  alone, for everybody in it, host included: a host's own files never play to
+  the room through its tags.
+- **The player names the file.** A shuffled sound of the member's shows its
+  name ("Desk rain") rather than "Your audio".
+- **The dashboard's arrows step through the group**, own files included.
+- **Each device still picks for itself**, as with the catalogue.
+
 ## How it is stored
 
 In the same columns a single choice is, so nothing that held `curated:<key>`

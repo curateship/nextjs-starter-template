@@ -1,3 +1,4 @@
+import { BackdropLookFields } from "@/components/pomodoro/backdrop-look-controls"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import {
@@ -37,6 +38,9 @@ function isThemeChoice(value: string): value is ThemeChoice {
  * of the theme choice, and still picks the shade. The four shade steps go
  * from the old app's near black up to a soft grey, and the swatch beside each
  * name is that step's canvas colour. Both choices save in this browser.
+ *
+ * Under them, the scene behind the timer: a dim slider and the slow drift on
+ * picture backgrounds, saved in a member's settings and in a guest's browser.
  */
 export default function AppearanceSettingsPanel() {
   const { shade, chooseDarkShade } = useDarkShade()
@@ -107,6 +111,7 @@ export default function AppearanceSettingsPanel() {
             {dark ? "" : " It shows once the theme is dark."}
           </p>
         </div>
+        <BackdropLookFields />
       </CardContent>
     </Card>
   )

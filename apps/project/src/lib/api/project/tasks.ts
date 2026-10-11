@@ -6,32 +6,33 @@ import {
   assignTaskSchema,
   commentSchema,
   createTaskSchema,
+  editCommentSchema,
   reasonSchema,
   setTaskStatusSchema,
   updateTaskSchema,
 } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
-import { findMembership } from "@/server/project/access"
-import { listInvitesForMe } from "@/server/project/invites"
 import { projectNoticeDetailsFor } from "@/server/project/notices"
+import { addComment, deleteComment, editComment } from "@/server/project/task-chat"
+import { followTask, unfollowTask } from "@/server/project/task-followers"
 import { eachOf } from "@/server/project/teams"
 import {
   acceptTask,
-  addComment,
   addStep,
   assignTask,
   createTask,
   deleteStep,
   deleteTask,
   handBackTask,
-  loadMyWork,
   loadTaskDetail,
   setTaskStatus,
   updateStep,
   updateTask,
 } from "@/server/project/tasks"
 
-export type { TaskCard, TaskComment, TaskDetail, TaskStep } from "@/server/project/tasks"
+export type { TaskComment } from "@/server/project/task-chat"
+export type { TaskFile } from "@/server/project/task-files"
+export type { TaskCard, TaskDetail, TaskStep } from "@/server/project/tasks"
 
 const id = z.string().min(1).max(36)
 const stepText = z.string().trim().min(1, "A step can't be empty.").max(LIMITS.stepText)
@@ -40,17 +41,6 @@ const loadTaskFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object({ taskId: id }))
   .handler(async ({ data, context }) => loadTaskDetail(context.user.id, data.taskId))
-
-/** My work, plus what the page needs when there is no team yet. */
-const loadMyWorkFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
-  .handler(async ({ context }) => {
-    const membership = await findMembership(context.user.id)
-    if (!membership) {
-      return { onTeam: false, tasks: [], invites: await listInvitesForMe(context.user) }
-    }
-    return { onTeam: true, tasks: await loadMyWork(context.user.id), invites: [] }
-  })
 
 const createTaskFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -118,6 +108,25 @@ const addCommentFn = createServerFn({ method: "POST" })
   .inputValidator(commentSchema)
   .handler(async ({ data, context }) => addComment(context.user, data))
 
+const editCommentFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(editCommentSchema)
+  .handler(async ({ data, context }) => editComment(context.user, data))
+
+const deleteCommentFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ commentId: id }))
+  .handler(async ({ data, context }) => deleteComment(context.user, data.commentId))
+
+const followFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ taskId: id, follow: z.boolean() }))
+  .handler(async ({ data, context }) =>
+    data.follow
+      ? followTask(context.user.id, data.taskId)
+      : unfollowTask(context.user.id, data.taskId)
+  )
+
 /**
  * Where the bell's Project notices open. The cap leaves room over the tray's
  * page of twenty and keeps one request from becoming an unbounded lookup.
@@ -131,9 +140,6 @@ const loadNoticeDetailsFn = createServerFn({ method: "GET" })
 
 export function loadTask(taskId: string) {
   return loadTaskFn({ data: { taskId } })
-}
-export function loadMyWorkPage() {
-  return loadMyWorkFn()
 }
 export function createProjectTask(data: z.input<typeof createTaskSchema>) {
   return createTaskFn({ data })
@@ -170,6 +176,15 @@ export function deleteTaskStep(stepId: string) {
 }
 export function addTaskComment(data: z.input<typeof commentSchema>) {
   return addCommentFn({ data })
+}
+export function editTaskComment(data: z.input<typeof editCommentSchema>) {
+  return editCommentFn({ data })
+}
+export function deleteTaskComment(commentId: string) {
+  return deleteCommentFn({ data: { commentId } })
+}
+export function followProjectTask(taskId: string, follow: boolean) {
+  return followFn({ data: { taskId, follow } })
 }
 export function loadProjectNoticeDetails(notificationIds: readonly string[]) {
   return loadNoticeDetailsFn({ data: { notificationIds: [...notificationIds] } })

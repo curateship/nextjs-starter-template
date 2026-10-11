@@ -1,3 +1,5 @@
+import sharp from "sharp"
+
 import {
   claimNextGeneration,
   failGeneration,
@@ -13,7 +15,10 @@ import {
   FfmpegMissingError,
   transcodeUpload,
 } from "@/server/pomodoro/media-transcode"
+import { getFromR2 } from "@/server/media/storage"
+import { loadOwnPicture } from "@/server/pomodoro/generation-pictures"
 import { storePomodoroUpload } from "@/server/pomodoro/media-uploads"
+import type { PomodoroGeneration } from "@/server/pomodoro/schema"
 import { checkStorageWarning } from "@/server/pomodoro/storage-warning"
 import { nameFromPrompt } from "@/lib/pomodoro/upload-labels"
 import {
@@ -22,6 +27,7 @@ import {
 } from "@/server/pomodoro/generation-spend"
 import {
   GENERATION_PURPOSE,
+  SOUNDSCAPE_LOOP_SECONDS,
   type GenerationKind,
 } from "@/lib/pomodoro/generation"
 
@@ -53,10 +59,16 @@ export async function processNextGeneration() {
   try {
     generated =
       kind === "background"
-        ? await generateBackgroundVideo(job.prompt)
+        ? await generateBackgroundVideo(job.prompt, {
+            style: job.style,
+            picture: job.fromPicture ? await loadStartingPicture(job) : null,
+          })
         : await generateSoundscapeAudio(job.prompt)
   } catch (error) {
-    if (!(error instanceof ProviderKeyMissingError))
+    if (
+      !(error instanceof ProviderKeyMissingError) &&
+      !(error instanceof PictureGoneError)
+    )
       await recordGenerationFailure(job, kind, error)
     const { retry, reason } = describeFailure(error)
     await failGeneration(job, reason, { retry })
@@ -74,7 +86,15 @@ export async function processNextGeneration() {
     // The same re-encode uploads get: video to 720p without sound, audio
     // loudness-normalised. Veo already returns 720p, but a file that has been
     // through the same mill behaves the same behind the timer.
-    const output = await transcodeUpload(generated.bytes, generated.kind)
+    // A soundscape comes back 30 seconds long and leaves here two minutes
+    // long, crossfaded into itself so the joins cannot be heard (task 06,
+    // part 2).
+    const output = await transcodeUpload(generated.bytes, generated.kind, null, {
+      loop:
+        generated.kind === "audio"
+          ? { minSeconds: SOUNDSCAPE_LOOP_SECONDS }
+          : null,
+    })
 
     const stored = await storePomodoroUpload({
       userId: job.userId,
@@ -116,6 +136,12 @@ export async function processNextGeneration() {
  * straight back rather than burning the second attempt first.
  */
 function describeFailure(error: unknown): { retry: boolean; reason: string } {
+  if (error instanceof PictureGoneError) {
+    return {
+      retry: false,
+      reason: "The picture was deleted before it could be used.",
+    }
+  }
   if (error instanceof ProviderKeyMissingError) {
     return {
       retry: false,
@@ -135,4 +161,36 @@ function describeFailure(error: unknown): { retry: boolean; reason: string } {
     retry: true,
     reason: "That did not work. Your credit has been kept for a retry.",
   }
+}
+
+/** The picture a film was to start from is gone, or in the bin. */
+class PictureGoneError extends Error {}
+
+/** The longest side of a starting picture sent to Veo, which makes 720p. */
+const PICTURE_LONG_SIDE = 1280
+
+/**
+ * The member's own picture, as a JPEG no larger than the film it starts
+ * (task 06, part 3). Checked again here, not only when asked: it must still
+ * be theirs, still a ready picture and not in the bin, because a member could
+ * have deleted it while the request waited.
+ */
+async function loadStartingPicture(job: PomodoroGeneration) {
+  const picture = job.pictureMediaId
+    ? await loadOwnPicture(job.userId, job.pictureMediaId)
+    : null
+  if (!picture) throw new PictureGoneError("PICTURE_GONE")
+  const object = await getFromR2(picture.storagePath)
+  const body = object.Body
+  if (!body || typeof body.transformToByteArray !== "function")
+    throw new Error("The picture could not be read back.")
+  const bytes = await sharp(await body.transformToByteArray())
+    .rotate()
+    .resize(PICTURE_LONG_SIDE, PICTURE_LONG_SIDE, {
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: 88 })
+    .toBuffer()
+  return { bytes: new Uint8Array(bytes), mimeType: "image/jpeg" }
 }

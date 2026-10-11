@@ -14,15 +14,17 @@ import {
   FolderXIcon,
   GaugeIcon,
   HardDriveIcon,
+  HeartIcon,
   MessageSquareIcon,
   PartyPopperIcon,
+  SettingsIcon,
+  Share2Icon,
   ShieldCheckIcon,
   SmilePlusIcon,
   TriangleAlertIcon,
   UserMinusIcon,
   UserPlusIcon,
   UsersIcon,
-  SettingsIcon,
 } from "lucide-react"
 
 import * as React from "react"
@@ -112,6 +114,10 @@ const NOTICE_LOOK: Record<PomodoroNoticeKind, AppNoticeDetail> = {
   group_deleted: { icon: UserMinusIcon, toneClassName: PLAIN },
   project_changed: { icon: FolderIcon, toneClassName: PLAIN },
   project_deleted: { icon: FolderXIcon, toneClassName: PLAIN },
+  followed_share: { icon: Share2Icon, toneClassName: GOOD },
+  share_weekly: { icon: HeartIcon, toneClassName: GOOD },
+  share_removed: { icon: EyeOffIcon, toneClassName: BAD },
+  share_waiting: { icon: ShieldCheckIcon, toneClassName: PLAIN },
 }
 
 /** A kind's whole look: its tile and the tab it is filed under. */

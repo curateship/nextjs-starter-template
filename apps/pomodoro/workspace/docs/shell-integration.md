@@ -168,3 +168,28 @@ app was exactly seven files behind and gained one new file.
 Nothing was deleted and nothing forked. CMS's `lib/format/bulk-result.ts` is no
 longer a fork at all: the previous merge folded its "already that way" count
 into the shell's own copy, and this merge confirms the two are identical again.
+
+## Shell merge, 10 October 2026
+
+Done the same way as the 5 Oct merge, from `apps/custom-shell` in ws-4. 43 shell
+files were older shell copies and were replaced, 6 new shell files arrived, and
+nothing was deleted or forked. No routes were added, so the route tree was left
+as it is.
+
+- **AI has its own row in Settings.** The AI keys moved off General settings to
+  Settings → AI at `/admin/settings/ai`.
+- **"Test this key" says why a key failed**, in the provider's own words, and
+  Gemini's models are 3.8 Flash and 3.1 Pro preview.
+- **Passkeys can be switched off** for the whole app from Settings → General.
+- **Pages an admin adds can have a picture and a description**, and a Pages list
+  block shows chosen pages as cards.
+- **Two migrations were carried**, the shell's `0092` and `0093`, as Pomodoro's
+  `0152_custom_shell_written_page_picture.sql` and
+  `0153_custom_shell_written_page_description.sql`. Both are applied to the local
+  database and not to live.
+
+The four AI keys (Anthropic, OpenAI, Gemini, ElevenLabs) were copied the same
+day from custom-shell's local database into Pomodoro's local one on port 54393.
+Each key was unscrambled with custom-shell's `CUSTOM_SHELL_SECRET_ENCRYPTION_KEY`
+and scrambled again with Pomodoro's, because a key scrambled for one app cannot
+be read by another. Live Pomoder already had its keys.

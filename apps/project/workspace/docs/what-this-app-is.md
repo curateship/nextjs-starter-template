@@ -32,12 +32,40 @@ the code. If the code disagrees with a line here, the code is wrong.
 - **Check-out.** The evening check-out is optional when it is built, and it is
   not part of the first version.
 - **There is no workspace.** Tyler: "There is no workspace." The team is the
-  top level, and a team holds its people and its projects. Version 1 has two
-  dashboards, Projects and Team. Tyler: "A workspace can come later as a
-  workspace switcher like notion but right now we just have projects and team
-  dashboard".
+  top level, and a team holds its people and its projects. Tyler: "A
+  workspace can come later as a workspace switcher like notion but right now
+  we just have projects and team dashboard".
+- **Three dashboards: My dashboard, Projects and Team.** Tyler, 10 Oct 2026:
+  "we dont need calender and check in with its own dashboard". There is no
+  separate check-in page, Today board or person calendar.
+- **My dashboard.** Tyler, 10 Oct 2026: "There should be "My dashboard" and
+  put check in there instead and my tasks there as well. This should be a 3
+  col dashboard with left panel shows my avatar and my informations like
+  name, date joined etc.. middle is my tasks and right panel can show my inbox
+  (notifications)". Check in is a button on its left panel that opens a
+  window.
+- **The Team dashboard.** Tyler gave a mockup on 10 Oct 2026
+  (`assets/pasted-image-1791659665679304000.png`): the team and its members on
+  the left, a month calendar in the middle, and one day's check-ins on the
+  right. Until meetings are built, the calendar shows each day's check-ins
+  (Tyler's choice). Each person's check-in shows "Yesterday" and "Today" as the
+  tasks they picked, and a "Blocker" line for a picked task that is Stuck.
+- **Team settings live in a window on the Team dashboard.** Tyler first said
+  "The team settings goes into app settings in settings", then chose the
+  window when told that Settings only opens for app admins, so a customer who
+  owns a team couldn't reach it.
 - **Teams belong to Project.** Teams, invites and roles are part of this
   product and are built inside `apps/project` only.
+- **A task opens in the middle panel.** On the project page and My dashboard,
+  clicking a task swaps the task list for the task, with a Back button. Tyler
+  asked for this with a chat box on 10 Oct 2026, and confirmed it is for those
+  two pages only. The Team dashboard and the check-in keep opening a task as a
+  window.
+- **Tags in a task's chat.** Typing @ tags someone on the project and sends
+  them a bell notice. Editing a message tells only people newly tagged. Tyler
+  chose this on 10 Oct 2026.
+- **Files on a task.** Up to 10 files of 10 MB each per task, and 5 GB for the
+  whole team. Tyler chose the 5 GB on 10 Oct 2026.
 - **Project members.** People are added to a project, and only they see it.
   Tasks in a project can only be handed to its members.
 - **The project page.** Tyler asked for "the existing 4 panel dashboard (except
@@ -49,8 +77,8 @@ the code. If the code disagrees with a line here, the code is wrong.
 ## The first version
 
 - Teams, email invites, projects and tasks.
-- The morning check-in and the Today board.
-- Task history and each person's calendar of check-ins.
+- The morning check-in, on My dashboard, and the Team dashboard.
+- Task history, and past days on the Team dashboard's calendar.
 
 The work is split into three task files in `workspace/tasks/`, numbered in the
 order they get built.

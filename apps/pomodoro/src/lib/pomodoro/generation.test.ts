@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   describeCreditsLeft,
+  describeQueuePlace,
   GENERATION_COPY,
   GENERATION_PURPOSE,
 } from "@/lib/pomodoro/generation"
@@ -41,5 +42,14 @@ describe("GENERATION_COPY", () => {
       expect(copy.placeholder.length).toBeGreaterThan(10)
       expect(copy.description.length).toBeGreaterThan(10)
     }
+  })
+})
+
+describe("describeQueuePlace", () => {
+  it("says how many are ahead and about how long", () => {
+    expect(describeQueuePlace(0, 0)).toBe("Next in line")
+    expect(describeQueuePlace(2, 240)).toBe("2 ahead of you, about 4 minutes")
+    expect(describeQueuePlace(1, 30)).toBe("1 ahead of you, under a minute")
+    expect(describeQueuePlace(2, 60)).toBe("2 ahead of you, about a minute")
   })
 })

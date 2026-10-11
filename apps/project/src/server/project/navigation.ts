@@ -9,7 +9,8 @@ import { projectNavigationAdded } from "@/server/project/schema"
 import { customShellSettings, customShellWorkspaces } from "@/server/schema"
 
 /**
- * Puts Project's three screens in the left menu: Projects, Team and My work.
+ * Puts Project's three screens in the left menu: My dashboard, Projects and
+ * Team.
  *
  * The shell keeps its menus in the database, not in code. Members share one
  * list on the settings row and an admin sees their workspace's own list, and
@@ -31,18 +32,18 @@ function projectNavSection(): ShellSection {
     entries: [
       {
         type: "item",
-        id: "item-project-projects",
-        label: "Projects",
-        href: "/projects",
-        icon: "folder-kanban",
+        id: "item-project-dashboard",
+        label: "My dashboard",
+        href: "/dashboard",
+        icon: "layout-dashboard",
         visible: true,
       },
       {
         type: "item",
-        id: "item-project-my-work",
-        label: "My work",
-        href: "/my-work",
-        icon: "list-checks",
+        id: "item-project-projects",
+        label: "Projects",
+        href: "/projects",
+        icon: "folder-kanban",
         visible: true,
       },
       {

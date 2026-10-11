@@ -70,6 +70,29 @@ the number that runs out. The limit itself comes from the plan
 (`storageLimitBytes` in the Pro perks), so a plan can change it without a code
 change.
 
+### 10 GB more for a year
+
+A Pro member can buy 10 GB more for $5, once, lasting 12 months (task 07,
+Tyler's choice of 10 Oct 2026 over a monthly add-on; how buying works is
+"Buying more" in [Pro perks](pro-perks.md)). The space is added to the plan's
+own limit for the year (`loadBoughtSpace` in
+`src/server/pomodoro/bought-space.ts`, read by `loadPomodoroEntitlements`), so
+every check that reads the limit sees it: the upload window, the server, AI
+files and the 90% warning.
+
+- **"Get 10 GB more for $5"** sits beside Upload and Generate with AI once
+  the space is 90% full, the point where the bell warns, while payments are
+  switched on. The bell's warning then also says "or get 10 GB more".
+- **The heading says how long it lasts**: "2.1 GB of 12 GB, 10 GB bought
+  until 10 October 2027".
+- **When the year ends nothing is deleted.** A member left over the plan's
+  own space is told under the buttons, without pressing anything: "Your extra
+  10 GB ended on 10 September 2026. Nothing was deleted, but uploads are off
+  until you are back under 2.0 GB." Uploads and AI files are refused until
+  then, by the same check as a full account.
+- **Two purchases each count for their own year**, so buying again inside a
+  year adds another 10 GB rather than moving the date.
+
 Three refusals, each with a plain sentence rather than a code:
 
 - **The bytes do not match the claim.** A text file renamed to `.png` is turned
@@ -117,12 +140,15 @@ and the only progress was words on the button.
   member's own. They follow the catalogue's rules. They are stored in lower
   case, at most eight, each up to 24 characters of letters, numbers, spaces
   and dashes. A word that breaks the rules is refused with a sentence, never
-  dropped quietly.
+  dropped quietly. A tagged file can play in shuffle once its tag is ticked
+  in Show & shuffle; see "Your own files join by their tags" in
+  [Shuffle and tags](shuffle-and-tags.md).
 - **Tags for every file** appears with two or more files still to send.
   Typing there fills every file's own tags, except a file whose tags were
   changed by hand.
-- **Share this** starts unticked and is only saved for now. What it shows to
-  other members is task 03.
+- **Share this** starts unticked. Ticking it shows a second tick, "I made
+  this, or I have the right to share it", and both are needed. What sharing
+  does is in [Shared sounds and backgrounds](shared-media.md).
 - **Upload is the one orange button.** It reads "Upload 3 files" when there are
   several. Name and tag problems show under that file's fields, and nothing is
   sent until they are fixed.
@@ -228,6 +254,46 @@ Name label while it waits.
   sounds, Member uploads (`uploads.aiLabels`, on by default). Forty calls per
   member per ten minutes at most.
 
+### From a Pixabay link
+
+On Backgrounds the upload window has two tabs, "From your device" and "From a
+Pixabay link" (task 06, part 8). The second takes Pixabay photo,
+illustration and film links, one per line, up to ten at once, and each
+becomes the member's own upload.
+
+- **The same worker and key as the admin's import.** Each link is a row in
+  `pomodoro_member_imports` (migration 0145), and the
+  `pomodoro-pixabay-imports` worker fetches one member link at the start of
+  each pass, before the admin's, with the site's Pixabay key
+  (`src/server/pomodoro/member-imports.ts`). A picture is ready at once; a
+  film goes to the re-encode like any uploaded clip and the bell says when it
+  is ready.
+- **Named and tagged by Pixabay.** The name comes from the link
+  ("forest-fog-trees" becomes "Forest fog trees") and the tags from
+  Pixabay's own, held to the usual tag rules.
+- **The credit stays with the file.** The Pixabay author and the page are
+  kept on the upload (`source_author`, `source_page_url`), and the cog's File
+  card says "From Pixabay, by Hans."
+- **Pro only, and it counts against the space**, checked when the links are
+  pasted and again against the file that arrived. A film over 100 MB in every
+  size Pixabay offers is refused with a sentence.
+- **No music or sound effects.** Pixabay has no music API and turns away a
+  server that asks for its pages, so a music link is refused on its line:
+  "Line 1 is music or a sound effect, which Pixabay does not let us copy.
+  Download it on Pixabay, then upload the file." The Sounds window has no
+  Pixabay tab for the same reason. A vector is refused too.
+- **Ten links a day per member** by default, counted over the last 24 hours,
+  because every import spends the site's one Pixabay key. An admin changes
+  it in Settings → App settings → Themes and sounds, Member uploads
+  (`uploads.pixabayDailyLimit`). A link past the limit is refused on its own
+  line: "Line 3 is over today's limit of 10."
+- **The window lists the member's last ten imports** with how each went
+  ("Waiting its turn", "Fetching it…", "In the grid", or why it failed), and
+  re-reads every 4 seconds while one is on its way.
+- **A throttled minute does not use up a try.** Pixabay saying "too many
+  requests" puts the row back for the next pass; anything else gets three
+  tries before the row says why.
+
 ## The cog
 
 Every upload's card ends with three buttons: the "+" that adds it to a room,
@@ -286,6 +352,14 @@ loop, one per pass:
   with no audio stream, and 104 KB became 48 KB.
 - **Sound becomes a 192 kbps MP3, loudness-normalised**, so picking a new loop
   does not blow your ears off at the volume the last one was comfortable at.
+- **A sound's end is crossfaded over its own start** (task 08, part 3), so it
+  loops with no click or jump. The last 2 seconds fade into the first 2, which
+  makes the finished file 2 seconds shorter than what was kept: a trim that
+  kept 10 seconds plays 8, and loops without a seam. A sound under 2 seconds
+  is left as it is. It is the same crossfade AI soundscapes get
+  (`seamlessLoopPlan` in `src/server/pomodoro/media-transcode.ts`). Every new
+  upload and every new cut gets it; sounds prepared before 10 Oct 2026 keep
+  playing as they are.
 
 A trimmed file is cut in the same FFmpeg run, so the finished file is only the
 part the member kept.
@@ -365,10 +439,16 @@ backdrop falls back to the default scene.
 ## Picking, and deleting
 
 Picking an upload saves `media:<uuid>` the same way picking a scene saves
-`scene:<key>`. The server checks the upload is **theirs** and **has a finished file**
+`scene:<key>`. The server checks the upload is **theirs, or shared with them**
+(see [Shared sounds and backgrounds](shared-media.md)) and **has a finished file**
 (a first prepare is done, or an older cut plays while a new one is made)
 before saving it; without that check the address bar could put somebody else's media id
 in the row.
+
+A tagged file can also come up by itself, picked by a tags group in the
+personal room, and a picture you uploaded drifts slowly unless that is
+switched off. See [Shuffle and tags](shuffle-and-tags.md) and "A picture
+drifts" in [Backgrounds](backgrounds.md).
 
 A member's delete moves the file to the 30-day bin (see
 [My uploads](my-uploads.md)): it is hidden everywhere and anything using it
@@ -412,7 +492,9 @@ in use. Sounds play from the row's play button.
 - **The shell's admin delete removes the file.** That is `deleteMediaAsAdmin`,
   the same one the shell's Media page uses. It refuses a file that was used
   as a logo in a sent email, and the line afterwards counts that file as kept.
-- **The member is not told.** The file simply leaves their picker.
+- **The member is not told.** The file simply leaves their picker. Taking a
+  file off sharing instead keeps it and does tell them; see "What an admin can
+  do" in [Shared sounds and backgrounds](shared-media.md).
 - **One log row per press** in `pomodoro_audit_logs`, resource
   `member_uploads`, naming every file that went.
 - **Clicking the owner's name** opens their member window, and `?user=<id>`
@@ -442,6 +524,8 @@ in use. Sounds play from the row's play button.
 - `src/components/pomodoro/media-uploads-section.tsx` — the "Your own" card
   each tab uses.
 - `src/components/pomodoro/upload-window.tsx` — the upload window.
+- `src/components/pomodoro/pixabay-import-panel.tsx` — its Pixabay tab; the
+  rows and the worker step are `src/server/pomodoro/member-imports.ts`.
 - `src/components/pomodoro/upload-edit-dialog.tsx` — the cog's window.
 - `src/components/pomodoro/trim-strip.tsx` — the preview player and two
   handles, shared by both windows.

@@ -15,7 +15,7 @@ import {
   creditsReturnDay,
   failGeneration,
   finishGeneration,
-  queueGeneration,
+  requestGenerations,
   reserveGenerationCredit,
 } from "@/server/pomodoro/generation"
 import {
@@ -232,8 +232,10 @@ describe("AI and upload notices", () => {
   it("says a finished AI file is ready, and a failed one that the credit is back", async () => {
     const userId = await member()
     for (const prompt of ["rain on a tin roof", "a storm"]) {
-      const { month } = await reserveGenerationCredit(userId, "background", 20)
-      await queueGeneration({ userId, kind: "background", prompt, month })
+      await requestGenerations(userId, [{ kind: "background", prompt }], {
+        background: 20,
+        soundscape: 20,
+      })
     }
     const first = await claimNextGeneration()
     await finishGeneration(first!, await insertMedia(userId))

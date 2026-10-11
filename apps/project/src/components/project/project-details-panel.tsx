@@ -1,64 +1,23 @@
 import * as React from "react"
-import { useRouter } from "@tanstack/react-router"
-import { ArchiveIcon, ArchiveRestoreIcon, FolderKanbanIcon } from "lucide-react"
+import { FolderKanbanIcon, SettingsIcon } from "lucide-react"
 
-import { ProjectColorSelect } from "@/components/project/project-form-fields"
+import { ProjectSettingsDialog } from "@/components/project/project-settings-dialog"
 import { ProjectDot } from "@/components/project/task-bits"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Textarea } from "@/components/ui/textarea"
-import { archiveProject, saveProject, type ProjectPage } from "@/lib/api/project/projects"
-import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { getProjectErrorMessage } from "@/lib/project/errors"
-import { LIMITS, type ProjectColor } from "@/lib/project/rules"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { Separator } from "@/components/ui/separator"
+import type { ProjectPage } from "@/lib/api/project/projects"
+import { TASK_STATUS_LABEL, TASK_STATUSES } from "@/lib/project/rules"
 
 /**
- * The project's name, colour and description, edited where they sit. Each
- * field saves when it is left or Enter is pressed, and the colour the moment
- * it is picked. There is no Save button.
+ * The project's details, read only. The cog in the header opens Project
+ * settings, which holds the name, colour, description and Archive (Tyler,
+ * 10 Oct 2026: "add a cog icon here and put all the project settings there").
  */
 export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
-  const router = useRouter()
   const { project } = page
-  const [name, setName] = useSyncedDraft(project.name)
-  const [description, setDescription] = useSyncedDraft(project.description)
-  const [nameInvalid, setNameInvalid] = React.useState(false)
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  const readOnly = project.archived
-
-  async function save(fields: { name?: string; color?: ProjectColor; description?: string }) {
-    const ok = await run(() => saveProject({ projectId: project.id, ...fields }), "Saved.")
-    if (ok) await router.invalidate()
-  }
-
-  function commitName() {
-    const next = name.trim()
-    if (next === project.name) return
-    if (!next) {
-      setNameInvalid(true)
-      showErrorToast("The project name can't be empty.")
-      return
-    }
-    void save({ name: next })
-  }
-
-  function commitDescription() {
-    if (description.trim() === project.description) return
-    void save({ description: description.trim() })
-  }
-
-  async function toggleArchived() {
-    const ok = await run(
-      () => archiveProject(project.id, !project.archived),
-      project.archived ? "Project brought back." : "Project archived."
-    )
-    if (ok) await router.invalidate()
-  }
+  const [settingsOpen, setSettingsOpen] = React.useState(false)
 
   return (
     <>
@@ -71,65 +30,55 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
             <span className="truncate">{project.name}</span>
           </span>
         }
+        action={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Project settings"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <SettingsIcon className="size-4" />
+          </Button>
+        }
       />
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <div className="grid gap-4 p-4">
-          {readOnly ? (
+        <div className="grid gap-5 p-4">
+          {project.archived ? (
             <p className="text-sm text-muted-foreground">
-              This project is archived, so nothing in it can change. Bring it back to work on it.
+              This project is archived, so nothing in it can change. Bring it back from the
+              cog to work on it.
             </p>
           ) : null}
-          <div className="grid gap-2">
-            <Label htmlFor="project-name">Name</Label>
-            <Input
-              id="project-name"
-              value={name}
-              maxLength={LIMITS.projectName}
-              disabled={readOnly}
-              aria-invalid={nameInvalid || undefined}
-              onChange={(event) => {
-                setName(event.target.value)
-                setNameInvalid(false)
-              }}
-              onBlur={commitName}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur()
-              }}
-            />
+          <div className="grid gap-1">
+            <h3 className="text-sm font-medium">Description</h3>
+            <p className="text-sm break-words whitespace-pre-wrap text-muted-foreground">
+              {project.description || "No description yet."}
+            </p>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="project-color">Colour</Label>
-            <ProjectColorSelect
-              id="project-color"
-              value={project.color}
-              disabled={readOnly}
-              onChange={(color) => void save({ color })}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="project-description">Description</Label>
-            <Textarea
-              id="project-description"
-              value={description}
-              maxLength={LIMITS.projectDescription}
-              disabled={readOnly}
-              placeholder="What this project is for"
-              onChange={(event) => setDescription(event.target.value)}
-              onBlur={commitDescription}
-            />
-          </div>
-          <div>
-            <Button type="button" variant="outline" disabled={busy} onClick={() => void toggleArchived()}>
-              {project.archived ? (
-                <ArchiveRestoreIcon className="size-4" />
-              ) : (
-                <ArchiveIcon className="size-4" />
-              )}
-              {project.archived ? "Bring back" : "Archive project"}
-            </Button>
-          </div>
+          <Separator />
+          <section className="grid gap-2" aria-labelledby="project-tasks-heading">
+            <h3 id="project-tasks-heading" className="text-sm font-medium">
+              Tasks
+            </h3>
+            <ul className="grid gap-1.5 text-sm">
+              {TASK_STATUSES.map((status) => (
+                <li key={status} className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground">{TASK_STATUS_LABEL[status]}</span>
+                  <span className="tabular-nums">
+                    {page.tasks.filter((task) => task.status === status).length}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
         </div>
       </ScrollArea>
+      <ProjectSettingsDialog
+        project={project}
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </>
   )
 }
