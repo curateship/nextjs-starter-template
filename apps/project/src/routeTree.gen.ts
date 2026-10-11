@@ -74,6 +74,7 @@ import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
 import { Route as AuthenticatedProjectsInviteTokenRouteImport } from './routes/_authenticated/projects/invite.$token'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
+import { Route as ApiProjectTaskFilesFileIdRouteImport } from './routes/api/project/task-files.$fileId'
 import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
@@ -432,6 +433,12 @@ const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   path: '/api/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProjectTaskFilesFileIdRoute =
+  ApiProjectTaskFilesFileIdRouteImport.update({
+    id: '/api/project/task-files/$fileId',
+    path: '/api/project/task-files/$fileId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1MediaResizedRoute = ApiV1MediaResizedRouteImport.update({
   id: '/api/v1/media/resized',
   path: '/api/v1/media/resized',
@@ -525,6 +532,7 @@ export interface FileRoutesByFullPath {
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/projects/invite/$token': typeof AuthenticatedProjectsInviteTokenRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/project/task-files/$fileId': typeof ApiProjectTaskFilesFileIdRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
@@ -594,6 +602,7 @@ export interface FileRoutesByTo {
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/projects/invite/$token': typeof AuthenticatedProjectsInviteTokenRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/project/task-files/$fileId': typeof ApiProjectTaskFilesFileIdRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
@@ -667,6 +676,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/_authenticated/projects/invite/$token': typeof AuthenticatedProjectsInviteTokenRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/project/task-files/$fileId': typeof ApiProjectTaskFilesFileIdRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
@@ -740,6 +750,7 @@ export interface FileRouteTypes {
     | '/admin/system-emails/$kind'
     | '/projects/invite/$token'
     | '/api/auth/google/callback'
+    | '/api/project/task-files/$fileId'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
@@ -809,6 +820,7 @@ export interface FileRouteTypes {
     | '/admin/system-emails/$kind'
     | '/projects/invite/$token'
     | '/api/auth/google/callback'
+    | '/api/project/task-files/$fileId'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
@@ -881,6 +893,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/system-emails_/$kind'
     | '/_authenticated/projects/invite/$token'
     | '/api/auth/google_/callback'
+    | '/api/project/task-files/$fileId'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
@@ -912,6 +925,7 @@ export interface RootRouteChildren {
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+  ApiProjectTaskFilesFileIdRoute: typeof ApiProjectTaskFilesFileIdRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
@@ -1375,6 +1389,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/project/task-files/$fileId': {
+      id: '/api/project/task-files/$fileId'
+      path: '/api/project/task-files/$fileId'
+      fullPath: '/api/project/task-files/$fileId'
+      preLoaderRoute: typeof ApiProjectTaskFilesFileIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/media/resized': {
       id: '/api/v1/media/resized'
       path: '/api/v1/media/resized'
@@ -1581,6 +1602,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+  ApiProjectTaskFilesFileIdRoute: ApiProjectTaskFilesFileIdRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,

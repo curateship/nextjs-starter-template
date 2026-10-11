@@ -56,6 +56,16 @@ the code. If the code disagrees with a line here, the code is wrong.
   owns a team couldn't reach it.
 - **Teams belong to Project.** Teams, invites and roles are part of this
   product and are built inside `apps/project` only.
+- **A task opens in the middle panel.** On the project page and My dashboard,
+  clicking a task swaps the task list for the task, with a Back button. Tyler
+  asked for this with a chat box on 10 Oct 2026, and confirmed it is for those
+  two pages only. The Team dashboard and the check-in keep opening a task as a
+  window.
+- **Tags in a task's chat.** Typing @ tags someone on the project and sends
+  them a bell notice. Editing a message tells only people newly tagged. Tyler
+  chose this on 10 Oct 2026.
+- **Files on a task.** Up to 10 files of 10 MB each per task, and 5 GB for the
+  whole team. Tyler chose the 5 GB on 10 Oct 2026.
 - **Project members.** People are added to a project, and only they see it.
   Tasks in a project can only be handed to its members.
 - **The project page.** Tyler asked for "the existing 4 panel dashboard (except

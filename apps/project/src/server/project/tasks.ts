@@ -1,4 +1,4 @@
-import { and, asc, count, countDistinct, eq, inArray, max, type SQL } from "drizzle-orm"
+import { and, asc, count, countDistinct, eq, inArray, isNull, max, type SQL } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
@@ -10,10 +10,19 @@ import {
   isProjectMember,
   requireOpenProject,
   requireTaskAccess,
+  whoCanStillSee,
   type ProjectDb,
   type TaskRow,
 } from "@/server/project/access"
-import { writeTaskNotices, type TaskNotice } from "@/server/project/notices"
+import { taskRef, writeTaskNotices, type TaskNotice } from "@/server/project/notices"
+import { loadTaskComments, type TaskComment } from "@/server/project/task-chat"
+import {
+  listTaskFiles,
+  removeTaskFilesFromStorage,
+  type FileStorage,
+  type TaskFile,
+} from "@/server/project/task-files"
+import { followerIds } from "@/server/project/task-followers"
 import {
   loadTaskHistory,
   recordTaskEvent,
@@ -25,9 +34,9 @@ import {
   projectProjectMembers,
   projectProjects,
   projectTaskComments,
+  projectTaskFollowers,
   projectTaskSteps,
   projectTasks,
-  projectTeamMembers,
 } from "@/server/project/schema"
 import { customShellUsers } from "@/server/schema"
 
@@ -43,7 +52,7 @@ import { customShellUsers } from "@/server/schema"
 
 export type Actor = { id: string; name: string }
 
-type Person = { id: string; name: string; avatarUrl: string }
+export type Person = { id: string; name: string; avatarUrl: string }
 
 export type TaskCard = {
   id: string
@@ -106,7 +115,7 @@ export async function listTaskCards(
     ? await database
         .select({ taskId: projectTaskComments.taskId, total: count() })
         .from(projectTaskComments)
-        .where(inArray(projectTaskComments.taskId, ids))
+        .where(and(inArray(projectTaskComments.taskId, ids), isNull(projectTaskComments.deletedAt)))
         .groupBy(projectTaskComments.taskId)
     : []
   const pickedRows = ids.length ? await pickedDaysFor(ids, database) : []
@@ -164,19 +173,16 @@ function isWaiting(task: Pick<TaskRow, "assigneeUserId" | "acceptedAt">) {
 }
 
 export type TaskStep = { id: string; text: string; done: boolean }
-export type TaskComment = {
-  id: string
-  body: string
-  createdAt: string
-  author: Person | null
-}
 
 export type TaskDetail = {
   task: TaskCard & { notes: string }
   steps: TaskStep[]
   comments: TaskComment[]
-  /** Who the task can be handed to: the project's members. */
+  files: TaskFile[]
+  /** Who the task can be handed to, and who the chat can tag: the project's members. */
   assignable: Person[]
+  /** I get this task's chat, Stuck and Done notices without being assigned. */
+  following: boolean
   archived: boolean
   canDelete: boolean
   /** Every day it was picked or dropped, and every hand-over, oldest first. */
@@ -204,19 +210,13 @@ export async function loadTaskDetail(
     .from(projectTaskSteps)
     .where(eq(projectTaskSteps.taskId, taskId))
     .orderBy(asc(projectTaskSteps.position))
-  const commentRows = await database
-    .select({
-      id: projectTaskComments.id,
-      body: projectTaskComments.body,
-      createdAt: projectTaskComments.createdAt,
-      authorId: customShellUsers.id,
-      authorName: customShellUsers.name,
-      authorAvatar: customShellUsers.avatarUrl,
-    })
-    .from(projectTaskComments)
-    .leftJoin(customShellUsers, eq(customShellUsers.id, projectTaskComments.authorUserId))
-    .where(eq(projectTaskComments.taskId, taskId))
-    .orderBy(asc(projectTaskComments.createdAt))
+  const archived = Boolean(project.archivedAt)
+  const viewer = { userId, role: membership.role }
+  const [follow] = await database
+    .select({ userId: projectTaskFollowers.userId })
+    .from(projectTaskFollowers)
+    .where(and(eq(projectTaskFollowers.taskId, taskId), eq(projectTaskFollowers.userId, userId)))
+    .limit(1)
   const assignable = await database
     .select({
       id: customShellUsers.id,
@@ -231,17 +231,11 @@ export async function loadTaskDetail(
   return {
     task: { ...card, notes: task.notes },
     steps,
-    comments: commentRows.map((row) => ({
-      id: row.id,
-      body: row.body,
-      createdAt: row.createdAt.toISOString(),
-      author:
-        row.authorId && row.authorName !== null
-          ? { id: row.authorId, name: row.authorName, avatarUrl: row.authorAvatar ?? "" }
-          : null,
-    })),
+    comments: await loadTaskComments(viewer, taskId, archived, database),
+    files: await listTaskFiles(viewer, taskId, archived, database),
     assignable: assignable.map((row) => ({ ...row, avatarUrl: row.avatarUrl ?? "" })),
-    archived: Boolean(project.archivedAt),
+    following: Boolean(follow),
+    archived,
     canDelete: task.createdByUserId === userId || runsTheTeam(membership.role),
     history: await loadTaskHistory(taskId, database),
   }
@@ -266,45 +260,6 @@ async function requireAssignable(projectId: string, userId: string, database: Pr
   if (!(await isProjectMember(projectId, userId, database))) {
     throw new Error(PROJECT_ERRORS.notProjectMember)
   }
-}
-
-/**
- * Of these people, the ones who can still see the project: its members, and
- * the team's owner and admins. Someone who has left keeps their name on old
- * tasks but must never be sent a notice that shows a task's title.
- */
-async function whoCanStillSee(
-  project: { id: string; teamId: string },
-  userIds: readonly (string | null)[],
-  database: ProjectDb
-): Promise<string[]> {
-  const wanted = [...new Set(userIds.filter((id): id is string => Boolean(id)))]
-  if (wanted.length === 0) return []
-  const members = await database
-    .select({ userId: projectProjectMembers.userId })
-    .from(projectProjectMembers)
-    .where(
-      and(
-        eq(projectProjectMembers.projectId, project.id),
-        inArray(projectProjectMembers.userId, wanted)
-      )
-    )
-  const runners = await database
-    .select({ userId: projectTeamMembers.userId })
-    .from(projectTeamMembers)
-    .where(
-      and(
-        eq(projectTeamMembers.teamId, project.teamId),
-        inArray(projectTeamMembers.userId, wanted),
-        inArray(projectTeamMembers.role, ["owner", "admin"])
-      )
-    )
-  const allowed = new Set([...members, ...runners].map((row) => row.userId))
-  return wanted.filter((id) => allowed.has(id))
-}
-
-function taskRef(task: Pick<TaskRow, "id" | "projectId" | "title">) {
-  return { id: task.id, projectId: task.projectId, title: task.title }
 }
 
 export async function createTask(
@@ -406,21 +361,29 @@ export async function setTaskStatus(
       })
       .where(eq(projectTasks.id, task.id))
 
+    // Stuck tells whoever handed it out and the followers; Done tells the
+    // followers, once, when it becomes Done.
+    const becameDone = input.status === "done" && task.status !== "done"
+    if (input.status !== "stuck" && !becameDone) return
     const handedOutBy = task.assignedByUserId ?? task.createdByUserId
-    if (input.status === "stuck") {
-      const [recipient] = await whoCanStillSee(project, [handedOutBy], tx)
-      if (recipient) {
-        await writeTaskNotices(tx, [
-          {
-            kind: "task_stuck",
-            recipientUserId: recipient,
-            actor,
-            task: taskRef(task),
-            extra: input.stuckReason,
-          },
-        ])
-      }
-    }
+    const followers = await followerIds(task.id, tx)
+    const recipients = await whoCanStillSee(
+      project,
+      input.status === "stuck" ? [handedOutBy, ...followers] : followers,
+      tx
+    )
+    await writeTaskNotices(
+      tx,
+      recipients.map(
+        (recipientUserId): TaskNotice => ({
+          kind: input.status === "stuck" ? "task_stuck" : "task_done",
+          recipientUserId,
+          actor,
+          task: taskRef(task),
+          extra: input.status === "stuck" ? input.stuckReason : null,
+        })
+      )
+    )
   })
 }
 
@@ -527,11 +490,17 @@ export async function handBackTask(
   })
 }
 
-export async function deleteTask(actor: Actor, taskId: string, database = db) {
+export async function deleteTask(
+  actor: Actor,
+  taskId: string,
+  database = db,
+  storage?: FileStorage
+) {
   const { membership, task } = await requireTaskAccess(actor.id, taskId, database)
   if (task.createdByUserId !== actor.id && !runsTheTeam(membership.role)) {
     throw new Error(PROJECT_ERRORS.cantDeleteTask)
   }
+  await removeTaskFilesFromStorage(task.id, database, storage)
   await database.delete(projectTasks).where(eq(projectTasks.id, task.id))
 }
 
@@ -594,42 +563,4 @@ async function touchTask(taskId: string, database: ProjectDb) {
     .update(projectTasks)
     .set({ updatedAt: now() })
     .where(eq(projectTasks.id, taskId))
-}
-
-/** Tells the people on the task: who it's assigned to, who handed it out, who made it. */
-export async function addComment(
-  actor: Actor,
-  input: { taskId: string; body: string },
-  database = db
-): Promise<{ id: string }> {
-  return database.transaction(async (tx) => {
-    const { project, task } = await requireTaskAccess(actor.id, input.taskId, tx)
-    const id = uuid()
-    await tx.insert(projectTaskComments).values({
-      id,
-      taskId: task.id,
-      authorUserId: actor.id,
-      body: input.body,
-      createdAt: now(),
-    })
-    const recipients = await whoCanStillSee(
-      project,
-      [task.assigneeUserId, task.assignedByUserId, task.createdByUserId],
-      tx
-    )
-    const line = input.body.length > 80 ? `${input.body.slice(0, 79)}…` : input.body
-    await writeTaskNotices(
-      tx,
-      recipients.map(
-          (recipientUserId): TaskNotice => ({
-            kind: "task_comment",
-            recipientUserId,
-            actor,
-            task: taskRef(task),
-            extra: line,
-          })
-        )
-    )
-    return { id }
-  })
 }

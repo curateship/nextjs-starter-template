@@ -38,6 +38,23 @@ export const PROJECT_ERRORS = {
   tooManyPicks: "One check-in can pick at most 100 tasks.",
   unknownTimeZone:
     "The server doesn't know that time zone. Pick a nearby city in the same zone.",
+  tagNotOnProject: "You can only tag people who are on this project.",
+  messageNotFound: "That message no longer exists.",
+  notYourMessage: "Only the person who wrote a message can edit it.",
+  cantDeleteMessage:
+    "Only the person who wrote a message, the owner or an admin can delete it.",
+  tooManyFiles: "A task can hold at most 10 files. Delete one to add another.",
+  fileTooBig: "A file can be at most 10 MB.",
+  fileEmpty: "That file is empty.",
+  teamFilesFull:
+    "Your team has used all 5 GB of its file space. Delete some files to make room.",
+  fileNotFound: "That file doesn't exist or you can't see it.",
+  cantDeleteFile:
+    "Only the person who added a file, the owner or an admin can delete it.",
+  fileStorageOff: "File storage isn't set up on this server yet, so files can't be added.",
+  fileNotSaved: "The file couldn't be saved. Try again.",
+  tooManyUploads: "That's a lot of files in a short while. Wait a few minutes, then add the rest.",
+  fileNotRemoved: "The file couldn't be removed from storage, so nothing was deleted. Try again.",
 } as const
 
 /** The shell's rate limiter refuses with this code rather than a sentence. */

@@ -24,6 +24,11 @@ export type TaskNotice = {
   extra?: string | null
 }
 
+/** The few things about a task a notice needs. */
+export function taskRef(task: { id: string; projectId: string; title: string }) {
+  return { id: task.id, projectId: task.projectId, title: task.title }
+}
+
 /**
  * Writes task notices and nudges each recipient's bell.
  *

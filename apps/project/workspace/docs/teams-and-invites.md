@@ -88,7 +88,8 @@ collapse like the project page's, and below 1280px wide one shows at a time.
 
 The cog in the left panel's header opens the Team settings window: name,
 daily check-in time, time zone and work days. Each field saves when it is
-left or picked, so the window ends with Done. The owner and admins edit;
+left or picked, so the window ends with Done. Closing it with Escape or a
+click outside saves the field being typed in too. The owner and admins edit;
 everyone else sees the same window to read. Tyler first asked for these in
 Settings → App settings, then chose the window, because Settings only opens
 for app admins and a customer who owns a team is not one.

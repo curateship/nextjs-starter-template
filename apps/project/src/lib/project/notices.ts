@@ -1,6 +1,8 @@
 import {
+  AtSignIcon,
   CalendarCheckIcon,
   CircleAlertIcon,
+  CircleCheckIcon,
   ClipboardListIcon,
   MessageSquareIcon,
   UndoIcon,
@@ -19,7 +21,9 @@ const TASK_NOTICE_KINDS = [
   "task_assigned",
   "task_handed_back",
   "task_stuck",
+  "task_done",
   "task_comment",
+  "task_mention",
 ] as const
 export type TaskNoticeKind = (typeof TASK_NOTICE_KINDS)[number]
 
@@ -36,7 +40,9 @@ const HEADING_ENDING: Record<TaskNoticeKind, string> = {
   task_assigned: " gave you a task",
   task_handed_back: " handed a task back to you",
   task_stuck: " marked a task Stuck",
+  task_done: " marked a task Done",
   task_comment: " commented on a task",
+  task_mention: " asked you about a task",
 }
 
 /** "Anna gave you a task". */
@@ -79,9 +85,19 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
     toneClassName: "bg-destructive/10 text-destructive",
     categoryId: "tasks",
   },
+  task_done: {
+    icon: CircleCheckIcon,
+    toneClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    categoryId: "tasks",
+  },
   task_comment: {
     icon: MessageSquareIcon,
     toneClassName: "bg-secondary text-secondary-foreground",
+    categoryId: "tasks",
+  },
+  task_mention: {
+    icon: AtSignIcon,
+    toneClassName: "bg-primary/10 text-primary",
     categoryId: "tasks",
   },
   checkin_reminder: {
@@ -96,7 +112,7 @@ export function noticeLook(kind: ProjectNoticeKind): AppNoticeDetail {
   return LOOK[kind]
 }
 
-/** Where a task opens: its project page with the task's window open. */
+/** Where a task opens: its project page with the task open in the middle panel. */
 export function taskHref(projectId: string, taskId: string) {
   return `/projects/${encodeURIComponent(projectId)}?task=${encodeURIComponent(taskId)}`
 }

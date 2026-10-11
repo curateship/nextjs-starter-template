@@ -1,14 +1,14 @@
 # History
 
 Two views of the past, both read only from rows saved as things happened:
-each task's history inside its window, and the Team dashboard's calendar of
+each task's history on the task itself, and the Team dashboard's calendar of
 check-ins. Nothing is worked out again from today's tasks, because a task's
 status today says nothing about what it was last Tuesday. The rows are
 described in [The morning check-in](morning-check-in.md).
 
 ## Task history
 
-The task window ends with a History card, oldest first.
+A task ends with a History card, oldest first, wherever it opens.
 
 - **Every day someone picked the task**, with who picked it, whether they
   carried it over, and its status when their day ended. A day still going on
@@ -30,7 +30,7 @@ The task window ends with a History card, oldest first.
   days". The count is days, not people: two people picking it on the same day
   counts once.
 - **It shows on the project board and List tab, on My dashboard, in the
-  check-in window and at the top of the task window.**
+  check-in window and at the top of the task.**
 - **It goes when the task is Done.**
 - The 3 lives in `PICKED_MANY_DAYS` in `src/lib/project/rules.ts`.
 

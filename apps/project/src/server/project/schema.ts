@@ -164,6 +164,57 @@ export const projectTaskComments = pgTable("project_task_comments", {
   }),
   body: text("body").notNull(),
   createdAt: createdAt(),
+  editedAt: timestamp("edited_at", { withTimezone: true }),
+  /** A deleted message keeps its place with no words (`drizzle/0097_project_task_chat_and_files.sql`). */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+})
+
+/** Who each chat message tagged with @. */
+export const projectCommentMentions = pgTable(
+  "project_comment_mentions",
+  {
+    commentId: varchar("comment_id", { length: 36 })
+      .notNull()
+      .references(() => projectTaskComments.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.commentId, table.userId] })]
+)
+
+/** People who get a task's chat, Stuck and Done notices without being assigned. */
+export const projectTaskFollowers = pgTable(
+  "project_task_followers",
+  {
+    taskId: varchar("task_id", { length: 36 })
+      .notNull()
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.userId] })]
+)
+
+/** A file on a task. `storagePath` is the bucket key and never leaves the server. */
+export const projectTaskFiles = pgTable("project_task_files", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  taskId: varchar("task_id", { length: 36 })
+    .notNull()
+    .references(() => projectTasks.id, { onDelete: "cascade" }),
+  teamId: varchar("team_id", { length: 36 })
+    .notNull()
+    .references(() => projectTeams.id, { onDelete: "cascade" }),
+  uploadedByUserId: varchar("uploaded_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  storagePath: text("storage_path").notNull(),
+  createdAt: createdAt(),
 })
 
 export const projectNoticeLinks = pgTable("project_notice_links", {

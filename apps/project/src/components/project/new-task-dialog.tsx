@@ -25,9 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import type { ProjectPage } from "@/lib/api/project/projects"
+import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { createProjectTask } from "@/lib/api/project/tasks"
+import {
+  emptyWrittenPageBody,
+  writtenPageBodyIsEmpty,
+  type WrittenPageNode,
+} from "@/lib/pages/written-page-body"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS } from "@/lib/project/rules"
@@ -56,18 +61,20 @@ export function NewTaskDialog({
   const startingAssignee = iAmMember ? me.id : NOBODY
 
   const [title, setTitle] = React.useState("")
-  const [notes, setNotes] = React.useState("")
+  const [notes, setNotes] = React.useState<WrittenPageNode>(emptyWrittenPageBody)
   const [assignee, setAssignee] = React.useState(startingAssignee)
   const [due, setDue] = React.useState<Date | undefined>()
   const [steps, setSteps] = React.useState<string[]>([])
   const [stepText, setStepText] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
   const [run, saving] = useAsyncAction(getProjectErrorMessage)
-  const dirty = Boolean(title.trim() || notes.trim() || steps.length || due)
+  const dirty = Boolean(
+    title.trim() || !writtenPageBodyIsEmpty(notes) || steps.length || due
+  )
 
   function reset() {
     setTitle("")
-    setNotes("")
+    setNotes(emptyWrittenPageBody())
     setAssignee(startingAssignee)
     setDue(undefined)
     setSteps([])
@@ -181,14 +188,17 @@ export function NewTaskDialog({
                       />
                     </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="new-task-notes">Notes</Label>
-                    <Textarea
-                      id="new-task-notes"
-                      value={notes}
-                      maxLength={LIMITS.taskNotes}
-                      onChange={(event) => setNotes(event.target.value)}
-                    />
+                  <div className="grid gap-2" role="group" aria-labelledby="new-task-notes-label">
+                    <Label id="new-task-notes-label" asChild>
+                      <span>Notes</span>
+                    </Label>
+                    <div className="[&_.page-rte_.tiptap]:min-h-20 [&_.page-rte_.tiptap]:px-3 [&_.page-rte_.tiptap]:py-2 [&_.page-rte_.tiptap]:text-sm">
+                      <DocumentEditor
+                        value={notes}
+                        onChange={setNotes}
+                        placeholder="Anything the person doing it should know. Select words to make them bold, a list or a link."
+                      />
+                    </div>
                   </div>
                 </CardContent>
               </Card>

@@ -10,7 +10,7 @@ import {
 import { CheckinDialog, StatusLine } from "@/components/project/checkin-dialog"
 import { MyCheckinTime } from "@/components/project/my-checkin-time"
 import { PersonAvatar } from "@/components/project/task-bits"
-import { TaskDialog } from "@/components/project/task-dialog"
+import { TaskInPlace } from "@/components/project/task-in-place"
 import { TaskList } from "@/components/project/task-list"
 import { TeamStart } from "@/components/project/team-start"
 import { ThreePanels } from "@/components/project/three-panels"
@@ -29,12 +29,13 @@ import { markNotificationRead, type NotificationItem } from "@/lib/api/notificat
 import type { InviteForMe } from "@/lib/api/project/teams"
 import { formatDate } from "@/lib/format/format-time"
 import { useAppNotificationDetails } from "@/lib/hooks/use-app-notification-details"
+import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { notificationAction } from "@/lib/notification-action"
 import { MY_DASHBOARD_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
 import { TEAM_ROLE_LABEL } from "@/lib/project/rules"
 
 export type MyDashboardSearch = {
-  /** The task whose window is open. */
+  /** The task open in the middle panel. */
   task?: string
   /** Opens the check-in window, which is where the bell's reminder goes. */
   checkin?: true
@@ -44,7 +45,8 @@ type TaskTab = "today" | "open" | "done"
 
 /**
  * My dashboard: me on the left with today's check-in, my tasks in the middle,
- * and my inbox on the right. The check-in opens as a window from here.
+ * and my inbox on the right. A task opens in the middle panel in my tasks'
+ * place. The check-in opens as a window from here.
  */
 export function MyDashboardScreen({
   dashboard,
@@ -71,6 +73,7 @@ function Dashboard({
   search: MyDashboardSearch
 }) {
   const navigate = useNavigate()
+  const taskAddress = useTaskAddress()
   const go = React.useCallback(
     (patch: Partial<MyDashboardSearch>) =>
       void navigate({
@@ -87,6 +90,7 @@ function Dashboard({
   return (
     <ThreePanels
       layoutKey={MY_DASHBOARD_PANEL_LAYOUT_KEY}
+      showMiddleFor={search.task}
       left={{
         label: "Me",
         showLabel: "Show my details",
@@ -94,7 +98,11 @@ function Dashboard({
       }}
       middle={{
         label: "My tasks",
-        content: <MyTasksPanel dashboard={dashboard} onOpenTask={(task) => go({ task })} />,
+        content: (
+          <TaskInPlace taskId={search.task} onBack={taskAddress.back}>
+            <MyTasksPanel dashboard={dashboard} onOpenTask={taskAddress.open} />
+          </TaskInPlace>
+        ),
       }}
       right={{
         label: "Inbox",
@@ -102,7 +110,6 @@ function Dashboard({
         content: <InboxPanel notifications={notifications} />,
       }}
     >
-      <TaskDialog taskId={search.task ?? null} onClose={() => go({ task: undefined })} />
       <CheckinDialog
         page={dashboard.checkin}
         open={search.checkin === true}

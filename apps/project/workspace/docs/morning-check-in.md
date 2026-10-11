@@ -49,7 +49,7 @@ check in with its own dashboard".
    grouped by project, with due dates, steps and the "Picked on 4 days" mark.
    Tasks from the last check-in are answered above instead of listed here.
 3. **Stuck.** Each task has a Stuck button that asks why, and tells whoever
-   handed the task out, the same as in the task window.
+   handed the task out and its followers, the same as on the task itself.
 4. **Add a task for yourself.** A title and a project make a task assigned to
    you, ticked straight away.
 5. **Check in.** Saves the answers and the ticks as today's check-in, and

@@ -179,3 +179,38 @@ export async function requireTaskAccess(
     throw error
   }
 }
+
+/**
+ * Of these people, the ones who can still see the project: its members, and
+ * the team's owner and admins. Someone who has left keeps their name on old
+ * tasks but must never be sent a notice that shows a task's title.
+ */
+export async function whoCanStillSee(
+  project: { id: string; teamId: string },
+  userIds: readonly (string | null)[],
+  database: ProjectDb
+): Promise<string[]> {
+  const wanted = [...new Set(userIds.filter((id): id is string => Boolean(id)))]
+  if (wanted.length === 0) return []
+  const members = await database
+    .select({ userId: projectProjectMembers.userId })
+    .from(projectProjectMembers)
+    .where(
+      and(
+        eq(projectProjectMembers.projectId, project.id),
+        inArray(projectProjectMembers.userId, wanted)
+      )
+    )
+  const runners = await database
+    .select({ userId: projectTeamMembers.userId })
+    .from(projectTeamMembers)
+    .where(
+      and(
+        eq(projectTeamMembers.teamId, project.teamId),
+        inArray(projectTeamMembers.userId, wanted),
+        inArray(projectTeamMembers.role, ["owner", "admin"])
+      )
+    )
+  const allowed = new Set([...members, ...runners].map((row) => row.userId))
+  return wanted.filter((id) => allowed.has(id))
+}

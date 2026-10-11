@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { storedTaskNotes } from "@/lib/project/notes"
+
 /**
  * Project's fixed lists and the limits on what people type, shared by the
  * server that checks them and the screens that draw them.
@@ -118,13 +120,18 @@ export const LIMITS = {
   projectName: 80,
   projectDescription: 2000,
   taskTitle: 200,
-  taskNotes: 10_000,
+  /** The notes as saved: the editor's document, which is longer than its words. */
+  taskNotes: 50_000,
   stepText: 200,
   stepsPerTask: 50,
   comment: 4000,
   reason: 200,
   /** Tasks one check-in can pick. A small team's day is never near this. */
   picksPerDay: 100,
+  /** Tyler chose these on 10 Oct 2026; Project will be a paid product. */
+  filesPerTask: 10,
+  fileBytes: 10 * 1024 * 1024,
+  teamFileBytes: 5 * 1024 * 1024 * 1024,
 } as const
 
 const id = z.string().min(1).max(36)
@@ -206,6 +213,12 @@ export const updateProjectSchema = z.object({
 
 export const reasonSchema = trimmed(LIMITS.reason, "The reason")
 
+/** The editor's document, cleaned to what notes may hold and saved as text. */
+const notesSchema = z
+  .unknown()
+  .transform(storedTaskNotes)
+  .refine((notes) => notes.length <= LIMITS.taskNotes, "The notes are too long. Split them up or attach a file.")
+
 const dueDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date from the calendar.")
@@ -214,7 +227,7 @@ const dueDateSchema = z
 export const createTaskSchema = z.object({
   projectId: id,
   title: trimmed(LIMITS.taskTitle, "The task title"),
-  notes: z.string().trim().max(LIMITS.taskNotes).default(""),
+  notes: notesSchema.default(""),
   assigneeUserId: id.nullable(),
   dueDate: dueDateSchema.default(null),
   steps: z
@@ -226,7 +239,7 @@ export const createTaskSchema = z.object({
 export const updateTaskSchema = z.object({
   taskId: id,
   title: trimmed(LIMITS.taskTitle, "The task title").optional(),
-  notes: z.string().trim().max(LIMITS.taskNotes).optional(),
+  notes: notesSchema.optional(),
   dueDate: dueDateSchema.optional(),
 })
 
@@ -241,9 +254,16 @@ export const assignTaskSchema = z.object({
   assigneeUserId: id.nullable(),
 })
 
+const messageSchema = trimmed(LIMITS.comment, "The message")
+
 export const commentSchema = z.object({
   taskId: id,
-  body: trimmed(LIMITS.comment, "The comment"),
+  body: messageSchema,
+})
+
+export const editCommentSchema = z.object({
+  commentId: id,
+  body: messageSchema,
 })
 
 /**

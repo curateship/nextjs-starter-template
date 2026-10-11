@@ -1,12 +1,12 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
 
 import { ProjectDetailsPanel } from "@/components/project/project-details-panel"
 import { ProjectMembersPanel } from "@/components/project/project-members-panel"
 import { ProjectTasksPanel } from "@/components/project/project-tasks-panel"
-import { TaskDialog } from "@/components/project/task-dialog"
+import { TaskInPlace } from "@/components/project/task-in-place"
 import { ThreePanels } from "@/components/project/three-panels"
 import type { ProjectPage } from "@/lib/api/project/projects"
+import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { PROJECT_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
 
 /**
@@ -15,8 +15,9 @@ import { PROJECT_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
  * bottom panel; the layout is the CRM screen's (`crm-workspace.tsx`), which
  * already has three resizable panels and nothing along the bottom.
  *
- * The open task lives in the address (`?task=<id>`), so a bell notice can open
- * it and Back closes it.
+ * A task opens in the middle panel, in the Board or List's place, and Back
+ * returns to them as they were. The open task lives in the address
+ * (`?task=<id>`), so a bell notice or a pasted link opens it.
  */
 export function ProjectWorkspace({
   page,
@@ -25,31 +26,17 @@ export function ProjectWorkspace({
   page: ProjectPage
   openTaskId: string | undefined
 }) {
-  const navigate = useNavigate()
+  const taskAddress = useTaskAddress()
   const [memberFilter, setMemberFilter] = React.useState<string | null>(null)
 
   // A member who leaves the project takes the filter with them.
   const filter =
     memberFilter && page.members.some((m) => m.userId === memberFilter) ? memberFilter : null
 
-  const openTask = React.useCallback(
-    (taskId: string | null) => {
-      void navigate({
-        to: ".",
-        search: (previous: Record<string, unknown>) => {
-          const next = { ...previous }
-          if (taskId) next.task = taskId
-          else delete next.task
-          return next
-        },
-      })
-    },
-    [navigate]
-  )
-
   return (
     <ThreePanels
       layoutKey={PROJECT_PANEL_LAYOUT_KEY}
+      showMiddleFor={openTaskId}
       left={{
         label: "Details",
         showLabel: "Show the project details",
@@ -58,12 +45,14 @@ export function ProjectWorkspace({
       middle={{
         label: "Tasks",
         content: (
-          <ProjectTasksPanel
-            page={page}
-            memberFilter={filter}
-            onClearFilter={() => setMemberFilter(null)}
-            onOpenTask={openTask}
-          />
+          <TaskInPlace taskId={openTaskId} onBack={taskAddress.back}>
+            <ProjectTasksPanel
+              page={page}
+              memberFilter={filter}
+              onClearFilter={() => setMemberFilter(null)}
+              onOpenTask={taskAddress.open}
+            />
+          </TaskInPlace>
         ),
       }}
       right={{
@@ -79,8 +68,6 @@ export function ProjectWorkspace({
           />
         ),
       }}
-    >
-      <TaskDialog taskId={openTaskId ?? null} onClose={() => openTask(null)} />
-    </ThreePanels>
+    />
   )
 }

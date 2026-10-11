@@ -33,17 +33,28 @@ export function ThreePanels({
   left,
   middle,
   right,
+  showMiddleFor,
   children,
 }: {
   layoutKey: string
   left: Side
   middle: { label: string; content: React.ReactNode }
   right: Side
+  /**
+   * On a narrow screen, each new value here switches to the middle panel's
+   * tab: a task opened from the inbox or a notice shows at once.
+   */
+  showMiddleFor?: string
   /** Windows that open over the screen. */
   children?: React.ReactNode
 }) {
   const wide = useWideScreen()
   const [narrowView, setNarrowView] = React.useState<"left" | "middle" | "right">("middle")
+  const [shownFor, setShownFor] = React.useState(showMiddleFor)
+  if (showMiddleFor !== shownFor) {
+    setShownFor(showMiddleFor)
+    if (showMiddleFor) setNarrowView("middle")
+  }
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)
   const rightRef = React.useRef<PanelImperativeHandle | null>(null)
   const layout = useRememberedPanelLayout(layoutKey)

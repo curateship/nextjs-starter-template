@@ -45,8 +45,15 @@ export function TeamSettingsDialog({
   open: boolean
   onClose: () => void
 }) {
+  // Fields save when they are left, so the one being typed in is left first:
+  // Escape or a click outside would otherwise close the window over it.
+  function close() {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    onClose()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
+    <Dialog open={open} onOpenChange={(next) => (next ? null : close())}>
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Team settings</DialogTitle>
@@ -60,7 +67,7 @@ export function TeamSettingsDialog({
           <TeamSettingsFields team={team} canEdit={canEdit} />
         </DialogBody>
         <DialogFooter>
-          <Button type="button" onClick={onClose}>
+          <Button type="button" onClick={close}>
             Done
           </Button>
         </DialogFooter>

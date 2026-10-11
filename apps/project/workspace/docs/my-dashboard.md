@@ -25,13 +25,17 @@ Three tabs, in the same sortable table as a project's List tab:
   a line saying how many wait for my answer.
 - **Done**: my finished tasks.
 
-Ticked rows can be marked Done together. A task opens in the usual task
-window, and its address is `?task=<id>`.
+Ticked rows can be marked Done together. Clicking a task opens it in the
+middle panel, in my tasks' place, with Back at the top. Back and the browser's
+own back button return to the same tab scrolled to the same spot. The address
+is `?task=<id>`. How a task opens is in
+[Projects and tasks](projects-and-tasks.md#opening-a-task).
 
 ## Right: my inbox
 
 The same notices the bell holds, newest first, 30 at most. Clicking one goes
-where the bell would take it and marks it read. The check-in reminder opens
+where the bell would take it and marks it read. A task's notice opens the task
+on its project page, in the middle panel. The check-in reminder opens
 this page with the check-in window open (`/dashboard?checkin=true`).
 
 ## Where it lives
@@ -42,3 +46,5 @@ this page with the check-in window open (`/dashboard?checkin=true`).
   Team dashboard share. Widths are remembered under the keys in
   `src/lib/project/panel-keys.ts`.
 - **Route:** `src/routes/_authenticated/dashboard.tsx`.
+- **The task in the middle panel:** `src/components/project/task-in-place.tsx`,
+  with the address handled by `src/lib/hooks/use-task-address.ts`.
