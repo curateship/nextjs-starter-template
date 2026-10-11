@@ -103,6 +103,21 @@ describe("BNB pool markets", () => {
       volume24hUsd: 321,
     })
   })
+  it("passes over a four.meme launch-curve pair instead of failing the page", async () => {
+    const { bestBnbPairs } = await import("./markets")
+    const pair = fixture.pairs.find(
+      (p) => p.baseToken.address.toLowerCase() === cake.address.toLowerCase()
+    )!
+    // The shape DexScreener answered with on 10 Oct 2026.
+    const curve = {
+      ...pair,
+      dexId: "fourmeme",
+      pairAddress: "0x04aB70F12c48340cd8Dd5F328acFC6142eF4FFfF:4meme",
+      liquidity: { usd: 999999999 },
+    }
+    const best = bestBnbPairs([curve, pair]).get(cake.address.toLowerCase())!
+    expect(best.pairAddress).toBe(pair.pairAddress.toLowerCase())
+  })
   // Risk mutations are explicit scenarios applied to saved provider data.
   it.each([
     { is_honeypot: "1", sell_tax: "0" },
