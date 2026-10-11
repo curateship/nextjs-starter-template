@@ -12,6 +12,7 @@ import {
   UndoIcon,
   UserPlusIcon,
   UsersIcon,
+  VideoIcon,
 } from "lucide-react"
 
 import type { AppNoticeDetail, NoticeToLink } from "@/lib/app-options"
@@ -44,6 +45,7 @@ const APP_NOTICE_KINDS = [
   "overdue",
   "team_morning",
   "team_joined",
+  "meeting_invite",
 ] as const
 
 const PROJECT_NOTICE_KINDS = [...TASK_NOTICE_KINDS, ...APP_NOTICE_KINDS] as const
@@ -79,6 +81,12 @@ export function teamJoinedHeading(name: string) {
 }
 
 const TEAM_JOINED_ENDING = " joined the team through the link"
+const MEETING_INVITE_ENDING = " invited you to a meeting"
+
+/** "Anna invited you to a meeting". */
+export function meetingInviteHeading(name: string) {
+  return `${name}${MEETING_INVITE_ENDING}`
+}
 const TASKS_HANDED_WORDS = / gave you \d+ tasks$/
 
 const WEEKDAY_NAMES = [
@@ -122,6 +130,7 @@ export function noticeKindFromWords(
   if (OVERDUE_WORDS.test(notice.message)) return "overdue"
   if (TEAM_MORNING_WORDS.test(notice.message)) return "team_morning"
   if (notice.message.endsWith(TEAM_JOINED_ENDING)) return "team_joined"
+  if (notice.message.endsWith(MEETING_INVITE_ENDING)) return "meeting_invite"
   if (TASKS_HANDED_WORDS.test(notice.message)) return "tasks_handed"
   return (
     (Object.keys(HEADING_ENDING) as (keyof typeof HEADING_ENDING)[]).find((kind) =>
@@ -213,6 +222,11 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
   },
   team_morning: {
     icon: UsersIcon,
+    toneClassName: "bg-primary/10 text-primary",
+    categoryId: "tasks",
+  },
+  meeting_invite: {
+    icon: VideoIcon,
     toneClassName: "bg-primary/10 text-primary",
     categoryId: "tasks",
   },

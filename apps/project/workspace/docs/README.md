@@ -11,4 +11,5 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [History](history.md): each task's history on the task, the "Picked on 4 days" mark, and past days on the Team dashboard's calendar.
 - [Labels and sections](labels-and-sections.md): the team's labels, a project's own sections, how they differ, and the order everyone on a project shares.
 - [Repeating tasks](repeating-tasks.md): tasks that come back every work day, week or month, and why a copy waits for the last one to be Done.
+- [Meetings](meetings.md): meetings on the Team dashboard's calendar, who can change them, repeats, the bell notice, and times in each person's own zone.
 - [Needs attention and workload](needs-attention.md): the Team dashboard's tabs listing tasks that need help and each person's open work.

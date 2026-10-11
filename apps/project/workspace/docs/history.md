@@ -54,7 +54,9 @@ calender and check in with its own dashboard". Past days are read on the
 
 - **The month calendar** in its middle panel shows, for each day so far, how
   many people checked in out of those expected ("4 of 6 in") and how many
-  were blocked, meaning they had a picked task that ended the day Stuck.
+  were blocked, meaning they wrote a Blocker note or had a picked task that
+  ended the day Stuck. The team's meetings sit under the counts (see
+  [Meetings](meetings.md)).
   Expected means everyone on a work day, plus anyone who checked in on a day
   off. Today's square counts the team's size on a work day.
 - **Clicking a day** shows that day's check-ins on the right: for each person,
@@ -63,6 +65,10 @@ calender and check in with its own dashboard". Past days are read on the
   red "Blocker" line for each pick that was Stuck that day. The blocker's
   reason shows while the task is still Stuck, because a reason isn't saved
   per day. People who are blocked come first.
+- **Notes on past days.** The notes a person typed at check-in stay on that
+  day's row, so a past day reads "Today · Work on members table" with the
+  picked tasks in grey under it, exactly as it did on the day. Notes can only
+  be changed on the day itself.
 - **A task in a project the viewer isn't on** reads "1 task in another
   project", never its title, its reason or a link.
 - **A person removed from the team** no longer appears there. Their rows stay

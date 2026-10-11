@@ -1,10 +1,10 @@
 import { and, desc, eq, gte, inArray, isNotNull, lt, lte } from "drizzle-orm"
 
 import { addDays, weekdayOf } from "@/lib/project/days"
-import type { TeamRole } from "@/lib/project/rules"
+import type { CheckinNotes, TeamRole } from "@/lib/project/rules"
 import { db } from "@/server/db"
 import { visibleProjectIds, type ProjectDb } from "@/server/project/access"
-import { clockOf, isLate, loadClock, personDay } from "@/server/project/checkins"
+import { clockOf, isLate, loadClock, notesOf, personDay } from "@/server/project/checkins"
 import { awayOn } from "@/server/project/time-off"
 import {
   projectCheckinItems,
@@ -27,7 +27,7 @@ export type TeamMonthDay = {
   checkedIn: number
   /** People expected that day: everyone on a work day, and anyone who checked in on a day off. */
   expected: number
-  /** People with a picked task Stuck that day. */
+  /** People with a picked task Stuck that day, or a Blocker note. */
   blocked: number
 }
 
@@ -59,6 +59,7 @@ export async function loadTeamMonth(
       workDay: projectCheckins.workDay,
       checkedInAt: projectCheckins.checkedInAt,
       closedAt: projectCheckins.closedAt,
+      noteBlocker: projectCheckins.noteBlocker,
     })
     .from(projectCheckins)
     .where(
@@ -95,6 +96,7 @@ type DayRow = {
   workDay: boolean
   checkedInAt: Date | null
   closedAt: Date | null
+  noteBlocker: string | null
 }
 
 /**
@@ -123,10 +125,11 @@ function squareOf(
 }
 
 /**
- * The check-ins with a pick that was Stuck: at the end of the day once the
- * day is saved, and now while it is still going.
+ * The check-ins with a Blocker note, or a pick that was Stuck: at the end of
+ * the day once the day is saved, and now while it is still going.
  */
 async function blockedCheckinIds(rows: DayRow[], database: ProjectDb) {
+  const noted = rows.filter((row) => row.noteBlocker).map((row) => row.id)
   if (rows.length === 0) return new Set<string>()
   const stuckRows = await database
     .select({
@@ -147,15 +150,16 @@ async function blockedCheckinIds(rows: DayRow[], database: ProjectDb) {
       )
     )
   const closed = new Map(rows.map((row) => [row.id, Boolean(row.closedAt)]))
-  return new Set(
-    stuckRows
+  return new Set([
+    ...noted,
+    ...stuckRows
       .filter(
         (item) =>
           (closed.get(item.checkinId) ? item.endStatus : !item.deletedAt && item.liveStatus) ===
           "stuck"
       )
-      .map((item) => item.checkinId)
-  )
+      .map((item) => item.checkinId),
+  ])
 }
 
 async function teamShape(teamId: string, database: ProjectDb) {
@@ -202,6 +206,7 @@ export async function countTeamToday(
       workDay: projectCheckins.workDay,
       checkedInAt: projectCheckins.checkedInAt,
       closedAt: projectCheckins.closedAt,
+      noteBlocker: projectCheckins.noteBlocker,
     })
     .from(projectCheckins)
     .where(and(eq(projectCheckins.teamId, teamId), eq(projectCheckins.day, day)))
@@ -239,6 +244,14 @@ export type TeamDayPerson = {
   picked: TeamDayTask[]
   /** Picks that were Stuck that day, with the reason when the task is still Stuck now. */
   blockers: (TeamDayTask & { reason: string | null })[]
+  /**
+   * The person's own notes on that day's check-in, null without one. They
+   * show to everyone on the team: unlike a task title, they are the person's
+   * own words.
+   */
+  notes: CheckinNotes | null
+  /** A Blocker note or a Stuck pick. */
+  blocked: boolean
 }
 
 export type TeamDay = {
@@ -358,6 +371,14 @@ export async function loadTeamDay(
           : "no_record"
     const picks = row ? items.filter((item) => item.checkinId === row.id) : []
     const closed = Boolean(row?.closedAt)
+    const blockers = picks
+      .filter((item) => (closed ? item.endStatus : !item.deletedAt && item.liveStatus) === "stuck")
+      .map((item) => {
+        const task = shown(item)
+        const stillStuck = item.liveStatus === "stuck"
+        return { ...task, reason: task.title !== null && stillStuck ? item.stuckReason : null }
+      })
+    const notes = row?.checkedInAt ? notesOf(row) : null
     return {
       person: {
         id: person.id,
@@ -371,18 +392,14 @@ export async function loadTeamDay(
       late: row ? isLate(row) : false,
       before: previous ? items.filter((item) => item.checkinId === previous.id).map(shown) : [],
       picked: picks.map(shown),
-      blockers: picks
-        .filter((item) => (closed ? item.endStatus : !item.deletedAt && item.liveStatus) === "stuck")
-        .map((item) => {
-          const task = shown(item)
-          const stillStuck = item.liveStatus === "stuck"
-          return { ...task, reason: task.title !== null && stillStuck ? item.stuckReason : null }
-        }),
+      blockers,
+      notes,
+      blocked: blockers.length > 0 || Boolean(notes?.blocker),
     }
   })
 
   const rank = (row: TeamDayPerson) =>
-    row.blockers.length
+    row.blocked
       ? 0
       : row.state === "checked_in"
         ? 1
@@ -401,7 +418,7 @@ export async function loadTeamDay(
     today,
     checkedIn: rows.filter((row) => row.state === "checked_in").length,
     expected: rows.filter((row) => !["day_off", "away", "no_record"].includes(row.state)).length,
-    blocked: rows.filter((row) => row.blockers.length).length,
+    blocked: rows.filter((row) => row.blocked).length,
     people: rows,
   }
 }

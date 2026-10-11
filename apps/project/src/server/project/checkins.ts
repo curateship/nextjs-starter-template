@@ -6,6 +6,7 @@ import {
   LIMITS,
   PERSONAL_PROJECT_ID,
   PERSONAL_PROJECT_NAME,
+  type CheckinNotes,
   type ProjectColor,
 } from "@/lib/project/rules"
 import { uuid } from "@/server/auth/security"
@@ -162,6 +163,8 @@ export type CheckinPage = {
   leftovers: { day: string; tasks: TaskCard[] } | null
   /** After checking in: what this morning's check-in said about the last one's tasks. */
   answers: CheckinAnswer[]
+  /** Today's three notes, empty until written. */
+  notes: CheckinNotes
   /** The tasks to pick from: mine and not Done, plus anything already picked today. */
   groups: { project: ProjectRef; tasks: TaskCard[] }[]
   /** Open projects this person can add a task to. */
@@ -256,6 +259,7 @@ export async function loadCheckinPage(
         action: item.kind === "drop" ? "drop" : "carry",
         reason: item.reason,
       })),
+    notes: notesOf(checkedIn ? row : null),
     groups: [...byProject.values()].filter((group) => group.tasks.length > 0),
     projects: [
       ...projects
@@ -266,6 +270,17 @@ export async function loadCheckinPage(
         ? []
         : [{ id: PERSONAL_PROJECT_ID, name: PERSONAL_PROJECT_NAME, color: "slate" as const }]),
     ],
+  }
+}
+
+/** A check-in row's notes, as the screens read them. */
+export function notesOf(
+  row: { noteYesterday: string | null; noteToday: string | null; noteBlocker: string | null } | null
+): CheckinNotes {
+  return {
+    yesterday: row?.noteYesterday ?? null,
+    today: row?.noteToday ?? null,
+    blocker: row?.noteBlocker ?? null,
   }
 }
 
@@ -359,10 +374,16 @@ export async function submitCheckin(
       | { taskId: string; action: "drop"; reason: string }
     )[]
     picks: string[]
+    notes?: CheckinNotes
   },
   database = db,
   at = new Date()
 ) {
+  const notes = {
+    noteYesterday: input.notes?.yesterday ?? null,
+    noteToday: input.notes?.today ?? null,
+    noteBlocker: input.notes?.blocker ?? null,
+  }
   await database.transaction(async (tx) => {
     const { membership, clock } = await loadClock(userId, tx)
     // A check-in on time off is saved as a day off, so it is never late.
@@ -412,6 +433,7 @@ export async function submitCheckin(
         checkedInAt: at,
         closedAt: null,
         createdAt: at,
+        ...notes,
       })
       .onConflictDoUpdate({
         target: [projectCheckins.userId, projectCheckins.day],
@@ -421,6 +443,7 @@ export async function submitCheckin(
           dueAt: today.dueAt,
           checkedInAt: at,
           closedAt: null,
+          ...notes,
         },
         setWhere: isNull(projectCheckins.checkedInAt),
       })
@@ -513,6 +536,23 @@ export async function addPick(userId: string, taskId: string, database = db, at 
         set: { kind: "pick", carriedOver: true, reason: null },
       })
   })
+}
+
+/**
+ * Changes today's notes after checking in. They save as they are typed, and
+ * only today's: a past day keeps what it said.
+ */
+export async function saveCheckinNotes(
+  userId: string,
+  notes: CheckinNotes,
+  database = db,
+  at = new Date()
+) {
+  const checkin = await requireCheckedInToday(userId, database, at)
+  await database
+    .update(projectCheckins)
+    .set({ noteYesterday: notes.yesterday, noteToday: notes.today, noteBlocker: notes.blocker })
+    .where(eq(projectCheckins.id, checkin.id))
 }
 
 /** Takes a task off today's picks. */

@@ -90,15 +90,18 @@ export async function writeTaskNotices(
 export type AppNotice = {
   kind: ProjectNoticeKind
   recipientUserId: string
+  /** The person behind it, such as whoever sent a meeting invite. Left out, the app. */
+  actorUserId?: string
   message: string
   detail: string
   href: string
 }
 
 /**
- * Notices the app sends rather than a person: the check-in reminder, due
- * dates and the team's morning. They have no actor. Pass the transaction that
- * claimed them, so the claim and the notice commit or vanish together.
+ * Notices about something other than a task: the check-in reminder, due
+ * dates, the team's morning and meeting invites. Most have no actor. Pass the
+ * transaction that claimed them, so the claim and the notice commit or vanish
+ * together.
  */
 export async function writeAppNotices(database: ProjectDb, notices: readonly AppNotice[]) {
   if (notices.length === 0) return
@@ -108,7 +111,7 @@ export async function writeAppNotices(database: ProjectDb, notices: readonly App
     rows.map((row) => ({
       id: row.id,
       recipientUserId: row.recipientUserId,
-      actorUserId: null,
+      actorUserId: row.actorUserId ?? null,
       type: "app_activity",
       message: row.message,
       detail: row.detail,

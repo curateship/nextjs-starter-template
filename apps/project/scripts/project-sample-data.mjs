@@ -2,8 +2,9 @@
  * Puts a sample team on the LOCAL database so Project's screens have something
  * on them: one team owned by the account you name, three made-up teammates,
  * two projects, twenty tasks across every status, and three weeks of morning
- * check-ins, so the check-in's carry-over step, the Team dashboard's calendar
- * and check-ins, and task history all have something to show.
+ * check-ins and five meetings, so the check-in's carry-over step, the Team
+ * dashboard's calendar, check-ins and meetings, and task history all have
+ * something to show.
  *
  *     node scripts/project-sample-data.mjs you@example.com
  *
@@ -202,10 +203,11 @@ try {
   }
 
   const checkins = await addCheckins({ teamId, zone, people: { me, maya, leo, priya }, tasks })
+  await addMeetings({ teamId, zone, people: { me, maya, leo, priya } })
 
   await client.query("COMMIT")
   console.log(
-    `Made "Sample team" for ${ownerEmail}: 3 made-up teammates, 2 projects, 20 tasks, ${checkins} days of check-ins.`
+    `Made "Sample team" for ${ownerEmail}: 3 made-up teammates, 2 projects, 20 tasks, ${checkins} days of check-ins, 5 meetings.`
   )
 } catch (error) {
   await client.query("ROLLBACK")
@@ -328,6 +330,44 @@ async function addCheckins({ teamId, zone, people, tasks }) {
     }
   }
   return written
+}
+
+/**
+ * The meetings from Tyler's mockup: Weekly planning on Mondays, Design review
+ * on Wednesdays, Sprint retro every other Friday, all starting four weeks
+ * back, and a 1:1 with Maya and an All-hands next week.
+ */
+async function addMeetings({ teamId, zone, people }) {
+  const { me, maya, leo, priya } = people
+  const today = localDay(new Date(), zone)
+  const weekday = (date) => {
+    const [year, month, dayOfMonth] = date.split("-").map(Number)
+    return new Date(Date.UTC(year, month - 1, dayOfMonth)).getUTCDay()
+  }
+  // The Monday four weeks before this week's, and next week's Monday.
+  const thisMonday = shiftDay(today, -((weekday(today) + 6) % 7))
+  const firstMonday = shiftDay(thisMonday, -28)
+  const nextMonday = shiftDay(thisMonday, 7)
+  const everyone = [me, maya, leo, priya]
+  const meetings = [
+    ["Weekly planning", "blue", firstMonday, "10:00", "10:45", "week", "https://meet.google.com/abc-defg-hij", everyone],
+    ["Design review", "green", shiftDay(firstMonday, 2), "14:00", "14:30", "week", "https://zoom.us/j/5551234567", [me, maya, leo]],
+    ["Sprint retro", "orange", shiftDay(firstMonday, 4), "15:00", "15:45", "two_weeks", "https://teams.microsoft.com/l/meetup-join/sample", everyone],
+    ["1:1 Maya", "slate", shiftDay(nextMonday, 2), "11:00", "11:30", null, null, [me, maya]],
+    ["All-hands", "violet", shiftDay(nextMonday, 3), "16:00", "17:00", null, "https://meet.google.com/xyz-abcd-efg", everyone],
+  ]
+  for (const [title, color, day, start, end, repeat, videoUrl, invited] of meetings) {
+    const id = randomUUID()
+    await client.query(
+      `INSERT INTO project_meetings (id, team_id, title, color, day, start_time, end_time, time_zone,
+         repeat_every, video_url, created_by_user_id, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), now())`,
+      [id, teamId, title, color, day, start, end, zone, repeat, videoUrl, me.id]
+    )
+    for (const person of invited) {
+      await client.query("INSERT INTO project_meeting_people (meeting_id, user_id) VALUES ($1, $2)", [id, person.id])
+    }
+  }
 }
 
 async function insertDay({ teamId, userId, date, zone, workDay, minutes, closed }) {

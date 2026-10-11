@@ -75,9 +75,27 @@ check in with its own dashboard".
    handed the task out and its followers, the same as on the task itself.
 4. **Add a task for yourself.** A title and a project make a task assigned to
    you, ticked straight away.
-5. **Check in.** Saves the answers and the ticks as today's check-in, and
-   closes the window. Closing it before then with answers or ticks in it asks
-   first, because they would be lost.
+5. **Notes for the team.** Three short boxes, Yesterday, Today and Blocker,
+   each up to 280 characters. See below.
+6. **Check in.** Saves the answers, the ticks and the notes as today's
+   check-in, and closes the window. Closing it before then with answers,
+   ticks or notes in it asks first, because they would be lost.
+
+### Notes for the team
+
+- **Optional** (Tyler's choice, 11 Oct 2026). Checking in still needs nothing
+  but the answers to the last check-in's tasks.
+- **In the person's own words**, for what a list of task titles can't say,
+  such as why someone is blocked. Everyone on the team reads them beside the
+  check-in on the Team dashboard, including people outside the person's
+  projects.
+- **A Blocker note marks the person Blocked** on the Team dashboard, alongside
+  any picked task that is Stuck (Tyler chose both, 11 Oct 2026).
+- **Changeable during the day.** After checking in, the boxes stay in the
+  window and save themselves 700ms after the last key, and at once when a box
+  is left or the window shuts. The card's header says Saving…, Saved or Not
+  saved. An empty box saves as no note.
+- **Only today's.** Once the day is over, its notes stay as they were.
 
 ### Snoozed and Just me tasks
 
@@ -98,6 +116,7 @@ check in with its own dashboard".
   A task dropped this morning and ticked again later counts as carried over.
 - **The morning's answers stay on show** in the window, with each drop's
   reason.
+- **The notes can change all day**, as above.
 
 ## Days off
 
@@ -135,8 +154,9 @@ today says nothing about what it was last Tuesday, so nothing is worked out
 again from today's tasks.
 
 - **`project_checkins`**: one row per person per day of their own calendar,
-  with the time zone used, whether it was a work day, when they were due and
-  when they checked in.
+  with the time zone used, whether it was a work day, when they were due,
+  when they checked in, and the three notes (`note_yesterday`, `note_today`,
+  `note_blocker`, from `drizzle/0105_project_team_dashboard.sql`).
 - **`project_checkin_items`**: each task picked that day (and whether it was
   carried over), and each task dropped from the last check-in with the reason.
   The task's title and project are copied onto the row, so a deleted task
@@ -166,4 +186,5 @@ again from today's tasks.
 - **Screen:** `src/components/project/checkin-dialog.tsx` and
   `src/components/project/my-checkin-time.tsx`.
 - **Tests:** `src/server/project/checkins.test.ts`, including the reminder
-  across two time zones and two overlapping passes sending one notice.
+  across two time zones and two overlapping passes sending one notice, and
+  the notes in `src/server/project/team-dashboard.test.ts`.

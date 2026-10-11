@@ -5,9 +5,11 @@ import {
   TEAM_INVITE_ROLES,
   createTeamSchema,
   inviteSchema,
+  teamPhotoSchema,
   updateTeamSchema,
 } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
+import { findMembership } from "@/server/project/access"
 import {
   acceptInvite,
   cancelInvite,
@@ -24,9 +26,11 @@ import {
   leaveTeam,
   loadTeamDashboard,
   removeTeamMember,
+  setTeamPhoto,
   transferOwnership,
   updateTeam,
 } from "@/server/project/teams"
+import { loadTeamFigures } from "@/server/project/team-figures"
 
 export type {
   BulkResult,
@@ -36,12 +40,25 @@ export type {
   TeamSummary,
 } from "@/server/project/teams"
 export type { InviteForMe, SentInvite } from "@/server/project/invites"
+export type { TeamFigures } from "@/server/project/team-figures"
 
 const id = z.string().min(1).max(36)
 
 const loadTeamDashboardFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }) => loadTeamDashboard(context.user.id))
+
+/** The four figures under the team's name on the Team dashboard. */
+const loadTeamFiguresFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) =>
+    (await findMembership(context.user.id)) ? loadTeamFigures(context.user.id) : null
+  )
+
+const setTeamPhotoFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(teamPhotoSchema)
+  .handler(async ({ data, context }) => setTeamPhoto(context.user.id, data.photoUrl))
 
 const createTeamFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -114,6 +131,12 @@ const declineInviteFn = createServerFn({ method: "POST" })
 
 export function loadTeamDashboardPage() {
   return loadTeamDashboardFn()
+}
+export function loadFigures() {
+  return loadTeamFiguresFn()
+}
+export function saveTeamPhoto(photoUrl: string) {
+  return setTeamPhotoFn({ data: { photoUrl } })
 }
 export function createProjectTeam(data: z.input<typeof createTeamSchema>) {
   return createTeamFn({ data })
