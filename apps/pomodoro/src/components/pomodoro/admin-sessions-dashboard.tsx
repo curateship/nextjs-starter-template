@@ -259,7 +259,7 @@ export function AdminSessionsDashboard({
               </Badge>
             </TableCell>
             <TableCell column="meta">
-              {formatDuration(row.accumulatedSeconds * 1000, { zero: "—" })}
+              {formatDuration(row.accumulatedSeconds * 1000, { zero: "-" })}
               <span className="text-muted-foreground">
                 {" "}
                 of {formatDuration(row.plannedSeconds * 1000)}

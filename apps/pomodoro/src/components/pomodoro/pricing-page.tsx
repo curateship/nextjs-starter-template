@@ -368,15 +368,20 @@ function PriceCard({
         variant={featured ? "default" : free ? "outline" : "ghost"}
         className={cn(
           "h-12 w-full rounded-2xl text-base",
+          // The page's own ink, so it is dark on cream and light on the
+          // near-black card rather than black on both.
           !featured &&
             !free &&
-            "bg-black text-white hover:bg-black/80 hover:text-white dark:hover:bg-black/80"
+            "bg-foreground text-background hover:bg-foreground/80 hover:text-background dark:hover:bg-foreground/80"
         )}
         disabled={current || busy || (!free && !purchasable)}
         onClick={() => onSelect(plan, interval)}
       >
         {busy ? (
-          <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+          <>
+            <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+            Opening…
+          </>
         ) : (
           buttonLabel
         )}

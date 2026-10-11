@@ -5,20 +5,27 @@ import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const api = vi.hoisted(() => ({ createRoom: vi.fn(), listTimerPresets: vi.fn() }))
+const api = vi.hoisted(() => ({
+  createRoom: vi.fn(),
+  listTimerPresets: vi.fn(),
+  loadRoomFileChoices: vi.fn(),
+  navigate: vi.fn(),
+}))
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(() => "error"), dismiss: vi.fn() },
+}))
 vi.mock("@/lib/api/pomodoro/rooms", () => ({
   createRoom: api.createRoom,
   loadHostingOptions: async () => ({ presets: [], maxInvitesPerRoom: 20 }),
-  loadRoomFileChoices: async () => ({ sounds: [], backgrounds: [] }),
+  loadRoomFileChoices: api.loadRoomFileChoices,
 }))
 vi.mock("@/lib/api/pomodoro/timer-presets", () => ({
   listTimerPresets: api.listTimerPresets,
 }))
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
-  useNavigate: () => vi.fn(),
+  useNavigate: () => api.navigate,
 }))
 // Radix's Select cannot open in jsdom. A native select stands in and passes
 // the value, the change and the placeholder through untouched, which is the
@@ -47,11 +54,44 @@ vi.mock("@/components/ui/select", () => ({
   ),
 }))
 
+// jsdom has no audio playback and no media queries; the window's preview
+// player and the backgrounds' films need both to exist.
+const played: string[] = []
+HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+  played.push(this.src)
+  return Promise.resolve()
+}
+HTMLMediaElement.prototype.pause = () => {}
+window.matchMedia ??= (() => ({
+  matches: false,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+})) as unknown as typeof window.matchMedia
+
 import { HostRoomDialog } from "@/components/pomodoro/rooms-page"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { seededCatalog } from "@/lib/pomodoro/catalog-fixture"
 import { guestMediaBootstrap } from "@/lib/pomodoro/media-pair"
 import { MediaBootstrapContext } from "@/lib/pomodoro/room-media-store"
+
+// A host is Pro, so nothing in the catalogue is locked for them.
+const bootstrap = { ...guestMediaBootstrap(seededCatalog, () => 0), canUsePremiumMedia: true }
+
+/** Opens a field's cards, presses one, and comes back to the form with Done. */
+async function pickMedia(fieldId: "room-sound" | "room-theme", value: string) {
+  await act(async () => document.getElementById(fieldId)!.click())
+  const card = document.querySelector<HTMLButtonElement>(`[data-choice="${value}"]`)
+  if (!card) throw new Error(`No card for ${value}`)
+  await act(async () => card.click())
+  await act(async () => buttonNamed("Done").click())
+}
+const buttonNamed = (name: string) => {
+  const button = [...document.querySelectorAll("button")].find(
+    (element) => element.textContent === name
+  )
+  if (!button) throw new Error(`No ${name} button`)
+  return button
+}
 
 const rhythmPicker = () => {
   const select = [...document.querySelectorAll("select")].find((element) =>
@@ -97,6 +137,7 @@ describe("Host a room's Rhythm picker", () => {
       disconnect() {}
     } as unknown as typeof ResizeObserver
     api.createRoom.mockReset().mockResolvedValue({ room: { slug: "x" } })
+    api.loadRoomFileChoices.mockReset().mockResolvedValue({ sounds: [], backgrounds: [] })
     api.listTimerPresets.mockReset().mockResolvedValue([
       {
         id: "mine",
@@ -117,7 +158,7 @@ describe("Host a room's Rhythm picker", () => {
     await act(async () => {
       createRoot(host).render(
         // The pickers list the catalogue the page's loader read.
-        <MediaBootstrapContext.Provider value={guestMediaBootstrap(seededCatalog, () => 0)}>
+        <MediaBootstrapContext.Provider value={bootstrap}>
           <TooltipProvider>
             <HostRoomDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} onBooked={vi.fn()} />
           </TooltipProvider>
@@ -146,8 +187,8 @@ describe("Host a room's Rhythm picker", () => {
 
     await change(document.getElementById("room-focus") as HTMLInputElement, "50")
     await change(document.getElementById("room-name") as HTMLInputElement, "Deep Work room")
-    await change(pickerWith("curated:rain"), "curated:rain")
-    await change(pickerWith("scene:fireplace"), "scene:fireplace")
+    await pickMedia("room-sound", "curated:rain")
+    await pickMedia("room-theme", "scene:fireplace")
     await submit()
     expect(api.createRoom).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -168,7 +209,7 @@ describe("Host a room's Rhythm picker", () => {
     expect(api.createRoom).not.toHaveBeenCalled()
     expect(document.body.textContent).toContain("Pick a sound for the room.")
 
-    await change(pickerWith("curated:rain"), "curated:cafe")
+    await pickMedia("room-sound", "curated:cafe")
     await submit()
     expect(api.createRoom).not.toHaveBeenCalled()
     expect(document.body.textContent).toContain("Pick a background for the room.")
@@ -191,6 +232,7 @@ describe("Host a room's errors and fresh start", () => {
       disconnect() {}
     } as unknown as typeof ResizeObserver
     api.createRoom.mockReset().mockResolvedValue({ room: { slug: "x" } })
+    api.loadRoomFileChoices.mockReset().mockResolvedValue({ sounds: [], backgrounds: [] })
     api.listTimerPresets.mockReset().mockResolvedValue([])
   })
   afterEach(() => document.body.replaceChildren())
@@ -202,7 +244,7 @@ describe("Host a room's errors and fresh start", () => {
     const render = (isOpen: boolean) =>
       act(async () => {
         root.render(
-          <MediaBootstrapContext.Provider value={guestMediaBootstrap(seededCatalog, () => 0)}>
+          <MediaBootstrapContext.Provider value={bootstrap}>
             <TooltipProvider>
               <HostRoomDialog open={isOpen} onOpenChange={vi.fn()} onCreated={vi.fn()} onBooked={vi.fn()} />
             </TooltipProvider>
@@ -215,8 +257,8 @@ describe("Host a room's errors and fresh start", () => {
     [...document.querySelectorAll('[role="alert"]')].map((element) => element.textContent)
   const pickPair = async () => {
     await change(document.getElementById("room-name") as HTMLInputElement, "Booked room")
-    await change(pickerWith("curated:rain"), "curated:rain")
-    await change(pickerWith("scene:fireplace"), "scene:fireplace")
+    await pickMedia("room-sound", "curated:rain")
+    await pickMedia("room-theme", "scene:fireplace")
   }
 
   it("shows a bad time once, not again under it after Book", async () => {
@@ -270,7 +312,124 @@ describe("Host a room's errors and fresh start", () => {
     await render(true)
     expect((document.getElementById("room-name") as HTMLInputElement).value).toBe("")
     expect(pickerWith("later").value).toBe("now")
-    expect(pickerWith("curated:rain").value).toBe("")
+    expect(document.getElementById("room-sound")!.getAttribute("aria-label")).toBe(
+      "Sound: none picked. Press to pick one"
+    )
     expect(alerts()).toHaveLength(0)
+  })
+})
+
+describe("Host a room's sound and background cards", () => {
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    globalThis.ResizeObserver ??= class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver
+    played.length = 0
+    api.navigate.mockReset()
+    api.listTimerPresets.mockReset().mockResolvedValue([])
+    api.loadRoomFileChoices.mockReset().mockResolvedValue({ sounds: [], backgrounds: [] })
+  })
+  afterEach(() => document.body.replaceChildren())
+
+  async function open(value = bootstrap, onOpenChange = vi.fn()) {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    await act(async () => {
+      createRoot(host).render(
+        <MediaBootstrapContext.Provider value={value}>
+          <TooltipProvider>
+            <HostRoomDialog open onOpenChange={onOpenChange} onCreated={vi.fn()} onBooked={vi.fn()} />
+          </TooltipProvider>
+        </MediaBootstrapContext.Provider>
+      )
+    })
+  }
+  const label = (id: string) => document.getElementById(id)!.getAttribute("aria-label")
+
+  it("plays a sound as it is picked, and the field then names it with a play button", async () => {
+    await open()
+    await act(async () => document.getElementById("room-sound")!.click())
+    expect(document.body.textContent).toContain("Pick the room's sound")
+    await act(async () => document.querySelector<HTMLButtonElement>('[data-choice="curated:rain"]')!.click())
+    expect(played.at(-1)).toContain("/sounds/audio-rain.mp3")
+    expect(
+      document.querySelector('[data-choice="curated:rain"]')!.getAttribute("aria-pressed")
+    ).toBe("true")
+    await act(async () => buttonNamed("Done").click())
+    expect(label("room-sound")).toBe("Sound: Rain. Press to change it")
+    expect(document.querySelector('[aria-label="Hear Rain"]')).not.toBeNull()
+  })
+
+  it("draws a background's picture in the field once picked", async () => {
+    await open()
+    await pickMedia("room-theme", "scene:stars")
+    const field = document.getElementById("room-theme")!
+    expect(field.getAttribute("aria-label")).toBe("Background: Starry night. Press to change it")
+    // The picture sits beside the button, inside the same box.
+    expect(field.parentElement!.querySelector("img")?.getAttribute("src")).toBe(
+      "/backgrounds/thumbs-stars.png"
+    )
+  })
+
+  it("goes back to the form on Escape, keeping the pick and the window open", async () => {
+    const onOpenChange = vi.fn()
+    await open(bootstrap, onOpenChange)
+    await act(async () => document.getElementById("room-sound")!.click())
+    await act(async () => document.querySelector<HTMLButtonElement>('[data-choice="shuffle"]')!.click())
+    await act(async () => {
+      document.activeElement!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+      )
+    })
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(document.getElementById("host-room-form")).not.toBeNull()
+    expect(label("room-sound")).toBe("Sound: Shuffle every sound. Press to change it")
+  })
+
+  it("puts the cards away on the X, leaving the window open", async () => {
+    const onOpenChange = vi.fn()
+    await open(bootstrap, onOpenChange)
+    await act(async () => document.getElementById("room-theme")!.click())
+    await act(async () => document.querySelector<HTMLButtonElement>('[data-choice="scene:lofi"]')!.click())
+    const close = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Close"
+    )!
+    await act(async () => close.click())
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(label("room-theme")).toBe("Background: Lofi girl. Press to change it")
+
+    // On the form, the same X closes the window.
+    await act(async () =>
+      [...document.querySelectorAll("button")].find((button) => button.textContent === "Close")!.click()
+    )
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it("lists your uploads with their pictures, and says when they could not be read", async () => {
+    api.loadRoomFileChoices.mockRejectedValueOnce(new Error("offline")).mockResolvedValue({
+      sounds: [],
+      backgrounds: [
+        {
+          value: "media:7d1c0c5e-1b1a-4c2e-9d55-0d6f7a1b2c3d",
+          mediaId: "7d1c0c5e-1b1a-4c2e-9d55-0d6f7a1b2c3d",
+          label: "My desk",
+          kind: "image",
+          url: "https://files.example/desk.jpg",
+          stillUrl: "",
+          own: true,
+          credit: null,
+        },
+      ],
+    })
+    await open()
+    await act(async () => document.getElementById("room-theme")!.click())
+    expect(document.body.textContent).toContain("Your uploads and saved files could not be loaded.")
+    await act(async () => buttonNamed("Try again").click())
+    const card = document.querySelector('[data-choice="media:7d1c0c5e-1b1a-4c2e-9d55-0d6f7a1b2c3d"]')!
+    expect(card.textContent).toContain("Your upload")
+    expect(card.querySelector("img")?.getAttribute("src")).toBe("https://files.example/desk.jpg")
   })
 })

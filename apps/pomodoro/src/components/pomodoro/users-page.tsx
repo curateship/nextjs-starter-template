@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { followProfile, unfollowProfile } from "@/lib/api/pomodoro/following"
+import { plural } from "@/lib/format/plural"
 import { followErrorMessage } from "@/lib/pomodoro/following"
 import { pillTabsList, pillTabsTrigger } from "@/lib/pomodoro/pill-tabs"
 import {
@@ -131,7 +132,15 @@ export function UsersPage({
               {pages === 1 ? "page" : "pages"}.
             </p>
             <Button asChild variant="outline" size="sm">
-              <Link to="/users" search={{}}>
+              {/* Keeps the order and the search, as the page buttons do. */}
+              <Link
+                from="/users"
+                to="/users"
+                search={(current) => ({
+                  ...(current.sort ? { sort: current.sort } : {}),
+                  ...(current.q ? { q: current.q } : {}),
+                })}
+              >
                 Back to page 1
               </Link>
             </Button>
@@ -243,7 +252,7 @@ function PersonCard({ person }: { person: DirectoryPerson }) {
               {person.focusHours.toLocaleString()}
             </b>
             <span className="font-mono text-sm text-muted-foreground">
-              hours focused
+              {plural(person.focusHours, "hour")} focused
             </span>
           </p>
         ) : null}
@@ -262,7 +271,7 @@ function PersonCard({ person }: { person: DirectoryPerson }) {
 }
 
 const followPill =
-  "h-9 rounded-full bg-black px-5 text-[15px] text-white hover:bg-black/80 dark:hover:bg-black/80"
+  "h-9 rounded-full bg-foreground px-5 text-[15px] text-background hover:bg-foreground/80 dark:hover:bg-foreground/80"
 
 /**
  * Follow on a card, the same three words as the profile's button: Follow,

@@ -8,6 +8,6 @@ import { HomeRoom } from "@/components/pomodoro/home-room"
  * signing in lands on it.
  */
 export const Route = createFileRoute("/_pomodoro/timer")({
-  head: () => ({ meta: [{ title: "Dashboard — Pomoder" }] }),
+  head: () => ({ meta: [{ title: "Dashboard - Pomoder" }] }),
   component: HomeRoom,
 })

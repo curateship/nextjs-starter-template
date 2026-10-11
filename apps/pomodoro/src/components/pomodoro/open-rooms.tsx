@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { InlineError } from "@/components/ui/inline-error"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { enterRoomFromSnapshot } from "@/components/pomodoro/active-room"
+import { applyRoomSnapshot } from "@/lib/pomodoro/room-clock-store"
 import { OpenRoomCard, RoomGroupEmpty } from "@/components/pomodoro/room-card"
 import { joinRoom, listRooms, listRoomsForGuest } from "@/lib/api/pomodoro/rooms"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
@@ -139,13 +139,14 @@ export function OpenRoomsSection({
         loginRedirect ? (
           <span
             aria-hidden="true"
-            className="inline-flex h-11 items-center rounded-full bg-black px-6 text-base font-medium text-white"
+            className="inline-flex h-11 items-center rounded-full bg-foreground px-6 text-base font-medium text-background"
           >
             Join
           </span>
         ) : (
           <Button
-            className="h-11 rounded-full bg-black px-6 text-base text-white hover:bg-black/80 dark:hover:bg-black/80"
+            // The page's own ink: dark on a light card, light on a dark one.
+            className="h-11 rounded-full bg-foreground px-6 text-base text-background hover:bg-foreground/80 dark:hover:bg-foreground/80"
             disabled={joiningSlug !== ""}
             onClick={() => onJoin(row.room.slug)}
           >
@@ -254,7 +255,7 @@ export function HomeOpenRooms({ className }: { className?: string }) {
     setJoinProblem(null)
     dismissErrorToast()
     try {
-      enterRoomFromSnapshot(await joinRoom(slug))
+      applyRoomSnapshot(await joinRoom(slug))
     } catch (cause) {
       const message = joinRefusalMessage(cause)
       setJoinProblem({ slug, message })

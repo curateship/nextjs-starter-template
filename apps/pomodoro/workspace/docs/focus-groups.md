@@ -32,7 +32,9 @@ to compete with four friends without being listed publicly.
 - **The owner is put in the group when it is made**, in one transaction, so a
   group can never exist with nobody in it.
 - **Five groups per person**, their own included. Tyler's call on 29 Sep 2026.
-  The cap is what keeps a group board worth looking at.
+  The cap is what keeps a group board worth looking at. On the Leaderboard
+  each group is a tab; the row scrolls sideways when they do not fit, and a
+  long name is cut with "…" at 160px, whole on its tooltip.
 - **Fifty people per group.** Well past the point where everybody knows each
   other, and it bounds what one board reads.
 - **No ranking is stored.** A group board is the leaderboard query filtered to
@@ -68,7 +70,10 @@ at anything the moment the new one is written.
 `/groups/join/<secret>` asks you to sign in first and nothing else. Joining needs
 an account, and a page that named the group to anybody holding the address would
 be a second, weaker door. Once signed in it names the group, says how many people
-are in it, and joins on one button.
+are in it, and joins on one button. Joining says "You are in the group.", the
+same words as the Join window on the Leaderboard, and lands on the Leaderboard
+with the groups card open on that group (`/leaderboard?group=<id>`), not on
+whichever group comes first.
 
 Following the same link twice leaves you in the group once, not twice on the
 board.

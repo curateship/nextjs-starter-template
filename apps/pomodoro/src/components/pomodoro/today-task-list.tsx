@@ -50,6 +50,7 @@ import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { PROJECT_TONES, projectToneIndex } from "@/lib/pomodoro/project-initial"
 import type { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import {
   BLANK_TASK_TITLE,
@@ -779,20 +780,10 @@ function pomoLabel(task: TaskItem) {
 }
 
 /**
- * Five tints, picked from the project's name so one project keeps its colour
- * on every row and every visit. The same five as the Projects cards.
+ * The project's tint, picked from its name so one project keeps its colour on
+ * every row and every visit, and matches its Projects card.
  */
-const PROJECT_TONES = [
-  "bg-sky-400/15 text-sky-700 dark:text-sky-300",
-  "bg-amber-400/15 text-amber-700 dark:text-amber-300",
-  "bg-emerald-400/15 text-emerald-700 dark:text-emerald-300",
-  "bg-violet-400/15 text-violet-700 dark:text-violet-300",
-  "bg-[color:var(--p-accent)]/15 text-[var(--p-accent)]",
-]
-
 function ProjectPill({ name }: { name: string }) {
-  let hash = 0
-  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 997
   return (
     // Hidden on a phone, the same as tags, so the title keeps the room.
     <>
@@ -802,7 +793,7 @@ function ProjectPill({ name }: { name: string }) {
       <span
         className={cn(
           "hidden min-w-0 sm:inline-flex max-w-40 shrink items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm",
-          PROJECT_TONES[hash % PROJECT_TONES.length]
+          PROJECT_TONES[projectToneIndex(name)]
         )}
       >
         <span

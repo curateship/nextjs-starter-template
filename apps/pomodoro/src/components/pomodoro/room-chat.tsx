@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -42,7 +43,7 @@ import {
   ROOM_REACTION_EMOJIS,
   roomReactionLabel,
 } from "@/lib/pomodoro/room-reactions"
-import type { RoomSnapshotClient } from "@/components/pomodoro/active-room"
+import type { RoomSnapshotClient } from "@/lib/pomodoro/room-clock-store"
 
 type RoomMember = RoomSnapshotClient["members"][number]
 type RoomMessage = RoomSnapshotClient["messages"][number]
@@ -341,19 +342,25 @@ export function RoomChatPanel({
                     <div className="group/message flex gap-3">
                       <InitialsAvatar name={entry.authorName} className="size-9" />
                       <div className="flex min-w-0 flex-col gap-1">
-                        <p className="flex items-baseline gap-2 font-mono text-xs text-muted-foreground">
+                        {/* Wraps on a phone, and a long name ends in "…" with
+                            the whole of it under the pointer. */}
+                        <p className="flex flex-wrap items-baseline gap-x-2 font-mono text-xs text-muted-foreground">
                           {/* A name links to its profile only when that profile
                               actually reads; otherwise it stays plain text. */}
                           {entry.handle ? (
                             <Link
                               to="/u/$handle"
                               params={{ handle: entry.handle }}
-                              className="font-sans text-sm font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              title={entry.authorName}
+                              className="min-w-0 max-w-full truncate font-sans text-sm font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             >
                               {entry.authorName}
                             </Link>
                           ) : (
-                            <span className="font-sans text-sm font-semibold text-foreground">
+                            <span
+                              title={entry.authorName}
+                              className="min-w-0 max-w-full truncate font-sans text-sm font-semibold text-foreground"
+                            >
                               {entry.authorName}
                             </span>
                           )}
@@ -448,7 +455,7 @@ export function RoomChatPanel({
             })}
             {!messages.length ? (
               <p className="text-sm text-muted-foreground">
-                Say hi — messages appear for everyone in the room.
+                Say hi - messages appear for everyone in the room.
               </p>
             ) : null}
           </div>
@@ -588,6 +595,12 @@ function ReportMessageDialog({
 
   const submit = async () => {
     if (!message) return
+    // Send report stays pressable while the box is short, and says why
+    // here (Tyler's rule: no greyed-out button with no reason).
+    if (reason.trim().length < 3) {
+      setError("Write at least 3 characters.")
+      return
+    }
     setError("")
     setSending(true)
     try {
@@ -621,19 +634,22 @@ function ReportMessageDialog({
           <DialogTitle>Report message</DialogTitle>
           <DialogDescription>
             Tell us what is wrong with {message?.authorName}'s message. Reports
-            go to moderators only — other members never see them.
+            go to moderators only - other members never see them.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <form
             id="report-message-form"
             className="grid gap-2"
+            noValidate
             onSubmit={(event) => {
               event.preventDefault()
               void submit()
             }}
           >
-            <Label htmlFor="report-reason">Reason</Label>
+            <FieldLabel htmlFor="report-reason" hint="At least 3 characters.">
+              Reason
+            </FieldLabel>
             <Textarea
               id="report-reason"
               required
@@ -641,11 +657,12 @@ function ReportMessageDialog({
               maxLength={300}
               value={reason}
               aria-invalid={Boolean(error) || undefined}
+              aria-describedby={error ? "report-reason-problem" : undefined}
               placeholder="Harassment, spam, hateful content…"
               onChange={(event) => setReason(event.target.value)}
             />
             {error ? (
-              <p role="alert" className="text-sm text-destructive">
+              <p id="report-reason-problem" role="alert" className="text-sm text-destructive">
                 {error}
               </p>
             ) : null}
@@ -658,7 +675,7 @@ function ReportMessageDialog({
           <Button
             type="submit"
             form="report-message-form"
-            disabled={sending || reason.trim().length < 3}
+            disabled={sending}
           >
             {sending ? "Sending…" : "Send report"}
           </Button>

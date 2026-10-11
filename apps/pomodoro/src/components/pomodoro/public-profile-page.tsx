@@ -22,6 +22,7 @@ import type {
 } from "@/lib/pomodoro/public-profile"
 import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
+import { TINTS } from "@/lib/pomodoro/project-initial"
 
 /**
  * The page at `/u/<handle>`.
@@ -222,10 +223,12 @@ function ProfileHeader({ profile }: { profile: PublicProfileView }) {
         />
         <div className="flex min-w-0 flex-1 flex-col gap-3">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+            {/* A long name with no spaces breaks rather than pushing past
+                the card on a phone. */}
+            <h1 className="min-w-0 break-words text-3xl font-bold tracking-tight md:text-4xl">
               {profile.name}
             </h1>
-            <span className="font-mono text-sm text-muted-foreground">
+            <span className="min-w-0 break-all font-mono text-sm text-muted-foreground">
               /u/{profile.handle}
             </span>
           </div>
@@ -348,10 +351,10 @@ const BADGE_MARKS: Record<string, { mark: string; tone: string }> = {
 }
 
 const BADGE_TONES: Record<string, string> = {
-  accent: "bg-[color:var(--p-accent)]/15 text-[var(--p-accent)]",
-  blue: "bg-sky-400/15 text-sky-300",
-  amber: "bg-amber-400/15 text-amber-300",
-  green: "bg-emerald-400/15 text-emerald-300",
+  accent: TINTS.accent,
+  blue: TINTS.sky,
+  amber: TINTS.amber,
+  green: TINTS.emerald,
 }
 
 function BadgeTile({ badge }: { badge: PublicProfileBadge }) {
@@ -407,13 +410,16 @@ export function YearInReviewPage({ review }: { review: YearInReviewView }) {
               Check back when the year has more in it.
             </p>
           ) : (
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            // The profile header's labels and units, so the recap reads like
+            // the page it belongs to.
+            <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
               <Figure
                 label="Hours focused"
                 value={review.focusHours.toLocaleString()}
+                unit="h"
               />
               <Figure
-                label="Sessions finished"
+                label="Sessions"
                 value={review.focusSessions.toLocaleString()}
               />
               <Figure
@@ -422,7 +428,8 @@ export function YearInReviewPage({ review }: { review: YearInReviewView }) {
               />
               <Figure
                 label="Best streak"
-                value={`${review.bestStreak} ${review.bestStreak === 1 ? "day" : "days"}`}
+                value={String(review.bestStreak)}
+                unit={review.bestStreak === 1 ? "day" : "days"}
               />
               {review.busiestMonth ? (
                 <Figure
@@ -436,7 +443,7 @@ export function YearInReviewPage({ review }: { review: YearInReviewView }) {
                 label="Badges earned"
                 value={String(review.badges.length)}
               />
-            </div>
+            </dl>
           )}
           <Button asChild variant="outline" size="sm" className="self-start">
             <Link to="/u/$handle" params={{ handle: review.handle }}>

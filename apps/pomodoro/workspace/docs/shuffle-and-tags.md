@@ -57,8 +57,10 @@ filter is not drawn and only Shuffle shows.
 - **Shuffle** is the switch, for your own room. Switching it on shuffles the
   ticked tags, or everything with every tag ticked. Off, the one playing now
   stays as your pick.
-- **The header player shows a Next button** while the sound is a group. It moves
-  the sound on, and the background too when the background is a group.
+- **The player under the clock shows a Next button** while the sound or the
+  background is a group, with no sound playing too. It moves on every group on
+  screen, and its name says which: "Next sound", "Next background" or "Next
+  sound and background".
 - **Hosting a room** offers "Shuffle every sound" and "Only <tag> sounds" above
   the single sounds, and the same for backgrounds. The pages no longer put a group of
   tags in a hosted room; the room's own picker does.

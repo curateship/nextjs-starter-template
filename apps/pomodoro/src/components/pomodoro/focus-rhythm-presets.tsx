@@ -53,7 +53,7 @@ function failureMessage(cause: unknown, fallback: string) {
   if (text.includes("PRESET_NAME_TAKEN"))
     return "You already have a preset with that name."
   if (text.includes("TIMER_RUNNING"))
-    return "Presets can't change a running timer — pause or finish it first."
+    return "Presets can't change a running timer - pause or finish it first."
   return fallback
 }
 
@@ -129,7 +129,7 @@ export function FocusRhythmPresets({
       if (applied) toast.success(`${preset.name} applied and saved in this browser.`)
       else
         showErrorToast(
-          "Presets can't change a running timer — pause or finish it first."
+          "Presets can't change a running timer - pause or finish it first."
         )
       return
     }
@@ -261,7 +261,7 @@ export function FocusRhythmPresets({
           hint={
             matched
               ? `Matches ${matched.name} (focus · short break · long break minutes · focuses before the long break).`
-              : "Your current values don't match a preset — save them below to reuse them."
+              : "Your current values don't match a preset - save them below to reuse them."
           }
         >
           Preset
@@ -395,7 +395,7 @@ export function FocusRhythmPresets({
           if (!open) setDeleting(null)
         }}
         title={deleting ? `Delete ${deleting.name}?` : ""}
-        description="This removes the saved preset only — your current rhythm and any timer in progress stay exactly as they are."
+        description="This removes the saved preset only - your current rhythm and any timer in progress stay exactly as they are."
         confirmLabel="Delete preset"
         loading={deleting ? busy === `delete:${deleting.id}` : false}
         onConfirm={() => {

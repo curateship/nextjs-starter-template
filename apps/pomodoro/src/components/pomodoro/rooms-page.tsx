@@ -49,11 +49,14 @@ import {
   skipNextRepeat,
   loadHostingOptions,
 } from "@/lib/api/pomodoro/rooms"
+import type { ConfirmRequest } from "@/components/pomodoro/active-room"
 import {
-  useActiveRoom,
-  type ConfirmRequest,
+  applyRoomSnapshot,
+  checkCurrentRoom,
+  leftRoom,
+  useRoomClock,
   type RoomSnapshotClient,
-} from "@/components/pomodoro/active-room"
+} from "@/lib/pomodoro/room-clock-store"
 import {
   UpcomingRooms,
   type MyRepeatRow,
@@ -73,8 +76,18 @@ import {
   roomPairProblemMessage,
   type RoomPairProblem,
 } from "@/lib/pomodoro/media-pair"
-import { useMediaCatalog } from "@/lib/pomodoro/room-media-store"
-import { catalogTags } from "@/lib/pomodoro/media-pool"
+import { useRoomMedia } from "@/lib/pomodoro/room-media-store"
+import { usePreviewAudio } from "@/lib/pomodoro/use-preview-audio"
+import { useOpenPlans } from "@/lib/pomodoro/use-open-plans"
+import {
+  RoomMediaField,
+  RoomMediaPicker,
+} from "@/components/pomodoro/room-media-picker"
+import {
+  findRoomMediaChoice,
+  roomMediaChoices,
+  type RoomMediaKind,
+} from "@/lib/pomodoro/room-media-choices"
 import {
   formatRoomStart,
   MAX_ROOM_INVITES,
@@ -108,7 +121,6 @@ import {
   roomPresetSummary,
   type CustomTimerPreset,
 } from "@/lib/pomodoro/timer-presets"
-import { creditLabel } from "@/lib/pomodoro/shared-media"
 import {
   loadRoomFileChoices,
   type RoomFileChoices,
@@ -185,13 +197,13 @@ export function RoomsPage() {
   // A failure is said out loud rather than read as "no room": the browse
   // list on its own would tell somebody sitting in a room that they had left
   // it. The room itself is drawn on the front page; this page links to it.
-  const live = useActiveRoom({ onEnded: refreshRooms })
-  const activeRoom = live.activeRoom
+  const live = useRoomClock({ check: true, onEnded: refreshRooms })
+  const activeRoom = live.snapshot
   const roomCheckFailed = live.checkFailed
 
   /** You are now in this room: the front page is where it is drawn. */
   const goToRoom = (snapshot: RoomSnapshotClient) => {
-    live.applySnapshot(snapshot)
+    applyRoomSnapshot(snapshot)
     void navigate({ to: "/" })
   }
 
@@ -362,7 +374,7 @@ export function RoomsPage() {
     setLeavingRoom(true)
     try {
       const { closed } = await leaveActiveRoom(activeRoom.room.slug)
-      live.leftRoom(
+      leftRoom(
         activeRoom.room.slug,
         closed ? "You closed the room." : "You left the room."
       )
@@ -512,7 +524,7 @@ export function RoomsPage() {
             message="We could not check whether you are already in a room, so the list of rooms is hidden rather than shown as if you were in none."
             onRetry={() => {
               dismissErrorToast()
-              live.checkCurrentRoom()
+              void checkCurrentRoom()
             }}
           />
         </Card>
@@ -602,7 +614,7 @@ export function HostRoomDialog({
   const [autoStart, setAutoStart] = React.useState(false)
   // The pair everyone in the room gets. Nothing is picked to start with:
   // Tyler, 7 Oct 2026, "User must select sound and theme."
-  const catalog = useMediaCatalog()
+  const { catalog, canUsePremiumMedia } = useRoomMedia()
   const [roomSound, setRoomSound] = React.useState("")
   const [roomBackground, setRoomBackground] = React.useState("")
   const [pairProblem, setPairProblem] = React.useState<RoomPairProblem | null>(
@@ -617,8 +629,20 @@ export function HostRoomDialog({
   const [housePresets, setHousePresets] = React.useState<HousePreset[]>([])
   const [houseFailed, setHouseFailed] = React.useState(false)
   // The host's own shared files and shared files they saved (rooms task 04),
-  // offered under the catalogue. Without them the window still works.
+  // offered under the catalogue. Without them the window still works, and the
+  // picker says they are missing with Try again.
   const [fileChoices, setFileChoices] = React.useState<RoomFileChoices | null>(null)
+  const [filesFailed, setFilesFailed] = React.useState(false)
+  const [filesAttempt, setFilesAttempt] = React.useState(0)
+  // Which half of the pair the window is picking, or null for the form. The
+  // picker takes the window's place rather than opening a second one on top.
+  const [picking, setPicking] = React.useState<RoomMediaKind | null>(null)
+  const soundFieldRef = React.useRef<HTMLButtonElement>(null)
+  const backgroundFieldRef = React.useRef<HTMLButtonElement>(null)
+  // The window's own player for hearing a sound before picking it, never the
+  // header's, so it cannot start or stop the room you are in.
+  const preview = usePreviewAudio()
+  const { openPlans } = useOpenPlans()
   const [maxInvites, setMaxInvites] = React.useState(MAX_ROOM_INVITES)
   React.useEffect(() => {
     if (!open) return
@@ -653,16 +677,47 @@ export function HostRoomDialog({
         if (!cancelled) setHouseFailed(true)
       }
     )
-    loadRoomFileChoices().then(
-      (choices) => {
-        if (!cancelled) setFileChoices(choices)
-      },
-      () => undefined
-    )
     return () => {
       cancelled = true
     }
   }, [open])
+  React.useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    loadRoomFileChoices().then(
+      (choices) => {
+        if (cancelled) return
+        setFilesFailed(false)
+        setFileChoices(choices)
+      },
+      () => {
+        if (!cancelled) setFilesFailed(true)
+      }
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [open, filesAttempt])
+  // A closed window is silent, however it closed.
+  const { stop: stopPreview } = preview
+  React.useEffect(() => {
+    if (!open) stopPreview()
+  }, [open, stopPreview])
+  const soundChoices = roomMediaChoices("sound", catalog, fileChoices, canUsePremiumMedia)
+  const backgroundChoices = roomMediaChoices(
+    "background",
+    catalog,
+    fileChoices,
+    canUsePremiumMedia
+  )
+  const filesState = fileChoices ? "ready" : filesFailed ? "failed" : "loading"
+  // Back to the form, with focus on the field that was being picked.
+  const closePicker = () => {
+    const field = picking === "sound" ? soundFieldRef : backgroundFieldRef
+    setPicking(null)
+    preview.stop()
+    requestAnimationFrame(() => field.current?.focus())
+  }
   const matchedPreset = matchRoomPreset(
     { focusMinutes, shortBreakMinutes, longBreakMinutes, autoStart },
     [...housePresets, ...ownPresets]
@@ -713,6 +768,7 @@ export function HostRoomDialog({
       setRoomSound("")
       setRoomBackground("")
       setPairProblem(null)
+      setPicking(null)
       setStartMode("now")
       setStartValue(defaultStartValue())
       setRepeatDays(1 << new Date().getDay())
@@ -820,394 +876,379 @@ export function HostRoomDialog({
   }
 
   // Cancel, the X and Escape all close the same way, and never mid-save.
+  // While the cards are showing, the X, Escape and a click outside only put
+  // the cards away (Tyler, 11 Oct 2026: the X "should only close the sound or
+  // background modal").
   const changeOpen = (next: boolean) => {
-    if (!creating) onOpenChange(next)
+    if (creating) return
+    if (!next && picking) closePicker()
+    else onOpenChange(next)
   }
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Host a room</DialogTitle>
-          <DialogDescription>
-            Pick the timers, the sound and the background, then start it now, book a
-            time, or book the same time every week. You control the session
-            once people join.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <form
-            id="host-room-form"
-            className="grid gap-4"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void submit()
-            }}
-          >
-            <div className="grid gap-2">
-              <Label htmlFor="room-name">Room name</Label>
-              <Input
-                id="room-name"
-                required
-                minLength={2}
-                maxLength={80}
-                value={roomName}
-                onChange={(event) => setRoomName(event.target.value)}
-                placeholder="Morning deep work"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="room-visibility">Visibility</Label>
-              <Select
-                value={visibility}
-                onValueChange={(value) =>
-                  setVisibility(value as "public" | "unlisted")
-                }
-              >
-                <SelectTrigger id="room-visibility" aria-label="Visibility">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="public">
-                    Public — listed for everyone
-                  </SelectItem>
-                  <SelectItem value="unlisted">
-                    Unlisted — invite link only
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {/* A preset fills the three timers and auto-start; the fields stay
-                editable, and any edit that matches no preset reads Custom,
-                the same rule as the timer's own picker. The room keeps plain
-                numbers, so nothing after this knows a preset was used. */}
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="room-preset"
-                hint="Fills the timers below. A room always takes its long break after four focuses, whatever the preset says."
-              >
-                Rhythm
-              </FieldLabel>
-              <Select value={matchedPreset?.id ?? ""} onValueChange={pickPreset}>
-                <SelectTrigger id="room-preset" aria-label="Rhythm preset">
-                  <SelectValue placeholder="Custom" />
-                </SelectTrigger>
-                <SelectContent position="popper">
-                  {housePresets.map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id}>
-                      Pomoder: {preset.name} · {roomPresetSummary(preset)}
-                    </SelectItem>
-                  ))}
-                  {[...builtinTimerPresets, ...ownPresets].map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id}>
-                      {preset.name} · {roomPresetSummary(preset)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {houseFailed ? (
-                <span className="text-xs text-muted-foreground">
-                  Pomoder presets could not be loaded.
-                </span>
-              ) : null}
-              {presetsFailed ? (
-                <span className="text-xs text-muted-foreground">
-                  Your own presets could not be loaded. The built-in ones are
-                  here.
-                </span>
-              ) : null}
-            </div>
-            {/* The ids used to be built from the label, which put spaces in
-                them — `room-Focus minutes` — and a `htmlFor` with a space in
-                it matches nothing. The shared field names its own. */}
-            <RhythmMinutesFields
-              idPrefix="room"
-              className="grid grid-cols-3 gap-2"
-              focusMinutes={focusMinutes}
-              shortBreakMinutes={shortBreakMinutes}
-              longBreakMinutes={longBreakMinutes}
-              onFocusMinutes={setFocusMinutes}
-              onShortBreakMinutes={setShortBreakMinutes}
-              onLongBreakMinutes={setLongBreakMinutes}
-            />
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="room-auto-start"
-                checked={autoStart}
-                onCheckedChange={(state) => setAutoStart(state === true)}
-              />
-              <Label htmlFor="room-auto-start">
-                Auto-start the next focus after each break
-              </Label>
-            </div>
-            {/* Each pick gets its own row: a theme's name is long enough that
-                two side by side would truncate on a phone. */}
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="room-sound"
-                hint="Everyone in the room hears it. It starts when the room's focus does."
-              >
-                Sound
-              </FieldLabel>
-              <Select
-                value={roomSound}
-                onValueChange={(value) => {
-                  setRoomSound(value)
+      <DialogContent
+        variant="admin"
+        // A click outside arrives twice: first as a click on the backdrop,
+        // then as a press outside. The backdrop alone handles it, or a click
+        // outside the cards would put them away and then close the window.
+        onPointerDownOutside={(event) => event.preventDefault()}
+      >
+        {picking ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>
+                {picking === "sound" ? "Pick the room's sound" : "Pick the room's background"}
+              </DialogTitle>
+              <DialogDescription>
+                {picking === "sound"
+                  ? "Press a sound to pick it and hear it. Press it again to stop it."
+                  : "Point at a background, or tap it, to see it move. Press one to pick it."}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogBody>
+              <RoomMediaPicker
+                kind={picking}
+                choices={picking === "sound" ? soundChoices : backgroundChoices}
+                value={picking === "sound" ? roomSound : roomBackground}
+                preview={preview}
+                filesState={filesState}
+                onRetryFiles={() => setFilesAttempt((attempt) => attempt + 1)}
+                onLocked={openPlans}
+                onPick={(value) => {
+                  if (picking === "sound") setRoomSound(value)
+                  else setRoomBackground(value)
+                  // A missing-pick message goes once the pick is made.
+                  if (pairProblem) setError("")
                   setPairProblem(null)
                 }}
-              >
-                <SelectTrigger
-                  id="room-sound"
-                  aria-label="Sound"
-                  aria-invalid={
-                    pairProblem === "no_sound" || pairProblem === "bad_sound"
-                  }
-                >
-                  <SelectValue placeholder="Pick a sound" />
-                </SelectTrigger>
-                <SelectContent position="popper">
-                  {/* Tyler, 8 Oct 2026: a host may shuffle the room, or keep
-                      it to one tag. Each device then picks for itself. */}
-                  <SelectItem value="shuffle">Shuffle every sound</SelectItem>
-                  {catalogTags(catalog.sounds).map(({ tag }) => (
-                    <SelectItem key={`tag-${tag}`} value={`tags:${tag}`}>
-                      Only {tag} sounds
-                    </SelectItem>
-                  ))}
-                  {catalog.sounds.map((sound) => (
-                    <SelectItem key={sound.key} value={`curated:${sound.key}`}>
-                      {sound.label}
-                      {sound.locked ? " · Pro" : ""}
-                    </SelectItem>
-                  ))}
-                  {(fileChoices?.sounds ?? []).map((file) => (
-                    <SelectItem key={file.value} value={file.value}>
-                      {roomFileLabel(file)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="room-theme"
-                hint="Everyone in the room sees it behind the page while they are in the room."
-              >
-                Background
-              </FieldLabel>
-              <Select
-                value={roomBackground}
-                onValueChange={(value) => {
-                  setRoomBackground(value)
-                  setPairProblem(null)
+              />
+            </DialogBody>
+            <DialogFooter>
+              <Button type="button" onClick={closePicker}>
+                Done
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Host a room</DialogTitle>
+              <DialogDescription>
+                Pick the timers, the sound and the background, then start it now, book a
+                time, or book the same time every week. You control the session
+                once people join.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogBody>
+              <form
+                id="host-room-form"
+                className="grid gap-4"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void submit()
                 }}
               >
-                <SelectTrigger
-                  id="room-theme"
-                  aria-label="Background"
-                  aria-invalid={
-                    pairProblem === "no_background" ||
-                    pairProblem === "bad_background"
-                  }
-                >
-                  <SelectValue placeholder="Pick a background" />
-                </SelectTrigger>
-                <SelectContent position="popper">
-                  <SelectItem value="shuffle">Shuffle every background</SelectItem>
-                  {catalogTags(catalog.themes).map(({ tag }) => (
-                    <SelectItem key={`tag-${tag}`} value={`tags:${tag}`}>
-                      Only {tag} backgrounds
-                    </SelectItem>
-                  ))}
-                  {catalog.themes.map((scene) => (
-                    <SelectItem key={scene.key} value={`scene:${scene.key}`}>
-                      <img
-                        src={scene.stillUrl}
-                        alt=""
-                        className="h-4 w-7 rounded-sm object-cover"
-                      />
-                      {scene.label}
-                      {scene.locked ? " · Pro" : ""}
-                    </SelectItem>
-                  ))}
-                  {(fileChoices?.backgrounds ?? []).map((file) => (
-                    <SelectItem key={file.value} value={file.value}>
-                      {roomFileLabel(file)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="room-start-mode">Starts at</Label>
-              <Select
-                value={startMode}
-                onValueChange={(value) =>
-                  setStartMode(value as "now" | "later" | "weekly")
-                }
-              >
-                <SelectTrigger id="room-start-mode" aria-label="Starts at">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="now">Now — open the room today</SelectItem>
-                  <SelectItem value="later">
-                    A set time — the room opens itself
-                  </SelectItem>
-                  <SelectItem value="weekly">
-                    Every week — the same days and time
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {startMode === "weekly" ? (
-              <>
                 <div className="grid gap-2">
-                  <Label id="room-repeat-days-label">Days</Label>
-                  <div
-                    role="group"
-                    aria-labelledby="room-repeat-days-label"
-                    aria-invalid={shownRepeatProblem === "no_days"}
-                    className="flex gap-1"
+                  <Label htmlFor="room-name">Room name</Label>
+                  <Input
+                    id="room-name"
+                    required
+                    minLength={2}
+                    maxLength={80}
+                    value={roomName}
+                    onChange={(event) => setRoomName(event.target.value)}
+                    placeholder="Morning deep work"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="room-visibility">Visibility</Label>
+                  <Select
+                    value={visibility}
+                    onValueChange={(value) =>
+                      setVisibility(value as "public" | "unlisted")
+                    }
                   >
-                    {weekdayInitials.map((initial, weekday) => {
-                      const picked = weekdaySetHas(repeatDays, weekday)
-                      return (
-                        <Button
-                          key={weekdayNames[weekday]}
-                          type="button"
-                          size="icon-sm"
-                          variant={picked ? "default" : "outline"}
-                          aria-pressed={picked}
-                          aria-label={weekdayNames[weekday]}
-                          onClick={() =>
-                            setRepeatDays(toggleWeekdayInSet(repeatDays, weekday))
-                          }
-                        >
-                          <span aria-hidden="true" className="text-[10px]">
-                            {initial}
-                          </span>
-                        </Button>
-                      )
-                    })}
-                  </div>
+                    <SelectTrigger id="room-visibility" aria-label="Visibility">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="public">
+                        Public - listed for everyone
+                      </SelectItem>
+                      <SelectItem value="unlisted">
+                        Unlisted - invite link only
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {/* A preset fills the three timers and auto-start; the fields stay
+                    editable, and any edit that matches no preset reads Custom,
+                    the same rule as the timer's own picker. The room keeps plain
+                    numbers, so nothing after this knows a preset was used. */}
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="room-preset"
+                    hint="Fills the timers below. A room always takes its long break after four focuses, whatever the preset says."
+                  >
+                    Rhythm
+                  </FieldLabel>
+                  <Select value={matchedPreset?.id ?? ""} onValueChange={pickPreset}>
+                    <SelectTrigger id="room-preset" aria-label="Rhythm preset">
+                      <SelectValue placeholder="Custom" />
+                    </SelectTrigger>
+                    <SelectContent position="popper">
+                      {housePresets.map((preset) => (
+                        <SelectItem key={preset.id} value={preset.id}>
+                          Pomoder: {preset.name} · {roomPresetSummary(preset)}
+                        </SelectItem>
+                      ))}
+                      {[...builtinTimerPresets, ...ownPresets].map((preset) => (
+                        <SelectItem key={preset.id} value={preset.id}>
+                          {preset.name} · {roomPresetSummary(preset)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {houseFailed ? (
+                    <span className="text-xs text-muted-foreground">
+                      Pomoder presets could not be loaded.
+                    </span>
+                  ) : null}
+                  {presetsFailed ? (
+                    <span className="text-xs text-muted-foreground">
+                      Your own presets could not be loaded. The built-in ones are
+                      here.
+                    </span>
+                  ) : null}
+                </div>
+                {/* The ids used to be built from the label, which put spaces in
+                    them — `room-Focus minutes` — and a `htmlFor` with a space in
+                    it matches nothing. The shared field names its own. */}
+                <RhythmMinutesFields
+                  idPrefix="room"
+                  className="grid grid-cols-3 gap-2"
+                  focusMinutes={focusMinutes}
+                  shortBreakMinutes={shortBreakMinutes}
+                  longBreakMinutes={longBreakMinutes}
+                  onFocusMinutes={setFocusMinutes}
+                  onShortBreakMinutes={setShortBreakMinutes}
+                  onLongBreakMinutes={setLongBreakMinutes}
+                />
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="room-auto-start"
+                    checked={autoStart}
+                    onCheckedChange={(state) => setAutoStart(state === true)}
+                  />
+                  <Label htmlFor="room-auto-start">
+                    Auto-start the next focus after each break
+                  </Label>
+                </div>
+                {/* Each pick gets its own row: a theme's name is long enough that
+                    two side by side would truncate on a phone. Each field shows
+                    the pick's picture and opens the cards (Tyler, 11 Oct 2026). */}
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="room-sound"
+                    hint="Everyone in the room hears it. It starts when the room's focus does."
+                  >
+                    Sound
+                  </FieldLabel>
+                  <RoomMediaField
+                    id="room-sound"
+                    kind="sound"
+                    fieldRef={soundFieldRef}
+                    choice={findRoomMediaChoice("sound", soundChoices, roomSound)}
+                    invalid={pairProblem === "no_sound" || pairProblem === "bad_sound"}
+                    preview={preview}
+                    onOpen={() => setPicking("sound")}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <FieldLabel
-                    htmlFor="room-repeat-time"
-                    hint={`On this device's clock, ${browserTimezone()}. Each week's room is booked ${ROOM_REPEAT_LEAD_HOURS} hours before it starts, and that is when its invitations go out.`}
+                    htmlFor="room-theme"
+                    hint="Everyone in the room sees it behind the page while they are in the room."
                   >
-                    Time
+                    Background
                   </FieldLabel>
-                  <Input
-                    id="room-repeat-time"
-                    type="time"
-                    required
-                    className="w-auto"
-                    value={repeatTime}
-                    aria-invalid={shownRepeatProblem === "not_a_time"}
-                    onChange={(event) => setRepeatTime(event.target.value)}
+                  <RoomMediaField
+                    id="room-theme"
+                    kind="background"
+                    fieldRef={backgroundFieldRef}
+                    choice={findRoomMediaChoice("background", backgroundChoices, roomBackground)}
+                    invalid={
+                      pairProblem === "no_background" || pairProblem === "bad_background"
+                    }
+                    preview={preview}
+                    onOpen={() => setPicking("background")}
                   />
                 </div>
-              </>
-            ) : null}
-            {startMode === "later" ? (
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="room-starts-at"
-                  hint="Use your own clock. Invitations show each guest the time in their own timezone."
-                >
-                  Date and time
-                </FieldLabel>
-                <Input
-                  id="room-starts-at"
-                  type="datetime-local"
-                  required
-                  value={startValue}
-                  aria-invalid={
-                    shownBooking === "not_a_time" ||
-                    shownBooking === "too_soon" ||
-                    shownBooking === "too_far"
-                  }
-                  onChange={(event) => setStartValue(event.target.value)}
-                />
-              </div>
-            ) : null}
-            {startMode !== "now" ? (
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="room-invites"
-                  hint={`Up to ${maxInvites} addresses, separated by commas, spaces or new lines. Each one gets the link and the time${startMode === "weekly" ? ", once for every week's room" : ""}.`}
-                >
-                  Invite by email
-                </FieldLabel>
-                <Textarea
-                  id="room-invites"
-                  rows={2}
-                  placeholder="sam@example.com, alex@example.com"
-                  value={invitesTyped}
-                  aria-invalid={
-                    shownBooking === "bad_email" ||
-                    shownBooking === "too_many_invites" ||
-                    shownRepeatProblem === "bad_email" ||
-                    shownRepeatProblem === "too_many_invites"
-                  }
-                  onChange={(event) => setInvitesTyped(event.target.value)}
-                  onFocus={() => setInvitesLeft(false)}
-                  onBlur={() => setInvitesLeft(true)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {invites.length
-                    ? `${invites.length} ${invites.length === 1 ? "person" : "people"} will be emailed ${startMode === "weekly" ? "a day before each week's room" : "when you book this room"}.`
-                    : "Nobody is emailed unless you add an address. Anyone can still be sent the link by hand."}
-                </p>
-              </div>
-            ) : null}
-            {shownBooking ? (
-              <p role="alert" className="text-sm text-destructive">
-                {scheduleProblemMessage(shownBooking, maxInvites)}
-              </p>
-            ) : null}
-            {shownRepeatProblem ? (
-              <p role="alert" className="text-sm text-destructive">
-                {roomRepeatProblemMessage(shownRepeatProblem, maxInvites)}
-              </p>
-            ) : null}
-            {error ? (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            ) : null}
-          </form>
-        </DialogBody>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            disabled={creating}
-            onClick={() => changeOpen(false)}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" form="host-room-form" disabled={creating}>
-            {creating
-              ? startMode === "now"
-                ? "Creating…"
-                : "Booking…"
-              : startMode === "now"
-                ? "Create room"
-                : startMode === "weekly"
-                  ? "Book every week"
-                  : "Book room"}
-          </Button>
-        </DialogFooter>
+                <div className="grid gap-2">
+                  <Label htmlFor="room-start-mode">Starts at</Label>
+                  <Select
+                    value={startMode}
+                    onValueChange={(value) =>
+                      setStartMode(value as "now" | "later" | "weekly")
+                    }
+                  >
+                    <SelectTrigger id="room-start-mode" aria-label="Starts at">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="now">Now - open the room today</SelectItem>
+                      <SelectItem value="later">
+                        A set time - the room opens itself
+                      </SelectItem>
+                      <SelectItem value="weekly">
+                        Every week - the same days and time
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {startMode === "weekly" ? (
+                  <>
+                    <div className="grid gap-2">
+                      <Label id="room-repeat-days-label">Days</Label>
+                      <div
+                        role="group"
+                        aria-labelledby="room-repeat-days-label"
+                        aria-invalid={shownRepeatProblem === "no_days"}
+                        className="flex gap-1"
+                      >
+                        {weekdayInitials.map((initial, weekday) => {
+                          const picked = weekdaySetHas(repeatDays, weekday)
+                          return (
+                            <Button
+                              key={weekdayNames[weekday]}
+                              type="button"
+                              size="icon-sm"
+                              variant={picked ? "default" : "outline"}
+                              aria-pressed={picked}
+                              aria-label={weekdayNames[weekday]}
+                              onClick={() =>
+                                setRepeatDays(toggleWeekdayInSet(repeatDays, weekday))
+                              }
+                            >
+                              <span aria-hidden="true" className="text-[10px]">
+                                {initial}
+                              </span>
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor="room-repeat-time"
+                        hint={`On this device's clock, ${browserTimezone()}. Each week's room is booked ${ROOM_REPEAT_LEAD_HOURS} hours before it starts, and that is when its invitations go out.`}
+                      >
+                        Time
+                      </FieldLabel>
+                      <Input
+                        id="room-repeat-time"
+                        type="time"
+                        required
+                        className="w-auto"
+                        value={repeatTime}
+                        aria-invalid={shownRepeatProblem === "not_a_time"}
+                        onChange={(event) => setRepeatTime(event.target.value)}
+                      />
+                    </div>
+                  </>
+                ) : null}
+                {startMode === "later" ? (
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="room-starts-at"
+                      hint="Use your own clock. Invitations show each guest the time in their own timezone."
+                    >
+                      Date and time
+                    </FieldLabel>
+                    <Input
+                      id="room-starts-at"
+                      type="datetime-local"
+                      required
+                      value={startValue}
+                      aria-invalid={
+                        shownBooking === "not_a_time" ||
+                        shownBooking === "too_soon" ||
+                        shownBooking === "too_far"
+                      }
+                      onChange={(event) => setStartValue(event.target.value)}
+                    />
+                  </div>
+                ) : null}
+                {startMode !== "now" ? (
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="room-invites"
+                      hint={`Up to ${maxInvites} addresses, separated by commas, spaces or new lines. Each one gets the link and the time${startMode === "weekly" ? ", once for every week's room" : ""}.`}
+                    >
+                      Invite by email
+                    </FieldLabel>
+                    <Textarea
+                      id="room-invites"
+                      rows={2}
+                      placeholder="sam@example.com, alex@example.com"
+                      value={invitesTyped}
+                      aria-invalid={
+                        shownBooking === "bad_email" ||
+                        shownBooking === "too_many_invites" ||
+                        shownRepeatProblem === "bad_email" ||
+                        shownRepeatProblem === "too_many_invites"
+                      }
+                      onChange={(event) => setInvitesTyped(event.target.value)}
+                      onFocus={() => setInvitesLeft(false)}
+                      onBlur={() => setInvitesLeft(true)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {invites.length
+                        ? `${invites.length} ${invites.length === 1 ? "person" : "people"} will be emailed ${startMode === "weekly" ? "a day before each week's room" : "when you book this room"}.`
+                        : "Nobody is emailed unless you add an address. Anyone can still be sent the link by hand."}
+                    </p>
+                  </div>
+                ) : null}
+                {shownBooking ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {scheduleProblemMessage(shownBooking, maxInvites)}
+                  </p>
+                ) : null}
+                {shownRepeatProblem ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {roomRepeatProblemMessage(shownRepeatProblem, maxInvites)}
+                  </p>
+                ) : null}
+                {error ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {error}
+                  </p>
+                ) : null}
+              </form>
+            </DialogBody>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                disabled={creating}
+                onClick={() => changeOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" form="host-room-form" disabled={creating}>
+                {creating
+                  ? startMode === "now"
+                    ? "Creating…"
+                    : "Booking…"
+                  : startMode === "now"
+                    ? "Create room"
+                    : startMode === "weekly"
+                      ? "Book every week"
+                      : "Book room"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   )
-}
-
-/** "Yours: Rain on glass", or "Saved: Snow, by @sarah", in the Host a room pickers. */
-function roomFileLabel(file: RoomFileChoices["sounds"][number]) {
-  return file.own
-    ? `Yours: ${file.label}`
-    : `Saved: ${file.label}, ${creditLabel(file.credit ?? { handle: null })}`
 }

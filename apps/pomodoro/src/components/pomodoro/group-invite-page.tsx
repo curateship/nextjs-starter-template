@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Link, useNavigate, useParams } from "@tanstack/react-router"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -62,8 +63,11 @@ export function GroupInvitePage() {
     setJoining(true)
     setFailure("")
     try {
-      await joinFocusGroup(token)
-      void navigate({ to: "/leaderboard" })
+      const { id } = await joinFocusGroup(token)
+      // The same words the Join window says, and the groups card opens on
+      // the group just joined rather than the first one.
+      toast.success("You are in the group.")
+      void navigate({ to: "/leaderboard", search: { group: id } })
     } catch (cause) {
       setFailure(groupErrorMessage(cause))
       setJoining(false)
