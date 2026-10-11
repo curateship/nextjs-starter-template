@@ -17,6 +17,10 @@ delete a message, remove a person or ban them.
 - **STAFF** marks an active admin beside their name, in the people list and
   on their messages, worked out from their role on every read. A line the
   team sends to every live room is pinned above the chat, signed Pomoder.
+- **A message's name line wraps.** The name, STAFF, the time and the held note
+  move to a second line on a phone rather than past the chat column, and a
+  name too long for the column ends in "…" with the whole of it under the
+  pointer.
 - **Only people in the room can chat.** Membership is checked before the rate
   limit, so somebody who holds the room's link but never joined cannot spend
   a member's twenty. Closing a room ends every membership, so a closed room
@@ -87,7 +91,10 @@ jump to the bottom on every message wherever you were (`room-chat.tsx`).
 
 - **A report is private.** The reporter and the operators see it; the room
   never does, and no snapshot changes.
-- **A reason is required**, 3 to 300 characters. Reporting the same message
+- **A reason is required**, 3 to 300 characters. The Reason label's hint says
+  "At least 3 characters.", and Send report stays pressable: pressed too
+  short, it says "Write at least 3 characters." under the box rather than
+  sitting greyed out with no reason. Reporting the same message
   twice says "You already reported this message" instead of writing a second
   row, and a person may send five reports in ten minutes.
 - You cannot report your own message.

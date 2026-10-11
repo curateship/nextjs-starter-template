@@ -73,6 +73,46 @@ is not logged in, that should link to the login page."
   worker that runs them never closes a room with a real person in it. See
   "Rooms" in [Made-up members](made-up-members.md).
 
+## The header follows your room
+
+The timer pill in the header changes with where you are (rooms task 03).
+Tyler, 10 Oct 2026: "We need to make it contextual to the room i am in. So
+we'd need to show a different dropdown for "Room I am in" and "Hosting a
+room"".
+
+- **Alone, it is your personal timer**, with the Timer settings dropdown as
+  before. A guest only ever sees this one.
+- **In a room, the pill reads the room's time left on every page**, ticking
+  with the ring, with the music bars as on your own timer. A waiting room
+  shows the focus length, as the ring does.
+- **"Room I'm in"** is a member's dropdown: the room's name, its phase
+  (Focus, Short break, Long break, Waiting or Starting in) and time left,
+  "Session 2 of 4", the rhythm and who set it ("25 · 5 · 15 · long after 4,
+  set by Maya"), Go to the room, and Leave room, which is the room page's
+  own leave. Nothing in it can change the room's clock.
+- **"Hosting a room"** is the host's: the same reading, the ring's own
+  buttons for the phase (Start in 5 seconds and the countdown choice while
+  waiting, Start now and Cancel while counting down, Start break, Start
+  focus, Next phase), and Go to the room. The ring and the dropdown draw
+  their buttons from one component (`RoomHostButtons` in
+  `room-clock-controls.tsx`), so they can never differ. Close room stays on
+  the room page behind its confirm window. There is no pause, because rooms
+  have none, and the room's minutes are read-only, because changing them
+  means making a new room (Tyler's answers, 10 Oct 2026).
+- **Your personal timer freezes while you are in a room.** Joining or
+  hosting pauses it with the timer's own pause, so your account records a
+  paused session, never a finished or abandoned one, and another signed-in
+  device sees the pause as it sees any. Leaving, closing the room, or being
+  removed puts it back as it was, still paused, with the same time left,
+  mode and session count. A timer that was already paused stays paused.
+- **One live connection per tab.** The room's snapshot and its connection
+  live in one store for the whole tab (`src/lib/pomodoro/room-clock-store.ts`),
+  which the header, the room page and `/rooms` all read. It is held only while
+  the tab is on screen, as before. A dropped connection keeps the last known
+  clock and reconnects by itself; it never falls back to the personal timer.
+  The room closing, or you being removed or banned, ends it on whatever page
+  you are on, with the same toast as on the room page.
+
 ## How it behaves
 
 - **Browse** shows "Open to join" (waiting or on break) under the three
@@ -147,7 +187,8 @@ is not logged in, that should link to the login page."
   2026: "User must select sound and theme." Nothing is picked to start with,
   and Create room stays pressable: pressing it with a pick missing names the
   missing one and marks its field. The picks are the Live sounds and backgrounds
-  in the catalogue, shuffle, or one tag, never an upload. House presets an
+  in the catalogue, shuffle, one tag, or a shared file (below), chosen as
+  cards; see "Picking the sound and the background". House presets an
   admin keeps come first in the Rhythm picker, and a featured room sits first
   on Browse rooms; see [Rooms in the admin](rooms-admin.md). A host may shuffle
   the room (Tyler, 8 Oct 2026); each device then picks for itself. Everyone in the room gets the pair; see
@@ -191,7 +232,16 @@ is not logged in, that should link to the login page."
   (listed in `src/app/open-endpoints.ts`) and answers a status, a name,
   a member count, and the room's sound and background, which the page shows as
   the background's picture and the sound's name. Joining from an invite lands on
-  the front page, inside the room.
+  the front page, inside the room. Check again (on a booked or mid-focus room)
+  and Try again spin and read "Checking…" until the answer arrives, and for
+  at least 0.8 seconds, because the answer usually takes a tenth of a second
+  and only flashed (Tyler, 11 Oct 2026). Neither can be pressed twice. A
+  pressed Check again then says what it found, with the time, even when
+  nothing changed: "Checked at 10:42 PM. Still in a focus session, so joins
+  open at the next break.", "The room has not opened yet." or "The room is
+  open to join now." Tyler asked for this the same day, because a press that
+  changes nothing on screen reads as broken. A refused join reads exactly as on Rooms, from one place
+  (`joinRefusalMessage` in `src/lib/pomodoro/room-join.ts`).
 - **Logging in brings you back.** Signed out, "Log in" on `/rooms` and "Log
   in to join" on an invite carry `?redirect=` with the page you were on, so
   after signing in you are on Rooms or on that invite again, not the
@@ -419,6 +469,51 @@ while they're in the room".
 - **Made-up hosts keep three there.** Their countdowns run 8 to 15 minutes,
   longer than a real host can pick; why is under "Rooms" in
   [Made-up members](made-up-members.md).
+
+## Picking the sound and the background
+
+Host a room shows the sound and the background as pictures, not names in a
+list. Tyler, 11 Oct 2026: "I'd have no idea what i picked when the media is
+just text."
+
+- **Each field shows the pick.** The Background field shows its picture and
+  name, and the Sound field its waveform and name. The waveform is the play
+  button, inside the field (Tyler, 11 Oct 2026: "Maybe put it inside the
+  selection"), so the host can hear the pick without opening anything; the
+  rest of the field opens the cards. Nothing is picked to start with, and the
+  empty field reads "Pick a sound".
+- **Pressing a field turns the window into cards.** The form gives way to a
+  grid in the same window, with Done at the bottom. The X, Escape and a click
+  outside also go back to the form instead of closing the window (Tyler, 11
+  Oct 2026: the X "should only close the sound or background modal"); on the
+  form they close it as before. Everything typed in the form is kept. It is
+  the same window because the UI standard has no window on top of a window.
+- **The cards come in groups:** Mixes, Catalogue, Your uploads, and Saved from
+  members. A background mix shows up to four of the backgrounds it shuffles
+  through.
+- **Mixes are made from the catalogue's tags, never by hand.** Shuffle is
+  every Live catalogue item, and each tag an admin put on a Live item becomes
+  one "Only <tag> sounds" card. Each device in the room picks its own item from
+  the mix, and the next one when the sound ends, so two members can hear
+  different sounds. A member without Pro only gets the free items, and nobody's
+  uploads join a room's mix. See [Shuffle and tags](shuffle-and-tags.md).
+- **Pressing a sound card picks it and plays it.** Pressing it again stops it.
+  The preview plays on the window's own player, never the header's, so it
+  cannot start or stop the room you are in. It stops at Done, at Escape and
+  when the window closes. A mix has no one sound to play.
+- **A background card plays its film while the pointer is on it**, and once
+  pressed, so a tap on a phone shows it moving too. Reduced motion keeps the
+  still.
+- **A Pro card stays pressable for someone without Pro**, and leads to the
+  plans page instead of being picked. A host always has Pro, so in practice
+  every card picks.
+- **The uploads are read when the window opens.** Until they arrive the
+  picker says "Loading your uploads and saved files…". A failed read says so
+  with Try again, and the catalogue still works.
+
+The cards are `RoomMediaPicker` and the fields `RoomMediaField` in
+`src/components/pomodoro/room-media-picker.tsx`. What each card offers is
+`roomMediaChoices` in `src/lib/pomodoro/room-media-choices.ts`.
 
 ## Shared files in a room
 

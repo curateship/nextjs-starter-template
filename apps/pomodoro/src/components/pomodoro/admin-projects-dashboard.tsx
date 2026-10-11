@@ -52,7 +52,11 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useListSearchNavigate, useListSort, useSearchBoxText } from "@/lib/nav/list-search"
 import { TASK_STATUS_LOOK, type ProjectSortColumn } from "@/lib/pomodoro/admin-lists"
 import { formatFocusDuration } from "@/lib/pomodoro/focus-history"
-import { projectInitial, projectToneIndex } from "@/lib/pomodoro/project-initial"
+import {
+  ADMIN_PROJECT_TONES,
+  projectInitial,
+  projectToneIndex,
+} from "@/lib/pomodoro/project-initial"
 import {
   PROJECT_NAME_MAX_LENGTH,
   TARGET_HOURS_MAX,
@@ -81,25 +85,13 @@ const COLUMNS: TableHeaderColumn<Column>[] = [
   { key: "created", label: "Made", column: "meta", className: "hidden 2xl:table-cell" },
 ]
 
-/**
- * The project's square in the admin palette: the same tint the owner's card
- * picks for the name, readable on a light and a dark admin.
- */
-const SQUARE_TONES = [
-  "bg-sky-500/15 text-sky-700 dark:text-sky-300",
-  "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-  "bg-violet-500/15 text-violet-700 dark:text-violet-300",
-  "bg-orange-500/15 text-orange-700 dark:text-orange-300",
-]
-
 function ProjectSquare({ name }: { name: string }) {
   return (
     <span
       aria-hidden="true"
       className={cn(
         "grid size-6 shrink-0 place-items-center rounded-md text-xs font-semibold",
-        SQUARE_TONES[projectToneIndex(name)]
+        ADMIN_PROJECT_TONES[projectToneIndex(name)]
       )}
     >
       {projectInitial(name)}

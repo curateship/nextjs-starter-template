@@ -29,6 +29,7 @@ import {
 } from "@/server/project/tasks"
 import { createTeam, removeTeamMember } from "@/server/project/teams"
 import { loadTeamDay, loadTeamMonth } from "@/server/project/team-days"
+import { addTimeOff, loadCheckinRecord, removeTimeOff } from "@/server/project/time-off"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
@@ -287,10 +288,10 @@ describe("the Team dashboard's check-ins", () => {
     const carlaView = await loadTeamDay(carla.id, undefined, database, morning)
     const benRow = carlaView.people.find((p) => p.person.id === ben.id)
     expect(benRow?.picked).toEqual([
-      { taskId: null, title: null },
-      { taskId: null, title: null },
+      { taskId: null, title: null, personal: false },
+      { taskId: null, title: null, personal: false },
     ])
-    expect(benRow?.blockers).toEqual([{ taskId: null, title: null, reason: null }])
+    expect(benRow?.blockers).toEqual([{ taskId: null, title: null, personal: false, reason: null }])
   })
 
   it("shows the day before's picks, and nobody as missing on a day off", async () => {
@@ -299,7 +300,7 @@ describe("the Team dashboard's check-ins", () => {
     await saveFinishedDays(database, at(`${TUESDAY}T00:00:30Z`))
     const tuesday = await loadTeamDay(anna.id, undefined, database, at(`${TUESDAY}T10:00:00Z`))
     expect(tuesday.people.find((p) => p.person.id === ben.id)?.before).toEqual([
-      { taskId: ids[0], title: "Brief" },
+      { taskId: ids[0], title: "Brief", personal: false },
     ])
 
     const saturday = await loadTeamDay(anna.id, undefined, database, at("2099-03-07T12:00:00Z"))
@@ -393,7 +394,10 @@ describe("history", () => {
     await pickOn(WEDNESDAY, task.id)
 
     const detail = await loadTaskDetail(anna.id, task.id, database)
-    expect(detail.history.map((entry) => entry.kind)).toEqual([
+    const kinds = detail.history.map((entry) => entry.kind)
+    // Making it and marking it Stuck are history lines too, since 11 Oct 2026.
+    expect(kinds).toEqual(expect.arrayContaining(["created", "status_changed"]))
+    expect(kinds.filter((kind) => kind !== "created" && kind !== "status_changed")).toEqual([
       "handed_over",
       "accepted",
       "picked",
@@ -425,5 +429,70 @@ describe("history", () => {
     expect(kept.history.find((e) => e.kind === "picked")).toMatchObject({ personName: "Ben" })
     const wednesday = await loadTeamDay(anna.id, WEDNESDAY, database, at(`${WEDNESDAY}T23:00:00Z`))
     expect(wednesday.people.map((p) => p.person.name)).not.toContain("Ben")
+  })
+})
+
+describe("time off", () => {
+  it("sends no reminder, saves the day as a day off, reads Away, and isn't expected", async () => {
+    await addTimeOff(ben.id, { firstDay: MONDAY, lastDay: MONDAY }, database)
+    await sendCheckinReminders(database, at(`${MONDAY}T09:30:00Z`))
+    expect(await remindersFor(ben.id)).toHaveLength(0)
+    expect(await remindersFor(carla.id)).toHaveLength(1)
+
+    const live = await loadTeamDay(anna.id, MONDAY, database, at(`${MONDAY}T10:00:00Z`))
+    expect(live.people.find((p) => p.person.id === ben.id)?.state).toBe("away")
+    expect(live.expected).toBe(2)
+    const month = await loadTeamMonth(anna.id, undefined, database, at(`${MONDAY}T10:00:00Z`))
+    expect(month.days.find((d) => d.day === MONDAY)?.expected).toBe(2)
+
+    await saveFinishedDays(database, at(`${TUESDAY}T00:00:30Z`))
+    const [saved] = await database
+      .select()
+      .from(projectCheckins)
+      .where(and(eq(projectCheckins.userId, ben.id), eq(projectCheckins.day, MONDAY)))
+    expect(saved.workDay).toBe(false)
+    const after = await loadTeamDay(anna.id, MONDAY, database, at(`${TUESDAY}T10:00:00Z`))
+    expect(after.people.find((p) => p.person.id === ben.id)?.state).toBe("away")
+    expect(after.people.find((p) => p.person.id === carla.id)?.state).toBe("missed")
+  })
+
+  it("leaves a day already saved as it was", async () => {
+    await saveFinishedDays(database, at(`${TUESDAY}T00:00:30Z`))
+    await addTimeOff(ben.id, { firstDay: MONDAY, lastDay: TUESDAY }, database)
+    const day = await loadTeamDay(anna.id, MONDAY, database, at(`${TUESDAY}T10:00:00Z`))
+    expect(day.people.find((p) => p.person.id === ben.id)?.state).toBe("missed")
+  })
+
+  it("lets each person mark their own, and only the owner and admins mark someone else's", async () => {
+    await expect(addTimeOff(ben.id, { userId: carla.id, firstDay: MONDAY, lastDay: MONDAY }, database)).rejects.toThrow(
+      PROJECT_ERRORS.notRunningTeam
+    )
+    const entry = await addTimeOff(anna.id, { userId: carla.id, firstDay: MONDAY, lastDay: TUESDAY }, database)
+    await expect(removeTimeOff(ben.id, entry.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+    await expect(addTimeOff(ben.id, { firstDay: TUESDAY, lastDay: MONDAY }, database)).rejects.toThrow(
+      PROJECT_ERRORS.timeOffBackwards
+    )
+    await removeTimeOff(carla.id, entry.id, database)
+  })
+})
+
+describe("my check-in record", () => {
+  it("counts on-time work days from saved rows only, leaving out days off and time off", async () => {
+    // Monday on time, Tuesday late, Wednesday away, Thursday missed.
+    await submitCheckin(ben.id, { answers: [], picks: [] }, database, at(`${MONDAY}T08:55:00Z`))
+    await submitCheckin(ben.id, { answers: [], picks: [] }, database, at(`${TUESDAY}T09:20:00Z`))
+    await addTimeOff(ben.id, { firstDay: WEDNESDAY, lastDay: WEDNESDAY }, database)
+    for (const day of ["2099-03-03", "2099-03-04", "2099-03-05", "2099-03-06"]) {
+      await saveFinishedDays(database, at(`${day}T00:00:30Z`))
+    }
+    const record = await loadCheckinRecord(ben.id, database, at("2099-03-06T08:00:00Z"))
+    expect(record).toEqual({ onTime: 1, of: 3 })
+
+    const rows = await database
+      .select()
+      .from(projectCheckins)
+      .where(and(eq(projectCheckins.userId, ben.id), eq(projectCheckins.workDay, true)))
+    const onTime = rows.filter((row) => row.checkedInAt && row.checkedInAt <= row.dueAt).length
+    expect([onTime, rows.length]).toEqual([record.onTime, record.of])
   })
 })

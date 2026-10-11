@@ -5,6 +5,8 @@ import type { TeamRole } from "@/lib/project/rules"
 import { db } from "@/server/db"
 import { requireMembership } from "@/server/project/access"
 import { loadCheckinPage, type CheckinPage } from "@/server/project/checkins"
+import { listTeamLabels, type Label } from "@/server/project/labels"
+import { loadCheckinRecord, type CheckinRecord } from "@/server/project/time-off"
 import { projectTeamMembers, projectTeams } from "@/server/project/schema"
 import { loadMyWork, type TaskCard } from "@/server/project/tasks"
 import { customShellUsers } from "@/server/schema"
@@ -23,13 +25,19 @@ export type MyDashboard = {
     role: TeamRole
     joinedAt: string
     teamName: string
+    /** My job title, which I set here. */
+    title: string | null
   }
   tasks: TaskCard[]
   checkin: CheckinPage
+  /** The team's labels, for the Label filter. */
+  labels: Label[]
+  /** "On time 18 of the last 20 work days": mine alone, never shown to anyone else. */
+  record: CheckinRecord
 }
 
 export async function loadMyDashboard(userId: string, database = db): Promise<MyDashboard> {
-  await requireMembership(userId, database)
+  const membership = await requireMembership(userId, database)
   const [row] = await database
     .select({
       name: customShellUsers.name,
@@ -38,6 +46,7 @@ export async function loadMyDashboard(userId: string, database = db): Promise<My
       role: projectTeamMembers.role,
       joinedAt: projectTeamMembers.joinedAt,
       teamName: projectTeams.name,
+      title: projectTeamMembers.title,
     })
     .from(projectTeamMembers)
     .innerJoin(projectTeams, eq(projectTeams.id, projectTeamMembers.teamId))
@@ -54,8 +63,11 @@ export async function loadMyDashboard(userId: string, database = db): Promise<My
       role: row.role,
       joinedAt: row.joinedAt.toISOString(),
       teamName: row.teamName,
+      title: row.title,
     },
     tasks: await loadMyWork(userId, database),
     checkin: await loadCheckinPage(userId, database),
+    labels: await listTeamLabels(membership.teamId, database),
+    record: await loadCheckinRecord(userId, database),
   }
 }

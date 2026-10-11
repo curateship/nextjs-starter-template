@@ -3,12 +3,13 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   loadBlockedAccounts,
   unblockProfile,
 } from "@/lib/api/pomodoro/following"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 type BlockedRow = Awaited<ReturnType<typeof loadBlockedAccounts>>[number]
 
@@ -21,10 +22,14 @@ type BlockedRow = Awaited<ReturnType<typeof loadBlockedAccounts>>[number]
  *
  * The card is not drawn at all when nobody is blocked. An empty "Blocked
  * people" card on everybody's settings page suggests a problem most people do
- * not have.
+ * not have. A failed read is drawn, with Try again: hiding it would say
+ * nobody is blocked when that is not known.
  */
 export default function BlockedAccountsCard() {
   const [rows, setRows] = React.useState<BlockedRow[] | null>(null)
+  const [failed, setFailed] = React.useState(false)
+  // Bumped by Try again, which runs the same read once more.
+  const [attempt, setAttempt] = React.useState(0)
   const [busy, setBusy] = React.useState<string | null>(null)
 
   React.useEffect(() => {
@@ -34,13 +39,31 @@ export default function BlockedAccountsCard() {
         if (!cancelled) setRows(result)
       })
       .catch(() => {
-        if (!cancelled) setRows([])
+        if (!cancelled) setFailed(true)
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [attempt])
 
+  if (failed)
+    return (
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Blocked people</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ErrorRow
+            message="Your blocked people could not be loaded."
+            onRetry={() => {
+              dismissErrorToast()
+              setFailed(false)
+              setAttempt((count) => count + 1)
+            }}
+          />
+        </CardContent>
+      </Card>
+    )
   if (!rows) return <LoadingRow label="Loading blocked people…" />
   if (!rows.length) return null
 

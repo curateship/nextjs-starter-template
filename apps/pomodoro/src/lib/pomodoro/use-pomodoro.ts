@@ -1529,10 +1529,18 @@ export function setProjectPublic(projectId: string, isPublic: boolean) {
  * Archiving takes a project out of the picker but changes no task: a task
  * already in it keeps its project, and History keeps its hours.
  */
-export function setProjectArchived(projectId: string, archived: boolean) {
-  if (!isAuthed()) return Promise.resolve()
+/**
+ * Archives a project or brings it back. Answers null once saved, or the
+ * sentence to show in the error toast, so the card that was pressed can say
+ * which happened.
+ */
+export function setProjectArchived(
+  projectId: string,
+  archived: boolean
+): Promise<string | null> {
+  if (!isAuthed()) return Promise.resolve("Log in to keep projects.")
   return setProjectArchivedRequest(projectId, archived)
-    .then((updated) =>
+    .then((updated) => {
       setState({
         projects: orderProjects(
           state.projects.map((project) =>
@@ -1541,13 +1549,12 @@ export function setProjectArchived(projectId: string, archived: boolean) {
         ),
         syncError: "",
       })
-    )
+      return null
+    })
     .catch((error: unknown) =>
-      setSyncError(
-        String(error).includes("PROJECT_NAME_TAKEN")
-          ? "Another project has taken that name. Rename it first."
-          : "The project could not be updated."
-      )
+      String(error).includes("PROJECT_NAME_TAKEN")
+        ? "Another project has taken that name. Rename it first."
+        : "The project could not be updated."
     )
 }
 

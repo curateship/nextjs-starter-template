@@ -83,17 +83,21 @@ export function SoundPlayerRow({ className }: { className?: string }) {
           <SleepTimerControl player={player} />
         </>
       ) : sound ? null : (
-        <span className="text-[13.5px] text-muted-foreground">
-          No sound
-          {canPick ? (
-            <>
-              {" · "}
-              <Link to="/sounds" className="font-semibold text-foreground underline underline-offset-2">
-                Pick one
-              </Link>
-            </>
-          ) : null}
-        </span>
+        <>
+          <span className="text-[13.5px] text-muted-foreground">
+            No sound
+            {canPick ? (
+              <>
+                {" · "}
+                <Link to="/sounds" className="font-semibold text-foreground underline underline-offset-2">
+                  Pick one
+                </Link>
+              </>
+            ) : null}
+          </span>
+          {/* A shuffled background still moves on with no sound playing. */}
+          <NextButton />
+        </>
       )}
       <PlayerNotice player={player} />
       <MediaCreditLine />
@@ -155,12 +159,19 @@ function PlayPauseButton({ player }: { player: Player }) {
 }
 
 /**
- * The next sound from a shuffle or tags choice, and the next theme with it
- * when the theme is a group too. Only drawn while the sound is a group.
+ * The next sound and background from a shuffle or tags choice. Drawn while
+ * either is a group, and its name says which of the two it moves on, since
+ * `playNextFromPools` moves on every group on screen.
  */
 function NextButton() {
-  const { soundPool } = useRoomMedia()
-  if (!soundPool) return null
+  const { soundPool, backgroundPool } = useRoomMedia()
+  if (!soundPool && !backgroundPool) return null
+  const label =
+    soundPool && backgroundPool
+      ? "Next sound and background"
+      : soundPool
+        ? "Next sound"
+        : "Next background"
   return (
     <Button
       variant="ghost"
@@ -168,7 +179,7 @@ function NextButton() {
       // Grey beside the white name and play, from Tyler's design.
       className="text-[rgba(var(--p-fg-rgb),0.7)]"
       onClick={playNextFromPools}
-      aria-label="Next sound"
+      aria-label={label}
     >
       <SkipForwardIcon className="fill-current" aria-hidden="true" />
     </Button>

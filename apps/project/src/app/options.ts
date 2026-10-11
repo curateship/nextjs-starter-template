@@ -1,3 +1,5 @@
+import { PlusIcon } from "lucide-react"
+
 import type { AppOptions } from "@/lib/app-options"
 import {
   PROJECT_NOTICE_CATEGORIES,
@@ -22,6 +24,21 @@ import {
  * object still reads as the full shape. Both catch a misspelled option.
  */
 export const appOptions: AppOptions = {
+  header: {
+    rightActions: [
+      {
+        /**
+         * New task from any page, so a task is written down the moment it is
+         * thought of. It opens the project page's window with a Project picker.
+         */
+        id: "new-task",
+        label: "New task",
+        icon: PlusIcon,
+        foldsOnPhone: true,
+        component: () => import("@/components/project/new-task-header"),
+      },
+    ],
+  },
   notifications: {
     categories: PROJECT_NOTICE_CATEGORIES,
     /** A task notice's look, read from its own heading so the first paint is right. */

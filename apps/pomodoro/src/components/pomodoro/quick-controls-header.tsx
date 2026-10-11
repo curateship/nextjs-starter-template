@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import {
   BarChart3Icon,
   CheckIcon,
+  Loader2Icon,
   ImageIcon,
   Clock3Icon,
   MinusIcon,
@@ -14,6 +15,7 @@ import {
   RotateCcwIcon,
   SkipForwardIcon,
   VolumeXIcon,
+  WifiOffIcon,
 } from "lucide-react"
 import { Popover as PopoverPrimitive } from "radix-ui"
 
@@ -21,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Popover,
   PopoverContent,
@@ -28,7 +31,29 @@ import {
 } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
-import { dismissErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import {
+  applyRoomAction,
+  leaveActiveRoom,
+  setRoomStartCountdown,
+} from "@/lib/api/pomodoro/rooms"
+import {
+  applyRoomSnapshot,
+  checkCurrentRoom,
+  leftRoom,
+  useRoomClock,
+  type RoomSnapshotClient,
+} from "@/lib/pomodoro/room-clock-store"
+import type { StartDelay } from "@/lib/pomodoro/room-countdown"
+import {
+  clockText,
+  RoomCountdownField,
+  RoomHostButtons,
+  roomActionErrorMessage,
+  roomPhaseName,
+  useRoomClockReading,
+  type RoomHostActionClient,
+} from "@/components/pomodoro/room-clock-controls"
 import { RESET_TO_CHANGE_RHYTHM_REASON } from "@/lib/pomodoro/disabled-reasons"
 import { loadLeaderboard } from "@/lib/api/pomodoro/leaderboard"
 import { listTimerPresets } from "@/lib/api/pomodoro/timer-presets"
@@ -155,7 +180,24 @@ export default function QuickControlsHeader() {
   )
 }
 
+/**
+ * The timer pill follows where you are (rooms task 03). Alone it is your
+ * personal timer. In a room it is that room's clock, with "Room I'm in" for a
+ * member and "Hosting a room" for the host, and your personal timer waits,
+ * paused, until you leave. Tyler, 10 Oct 2026: "We need to make it contextual
+ * to the room i am in."
+ */
 function TimerQuickControl() {
+  const { authenticated } = useProductAuth()
+  const { room } = useRoomMedia()
+  const inRoom = authenticated && room !== null
+  // Mounted on every page, so the room's clock is kept live wherever you are.
+  const clock = useRoomClock({ check: inRoom })
+  if (inRoom) return <RoomQuickControl roomSlug={room.slug} roomName={room.name} role={room.role} clock={clock} />
+  return <PersonalTimerQuickControl />
+}
+
+function PersonalTimerQuickControl() {
   const pomodoro = usePomodoro()
   const { requestReset, discardDialog } = useDiscardFocusConfirm(pomodoro)
   const { authenticated } = useProductAuth()
@@ -442,6 +484,235 @@ function TimerQuickControl() {
           when it closes, and opening the dialog moves focus out of it. */}
       {discardDialog}
     </Popover>
+  )
+}
+
+/**
+ * The timer pill and its dropdown while you are in a room: the room's time
+ * left, with the music bars as on your own timer. A member's dropdown, "Room
+ * I'm in", reads the room and can leave it. The host's, "Hosting a room", has
+ * the ring's own buttons as well. Neither can pause the room, because rooms
+ * have no pause, and the room's minutes are read-only here.
+ */
+function RoomQuickControl({
+  roomSlug,
+  roomName,
+  role,
+  clock,
+}: {
+  roomSlug: string
+  roomName: string
+  role: "host" | "member"
+  clock: ReturnType<typeof useRoomClock>
+}) {
+  const [open, setOpen] = React.useState(false)
+  const player = useSoundPlayer()
+  const soundOn =
+    player.state.selected !== null &&
+    (player.state.status === "playing" || player.state.status === "loading")
+  // A snapshot of another room is from before a switch, so it is not shown.
+  const snapshot = clock.snapshot?.room.slug === roomSlug ? clock.snapshot : null
+  const heading = role === "host" ? "Hosting a room" : "Room I'm in"
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverPrimitive.Anchor asChild>
+        <div
+          className={cn(
+            "flex h-9 items-center whitespace-nowrap text-[15px] font-semibold text-foreground",
+            quickPillSurfaceClass
+          )}
+        >
+          <PopoverTrigger asChild>
+            <button
+              className={cn(
+                timerPillPartClass,
+                "pl-3.5 max-md:pl-2",
+                soundOn
+                  ? "rounded-l-full pr-2 max-md:pr-1"
+                  : "rounded-full pr-4 max-md:pr-2"
+              )}
+              aria-label={`${heading}: ${roomName}`}
+            >
+              <Clock3Icon className="size-[18px]" aria-hidden="true" />
+              {snapshot ? (
+                <RoomPillTime room={snapshot.room} />
+              ) : (
+                <QuickPillLabel>Room</QuickPillLabel>
+              )}
+            </button>
+          </PopoverTrigger>
+          {soundOn ? <SoundBarsButton player={player} /> : null}
+        </div>
+      </PopoverPrimitive.Anchor>
+      <PopoverContent className={cn("w-[300px] gap-3.5 p-4", quickPopoverGlassClass)}>
+        {snapshot ? (
+          <RoomQuickPanel
+            snapshot={snapshot}
+            heading={heading}
+            reconnecting={clock.reconnecting}
+            onClose={() => setOpen(false)}
+          />
+        ) : (
+          <>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <strong className="text-sm font-semibold">{heading}</strong>
+              <span className="truncate text-sm text-muted-foreground">{roomName}</span>
+            </div>
+            {clock.checkFailed ? (
+              <ErrorRow
+                className="px-0 py-2"
+                message="The room's clock could not be loaded."
+                onRetry={() => {
+                  dismissErrorToast()
+                  void checkCurrentRoom()
+                }}
+              />
+            ) : (
+              <LoadingRow label="Loading the room…" />
+            )}
+          </>
+        )}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/** The room's time left in the pill, ticking with the ring. */
+function RoomPillTime({ room }: { room: RoomSnapshotClient["room"] }) {
+  const { shownSeconds } = useRoomClockReading(room)
+  return <span className="font-mono text-xs tabular-nums">{clockText(shownSeconds)}</span>
+}
+
+function RoomQuickPanel({
+  snapshot,
+  heading,
+  reconnecting,
+  onClose,
+}: {
+  snapshot: RoomSnapshotClient
+  heading: string
+  reconnecting: boolean
+  onClose: () => void
+}) {
+  const { room, you, members } = snapshot
+  const isHost = you.role === "host"
+  const { counting, shownSeconds } = useRoomClockReading(room)
+  const [pending, setPending] = React.useState("")
+  const hostFirstName = members.find((member) => member.role === "host")?.name.split(/\s+/)[0]
+  const rhythm = presetSummary({
+    focusMinutes: room.focusMinutes,
+    shortBreakMinutes: room.shortBreakMinutes,
+    longBreakMinutes: room.longBreakMinutes,
+    sessionsBeforeLongBreak: 4,
+    autoStart: room.autoStart,
+  })
+
+  const runAction = async (action: RoomHostActionClient) => {
+    dismissErrorToast()
+    setPending(action)
+    try {
+      applyRoomSnapshot(await applyRoomAction(room.slug, action))
+    } catch (cause) {
+      showErrorToast(roomActionErrorMessage(cause))
+    } finally {
+      setPending("")
+    }
+  }
+
+  const setDelay = async (seconds: StartDelay) => {
+    dismissErrorToast()
+    setPending("delay")
+    try {
+      applyRoomSnapshot(await setRoomStartCountdown(room.slug, seconds))
+    } catch {
+      showErrorToast("The countdown could not be changed.")
+    } finally {
+      setPending("")
+    }
+  }
+
+  const leave = async () => {
+    dismissErrorToast()
+    setPending("leave")
+    try {
+      const result = await leaveActiveRoom(room.slug)
+      onClose()
+      leftRoom(room.slug, result.closed ? "You closed the room." : "You left the room.")
+    } catch {
+      showErrorToast("Leaving the room failed. Try again.")
+    } finally {
+      setPending("")
+    }
+  }
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <strong className="text-sm font-semibold">{heading}</strong>
+          <span className="truncate text-sm text-muted-foreground" title={room.name}>
+            {room.name}
+          </span>
+        </div>
+        <span className="font-mono text-sm tabular-nums text-muted-foreground">
+          {clockText(shownSeconds)}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <p className="text-sm">
+          <strong className="font-semibold">{roomPhaseName(room, counting)}</strong>
+          <span className="text-muted-foreground">
+            {" · "}Session {Math.min(room.cycleFocusCount + 1, 4)} of 4
+          </span>
+        </p>
+        <p className="font-mono text-[11.5px] text-muted-foreground">
+          {rhythm}
+          {!isHost && hostFirstName ? `, set by ${hostFirstName}` : ""}
+        </p>
+        {reconnecting ? (
+          <p role="status" className="flex items-center gap-1 text-xs text-muted-foreground">
+            <WifiOffIcon className="size-3" aria-hidden="true" />
+            Reconnecting…
+          </p>
+        ) : null}
+      </div>
+
+      {isHost ? (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <RoomHostButtons
+              room={room}
+              counting={counting}
+              pending={pending !== ""}
+              onAction={(action) => void runAction(action)}
+              size="sm"
+            />
+          </div>
+          {room.phase === "waiting" && !counting ? (
+            <RoomCountdownField
+              startDelaySeconds={room.startDelaySeconds}
+              disabled={pending !== ""}
+              onDelay={(seconds) => void setDelay(seconds)}
+            />
+          ) : null}
+        </>
+      ) : null}
+
+      <div className="flex flex-wrap gap-2 border-t pt-3.5">
+        <Button asChild size="sm" variant="outline">
+          <Link to="/" onClick={onClose}>
+            Go to the room
+          </Link>
+        </Button>
+        {isHost ? null : (
+          <Button size="sm" variant="outline" disabled={pending !== ""} onClick={() => void leave()}>
+            {pending === "leave" ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : null}
+            Leave room
+          </Button>
+        )}
+      </div>
+    </>
   )
 }
 

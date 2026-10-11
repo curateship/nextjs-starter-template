@@ -55,6 +55,23 @@ export const PROJECT_ERRORS = {
   fileNotSaved: "The file couldn't be saved. Try again.",
   tooManyUploads: "That's a lot of files in a short while. Wait a few minutes, then add the rest.",
   fileNotRemoved: "The file couldn't be removed from storage, so nothing was deleted. Try again.",
+  labelNotFound: "That label no longer exists.",
+  labelNameTaken: "Your team already has a label with that name.",
+  tooManyLabels: "A team can have at most 100 labels. Delete one to make another.",
+  sectionNotFound: "That section no longer exists.",
+  tooManySections: "A project can have at most 30 sections.",
+  personalProject: "That's your own Just me list, which only you can see, so it can't be shared or changed.",
+  cantWaitOnItself: "A task can't wait on itself.",
+  waitingLoop: "That task is already waiting on this one, so this one can't wait on it.",
+  timeOffBackwards: "The last day off can't be before the first.",
+  timeOffTooLong: "Time off can cover at most a year at once.",
+  timeOffNotFound: "That time off no longer exists.",
+  handOverToSelf: "Pick someone else to hand the tasks to.",
+  joinLinkNotFound: "This join link no longer works. Ask the team for a new one.",
+  joinLinkExpired: "This join link has expired. Ask the team for a new one.",
+  joinLinkBusy: "Too many people have joined through this link today. Ask the team to let you in tomorrow, or for an invite.",
+  tooManyLines: "Paste at most 50 lines at once, one task per line.",
+  notInThisProject: "Those tasks aren't all in this project. Reload the page and try again.",
 } as const
 
 /** The shell's rate limiter refuses with this code rather than a sentence. */

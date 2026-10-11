@@ -59,6 +59,8 @@ people you follow.
   person's badges switch, so it can never show something their profile hides.
 - A new follow drops the held copy, so somebody you just followed appears on
   the next load rather than in three minutes.
+- **A failed read is drawn**, with Try again, instead of hiding the card as if
+  you followed nobody.
 
 ## Streaks in the bell
 
@@ -167,8 +169,8 @@ they sit together.
   page"). A search box and the tabs (Most focused, Newest, Online now) sit
   on the title's right.
   Each person is a card in a grid of three: photo, name, handle and Follow
-  along the top, the bio, then a line and the hours focused beside View
-  profile. Your own card says YOU and has no Follow.
+  along the top, the bio, then a line and the hours focused ("1 hour
+  focused", "12 hours focused") beside View profile. Your own card says YOU and has no Follow.
 - **Most focused is the default order; Newest is the other.** This replaces
   the 2 Oct rule of newest only ("ranking it would make a second
   leaderboard"), because the 8 Oct design puts Most focused first and
@@ -215,6 +217,7 @@ they sit together.
   on the last page still opened an empty one (`PagerButton` in
   `users-page.tsx`).
 - **A page past the end says so.** `/users?page=999` says "There is nothing on
-  page 201. The list has 3 pages." with Back to page 1. The address is capped
+  page 201. The list has 3 pages." with Back to page 1, which keeps the
+  search and the order as Previous and Next do. The address is capped
   at page 200 before it reaches the server. It used to say "Nobody is listed
   yet", which was untrue with people on page 1.

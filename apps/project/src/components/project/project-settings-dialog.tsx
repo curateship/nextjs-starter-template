@@ -3,7 +3,9 @@ import { useRouter } from "@tanstack/react-router"
 import { ArchiveIcon, ArchiveRestoreIcon } from "lucide-react"
 
 import { ProjectColorSelect } from "@/components/project/project-form-fields"
+import { ProjectSectionsCard } from "@/components/project/project-sections-card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogBody,
@@ -26,17 +28,19 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 type Project = ProjectPage["project"]
 
 /**
- * The project's name, colour, description and Archive, in a window opened
- * from the cog on the project page's details panel. Each field saves when it
+ * The project's name, colour, description, Archive and sections, in a window
+ * opened from the cog on the project page's details panel. Each field saves when it
  * is left or Enter is pressed, and the colour the moment it is picked, so the
  * window ends with Done.
  */
 export function ProjectSettingsDialog({
   project,
+  sections,
   open,
   onClose,
 }: {
   project: Project
+  sections: ProjectPage["sections"]
   open: boolean
   onClose: () => void
 }) {
@@ -60,6 +64,7 @@ export function ProjectSettingsDialog({
         </DialogHeader>
         <DialogBody>
           <ProjectSettingsFields project={project} />
+          <ProjectSectionsCard projectId={project.id} sections={sections} readOnly={project.archived} />
         </DialogBody>
         <DialogFooter>
           <Button type="button" onClick={close}>
@@ -109,56 +114,61 @@ function ProjectSettingsFields({ project }: { project: Project }) {
   }
 
   return (
-    <div className="grid gap-4">
-      <div className="grid gap-2">
-        <Label htmlFor="project-name">Name</Label>
-        <Input
-          id="project-name"
-          value={name}
-          maxLength={LIMITS.projectName}
-          disabled={readOnly}
-          aria-invalid={nameInvalid || undefined}
-          onChange={(event) => {
-            setName(event.target.value)
-            setNameInvalid(false)
-          }}
-          onBlur={commitName}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") event.currentTarget.blur()
-          }}
-        />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="project-color">Colour</Label>
-        <ProjectColorSelect
-          id="project-color"
-          value={project.color}
-          disabled={readOnly}
-          onChange={(color) => void save({ color })}
-        />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="project-description">Description</Label>
-        <Textarea
-          id="project-description"
-          value={description}
-          maxLength={LIMITS.projectDescription}
-          disabled={readOnly}
-          placeholder="What this project is for"
-          onChange={(event) => setDescription(event.target.value)}
-          onBlur={commitDescription}
-        />
-      </div>
-      <div>
-        <Button type="button" variant="outline" disabled={busy} onClick={() => void toggleArchived()}>
-          {project.archived ? (
-            <ArchiveRestoreIcon className="size-4" />
-          ) : (
-            <ArchiveIcon className="size-4" />
-          )}
-          {project.archived ? "Bring back" : "Archive project"}
-        </Button>
-      </div>
-    </div>
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Project</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="project-name">Name</Label>
+          <Input
+            id="project-name"
+            value={name}
+            maxLength={LIMITS.projectName}
+            disabled={readOnly}
+            aria-invalid={nameInvalid || undefined}
+            onChange={(event) => {
+              setName(event.target.value)
+              setNameInvalid(false)
+            }}
+            onBlur={commitName}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur()
+            }}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="project-color">Colour</Label>
+          <ProjectColorSelect
+            id="project-color"
+            value={project.color}
+            disabled={readOnly}
+            onChange={(color) => void save({ color })}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="project-description">Description</Label>
+          <Textarea
+            id="project-description"
+            value={description}
+            maxLength={LIMITS.projectDescription}
+            disabled={readOnly}
+            placeholder="What this project is for"
+            onChange={(event) => setDescription(event.target.value)}
+            onBlur={commitDescription}
+          />
+        </div>
+        <div>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => void toggleArchived()}>
+            {project.archived ? (
+              <ArchiveRestoreIcon className="size-4" />
+            ) : (
+              <ArchiveIcon className="size-4" />
+            )}
+            {project.archived ? "Bring back" : "Archive project"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

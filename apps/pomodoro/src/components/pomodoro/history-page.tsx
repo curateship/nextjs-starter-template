@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { InlineError } from "@/components/ui/inline-error"
 import { cn } from "@/lib/utils"
 import { formatLongDay, formatShortDay } from "@/lib/format/calendar-day"
 import {
@@ -713,12 +714,18 @@ const ALL_TAGS = "all"
 function SessionsCard({
   sessions,
   page,
+  loading,
   onPage,
   tags,
   onTagChange,
 }: {
   sessions: FocusHistoryResult["sessions"]
   page: number
+  /**
+   * A page is on its way. The rows dim and the page buttons wait for it, so
+   * a fast second press moves one page from the rows on screen, not two.
+   */
+  loading: boolean
   onPage: (page: number) => void
   tags: FocusHistoryResult["tags"]
   onTagChange: (tagId: string | null) => void
@@ -760,7 +767,10 @@ function SessionsCard({
       }
     >
         {sessions.rows.length ? (
-          <Table>
+          <Table
+            aria-busy={loading || undefined}
+            className={cn("transition-opacity", loading && "opacity-50")}
+          >
             <TableHeader>
               <TableRow className="[&>th]:font-mono [&>th]:text-[11px] [&>th]:font-normal [&>th]:uppercase [&>th]:tracking-[0.15em] [&>th]:text-muted-foreground">
                 <TableHead>Date</TableHead>
@@ -780,8 +790,15 @@ function SessionsCard({
                   <TableCell className="font-mono">
                     {session.localTime}
                   </TableCell>
+                  {/* Clamped like the note, so a long title cannot widen
+                      the table; the whole title is on the tooltip. */}
                   <TableCell
-                    className={session.taskTitle ? "" : "text-muted-foreground"}
+                    className={
+                      session.taskTitle
+                        ? "max-w-[11rem] truncate sm:max-w-[22rem]"
+                        : "text-muted-foreground"
+                    }
+                    title={session.taskTitle ?? undefined}
                   >
                     {session.taskTitle ?? "No task"}
                   </TableCell>
@@ -806,7 +823,7 @@ function SessionsCard({
                     }
                     title={session.note ?? undefined}
                   >
-                    {session.note ?? "—"}
+                    {session.note ?? "-"}
                   </TableCell>
                 </TableRow>
               ))}
@@ -824,7 +841,7 @@ function SessionsCard({
             <Button
               variant="outline"
               size="sm"
-              disabled={page === 0}
+              disabled={loading || page === 0}
               onClick={() => onPage(page - 1)}
             >
               Previous
@@ -835,7 +852,7 @@ function SessionsCard({
             <Button
               variant="outline"
               size="sm"
-              disabled={page + 1 >= pageCount}
+              disabled={loading || page + 1 >= pageCount}
               onClick={() => onPage(page + 1)}
             >
               Next
@@ -939,7 +956,7 @@ export function HistoryPage({
   const rangeSummary =
     report && !rangeLocked
       ? `${formatShortDay(report.startDate)} – ${formatShortDay(report.endDate)} · today updates as you complete sessions`
-      : "Only completed focus sessions count — breaks and cancelled timers never do."
+      : "Only completed focus sessions count - breaks and cancelled timers never do."
   const empty =
     Boolean(report) &&
     !rangeLocked &&
@@ -1040,11 +1057,7 @@ export function HistoryPage({
             />
           </Card>
         ) : null}
-        {notice ? (
-          <p role="status" className="text-sm text-muted-foreground">
-            {notice}
-          </p>
-        ) : null}
+        {notice ? <InlineError>{notice}</InlineError> : null}
 
         {rangeLocked ? (
           <Card>
@@ -1062,7 +1075,7 @@ export function HistoryPage({
               </p>
               <div className="flex gap-2">
                 <Button asChild>
-                  <Link to="/pricing">See Pro plans</Link>
+                  <Link to="/plans">See Pro plans</Link>
                 </Button>
                 <Button variant="outline" onClick={() => changeRange("30d")}>
                   Back to 30 days
@@ -1093,17 +1106,26 @@ export function HistoryPage({
                 value={String(report.totals.activeDays)}
                 hint={`of ${days.length} days`}
               />
+              {/* The streak arrives with the week review. While it loads
+                  it reads "…"; a failed read says so here as well as in
+                  This week, rather than "…" for good. */}
               <StripFigure
                 label="Streak"
                 value={
                   week.review
                     ? `${week.review.currentStreak} ${week.review.currentStreak === 1 ? "day" : "days"}`
-                    : "…"
+                    : week.error
+                      ? "-"
+                      : "…"
                 }
                 hint={
-                  week.review
-                    ? `best ${week.review.bestStreak} ${week.review.bestStreak === 1 ? "day" : "days"}`
-                    : ""
+                  week.review ? (
+                    `best ${week.review.bestStreak} ${week.review.bestStreak === 1 ? "day" : "days"}`
+                  ) : week.error ? (
+                    <span className="text-destructive">Couldn't load</span>
+                  ) : (
+                    ""
+                  )
                 }
               />
             </dl>
@@ -1147,6 +1169,7 @@ export function HistoryPage({
                 <SessionsCard
                   sessions={report.sessions}
                   page={page}
+                  loading={loading}
                   onPage={setPage}
                   tags={report.tags}
                   onTagChange={(next) => {

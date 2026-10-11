@@ -59,6 +59,10 @@ sideways inside itself rather than pushing the page wider.
   under them that yours could not be loaded, with Try again. It used to drop
   the failure in silence, so four saved rhythms looked as if they had been
   deleted (`quick-controls-header.tsx`).
+- **The header's Timer popover is only your personal timer.** While you are
+  in a room, the same pill shows that room's clock and opens "Room I'm in" or
+  "Hosting a room" instead, and your personal timer waits, paused. See "The
+  header follows your room" in [Focus rooms](rooms.md).
 
 The tab edits the same `user_preferences` row the dashboard reads on load,
 so the next visit to `/timer` picks the new rhythm up.

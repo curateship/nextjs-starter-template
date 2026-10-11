@@ -270,7 +270,7 @@ export function AdminRoomRepeatsDashboard({
               ) : row.nextStartsAt ? (
                 formatDateTime(row.nextStartsAt)
               ) : (
-                "—"
+                "-"
               )}
             </TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">

@@ -36,6 +36,26 @@ check in with its own dashboard".
 - **Two passes never send two notices.** The job writes a row in
   `project_checkin_reminders` for the person and the day, in the same
   transaction as the notice. A second pass finds the row and sends nothing.
+- **Due dates ride on the same time.** "Due tomorrow" and "Overdue" reach the
+  person assigned at their own check-in time, on work days (see Bell notices
+  in [Projects and tasks](projects-and-tasks.md)).
+
+### The team's morning
+
+- **One notice per work day** to the owner and each admin: "5 of 6 checked
+  in, 1 blocked". Clicking it opens the Team dashboard on that day.
+- **It waits for the last person.** It goes 30 minutes after the latest
+  check-in time anyone in the team has, so every number is in. Tyler chose
+  this over the owner's own time plus an hour on 10 Oct 2026. A team spread
+  across time zones may get it late in the owner's day.
+- **The numbers are the calendar's.** They are counted by the same code as
+  today's square on the Team dashboard (`countTeamToday` in
+  `src/server/project/team-days.ts`). The day is the team's, in the team's
+  time zone.
+- **Nothing on a day the team doesn't work.**
+- **Sent once.** The job writes a row in `project_team_morning_notices` for
+  the team and the day, in the same transaction as the notices.
+- **Numbers, not names.** Who is blocked is on the Team dashboard.
 
 ## The window
 
@@ -44,7 +64,10 @@ check in with its own dashboard".
    asks for a one-line reason. The check-in can't be saved until every one is
    answered, and pressing Check in early marks the ones still open and says
    how many. A task whose project has since been archived isn't asked about,
-   because it can't be carried over.
+   because it can't be carried over. **Carry all over**, above the list,
+   answers every one still open with Carry over in one press; drops already
+   written stay as they are. Each still shows its "Picked on 4 days" mark, so
+   a task carried over without thinking still shows up.
 2. **Pick today's tasks.** Every task assigned to the person that isn't Done,
    grouped by project, with due dates, steps and the "Picked on 4 days" mark.
    Tasks from the last check-in are answered above instead of listed here.
@@ -55,6 +78,14 @@ check in with its own dashboard".
 5. **Check in.** Saves the answers and the ticks as today's check-in, and
    closes the window. Closing it before then with answers or ticks in it asks
    first, because they would be lost.
+
+### Snoozed and Just me tasks
+
+- **A snoozed task stays out of the pick list** until the person's own
+  morning of its date. A task picked on the last check-in still has to be
+  carried over or dropped, snoozed or not, so nothing is let go silently.
+- **"Add a task for yourself" offers "Just me"** beside the projects, for a
+  task only that person can see.
 
 ## After checking in
 
@@ -73,6 +104,29 @@ check in with its own dashboard".
 - **No reminder, no "hasn't checked in" mark** on a day the team doesn't work.
 - **A person can still check in on a day off**, and that check-in is never
   late.
+
+## Time off
+
+A person's own days off, such as a holiday, so they don't count as missed.
+
+- **Each person marks their own** on My dashboard's left panel, with a first
+  and last day. **The owner and admins can mark anyone's**, from that
+  person's window on the Members page. Tyler chose both on 10 Oct 2026. Up
+  to a year at a time.
+- **No reminder** on those days of the person's own calendar, and no due-date
+  reminders either.
+- **Saved as a day off.** The end-of-day job saves the day with `work_day`
+  false, not "Didn't check in".
+- **"Away" on the Team dashboard**, and they aren't counted as expected that
+  day: not in the calendar square, not in the owner's morning notice.
+- **Days already saved don't change.** A day saved as "Didn't check in"
+  before the time off was added stays that way.
+- **Checking in while away is allowed**, and is saved as a day off, so it is
+  never late.
+- **Where it lives:** `project_time_off` in
+  `drizzle/0103_project_time_off.sql`, rules in
+  `src/server/project/time-off.ts`, the screen in
+  `src/components/project/time-off-card.tsx`.
 
 ## What is saved, and why
 
@@ -100,11 +154,14 @@ again from today's tasks.
 
 ## Where it lives
 
-- **Tables:** `drizzle/0095_project_checkins.sql`.
+- **Tables:** `drizzle/0095_project_checkins.sql`, and the reminder claims in
+  `drizzle/0098_project_reminders.sql`.
 - **Rules:** `src/server/project/checkins.ts`.
 - **The two background jobs:** `src/server/project/checkin-jobs.ts`, listed as
   `project-checkins` in `src/app/server-options.ts`, on the shell's
   fifteen-second loop.
+- **Due-date reminders and the team's morning:**
+  `src/server/project/reminder-jobs.ts`, listed as `project-reminders`.
 - **Endpoints:** `src/lib/api/project/checkins.ts`.
 - **Screen:** `src/components/project/checkin-dialog.tsx` and
   `src/components/project/my-checkin-time.tsx`.

@@ -19,6 +19,18 @@ A task ends with a History card, oldest first, wherever it opens.
   `project_task_events` (`drizzle/0096_project_task_events.sql`), because a
   task only holds who has it now. Hand-overs from before 10 Oct 2026 weren't
   written down and don't show.
+- **A step that became its own task**: "Anna made the step "Spam protection"
+  its own task" on the task it came from, and "Anna made this from a step in
+  Build the contact form" on the new one, each linking to the other. A link
+  to a task the reader can't see is left off.
+- **A move**: "Anna moved it here from Website", from 10 Oct 2026.
+- **Made, marked and binned**: "Anna made it", "Ben marked it Done", "Anna put
+  it in the bin", "Anna brought it back from the bin", from 11 Oct 2026.
+  Comments are written down too, for the project's Activity tab, but the
+  History card leaves them out because the chat already shows them.
+- **One table for the task and the project.** The project's Activity tab
+  ([Projects and tasks](projects-and-tasks.md#activity)) reads these same
+  rows. New moments get new kinds; saved kinds are never renamed.
 - **Who sees it:** the same people who can open the task. That is the
   project's members, plus the team's owner and admins.
 - **People who left keep their lines.** A person removed from the team still

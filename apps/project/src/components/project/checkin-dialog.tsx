@@ -1,6 +1,6 @@
 import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
-import { CircleAlertIcon, ClockIcon, Loader2Icon, PlusIcon } from "lucide-react"
+import { CheckCheckIcon, CircleAlertIcon, ClockIcon, Loader2Icon, PlusIcon } from "lucide-react"
 
 import {
   DueDate,
@@ -165,9 +165,29 @@ export function CheckinDialog({
                   <CardTitle>From your last check-in · {shortDayLabel(page.leftovers.day)}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4">
-                  <p className="text-sm text-muted-foreground">
-                    These weren't finished. Carry each one over to today, or drop it and say why.
-                  </p>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      These weren't finished. Carry each one over to today, or drop it and say why.
+                    </p>
+                    {/* Answers every one still open; drops already given stay as they are. */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() =>
+                        setAnswers((current) => {
+                          const next = { ...current }
+                          for (const task of leftovers) {
+                            if (!next[task.id]) next[task.id] = { action: "carry", reason: "" }
+                          }
+                          return next
+                        })
+                      }
+                    >
+                      <CheckCheckIcon className="size-4" />
+                      Carry all over
+                    </Button>
+                  </div>
                   <ul className="grid gap-3">
                     {leftovers.map((task) => (
                       <LeftoverRow
@@ -272,6 +292,9 @@ export function StatusLine({ page }: { page: CheckinPage }) {
         change today's picks.
       </span>
     )
+  }
+  if (today.away) {
+    return <span>You're away today. You can still check in if you're working.</span>
   }
   if (!today.workDay) {
     return <span>Today is a day off for your team. You can still check in if you're working.</span>

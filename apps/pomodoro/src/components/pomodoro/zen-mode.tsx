@@ -279,11 +279,20 @@ export function ZenMode({
       </div>
 
       <p
-        className="absolute inset-x-0 bottom-8 text-center font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground transition-opacity duration-500 motion-reduce:transition-none"
+        className="absolute inset-x-0 bottom-8 px-4 text-center font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground transition-opacity duration-500 motion-reduce:transition-none"
         style={{ opacity: chromeShown ? 1 : 0 }}
       >
-        Click the ring or press Space to{" "}
-        {pomodoro.timer.running ? "pause" : "start"} · Esc to leave
+        {/* A touch screen has no Space or Esc, so it is told about the tap
+            and the leave button instead, the way the dashboard keeps its
+            Space hint to screens with a mouse. */}
+        <span className="pointer-fine:hidden">
+          Tap the ring to {pomodoro.timer.running ? "pause" : "start"} · Leave
+          zen mode at the top right
+        </span>
+        <span className="hidden pointer-fine:inline">
+          Click the ring or press Space to{" "}
+          {pomodoro.timer.running ? "pause" : "start"} · Esc to leave
+        </span>
       </p>
     </div>,
     document.body

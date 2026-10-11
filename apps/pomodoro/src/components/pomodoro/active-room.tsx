@@ -20,7 +20,6 @@ import {
   applyRoomAction,
   banMember,
   deleteMessage,
-  getCurrentRoom,
   leaveActiveRoom,
   removeMember,
   setRoomPeopleLimitFor,
@@ -34,67 +33,44 @@ import {
 import { BreakCard } from "@/components/pomodoro/break-card"
 import { TasksSection } from "@/components/pomodoro/today-task-list"
 import { SoundPlayerRow } from "@/components/pomodoro/sound-player-row"
-import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
-import { enterHostedRoom, leaveHostedRoom } from "@/lib/pomodoro/room-media-store"
-import { followRoomRunning } from "@/lib/pomodoro/sound-engine"
+import type { StartDelay } from "@/lib/pomodoro/room-countdown"
 import {
-  START_DELAY_LABELS,
-  type StartDelay,
-} from "@/lib/pomodoro/room-countdown"
-import { usePageVisible } from "@/lib/pomodoro/use-page-visible"
+  applyRoomSnapshot,
+  checkCurrentRoom,
+  leftRoom,
+  useRoomClock,
+  type RoomSnapshotClient,
+} from "@/lib/pomodoro/room-clock-store"
+import {
+  clockText,
+  ringIconButtonClass,
+  roomActionErrorMessage,
+  RoomHostButtons,
+  useRoomClockReading,
+  type RoomHostActionClient,
+} from "@/components/pomodoro/room-clock-controls"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { PersonAvatar } from "@/components/pomodoro/initials-avatar"
 import { RoomSettingsCog } from "@/components/pomodoro/room-settings-cog"
 
 /**
- * The room you are in: its live snapshot, the connection that keeps it
- * current, and the panel that draws it. See `workspace/docs/rooms.md`.
+ * The room you are in, drawn: its ring, its card, its chat. The front page
+ * draws it, because Tyler, 7 Oct 2026: "the index page will be replaced with
+ * the joined room". See `workspace/docs/rooms.md`.
  *
- * Two pages use it. The front page draws the whole panel, because Tyler,
- * 7 Oct 2026: "the index page will be replaced with the joined room". The
- * Rooms page only says which room you are in and links back to it.
- *
- * Every snapshot also tells the room media store which room this is and
- * which sound and theme it carries, so every screen draws the room's pair;
- * and it tells the sound engine when the room's clock is running, which
- * starts and stops the room's sound the way your own timer does.
+ * The live snapshot and the connection that keeps it current are the room
+ * clock store's (`src/lib/pomodoro/room-clock-store.ts`), which the header
+ * reads on every page too.
  */
 
-export type RoomSnapshotClient = NonNullable<
-  Awaited<ReturnType<typeof getCurrentRoom>>
->
-type RoomHostActionClient = "start_focus" | "start_break" | "next_phase" | "close" | "cancel_start"
 export type ConfirmRequest = {
   title: string
   description: string
   confirmLabel: string
   onConfirm: () => void
-}
-
-/**
- * Seconds left until a time the server set: the end of the room's phase, or
- * the end of a "Starting in" countdown. Null when there is none (a waiting
- * room with no countdown).
- */
-export function useRoomSecondsLeft(phaseEndsAt: Date | string | null) {
-  const endsAtTime = phaseEndsAt ? new Date(phaseEndsAt).getTime() : null
-  const [now, setNow] = React.useState(() => Date.now())
-  React.useEffect(() => {
-    if (!endsAtTime) return
-    setNow(Date.now())
-    const interval = setInterval(() => setNow(Date.now()), 500)
-    return () => clearInterval(interval)
-  }, [endsAtTime])
-  if (!endsAtTime) return null
-  return Math.max(0, Math.ceil((endsAtTime - now) / 1000))
-}
-
-/** "25:00", the way the ring writes a number of seconds. */
-function clockText(totalSeconds: number) {
-  return `${String(Math.floor(totalSeconds / 60)).padStart(2, "0")}:${String(totalSeconds % 60).padStart(2, "0")}`
 }
 
 /** The same ring as the timer: 300 units across, an 8-unit stroke. */
@@ -104,10 +80,6 @@ const circumference = 2 * Math.PI * ringRadius
 const eyebrowClass =
   "font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/75"
 
-/** The round outline buttons inside the ring, matching the timer's. */
-const ringIconButtonClass =
-  "bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground dark:border-border dark:bg-transparent dark:hover:bg-transparent"
-
 const phaseLabels: Record<string, string> = {
   waiting: "Waiting to start",
   focus: "Focus",
@@ -115,170 +87,6 @@ const phaseLabels: Record<string, string> = {
   long: "Long break",
 }
 
-
-/**
- * Hands a room's snapshot to the store that decides the sound and theme on
- * screen. Called for every snapshot, and straight after a join or a create,
- * so the page you land on already draws the room.
- */
-export function enterRoomFromSnapshot(snapshot: RoomSnapshotClient) {
-  if (snapshot.room.phase === "closed") {
-    leaveHostedRoom()
-    return
-  }
-  enterHostedRoom({
-    slug: snapshot.room.slug,
-    name: snapshot.room.name,
-    role: snapshot.you.role,
-    sound: snapshot.room.sound,
-    background: snapshot.room.background,
-    files: snapshot.room.files,
-  })
-}
-
-/**
- * The room you are in, kept live. `onEnded` runs when it closes, when you
- * are removed, and when you leave it from here.
- */
-export function useActiveRoom({ onEnded }: { onEnded?: () => void } = {}) {
-  const { authenticated } = useProductAuth()
-  const [activeRoom, setActiveRoom] = React.useState<RoomSnapshotClient | null>(
-    null
-  )
-  // Whether asking the server which room you are in failed. While it has, the
-  // page does not know, so it draws nothing that would imply "none".
-  const [checkFailed, setCheckFailed] = React.useState(false)
-  const [reconnecting, setReconnecting] = React.useState(false)
-  // The room whose ending has already been explained by the person's own
-  // action, so a broadcast arriving afterwards does not explain it again in
-  // vaguer words.
-  const endExplainedRef = React.useRef("")
-  const onEndedRef = React.useRef(onEnded)
-  React.useEffect(() => {
-    onEndedRef.current = onEnded
-  }, [onEnded])
-  // Whether this page has seen the room's clock yet. The first snapshot only
-  // records it, so arriving mid-focus never starts the sound by itself.
-  const clockSeenRef = React.useRef(false)
-  const activeRoomSlug = activeRoom?.room.slug
-
-  const checkCurrentRoom = React.useCallback(() => {
-    if (!authenticated) return
-    void getCurrentRoom().then(
-      (snapshot) => {
-        setCheckFailed(false)
-        if (snapshot) {
-          enterRoomFromSnapshot(snapshot)
-          setActiveRoom((current) => current ?? snapshot)
-        } else {
-          // The room ended while nobody was looking. Back to your own pair.
-          leaveHostedRoom()
-        }
-      },
-      () => setCheckFailed(true)
-    )
-  }, [authenticated])
-  React.useEffect(checkCurrentRoom, [checkCurrentRoom])
-
-  /** Says how a room you were in came to an end, once per room. */
-  const announceRoomEnd = React.useCallback(
-    (slug: string, message: string, deliberate: boolean) => {
-      if (!deliberate && endExplainedRef.current === slug) return
-      if (deliberate) endExplainedRef.current = slug
-      // One toast per room: a broadcast that beat the person's own answer is
-      // replaced by it rather than stacked under it.
-      toast.success(message, { id: `room-ended:${slug}` })
-    },
-    []
-  )
-
-  // `tellPage` is false when the page itself ended the room, because the page
-  // already refreshes after its own action and a second refresh is wasted.
-  const endRoom = React.useCallback((tellPage = true) => {
-    setActiveRoom(null)
-    leaveHostedRoom()
-    followRoomRunning(false)
-    clockSeenRef.current = false
-    if (tellPage) onEndedRef.current?.()
-  }, [])
-
-  // The SSE broadcast and a mutation's own response race in either order,
-  // so only a deliberate action (force) may replace the room-ended toast; the
-  // broadcast speaks only when nothing has explained the close yet.
-  const applySnapshot = React.useCallback(
-    (
-      snapshot: RoomSnapshotClient,
-      closedNotice = "This room has ended.",
-      forceClosedNotice = false
-    ) => {
-      if (snapshot.room.phase === "closed") {
-        announceRoomEnd(snapshot.room.slug, closedNotice, forceClosedNotice)
-        endRoom()
-        return
-      }
-      endExplainedRef.current = ""
-      enterRoomFromSnapshot(snapshot)
-      // The sound plays only while the room is in a focus; a break is quiet.
-      followRoomRunning(snapshot.room.phase === "focus", !clockSeenRef.current)
-      clockSeenRef.current = true
-      setActiveRoom(snapshot)
-    },
-    [announceRoomEnd, endRoom]
-  )
-
-  /** You left or closed it yourself, and `message` says which. */
-  const leftRoom = React.useCallback(
-    (slug: string, message: string) => {
-      announceRoomEnd(slug, message, true)
-      endRoom(false)
-    },
-    [announceRoomEnd, endRoom]
-  )
-
-  // The live connection is held only while this tab is on screen. The server
-  // counts an open connection as somebody looking at the room, and keeps the
-  // bell quiet about chat, joins and reactions they can already see. A room in
-  // a tab behind other tabs is not being looked at, so its connection closes
-  // and the bell tells them what they missed. Coming back reconnects, and the
-  // first message is a full snapshot, so nothing on screen is stale.
-  const pageVisible = usePageVisible()
-
-  React.useEffect(() => {
-    if (!activeRoomSlug || !pageVisible) return
-    const source = new EventSource(
-      `/api/pomodoro/rooms/${activeRoomSlug}/events`
-    )
-    source.addEventListener("snapshot", (event) => {
-      setReconnecting(false)
-      applySnapshot(
-        JSON.parse((event as MessageEvent<string>).data) as RoomSnapshotClient
-      )
-    })
-    source.addEventListener("room_gone", () => {
-      // A deliberate leave/close already explained itself; this only speaks
-      // when the membership ended from the other side.
-      announceRoomEnd(activeRoomSlug, "You are no longer in this room.", false)
-      endRoom()
-    })
-    source.onerror = () => setReconnecting(true)
-    return () => {
-      setReconnecting(false)
-      source.close()
-    }
-  }, [activeRoomSlug, announceRoomEnd, applySnapshot, endRoom, pageVisible])
-
-  return {
-    activeRoom,
-    checkFailed,
-    reconnecting,
-    checkCurrentRoom: () => {
-      setCheckFailed(false)
-      checkCurrentRoom()
-    },
-    applySnapshot,
-    leftRoom,
-  }
-}
 
 export function ActiveRoomPanel({
   snapshot,
@@ -317,11 +125,7 @@ export function ActiveRoomPanel({
         true
       )
     } catch (cause) {
-      showErrorToast(
-        cause instanceof Error && cause.message.includes("ROOM_HOST_REQUIRED")
-          ? "Only the host can control the room."
-          : "The room could not be updated."
-      )
+      showErrorToast(roomActionErrorMessage(cause))
     } finally {
       setPending("")
     }
@@ -636,7 +440,7 @@ export function ActiveRoomPanel({
           </div>
           {copyFailed ? (
             <p className="basis-full text-xs text-muted-foreground">
-              Copying failed — the link is {inviteUrl}
+              Copying failed - the link is {inviteUrl}
             </p>
           ) : null}
         </header>
@@ -732,11 +536,7 @@ function RoomRing({
     return () => document.removeEventListener("fullscreenchange", follow)
   }, [])
   const fullScreenLabel = fullScreen ? "Exit full screen" : "Full screen"
-  const secondsLeft = useRoomSecondsLeft(room.phaseEndsAt)
-  // "Starting in": a countdown the host began from waiting, shown to
-  // everybody in the ring until the focus starts (9 Oct 2026).
-  const countdownLeft = useRoomSecondsLeft(room.phase === "waiting" ? room.startingAt : null)
-  const counting = countdownLeft !== null
+  const { secondsLeft, counting, shownSeconds } = useRoomClockReading(room)
   const waiting = secondsLeft === null
   const phaseSeconds =
     room.phaseStartedAt && room.phaseEndsAt
@@ -747,7 +547,6 @@ function RoomRing({
   // A room with no clock running shows a whole ring and the focus length.
   const fraction =
     waiting || phaseSeconds <= 0 ? 1 : Math.min(1, secondsLeft / phaseSeconds)
-  const shownSeconds = countdownLeft ?? secondsLeft ?? room.focusMinutes * 60
   const sessionIndex = Math.min(room.cycleFocusCount, 3)
 
   return (
@@ -803,58 +602,12 @@ function RoomRing({
           </time>
           {isHost ? (
             <div className="mt-5 flex items-center gap-2">
-              {room.phase === "focus" ? (
-                <Button
-                  size="lg"
-                  className="rounded-full px-5"
-                  disabled={pending !== ""}
-                  onClick={() => onAction("start_break")}
-                >
-                  Start break
-                </Button>
-              ) : counting ? (
-                <>
-                  <Button
-                    size="lg"
-                    className="rounded-full px-5"
-                    disabled={pending !== ""}
-                    onClick={() => onAction("start_focus")}
-                  >
-                    Start now
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className={cn("rounded-full", ringIconButtonClass)}
-                    disabled={pending !== ""}
-                    onClick={() => onAction("cancel_start")}
-                  >
-                    Cancel
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  size="lg"
-                  className="rounded-full px-5"
-                  disabled={pending !== ""}
-                  onClick={() => onAction("start_focus")}
-                >
-                  {room.phase === "waiting"
-                    ? `Start in ${START_DELAY_LABELS[room.startDelaySeconds as StartDelay] ?? "5 seconds"}`
-                    : "Start focus"}
-                </Button>
-              )}
-              {room.phase !== "waiting" ? (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className={cn("rounded-full", ringIconButtonClass)}
-                  disabled={pending !== ""}
-                  onClick={() => onAction("next_phase")}
-                >
-                  Next phase
-                </Button>
-              ) : null}
+              <RoomHostButtons
+                room={room}
+                counting={counting}
+                pending={pending !== ""}
+                onAction={onAction}
+              />
             </div>
           ) : room.phase === "waiting" && !counting ? (
             <span className="mt-5 text-sm text-muted-foreground">
@@ -944,17 +697,17 @@ function closeConsequence(others: number) {
  * row rather than drawing the timer and swapping it out.
  */
 export function JoinedRoom() {
-  const live = useActiveRoom()
+  const live = useRoomClock({ check: true })
   const pomodoro = usePomodoro()
-  const snapshot = live.activeRoom
+  const snapshot = live.snapshot
   return (
     <div className={`${contentColumn} flex flex-col gap-7 py-8`}>
       {snapshot ? (
         <ActiveRoomPanel
           snapshot={snapshot}
           reconnecting={live.reconnecting}
-          onSnapshot={live.applySnapshot}
-          onLeft={(message) => live.leftRoom(snapshot.room.slug, message)}
+          onSnapshot={applyRoomSnapshot}
+          onLeft={(message) => leftRoom(snapshot.room.slug, message)}
         />
       ) : live.checkFailed ? (
         <Card>
@@ -962,7 +715,7 @@ export function JoinedRoom() {
             message="We could not load the room you are in."
             onRetry={() => {
               dismissErrorToast()
-              live.checkCurrentRoom()
+              void checkCurrentRoom()
             }}
           />
         </Card>

@@ -3,6 +3,7 @@ import { CheckIcon, CopyIcon, Loader2Icon, RefreshCwIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ErrorRow } from "@/components/ui/error-row"
 import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,7 +14,7 @@ import {
   turnOnStreakBadge,
 } from "@/lib/api/pomodoro/streak-badge"
 import { browserTimezone } from "@/lib/pomodoro/timer"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 /**
@@ -27,6 +28,11 @@ import { cn } from "@/lib/utils"
 export default function StreakBadgeCard() {
   const [token, setToken] = React.useState<string | null>(null)
   const [loaded, setLoaded] = React.useState(false)
+  // A failed read shows in the card with Try again, never a switch left grey
+  // for good with no reason once the toast is gone.
+  const [loadFailed, setLoadFailed] = React.useState(false)
+  // Bumped by Try again, which runs the same read once more.
+  const [attempt, setAttempt] = React.useState(0)
   const [busy, setBusy] = React.useState(false)
   // When the address was last copied, or 0. A moment rather than a yes/no
   // so a second press restarts the two seconds instead of being ignored.
@@ -42,12 +48,12 @@ export default function StreakBadgeCard() {
         setLoaded(true)
       })
       .catch(() => {
-        if (live) showErrorToast("Your streak badge settings could not be loaded.")
+        if (live) setLoadFailed(true)
       })
     return () => {
       live = false
     }
-  }, [])
+  }, [attempt])
 
   // "Copied" goes back to "Copy" after two seconds, so the next press can be
   // seen to have worked. The timer goes with the card if it unmounts first.
@@ -91,6 +97,25 @@ export default function StreakBadgeCard() {
       setCopiedAt(0)
     }
   }
+
+  if (loadFailed)
+    return (
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Streak badge</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ErrorRow
+            message="Your streak badge settings could not be loaded."
+            onRetry={() => {
+              dismissErrorToast()
+              setLoadFailed(false)
+              setAttempt((count) => count + 1)
+            }}
+          />
+        </CardContent>
+      </Card>
+    )
 
   return (
     <Card size="sm">

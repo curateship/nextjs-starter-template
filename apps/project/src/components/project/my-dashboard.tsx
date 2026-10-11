@@ -1,19 +1,22 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
   BellIcon,
   CalendarCheckIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
+  PlaneIcon,
 } from "lucide-react"
 
 import { CheckinDialog, StatusLine } from "@/components/project/checkin-dialog"
 import { MyCheckinTime } from "@/components/project/my-checkin-time"
 import { PersonAvatar } from "@/components/project/task-bits"
+import { TaskFiltersBar } from "@/components/project/task-filters-bar"
 import { TaskInPlace } from "@/components/project/task-in-place"
 import { TaskList } from "@/components/project/task-list"
 import { TeamStart } from "@/components/project/team-start"
 import { ThreePanels } from "@/components/project/three-panels"
+import { TimeOffSection } from "@/components/project/time-off-card"
 import { NotificationRow } from "@/components/shared/notification-row"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
@@ -21,20 +24,33 @@ import {
   DashboardCardTitleHeader,
 } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsCount, TabsTrigger } from "@/components/ui/tabs"
 import type { MyDashboard as MyDashboardData } from "@/lib/api/project/checkins"
 import { markNotificationRead, type NotificationItem } from "@/lib/api/notification"
+import { saveMemberTitle } from "@/lib/api/project/team-running"
 import type { InviteForMe } from "@/lib/api/project/teams"
 import { formatDate } from "@/lib/format/format-time"
 import { useAppNotificationDetails } from "@/lib/hooks/use-app-notification-details"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { notificationAction } from "@/lib/notification-action"
 import { MY_DASHBOARD_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
-import { TEAM_ROLE_LABEL } from "@/lib/project/rules"
+import { getProjectErrorMessage } from "@/lib/project/errors"
+import { LIMITS, TEAM_ROLE_LABEL } from "@/lib/project/rules"
+import {
+  DUE_GROUPS,
+  dueGroupOf,
+  filterTasks,
+  hasTaskFilters,
+  type TaskFilters,
+} from "@/lib/project/task-filters"
 
-export type MyDashboardSearch = {
+export type MyDashboardSearch = Omit<TaskFilters, "person"> & {
   /** The task open in the middle panel. */
   task?: string
   /** Opens the check-in window, which is where the bell's reminder goes. */
@@ -75,9 +91,10 @@ function Dashboard({
   const navigate = useNavigate()
   const taskAddress = useTaskAddress()
   const go = React.useCallback(
-    (patch: Partial<MyDashboardSearch>) =>
+    (patch: Partial<MyDashboardSearch>, options: { replace?: boolean } = {}) =>
       void navigate({
         to: ".",
+        replace: options.replace,
         search: (previous: Record<string, unknown>) => {
           const next: Record<string, unknown> = { ...previous, ...patch }
           for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key]
@@ -100,7 +117,12 @@ function Dashboard({
         label: "My tasks",
         content: (
           <TaskInPlace taskId={search.task} onBack={taskAddress.back}>
-            <MyTasksPanel dashboard={dashboard} onOpenTask={taskAddress.open} />
+            <MyTasksPanel
+              dashboard={dashboard}
+              filters={{ q: search.q, status: search.status, label: search.label }}
+              onFilters={(patch) => go(patch, { replace: true })}
+              onOpenTask={taskAddress.open}
+            />
           </TaskInPlace>
         ),
       }}
@@ -141,6 +163,7 @@ function MePanel({ dashboard, onCheckIn }: { dashboard: MyDashboardData; onCheck
             <dt className="text-muted-foreground">Joined</dt>
             <dd>{formatDate(me.joinedAt)}</dd>
           </dl>
+          <MyJobTitle title={me.title} />
           <Separator />
           <section className="grid gap-3" aria-labelledby="my-today-heading">
             <h3 id="my-today-heading" className="flex items-center gap-2 text-sm font-medium">
@@ -150,12 +173,27 @@ function MePanel({ dashboard, onCheckIn }: { dashboard: MyDashboardData; onCheck
             <p className="text-sm text-muted-foreground">
               <StatusLine page={checkin} />
             </p>
+            {dashboard.record.of ? (
+              // Only I see this; it is never shown to the owner.
+              <p className="text-sm">
+                On time {dashboard.record.onTime} of the last {dashboard.record.of} work{" "}
+                {dashboard.record.of === 1 ? "day" : "days"}
+              </p>
+            ) : null}
             <div>
               <Button type="button" variant={checkin.checkin ? "outline" : "default"} onClick={onCheckIn}>
                 <CalendarCheckIcon className="size-4" />
                 {checkin.checkin ? "Change today's picks" : "Check in"}
               </Button>
             </div>
+          </section>
+          <Separator />
+          <section className="grid gap-3" aria-labelledby="my-time-off-heading">
+            <h3 id="my-time-off-heading" className="flex items-center gap-2 text-sm font-medium">
+              <PlaneIcon className="size-4 text-muted-foreground" aria-hidden />
+              Time off
+            </h3>
+            <TimeOffSection idPrefix="my-time-off" />
           </section>
           <Separator />
           <MyCheckinTime clock={checkin.clock} />
@@ -167,9 +205,13 @@ function MePanel({ dashboard, onCheckIn }: { dashboard: MyDashboardData; onCheck
 
 function MyTasksPanel({
   dashboard,
+  filters,
+  onFilters,
   onOpenTask,
 }: {
   dashboard: MyDashboardData
+  filters: TaskFilters
+  onFilters: (patch: Partial<TaskFilters>) => void
   onOpenTask: (taskId: string) => void
 }) {
   const { tasks, checkin } = dashboard
@@ -177,11 +219,17 @@ function MyTasksPanel({
   // Today's picks can include a carried-over task since handed to someone else,
   // so they are read from the check-in rather than from my own tasks.
   const today = checkin.groups.flatMap((group) => group.tasks).filter((task) => picked.has(task.id))
-  const open = tasks.filter((task) => task.status !== "done")
+  // My own day, as in the check-in, so "Today" and a snooze's day mean the same in both.
+  const myDay = checkin.today.day
+  const notDone = tasks.filter((task) => task.status !== "done")
+  // A snoozed task stays out of Open until the morning of its day.
+  const open = notDone.filter((task) => !task.snoozedUntil || task.snoozedUntil <= myDay)
+  const snoozed = notDone.length - open.length
   const done = tasks.filter((task) => task.status === "done")
   const [tab, setTab] = React.useState<TaskTab>(today.length ? "today" : "open")
   const waiting = open.filter((task) => task.waiting).length
-  const rows = tab === "today" ? today : tab === "open" ? open : done
+  const rows = filterTasks(tab === "today" ? today : tab === "open" ? open : done, filters)
+  const filtered = hasTaskFilters(filters)
 
   return (
     <>
@@ -198,11 +246,19 @@ function MyTasksPanel({
           </TabsTrigger>
         </DashboardCardTabsHeader>
       </Tabs>
-      {tab === "open" && waiting ? (
+      <TaskFiltersBar filters={filters} onChange={onFilters} labels={dashboard.labels} />
+      {tab === "open" && waiting && !filtered ? (
         <p className="border-b px-4 py-2 text-sm">
           {waiting === 1
             ? "1 task is waiting for you to accept it or hand it back."
             : `${waiting} tasks are waiting for you to accept them or hand them back.`}
+        </p>
+      ) : null}
+      {tab === "open" && snoozed ? (
+        <p className="border-b px-4 py-2 text-sm text-muted-foreground">
+          {snoozed === 1
+            ? "1 snoozed task is hidden until its day."
+            : `${snoozed} snoozed tasks are hidden until their day.`}
         </p>
       ) : null}
       <TaskList
@@ -210,14 +266,18 @@ function MyTasksPanel({
         readOnly={false}
         showProject
         onOpenTask={(task) => onOpenTask(task.id)}
+        groups={tab === "open" ? DUE_GROUPS : undefined}
+        groupOf={(task) => dueGroupOf(task, myDay)}
         emptyText={
-          tab === "today"
-            ? checkin.checkin
-              ? "You checked in with nothing picked."
-              : "Check in to pick today's tasks."
-            : tab === "open"
-              ? "Nothing assigned to you right now."
-              : "No finished tasks yet."
+          filtered
+            ? `No tasks match ${filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the filters to see them all.`
+            : tab === "today"
+              ? checkin.checkin
+                ? "You checked in with nothing picked."
+                : "Check in to pick today's tasks."
+              : tab === "open"
+                ? "Nothing assigned to you right now."
+                : "No finished tasks yet."
         }
       />
     </>
@@ -289,5 +349,37 @@ function InboxPanel({ notifications }: { notifications: NotificationItem[] }) {
         )}
       </ScrollArea>
     </>
+  )
+}
+
+/** My job title, which shows beside my name wherever the team sees it. */
+function MyJobTitle({ title }: { title: string | null }) {
+  const router = useRouter()
+  const [draft, setDraft] = useSyncedDraft(title ?? "")
+  const [run] = useAsyncAction(getProjectErrorMessage)
+
+  async function save() {
+    const next = draft.trim()
+    if (next === (title ?? "")) return
+    if (await run(() => saveMemberTitle({ title: next || null }), "Job title saved.")) {
+      await router.invalidate()
+    }
+  }
+
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor="my-job-title">Job title</Label>
+      <Input
+        id="my-job-title"
+        value={draft}
+        maxLength={LIMITS.memberTitle}
+        placeholder="Copywriter, Designer…"
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => void save()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur()
+        }}
+      />
+    </div>
   )
 }

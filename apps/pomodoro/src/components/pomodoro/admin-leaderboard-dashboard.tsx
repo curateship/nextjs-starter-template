@@ -260,9 +260,9 @@ function BoardCells({ row }: { row: AdminBoardRow }) {
         </div>
       </TableCell>
       <TableCell column="meta">{row.focusSessions.toLocaleString()}</TableCell>
-      <TableCell column="meta">{formatDuration(row.focusSeconds * 1000, { zero: "—" })}</TableCell>
+      <TableCell column="meta">{formatDuration(row.focusSeconds * 1000, { zero: "-" })}</TableCell>
       <TableCell column="meta">
-        {row.focusDays ? `${perDay.toFixed(1)}h over ${row.focusDays} ${plural(row.focusDays, "day", "days")}` : "—"}
+        {row.focusDays ? `${perDay.toFixed(1)}h over ${row.focusDays} ${plural(row.focusDays, "day", "days")}` : "-"}
       </TableCell>
     </>
   )

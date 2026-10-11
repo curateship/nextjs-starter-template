@@ -559,7 +559,7 @@ async function deliverInvite(database: CustomShellDb, invite: InviteEmail) {
   if (tail.kind !== "richText") return { sent: false, reason: "The invitation could not be drawn." }
   tail.content.htmlContent = `<p style="font-size:13px;color:#71717a;">You are getting this because ${escapeHtml(invite.hostName)} typed your address into ${escapeHtml(appName)}. Ignore it and nothing happens.</p>`
 
-  const subject = `${invite.hostName} invited you to ${invite.roomName} — ${when}`.replace(/[\r\n]+/g, " ")
+  const subject = `${invite.hostName} invited you to ${invite.roomName} - ${when}`.replace(/[\r\n]+/g, " ")
   const html = renderBroadcastEmailHtml([intro, button, tail], {
     preheader: `${invite.roomName} starts ${when}`,
     appName,

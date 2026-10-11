@@ -7,6 +7,6 @@ import { GroupInvitePage } from "@/components/pomodoro/group-invite-page"
  * out from under any future groups page, the same trap the room invite avoids.
  */
 export const Route = createFileRoute("/_pomodoro/groups_/join/$token")({
-  head: () => ({ meta: [{ title: "Join a group — Pomoder" }] }),
+  head: () => ({ meta: [{ title: "Join a group - Pomoder" }] }),
   component: GroupInvitePage,
 })

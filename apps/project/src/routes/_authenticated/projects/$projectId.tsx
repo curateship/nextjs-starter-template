@@ -4,16 +4,17 @@ import { ProjectWorkspace } from "@/components/project/project-workspace"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { loadProject } from "@/lib/api/project/projects"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { readTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
 
-type ProjectSearch = {
-  /** The task whose window is open, so a bell notice can open it. */
+type ProjectSearch = TaskFilters & {
+  /** The task open in the middle panel, so a bell notice can open it. */
   task?: string
 }
 
 function readProjectSearch(search: Record<string, unknown>): ProjectSearch {
-  return typeof search.task === "string" && search.task.length <= 36
-    ? { task: search.task }
-    : {}
+  const result: ProjectSearch = readTaskFilters(search)
+  if (typeof search.task === "string" && search.task.length <= 36) result.task = search.task
+  return result
 }
 
 /** One project: details, tasks and members, side by side. */
@@ -28,6 +29,8 @@ export const Route = createFileRoute("/_authenticated/projects/$projectId")({
 
 function ProjectRoute() {
   const page = Route.useLoaderData()
-  const { task } = Route.useSearch()
-  return <ProjectWorkspace key={page.project.id} page={page} openTaskId={task} />
+  const { task, ...filters } = Route.useSearch()
+  return (
+    <ProjectWorkspace key={page.project.id} page={page} openTaskId={task} filters={filters} />
+  )
 }

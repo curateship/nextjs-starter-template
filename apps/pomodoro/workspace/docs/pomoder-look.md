@@ -12,6 +12,16 @@ task 01 on 24 Sep 2026, "The task is actually wrong. It's supposed to set the
 stage for the frontend, not the backend" — frontend meaning the member
 screens (dashboard, rooms, sounds, tasks and the rest), not the admin.
 
+## No em dashes on screen
+
+Tyler, 11 Oct 2026: "I dont like the em dashes. Scan the codes and replace it
+with a single dash." Text a member or admin reads in Pomoder's own files uses a
+plain dash: "Public - listed for everyone", "Dashboard - Pomoder", and a lone
+"-" where a table has no value. Code comments are not shown, so they keep
+theirs. Em dashes in the shell's own files (most of them on the admin and
+Settings screens) are a shell change, made in `apps/custom-shell` and merged
+in, never edited here.
+
 ## The name and the tab icon
 
 People see the app called Pomoder: "pomoder." in the left menu and the phone
@@ -47,6 +57,10 @@ rest forgot, so square buttons sat next to round ones.
 - **The rule is unlayered**, so it wins over the button's own `rounded-lg`
   and `font-medium`. A member-screen button cannot be made square from a call
   site, which is the point.
+- **The dark pills are the page's ink, never black.** A room card's Join, Pro
+  monthly on Plans and Follow on /users are `bg-foreground text-background`:
+  dark on the cream light mode and light on the near-black dark mode. Written
+  as black, they nearly vanished on a dark card.
 
 ## Lines and tints come from the theme
 

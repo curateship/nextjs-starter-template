@@ -7,7 +7,9 @@ shows.
 ## Switching it on
 
 Settings → Privacy → Streak badge. Off until you switch it on, and the
-address only exists while it is on.
+address only exists while it is on. If the card cannot read your setting, it
+says "Your streak badge settings could not be loaded." with Try again,
+instead of a switch left grey with no reason.
 
 Switching it on writes a secret into your profile row and gives you an
 address like `/badge/streak/<token>.svg`. The card shows the address, a Copy

@@ -19,7 +19,11 @@ Three tabs.
   scrolled to that line.
 - **Held**: lines waiting for an admin because of a blocked word, with Let
   through and Delete, one at a time or over ticked rows. The tab shows how
-  many wait.
+  many wait, read again after every Let through or Delete, here or in a room's
+  window, so letting the last one through takes the count away.
+
+A search belongs to the tab it was typed on: changing tabs starts with an
+empty search box, here and on Bans.
 
 A room's name opens its chat in a window (`?open=<roomId>`), oldest at the
 top, the newest 500 lines. Removed lines stay, greyed and struck through, with

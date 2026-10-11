@@ -12,7 +12,10 @@ and this year. Drawn to Tyler's design of 7 Oct 2026
 - **By day** (by month on the long ranges), with a Time or Sessions switch,
   beside **This week**.
 - **When you focus** beside **Top tasks**, which holds By project under a line.
-- **Completed sessions**, the table, with the tag filter on the right.
+- **Completed sessions**, the table, with the tag filter on the right. While
+  another page of rows loads, the rows on screen dim and Previous and Next
+  wait for it, so a fast double press moves one page, not two. A long task
+  title is cut with "…" like the Note column, whole on its tooltip.
 - **Achievements · N of 10**, with Show on profile, which opens Settings →
   Public page where badges are published.
 
@@ -80,7 +83,9 @@ a real comparison and is shown as one.
 This panel ignores the range tabs, because it is always this week against last
 week, which is why it loads on its own rather than arriving with the report.
 The same request brings the streak for the strip and the busiest hour
-(`loadWeekReview` in `src/server/pomodoro/focus-report.ts`).
+(`loadWeekReview` in `src/server/pomodoro/focus-report.ts`). While it loads
+the strip's Streak reads "…"; if it fails, Streak reads "—" with "Couldn't
+load" in red under it, and This week carries Try again.
 It is free on every plan.
 
 ## When you focus
@@ -117,7 +122,8 @@ views stay a Pro perk.
 - **The 12-month and year ranges are one Pro perk** (`longRangeReports` —
   a free 12 months would make gating the year meaningless). The server
   refuses with PRO_REQUIRED; the page shows the lock card with the upgrade
-  path and a way back to 30 days.
+  path and a way back to 30 days. Its "See Pro plans" opens `/plans`, the
+  page the left menu's Pricing opens, never the shell's `/pricing`.
 - **One way of writing a day.** `src/lib/format/calendar-day.ts` holds two
   forms. The long one, "Tue, Oct 6, 2026", is used by the sessions table, the
   profile's year grid tooltip, the best day in This week and the badges panel. The short
@@ -131,7 +137,9 @@ views stay a Pro perk.
 - **CSV export** (up to 20,000 rows, oldest first) quotes per RFC 4180 and
   prefixes formula-looking cells with an apostrophe so a spreadsheet never
   executes them (`src/lib/pomodoro/report-csv.ts`). File names carry the
-  local date range, so repeated exports stay stable.
+  local date range, so repeated exports stay stable. A failed export says
+  "The CSV export could not be generated. Try again." in red under the
+  header.
 - **The CSV writes the same day as `2026-10-06`, not "Tue, Oct 6, 2026".**
   It is the same day in the same timezone, written the one way every
   spreadsheet reads as a date in every country. "Tue, Oct 6, 2026" lands in

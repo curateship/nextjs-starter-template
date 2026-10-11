@@ -2,8 +2,10 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ErrorRow } from "@/components/ui/error-row"
 import { loadFollowingFeed } from "@/lib/api/pomodoro/following"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { dismissErrorToast } from "@/lib/toast/error-toast"
 
 type FeedRow = Awaited<ReturnType<typeof loadFollowingFeed>>[number]
 
@@ -17,11 +19,15 @@ type FeedRow = Awaited<ReturnType<typeof loadFollowingFeed>>[number]
  * It shows only what each person's own profile already publishes: the server
  * reads their badges switch, so the feed can never show something their
  * profile hides. Following nobody draws nothing at all rather than an empty
- * box explaining itself twice over.
+ * box explaining itself twice over. A failed read is drawn, with Try again,
+ * rather than passed off as following nobody.
  */
 export function FollowingFeedCard() {
   const { authenticated } = useProductAuth()
   const [rows, setRows] = React.useState<FeedRow[] | null>(null)
+  const [failed, setFailed] = React.useState(false)
+  // Bumped by Try again, which runs the same read once more.
+  const [attempt, setAttempt] = React.useState(0)
 
   React.useEffect(() => {
     if (!authenticated) return
@@ -31,13 +37,31 @@ export function FollowingFeedCard() {
         if (!cancelled) setRows(result)
       })
       .catch(() => {
-        if (!cancelled) setRows([])
+        if (!cancelled) setFailed(true)
       })
     return () => {
       cancelled = true
     }
-  }, [authenticated])
+  }, [authenticated, attempt])
 
+  if (authenticated && failed)
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>People you follow</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ErrorRow
+            message="What the people you follow earned could not be loaded."
+            onRetry={() => {
+              dismissErrorToast()
+              setFailed(false)
+              setAttempt((count) => count + 1)
+            }}
+          />
+        </CardContent>
+      </Card>
+    )
   if (!authenticated || !rows?.length) return null
 
   return (

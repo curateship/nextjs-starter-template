@@ -196,12 +196,28 @@ function ensureFader() {
 }
 
 /**
+ * True while you are in a hosted room. The room's clock then drives the
+ * sound alone, and your personal timer's edges are only recorded, so pausing
+ * or starting it can never fade the room's sound (Tyler, 10 Oct 2026: "pausing
+ * it just pauses the sound but the timer still goes on in the room I joined").
+ */
+let roomClockActive = false
+
+/** Called by the room clock store as you enter and leave a room. */
+export function setRoomClockActive(active: boolean) {
+  roomClockActive = active
+}
+
+/**
  * Only genuine running edges count, so navigating between pages (which
  * remounts the timer hook) never fights a manual pause.
  */
 function runningEdge(clock: "timer" | "room", running: boolean) {
   const wasRunning = previousRunning[clock]
   previousRunning[clock] = running
+  // Recorded above even while ignored, so the first start after leaving the
+  // room is still an edge.
+  if (clock === "timer" && roomClockActive) return
   if (running && wasRunning !== true) {
     if (state.selected && state.status !== "playing") {
       dispatch({

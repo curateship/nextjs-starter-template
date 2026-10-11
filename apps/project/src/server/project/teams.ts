@@ -11,6 +11,8 @@ import {
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { requireKnownZone } from "@/server/project/checkins"
+import { listTeamLabels, type Label } from "@/server/project/labels"
+import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
 import {
   findMembership,
   requireMembership,
@@ -19,6 +21,8 @@ import {
 } from "@/server/project/access"
 import {
   projectProjectMembers,
+  projectProjectStars,
+  projectTaskSteps,
   projectProjects,
   projectTasks,
   projectTeamInvites,
@@ -43,6 +47,8 @@ export type TeamMemberRow = {
   avatarUrl: string
   role: TeamRole
   joinedAt: string
+  /** A short job title, such as "Copywriter", or null. */
+  title: string | null
 }
 
 export type TeamInviteRow = {
@@ -62,6 +68,9 @@ export type TeamDashboard = {
   members: TeamMemberRow[]
   /** Only the owner and admins see pending invites. */
   invites: TeamInviteRow[]
+  labels: Label[]
+  /** The join link's state, for the owner and admins; null for everyone else. */
+  joinLink: JoinLinkState | null
 }
 
 export async function createTeam(
@@ -120,6 +129,8 @@ export async function loadTeamDashboard(
     myUserId: userId,
     members,
     invites,
+    labels: await listTeamLabels(membership.teamId, database),
+    joinLink: runsTheTeam(membership.role) ? await joinLinkState(membership.teamId, database) : null,
   }
 }
 
@@ -135,6 +146,7 @@ export async function listTeamMembers(
       name: customShellUsers.name,
       email: customShellUsers.email,
       avatarUrl: customShellUsers.avatarUrl,
+      title: projectTeamMembers.title,
     })
     .from(projectTeamMembers)
     .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
@@ -149,6 +161,7 @@ export async function listTeamMembers(
       name: row.name,
       email: row.email,
       avatarUrl: row.avatarUrl ?? "",
+      title: row.title,
     }))
     .sort((a, b) => order[a.role] - order[b.role])
 }
@@ -292,6 +305,14 @@ async function takePersonOffTeam(teamId: string, userId: string, tx: ProjectDb) 
     .where(eq(projectProjects.teamId, teamId))
   await clearAssignee(userId, inArray(projectTasks.projectId, teamProjectIds), tx)
   await tx
+    .delete(projectProjectStars)
+    .where(
+      and(
+        eq(projectProjectStars.userId, userId),
+        inArray(projectProjectStars.projectId, teamProjectIds)
+      )
+    )
+  await tx
     .delete(projectProjectMembers)
     .where(
       and(
@@ -307,8 +328,8 @@ async function takePersonOffTeam(teamId: string, userId: string, tx: ProjectDb) 
 }
 
 /**
- * Takes someone off the tasks matched by `where`, keeping their name on each
- * so the task still says whose it was. Shared with removing someone from one
+ * Takes someone off the tasks matched by `where`, and off those tasks'
+ * steps, keeping their name on each task so it still says whose it was. Shared with removing someone from one
  * project.
  */
 export async function clearAssignee(
@@ -330,6 +351,20 @@ export async function clearAssignee(
       updatedAt: now(),
     })
     .where(and(eq(projectTasks.assigneeUserId, userId), where))
+  // Their steps in those tasks lose their name too: a step's person must be
+  // on the project.
+  await tx
+    .update(projectTaskSteps)
+    .set({ assigneeUserId: null })
+    .where(
+      and(
+        eq(projectTaskSteps.assigneeUserId, userId),
+        inArray(
+          projectTaskSteps.taskId,
+          tx.select({ id: projectTasks.id }).from(projectTasks).where(where)
+        )
+      )
+    )
 }
 
 async function requireTeammate(teamId: string, userId: string, database: ProjectDb) {
@@ -344,7 +379,12 @@ async function requireTeammate(teamId: string, userId: string, database: Project
   return row
 }
 
-function toTeamSummary(team: typeof projectTeams.$inferSelect): TeamSummary {
+function toTeamSummary(
+  team: Pick<
+    typeof projectTeams.$inferSelect,
+    "id" | "name" | "checkinTime" | "timeZone" | "workDays" | "createdAt"
+  >
+): TeamSummary {
   return {
     id: team.id,
     name: team.name,

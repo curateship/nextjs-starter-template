@@ -59,7 +59,7 @@ function TaskWindow({ parts, onClose }: { parts: TaskParts; onClose: () => void 
         {remove ? (
           confirmDelete ? (
             <div className="mr-auto flex flex-wrap items-center gap-2">
-              <span className="text-sm">Delete this task for everyone?</span>
+              <span className="text-sm">Move this task to the bin?</span>
               <Button type="button" variant="outline" onClick={() => setConfirmDelete(false)}>
                 Keep it
               </Button>
@@ -89,6 +89,7 @@ function TaskWindow({ parts, onClose }: { parts: TaskParts; onClose: () => void 
             </Button>
           )
         ) : null}
+        {parts.more}
         {parts.follow}
         <Button type="button" onClick={onClose}>
           Done

@@ -73,6 +73,12 @@ them, and a link can open one view. Everyone and This week are the plain
 (`src/routes/_pomodoro/leaderboard.tsx`). Clicking a tab replaces the address
 rather than adding to it, so Back leaves the page.
 
+The board shows "Loading the leaderboard…" until the rows for the choice now
+on screen arrive, on the first load too. Rows are kept with the choice they
+were read for, so switching to Following never shows everyone's ranks under
+"People you follow" for a moment, and a failed read's message belongs to that
+one choice.
+
 ## Your own row
 
 Your row has the accent tint and a small "You" beside your name, on the

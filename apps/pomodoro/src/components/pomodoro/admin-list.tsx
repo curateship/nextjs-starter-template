@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useSearch } from "@tanstack/react-router"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import { TableCell } from "@/components/ui/table"
@@ -30,6 +31,21 @@ import type { useSelection } from "@/lib/hooks/use-selection"
 
 /** How long the list waits after a change before asking the server. */
 const REFETCH_DELAY_MS = 250
+
+/**
+ * Address values that pick which list or page is shown, or what is open over
+ * it, rather than narrowing the rows. Every other value set in a list's
+ * address is a search or a filter: each list leaves its own out of the
+ * address when it is at "all".
+ */
+const NOT_FILTERS = new Set(["page", "sort", "direction", "tab", "window", "open", "message", "member"])
+
+/** True when a list's address holds a search or a filter. */
+export function isFilteredSearch(search: Record<string, unknown>) {
+  return Object.entries(search).some(
+    ([key, value]) => !NOT_FILTERS.has(key) && value !== undefined && value !== ""
+  )
+}
 
 export type AdminListResult<Row> = { rows: Row[]; total: number }
 
@@ -151,6 +167,7 @@ export function AdminListTable<Row, Sort extends string>({
   children,
   tabs,
   filters,
+  emptyText,
 }: {
   title: string
   icon: React.ReactNode
@@ -160,6 +177,12 @@ export function AdminListTable<Row, Sort extends string>({
   filters?: React.ReactNode
   /** Plural, lower case: "tasks". Used in the empty line. */
   noun: string
+  /**
+   * The empty line, for a list that wants its own sentence. Left out, it is
+   * "No tasks yet." with nothing narrowing the list, and "No tasks match
+   * those filters." with a search or filter on.
+   */
+  emptyText?: string
   columns: TableHeaderColumn<Sort>[]
   sort: Sort
   direction: "asc" | "desc"
@@ -184,6 +207,7 @@ export function AdminListTable<Row, Sort extends string>({
   // A pause switch left on shows in every Pomoder table (admin task 05).
   const pauses = useSafetyPauses()
   const paused = anyPaused(pauses)
+  const filtered = isFilteredSearch(useSearch({ strict: false }))
 
   return (
     <>
@@ -233,7 +257,9 @@ export function AdminListTable<Row, Sort extends string>({
         // The empty line stays while a reload is out, dimmed like rows would be.
         // Hiding it emptied the table body, and the footer jumped up under it.
         isEmpty={list.rows.length === 0}
-        emptyText={`No ${noun} match those filters.`}
+        emptyText={
+          emptyText ?? (filtered ? `No ${noun} match those filters.` : `No ${noun} yet.`)
+        }
         emptyColSpan={columns.length + (trailing ? 1 : 0) + (selection ? 1 : 0)}
         footer={{
           type: "pagination",

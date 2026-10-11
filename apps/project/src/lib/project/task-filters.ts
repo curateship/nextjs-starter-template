@@ -1,0 +1,105 @@
+import { addDays } from "@/lib/project/days"
+import { DONE_RECENT_DAYS, isTaskStatus, type TaskStatus } from "@/lib/project/rules"
+
+/**
+ * Narrowing a list of tasks: a search over title and notes, and Status,
+ * Person and Label filters. They live in the page's address, so a pasted link
+ * keeps them.
+ */
+
+/** A task with nobody assigned, for the Person filter. */
+export const NOBODY_FILTER = "nobody"
+
+export type TaskFilters = {
+  q?: string
+  status?: TaskStatus
+  /** A person's id, or `NOBODY_FILTER`. */
+  person?: string
+  label?: string
+}
+
+type Filterable = {
+  title: string
+  notesText: string
+  status: TaskStatus
+  assignee: { id: string } | null
+  labels: { id: string }[]
+}
+
+const ID = /^[\w-]{1,36}$/
+
+/** The filters out of an address, ignoring anything that isn't one. */
+export function readTaskFilters(search: Record<string, unknown>): TaskFilters {
+  const result: TaskFilters = {}
+  if (typeof search.q === "string" && search.q.trim()) result.q = search.q.slice(0, 200)
+  if (isTaskStatus(search.status)) result.status = search.status
+  if (typeof search.person === "string" && ID.test(search.person)) result.person = search.person
+  if (typeof search.label === "string" && ID.test(search.label)) result.label = search.label
+  return result
+}
+
+export function hasTaskFilters(filters: TaskFilters) {
+  return Boolean(filters.q?.trim() || filters.status || filters.person || filters.label)
+}
+
+export function filterTasks<T extends Filterable>(tasks: T[], filters: TaskFilters): T[] {
+  const words = (filters.q ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean)
+  return tasks.filter((task) => {
+    if (filters.status && task.status !== filters.status) return false
+    if (filters.person) {
+      const id = task.assignee?.id ?? NOBODY_FILTER
+      if (id !== filters.person) return false
+    }
+    if (filters.label && !task.labels.some((label) => label.id === filters.label)) return false
+    if (words.length) {
+      const haystack = `${task.title}\n${task.notesText}`.toLowerCase()
+      if (!words.every((word) => haystack.includes(word))) return false
+    }
+    return true
+  })
+}
+
+/**
+ * Done tasks finished in the last 14 days, and the older ones the Board keeps
+ * behind "Show older". A task Done before the finish date was kept has none,
+ * so it counts as older.
+ */
+export function splitRecentDone<T extends { completedAt: string | null }>(
+  tasks: T[],
+  now: Date
+): { recent: T[]; older: T[] } {
+  const cutoff = now.getTime() - DONE_RECENT_DAYS * 24 * 60 * 60 * 1000
+  const recent: T[] = []
+  const older: T[] = []
+  for (const task of tasks) {
+    if (task.completedAt && new Date(task.completedAt).getTime() >= cutoff) recent.push(task)
+    else older.push(task)
+  }
+  return { recent, older }
+}
+
+export const DUE_GROUPS = [
+  { key: "waiting", label: "Waiting for my answer" },
+  { key: "overdue", label: "Overdue" },
+  { key: "today", label: "Today" },
+  { key: "week", label: "This week" },
+  { key: "later", label: "Later" },
+  { key: "none", label: "No date" },
+] as const
+type DueGroup = (typeof DUE_GROUPS)[number]["key"]
+
+/**
+ * Where a task sits on My tasks' Open tab. `today` is the person's own day, as
+ * in the check-in. "This week" is the next seven days after today.
+ */
+export function dueGroupOf(
+  task: { waiting: boolean; dueDate: string | null },
+  today: string
+): DueGroup {
+  if (task.waiting) return "waiting"
+  if (!task.dueDate) return "none"
+  if (task.dueDate < today) return "overdue"
+  if (task.dueDate === today) return "today"
+  if (task.dueDate <= addDays(today, 7)) return "week"
+  return "later"
+}

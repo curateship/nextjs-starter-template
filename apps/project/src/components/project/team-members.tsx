@@ -1,6 +1,7 @@
 import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
 import {
+  ArrowRightLeftIcon,
   LogOutIcon,
   MailPlusIcon,
   RefreshCwIcon,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { HandOverDialog } from "@/components/project/hand-over-dialog"
 import { InviteDialog, SentInviteCard } from "@/components/project/invite-dialog"
 import { MemberDialog } from "@/components/project/member-dialog"
 import { PersonAvatar } from "@/components/project/task-bits"
@@ -98,7 +100,7 @@ function useBulkReport(one: string, many: string, verb: string) {
   )
 }
 
-type MemberColumn = "name" | "role" | "joined"
+type MemberColumn = "name" | "title" | "role" | "joined"
 const ROLE_ORDER: Record<TeamRole, number> = { owner: 0, admin: 1, member: 2 }
 
 function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boolean }) {
@@ -108,6 +110,7 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
   const [inviting, setInviting] = React.useState(false)
   const [editing, setEditing] = React.useState<TeamMemberRow | null>(null)
   const [removing, setRemoving] = React.useState<TeamMemberRow[] | null>(null)
+  const [handingOver, setHandingOver] = React.useState<TeamMemberRow | null>(null)
   const { sort, direction, toggleSort } = useTableSort<MemberColumn>("role")
   const selection = useSelection()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
@@ -129,9 +132,11 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
         const gap =
           sort === "role"
             ? ROLE_ORDER[a.role] - ROLE_ORDER[b.role]
-            : sort === "joined"
+            : sort === "title"
+              ? (a.title ?? "~").localeCompare(b.title ?? "~")
+              : sort === "joined"
               ? a.joinedAt.localeCompare(b.joinedAt)
-              : 0
+                : 0
         return gap * sign || a.name.localeCompare(b.name)
       })
   }, [data.members, direction, query, sort])
@@ -144,6 +149,7 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
 
   const columns: SortableColumn<MemberColumn>[] = [
     { key: "name", label: "Name", column: "main", className: "min-w-0 md:min-w-64" },
+    { key: "title", label: "Job title", column: "preview" },
     { key: "role", label: "Role", column: "preview" },
     { key: "joined", label: "Joined", column: "preview" },
   ]
@@ -217,7 +223,7 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
         }
         isEmpty={rows.length === 0}
         emptyText="Nobody matches that search."
-        emptyColSpan={5}
+        emptyColSpan={6}
         footer={footer}
       >
         {visible.map((member) => {
@@ -249,6 +255,9 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
                   </span>
                 </span>
               </TableCell>
+              <TableCell column="preview">
+                {member.title ?? <span className="text-muted-foreground">—</span>}
+              </TableCell>
               <TableCell column="preview">{TEAM_ROLE_LABEL[member.role]}</TableCell>
               <TableCell column="preview">{formatDate(member.joinedAt)}</TableCell>
               <TableCell column="actions">
@@ -261,6 +270,17 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
                     onClick={() => setEditing(member)}
                   >
                     <SettingsIcon className="size-4" />
+                  </Button>
+                ) : null}
+                {canRun ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Hand over all of ${member.name}'s tasks`}
+                    onClick={() => setHandingOver(member)}
+                  >
+                    <ArrowRightLeftIcon className="size-4" />
                   </Button>
                 ) : null}
                 {removable(member) ? (
@@ -281,6 +301,7 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
       </DashboardTable>
       <InviteDialog open={inviting} onClose={() => setInviting(false)} />
       <MemberDialog member={editing} myRole={data.myRole} onClose={() => setEditing(null)} />
+      <HandOverDialog from={handingOver} members={data.members} onClose={() => setHandingOver(null)} />
       <ConfirmDialog
         open={Boolean(removing)}
         onOpenChange={(open) => {
@@ -291,7 +312,28 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
             ? `Remove ${removing[0].name} from the team?`
             : `Remove ${removing?.length ?? 0} people from the team?`
         }
-        description="They lose access at once. Their tasks stay, with nobody assigned and a note saying whose they were."
+        description={
+          <>
+            They lose access at once. Their tasks stay, with nobody assigned and a note saying whose
+            they were.
+            {removing?.length === 1 ? (
+              <>
+                {" "}
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto p-0"
+                  onClick={() => {
+                    setHandingOver(removing[0])
+                    setRemoving(null)
+                  }}
+                >
+                  Hand over their tasks first
+                </Button>
+              </>
+            ) : null}
+          </>
+        }
         confirmLabel="Remove"
         loading={busy}
         onConfirm={async () => {

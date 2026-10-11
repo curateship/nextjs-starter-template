@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { ErrorRow } from "@/components/ui/error-row"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PanelCard } from "@/components/pomodoro/panel-card"
 import { FocusGroupsCard } from "@/components/pomodoro/focus-groups-card"
@@ -39,19 +40,31 @@ export type LeaderboardScope = "global" | "following"
 export function LeaderboardPage({
   scope,
   boardWindow,
+  groupId,
   onScopeChange,
   onWindowChange,
 }: {
   scope: LeaderboardScope
   boardWindow: LeaderboardWindow
+  /** The group the groups card opens on, such as one just joined. */
+  groupId?: string
   onScopeChange: (scope: LeaderboardScope) => void
   onWindowChange: (window: LeaderboardWindow) => void
 }) {
   const { authenticated, known } = useProductAuth()
-  const [board, setBoard] = React.useState<Leaderboard | null>(null)
-  const [error, setError] = React.useState("")
+  // What was read, kept with the choice it was read for: switching boards
+  // must never leave the old rows under the new heading.
+  const [loaded, setLoaded] = React.useState<{
+    choice: string
+    board: Leaderboard
+  } | null>(null)
+  // The choice whose read failed, so the message belongs to that board only.
+  const [failedFor, setFailedFor] = React.useState<string | null>(null)
   // Bumped by Try again, which runs the same load once more.
   const [attempt, setAttempt] = React.useState(0)
+  const choice = `${scope}:${boardWindow}`
+  const board = loaded?.choice === choice ? loaded.board : null
+  const error = failedFor === choice ? "The leaderboard could not be loaded." : ""
   // `scope` is which board is shown: everybody who opted in, or just the
   // people you follow. It is the same ranking query with a filter, so the two
   // can never disagree about a figure. Both choices live in the address.
@@ -59,16 +72,17 @@ export function LeaderboardPage({
   React.useEffect(() => {
     if (!known || !authenticated) return
     let cancelled = false
+    const readFor = `${scope}:${boardWindow}`
     void loadLeaderboard(browserTimezone(), boardWindow, scope === "following")
       .then((result) => {
         if (cancelled) return
         // A load that works takes down the warning a failed one left, so a
         // board that recovers on its own stops saying it failed.
-        setError("")
-        setBoard(result)
+        setFailedFor(null)
+        setLoaded({ choice: readFor, board: result })
       })
       .catch(() => {
-        if (!cancelled) setError("The leaderboard could not be loaded.")
+        if (!cancelled) setFailedFor(readFor)
       })
     return () => {
       cancelled = true
@@ -172,11 +186,13 @@ export function LeaderboardPage({
             message={error}
             onRetry={() => {
               dismissErrorToast()
-              setError("")
+              setFailedFor(null)
               setAttempt((count) => count + 1)
             }}
           />
-        ) : board && board.leaders.length === 0 ? (
+        ) : !board ? (
+          <LoadingRow label="Loading the leaderboard…" />
+        ) : board.leaders.length === 0 ? (
           <p className="py-2 text-sm text-muted-foreground">
             {scope === "following" ? (
               FOLLOWING_EMPTY_MESSAGE
@@ -197,10 +213,10 @@ export function LeaderboardPage({
           </p>
         ) : (
           <div className="flex flex-col">
-            <LeaderboardRows leaders={board?.leaders ?? []} />
+            <LeaderboardRows leaders={board.leaders} />
             {/* Below the first hundred, your own row still shows, apart
                 from the list so the gap in places reads as a gap. */}
-            {board?.you ? (
+            {board.you ? (
               <div className="mt-2 flex flex-col border-t pt-2">
                 <LeaderboardRows
                   leaders={[board.you]}
@@ -215,7 +231,7 @@ export function LeaderboardPage({
       {authenticated ? (
         <div className="grid gap-6 lg:grid-cols-2">
           <FocusedWithCard />
-          <FocusGroupsCard boardWindow={boardWindow} />
+          <FocusGroupsCard boardWindow={boardWindow} initialGroupId={groupId} />
         </div>
       ) : null}
       <FollowingFeedCard />

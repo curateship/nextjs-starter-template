@@ -89,7 +89,10 @@ export function AdminSafetyDashboard({
       tabs={
         <Tabs
           value={tab}
-          onValueChange={(value) => setListSearch({ tab: value === "bans" ? undefined : value, page: undefined })}
+          // A search belongs to the tab it was typed on, so a new tab starts empty.
+          onValueChange={(value) =>
+            setListSearch({ tab: value === "bans" ? undefined : value, q: undefined, page: undefined })
+          }
         >
           <TabsList>
             {(Object.keys(TABS) as SafetyTab[]).map((value) => (

@@ -9,7 +9,7 @@ vi.mock("@/lib/api/pomodoro/admin", () => ({
   getPomodoroAdminErrorMessage: (error: unknown) => String(error),
 }))
 
-import { useAdminList } from "@/components/pomodoro/admin-list"
+import { isFilteredSearch, useAdminList } from "@/components/pomodoro/admin-list"
 
 /**
  * The operator lists open with the rows their loader already fetched. React
@@ -89,5 +89,19 @@ describe("useAdminList", () => {
     expect(load).toHaveBeenCalledTimes(1)
     expect(load).toHaveBeenCalledWith("sam")
     expect(container.textContent).toBe("1 rows")
+  })
+})
+
+describe("the empty line", () => {
+  it("says \"yet\" when the address only picks a tab, a page or an open window", () => {
+    expect(isFilteredSearch({})).toBe(false)
+    expect(isFilteredSearch({ tab: "held", page: 2, sort: "name", direction: "asc" })).toBe(false)
+    expect(isFilteredSearch({ open: "abc", member: "u1", q: undefined })).toBe(false)
+  })
+
+  it("says \"match those filters\" while a search or a filter is on", () => {
+    expect(isFilteredSearch({ q: "sam" })).toBe(true)
+    expect(isFilteredSearch({ status: "open" })).toBe(true)
+    expect(isFilteredSearch({ user: "u1", page: 3 })).toBe(true)
   })
 })
