@@ -29,6 +29,15 @@ const HEALTH_TIMEOUT_MS = 5_000
  */
 const COMMENT_TIMEOUT_MS = 270_000
 
+/**
+ * A rules read or a comment check may have to load a Reddit page first, which
+ * the browser gives 45 seconds, and then make its requests. On 11 Oct 2026 a
+ * comment check in a browser just opened overran the default 60 seconds three
+ * times in a row while a warm one answered in a few. The launcher allows any
+ * routine 90 seconds, so waiting longer than that hears its own answer.
+ */
+const PAGE_THEN_READ_TIMEOUT_MS = 120_000
+
 export class BrowserCommandError extends Error {
   readonly routine: string
   readonly status: number
@@ -214,6 +223,37 @@ export type AccountHealthReading = z.infer<typeof accountHealthShape>
 
 const commentShape = z.object({ commentUrl: z.string() })
 
+/**
+ * A subreddit's posted rules. `answered` false means Reddit would not say,
+ * which is not the same answer as a subreddit with no rules.
+ */
+const rulesShape = z.object({
+  answered: z.boolean(),
+  /** Reddit's own status for the JSON request; 0 means no answer at all. */
+  status: z.number(),
+  source: z.enum(["json", "page"]),
+  rules: z.array(z.object({ title: z.string(), description: z.string() })),
+})
+
+export type BrowserRules = z.infer<typeof rulesShape>
+
+/**
+ * One sent comment, read again. `seenAs` says whose view decided it: a
+ * stranger's, which shows a moderator's removal, or the account's own when
+ * Reddit refused the stranger, which may not.
+ */
+const commentCheckShape = z.object({
+  seenAs: z.enum(["stranger", "you"]),
+  visible: z.boolean(),
+  /** Reddit's own words in place of the comment, "[removed]" or "[deleted]". */
+  removedText: z.string().default(""),
+  /** Null when Reddit hides the score for now. */
+  upvotes: z.number().nullable(),
+  replies: z.number(),
+})
+
+export type BrowserCommentCheck = z.infer<typeof commentCheckShape>
+
 const healthShape = z.object({ ok: z.boolean() })
 
 const identityIdShape = z.object({
@@ -308,6 +348,10 @@ export function redditHealth(target: CommandTarget) {
   return call(target, "reddit/health", {}, accountHealthShape)
 }
 
+/**
+ * A keyword's search, or a watch's new posts: an empty query with one
+ * subreddit reads that subreddit's newest posts instead.
+ */
 export function redditSearch(
   target: CommandTarget,
   args: { query: string; subreddit?: string; sort: string; window: string }
@@ -331,4 +375,17 @@ export function redditComment(
   args: { permalink: string; text: string }
 ) {
   return call(target, "reddit/comment", { ...args }, commentShape, COMMENT_TIMEOUT_MS)
+}
+
+/**
+ * The rules a subreddit has posted. Goes to the subreddit's rules page, so it
+ * runs as a job of its own in the profile's lane, never during a comment.
+ */
+export function redditRules(target: CommandTarget, args: { subreddit: string }) {
+  return call(target, "reddit/rules", { ...args }, rulesShape, PAGE_THEN_READ_TIMEOUT_MS)
+}
+
+/** A sent comment's upvotes, replies, and whether a stranger still sees it. */
+export function redditCommentCheck(target: CommandTarget, args: { commentUrl: string }) {
+  return call(target, "reddit/comment_check", { ...args }, commentCheckShape, PAGE_THEN_READ_TIMEOUT_MS)
 }

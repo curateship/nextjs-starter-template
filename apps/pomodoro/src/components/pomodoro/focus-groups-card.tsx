@@ -22,6 +22,7 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Tooltip,
@@ -75,15 +76,18 @@ type Member = Awaited<ReturnType<typeof loadFocusGroupMembers>>[number]
  */
 export function FocusGroupsCard({
   boardWindow,
+  initialGroupId,
 }: {
   boardWindow: LeaderboardWindow
+  /** Opens on this group when it is one of yours, such as one just joined. */
+  initialGroupId?: string
 }) {
   const [groups, setGroups] = React.useState<Group[] | null>(null)
   const [groupsFailed, setGroupsFailed] = React.useState(false)
   // Bumped by each card's Try again, which runs that same load once more.
   const [groupsAttempt, setGroupsAttempt] = React.useState(0)
   const [boardAttempt, setBoardAttempt] = React.useState(0)
-  const [selectedId, setSelectedId] = React.useState("")
+  const [selectedId, setSelectedId] = React.useState(initialGroupId ?? "")
   /**
    * The board, with the group and window it belongs to. Kept together so a board
    * is only ever drawn beside the group it was read for: on a switch the old
@@ -194,17 +198,29 @@ export function FocusGroupsCard({
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-2">
+              {/* Scrolls sideways, as Settings' tabs do, and a long name
+                  ends in "…" with the whole of it under the pointer, so
+                  every group stays inside the card on a phone. */}
               <Tabs
                 value={selected?.id ?? ""}
                 onValueChange={(value) => setSelectedId(value)}
+                className="min-w-0 max-w-full"
               >
-                <TabsList aria-label="Your groups">
-                  {groups.map((group) => (
-                    <TabsTrigger key={group.id} value={group.id}>
-                      {group.name}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
+                <ScrollArea className="max-w-full">
+                  <TabsList aria-label="Your groups">
+                    {groups.map((group) => (
+                      <TabsTrigger
+                        key={group.id}
+                        value={group.id}
+                        title={group.name}
+                        className="max-w-40"
+                      >
+                        <span className="truncate">{group.name}</span>
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  <ScrollBar orientation="horizontal" />
+                </ScrollArea>
               </Tabs>
               <div className="ml-auto flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">

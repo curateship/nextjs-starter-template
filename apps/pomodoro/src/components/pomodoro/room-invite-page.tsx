@@ -2,16 +2,17 @@ import * as React from "react"
 import { Link, useNavigate, useParams } from "@tanstack/react-router"
 import {
   CalendarClockIcon,
+  Loader2Icon,
   LockKeyholeIcon,
   MusicIcon,
   UsersIcon,
 } from "lucide-react"
-import { roomRefusalSentence } from "@/lib/pomodoro/room-join"
+import { joinRefusalMessage } from "@/lib/pomodoro/room-join"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { lookupRoom, joinRoom } from "@/lib/api/pomodoro/rooms"
-import { enterRoomFromSnapshot } from "@/components/pomodoro/active-room"
+import { applyRoomSnapshot } from "@/lib/pomodoro/room-clock-store"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { sceneFor, soundLabelFor } from "@/lib/pomodoro/media-pair"
 import { useMediaCatalog } from "@/lib/pomodoro/room-media-store"
@@ -19,6 +20,9 @@ import {
   describeWaitUntil,
   formatRoomStart,
 } from "@/lib/pomodoro/scheduled-rooms"
+
+/** How long a pressed Check again shows "Checking…" at the least. */
+const CHECK_AGAIN_HOLD_MS = 800
 
 /**
  * The invite page at /rooms/$slug, with the old app's seven states: checking,
@@ -34,45 +38,80 @@ export function RoomInvitePage() {
     ReturnType<typeof lookupRoom>
   > | null>(null)
   const [failed, setFailed] = React.useState(false)
+  const [checking, setChecking] = React.useState(false)
   const [joining, setJoining] = React.useState(false)
   const [error, setError] = React.useState("")
+  // When a pressed Check again last answered, so the card can say what it
+  // found. Null until one has, and again while the next one runs.
+  const [checkedAt, setCheckedAt] = React.useState<Date | null>(null)
 
-  const refresh = React.useCallback(() => {
-    setFailed(false)
-    if (slug.length < 12 || slug.length > 80) {
-      setLookup({ status: "not_found" })
-      return
-    }
-    lookupRoom(slug)
-      .then(setLookup)
-      .catch(() => setFailed(true))
-  }, [slug])
+  /** Reads the invite again. Answers whether the read worked. */
+  const refresh = React.useCallback(
+    async (holdMs = 0) => {
+      setFailed(false)
+      if (slug.length < 12 || slug.length > 80) {
+        setLookup({ status: "not_found" })
+        return true
+      }
+      setChecking(true)
+      try {
+        const [found] = await Promise.all([
+          lookupRoom(slug),
+          new Promise((resolve) => window.setTimeout(resolve, holdMs)),
+        ])
+        setLookup(found)
+        return true
+      } catch {
+        setFailed(true)
+        return false
+      } finally {
+        setChecking(false)
+      }
+    },
+    [slug]
+  )
   React.useEffect(() => {
-    refresh()
+    void refresh()
   }, [refresh])
+
+  // A refused join's sentence belongs to that try, so asking again clears it.
+  // The answer usually comes back in a tenth of a second, which only flashed
+  // "Checking…" (Tyler, 11 Oct 2026), so a press holds it long enough to read.
+  // The card then says what was found, even when nothing changed, or a
+  // press that changes nothing looks like it did nothing (Tyler, same day).
+  const checkAgain = () => {
+    setError("")
+    setCheckedAt(null)
+    void refresh(CHECK_AGAIN_HOLD_MS).then((worked) => {
+      if (worked) setCheckedAt(new Date())
+    })
+  }
+  const checkedLine = checkedAt ? (
+    <p role="status" className="text-sm text-muted-foreground">
+      Checked at{" "}
+      {checkedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}.{" "}
+      {lookup?.status === "locked"
+        ? "Still in a focus session, so joins open at the next break."
+        : lookup?.status === "scheduled"
+          ? "The room has not opened yet."
+          : lookup?.status === "joinable"
+            ? "The room is open to join now."
+            : null}
+    </p>
+  ) : null
 
   const join = async () => {
     setJoining(true)
     setError("")
     try {
       // The room is drawn on the front page, in its own sound and theme.
-      enterRoomFromSnapshot(await joinRoom(slug))
+      applyRoomSnapshot(await joinRoom(slug))
       void navigate({ to: "/" })
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : ""
-      setError(
-        roomRefusalSentence(cause) ??
-        (message.includes("ROOM_LOCKED")
-          ? "The room just started a focus session. Try again during the break."
-          : message.includes("ROOM_CLOSED")
-            ? "This room has ended."
-            : message.includes("ROOM_BANNED")
-              ? "You can't join this room."
-              : message.includes("ROOM_FULL")
-                ? "This room is full."
-                : "Joining failed. Try again.")
-      )
-      refresh()
+      // The same sentence Rooms shows for the same refusal.
+      setError(joinRefusalMessage(cause))
+      setCheckedAt(null)
+      void refresh()
       setJoining(false)
     }
   }
@@ -90,9 +129,9 @@ export function RoomInvitePage() {
               <p className="text-sm text-muted-foreground">
                 The invite could not be checked.
               </p>
-              <Button onClick={refresh}>
+              <CheckAgainButton checking={checking} onCheck={checkAgain}>
                 Try again
-              </Button>
+              </CheckAgainButton>
             </>
           ) : !lookup ? (
             <p role="status" className="text-sm text-muted-foreground">
@@ -140,10 +179,11 @@ export function RoomInvitePage() {
                 link at the time and you are in.
               </p>
               <InvitePair sound={lookup.sound} background={lookup.background} />
+              {checkedLine}
               <div className="flex gap-2">
-                <Button onClick={refresh}>
+                <CheckAgainButton checking={checking} onCheck={checkAgain}>
                   Check again
-                </Button>
+                </CheckAgainButton>
                 {authenticated ? (
                   <Button asChild variant="outline">
                     <Link to="/rooms">Browse rooms</Link>
@@ -180,7 +220,7 @@ export function RoomInvitePage() {
               <h2 className="text-xl font-bold">{lookup.name}</h2>
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <LockKeyholeIcon className="size-4" aria-hidden="true" />
-                {lookup.memberCount} focusing right now — joins unlock at the
+                {lookup.memberCount} focusing right now - joins unlock at the
                 next break.
               </p>
               <InvitePair sound={lookup.sound} background={lookup.background} />
@@ -189,10 +229,11 @@ export function RoomInvitePage() {
                   {error}
                 </p>
               ) : null}
+              {checkedLine}
               <div className="flex gap-2">
-                <Button onClick={refresh}>
+                <CheckAgainButton checking={checking} onCheck={checkAgain}>
                   Check again
-                </Button>
+                </CheckAgainButton>
                 <Button asChild variant="outline">
                   <Link to="/rooms">Browse rooms</Link>
                 </Button>
@@ -215,6 +256,7 @@ export function RoomInvitePage() {
                   {error}
                 </p>
               ) : null}
+              {checkedLine}
               {authenticated ? (
                 <Button
                   disabled={joining}
@@ -246,6 +288,30 @@ export function RoomInvitePage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+/** Reads the invite again, and shows it is doing so until the answer comes. */
+function CheckAgainButton({
+  checking,
+  onCheck,
+  children,
+}: {
+  checking: boolean
+  onCheck: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Button disabled={checking} onClick={onCheck}>
+      {checking ? (
+        <>
+          <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+          Checking…
+        </>
+      ) : (
+        children
+      )}
+    </Button>
   )
 }
 

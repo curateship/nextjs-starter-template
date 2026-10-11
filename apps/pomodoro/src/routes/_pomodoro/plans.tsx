@@ -69,7 +69,7 @@ export const Route = createFileRoute("/_pomodoro/plans")({
   },
   head: () => ({
     meta: [
-      { title: "Pricing — Pomoder" },
+      { title: "Pricing - Pomoder" },
       {
         name: "description",
         content:

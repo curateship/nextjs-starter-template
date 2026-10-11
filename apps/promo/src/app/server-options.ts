@@ -54,6 +54,19 @@ export const appServerOptions: AppServerOptions = {
         },
       },
       {
+        name: "promo-tidy-old-posts",
+        /**
+         * Every ten minutes, deletes skipped Reddit posts no search has seen
+         * for the days set in Settings and clears the stored replies of old
+         * open ones, a bounded number each pass. A post with a comment
+         * against it is never touched.
+         */
+        tick: async () => {
+          const { tidyOldPosts } = await import("@/server/social/upkeep")
+          await tidyOldPosts()
+        },
+      },
+      {
         name: "promo-browser-reaper",
         /**
          * Shuts down a browser nobody has used for an hour, marks one whose

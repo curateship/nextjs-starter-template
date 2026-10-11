@@ -9,7 +9,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
-import type { RoomSnapshotClient } from "@/components/pomodoro/active-room"
+import type { RoomSnapshotClient } from "@/lib/pomodoro/room-clock-store"
 import { cn } from "@/lib/utils"
 
 /**

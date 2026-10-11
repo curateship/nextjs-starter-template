@@ -671,8 +671,8 @@ async function resolveRoomFile(
 
 /**
  * What Host a room offers under the catalogue: the host's own shared files,
- * then shared files they saved, each as the value a room stores and the
- * name, with the owner's handle for a saved one.
+ * then shared files they saved, each as the value a room stores, the name,
+ * the file's address and still, and the owner's handle for a saved one.
  */
 export async function listRoomFileChoices(userId: string) {
   const blocked = [...(await blockedUserIdsFor(userId))]
@@ -680,8 +680,11 @@ export async function listRoomFileChoices(userId: string) {
     .select({
       mediaId: uploads.mediaId,
       purpose: uploads.purpose,
+      kind: uploads.kind,
       ownerUserId: uploads.userId,
       name: listColumns.name,
+      storagePath: customShellMedia.storagePath,
+      stillPath: uploads.stillPath,
       handle: creditHandle,
     })
     .from(uploads)
@@ -701,15 +704,23 @@ export async function listRoomFileChoices(userId: string) {
     )
     .orderBy(desc(uploads.sharedAt))
     .limit(200)
-  const choice = (row: (typeof rows)[number]) => ({
+  // The address and the still ride along so the picker can play the sound and
+  // draw the picture, not just the name.
+  const choice = async (row: (typeof rows)[number]) => ({
     value: `media:${row.mediaId}`,
+    mediaId: row.mediaId,
     label: row.name,
+    kind: row.kind as PomodoroUploadKind,
+    url: await getPublicMediaUrl(row.storagePath),
+    stillUrl: row.stillPath ? await getPublicMediaUrl(row.stillPath) : "",
     own: row.ownerUserId === userId,
     credit: row.ownerUserId === userId ? null : { handle: row.handle },
   })
   return {
-    sounds: rows.filter((row) => row.purpose === "sound").map(choice),
-    backgrounds: rows.filter((row) => row.purpose === "background").map(choice),
+    sounds: await Promise.all(rows.filter((row) => row.purpose === "sound").map(choice)),
+    backgrounds: await Promise.all(
+      rows.filter((row) => row.purpose === "background").map(choice)
+    ),
   }
 }
 

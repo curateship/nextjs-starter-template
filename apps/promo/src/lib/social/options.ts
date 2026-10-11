@@ -37,6 +37,9 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  * starting one itself and leaving the browser program without the key to it.
  * `health` reads an account's karma, age and how its profile looks to a
  * stranger, from the Check now button or the ticker once a day.
+ * `rules` reads the posted rules of the subreddits a search brought in, once
+ * each. `comment_check` reads one sent comment again; it is not `check`,
+ * which already means a person's look at a profile's browser.
  */
 export type JobKind =
   | "search"
@@ -49,6 +52,8 @@ export type JobKind =
   | "backup"
   | "restore"
   | "health"
+  | "rules"
+  | "comment_check"
 
 /**
  * The account's profile, asked for once signed in and once signed out, as it
@@ -162,6 +167,15 @@ export type ProxyTestResult = {
   error?: string
 }
 
+/** One rule a subreddit has posted, as its moderators wrote it. */
+export type SubredditRule = { title: string; description: string }
+
+/**
+ * What reading a subreddit's rules found: its rules, an answer with none
+ * posted, or no answer at all.
+ */
+export type SubredditRulesStatus = "read" | "none" | "failed"
+
 /** The post and its top replies, as the browser last read them. */
 export type FindThread = {
   body: string
@@ -180,3 +194,16 @@ export const MAX_COMMENT_CHARS = 900
 /** How many drafts one press asks for. */
 export const DRAFTS_PER_PRESS = 2
 
+/**
+ * Days a found post can go unseen by any search before the tidy-up deletes
+ * it if skipped, or clears its stored replies if still open. 0 switches the
+ * tidy-up off. Here because the settings card checks the same bounds.
+ */
+export const TIDY_DEFAULT_DAYS = 30
+
+/**
+ * One Check press on the Comments screen reads at most this many comments,
+ * so a select-all across pages cannot fill the queue.
+ */
+export const MAX_CHECKS_PER_PRESS = 50
+export const TIDY_DAYS_RANGE = { min: 0, max: 365 } as const

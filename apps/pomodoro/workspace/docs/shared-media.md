@@ -112,8 +112,8 @@ A host can play a shared file in their room (task 04).
 
 - **Which files:** the host's own shared files, and shared files the host
   saved (`assertRoomFileUsable`). A file nobody shared on purpose never reaches
-  whoever joins. Host a room lists them after the catalogue as "Yours: Rain on
-  glass" and "Saved: Snow, by @sarah". The "+" on a shared card, or on your own
+  whoever joins. Host a room shows them as cards after the catalogue, under
+  "Your uploads" and "Saved from members" ("Saved, by @sarah"). The "+" on a shared card, or on your own
   shared upload, offers "Add to this room" while you host.
 - **Each viewer's snapshot resolves the file for them** (`resolveRoomFiles`),
   with its name and credit. The room's line reads the file's name.

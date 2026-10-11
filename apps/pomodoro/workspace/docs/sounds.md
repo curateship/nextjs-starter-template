@@ -98,11 +98,11 @@ front page, and under the room's ring in a room.
 It is drawn to Tyler's design of 9 Oct 2026 ("redesign the sound bar"), then
 "remove the turn sound off icon", "remove the divider" and a tenth smaller
 than the design ("trt 10% instead"): play or pause in a 28px round tinted
-button, the sound's name in 13.5px semibold, next (for a shuffle or tags
-choice) and the speaker in grey, a 72px grey volume slider with a 14px knob,
+button, the sound's name in 13.5px semibold, next (while the sound or the
+background is a shuffle or tags choice) and the speaker in grey, a 72px grey volume slider with a 14px knob,
 and the sleep timer's moon. On a phone the name is cut shorter so the bar stays
 on one line. With no sound chosen it reads "No sound · Pick one", with Pick one
-opening Sounds.
+opening Sounds, and Next beside it while the background is shuffled.
 
 The name is the catalogue sound's, or a file's own name when shuffle picked
 one of the member's files ("Desk rain"). How those files join shuffle is in
@@ -187,6 +187,13 @@ the timer all talk to the same module. React reads it through
   fades the selected loop in; a pause, a stop or a break starting fades it
   out. Only genuine edges count, so navigating (which remounts the timer
   hook) never fights a manual pause.
+- **In a room, only the room's clock drives it**, on every page, not just
+  the room page. The personal timer's edges are recorded but ignored
+  (`setRoomClockActive` in `sound-engine.ts`), so nothing but the room's own
+  break, the player's pause or mute, or leaving can fade the room's sound.
+  Before, pausing the personal timer in a room faded the room's sound while
+  the room's focus went on (Tyler, 10 Oct 2026). The first start after
+  leaving is still an edge, so your own timer plays its sound again.
 - **A break is quiet.** Tyler, 8 Oct 2026: "Change it so that break turns the
   sound off." The sound fades out when a break starts, on your own timer and
   in a room, and fades back in when the next focus starts. Play in the

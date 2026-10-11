@@ -174,13 +174,13 @@ export function AdminFocusDashboard({
               {row.focusSessions.toLocaleString()}
             </TableCell>
             <TableCell column="meta">
-              {formatDuration(row.focusSeconds * 1000, { zero: "—" })}
+              {formatDuration(row.focusSeconds * 1000, { zero: "-" })}
             </TableCell>
             <TableCell column="meta">
               {row.tasksCompleted.toLocaleString()}
             </TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">
-              {row.lastActiveDate ? formatUtcDate(row.lastActiveDate) : "—"}
+              {row.lastActiveDate ? formatUtcDate(row.lastActiveDate) : "-"}
             </TableCell>
             <TableCell column="actions">
               {/* The way from a person to their sessions, which is the question

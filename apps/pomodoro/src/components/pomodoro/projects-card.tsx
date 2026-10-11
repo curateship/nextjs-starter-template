@@ -7,6 +7,7 @@ import {
   LockIcon,
   PlusIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { PanelCard } from "@/components/pomodoro/panel-card"
 import { SettingsWindow } from "@/components/pomodoro/settings-window"
@@ -23,8 +24,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { formatFocusDuration } from "@/lib/pomodoro/focus-history"
-import { projectInitial, projectToneIndex } from "@/lib/pomodoro/project-initial"
+import {
+  PROJECT_TONES,
+  projectInitial,
+  projectToneIndex,
+} from "@/lib/pomodoro/project-initial"
 import { cn } from "@/lib/utils"
 import {
   TARGET_HOURS_MAX,
@@ -175,7 +181,9 @@ export function ProjectsCard({ pomodoro }: { pomodoro: PomodoroApi }) {
                   variant="ghost"
                   size="icon-sm"
                   onClick={() =>
-                    void pomodoro.setProjectArchived(project.id, false)
+                    void pomodoro
+                      .setProjectArchived(project.id, false)
+                      .then((problem) => (problem ? showErrorToast(problem) : undefined))
                   }
                   aria-label={`Bring ${project.name} back`}
                 >
@@ -190,22 +198,13 @@ export function ProjectsCard({ pomodoro }: { pomodoro: PomodoroApi }) {
   )
 }
 
-/** The coloured square on a project card, in the Pomoder palette. */
-const INITIAL_TONES = [
-  "bg-sky-400/15 text-sky-300",
-  "bg-amber-400/15 text-amber-300",
-  "bg-emerald-400/15 text-emerald-300",
-  "bg-violet-400/15 text-violet-300",
-  "bg-[color:var(--p-accent)]/15 text-[var(--p-accent)]",
-]
-
 function ProjectInitial({ name, muted }: { name: string; muted?: boolean }) {
   return (
     <span
       aria-hidden="true"
       className={cn(
         "grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold",
-        muted ? "bg-muted text-muted-foreground" : INITIAL_TONES[projectToneIndex(name)]
+        muted ? "bg-muted text-muted-foreground" : PROJECT_TONES[projectToneIndex(name)]
       )}
     >
       {projectInitial(name)}
@@ -232,6 +231,27 @@ function ProjectTile({
   const progress = pomodoro.projectTargets.find(
     (entry) => entry.projectId === project.id
   )
+  const [archiving, setArchiving] = React.useState(false)
+  // The card leaves the live list once archived, so the toast carries the
+  // way back.
+  const archive = async () => {
+    setArchiving(true)
+    const problem = await pomodoro.setProjectArchived(project.id, true)
+    setArchiving(false)
+    if (problem) {
+      showErrorToast(problem)
+      return
+    }
+    toast.success(`Archived ${project.name}`, {
+      action: {
+        label: "Undo",
+        onClick: () =>
+          void pomodoro
+            .setProjectArchived(project.id, false)
+            .then((undoProblem) => (undoProblem ? showErrorToast(undoProblem) : undefined)),
+      },
+    })
+  }
   return (
     <article
       aria-label={project.name}
@@ -285,10 +305,15 @@ function ProjectTile({
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => void pomodoro.setProjectArchived(project.id, true)}
+            disabled={archiving}
+            onClick={() => void archive()}
             aria-label={`Archive ${project.name}`}
           >
-            <ArchiveIcon aria-hidden="true" />
+            {archiving ? (
+              <Loader2Icon className="animate-spin" aria-hidden="true" />
+            ) : (
+              <ArchiveIcon aria-hidden="true" />
+            )}
           </Button>
         </div>
       </div>

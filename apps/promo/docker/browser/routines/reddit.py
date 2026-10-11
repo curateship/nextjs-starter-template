@@ -23,6 +23,7 @@ Two ways to read a page, in this order:
 
 import html
 import json
+import re
 import time
 import urllib.parse
 
@@ -47,6 +48,40 @@ def _goto(page, url):
     page.goto(url, wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
 
 
+def _fetch(page, url, credentials="include"):
+    """Asks for a Reddit address from inside the page and keeps the status.
+
+    `credentials` is "include" to send the page's cookies, which is how this
+    browser gets past Reddit's challenge, or "omit" to ask as a stranger with
+    none. Returns {"ok", "status", "body"}; status 0 means no answer at all.
+    """
+    script = """
+    async ([target, credentials]) => {
+      try {
+        const response = await fetch(target, {
+          headers: { accept: "application/json" },
+          credentials,
+          cache: "no-store",
+        })
+        return { ok: response.ok, status: response.status, body: await response.text() }
+      } catch (error) {
+        return { ok: false, status: 0, body: "" }
+      }
+    }
+    """
+    return page.evaluate(script, [url, credentials]) or {"ok": False, "status": 0, "body": ""}
+
+
+def _parse(answer):
+    """The JSON in an answer from `_fetch`, or None when it refused or is not JSON."""
+    if not answer or not answer.get("ok"):
+        return None
+    try:
+        return json.loads(answer.get("body") or "")
+    except (ValueError, TypeError):
+        return None
+
+
 def _fetch_json(page, url):
     """Asks for a Reddit address as JSON, using the page's own cookies.
 
@@ -54,27 +89,21 @@ def _fetch_json(page, url):
     refusal: a refusal is an expected answer that sends the caller to the
     rendered page instead.
     """
-    script = """
-    async (target) => {
-      try {
-        const response = await fetch(target, {
-          headers: { accept: "application/json" },
-          credentials: "include",
-        })
-        if (!response.ok) return { ok: false, status: response.status }
-        return { ok: true, body: await response.text() }
-      } catch (error) {
-        return { ok: false, status: 0, error: String(error) }
-      }
-    }
-    """
-    answer = page.evaluate(script, url)
-    if not answer or not answer.get("ok"):
-        return None
-    try:
-        return json.loads(answer["body"])
-    except (ValueError, TypeError):
-        return None
+    return _parse(_fetch(page, url))
+
+
+def _on_reddit(page):
+    """Whether the page is on Reddit, so a request from it carries Reddit's cookies."""
+    host = urllib.parse.urlparse(page.url or "").hostname or ""
+    return host == "reddit.com" or host.endswith(".reddit.com")
+
+
+def _subreddit_name(args, routine):
+    """The subreddit an app asked about, checked so it can only ever be a name."""
+    name = (args.get("subreddit") or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_]{1,60}", name):
+        raise CommandError("%s: no subreddit given" % routine)
+    return name
 
 
 def _search_url(query, subreddit, sort, window):
@@ -178,21 +207,32 @@ def _posts_from_page(page):
 def reddit_search(page, args):
     """Posts matching a keyword, newest and quietest first being the app's job.
 
+    With no words and one subreddit it is a watch, and returns that
+    subreddit's newest posts instead of a search's.
+
     Navigating first is not optional even when the JSON path works: the
     navigation is what solves Reddit's challenge and sets the cookie the JSON
     request then needs.
     """
     query = (args.get("query") or "").strip()
-    if not query:
-        raise CommandError("search: no query given")
     subreddit = (args.get("subreddit") or "").strip()
+    if not query and not subreddit:
+        raise CommandError("search: no query and no subreddit given")
     sort = args.get("sort") or "new"
     window = args.get("window") or "week"
 
-    url = _search_url(query, subreddit, sort, window)
+    if query:
+        url = _search_url(query, subreddit, sort, window)
+        data_url = url.replace("/search/?", "/search.json?")
+    else:
+        # A watch: no words, one subreddit, its newest posts in Reddit's own
+        # order, which for this listing is newest first.
+        name = _subreddit_name(args, "search")
+        url = "https://www.reddit.com/r/%s/new/" % name
+        data_url = "https://www.reddit.com/r/%s/new.json?limit=%d" % (name, SEARCH_LIMIT)
     _goto(page, url)
 
-    listing = _fetch_json(page, url.replace("/search/?", "/search.json?"))
+    listing = _fetch_json(page, data_url)
     source = "json"
     posts = []
     if listing:
@@ -603,6 +643,155 @@ def _own_comment_urls(page, handle):
     return page.evaluate(script, handle) or []
 
 
+def reddit_rules(page, args):
+    """The rules a subreddit has posted, as its moderators wrote them.
+
+    Reddit's own `about/rules.json` first, asked from the subreddit's rules
+    page so the request carries the cookie that got past Reddit's challenge.
+    If that is refused, the rules drawn on the page itself. Says what was seen
+    and never judges a rule: `answered` False means Reddit would not say, which
+    is a different answer from a subreddit that has posted no rules.
+    """
+    name = _subreddit_name(args, "rules")
+    page_url = "https://www.reddit.com/r/%s/about/rules/" % name
+    _goto(page, page_url)
+
+    answer = _fetch(page, "https://www.reddit.com/r/%s/about/rules.json" % name)
+    data = _parse(answer)
+    if isinstance(data, dict) and isinstance(data.get("rules"), list):
+        rules = []
+        for rule in data["rules"]:
+            if not isinstance(rule, dict):
+                continue
+            title = _text(rule.get("short_name")).strip()
+            description = _text(rule.get("description")).strip()
+            if title or description:
+                rules.append({"title": title[:300], "description": description[:2000]})
+        return {"answered": True, "status": answer.get("status") or 200, "source": "json", "rules": rules}
+
+    shown = _rules_from_page(page)
+    if shown:
+        return {"answered": True, "status": answer.get("status") or 0, "source": "page", "rules": shown}
+    return {"answered": False, "status": answer.get("status") or 0, "source": "json", "rules": []}
+
+
+def _rules_from_page(page):
+    """The fallback: the rules drawn on the subreddit's rules page.
+
+    Each rule on Reddit's rules page is an expandable section whose summary is
+    the rule's name and whose body is its description.
+    """
+    script = """
+    () => {
+      const out = []
+      for (const el of document.querySelectorAll("faceplate-expandable-section-helper, details")) {
+        const summary = el.querySelector("summary")
+        if (!summary) continue
+        const title = (summary.textContent || "").replace(/^\\s*\\d+\\s*/, "").trim()
+        const whole = (el.textContent || "").trim()
+        const description = whole.startsWith((summary.textContent || "").trim())
+          ? whole.slice((summary.textContent || "").trim().length).trim()
+          : ""
+        if (title) out.push({ title: title.slice(0, 300), description: description.slice(0, 2000) })
+      }
+      return out
+    }
+    """
+    return page.evaluate(script) or []
+
+
+def _comment_address(address):
+    """The post id and comment id out of a comment's address, or raises."""
+    parsed = urllib.parse.urlparse(address or "")
+    if parsed.scheme != "https" or parsed.hostname not in ("www.reddit.com", "reddit.com"):
+        raise CommandError("comment_check: that is not a Reddit address")
+    parts = [part for part in parsed.path.split("/") if part]
+    if "comments" not in parts:
+        raise CommandError("comment_check: that address is not a comment")
+    after = parts[parts.index("comments") + 1:]
+    # /comments/<post>/<slug>/<comment>/ or the newer /comments/<post>/<slug>/comment/<comment>/
+    if len(after) < 3:
+        raise CommandError("comment_check: that address names a post, not a comment")
+    post_id, comment_id = after[0], after[-1]
+    if not re.fullmatch(r"[a-z0-9]{1,16}", post_id) or not re.fullmatch(r"[a-z0-9]{1,16}", comment_id):
+        raise CommandError("comment_check: that address is not a comment")
+    return post_id, comment_id
+
+
+def _reply_count(node):
+    """Every reply under a comment, however deep, counting the ones Reddit folded away."""
+    replies = (node.get("data") or {}).get("replies")
+    if not isinstance(replies, dict):
+        return 0
+    total = 0
+    for child in ((replies.get("data") or {}).get("children")) or []:
+        if child.get("kind") == "t1":
+            total += 1 + _reply_count(child)
+        elif child.get("kind") == "more":
+            total += int((child.get("data") or {}).get("count") or 0)
+    return total
+
+
+def _comment_reading(data, comment_id):
+    """What one answer says about the comment, or None when it is not in it."""
+    if not isinstance(data, list) or len(data) < 2:
+        return None
+    for child in ((data[1].get("data") or {}).get("children")) or []:
+        found = child.get("data") or {}
+        if child.get("kind") != "t1" or found.get("id") != comment_id:
+            continue
+        body = found.get("body") if isinstance(found.get("body"), str) else ""
+        gone = body.strip() in ("[removed]", "[deleted]") or found.get("author") in (None, "[deleted]")
+        score = found.get("score")
+        return {
+            "visible": not gone,
+            "removedText": body.strip() if gone else "",
+            # Reddit hides a new comment's score in some subreddits, and that is
+            # not the same as no upvotes.
+            "upvotes": None if found.get("score_hidden") or not isinstance(score, (int, float)) else int(score),
+            "replies": _reply_count(child),
+        }
+    return {"missing": True}
+
+
+def reddit_comment_check(page, args):
+    """Reads one sent comment again: its upvotes, its replies, and whether it is still there.
+
+    Asked twice from inside a Reddit page: once with no cookies, as a stranger
+    would see it, and once as the account. A moderator's removal shows to a
+    stranger as "[removed]" while the author still sees their words, so the
+    stranger's answer decides whether it is there when Reddit gives one. When
+    Reddit refuses the stranger, the browser's own view is used: a stranger's
+    too when nobody is signed in, and the account's, which says so, when
+    somebody is. Never navigates when the page is already on Reddit.
+    """
+    post_id, comment_id = _comment_address(args.get("commentUrl"))
+    if not _on_reddit(page):
+        _goto(page, "https://www.reddit.com/")
+    url = "https://www.reddit.com/comments/%s/_/%s.json?limit=500" % (post_id, comment_id)
+
+    stranger = _comment_reading(_parse(_fetch(page, url, "omit")), comment_id)
+    you = _comment_reading(_parse(_fetch(page, url, "include")), comment_id)
+    if stranger is None and you is None:
+        raise CommandError("comment_check: Reddit would not answer for that comment")
+
+    seen = stranger if stranger is not None else you
+    # A browser signed in to nobody already sees what a stranger sees, so its
+    # own answer counts as a stranger's. Only a signed-in view can hide a
+    # moderator's removal.
+    signed_in = stranger is None and bool(_me(page)["handle"])
+    reading = {"seenAs": "you" if signed_in else "stranger"}
+    if seen.get("missing"):
+        # Not in the thread at all: deleted with nothing under it.
+        reading.update({"visible": False, "removedText": "", "upvotes": None, "replies": 0})
+    else:
+        reading.update(seen)
+    # The account sees its own score even where a stranger's is hidden.
+    if reading.get("upvotes") is None and you and not you.get("missing"):
+        reading["upvotes"] = you.get("upvotes")
+    return reading
+
+
 # What this network can be asked to do. The package's __init__ prefixes each
 # name with "reddit.", so two networks can both have a "search" without
 # colliding, and a name nobody registered is refused — the port cannot be used
@@ -614,4 +803,6 @@ ROUTINES = {
     "thread": reddit_thread,
     "comment": reddit_comment,
     "health": reddit_health,
+    "rules": reddit_rules,
+    "comment_check": reddit_comment_check,
 }

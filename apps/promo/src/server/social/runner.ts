@@ -18,7 +18,9 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NO_PROFILE_MESSAGE } from "@/lib/social/options"
 
 import { accountFigures, recordAccountHealth } from "./health"
+import { recordCommentCheck } from "./reddit/comment-check"
 import { postComment } from "./reddit/post-comment"
+import { readSubredditRules } from "./reddit/rules"
 import { JOB_MAX_ATTEMPTS, claimNextJob, failJob, finishJob, jobAccount, type QueuedJob } from "./jobs"
 import { loadFindThread, runKeywordSearch } from "./reddit/search"
 import { promoAccounts } from "./schema"
@@ -151,6 +153,16 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
       )
     } else if (job.kind === "health") {
       await recordAccountHealth(job.userId, account.id, session.target, db)
+    } else if (job.kind === "rules") {
+      const subreddits = Array.isArray(job.payload.subreddits)
+        ? job.payload.subreddits.filter((name): name is string => typeof name === "string" && name !== "")
+        : []
+      if (!subreddits.length) throw new Error("That rules job names no subreddit.")
+      await readSubredditRules(job.userId, subreddits, session.target, db)
+    } else if (job.kind === "comment_check") {
+      const commentId = String(job.payload.commentId ?? "")
+      if (!commentId) throw new Error("That check names no comment.")
+      await recordCommentCheck(job.userId, commentId, session.target, db)
     } else {
       throw new Error(`There is no job kind called "${job.kind}".`)
     }

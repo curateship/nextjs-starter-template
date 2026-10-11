@@ -18,13 +18,13 @@ Appearance; see [The dark mode shade](dark-mode-shade.md).
 
 ## Page titles
 
-Every member page names itself in the browser tab as "<Page> — Pomoder", with
-the left menu's word for it, so the tab and the menu agree: "Dashboard —
-Pomoder" on `/timer`, "Pricing — Pomoder" on `/plans`. Each route under
+Every member page names itself in the browser tab as "<Page> - Pomoder", with
+the left menu's word for it, so the tab and the menu agree: "Dashboard -
+Pomoder" on `/timer`, "Pricing - Pomoder" on `/plans`. Each route under
 `src/routes/_pomodoro/` sets its own `head` title, and a route's title wins
 over the shell's "Page · <app name>" fallback in `src/routes/__root.tsx`, which
 is a shell file and is not edited from here. The two invite links have no
-loader, so they read "Room invite — Pomoder" and "Join a group — Pomoder"
+loader, so they read "Room invite - Pomoder" and "Join a group - Pomoder"
 rather than the room's or group's name. Public profiles keep their own titles,
 which name the person. While the timer runs, [the tab countdown](tab-countdown.md)
 writes over the title and gives the page's own back when it stops.

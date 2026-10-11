@@ -5,7 +5,8 @@ screen, drawn inside the product shell with the sidebar, the header and the
 background behind it, like every other member screen.
 
 The shell also has a pricing page, at `/pricing`. Nothing in the product links
-to it. The two are explained under "Why there are two" below.
+to it: every upgrade link a member can press, History's "See Pro plans"
+included, opens `/plans`. The two are explained under "Why there are two" below.
 
 ## What is on it
 
@@ -26,7 +27,9 @@ Drawn to Tyler's design of 7 Oct 2026
   "Everything you need to start" (Free) or "Everything in Free, plus" (Pro).
 - **Pro yearly is the featured card:** an orange outline, a soft glow, a "Best
   value" pill when the year saves anything, and the solid orange button. Pro
-  monthly has a black button and Free an outlined one.
+  monthly has a button in the page's ink (dark in light mode, light in dark
+  mode) and Free an outlined one. While checkout opens, the pressed button
+  keeps a name: a spinner and "Opening…".
 - **Free and Pro only.** Tyler chose this on 7 Oct 2026 over drawing every
   paid plan. Pro is the paid plan with a Highlight badge in Settings → Plans,
   or the cheapest paid plan when none has one. Team, Scale or any other paid

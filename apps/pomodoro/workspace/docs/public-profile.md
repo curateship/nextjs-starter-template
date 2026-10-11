@@ -56,7 +56,9 @@ Drawn to Tyler's design of 7 Oct 2026
 - **One header panel.** The round picture on the left, then the name in large
   type with `/u/<handle>` beside it, the bio, and the follower and following
   counts. The links sit top right as round buttons, and the owner gets Edit
-  profile beside them, which opens Settings → Public page.
+  profile beside them, which opens Settings → Public page. A long name or
+  handle with no spaces breaks onto the next line rather than running past
+  the card on a phone.
 - **The four figures run along the header's foot**, split by thin lines:
   hours focused, sessions, current streak and best streak, with the unit in
   smaller grey type. Two across on a phone, four on a wide screen.
@@ -69,7 +71,9 @@ Drawn to Tyler's design of 7 Oct 2026
 - **Badges · N** is a panel of tiles, four across on a wide screen. Each tile
   has a coloured square with a short mark (1, 3d, 10, H), the badge's name
   and the day it was earned. Sessions are blue, streaks amber, hosting green,
-  and the rest orange.
+  and the rest orange, each with dark text in light mode and light text in
+  dark mode (`TINTS` in `src/lib/pomodoro/project-initial.ts`, the same pairs
+  as the project squares).
 - **Panels not in the design stay**, drawn the same way: Focusing now, the
   room being hosted, and This week's work. Each shows only when its switch is
   on and it has something to say.
@@ -196,7 +200,9 @@ hand cannot put a bad address on a page. Every link opens in a new tab with
 ## Year in review
 
 `/u/<handle>/<year>` sums one year: hours, sessions, tasks ticked, best
-streak, busiest month, and the badges earned that year. It rides on the hours
+streak, busiest month, and the badges earned that year. Its figures use the
+profile header's labels and units ("Hours focused" with "h", "Sessions",
+"Best streak" with "days"). It rides on the hours
 and streaks switch, because every number on it is one of those figures.
 
 A year with under 20 hours on record says so in one line instead of printing a

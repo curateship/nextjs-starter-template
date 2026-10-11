@@ -17,7 +17,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 import { AccountHealthCard } from "./account-health-card"
 import { BlockedSubredditsCard } from "./blocked-subreddits-card"
-import { CommentExamplesCard } from "./comment-examples-card"
+import { TidyOldPostsCard } from "./tidy-old-posts-card"
 import {
   getAccountErrorMessage,
   loadRedditAccount,
@@ -28,8 +28,8 @@ import {
 /**
  * Settings for the one Reddit account: which browser profile it signs in
  * inside, and which voice it drafts with. Below those, how Reddit sees the
- * account, the sent comments drafts copy the voice of, and the subreddits
- * never shown.
+ * account, the subreddits never shown, and how long old posts are kept. The
+ * sent comments drafts copy the voice of are ticked on the Comments screen.
  *
  * Neither lives here. The browser belongs to the profile, on the Browser
  * profiles dashboard, and the words belong to the voice, on the Voices
@@ -236,8 +236,8 @@ function RedditAccountSettings() {
 
       {/* Each of these reads and writes on its own. */}
       <AccountHealthCard />
-      <CommentExamplesCard />
       <BlockedSubredditsCard />
+      <TidyOldPostsCard />
     </CardGroup>
   )
 }

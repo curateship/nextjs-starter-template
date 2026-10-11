@@ -20,6 +20,10 @@ import {
 } from "@/lib/social/wording"
 import { cn } from "@/lib/utils"
 
+import type { RulesView } from "@/server/social/reddit/rules"
+
+import { SubredditRules } from "./subreddit-rules"
+
 export type FindDetail = {
   id: string
   url: string
@@ -32,6 +36,8 @@ export type FindDetail = {
   body: string
   thread: FindThread | null
   threadReadAt: Date | null
+  /** The subreddit's own posted rules, shown above the box. */
+  rules: RulesView
 }
 
 export type DraftView = {
@@ -61,6 +67,7 @@ export function AnswerPanel({
   disabledReason,
   voiceName,
   onRead,
+  onReadRules,
   onDraft,
   onPost,
   onSkip,
@@ -79,6 +86,8 @@ export function AnswerPanel({
   /** The voice drafts are written in, or null when the account has none. */
   voiceName: string | null
   onRead: (findId: string) => Promise<void>
+  /** Reads the rules of the subreddit the post is in. */
+  onReadRules: (findId: string) => Promise<void>
   onDraft: (findId: string) => Promise<void>
   onPost: (input: {
     findId: string
@@ -217,6 +226,14 @@ export function AnswerPanel({
         // footers use, so the writing area reads as its own section under
         // the post. The box and the drafts keep the page colour on it.
         <div className="grid gap-3 border-t bg-muted/50 p-4">
+          {/* First in the writing area, because the rules are the thing to
+              read before writing, not after. */}
+          <SubredditRules
+            subreddit={find.subreddit}
+            rules={find.rules}
+            working={working}
+            onRead={() => onReadRules(find.id)}
+          />
           {drafts.length ? (
             <div className="grid grid-cols-2 gap-2">
               {drafts.slice(0, 2).map((draft) => (

@@ -6,7 +6,8 @@ with.
 
 ## Getting in and out
 
-The square icon beside Reset, inside the ring on `/timer`, opens it. It is the
+The square icon after Start, the last button inside the ring on `/timer`,
+opens it. It is the
 one icon on that screen whose picture does not say what it does, so it carries
 a tooltip while Reset does not.
 
@@ -19,8 +20,10 @@ Three things leave it, and all three do the same work:
 
 Opening it puts the keyboard focus on the ring, which is the start and pause
 control, so Space or Enter starts and pauses straight away. It used to land on
-the leave button, where Space would have left zen mode instead. The line at the
-bottom says "Click the ring or press Space to start · Esc to leave". Space
+the leave button, where Space would have left zen mode instead. With a mouse,
+the line at the bottom says "Click the ring or press Space to start · Esc to
+leave". On a touch screen, which has no Space or Escape, it says "Tap the ring
+to start · Leave zen mode at the top right", the button a phone leaves by. Space
 works the same when the focus is not on the ring, by the rules in
 [The timer](timer.md).
 

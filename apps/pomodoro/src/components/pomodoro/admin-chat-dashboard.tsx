@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, useNavigate } from "@tanstack/react-router"
+import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import {
   CheckIcon,
   InboxIcon,
@@ -115,15 +115,21 @@ export function AdminChatDashboard({
   const tab: ChatTab = search.tab ?? "rooms"
   const setListSearch = useListSearchNavigate()
   const openChat = useOpenRoomChat()
+  const router = useRouter()
   const [messaging, setMessaging] = React.useState(false)
   const [refreshKey, setRefreshKey] = React.useState(0)
+  // The Held count and the live room count come from the page's loader, so a
+  // change that can move them reads the page again.
+  const readCounts = React.useCallback(() => router.invalidate(), [router])
 
   const tabs = (
     <Tabs
       value={tab}
       onValueChange={(value) =>
+        // A search belongs to the tab it was typed on, so a new tab starts empty.
         setListSearch({
           tab: value === "rooms" ? undefined : value,
+          q: undefined,
           page: undefined,
           sort: undefined,
           direction: undefined,
@@ -172,13 +178,15 @@ export function AdminChatDashboard({
           tabs={tabs}
           extra={messageButton}
           onOpen={(roomId, messageId) => openChat(roomId, messageId)}
+          onChanged={readCounts}
         />
       )}
       <AdminRoomChatDialog
         roomId={search.open}
         messageId={search.message}
         onClose={() => openChat(undefined)}
-        onChanged={() => setRefreshKey((key) => key + 1)}
+        // The table starts again from the page's fresh read, counts included.
+        onChanged={() => void readCounts().then(() => setRefreshKey((key) => key + 1))}
       />
       <MessageLiveRoomsDialog open={messaging} liveRooms={liveRooms} onClose={() => setMessaging(false)} />
     </>
@@ -311,6 +319,7 @@ function ChatMessagesTable({
   tabs,
   extra,
   onOpen,
+  onChanged,
 }: {
   held: boolean
   initial: { rows: AdminChatSearchRow[]; total: number }
@@ -318,6 +327,8 @@ function ChatMessagesTable({
   tabs: React.ReactNode
   extra: React.ReactNode
   onOpen: (roomId: string, messageId: string) => void
+  /** A line was let through or deleted, which can change the Held count. */
+  onChanged: () => Promise<void>
 }) {
   const search = route.useSearch()
   const setListSearch = useListSearchNavigate()
@@ -338,6 +349,10 @@ function ChatMessagesTable({
     [held, page, query]
   )
   const list = useAdminList({ initial, initialPageSize, page, onPageChange: setPage, load })
+  const refreshList = list.refresh
+  const refreshAll = React.useCallback(async () => {
+    await Promise.all([refreshList(), onChanged()])
+  }, [refreshList, onChanged])
   const selection = useSelection()
   const rowIds = React.useMemo(
     () => list.rows.filter((row) => !row.deletedAt).map((row) => row.id),
@@ -350,7 +365,7 @@ function ChatMessagesTable({
     run: deletePomodoroMessages,
     keptReason: "already removed",
     selection,
-    onDone: list.refresh,
+    onDone: refreshAll,
   })
   // Which Let through is running: "toolbar", or the row's own id. Only that
   // button spins.
@@ -373,7 +388,7 @@ function ChatMessagesTable({
       if (changed.length) toast.success(line)
       else showErrorToast(line)
       selection.clear()
-      await list.refresh()
+      await refreshAll()
     } catch (error) {
       showErrorToast(getSafetyErrorMessage(error))
     } finally {

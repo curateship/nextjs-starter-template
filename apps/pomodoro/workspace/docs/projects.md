@@ -14,7 +14,10 @@ uses.
 The Projects panel sits under the day's list on `/tasks`, and holds every
 project the person owns, three cards across on a wide screen.
 
-- **A card** shows a coloured square with the first letter, the name, the
+- **A card** shows a coloured square with the first letter (one of five tints
+  picked from the name, with dark letters in light mode and light ones in dark
+  mode, the same pairs the task row's project pill and the admin Projects page
+  use: `PROJECT_TONES` in `src/lib/pomodoro/project-initial.ts`), the name, the
   public switch, the settings button and Archive along the top, and "3 tasks
   · 2h 05m focused" along the foot, all time. A carried copy of a task is not
   counted twice (`listProjects` in `src/server/pomodoro/projects.ts`). The
@@ -27,7 +30,10 @@ project the person owns, three cards across on a wide screen.
   changes". The row stays as it is. Tyler asked for the window on 7 Oct 2026,
   the same one a task's settings button opens (`settings-window.tsx`). Every
   task already in the project follows a new name.
-- **Archive** with the archive button. "Archived · N" in the panel's corner
+- **Archive** with the archive button. It spins and cannot be pressed again
+  while it saves, then the toast "Archived <name>" carries Undo, which puts
+  the project straight back in the live cards. A failed archive, undo or
+  bring-back says so in the error toast. "Archived · N" in the panel's corner
   shows the archived projects under the cards, each with one button to bring
   it back. They are hidden until it is pressed.
 - **Two live projects may not share a name**, ignoring case, and the attempt

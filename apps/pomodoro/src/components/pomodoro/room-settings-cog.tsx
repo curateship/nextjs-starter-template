@@ -11,11 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  START_DELAYS,
-  START_DELAY_LABELS,
-  type StartDelay,
-} from "@/lib/pomodoro/room-countdown"
+import type { StartDelay } from "@/lib/pomodoro/room-countdown"
+import { RoomCountdownField } from "@/components/pomodoro/room-clock-controls"
 
 /** The people limits a host can pick; "none" leaves only the site's own. */
 const PEOPLE_LIMITS = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50] as const
@@ -40,7 +37,6 @@ export function RoomSettingsCog({
   onDelay: (seconds: StartDelay) => void
   onPeopleLimit: (maxPeople: number | null) => void
 }) {
-  const delayId = React.useId()
   const limitId = React.useId()
   const limits =
     maxPeople !== null && !PEOPLE_LIMITS.includes(maxPeople as (typeof PEOPLE_LIMITS)[number])
@@ -61,25 +57,11 @@ export function RoomSettingsCog({
       </PopoverTrigger>
       <PopoverContent align="end" className="grid w-72 gap-4 p-4">
         <strong className="text-sm font-semibold">Room settings</strong>
-        <div className="grid gap-2">
-          <Label htmlFor={delayId}>Countdown before a focus</Label>
-          <Select
-            value={String(startDelaySeconds)}
-            disabled={disabled}
-            onValueChange={(value) => onDelay(Number(value) as StartDelay)}
-          >
-            <SelectTrigger id={delayId} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {START_DELAYS.map((seconds) => (
-                <SelectItem key={seconds} value={String(seconds)}>
-                  {START_DELAY_LABELS[seconds]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <RoomCountdownField
+          startDelaySeconds={startDelaySeconds}
+          disabled={disabled}
+          onDelay={onDelay}
+        />
         <div className="grid gap-2">
           <Label htmlFor={limitId}>People in the room</Label>
           <Select

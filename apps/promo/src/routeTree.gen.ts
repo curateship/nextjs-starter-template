@@ -38,6 +38,7 @@ import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
+import { Route as AuthenticatedAdminCommentsRouteImport } from './routes/_authenticated/admin/comments'
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
 import { Route as AuthenticatedAdminCrmRouteImport } from './routes/_authenticated/admin/crm'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
@@ -223,6 +224,12 @@ const AuthenticatedAdminAutomationsRoute =
   AuthenticatedAdminAutomationsRouteImport.update({
     id: '/automations',
     path: '/automations',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminCommentsRoute =
+  AuthenticatedAdminCommentsRouteImport.update({
+    id: '/comments',
+    path: '/comments',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminContactsRoute =
@@ -476,6 +483,7 @@ export interface FileRoutesByFullPath {
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
+  '/admin/comments': typeof AuthenticatedAdminCommentsRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
@@ -543,6 +551,7 @@ export interface FileRoutesByTo {
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
+  '/admin/comments': typeof AuthenticatedAdminCommentsRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
@@ -614,6 +623,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
+  '/_authenticated/admin/comments': typeof AuthenticatedAdminCommentsRoute
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/_authenticated/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
@@ -685,6 +695,7 @@ export interface FileRouteTypes {
     | '/admin/ai-usage'
     | '/admin/announcements'
     | '/admin/automations'
+    | '/admin/comments'
     | '/admin/contacts'
     | '/admin/crm'
     | '/admin/dashboard'
@@ -752,6 +763,7 @@ export interface FileRouteTypes {
     | '/admin/ai-usage'
     | '/admin/announcements'
     | '/admin/automations'
+    | '/admin/comments'
     | '/admin/contacts'
     | '/admin/crm'
     | '/admin/dashboard'
@@ -822,6 +834,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/automations'
+    | '/_authenticated/admin/comments'
     | '/_authenticated/admin/contacts'
     | '/_authenticated/admin/crm'
     | '/_authenticated/admin/dashboard'
@@ -1097,6 +1110,13 @@ declare module '@tanstack/react-router' {
       path: '/automations'
       fullPath: '/admin/automations'
       preLoaderRoute: typeof AuthenticatedAdminAutomationsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/comments': {
+      id: '/_authenticated/admin/comments'
+      path: '/comments'
+      fullPath: '/admin/comments'
+      preLoaderRoute: typeof AuthenticatedAdminCommentsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/contacts': {
@@ -1406,6 +1426,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAiUsageRoute: typeof AuthenticatedAdminAiUsageRoute
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
+  AuthenticatedAdminCommentsRoute: typeof AuthenticatedAdminCommentsRoute
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
   AuthenticatedAdminCrmRoute: typeof AuthenticatedAdminCrmRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
@@ -1441,6 +1462,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAiUsageRoute: AuthenticatedAdminAiUsageRoute,
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
+  AuthenticatedAdminCommentsRoute: AuthenticatedAdminCommentsRoute,
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
   AuthenticatedAdminCrmRoute: AuthenticatedAdminCrmRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,

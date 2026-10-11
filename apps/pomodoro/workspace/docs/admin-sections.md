@@ -419,6 +419,11 @@ list that took the "No … match" line away for a moment, and the footer jumped
 up and back. The empty line now also stays, dimmed, while a search or a delete
 reloads the list.
 
+An empty list says "No presets yet." when nothing narrows it, and "No presets
+match those filters." only while a search or a filter is in the address
+(`AdminListTable` reads which from the address; a list may pass its own
+`emptyText`).
+
 A page past the end puts itself right. Resolving the last report on page 2 of a
 filtered list, or another operator removing rows, used to leave the table saying
 "No reports match those filters." while the footer underneath said "1-3 of 3".
