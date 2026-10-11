@@ -2,6 +2,7 @@ import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { CheckCheckIcon, CircleAlertIcon, ClockIcon, Loader2Icon, PlusIcon } from "lucide-react"
 
+import { SaveLine } from "@/components/project/save-line"
 import {
   DueDate,
   PickedDaysBadge,
@@ -44,6 +45,7 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { clockIn, clockLabel, longDayLabel, shortDayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS, type CheckinNotes } from "@/lib/project/rules"
+import type { SaveState } from "@/lib/project/use-save-line"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -86,6 +88,18 @@ export function CheckinDialog({
   const [answers, setAnswers] = React.useState<Record<string, Answer>>({})
   const [missing, setMissing] = React.useState<Set<string>>(() => new Set())
   const [notes, setNotes] = React.useState<NoteText>(NO_NOTES)
+  // Boxes holding typed text not yet added: the new task's title and any
+  // Stuck reason, keyed by box. Closing asks first while any has text.
+  const [typed, setTyped] = React.useState<ReadonlySet<string>>(() => new Set())
+  const noteTyping = React.useCallback((box: string, hasText: boolean) => {
+    setTyped((current) => {
+      if (current.has(box) === hasText) return current
+      const next = new Set(current)
+      if (hasText) next.add(box)
+      else next.delete(box)
+      return next
+    })
+  }, [])
 
   // Each opening starts clean, so a closed check-in leaves nothing behind.
   const [wasOpen, setWasOpen] = React.useState(open)
@@ -96,6 +110,7 @@ export function CheckinDialog({
       setAnswers({})
       setMissing(new Set())
       setNotes(NO_NOTES)
+      setTyped(new Set())
     }
   }
 
@@ -103,7 +118,8 @@ export function CheckinDialog({
   // Before checking in the ticks are this window's own; after, they are the saved picks.
   const picked = checkedIn ? new Set(page.pickedTaskIds) : ticked
   const wroteNotes = Object.values(notes).some((note) => note.trim())
-  const dirty = !checkedIn && (ticked.size > 0 || Object.keys(answers).length > 0 || wroteNotes)
+  const dirty =
+    typed.size > 0 || (!checkedIn && (ticked.size > 0 || Object.keys(answers).length > 0 || wroteNotes))
 
   async function toggle(task: TaskCard, on: boolean) {
     if (!checkedIn) {
@@ -251,6 +267,7 @@ export function CheckinDialog({
                             checked={picked.has(task.id)}
                             busy={busy}
                             onToggle={(on) => void toggle(task, on)}
+                            onTyping={noteTyping}
                           />
                         ))}
                       </ul>
@@ -260,6 +277,7 @@ export function CheckinDialog({
                 <AddTaskRow
                   projects={page.projects}
                   myUserId={me.id}
+                  onTyping={noteTyping}
                   onAdded={async (taskId) => {
                     if (checkedIn) await run(() => pickTask(taskId))
                     else setTicked((current) => new Set(current).add(taskId))
@@ -279,7 +297,7 @@ export function CheckinDialog({
           </DialogBody>
           <DialogFooter>
             {checkedIn ? (
-              <Button type="button" onClick={onClose}>
+              <Button type="button" onClick={requestClose}>
                 Done
               </Button>
             ) : (
@@ -325,17 +343,15 @@ function NotesCard({
   notes: NoteText
   onChange: (field: keyof NoteText, value: string) => void
   onBlur?: () => void
-  /** "Saving…" or "Saved", once checked in. */
-  status?: string | null
+  /** Saving…, Saved or Not saved, once checked in. */
+  status?: SaveState
 }) {
   return (
     <Card size="sm">
       <CardHeader>
         <CardTitle className="flex items-center justify-between gap-2">
           Notes for the team
-          <span aria-live="polite" className="text-xs font-normal text-muted-foreground">
-            {status}
-          </span>
+          <SaveLine state={status ?? null} />
         </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -371,7 +387,7 @@ const SAVE_AFTER_MS = 700
 function SavedNotes({ saved }: { saved: CheckinNotes }) {
   const router = useRouter()
   const [notes, setNotes] = React.useState(() => textOf(saved))
-  const [status, setStatus] = React.useState<string | null>(null)
+  const [status, setStatus] = React.useState<SaveState>(null)
   const latest = React.useRef(notes)
   const sent = React.useRef(JSON.stringify(notes))
   const queue = React.useRef(Promise.resolve())
@@ -384,16 +400,16 @@ function SavedNotes({ saved }: { saved: CheckinNotes }) {
     const body = JSON.stringify(next)
     if (body === sent.current) return
     sent.current = body
-    setStatus("Saving…")
+    setStatus("saving")
     queue.current = queue.current.then(async () => {
       try {
         await saveNotes(next)
-        setStatus("Saved")
+        setStatus("saved")
         await router.invalidate()
       } catch (error) {
         // Left unsent, so the next change or leaving the box tries again.
         sent.current = ""
-        setStatus("Not saved")
+        setStatus("failed")
         showErrorToast(getProjectErrorMessage(error))
       }
     })
@@ -551,18 +567,28 @@ function PickRow({
   checked,
   busy,
   onToggle,
+  onTyping,
 }: {
   task: TaskCard
   checked: boolean
   busy: boolean
   onToggle: (on: boolean) => void
+  /** Told whether the Stuck reason box holds text, so closing the window asks first. */
+  onTyping: (box: string, hasText: boolean) => void
 }) {
   const router = useRouter()
   const [run, saving] = useAsyncAction(getProjectErrorMessage)
   const [stuckOpen, setStuckOpen] = React.useState(false)
-  const [reason, setReason] = React.useState("")
+  const [reason, setReasonText] = React.useState("")
   const boxId = `pick-${task.id}`
   const reasonId = `stuck-${task.id}`
+
+  function setReason(next: string) {
+    setReasonText(next)
+    onTyping(reasonId, Boolean(next.trim()))
+  }
+  // A row that goes away takes its typed reason with it.
+  React.useEffect(() => () => onTyping(reasonId, false), [onTyping, reasonId])
 
   async function markStuck() {
     if (!reason.trim()) {
@@ -650,18 +676,27 @@ function PickRow({
   )
 }
 
+const NEW_TASK_BOX = "checkin-new-task"
+
 /** A new task for myself, made without leaving the page and ticked straight away. */
 function AddTaskRow({
   projects,
   myUserId,
+  onTyping,
   onAdded,
 }: {
   projects: CheckinPage["projects"]
   myUserId: string
+  /** Told whether the title box holds text, so closing the window asks first. */
+  onTyping: (box: string, hasText: boolean) => void
   onAdded: (taskId: string) => Promise<void>
 }) {
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  const [title, setTitle] = React.useState("")
+  const [title, setTitleText] = React.useState("")
+  function setTitle(next: string) {
+    setTitleText(next)
+    onTyping(NEW_TASK_BOX, Boolean(next.trim()))
+  }
   const [projectId, setProjectId] = React.useState(projects[0]?.id ?? "")
   const [titleInvalid, setTitleInvalid] = React.useState(false)
 
@@ -708,7 +743,7 @@ function AddTaskRow({
         <div className="grid flex-1 gap-2">
           <Label htmlFor="checkin-new-task">Title</Label>
           <Input
-            id="checkin-new-task"
+            id={NEW_TASK_BOX}
             value={title}
             maxLength={LIMITS.taskTitle}
             placeholder="What else will you work on?"

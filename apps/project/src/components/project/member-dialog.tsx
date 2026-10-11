@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 
+import { SaveLine } from "@/components/project/save-line"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TimeOffSection } from "@/components/project/time-off-card"
 import { Button } from "@/components/ui/button"
@@ -40,6 +41,7 @@ import {
   type TeamInviteRole,
   type TeamRole,
 } from "@/lib/project/rules"
+import { useSaveLine } from "@/lib/project/use-save-line"
 
 /**
  * One teammate's role. The role saves the moment it is picked. Only the owner
@@ -184,19 +186,22 @@ export function MemberDialog({
 function JobTitleField({ member }: { member: TeamMemberRow }) {
   const router = useRouter()
   const [title, setTitle] = useSyncedDraft(member.title ?? "")
-  const [run] = useAsyncAction(getProjectErrorMessage)
+  const [saveState, track] = useSaveLine()
 
   async function save() {
     const next = title.trim()
     if (next === (member.title ?? "")) return
-    if (await run(() => saveMemberTitle({ userId: member.userId, title: next || null }), "Job title saved.")) {
+    if (await track(() => saveMemberTitle({ userId: member.userId, title: next || null }))) {
       await router.invalidate()
     }
   }
 
   return (
     <div className="grid gap-2">
-      <Label htmlFor="member-title">Job title</Label>
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor="member-title">Job title</Label>
+        <SaveLine state={saveState} />
+      </div>
       <Input
         id="member-title"
         value={title}

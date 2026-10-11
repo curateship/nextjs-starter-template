@@ -58,8 +58,8 @@ export function ProjectActivity({
     <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
       {shown.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">
-          Nothing yet. Tasks made, moved between statuses, handed over, commented on, deleted or
-          brought back show here as they happen.
+          Nothing yet. Tasks made, moved between statuses, handed over, commented on, put in the bin
+          or brought back show here as they happen.
         </p>
       ) : (
         <ol className="grid gap-1 p-3">
@@ -73,7 +73,16 @@ export function ProjectActivity({
           ))}
         </ol>
       )}
-      {more ? (
+      {more && state === "error" ? (
+        <ErrorRow
+          message={error}
+          className="py-4"
+          onRetry={() => {
+            setState("loading")
+            setTries((n) => n + 1)
+          }}
+        />
+      ) : more ? (
         <div className="px-5 pb-4">
           <Button
             type="button"
@@ -111,9 +120,13 @@ function Line({ entry, onOpenTask }: { entry: ActivityEntry; onOpenTask: (taskId
     case "created":
       return <>{who} made {task}</>
     case "status_changed":
-      return (
+      return isTaskStatus(entry.reason) ? (
         <>
-          {who} marked {task} {isTaskStatus(entry.reason) ? TASK_STATUS_LABEL[entry.reason] : "changed"}
+          {who} marked {task} {TASK_STATUS_LABEL[entry.reason]}
+        </>
+      ) : (
+        <>
+          {who} changed the status of {task}
         </>
       )
     case "handed_over":
@@ -129,9 +142,9 @@ function Line({ entry, onOpenTask }: { entry: ActivityEntry; onOpenTask: (taskId
     case "commented":
       return <>{who} commented on {task}</>
     case "deleted":
-      return <>{who} deleted {task}</>
+      return <>{who} put {task} in the bin</>
     case "restored":
-      return <>{who} brought back {task}</>
+      return <>{who} brought {task} back from the bin</>
     case "became_task":
       return <>{who} made the step "{entry.reason}" in {task} its own task</>
     case "moved":

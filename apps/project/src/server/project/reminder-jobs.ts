@@ -7,6 +7,7 @@ import {
   overdueHeading,
   taskHref,
   teamDayHref,
+  teamMorningDetail,
   teamMorningHeading,
 } from "@/lib/project/notices"
 import {
@@ -232,7 +233,7 @@ export async function sendTeamMorningNotices(database: CustomShellDb = db, at = 
           kind: "team_morning",
           recipientUserId: runner.userId,
           message: teamMorningHeading(square.checkedIn, square.expected, square.blocked),
-          detail: "The team's check-ins today.",
+          detail: teamMorningDetail(square.notYet),
           href: teamDayHref(team.day),
         }))
       )

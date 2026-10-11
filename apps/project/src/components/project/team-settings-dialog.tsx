@@ -2,6 +2,7 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 
 import { JoinLinkCard } from "@/components/project/join-link-card"
+import { SaveLine } from "@/components/project/save-line"
 import { TeamLabelsCard } from "@/components/project/team-labels-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,10 +28,9 @@ import {
 import type { Label as TeamLabel } from "@/lib/api/project/sorting"
 import type { JoinLinkState } from "@/lib/api/project/team-running"
 import { updateProjectTeam, type TeamSummary } from "@/lib/api/project/teams"
-import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS, WEEK_DAYS } from "@/lib/project/rules"
+import { useSaveLine } from "@/lib/project/use-save-line"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -60,20 +60,22 @@ export function TeamSettingsDialog({
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     onClose()
   }
+  const [saveState, track] = useSaveLine()
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? null : close())}>
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Team settings</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="flex items-center justify-between gap-2">
             {canEdit
               ? "Changes save as you make them."
               : "Only the team's owner and admins can change these."}
+            <SaveLine state={saveState} />
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <TeamSettingsFields team={team} canEdit={canEdit} />
+          <TeamSettingsFields team={team} canEdit={canEdit} track={track} busy={saveState === "saving"} />
           {joinLink && canEdit ? <JoinLinkCard state={joinLink} /> : null}
           <TeamLabelsCard labels={labels} canEdit={canEdit} />
         </DialogBody>
@@ -87,12 +89,22 @@ export function TeamSettingsDialog({
   )
 }
 
-function TeamSettingsFields({ team, canEdit }: { team: TeamSummary; canEdit: boolean }) {
+function TeamSettingsFields({
+  team,
+  canEdit,
+  track,
+  busy,
+}: {
+  team: TeamSummary
+  canEdit: boolean
+  /** Runs a save and shows Saving…, Saved or Not saved at the top of the window. */
+  track: (work: () => Promise<unknown>) => Promise<boolean>
+  busy: boolean
+}) {
   const router = useRouter()
   const [name, setName] = useSyncedDraft(team.name)
   const [checkinTime, setCheckinTime] = useSyncedDraft(team.checkinTime)
   const [nameInvalid, setNameInvalid] = React.useState(false)
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const zones = React.useMemo(() => {
     const all =
       typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : []
@@ -100,7 +112,7 @@ function TeamSettingsFields({ team, canEdit }: { team: TeamSummary; canEdit: boo
   }, [team.timeZone])
 
   async function save(patch: Parameters<typeof updateProjectTeam>[0]) {
-    const ok = await run(() => updateProjectTeam(patch))
+    const ok = await track(() => updateProjectTeam(patch))
     if (ok) await router.invalidate()
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { addDays, clockLabel, isRealDay, localNow, momentOf } from "@/lib/project/days"
+import { addDays, clockIn, clockLabel, isRealDay, localNow, momentOf, zoneCity } from "@/lib/project/days"
 
 describe("a person's day", () => {
   it("reads the day and time in the person's own zone", () => {
@@ -29,5 +29,15 @@ describe("a person's day", () => {
     expect(clockLabel("09:00")).toBe("9:00 AM")
     expect(clockLabel("00:05")).toBe("12:05 AM")
     expect(clockLabel("17:30")).toBe("5:30 PM")
+  })
+
+  it("reads someone else's check-in in the viewer's clock, and names a zone by its city", () => {
+    // Ben checks in at 9:02 in London; a viewer in Toronto reads 4:02.
+    const at = momentOf("2026-10-12", "09:02", "Europe/London")
+    expect(clockIn(at, "Europe/London")).toBe("9:02 AM")
+    expect(clockIn(at, "America/Toronto")).toBe("4:02 AM")
+    expect(zoneCity("America/Toronto")).toBe("Toronto")
+    expect(zoneCity("America/Argentina/Buenos_Aires")).toBe("Buenos Aires")
+    expect(zoneCity("UTC")).toBe("UTC")
   })
 })

@@ -86,7 +86,7 @@ export function NewTaskDialog({
   const [invalid, setInvalid] = React.useState(false)
   const [run, saving] = useAsyncAction(getProjectErrorMessage)
   const dirty = Boolean(
-    title.trim() || pasted || !writtenPageBodyIsEmpty(notes) || steps.length || due
+    title.trim() || pasted || !writtenPageBodyIsEmpty(notes) || steps.length || stepText.trim() || due
   )
 
   // Opening again starts on the project the caller chose.
@@ -171,6 +171,12 @@ export function NewTaskDialog({
         showErrorToast("Give the task a title.")
         return
       }
+      // A step still in the "Add a step" box goes with the task, as if added.
+      const typedStep = stepText.trim()
+      if (typedStep && steps.length >= LIMITS.stepsPerTask) {
+        showErrorToast(`A task can have at most ${LIMITS.stepsPerTask} steps.`)
+        return
+      }
       const ok = await run(
         () =>
           createProjectTask({
@@ -179,7 +185,7 @@ export function NewTaskDialog({
             notes,
             assigneeUserId,
             dueDate: keyFromDate(due),
-            steps,
+            steps: typedStep ? [...steps, typedStep] : steps,
           }),
         someoneElse && name ? `Task handed to ${name}.` : "Task created."
       )

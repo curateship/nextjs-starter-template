@@ -10,6 +10,7 @@ import {
 
 import { CheckinDialog, StatusLine } from "@/components/project/checkin-dialog"
 import { MyCheckinTime } from "@/components/project/my-checkin-time"
+import { SaveLine } from "@/components/project/save-line"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskFiltersBar } from "@/components/project/task-filters-bar"
 import { TaskInPlace } from "@/components/project/task-in-place"
@@ -35,7 +36,6 @@ import { saveMemberTitle } from "@/lib/api/project/team-running"
 import type { InviteForMe } from "@/lib/api/project/teams"
 import { formatDate } from "@/lib/format/format-time"
 import { useAppNotificationDetails } from "@/lib/hooks/use-app-notification-details"
-import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { notificationAction } from "@/lib/notification-action"
@@ -49,6 +49,8 @@ import {
   hasTaskFilters,
   type TaskFilters,
 } from "@/lib/project/task-filters"
+import { useSaveLine } from "@/lib/project/use-save-line"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 export type MyDashboardSearch = Omit<TaskFilters, "person"> & {
   /** The task open in the middle panel. */
@@ -298,7 +300,15 @@ function InboxPanel({ notifications }: { notifications: NotificationItem[] }) {
   function open(item: NotificationItem) {
     if (!item.read_at && !readHere[item.id]) {
       setReadHere((current) => ({ ...current, [item.id]: new Date().toISOString() }))
-      void markNotificationRead(item.id)
+      // A failed save puts the unread dot back, as the bell does.
+      markNotificationRead(item.id).catch((error: unknown) => {
+        setReadHere((current) => {
+          const rest = { ...current }
+          delete rest[item.id]
+          return rest
+        })
+        showErrorToast(getProjectErrorMessage(error))
+      })
     }
     // The same places the bell opens: the app's own address first, then the
     // shell's for its own notices.
@@ -356,19 +366,22 @@ function InboxPanel({ notifications }: { notifications: NotificationItem[] }) {
 function MyJobTitle({ title }: { title: string | null }) {
   const router = useRouter()
   const [draft, setDraft] = useSyncedDraft(title ?? "")
-  const [run] = useAsyncAction(getProjectErrorMessage)
+  const [saveState, track] = useSaveLine()
 
   async function save() {
     const next = draft.trim()
     if (next === (title ?? "")) return
-    if (await run(() => saveMemberTitle({ title: next || null }), "Job title saved.")) {
+    if (await track(() => saveMemberTitle({ title: next || null }))) {
       await router.invalidate()
     }
   }
 
   return (
     <div className="grid gap-2">
-      <Label htmlFor="my-job-title">Job title</Label>
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor="my-job-title">Job title</Label>
+        <SaveLine state={saveState} />
+      </div>
       <Input
         id="my-job-title"
         value={draft}

@@ -21,7 +21,9 @@ panel, and the list inside is headed "Needs attention".
   since today", "Stuck for 3 days", "Not accepted for 1 work day", "Picked on 5 days", "4 days
   overdue"), longest first, and opens the task as a window.
 - **A fixed task leaves the list**, because it is worked out again every time
-  the tab opens.
+  the tab opens and every time a task window opened from it closes. The old
+  rows stay on screen until the new ones arrive. Workload reloads the same
+  way.
 - **How long, for older tasks.** It reads each task's history rows. A task
   marked Stuck or handed over before those were written down (11 Oct 2026)
   counts from its last change or from when it was made.

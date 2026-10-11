@@ -21,9 +21,12 @@ Below 1280px wide one panel shows at a time, with My tasks, Me and Inbox tabs.
   an admin, and it never shows on the Team dashboard. It's there to keep my
   own streak going, not to watch anyone.
 - **Time off**: my days off coming up, with Add time off (a first and last
-  day) and a bin button to take one off. See Time off in
+  day) and a bin button that asks before taking one off. See Time off in
   [The morning check-in](morning-check-in.md#time-off).
 - **My check-in time**: my own time and time zone, saved on change.
+- **Job title** and **My check-in time** each say Saving…, then Saved or Not
+  saved, beside the field. See
+  [Fields that save themselves](fields-that-save-themselves.md).
 
 ## Middle: my tasks
 
@@ -50,7 +53,9 @@ is `?task=<id>`. How a task opens is in
 ## Right: my inbox
 
 The same notices the bell holds, newest first, 30 at most. Clicking one goes
-where the bell would take it and marks it read. A task's notice opens the task
+where the bell would take it and marks it read. If marking it read fails,
+the unread dot and the count come back and an error says so, the same as in
+the bell. A task's notice opens the task
 on its project page, in the middle panel. The check-in reminder opens
 this page with the check-in window open (`/dashboard?checkin=true`).
 

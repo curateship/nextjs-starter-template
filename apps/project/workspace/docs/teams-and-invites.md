@@ -82,6 +82,7 @@ One link to paste in a message, instead of inviting people one by one.
   project's members, the Workload tab and the hand-to picker in a task.
 - **Each person sets their own** on My dashboard's left panel. **The owner and
   admins can change anyone's** from that person's window on the Members page.
+  Both say Saving…, then Saved or Not saved, beside the field.
 
 ## Removing people
 
@@ -116,8 +117,9 @@ For when someone leaves or goes away, so their work isn't left with nobody.
 collapse like the project page's, and below 1280px wide one shows at a time.
 
 - **Left: the team.** The team photo, its name, the day it was created and its
-  time zone, the four figures, the check-in schedule ("Daily at 9:00 AM" and
-  the work days, M T W T F S S, the work days filled in), and the members with
+  time zone, the four figures, the check-in schedule ("Daily at 9:00 AM,
+  Toronto time" and the work days, M T W T F S S, the work days filled in),
+  and the members with
   their roles. The owner and admins also get an Invite member button. Manage
   opens the Members page.
 - **Middle: the calendar.** A month of the team's check-ins and meetings, with
@@ -126,7 +128,15 @@ collapse like the project page's, and below 1280px wide one shows at a time.
   [History](history.md#past-days-on-the-team-dashboard).
 - **Right: three tabs.** Check-ins: one day's check-ins, today to start with,
   with arrows to step through the days, and "Away" for anyone on time off (see
-  [History](history.md#past-days-on-the-team-dashboard)). Workload, for
+  [History](history.md#past-days-on-the-team-dashboard)).
+  - **Times read in your own clock.** "Checked in 4:02 AM" for a London
+    teammate's 9:02 check-in, read in Toronto, the way meetings already read.
+    Only the time moves: late is still judged on the teammate's own clock and
+    check-in time, and they stay on their own day.
+  - **A day nobody is expected** reads "A day off for the team." with no bar,
+    instead of "0 of 0 checked in".
+  - **A day still to come** shows today, and says so: "Wed, Oct 14 hasn't
+    happened yet. Showing today." Workload, for
   everyone, and Needs attention, for the owner and admins (see
   [Needs attention and workload](needs-attention.md)). The tab last used is
   remembered in this browser.
@@ -182,8 +192,10 @@ Tyler chose what each counts on 11 Oct 2026.
 The cog in the left panel's header opens the Team settings window: name,
 daily check-in time, time zone and work days, the join link (owner and admins
 only), and the team's labels (see [Labels and sections](labels-and-sections.md)). Each field saves when it is
-left or picked, so the window ends with Done. Closing it with Escape or a
-click outside saves the field being typed in too. The owner and admins edit;
+left or picked, so the window ends with Done, and the top of the window says
+Saving…, then Saved or Not saved (see
+[Fields that save themselves](fields-that-save-themselves.md)). Closing it with
+Escape or a click outside saves the field being typed in too. The owner and admins edit;
 everyone else sees the same window to read. Tyler first asked for these in
 Settings → App settings, then chose the window, because Settings only opens
 for app admins and a customer who owns a team is not one.

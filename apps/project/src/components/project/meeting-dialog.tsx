@@ -241,7 +241,7 @@ export function MeetingDialog({
                         value={dateFromKey(draft.day)}
                         onChange={(date) => change({ day: keyFromDate(date) }, "day")}
                         placeholder="Pick a day"
-                        className={invalid.has("day") ? "border-destructive" : undefined}
+                        aria-invalid={invalid.has("day")}
                       />
                     </div>
                     <div className="grid gap-2">

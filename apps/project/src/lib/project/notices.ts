@@ -112,14 +112,25 @@ export function overdueHeading(count = 1) {
   return count > 1 ? `${count} tasks overdue` : "Overdue"
 }
 
-/** "5 of 6 checked in, 1 blocked". */
+/** "5 of 6 checked in, 1 blocked", or "5 of 6 checked in" with nobody blocked. */
 export function teamMorningHeading(checkedIn: number, expected: number, blocked: number) {
-  return `${checkedIn} of ${expected} checked in, ${blocked} blocked`
+  return `${checkedIn} of ${expected} checked in${blocked ? `, ${blocked} blocked` : ""}`
+}
+
+const NAMES_SHOWN = 3
+
+/** "Not yet: Ben Tester, Carla Tester.", or "Everyone's in." */
+export function teamMorningDetail(notYet: string[]) {
+  if (notYet.length === 0) return "Everyone's in."
+  const rest = notYet.length - NAMES_SHOWN
+  const shown = notYet.slice(0, NAMES_SHOWN).join(", ")
+  return `Not yet: ${rest > 0 ? `${shown} and ${rest} more` : shown}.`
 }
 
 const DUE_SOON_WORDS = new RegExp(`^(\\d+ tasks due|Due) (tomorrow|${WEEKDAY_NAMES.join("|")})$`)
 const OVERDUE_WORDS = /^(Overdue|\d+ tasks overdue)$/
-const TEAM_MORNING_WORDS = /^\d+ of \d+ checked in, \d+ blocked$/
+// Notices sent before 11 Oct 2026 always said ", 0 blocked"; both still match.
+const TEAM_MORNING_WORDS = /^\d+ of \d+ checked in(, \d+ blocked)?$/
 
 export function noticeKindFromWords(
   notice: Pick<NoticeToLink, "type" | "message">

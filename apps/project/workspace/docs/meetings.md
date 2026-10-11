@@ -35,8 +35,10 @@ page.
   calendar. It opens the same window with Delete at the left. Deleting a
   repeating meeting deletes every repeat, past and future.
 - **Refused in the window, before saving:** no name, no day, an end time not
-  after the start, and a link that doesn't start with `https://`. The server
-  checks the same, plus that every person is on the team.
+  after the start, and a link that doesn't start with `https://`. Each wrong
+  field is marked invalid for a screen reader as well as drawn in red,
+  including the Day button. The server checks the same, plus that every
+  person is on the team.
 - **At most 200 meetings per team.**
 - **At most 60 meeting saves an hour per person**, counting new meetings and
   changes. Each save can ring up to 50 bells, so without the cap one person
@@ -49,8 +51,13 @@ page.
   counts, cut with "…" when the name doesn't fit. Past two, the square says
   "+1 more". The name is always written, so colour is never the only sign.
 - **Days still to come can be clicked**, so next week's meetings can be read.
-  The Check-ins tab on the right keeps showing today for a day still to come.
-- **Under the calendar**, the chosen day ("Monday, October 12") and how many
+  The Check-ins tab on the right keeps showing today for a day still to come,
+  and says "Wed, Oct 14 hasn't happened yet. Showing today."
+- **Moving to another month picks its 1st**, or today in today's month, so
+  the calendar, the meetings under it and the Check-ins tab all name the same
+  day.
+- **Under the calendar**, the chosen day ("Mon, Oct 12", written the same as
+  in the Check-ins tab) and how many
   meetings it has, then one row per meeting: the time, the name, the service,
   how it repeats ("Every Monday") and the people's photos. Clicking the row
   opens the video link in a new tab.

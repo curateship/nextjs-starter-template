@@ -43,7 +43,12 @@ check in with its own dashboard".
 ### The team's morning
 
 - **One notice per work day** to the owner and each admin: "5 of 6 checked
-  in, 1 blocked". Clicking it opens the Team dashboard on that day.
+  in, 1 blocked", or "5 of 6 checked in" when nobody is blocked. Clicking it
+  opens the Team dashboard on that day.
+- **Its second line names who isn't in yet**: "Not yet: Ben Tester, Carla
+  Tester." Past three names it ends "and 2 more". With everyone in it says
+  "Everyone's in." People on time off aren't named, because they aren't
+  expected.
 - **It waits for the last person.** It goes 30 minutes after the latest
   check-in time anyone in the team has, so every number is in. Tyler chose
   this over the owner's own time plus an hour on 10 Oct 2026. A team spread
@@ -55,7 +60,12 @@ check in with its own dashboard".
 - **Nothing on a day the team doesn't work.**
 - **Sent once.** The job writes a row in `project_team_morning_notices` for
   the team and the day, in the same transaction as the notices.
-- **Numbers, not names.** Who is blocked is on the Team dashboard.
+- **Who is blocked, and why, is on the Team dashboard.** The notice only
+  counts them.
+- **Older notices still open.** Notices sent before 11 Oct 2026 read
+  "5 of 6 checked in, 0 blocked" over "The team's check-ins today." The bell
+  recognises both wordings (`TEAM_MORNING_WORDS` in
+  `src/lib/project/notices.ts`).
 
 ## The window
 
@@ -79,7 +89,9 @@ check in with its own dashboard".
    each up to 280 characters. See below.
 6. **Check in.** Saves the answers, the ticks and the notes as today's
    check-in, and closes the window. Closing it before then with answers,
-   ticks or notes in it asks first, because they would be lost.
+   ticks or notes in it asks first, because they would be lost. So does a
+   task title or a Stuck reason typed but not yet added, before and after
+   checking in. Escape, the X, Cancel and Done all ask the same way.
 
 ### Notes for the team
 
@@ -142,6 +154,10 @@ A person's own days off, such as a holiday, so they don't count as missed.
   before the time off was added stays that way.
 - **Checking in while away is allowed**, and is saved as a day off, so it is
   never late.
+- **The card says what it's doing.** A loading line while it reads, Try
+  again when the read fails, and a spinner on Save time off while it saves.
+- **Taking time off away asks first**: "Remove time off for Oct 14, 2026 to
+  Oct 16, 2026?", on My dashboard and in a teammate's window alike.
 - **Where it lives:** `project_time_off` in
   `drizzle/0103_project_time_off.sql`, rules in
   `src/server/project/time-off.ts`, the screen in

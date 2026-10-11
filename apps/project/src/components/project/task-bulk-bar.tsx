@@ -8,6 +8,7 @@ import { DashboardToolbarSelectTrigger } from "@/components/shared/dashboard-too
 import { DatePicker } from "@/components/ui/date-picker"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { changeTasks, type BulkChange } from "@/lib/api/project/tasks"
+import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { keyFromDate } from "@/lib/project/dates"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -59,10 +60,10 @@ export function TaskBulkBar({
     if (refused) {
       const first = outcome.refused[0]
       showErrorToast(
-        `${changed} ${verb}, ${refused} refused. ${first.title ? `"${first.title}": ` : ""}${first.reason}`
+        `${changed} ${plural(changed, "task")} ${verb}, ${refused} refused. ${first.title ? `"${first.title}": ` : ""}${first.reason}`
       )
     } else {
-      toast.success(`${changed} ${changed === 1 ? "task" : "tasks"} ${verb}.`)
+      toast.success(`${changed} ${plural(changed, "task")} ${verb}.`)
     }
     onDone()
     await router.invalidate()
@@ -94,7 +95,9 @@ export function TaskBulkBar({
         key={`hand-${reset}`}
         disabled={busy}
         onValueChange={(value) =>
-          void apply({ kind: "assign", assigneeUserId: value === NOBODY ? null : value }, "handed over")
+          value === NOBODY
+            ? void apply({ kind: "assign", assigneeUserId: null }, "unassigned")
+            : void apply({ kind: "assign", assigneeUserId: value }, "handed over")
         }
       >
         <DashboardToolbarSelectTrigger aria-label="Hand the ticked tasks to">
@@ -135,8 +138,12 @@ export function TaskBulkBar({
       ) : null}
       <ReasonDialog
         open={askingStuck}
-        title="Why are they stuck?"
-        description={`The ${taskIds.length} ticked tasks move to Stuck with this one reason, and whoever handed each out is told.`}
+        title={taskIds.length === 1 ? "Why is it stuck?" : "Why are they stuck?"}
+        description={
+          taskIds.length === 1
+            ? "The ticked task moves to Stuck, and whoever handed it out is told."
+            : `The ${taskIds.length} ticked tasks move to Stuck with this one reason, and whoever handed each out is told.`
+        }
         label="Reason"
         confirmLabel="Mark Stuck"
         busy={busy}
@@ -154,7 +161,10 @@ export function TaskBulkBar({
   )
 }
 
-/** A due date for every ticked task, or none. */
+/**
+ * A due date for every ticked task, or none. "Pick a date…" opens the
+ * calendar at once, and closing it without a pick brings the menu back.
+ */
 function DueDateAction({
   disabled,
   onPick,
@@ -170,6 +180,10 @@ function DueDateAction({
         value={undefined}
         placeholder="Pick the due date"
         disabled={disabled}
+        defaultOpen
+        onOpenChange={(open) => {
+          if (!open) setMode("menu")
+        }}
         onChange={(date) => onPick(keyFromDate(date))}
       />
     )

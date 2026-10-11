@@ -46,7 +46,7 @@ import type {
   TeamFigures,
 } from "@/lib/api/project/teams"
 import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
-import { addDays, clockIn, clockLabel, longDayLabel, shortDayLabel } from "@/lib/project/days"
+import { addDays, clockIn, clockLabel, longDayLabel, shortDayLabel, zoneCity } from "@/lib/project/days"
 import { meetingWords, meetingsByDay, monthGrid, nextMeetingColor } from "@/lib/project/meetings"
 import { TEAM_PANEL_LAYOUT_KEY, TEAM_RIGHT_TAB_KEY } from "@/lib/project/panel-keys"
 import { useRememberedChoice } from "@/lib/remembered-choice"
@@ -144,7 +144,11 @@ function Dashboard({
             selected={search.day ?? month.today}
             meetings={meetings}
             data={data}
-            onMonth={(next) => go({ month: next })}
+            // A new month starts on its 1st, or on today in today's month, so
+            // the calendar, its meetings and the check-ins name one day.
+            onMonth={(next) =>
+              go({ month: next, day: next === month.today.slice(0, 7) ? undefined : `${next}-01` })
+            }
             onToday={() => go({ month: undefined, day: undefined })}
             onSelect={(next) => go({ day: next })}
           />
@@ -159,10 +163,12 @@ function Dashboard({
             checkins={
               <CheckinsPanel
                 day={day}
+                requested={search.day}
                 myUserId={data.myUserId}
                 onDay={(next) => go({ day: next, month: next.slice(0, 7) })}
               />
             }
+            openTask={search.task}
             onOpenTask={(taskId) => go({ task: taskId })}
           />
         ),
@@ -215,7 +221,7 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
             </h3>
             <p className="flex items-center gap-2 text-sm">
               <ClockIcon className="size-4 text-muted-foreground" aria-hidden />
-              Daily at {clockLabel(team.checkinTime)}
+              Daily at {clockLabel(team.checkinTime)}, {zoneCity(team.timeZone)} time
             </p>
             <ul className="grid grid-cols-7 gap-1.5" aria-label={`Work days: ${workDayNames}`}>
               {days.map(({ day, short, on }) => (
@@ -449,10 +455,13 @@ type RightTab = (typeof RIGHT_TABS)[number]
 function RightPanel({
   canRun,
   checkins,
+  openTask,
   onOpenTask,
 }: {
   canRun: boolean
   checkins: React.ReactNode
+  /** The task whose window is open: the lists load again when it closes, so a fixed task leaves them. */
+  openTask: string | undefined
   onOpenTask: (taskId: string) => void
 }) {
   const [chosen, setTab] = useRememberedChoice<RightTab>(TEAM_RIGHT_TAB_KEY, "checkins", RIGHT_TABS)
@@ -470,9 +479,9 @@ function RightPanel({
       {tab === "checkins" ? (
         checkins
       ) : tab === "workload" ? (
-        <WorkloadPanel onOpenTask={onOpenTask} />
+        <WorkloadPanel reload={openTask} onOpenTask={onOpenTask} />
       ) : (
-        <AttentionPanel onOpenTask={onOpenTask} />
+        <AttentionPanel reload={openTask} onOpenTask={onOpenTask} />
       )}
     </>
   )
@@ -480,10 +489,13 @@ function RightPanel({
 
 function CheckinsPanel({
   day,
+  requested,
   myUserId,
   onDay,
 }: {
   day: TeamDay
+  /** The day picked on the calendar; a day still to come shows today instead. */
+  requested: string | undefined
   myUserId: string
   onDay: (day: string) => void
 }) {
@@ -512,24 +524,38 @@ function CheckinsPanel({
         </Button>
       </div>
       <div className="grid gap-2 border-b px-4 py-3">
-        <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-          <span>
-            {day.checkedIn} of {day.expected} checked in
-          </span>
-          {day.blocked ? <span>{day.blocked} blocked</span> : null}
-        </div>
-        <Meter
-          value={day.checkedIn}
-          max={day.expected}
-          label="People checked in"
-          valueText={`${day.checkedIn} of ${day.expected}`}
-          size="sm"
-        />
+        {requested && requested > day.today ? (
+          <p className="text-sm">{shortDayLabel(requested)} hasn't happened yet. Showing today.</p>
+        ) : null}
+        {day.expected === 0 ? (
+          <p className="text-sm text-muted-foreground">A day off for the team.</p>
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+              <span>
+                {day.checkedIn} of {day.expected} checked in
+              </span>
+              {day.blocked ? <span>{day.blocked} blocked</span> : null}
+            </div>
+            <Meter
+              value={day.checkedIn}
+              max={day.expected}
+              label="People checked in"
+              valueText={`${day.checkedIn} of ${day.expected}`}
+              size="sm"
+            />
+          </>
+        )}
       </div>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <ul className="divide-y">
           {day.people.map((row) => (
-            <PersonCheckin key={row.person.id} row={row} isMe={row.person.id === myUserId} />
+            <PersonCheckin
+              key={row.person.id}
+              row={row}
+              viewerZone={day.viewerZone}
+              isMe={row.person.id === myUserId}
+            />
           ))}
         </ul>
       </ScrollArea>
@@ -537,10 +563,14 @@ function CheckinsPanel({
   )
 }
 
-function stateLine(row: TeamDayPerson) {
+/**
+ * The check-in time reads in the viewer's clock, like meetings do. Only the
+ * time moves: late is still judged on the person's own clock by the server.
+ */
+function stateLine(row: TeamDayPerson, viewerZone: string) {
   switch (row.state) {
     case "checked_in":
-      return `Checked in ${row.checkedInAt ? clockIn(row.checkedInAt, row.timeZone) : ""}${row.late ? " · late" : ""}`
+      return `Checked in ${row.checkedInAt ? clockIn(row.checkedInAt, viewerZone) : ""}${row.late ? " · late" : ""}`
     case "not_yet":
       return "No check-in yet"
     case "missed":
@@ -554,7 +584,15 @@ function stateLine(row: TeamDayPerson) {
   }
 }
 
-function PersonCheckin({ row, isMe }: { row: TeamDayPerson; isMe: boolean }) {
+function PersonCheckin({
+  row,
+  viewerZone,
+  isMe,
+}: {
+  row: TeamDayPerson
+  viewerZone: string
+  isMe: boolean
+}) {
   return (
     <li className="flex gap-3 px-4 py-4">
       <PersonAvatar name={row.person.name} avatarUrl={row.person.avatarUrl} size="default" />
@@ -565,7 +603,7 @@ function PersonCheckin({ row, isMe }: { row: TeamDayPerson; isMe: boolean }) {
               {row.person.name}
               {isMe ? " (you)" : ""}
             </span>
-            <span className="text-xs text-muted-foreground">{stateLine(row)}</span>
+            <span className="text-xs text-muted-foreground">{stateLine(row, viewerZone)}</span>
           </div>
           {row.blocked ? <Badge variant="destructive">Blocked</Badge> : null}
         </div>

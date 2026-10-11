@@ -3,7 +3,7 @@ import { ExternalLinkIcon, SettingsIcon } from "lucide-react"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
 import type { Meeting, MeetingOccurrence, MeetingPerson } from "@/lib/api/project/meetings"
-import { longDayLabel } from "@/lib/project/days"
+import { shortDayLabel } from "@/lib/project/days"
 import { MEETING_CHIP, repeatWords, timeRangeLabel, type DayMeeting } from "@/lib/project/meetings"
 import { PROJECT_COLOR_DOT } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
@@ -53,7 +53,7 @@ export function DayMeetings({
     <section className="grid gap-3 border-t p-4" aria-labelledby="day-meetings-heading">
       <div className="flex items-baseline justify-between gap-2">
         <h3 id="day-meetings-heading" className="font-medium">
-          {longDayLabel(day)}
+          {shortDayLabel(day)}
         </h3>
         <span className="shrink-0 text-sm text-muted-foreground">
           {meetings.length === 0

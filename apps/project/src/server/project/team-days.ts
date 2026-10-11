@@ -192,13 +192,14 @@ async function awayNotCheckedIn(
 
 /**
  * Today's square for one team, counted exactly as the Team dashboard's
- * calendar counts it, for the morning notice.
+ * calendar counts it, for the morning notice, with the names of the people
+ * expected who haven't checked in yet.
  */
 export async function countTeamToday(
   teamId: string,
   day: string,
   database: ProjectDb = db
-): Promise<TeamMonthDay> {
+): Promise<TeamMonthDay & { notYet: string[] }> {
   const rows = await database
     .select({
       id: projectCheckins.id,
@@ -211,7 +212,7 @@ export async function countTeamToday(
     .from(projectCheckins)
     .where(and(eq(projectCheckins.teamId, teamId), eq(projectCheckins.day, day)))
   const { workDays, teamSize, memberIds } = await teamShape(teamId, database)
-  return squareOf(
+  const square = squareOf(
     day,
     true,
     rows,
@@ -220,6 +221,18 @@ export async function countTeamToday(
     teamSize,
     await awayNotCheckedIn(memberIds, day, rows, database)
   )
+  if (!workDays.includes(weekdayOf(day))) return { ...square, notYet: [] }
+  const away = await awayOn(memberIds, day, database)
+  const checkedIn = new Set(rows.filter((row) => row.checkedInAt).map((row) => row.userId))
+  const missing = memberIds.filter((id) => !checkedIn.has(id) && !away.has(id))
+  const named = missing.length
+    ? await database
+        .select({ name: customShellUsers.name })
+        .from(customShellUsers)
+        .where(inArray(customShellUsers.id, missing))
+        .orderBy(customShellUsers.name)
+    : []
+  return { ...square, notYet: named.map((row) => row.name) }
 }
 
 export type TeamDayTask = {
@@ -236,7 +249,6 @@ export type TeamDayPerson = {
   /** `away`: on time off that day, so not expected. */
   state: "checked_in" | "not_yet" | "missed" | "day_off" | "away" | "no_record"
   checkedInAt: string | null
-  timeZone: string
   late: boolean
   /** What they picked on their check-in before this day. */
   before: TeamDayTask[]
@@ -257,6 +269,8 @@ export type TeamDayPerson = {
 export type TeamDay = {
   day: string
   today: string
+  /** The viewer's own time zone: everyone's check-in time reads in it. */
+  viewerZone: string
   checkedIn: number
   expected: number
   blocked: number
@@ -388,7 +402,6 @@ export async function loadTeamDay(
       },
       state,
       checkedInAt: row?.checkedInAt?.toISOString() ?? null,
-      timeZone: row?.timeZone ?? personClock.zone,
       late: row ? isLate(row) : false,
       before: previous ? items.filter((item) => item.checkinId === previous.id).map(shown) : [],
       picked: picks.map(shown),
@@ -416,6 +429,7 @@ export async function loadTeamDay(
   return {
     day,
     today,
+    viewerZone: clock.zone,
     checkedIn: rows.filter((row) => row.state === "checked_in").length,
     expected: rows.filter((row) => !["day_off", "away", "no_record"].includes(row.state)).length,
     blocked: rows.filter((row) => row.blocked).length,

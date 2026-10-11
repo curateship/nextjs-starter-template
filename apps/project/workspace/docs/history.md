@@ -26,6 +26,7 @@ A task ends with a History card, oldest first, wherever it opens.
 - **A move**: "Anna moved it here from Website", from 10 Oct 2026.
 - **Made, marked and binned**: "Anna made it", "Ben marked it Done", "Anna put
   it in the bin", "Anna brought it back from the bin", from 11 Oct 2026.
+  A status the app doesn't know reads "Ben changed its status".
   Comments are written down too, for the project's Activity tab, but the
   History card leaves them out because the chat already shows them.
 - **One table for the task and the project.** The project's Activity tab

@@ -21,9 +21,13 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
+/** "Copy of Website launch", cut to fit the name's limit. */
+const startingName = (name: string) => `Copy of ${name}`.slice(0, LIMITS.projectName)
+
 /**
  * Copy project: a new project with the old one's tasks and steps, ready for
- * the next job of the same kind. It asks only for the new name.
+ * the next job of the same kind. It asks only for the new name, which starts
+ * as "Copy of …", selected, so typing replaces it and Copy works at once.
  */
 export function CopyProjectDialog({
   project,
@@ -35,12 +39,21 @@ export function CopyProjectDialog({
   onClose: () => void
 }) {
   const navigate = useNavigate()
-  const [name, setName] = React.useState("")
+  const [name, setName] = React.useState(() => startingName(project.name))
   const [invalid, setInvalid] = React.useState(false)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
 
+  // Each opening starts on "Copy of …", even after the project was renamed.
+  const [wasOpen, setWasOpen] = React.useState(open)
+  if (wasOpen !== open) {
+    setWasOpen(open)
+    if (open) {
+      setName(startingName(project.name))
+      setInvalid(false)
+    }
+  }
+
   function close() {
-    setName("")
     setInvalid(false)
     onClose()
   }
@@ -62,7 +75,12 @@ export function CopyProjectDialog({
   }
 
   return (
-    <FormDialog open={open} dirty={Boolean(name.trim())} busy={busy} onClose={close}>
+    <FormDialog
+      open={open}
+      dirty={name !== startingName(project.name)}
+      busy={busy}
+      onClose={close}
+    >
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-lg">
           <DialogHeader>
@@ -90,7 +108,8 @@ export function CopyProjectDialog({
                     id="copy-project-name"
                     value={name}
                     maxLength={LIMITS.projectName}
-                    placeholder={`Like ${project.name}`}
+                    autoFocus
+                    onFocus={(event) => event.currentTarget.select()}
                     aria-invalid={invalid || undefined}
                     onChange={(event) => {
                       setName(event.target.value)
