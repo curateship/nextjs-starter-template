@@ -489,6 +489,9 @@ export const videoSettings = pgTable(
     // The YouTube Data API key for the Viral page, scrambled the same way the
     // shell scrambles AI keys. NULL falls back to VIDEO_YOUTUBE_API_KEY.
     youtubeApiKey: text("youtube_api_key"),
+    // The words the script check flags, as a JSON list. NULL until somebody
+    // saves a list on Settings → Scripts; the starter words apply until then.
+    scriptBannedWords: jsonb("script_banned_words"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

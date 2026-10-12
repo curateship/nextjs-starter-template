@@ -1,6 +1,10 @@
 import { eq } from "drizzle-orm"
 
 import { readAiDefaults, type AiDefaults } from "@/lib/video/ai-choices"
+import {
+  readBannedWords,
+  SCRIPT_STARTER_BANNED_WORDS,
+} from "@/lib/video/script-check"
 import { readVoiceDefaults, type VoiceDefaults } from "@/lib/video/voice"
 import {
   createDefaultBrandKit,
@@ -120,6 +124,44 @@ export async function saveAiDefaults(
       set: { aiDefaults, updatedAt: timestamp },
     })
   return aiDefaults
+}
+
+/**
+ * The words the script check flags. The starter words until a list is saved
+ * on Settings → Scripts; after that, exactly the saved list, even an empty one.
+ */
+export async function getScriptBannedWords(
+  database: CustomShellDb = db
+): Promise<string[]> {
+  const [row] = await database
+    .select()
+    .from(videoSettings)
+    .where(eq(videoSettings.id, SETTINGS_ROW_ID))
+    .limit(1)
+  return readBannedWords(row?.scriptBannedWords) ?? [
+    ...SCRIPT_STARTER_BANNED_WORDS,
+  ]
+}
+
+export async function saveScriptBannedWords(
+  words: string[],
+  database: CustomShellDb = db
+): Promise<string[]> {
+  const timestamp = now()
+  await database
+    .insert(videoSettings)
+    .values({
+      id: SETTINGS_ROW_ID,
+      brandKit: createDefaultBrandKit(),
+      scriptBannedWords: words,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .onConflictDoUpdate({
+      target: videoSettings.id,
+      set: { scriptBannedWords: words, updatedAt: timestamp },
+    })
+  return words
 }
 
 /** Env var that backs the YouTube key when none is saved in Settings. */
