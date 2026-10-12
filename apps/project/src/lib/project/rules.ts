@@ -47,6 +47,28 @@ export function isTaskStatus(value: unknown): value is TaskStatus {
 }
 
 /**
+ * What to pick first at check-in. Every task starts Normal. Low is drawn
+ * faintly so people use it, because when everything is High nothing is.
+ */
+export const TASK_PRIORITIES = ["high", "normal", "low"] as const
+export type TaskPriority = (typeof TASK_PRIORITIES)[number]
+
+export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
+  high: "High",
+  normal: "Normal",
+  low: "Low",
+}
+
+export function isTaskPriority(value: unknown): value is TaskPriority {
+  return (TASK_PRIORITIES as readonly unknown[]).includes(value)
+}
+
+/** High first, then Normal, then Low. */
+export function priorityRank(priority: TaskPriority) {
+  return TASK_PRIORITIES.indexOf(priority)
+}
+
+/**
  * A project's colour is a label people pick, like a folder's, so it keeps its
  * own hue in both themes rather than following a theme token.
  */
@@ -165,12 +187,21 @@ export type TaskEventKind =
   /** A Done task's reviewer confirmed it, or sent it back to Doing with the reason. */
   | "review_confirmed"
   | "sent_back"
+  /** The due date moved from one day to another; the reason holds both, "2026-11-03 2026-11-10". */
+  | "due_moved"
 
 /**
  * A task picked on this many days and still not Done gets a mark saying so,
  * because a task that drags should show up without anyone writing a report.
  */
 export const PICKED_MANY_DAYS = 3
+
+/**
+ * A task not Done whose due date has moved this many times gets "Date moved
+ * 3 times" beside its date, the same way "Picked on 4 days" works for picks.
+ * Setting a first date or clearing one isn't a move.
+ */
+export const DUE_MOVED_MANY = 3
 
 export const LIMITS = {
   teamName: 80,
@@ -240,6 +271,10 @@ export const LIMITS = {
   viewsPerPlace: 30,
   /** Matches the header's search lists at once. */
   searchResults: 20,
+  /** Tasks one task can wait on. */
+  waitsPerTask: 10,
+  stepListName: 60,
+  stepListsPerTeam: 100,
 } as const
 
 /** The five fixed reactions under a chat message, in the order they are offered. */
@@ -263,8 +298,13 @@ export const BLOCKER_REPLIES_PER_HOUR = 60
 /** People who can join through one team link in a day, so a leaked link can't fill the team. */
 export const JOINS_PER_LINK_PER_DAY = 20
 
-/** How a task repeats: every team work day, on chosen week days, or on a date each month. */
-export const REPEAT_EVERY = ["workday", "week", "month"] as const
+/**
+ * How a task repeats: every team work day, on chosen week days, on a date
+ * each month, on chosen days every other week, every 3 months from a first
+ * date, or on the team's last work day of each month. Saved values are never
+ * renamed; new ones are added.
+ */
+export const REPEAT_EVERY = ["workday", "week", "month", "two_weeks", "quarter", "last_workday"] as const
 export type RepeatEvery = (typeof REPEAT_EVERY)[number]
 
 /** How a meeting repeats, on the same weekday as its first day. Null is a one-off. */
@@ -454,30 +494,36 @@ export const updateTaskSchema = z.object({
   dueDate: dueDateSchema.optional(),
   sectionId: id.nullable().optional(),
   snoozedUntil: dueDateSchema.optional(),
+  priority: z.enum(TASK_PRIORITIES).optional(),
 })
+
+const weekDaysSchema = z
+  .array(z.number().int().min(0).max(6))
+  .min(1, "Pick at least one day of the week.")
+  .max(7)
+  .transform((days) => [...new Set(days)].sort())
 
 export const setRepeatSchema = z.object({
   taskId: id,
   repeat: z
     .discriminatedUnion("every", [
       z.object({ every: z.literal("workday") }),
-      z.object({
-        every: z.literal("week"),
-        weekDays: z
-          .array(z.number().int().min(0).max(6))
-          .min(1, "Pick at least one day of the week.")
-          .max(7)
-          .transform((days) => [...new Set(days)].sort()),
-      }),
+      z.object({ every: z.literal("week"), weekDays: weekDaysSchema }),
       z.object({ every: z.literal("month"), monthDay: z.number().int().min(1).max(31) }),
+      z.object({ every: z.literal("two_weeks"), weekDays: weekDaysSchema }),
+      z.object({ every: z.literal("quarter"), from: z.string().refine(isRealDay, "Pick the first date.") }),
+      z.object({ every: z.literal("last_workday") }),
     ])
     .nullable(),
 })
 
-export const setWaitingOnSchema = z.object({
-  taskId: id,
-  waitingOnTaskId: id.nullable(),
-})
+/** Adding or taking off one task this one waits on. */
+export const waitSchema = z.object({ taskId: id, waitingOnTaskId: id })
+
+/** "Remind me" on a day, or null to take the reminder off. */
+export const reminderSchema = z.object({ taskId: id, day: dueDateSchema })
+
+export const stepListNameSchema = trimmed(LIMITS.stepListName, "The list's name")
 
 export const createTasksFromLinesSchema = z.object({
   projectId: id,

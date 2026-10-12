@@ -21,6 +21,7 @@ import type {
   Reaction,
   RepeatEvery,
   TaskEventKind,
+  TaskPriority,
   TaskStatus,
   TeamInviteRole,
   TeamRole,
@@ -212,16 +213,17 @@ export const projectTasks = pgTable("project_tasks", {
   /** When it last became Done; cleared when it leaves Done. */
   completedAt: timestamp("completed_at", { withTimezone: true }),
   /** The repeat rule, on the newest copy only (`drizzle/0101_project_planning_ahead.sql`). */
-  repeatEvery: varchar("repeat_every", { length: 8 }).$type<RepeatEvery>(),
+  repeatEvery: varchar("repeat_every", { length: 16 }).$type<RepeatEvery>(),
   repeatWeekDays: smallint("repeat_week_days").array(),
   repeatMonthDay: smallint("repeat_month_day"),
+  /**
+   * The day an every-2-weeks or every-3-months rule counts from, carried by
+   * every copy (`drizzle/0111_project_planning_tasks.sql`).
+   */
+  repeatFrom: date("repeat_from", { mode: "string" }),
   /** The first task of a repeating series, carried by every copy. */
   repeatSeriesId: varchar("repeat_series_id", { length: 36 }),
   snoozedUntil: date("snoozed_until", { mode: "string" }),
-  waitingOnTaskId: varchar("waiting_on_task_id", { length: 36 }).references(
-    (): AnyPgColumn => projectTasks.id,
-    { onDelete: "set null" }
-  ),
   /** In the bin since then; emptied for good after 30 days. */
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   deletedByUserId: varchar("deleted_by_user_id", { length: 36 }).references(userRef, {
@@ -246,6 +248,57 @@ export const projectTasks = pgTable("project_tasks", {
   typeId: varchar("type_id", { length: 36 }).references((): AnyPgColumn => projectTaskTypes.id, {
     onDelete: "set null",
   }),
+  /** High, Normal or Low (`drizzle/0111_project_planning_tasks.sql`). */
+  priority: varchar("priority", { length: 8 }).$type<TaskPriority>().notNull().default("normal"),
+})
+
+/**
+ * What a task waits on, up to 10 tasks (`drizzle/0111_project_planning_tasks.sql`).
+ * It replaced the single `waiting_on_task_id` column, which the code no
+ * longer reads and a later migration drops.
+ */
+export const projectTaskWaits = pgTable(
+  "project_task_waits",
+  {
+    taskId: varchar("task_id", { length: 36 })
+      .notNull()
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
+    waitingOnTaskId: varchar("waiting_on_task_id", { length: 36 })
+      .notNull()
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.waitingOnTaskId] })]
+)
+
+/** "Remind me": one day per person per task, deleted as its bell notice is sent. */
+export const projectTaskReminders = pgTable(
+  "project_task_reminders",
+  {
+    taskId: varchar("task_id", { length: 36 })
+      .notNull()
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.userId] })]
+)
+
+/** The team's saved step lists, such as "Payroll", dropped into any task. */
+export const projectStepLists = pgTable("project_step_lists", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  teamId: varchar("team_id", { length: 36 })
+    .notNull()
+    .references(() => projectTeams.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  steps: text("steps").array().notNull(),
+  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  createdAt: createdAt(),
 })
 
 /** The team's kinds of task. Archived, never deleted, so their tasks keep them. */

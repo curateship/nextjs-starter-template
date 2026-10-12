@@ -30,6 +30,11 @@ A task ends with a History card, oldest first, wherever it opens.
 - **A move**: "Anna moved it here from Website", from 10 Oct 2026.
 - **Made, marked and binned**: "Anna made it", "Ben marked it Done", "Anna put
   it in the bin", "Anna brought it back from the bin", from 11 Oct 2026.
+- **Due date moves**: "Anna moved the due date from Nov 3 to Nov 10", from
+  12 Oct 2026, in the History card and the Activity tabs. Only a move from
+  one day to another is written; setting a first date or clearing one isn't.
+  The row's reason holds the two days, "2026-11-03 2026-11-10"
+  (`src/lib/project/due-moves.ts`).
   A status the app doesn't know reads "Ben changed its status".
   Comments are written down too, for the project's Activity tab, but the
   History card leaves them out because the chat already shows them.
@@ -50,6 +55,15 @@ A task ends with a History card, oldest first, wherever it opens.
   check-in window and at the top of the task.**
 - **It goes when the task is Done.**
 - The 3 lives in `PICKED_MANY_DAYS` in `src/lib/project/rules.ts`.
+
+## The "Date moved" mark
+
+- **A task not Done whose due date moved 3 or more times** shows "Date moved
+  3 times" beside its date, on the task, Board cards and List rows, the same
+  way "Picked on 4 days" works for picks. It counts the moves written in its
+  history, so moves before 12 Oct 2026 don't count.
+- **It goes when the task is Done.**
+- The 3 lives in `DUE_MOVED_MANY` in `src/lib/project/rules.ts`.
 
 ## Past days on the Team dashboard
 

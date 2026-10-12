@@ -1,4 +1,7 @@
 import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  CalendarClockIcon,
   CircleAlertIcon,
   ClipboardCheckIcon,
   ClockIcon,
@@ -15,10 +18,12 @@ import { Badge } from "@/components/ui/badge"
 import { initialsFor } from "@/lib/crm/inbox-time"
 import { dayLabel } from "@/lib/project/days"
 import {
+  DUE_MOVED_MANY,
   PICKED_MANY_DAYS,
   PROJECT_COLOR_DOT,
   TASK_STATUS_LABEL,
   type ProjectColor,
+  type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
 import { isOverdue } from "@/lib/project/dates"
@@ -191,11 +196,14 @@ export function SnoozedBadge({ until, today }: { until: string | null; today: st
   )
 }
 
-/** "Waiting on: Get the logo approved", or "Ready to start" once it is Done. */
+/**
+ * "Waiting on: Get the logo approved" for one task still open, "Waiting on 2
+ * tasks" for more, and "Ready to start" once every one is Done.
+ */
 export function WaitingOnBadge({
   waitingOn,
 }: {
-  waitingOn: { title: string | null; ready: boolean } | null
+  waitingOn: { tasks: { title: string | null; done: boolean }[]; ready: boolean } | null
 }) {
   if (!waitingOn) return null
   if (waitingOn.ready) {
@@ -206,12 +214,50 @@ export function WaitingOnBadge({
       </Badge>
     )
   }
+  const open = waitingOn.tasks.filter((task) => !task.done)
   return (
     <Badge variant="outline" className="max-w-56">
       <HourglassIcon aria-hidden />
       <span className="truncate">
-        Waiting on: {waitingOn.title ?? "1 task in another project"}
+        {open.length === 1
+          ? `Waiting on: ${open[0].title ?? "1 task in another project"}`
+          : `Waiting on ${open.length} tasks`}
       </span>
+    </Badge>
+  )
+}
+
+/**
+ * High gets a mark on cards and rows. Low is drawn faintly instead, so
+ * people use it and High keeps meaning something. Normal shows nothing.
+ */
+export function PriorityMark({ priority }: { priority: TaskPriority }) {
+  if (priority === "high") {
+    return (
+      <Badge variant="outline">
+        <ArrowUpIcon aria-hidden />
+        High
+      </Badge>
+    )
+  }
+  if (priority === "low") {
+    return (
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <ArrowDownIcon className="size-3" aria-hidden />
+        Low
+      </span>
+    )
+  }
+  return null
+}
+
+/** "Date moved 3 times", beside the date of a task not Done that keeps slipping. */
+export function DueMovesMark({ moves, status }: { moves: number; status: TaskStatus }) {
+  if (moves < DUE_MOVED_MANY || status === "done") return null
+  return (
+    <Badge variant="outline">
+      <CalendarClockIcon aria-hidden />
+      Date moved {moves} times
     </Badge>
   )
 }

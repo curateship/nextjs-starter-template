@@ -6,6 +6,7 @@ import {
   MY_DASHBOARD_HREF,
   overdueHeading,
   taskHref,
+  taskReminderHeading,
   teamDayHref,
   teamMorningDetail,
   teamMorningHeading,
@@ -17,9 +18,13 @@ import {
 } from "@/lib/project/rules"
 import { db, type CustomShellDb } from "@/server/db"
 import { PEOPLE } from "@/server/project/checkin-jobs"
+import { whoCanStillSee } from "@/server/project/access"
 import { writeAppNotices, type AppNotice } from "@/server/project/notices"
 import {
   projectDueReminders,
+  projectProjects,
+  projectTaskReminders,
+  projectTasks,
   projectTeamMembers,
   projectTeamMorningNotices,
 } from "@/server/project/schema"
@@ -36,6 +41,62 @@ const BATCH = 500
 export async function runReminderJobs(database: CustomShellDb = db, at = new Date()) {
   await sendDueReminders(database, at)
   await sendTeamMorningNotices(database, at)
+  await sendTaskReminders(database, at)
+}
+
+/**
+ * "Remind me" (`task-reminders.ts`): on the day picked, once the person's own
+ * check-in time has come, "Reminder: Write the About page" in their bell. A
+ * day missed while the server was down is sent on the next pass. Each row is
+ * claimed by deleting it in the same transaction as the notice, so it is sent
+ * once. A task in the bin, or one the person can no longer see, sends nothing
+ * and its reminder goes.
+ */
+export async function sendTaskReminders(database: CustomShellDb = db, at = new Date()) {
+  const found = await database.execute(sql`
+    WITH ${PEOPLE}
+    SELECT r.task_id AS "taskId", r.user_id AS "userId", r.day::text AS "day"
+    FROM project_task_reminders r
+    JOIN people p ON p.user_id = r.user_id
+    CROSS JOIN LATERAL (
+      SELECT (${at.toISOString()}::timestamptz AT TIME ZONE p.zone) AS local
+    ) z
+    WHERE r.day < z.local::date
+      OR (r.day = z.local::date AND to_char(z.local, 'HH24:MI') >= p.at_time)
+    LIMIT ${BATCH}
+  `)
+  for (const row of found.rows as { taskId: string; userId: string; day: string }[]) {
+    await database.transaction(async (tx) => {
+      const claimed = await tx
+        .delete(projectTaskReminders)
+        .where(
+          and(
+            eq(projectTaskReminders.taskId, row.taskId),
+            eq(projectTaskReminders.userId, row.userId),
+            eq(projectTaskReminders.day, row.day)
+          )
+        )
+        .returning({ taskId: projectTaskReminders.taskId })
+      if (!claimed.length) return
+      const [target] = await tx
+        .select({ task: projectTasks, project: projectProjects })
+        .from(projectTasks)
+        .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
+        .where(eq(projectTasks.id, row.taskId))
+      if (!target || target.task.deletedAt) return
+      const [recipient] = await whoCanStillSee(target.project, [row.userId], tx)
+      if (!recipient) return
+      await writeAppNotices(tx, [
+        {
+          kind: "task_reminder",
+          recipientUserId: recipient,
+          message: taskReminderHeading(target.task.title),
+          detail: target.project.name,
+          href: taskHref(target.task.projectId, target.task.id),
+        },
+      ])
+    })
+  }
 }
 
 /** How far back a missed due date still gets an "Overdue", so old dates don't flood the bell. */

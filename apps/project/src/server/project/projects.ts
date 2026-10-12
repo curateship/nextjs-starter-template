@@ -412,7 +412,7 @@ export async function removeProjectMember(
  * A new project made from an old one, for teams that do the same kind of job
  * again and again: its description, colour, sections, and every task not in
  * the bin, in the same order, with their labels, steps (unticked), types and
- * field values, and the project's own pick of types. Every task starts To do
+ * field values and priority, and the project's own pick of types. Every task starts To do
  * with nobody assigned and no due date (Tyler's choice), and a Person field
  * keeps only the person copying, the copy's one member.
  * People, chat, files and history stay with the original. The person copying
@@ -479,6 +479,7 @@ export async function copyProject(
           createdAt: at,
           updatedAt: at,
           typeId: task.typeId,
+          priority: task.priority,
         }))
       )
       await copyFieldValues(

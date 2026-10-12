@@ -5,10 +5,9 @@ import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 import { PersonAvatar, ProjectDot, RoomNote } from "@/components/project/task-bits"
 import { FieldControl } from "@/components/project/task-fields-card"
 import { TypeIconGlyph } from "@/components/project/task-type-icon"
-import { keyFromDate } from "@/lib/project/dates"
+import { DueDayPicker } from "@/components/project/due-day-picker"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { DatePicker } from "@/components/ui/date-picker"
 import {
   DialogBody,
   DialogContent,
@@ -125,7 +124,7 @@ export function NewTaskDialog({
   const [assignee, setAssignee] = React.useState(() => startingAssignee(project))
   const [handoverNote, setHandoverNote] = React.useState("")
   const room = usePeopleRoom(open)
-  const [due, setDue] = React.useState<Date | undefined>()
+  const [due, setDue] = React.useState<string | null>(null)
   const [steps, setSteps] = React.useState<string[]>([])
   const [stepText, setStepText] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
@@ -205,7 +204,7 @@ export function NewTaskDialog({
     setNotes(emptyWrittenPageBody())
     setAssignee(startingAssignee(project))
     setHandoverNote("")
-    setDue(undefined)
+    setDue(null)
     setSteps([])
     setStepText("")
     setInvalid(false)
@@ -265,7 +264,7 @@ export function NewTaskDialog({
             projectId: project.id,
             titles: pasted,
             assigneeUserId,
-            dueDate: keyFromDate(due),
+            dueDate: due,
             handoverNote: note,
           }),
         `${pasted.length} tasks made${someoneElse && name ? ` and handed to ${name}` : ""}.`
@@ -306,7 +305,7 @@ export function NewTaskDialog({
             title,
             notes,
             assigneeUserId,
-            dueDate: keyFromDate(due),
+            dueDate: due,
             steps: typedStep ? [...steps, typedStep] : steps,
             handoverNote: note,
             typeId: type ? type.id : null,
@@ -434,12 +433,7 @@ export function NewTaskDialog({
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="new-task-due">Due date</Label>
-                      <DatePicker
-                        id="new-task-due"
-                        value={due}
-                        onChange={setDue}
-                        placeholder="No due date"
-                      />
+                      <DueDayPicker id="new-task-due" value={due} onChange={setDue} placeholder="No due date" />
                     </div>
                   </div>
                   {assignee !== NOBODY && assignee !== me.id ? (

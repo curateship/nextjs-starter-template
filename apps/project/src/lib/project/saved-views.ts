@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { LIMITS, TASK_STATUSES } from "@/lib/project/rules"
+import { LIMITS, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/project/rules"
 import { hasTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
 
 /**
@@ -19,6 +19,7 @@ const id = z.string().regex(/^[\w-]{1,36}$/)
 export const savedViewFiltersSchema = z.object({
   q: z.string().trim().max(200).optional(),
   status: z.enum(TASK_STATUSES).optional(),
+  priority: z.enum(TASK_PRIORITIES).optional(),
   person: id.optional(),
   label: id.optional(),
   type: id.optional(),
@@ -40,6 +41,7 @@ export function viewFilters(filters: TaskFilters): SavedViewFilters {
   const kept: SavedViewFilters = {}
   if (filters.q?.trim()) kept.q = filters.q.trim()
   if (filters.status) kept.status = filters.status
+  if (filters.priority) kept.priority = filters.priority
   if (filters.person) kept.person = filters.person
   if (filters.label) kept.label = filters.label
   if (filters.type) kept.type = filters.type

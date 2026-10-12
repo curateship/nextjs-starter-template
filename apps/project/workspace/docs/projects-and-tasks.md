@@ -217,10 +217,10 @@ goes, so it no longer ends up on whatever task was open.
 - **Search and filters.** Above the Board and List, a search box looks
   through each task's title and notes, every word typed, whatever its
   capitals. It doesn't look inside a task type's fields. Beside it, Status,
-  Person (anyone, nobody assigned, or one member), Label and Type filters
-  narrow both tabs at once. Clear filters brings everything back, and a
+  Priority, Person (anyone, nobody assigned, or one member), Label and Type
+  filters narrow both tabs at once. Clear filters brings everything back, and a
   search that finds nothing says so.
-- **They live in the address** (`?q=…&status=…&person=…&label=…&type=…`), so a
+- **They live in the address** (`?q=…&status=…&priority=…&person=…&label=…&type=…`), so a
   pasted link opens the page filtered the same way.
 - **Field columns.** Filtered to one task type, the List's Columns menu adds
   up to 3 of that type's fields as columns (see [Task types](task-types.md)).
@@ -273,18 +273,49 @@ without leaving the page and without a window over it.
 ## Tasks
 
 - **What a task holds.** Title, formatted notes, project, the person assigned,
-  who handed it out, due date, status, optional steps, files, a chat, the
-  people following it, and an optional task type with that type's fields.
+  who handed it out, due date, status, priority, optional steps, files, a
+  chat, the people following it, and an optional task type with that type's
+  fields.
   The chat, following, notes and files are in [Task chat](task-chat.md), and
   types and their fields in [Task types](task-types.md).
 - **Four statuses.** To do, Doing, Done and Stuck.
 - **Stuck needs a reason.** Marking a task Stuck asks for one line. The reason
   shows on the task until it leaves Stuck. Whoever handed the task out gets a
   bell notice, or whoever made it when nobody handed it out.
+- **Priority.** High, Normal or Low, beside the due date in the task. Every
+  task starts Normal, old ones included. High gets an "↑ High" mark on Board
+  cards and List rows; Low draws the task's title faintly with a small "Low",
+  so people use it and High keeps meaning something. The List tab and My
+  tasks have a Priority column that sorts High first, and a Priority filter
+  (`?priority=high`) that saved views keep. The check-in's pick list puts High
+  first within each project. Duplicate, Copy project and repeat copies keep
+  it.
 - **Steps.** Up to 50 per task. Progress reads as "3 of 5 steps done". Tyler
   chose steps over a percentage because a percentage is a guess.
+- **Saved step lists.** Under a task's steps, "Save these steps as a list"
+  keeps them under a name, such as "Payroll", and "Add a step list" drops a
+  saved list in after the steps already there. Lists belong to the team:
+  anyone on it makes or uses one, and the owner and admins rename and delete
+  them in Team settings (Tyler's choice, 12 Oct 2026). Steps added from a
+  list start unticked, with no person and no date. A list that would take a
+  task past 50 steps is refused whole: "That list has 6 steps and this task
+  has room for 2 more, since a task can have at most 50." Names are unique in
+  the team whatever their capitals, up to 60 characters, and a team keeps at
+  most 100 lists.
 - **Due dates** are whole days. A task past its due date and not Done shows
-  "Overdue". A date this year reads "Nov 30", and the year shows only for
+  "Overdue". Wherever a task's due date is picked (the task, New task and the
+  bulk bar's "Pick a date…") four buttons sit above the month: Today,
+  Tomorrow, Next Monday and In a week, each with its day. They count from the
+  person's own today, in their own time zone. Tomorrow and Next Monday skip
+  the team's days off and holidays, so Tomorrow on a Friday is Monday, and
+  Next Monday on a Monday is the Monday after. In a week is 7 days on,
+  whatever day that is. If the team's days can't be read, the month still
+  works without the buttons (`src/lib/project/quick-days.ts`).
+- **"Date moved 3 times"** shows beside the due date of a task not Done
+  whose date has moved from one day to another 3 or more times, on the task,
+  Board cards and List rows. Setting a first date or clearing one isn't a
+  move, and the mark goes when the task is Done. Each move is in the task's
+  History (see [History](history.md)). A date this year reads "Nov 30", and the year shows only for
   another year ("Jan 4, 2027"); snooze dates and time off read the same way.
   History lists each moment as "Fri, Oct 10, 3:04 PM".
 
@@ -354,25 +385,41 @@ without leaving the page and without a window over it.
 
 Each task has a Plan card with three fields that save the moment they change.
 
-- **Repeat.** Every work day, every week on chosen days, or every month on a
-  date. See [Repeating tasks](repeating-tasks.md).
+- **Repeat.** Every work day, every week on chosen days, every 2 weeks on
+  chosen days, every month on a date, every 3 months from a first date, or
+  the last work day of each month. See [Repeating tasks](repeating-tasks.md).
 - **Snooze until** a date. Until the person's own morning of that date, the
   task is left out of their check-in's pick list and My tasks' Open tab
   ("1 snoozed task is hidden until its day"). The project page still shows it,
   with "Snoozed until Dec 1", so whoever handed it out still sees it. "Wake it
   now" ends the snooze. A task left over from yesterday's check-in still has
   to be carried over or dropped with a reason: snoozing never answers for it.
-- **Waiting on** another task in the team, picked by searching titles. The
-  search says Searching… while it looks, offers Try again when it fails, and
-  says "No tasks match." only for a real empty result. The
-  waiting task shows "Waiting on: Get the logo approved", and the other one
-  shows "Holding up: Launch the site". When the other task becomes Done, the
-  waiting one shows "Ready to start" and its person gets "Anna finished what
-  your task was waiting on", once. A task can't wait on itself or on anything
-  already waiting on it, however far down the line. A task in a project the
-  reader isn't on reads "1 task in another project", never its title; a card
-  names it only when both are in the same project. Waiting on several tasks at
-  once is left out.
+- **Waiting on** up to 10 other tasks in the team, each picked by searching
+  titles, with "Add another task" for the next. The search leaves out tasks
+  it already waits on, says Searching… while it looks, offers Try again when
+  it fails, and says "No tasks match." only for a real empty result. The Plan
+  card lists them, each with an hourglass or a tick for Done and an X to take
+  it off. A card reads "Waiting on: Get the logo approved" while one is still
+  open and "Waiting on 2 tasks" while more are, and each of the others shows
+  "Holding up: Launch the site". Once every one is Done, the waiting task
+  shows "Ready to start" and its person gets "Anna finished what your task
+  was waiting on", once, as the last one is finished. One in the bin doesn't
+  hold it up. A task can't wait on itself or on anything already waiting on
+  it, however far down the line. A task in a project the reader isn't on
+  reads "1 task in another project", never its title; a card names it only
+  when both are in the same project. Links made before 12 Oct 2026, when a
+  task could wait on one task, read as a list of one.
+- **Remind me**, from the task's More menu, picks a day for the person's own
+  reminder. On that day, at their own check-in time, the bell says
+  "Reminder: Write the About page" with the project's name under it, and
+  opens the task. Each person has at most one per task, and picking a new day
+  replaces it (Tyler's choice, 12 Oct 2026). Nobody else sees it. The Plan
+  card says "Reminding you on Thu, Oct 16, at your check-in time." with Take
+  it off. It is sent once, on any day, work day or not, and a day missed
+  while the server was down is sent on its next pass. A task in the bin, or
+  one the person can no longer see, sends nothing and the reminder goes.
+  Leaving the team takes a person's reminders off. The bell is the only
+  reminder, as Tyler ruled.
 
 ### Just me tasks
 
@@ -553,7 +600,7 @@ announcement"** to everyone on the team, which opens the Team dashboard (see
 [Teams and invites](teams-and-invites.md#the-teams-announcement)). A reaction
 sends no notice.
 
-Three more come from the app itself, with nobody as the sender:
+Four more come from the app itself, with nobody as the sender:
 
 - **"Due tomorrow"** with the task's title, to the person assigned, at their
   own check-in time on the work day before the due date. When the next work
@@ -564,6 +611,8 @@ Three more come from the app itself, with nobody as the sender:
   turning this on didn't flood anyone's bell with old dates.
 - **"5 of 6 checked in, 1 blocked"** to the owner and admins, once per work
   day (see [The morning check-in](morning-check-in.md)).
+- **"Reminder: Write the About page"** to whoever set Remind me on that task,
+  on the day they picked (see Planning ahead above).
 
 Each task sends each reminder once per due date, and moving the date sends a
 fresh one for the new day. Done tasks, tasks in archived projects and tasks
@@ -613,9 +662,14 @@ Projects, Team and Task types to the members' menu and to each admin menu.
   and the new history kinds in `drizzle/0100_project_making_and_changing.sql`,
   repeating, snoozing, waiting, "Just me" and the bin in
   `drizzle/0101_project_planning_ahead.sql`, and a project's due date and the
-  Activity tab's kinds in `drizzle/0102_project_projects.sql`, described to
-  the code in
-  `src/server/project/schema.ts`.
+  Activity tab's kinds in `drizzle/0102_project_projects.sql`, and priority,
+  the newer repeats, `project_task_waits`, the due-date move kind,
+  `project_task_reminders` and `project_step_lists` in
+  `drizzle/0111_project_planning_tasks.sql`, described to the code in
+  `src/server/project/schema.ts`. The old single `waiting_on_task_id`
+  column is still in the database, unread, until the move to
+  `project_task_waits` is proven on the live database; a later migration
+  drops it.
 - **Search and saved views:** `src/server/project/search.ts` and
   `saved-views.ts`, the table `project_saved_views` and the search's
   indexes in `drizzle/0110_project_finding_and_seeing.sql`, endpoints in
@@ -628,7 +682,9 @@ Projects, Team and Task types to the members' menu and to each admin menu.
   `task-files.ts` beside them, and pasting, duplicating, moving, bulk changes
   and Make it a task in `task-changes.ts`, and repeat, waiting and the bin in
   `planning.ts`, with its jobs in `planning-jobs.ts` and "Just me" in
-  `personal.ts`. Copy project is in `projects.ts` and the Activity tab in
+  `personal.ts`. Remind me is in `task-reminders.ts`, sent by
+  `sendTaskReminders` in `reminder-jobs.ts`, and step lists in
+  `step-lists.ts`, with their endpoints in `src/lib/api/project/planning.ts`. Copy project is in `projects.ts` and the Activity tab in
   `project-activity.ts`.
 - **Endpoints:** `src/lib/api/project/`.
 - **Screens:** `src/components/project/`. A task's window is `task-dialog.tsx`

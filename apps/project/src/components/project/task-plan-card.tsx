@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { HourglassIcon, XIcon } from "lucide-react"
+import { BellRingIcon, CheckIcon, HourglassIcon, PlusIcon, XIcon } from "lucide-react"
 
 import type { Change } from "@/components/project/task-body"
 import { Button } from "@/components/ui/button"
@@ -18,25 +18,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { addTaskWait, removeTaskWait, setReminder } from "@/lib/api/project/planning"
 import {
   findTasksToWaitFor,
   saveTask,
   setTaskRepeat,
-  setTaskWaitingOn,
+  type RepeatInput,
   type RepeatRule,
   type TaskChoice,
   type TaskDetail,
 } from "@/lib/api/project/tasks"
-import { dateFromKey, keyFromDate } from "@/lib/project/dates"
+import { dateFromKey, keyFromDate, todayKey } from "@/lib/project/dates"
+import { addDays, dayLabel, shortDayLabel, weekdayOf } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { WEEK_DAYS } from "@/lib/project/rules"
+import { LIMITS, WEEK_DAYS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 const NEVER = "never"
 
 /**
  * When a task happens: whether it repeats, whether it's snoozed until a
- * later day, and what it waits on. Each saves the moment it changes.
+ * later day, what it waits on, and my own reminder. Each saves the moment it
+ * changes.
  */
 export function TaskPlanCard({
   detail,
@@ -86,6 +90,22 @@ export function TaskPlanCard({
           </p>
         </div>
         <WaitingOnField detail={detail} disabled={readOnly || busy} change={change} />
+        {detail.myReminder ? (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <BellRingIcon className="size-4 text-muted-foreground" aria-hidden />
+            <span>Reminding you on {shortDayLabel(detail.myReminder)}, at your check-in time.</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => void change(() => setReminder(task.id, null), "Reminder taken off.")}
+            >
+              <XIcon className="size-4" />
+              Take it off
+            </Button>
+          </div>
+        ) : null}
         {detail.holdingUp.tasks.length || detail.holdingUp.elsewhere ? (
           <p className="text-sm text-muted-foreground">
             Holding up:{" "}
@@ -125,7 +145,7 @@ function RepeatField({
   disabled: boolean
   change: Change
 }) {
-  function save(next: RepeatRule | null) {
+  function save(next: RepeatInput | null) {
     return change(() => setTaskRepeat({ taskId, repeat: next }))
   }
 
@@ -135,17 +155,7 @@ function RepeatField({
       <Select
         value={repeat?.every ?? NEVER}
         disabled={disabled}
-        onValueChange={(value) =>
-          void save(
-            value === NEVER
-              ? null
-              : value === "week"
-                ? { every: "week", weekDays: [1] }
-                : value === "month"
-                  ? { every: "month", monthDay: 1 }
-                  : { every: "workday" }
-          )
-        }
+        onValueChange={(value) => void save(value === NEVER ? null : startingRule(value as RepeatRule["every"]))}
       >
         <SelectTrigger id="task-repeat" className="w-full sm:w-fit">
           <SelectValue />
@@ -154,10 +164,13 @@ function RepeatField({
           <SelectItem value={NEVER}>Doesn't repeat</SelectItem>
           <SelectItem value="workday">Every work day</SelectItem>
           <SelectItem value="week">Every week</SelectItem>
+          <SelectItem value="two_weeks">Every 2 weeks</SelectItem>
           <SelectItem value="month">Every month</SelectItem>
+          <SelectItem value="quarter">Every 3 months</SelectItem>
+          <SelectItem value="last_workday">Last work day of the month</SelectItem>
         </SelectContent>
       </Select>
-      {repeat?.every === "week" ? (
+      {repeat?.every === "week" || repeat?.every === "two_weeks" ? (
         <fieldset className="flex flex-wrap gap-x-4 gap-y-2">
           <legend className="sr-only">On these days</legend>
           {WEEK_DAYS.map(({ day, short }) => {
@@ -177,7 +190,7 @@ function RepeatField({
                       showErrorToast("Pick at least one day of the week.")
                       return
                     }
-                    void save({ every: "week", weekDays: days })
+                    void save({ every: repeat.every, weekDays: days })
                   }}
                 />
                 <Label htmlFor={id} className="font-normal">
@@ -212,6 +225,31 @@ function RepeatField({
           <span className="text-muted-foreground">of each month, or its last day</span>
         </div>
       ) : null}
+      {repeat?.every === "two_weeks" ? (
+        <p className="text-xs text-muted-foreground">
+          The week of {dayLabel(mondayOf(repeat.from))} counts as the first, then every other week.
+        </p>
+      ) : null}
+      {repeat?.every === "quarter" ? (
+        <div className="grid gap-2">
+          <Label htmlFor="repeat-quarter-from" className="font-normal">
+            First date
+          </Label>
+          <DatePicker
+            id="repeat-quarter-from"
+            value={dateFromKey(repeat.from)}
+            disabled={disabled}
+            onChange={(date) => {
+              const from = keyFromDate(date)
+              if (from) void save({ every: "quarter", from })
+            }}
+          />
+          <p className="text-xs text-muted-foreground">{quarterWords(repeat.from)}</p>
+        </div>
+      ) : null}
+      {repeat?.every === "last_workday" ? (
+        <p className="text-xs text-muted-foreground">The team's last work day of each month.</p>
+      ) : null}
       {repeat ? (
         <p className="text-xs text-muted-foreground">
           A fresh copy appears at midnight on the day, once this one is Done. Until then, no new
@@ -220,6 +258,42 @@ function RepeatField({
       ) : null}
     </div>
   )
+}
+
+/** What a repeat starts as when it is picked, before its days or date are changed. */
+function startingRule(every: RepeatRule["every"]): RepeatInput {
+  switch (every) {
+    case "week":
+    case "two_weeks":
+      return { every, weekDays: [1] }
+    case "month":
+      return { every, monthDay: 1 }
+    case "quarter":
+      return { every, from: todayKey() }
+    default:
+      return { every }
+  }
+}
+
+function mondayOf(day: string) {
+  return addDays(day, -((weekdayOf(day) + 6) % 7))
+}
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+/** "Comes back on the 15th of Jan, Apr, Jul and Oct." */
+function quarterWords(from: string) {
+  const [, month, day] = from.split("-").map(Number)
+  const months = [0, 3, 6, 9].map((step) => (month - 1 + step) % 12).sort((a, b) => a - b)
+  const names = months.map((index) => MONTH_NAMES[index])
+  const last = day > 28 ? ", or the month's last day" : ""
+  return `Comes back on the ${ordinal(day)} of ${names.slice(0, 3).join(", ")} and ${names[3]}${last}.`
+}
+
+function ordinal(day: number) {
+  const tens = day % 100
+  if (tens >= 11 && tens <= 13) return `${day}th`
+  return `${day}${["th", "st", "nd", "rd"][day % 10] ?? "th"}`
 }
 
 function WaitingOnField({
@@ -258,33 +332,79 @@ function WaitingOnField({
     }
   }, [picking, query, searchKey, task.id])
 
-  async function pick(choice: TaskChoice | null) {
-    const ok = await change(() => setTaskWaitingOn(task.id, choice?.id ?? null))
+  async function pick(choice: TaskChoice) {
+    const ok = await change(() => addTaskWait(task.id, choice.id))
     if (ok) {
       setPicking(false)
       setQuery("")
     }
   }
 
+  const waits = detail.waitingOn
+  const full = waits.length >= LIMITS.waitsPerTask
   return (
     <div className="grid gap-2">
       {/* Points at the field only when there is one to type in or press. */}
-      <Label htmlFor={task.waitingOn && !picking ? undefined : "task-waiting-on"}>Waiting on</Label>
-      {task.waitingOn && !picking ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <HourglassIcon className="size-4 text-muted-foreground" aria-hidden />
-          <span className="min-w-0 break-words">
-            {detail.waitingOnTitle ?? "1 task in another project"}
-            {task.waitingOn.ready ? " · Done, so this one is ready to start" : ""}
-          </span>
-          {disabled ? null : (
-            <Button type="button" variant="ghost" size="sm" onClick={() => void pick(null)}>
-              <XIcon className="size-4" />
-              Not waiting
-            </Button>
-          )}
+      <Label htmlFor={picking || (!full && !disabled) ? "task-waiting-on" : undefined}>Waiting on</Label>
+      {waits.length ? (
+        <ul className="grid gap-1">
+          {waits.map((wait) => (
+            <li key={wait.id} className="flex items-center gap-2 text-sm">
+              {wait.done ? (
+                <CheckIcon className="size-4 shrink-0 text-muted-foreground" aria-label="Done" />
+              ) : (
+                <HourglassIcon className="size-4 shrink-0 text-muted-foreground" aria-label="Not done yet" />
+              )}
+              {wait.title && wait.projectId ? (
+                <Link
+                  to="/projects/$projectId"
+                  params={{ projectId: wait.projectId }}
+                  search={{ task: wait.id }}
+                  className={cn(
+                    "min-w-0 flex-1 break-words underline-offset-4 hover:underline",
+                    wait.done && "text-muted-foreground line-through"
+                  )}
+                >
+                  {wait.title}
+                </Link>
+              ) : (
+                <span className="min-w-0 flex-1 text-muted-foreground">1 task in another project</span>
+              )}
+              {disabled ? null : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Stop waiting on ${wait.title ?? "that task"}`}
+                  onClick={() => void change(() => removeTaskWait(task.id, wait.id))}
+                >
+                  <XIcon className="size-4" />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {waits.length && task.waitingOn?.ready ? (
+        <p className="text-sm text-muted-foreground">
+          {waits.length === 1 ? "It's Done" : "They're all Done"}, so this one is ready to start.
+        </p>
+      ) : null}
+      {picking ? null : full ? (
+        <p className="text-xs text-muted-foreground">
+          That's the most, {LIMITS.waitsPerTask}. Take one off to add another.
+        </p>
+      ) : disabled ? (
+        waits.length ? null : <p className="text-sm text-muted-foreground">Not waiting on anything.</p>
+      ) : (
+        <div>
+          <Button id="task-waiting-on" type="button" variant="outline" onClick={() => setPicking(true)}>
+            <PlusIcon className="size-4" />
+            {waits.length ? "Add another task" : "Pick a task it waits on"}
+          </Button>
         </div>
-      ) : picking ? (
+      )}
+      {picking ? (
         <div className="grid gap-2">
           <Input
             id="task-waiting-on"
@@ -324,20 +444,7 @@ function WaitingOnField({
             </Button>
           </div>
         </div>
-      ) : (
-        <div>
-          <Button
-            id="task-waiting-on"
-            type="button"
-            variant="outline"
-            disabled={disabled}
-            onClick={() => setPicking(true)}
-          >
-            <HourglassIcon className="size-4" />
-            Pick a task it waits on
-          </Button>
-        </div>
-      )}
+      ) : null}
     </div>
   )
 }

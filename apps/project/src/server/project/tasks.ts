@@ -1,10 +1,11 @@
 import { and, asc, count, countDistinct, eq, inArray, isNull, max, type SQL } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
+import { dueMoveReason } from "@/lib/project/due-moves"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import type { TaskNoticeKind } from "@/lib/project/notices"
 import { taskNotesText } from "@/lib/project/notes"
-import { LIMITS, runsTheTeam, type TaskStatus } from "@/lib/project/rules"
+import { LIMITS, runsTheTeam, type TaskPriority, type TaskStatus } from "@/lib/project/rules"
 import type { FieldValues } from "@/lib/project/task-fields"
 import type { TaskTypeChip } from "@/lib/project/task-types"
 import { now, uuid } from "@/server/auth/security"
@@ -37,7 +38,16 @@ import {
 } from "@/server/project/task-links"
 import { listTaskFiles, type TaskFile } from "@/server/project/task-files"
 import { resolveProjectId } from "@/server/project/personal"
-import { repeatRuleOf, tellWaitingTasks, waitingOnThis, type RepeatRule } from "@/server/project/planning"
+import {
+  repeatRuleOf,
+  tellWaitingTasks,
+  waitingOnThis,
+  waitsFor,
+  type RepeatRule,
+  type WaitRow,
+} from "@/server/project/planning"
+import { myReminderOn } from "@/server/project/task-reminders"
+import { listStepLists, type StepList } from "@/server/project/step-lists"
 import { canAskForReview, canReview, reviewerFor } from "@/server/project/task-review"
 import { hasThanked } from "@/server/project/task-thanks"
 import { listMoveTargets, type MoveTarget } from "@/server/project/task-changes"
@@ -62,6 +72,7 @@ import {
   projectProjects,
   projectSections,
   projectTaskComments,
+  projectTaskEvents,
   projectTaskFollowers,
   projectTaskSteps,
   projectTasks,
@@ -125,10 +136,14 @@ export type TaskCard = {
   /** Out of the check-in and My tasks until this day. */
   snoozedUntil: string | null
   /**
-   * The task that has to happen first. Its title shows only when it is in the
-   * same project; one elsewhere reads "1 task in another project".
+   * The tasks that have to happen first, up to 10, and whether all are Done.
+   * A title shows only when that task is in the same project; one elsewhere
+   * reads "1 task in another project". Null when it waits on nothing.
    */
-  waitingOn: { taskId: string; title: string | null; ready: boolean } | null
+  waitingOn: { tasks: { taskId: string; title: string | null; done: boolean }[]; ready: boolean } | null
+  priority: TaskPriority
+  /** How many times its due date moved from one day to another. */
+  dueMoves: number
   repeat: RepeatRule | null
   /** The kind of task, drawn as its icon and name. Null is a plain task. */
   type: TaskTypeChip | null
@@ -137,7 +152,6 @@ export type TaskCard = {
 }
 
 const assignee = alias(customShellUsers, "assignee")
-const blocker = alias(projectTasks, "blocker")
 const assigner = alias(customShellUsers, "assigner")
 const returner = alias(customShellUsers, "returner")
 const reviewer = alias(customShellUsers, "reviewer")
@@ -156,10 +170,6 @@ export async function listTaskCards(
       returnerName: returner.name,
       reviewerName: reviewer.name,
       sectionName: projectSections.name,
-      blockerTitle: blocker.title,
-      blockerProjectId: blocker.projectId,
-      blockerStatus: blocker.status,
-      blockerDeletedAt: blocker.deletedAt,
     })
     .from(projectTasks)
     .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
@@ -168,7 +178,6 @@ export async function listTaskCards(
     .leftJoin(returner, eq(returner.id, projectTasks.handedBackByUserId))
     .leftJoin(reviewer, eq(reviewer.id, projectTasks.reviewerUserId))
     .leftJoin(projectSections, eq(projectSections.id, projectTasks.sectionId))
-    .leftJoin(blocker, eq(blocker.id, projectTasks.waitingOnTaskId))
     // A task in the bin is gone from every list until it is brought back.
     .where(and(isNull(projectTasks.deletedAt), where))
     // Each project's own order, which the team sets by dragging.
@@ -194,6 +203,8 @@ export async function listTaskCards(
         .groupBy(projectTaskComments.taskId)
     : []
   const pickedRows = ids.length ? await pickedDaysFor(ids, database) : []
+  const moveRows = ids.length ? await dueMovesFor(ids, database) : []
+  const waits = await waitsFor(ids, database)
   const labels = await labelsForTasks(ids, database)
   const tasks = rows.map((row) => row.task)
   const types = await typeChipsFor(
@@ -254,20 +265,35 @@ export async function listTaskCards(
       completedAt: task.completedAt?.toISOString() ?? null,
       notesText: taskNotesText(task.notes),
       snoozedUntil: task.snoozedUntil,
-      // A task waiting on one in the bin isn't held up by anything.
-      waitingOn:
-        task.waitingOnTaskId && row.blockerStatus && !row.blockerDeletedAt
-          ? {
-              taskId: task.waitingOnTaskId,
-              title: row.blockerProjectId === task.projectId ? row.blockerTitle : null,
-              ready: row.blockerStatus === "done",
-            }
-          : null,
+      waitingOn: waitingOnOf(task.projectId, waits.get(task.id) ?? []),
+      priority: task.priority,
+      dueMoves: moveRows.find((m) => m.taskId === task.id)?.moves ?? 0,
       repeat: repeatRuleOf(task),
       type: task.typeId ? (types.get(task.typeId) ?? null) : null,
       fieldValues: fieldValues.get(task.id) ?? {},
     }
   })
+}
+
+function waitingOnOf(projectId: string, waits: WaitRow[]) {
+  if (waits.length === 0) return null
+  return {
+    tasks: waits.map((wait) => ({
+      taskId: wait.id,
+      title: wait.projectId === projectId ? wait.title : null,
+      done: wait.status === "done",
+    })),
+    ready: waits.every((wait) => wait.status === "done"),
+  }
+}
+
+/** How many times each task's due date moved, read from its history. */
+function dueMovesFor(taskIds: string[], database: ProjectDb) {
+  return database
+    .select({ taskId: projectTaskEvents.taskId, moves: count() })
+    .from(projectTaskEvents)
+    .where(and(inArray(projectTaskEvents.taskId, taskIds), eq(projectTaskEvents.kind, "due_moved")))
+    .groupBy(projectTaskEvents.taskId)
 }
 
 /** Distinct days each task was picked, by anyone, read from the saved check-ins. */
@@ -314,8 +340,12 @@ export type TaskDetail = {
   labels: Label[]
   /** Other open projects this person can move the task to. */
   moveTargets: MoveTarget[]
-  /** The task this one waits on, named when this person can see it. */
-  waitingOnTitle: string | null
+  /** The tasks this one waits on, each named when this person can see its project. */
+  waitingOn: { id: string; title: string | null; projectId: string | null; done: boolean }[]
+  /** The day I asked to be reminded about it, if I did. Each person's own. */
+  myReminder: string | null
+  /** The team's saved step lists, for "Add a step list". */
+  stepLists: StepList[]
   /** Tasks waiting on this one: those this person can see, and how many elsewhere. */
   holdingUp: { tasks: { id: string; title: string; projectId: string }[]; elsewhere: number }
   /** I handed it out or made it, so I can turn "Needs review" on or off. */
@@ -415,26 +445,20 @@ export async function loadTaskDetail(
     sections: await listSections(project.id, database),
     labels: await listTeamLabels(membership.teamId, database),
     moveTargets: await listMoveTargets(membership, task, database),
-    waitingOnTitle: await waitingOnTitleFor(task.waitingOnTaskId, visible, database),
+    waitingOn: ((await waitsFor([taskId], database)).get(taskId) ?? []).map((wait) => ({
+      id: wait.id,
+      title: visible.has(wait.projectId) ? wait.title : null,
+      projectId: visible.has(wait.projectId) ? wait.projectId : null,
+      done: wait.status === "done",
+    })),
+    myReminder: await myReminderOn(userId, taskId, database),
+    stepLists: await listStepLists(membership.teamId, database),
     holdingUp: await waitingOnThis(taskId, visible, database),
     canAskForReview: canAskForReview(task, userId),
     canReview: canReview(task, membership.role, userId),
     thanked: await hasThanked(userId, taskId, database),
     fields: await loadTaskFields(viewer, task, project, archived, database),
   }
-}
-
-async function waitingOnTitleFor(
-  blockerId: string | null,
-  visible: ReadonlySet<string>,
-  database: ProjectDb
-) {
-  if (!blockerId) return null
-  const [row] = await database
-    .select({ title: projectTasks.title, projectId: projectTasks.projectId })
-    .from(projectTasks)
-    .where(eq(projectTasks.id, blockerId))
-  return row && visible.has(row.projectId) ? row.title : null
 }
 
 /** My tasks on My dashboard: every task assigned to me, across every project I can see. */
@@ -560,6 +584,7 @@ export async function updateTask(
     dueDate?: string | null
     sectionId?: string | null
     snoozedUntil?: string | null
+    priority?: TaskPriority
   },
   database: ProjectDb = db
 ) {
@@ -571,6 +596,16 @@ export async function updateTask(
       .update(projectTasks)
       .set({ ...fields, updatedAt: now() })
       .where(eq(projectTasks.id, taskId))
+    // A move is from one day to another. Setting a first date or clearing one
+    // isn't, so neither counts toward "Date moved 3 times".
+    if (fields.dueDate && task.dueDate && fields.dueDate !== task.dueDate) {
+      await recordTaskEvent(tx, {
+        taskId,
+        kind: "due_moved",
+        actorUserId: actor.id,
+        reason: dueMoveReason(task.dueDate, fields.dueDate),
+      })
+    }
     if (fields.notes !== undefined && fields.notes !== task.notes) {
       await keepNotesVersion(tx, task, fields.notes, actor, notesSession ?? uuid())
     }

@@ -92,7 +92,8 @@ export async function createTasksFromLines(
 
 /**
  * "<title> (copy)" in the same project and section, with the notes, labels,
- * steps (unticked), type and field values, To do and nobody assigned.
+ * steps (unticked), type and field values and priority, To do and nobody
+ * assigned.
  * Comments, history and files stay with the original, so a File field starts
  * empty.
  */
@@ -115,6 +116,7 @@ export async function duplicateTask(actor: Actor, taskId: string, database = db)
       createdAt: at,
       updatedAt: at,
       typeId: task.typeId,
+      priority: task.priority,
     })
     await copyFieldValues(tx, [{ from: task.id, to: id }], actor.id)
     const steps = await tx

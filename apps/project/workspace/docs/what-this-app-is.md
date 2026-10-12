@@ -193,6 +193,19 @@ Tyler answered this on 12 Oct 2026, before More features task 04 was built.
   month's name, the arrows, Today and the Month and Week switch moved to a
   row under the tabs.
 
+## Choices for planning tasks
+
+Tyler answered these on 12 Oct 2026, before More features task 05 was built.
+Each was the recommended option.
+
+- **Saved step lists** belong to the team. Anyone makes or uses one; the
+  owner and admins rename and delete them in Team settings, the same as
+  labels.
+- **Every 3 months** counts from a first date the person picks, so the task
+  can say which months it comes back in.
+- **Remind me** keeps one reminder per person per task. Picking a new day
+  replaces the old one.
+
 ## The first version
 
 - Teams, email invites, projects and tasks.

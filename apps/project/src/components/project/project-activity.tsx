@@ -12,6 +12,8 @@ import {
   type ProjectActivity as ProjectActivityPage,
 } from "@/lib/api/project/projects"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
+import { dayLabel } from "@/lib/project/days"
+import { readDueMove } from "@/lib/project/due-moves"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { isTaskStatus, TASK_STATUS_LABEL } from "@/lib/project/rules"
 
@@ -213,6 +215,15 @@ function Line({
       )
     case "review_confirmed":
       return <>{who} confirmed the review of {task}</>
+    case "due_moved": {
+      const move = readDueMove(entry.reason)
+      return (
+        <>
+          {who} moved the due date of {task}
+          {move ? ` from ${dayLabel(move.from)} to ${dayLabel(move.to)}` : ""}
+        </>
+      )
+    }
     case "sent_back":
       return (
         <>

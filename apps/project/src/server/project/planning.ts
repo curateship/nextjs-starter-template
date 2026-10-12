@@ -1,8 +1,9 @@
-import { and, desc, eq, ilike, isNotNull, isNull, ne } from "drizzle-orm"
+import { and, count, desc, eq, ilike, inArray, isNotNull, isNull, ne, notExists } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
-import { runsTheTeam, type RepeatEvery } from "@/lib/project/rules"
+import { localNow } from "@/lib/project/days"
+import { LIMITS, runsTheTeam, type RepeatEvery, type TaskStatus } from "@/lib/project/rules"
 import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
@@ -14,7 +15,12 @@ import {
   type ProjectDb,
 } from "@/server/project/access"
 import { taskRef, writeTaskNotices, type TaskNotice } from "@/server/project/notices"
-import { projectProjects, projectTasks } from "@/server/project/schema"
+import {
+  projectProjects,
+  projectTaskWaits,
+  projectTasks,
+  projectTeams,
+} from "@/server/project/schema"
 import {
   removeTaskFilesFromStorage,
   type FileStorage,
@@ -33,94 +39,203 @@ export type RepeatRule =
   | { every: "workday" }
   | { every: "week"; weekDays: number[] }
   | { every: "month"; monthDay: number }
+  /** `from` is a day in the first week it counts; that week and every other one after it. */
+  | { every: "two_weeks"; weekDays: number[]; from: string }
+  /** `from` is the first date; the same day every 3 months after it. */
+  | { every: "quarter"; from: string }
+  | { every: "last_workday" }
+
+/** What the Plan card sends: an every-2-weeks rule counts from the week it is set in. */
+export type RepeatInput =
+  | Exclude<RepeatRule, { every: "two_weeks" }>
+  | { every: "two_weeks"; weekDays: number[] }
 
 export function repeatRuleOf(task: {
   repeatEvery: RepeatEvery | null
   repeatWeekDays: number[] | null
   repeatMonthDay: number | null
+  repeatFrom: string | null
 }): RepeatRule | null {
-  if (task.repeatEvery === "workday") return { every: "workday" }
-  if (task.repeatEvery === "week" && task.repeatWeekDays?.length) {
-    return { every: "week", weekDays: [...task.repeatWeekDays] }
+  switch (task.repeatEvery) {
+    case "workday":
+    case "last_workday":
+      return { every: task.repeatEvery }
+    case "week":
+      return task.repeatWeekDays?.length ? { every: "week", weekDays: [...task.repeatWeekDays] } : null
+    case "month":
+      return task.repeatMonthDay ? { every: "month", monthDay: task.repeatMonthDay } : null
+    case "two_weeks":
+      return task.repeatWeekDays?.length && task.repeatFrom
+        ? { every: "two_weeks", weekDays: [...task.repeatWeekDays], from: task.repeatFrom }
+        : null
+    case "quarter":
+      return task.repeatFrom ? { every: "quarter", from: task.repeatFrom } : null
+    default:
+      return null
   }
-  if (task.repeatEvery === "month" && task.repeatMonthDay) {
-    return { every: "month", monthDay: task.repeatMonthDay }
-  }
-  return null
 }
 
 /**
  * Sets or clears how a task repeats. The rule lives on the newest copy, so
  * setting it here starts a series with this task as its first.
+ *
+ * Every 2 weeks counts from the week it is first set in, on the team's own
+ * calendar, and keeps that week when only its days change, so ticking a day
+ * never moves which weeks are on.
  */
 export async function setRepeat(
   actor: Actor,
-  input: { taskId: string; repeat: RepeatRule | null },
+  input: { taskId: string; repeat: RepeatInput | null },
   database = db
 ) {
-  const { task } = await requireTaskAccess(actor.id, input.taskId, database)
+  const { project, task } = await requireTaskAccess(actor.id, input.taskId, database)
   const rule = input.repeat
+  let from: string | null = null
+  if (rule?.every === "quarter") from = rule.from
+  if (rule?.every === "two_weeks") {
+    if (task.repeatEvery === "two_weeks" && task.repeatFrom) from = task.repeatFrom
+    else {
+      const [team] = await database
+        .select({ zone: projectTeams.timeZone })
+        .from(projectTeams)
+        .where(eq(projectTeams.id, project.teamId))
+      from = localNow(now(), team.zone).day
+    }
+  }
   await database
     .update(projectTasks)
     .set({
       repeatEvery: rule?.every ?? null,
-      repeatWeekDays: rule?.every === "week" ? rule.weekDays : null,
+      repeatWeekDays: rule?.every === "week" || rule?.every === "two_weeks" ? rule.weekDays : null,
       repeatMonthDay: rule?.every === "month" ? rule.monthDay : null,
+      repeatFrom: from,
       repeatSeriesId: rule ? (task.repeatSeriesId ?? task.id) : task.repeatSeriesId,
       updatedAt: now(),
     })
     .where(eq(projectTasks.id, task.id))
 }
 
+/** One task another waits on, as the waiting task's lists read it. */
+export type WaitRow = { id: string; title: string; projectId: string; status: TaskStatus }
+
 /**
- * "Waiting on" another task in the team that this person can see. A task
- * can't wait on itself, nor on anything that is already waiting on it, however
- * far down the line.
+ * What each of these tasks waits on, leaving out tasks in the bin: a task
+ * waiting on one in the bin isn't held up by it.
  */
-export async function setWaitingOn(
-  actor: Actor,
-  input: { taskId: string; waitingOnTaskId: string | null },
-  database = db
-) {
-  const { task } = await requireTaskAccess(actor.id, input.taskId, database)
-  const blockerId = input.waitingOnTaskId
-  if (blockerId) {
-    if (blockerId === task.id) throw new Error(PROJECT_ERRORS.cantWaitOnItself)
-    await requireTaskAccess(actor.id, blockerId, database, { allowArchived: true })
-    let next: string | null = blockerId
-    for (let hops = 0; next && hops < 100; hops++) {
-      const [row] = await database
-        .select({ waitingOn: projectTasks.waitingOnTaskId })
-        .from(projectTasks)
-        .where(eq(projectTasks.id, next))
-      next = row?.waitingOn ?? null
-      if (next === task.id) throw new Error(PROJECT_ERRORS.waitingLoop)
-    }
-  }
-  await database
-    .update(projectTasks)
-    .set({ waitingOnTaskId: blockerId, updatedAt: now() })
-    .where(eq(projectTasks.id, task.id))
+export async function waitsFor(taskIds: string[], database: ProjectDb) {
+  const waits = new Map<string, WaitRow[]>()
+  if (taskIds.length === 0) return waits
+  const rows = await database
+    .select({
+      taskId: projectTaskWaits.taskId,
+      id: projectTasks.id,
+      title: projectTasks.title,
+      projectId: projectTasks.projectId,
+      status: projectTasks.status,
+    })
+    .from(projectTaskWaits)
+    .innerJoin(projectTasks, eq(projectTasks.id, projectTaskWaits.waitingOnTaskId))
+    .where(and(inArray(projectTaskWaits.taskId, taskIds), isNull(projectTasks.deletedAt)))
+    .orderBy(projectTaskWaits.createdAt)
+  for (const { taskId, ...wait } of rows) waits.set(taskId, [...(waits.get(taskId) ?? []), wait])
+  return waits
 }
 
 /**
- * When a task becomes Done, each task waiting on it is ready to start, and
- * its person hears so once. Called from the status change, in its transaction.
+ * Adds a task this one waits on: any task in the team this person can see,
+ * up to 10. A task can't wait on itself, nor on anything already waiting on
+ * it, however far down the line.
+ */
+export async function addWait(
+  actor: Actor,
+  input: { taskId: string; waitingOnTaskId: string },
+  database = db
+) {
+  await database.transaction(async (tx) => {
+    const { task } = await requireTaskAccess(actor.id, input.taskId, tx)
+    const blockerId = input.waitingOnTaskId
+    if (blockerId === task.id) throw new Error(PROJECT_ERRORS.cantWaitOnItself)
+    await requireTaskAccess(actor.id, blockerId, tx, { allowArchived: true })
+    // Counted as the Plan card lists them: one in the bin isn't shown, so it
+    // doesn't take a place either.
+    const [{ total }] = await tx
+      .select({ total: count() })
+      .from(projectTaskWaits)
+      .innerJoin(projectTasks, eq(projectTasks.id, projectTaskWaits.waitingOnTaskId))
+      .where(and(eq(projectTaskWaits.taskId, task.id), isNull(projectTasks.deletedAt)))
+    if (total >= LIMITS.waitsPerTask) throw new Error(PROJECT_ERRORS.tooManyWaits)
+    if (await waitsOnSomehow(blockerId, task.id, tx)) throw new Error(PROJECT_ERRORS.waitingLoop)
+    await tx
+      .insert(projectTaskWaits)
+      .values({ taskId: task.id, waitingOnTaskId: blockerId, createdAt: now() })
+      .onConflictDoNothing()
+    await tx.update(projectTasks).set({ updatedAt: now() }).where(eq(projectTasks.id, task.id))
+  })
+}
+
+/** Takes one task off what this one waits on. */
+export async function removeWait(
+  actor: Actor,
+  input: { taskId: string; waitingOnTaskId: string },
+  database = db
+) {
+  const { task } = await requireTaskAccess(actor.id, input.taskId, database)
+  await database
+    .delete(projectTaskWaits)
+    .where(
+      and(eq(projectTaskWaits.taskId, task.id), eq(projectTaskWaits.waitingOnTaskId, input.waitingOnTaskId))
+    )
+  await database.update(projectTasks).set({ updatedAt: now() }).where(eq(projectTasks.id, task.id))
+}
+
+/** True when `from` already waits on `target`, directly or down a line of waits. */
+async function waitsOnSomehow(from: string, target: string, database: ProjectDb) {
+  const seen = new Set([from])
+  let edge = [from]
+  // A team's tasks are finite, but a cap keeps one bad chain from running long.
+  while (edge.length && seen.size < 5000) {
+    const next = await database
+      .select({ id: projectTaskWaits.waitingOnTaskId })
+      .from(projectTaskWaits)
+      .where(inArray(projectTaskWaits.taskId, edge))
+    edge = []
+    for (const { id } of next) {
+      if (id === target) return true
+      if (!seen.has(id)) {
+        seen.add(id)
+        edge.push(id)
+      }
+    }
+  }
+  return false
+}
+
+/**
+ * When a task becomes Done, each task waiting on it whose every other wait is
+ * Done too is ready to start, and its person hears so once, as the last one
+ * is finished. Called from the status change, in its transaction, after the
+ * new status is written.
  */
 export async function tellWaitingTasks(actor: Actor, doneTaskId: string, tx: ProjectDb) {
   const waiting = await tx
     .select({ task: projectTasks, project: projectProjects })
-    .from(projectTasks)
+    .from(projectTaskWaits)
+    .innerJoin(projectTasks, eq(projectTasks.id, projectTaskWaits.taskId))
     .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
     .where(
       and(
-        eq(projectTasks.waitingOnTaskId, doneTaskId),
+        eq(projectTaskWaits.waitingOnTaskId, doneTaskId),
         isNull(projectTasks.deletedAt),
         ne(projectTasks.status, "done")
       )
     )
+  const waits = await waitsFor(
+    waiting.map(({ task }) => task.id),
+    tx
+  )
   const notices: TaskNotice[] = []
   for (const { task, project } of waiting) {
+    if ((waits.get(task.id) ?? []).some((wait) => wait.status !== "done")) continue
     const [recipient] = await whoCanStillSee(project, [task.assigneeUserId], tx)
     if (recipient) {
       notices.push({ kind: "task_ready", recipientUserId: recipient, actor, task: taskRef(task) })
@@ -230,8 +345,9 @@ export async function waitingOnThis(
 ) {
   const rows = await database
     .select({ id: projectTasks.id, title: projectTasks.title, projectId: projectTasks.projectId })
-    .from(projectTasks)
-    .where(and(eq(projectTasks.waitingOnTaskId, taskId), isNull(projectTasks.deletedAt)))
+    .from(projectTaskWaits)
+    .innerJoin(projectTasks, eq(projectTasks.id, projectTaskWaits.taskId))
+    .where(and(eq(projectTaskWaits.waitingOnTaskId, taskId), isNull(projectTasks.deletedAt)))
   const seen = rows.filter((row) => visibleProjects.has(row.projectId))
   return {
     tasks: seen.map(({ id, title, projectId }) => ({ id, title, projectId })),
@@ -241,7 +357,10 @@ export async function waitingOnThis(
 
 export type TaskChoice = { id: string; title: string; projectName: string }
 
-/** Tasks this person can see whose title holds the words, for the Waiting on picker. */
+/**
+ * Tasks this person can see whose title holds the words, for the Waiting on
+ * picker, leaving out the ones it already waits on.
+ */
 export async function findTasksToWaitOn(
   userId: string,
   input: { taskId: string; q: string },
@@ -258,6 +377,17 @@ export async function findTasksToWaitOn(
         visibleProjectsWhere(membership),
         isNull(projectTasks.deletedAt),
         ne(projectTasks.id, input.taskId),
+        notExists(
+          database
+            .select({ one: projectTaskWaits.taskId })
+            .from(projectTaskWaits)
+            .where(
+              and(
+                eq(projectTaskWaits.taskId, input.taskId),
+                eq(projectTaskWaits.waitingOnTaskId, projectTasks.id)
+              )
+            )
+        ),
         words ? ilike(projectTasks.title, `%${escapeLike(words)}%`) : undefined
       )
     )

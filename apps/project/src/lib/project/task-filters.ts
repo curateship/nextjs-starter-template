@@ -1,9 +1,15 @@
 import { addDays } from "@/lib/project/days"
-import { DONE_RECENT_DAYS, isTaskStatus, type TaskStatus } from "@/lib/project/rules"
+import {
+  DONE_RECENT_DAYS,
+  isTaskPriority,
+  isTaskStatus,
+  type TaskPriority,
+  type TaskStatus,
+} from "@/lib/project/rules"
 
 /**
  * Narrowing a list of tasks: a search over title and notes, and Status,
- * Person, Label and Type filters. They live in the page's address, so a
+ * Priority, Person, Label and Type filters. They live in the page's address, so a
  * pasted link keeps them. The search doesn't look inside a type's fields.
  */
 
@@ -13,6 +19,7 @@ export const NOBODY_FILTER = "nobody"
 export type TaskFilters = {
   q?: string
   status?: TaskStatus
+  priority?: TaskPriority
   /** A person's id, or `NOBODY_FILTER`. */
   person?: string
   label?: string
@@ -24,6 +31,7 @@ type Filterable = {
   title: string
   notesText: string
   status: TaskStatus
+  priority: TaskPriority
   assignee: { id: string } | null
   labels: { id: string }[]
   type: { id: string } | null
@@ -36,6 +44,7 @@ export function readTaskFilters(search: Record<string, unknown>): TaskFilters {
   const result: TaskFilters = {}
   if (typeof search.q === "string" && search.q.trim()) result.q = search.q.slice(0, 200)
   if (isTaskStatus(search.status)) result.status = search.status
+  if (isTaskPriority(search.priority)) result.priority = search.priority
   if (typeof search.person === "string" && ID.test(search.person)) result.person = search.person
   if (typeof search.label === "string" && ID.test(search.label)) result.label = search.label
   if (typeof search.type === "string" && ID.test(search.type)) result.type = search.type
@@ -43,13 +52,16 @@ export function readTaskFilters(search: Record<string, unknown>): TaskFilters {
 }
 
 export function hasTaskFilters(filters: TaskFilters) {
-  return Boolean(filters.q?.trim() || filters.status || filters.person || filters.label || filters.type)
+  return Boolean(
+    filters.q?.trim() || filters.status || filters.priority || filters.person || filters.label || filters.type
+  )
 }
 
 export function filterTasks<T extends Filterable>(tasks: T[], filters: TaskFilters): T[] {
   const words = (filters.q ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean)
   return tasks.filter((task) => {
     if (filters.status && task.status !== filters.status) return false
+    if (filters.priority && task.priority !== filters.priority) return false
     if (filters.person) {
       const id = task.assignee?.id ?? NOBODY_FILTER
       if (id !== filters.person) return false

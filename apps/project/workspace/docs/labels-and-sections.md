@@ -10,7 +10,9 @@ and do different jobs:
   "Design" and "Build", and the List tab groups rows under them.
 
 Use a label when the same kind of work turns up in several projects. Use a
-section to split one big project into stages. Use a
+section to split one big project into stages. Use priority, not a label, for
+what to pick first: High, Normal or Low is on every task and sorts and
+filters on its own (see [Projects and tasks](projects-and-tasks.md#tasks)). Use a
 [task type](task-types.md) when a kind of work needs its own fields, such as
 a footage link and a final cut file: a task has one type, a type asks for
 its own fields, and it can block Done until they're filled. A label can't
@@ -29,8 +31,8 @@ hold a link, a file or a number.
 - **Owners and admins rename, recolour and delete them**, in Team settings
   (the cog on the Team dashboard). Everyone else sees the list there.
 - **Deleting one takes it off every task** that had it, in every project.
-- **The Label filter** sits beside search, Status and Person on a project's
-  Board and List tabs and on My dashboard.
+- **The Label filter** sits beside search, Status, Priority and Person on a
+  project's Board and List tabs and on My dashboard.
 
 ## Sections
 

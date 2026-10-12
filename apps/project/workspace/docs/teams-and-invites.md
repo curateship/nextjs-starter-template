@@ -322,8 +322,11 @@ So a blocker gets help where it was written, not in a side chat.
 
 The cog in the left panel's header opens the Team settings window: name,
 daily check-in time, time zone and work days, the check-in boxes' names, team
-holidays, starter tasks and the join link (owner and admins only), and the
-team's labels (see [Labels and sections](labels-and-sections.md)).
+holidays, starter tasks and the join link (owner and admins only), the
+team's labels (see [Labels and sections](labels-and-sections.md)), and its
+saved step lists, which the owner and admins rename and delete there and
+everyone else sees as a list (see
+[Projects and tasks](projects-and-tasks.md#tasks)).
 
 - **Check-in boxes**: rename the three notes, such as "Wins" and "Focus".
   Empty keeps the usual word. See

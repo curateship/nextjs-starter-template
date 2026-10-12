@@ -10,9 +10,9 @@ import { acceptInvite, createInvite } from "@/server/project/invites"
 import {
   emptyProjectBin,
   loadProjectBin,
+  addWait,
   restoreTask,
   setRepeat,
-  setWaitingOn,
 } from "@/server/project/planning"
 import { emptyOldBins, makeRepeatCopies } from "@/server/project/planning-jobs"
 import {
@@ -168,15 +168,18 @@ describe("waiting on another task", () => {
   it("shows the link, tells the person once when the other is Done, and refuses loops", async () => {
     const logo = await task("Get the logo approved", anna)
     const launch = await task("Launch the site")
-    await setWaitingOn(actor(ben), { taskId: launch, waitingOnTaskId: logo }, database)
-    await expect(setWaitingOn(actor(ben), { taskId: launch, waitingOnTaskId: launch }, database)).rejects.toThrow(
+    await addWait(actor(ben), { taskId: launch, waitingOnTaskId: logo }, database)
+    await expect(addWait(actor(ben), { taskId: launch, waitingOnTaskId: launch }, database)).rejects.toThrow(
       PROJECT_ERRORS.cantWaitOnItself
     )
-    await expect(setWaitingOn(actor(anna), { taskId: logo, waitingOnTaskId: launch }, database)).rejects.toThrow(
+    await expect(addWait(actor(anna), { taskId: logo, waitingOnTaskId: launch }, database)).rejects.toThrow(
       PROJECT_ERRORS.waitingLoop
     )
     let card = (await loadProjectPage(ben.id, website, database)).tasks.find((t) => t.id === launch)!
-    expect(card.waitingOn).toEqual({ taskId: logo, title: "Get the logo approved", ready: false })
+    expect(card.waitingOn).toEqual({
+      tasks: [{ taskId: logo, title: "Get the logo approved", done: false }],
+      ready: false,
+    })
     expect((await loadTaskDetail(ben.id, logo, database)).holdingUp.tasks.map((t) => t.title)).toEqual([
       "Launch the site",
     ])
@@ -197,10 +200,10 @@ describe("waiting on another task", () => {
     const other = (await createProject(anna.id, { name: "Secret", color: "red", description: "" }, database)).id
     const hidden = await task("Hidden contract", anna, other)
     const launch = await task("Launch the site")
-    await setWaitingOn(actor(anna), { taskId: launch, waitingOnTaskId: hidden }, database)
+    await addWait(actor(anna), { taskId: launch, waitingOnTaskId: hidden }, database)
     const detail = await loadTaskDetail(ben.id, launch, database)
-    expect(detail.task.waitingOn?.title).toBeNull()
-    expect(detail.waitingOnTitle).toBeNull()
+    expect(detail.task.waitingOn?.tasks[0].title).toBeNull()
+    expect(detail.waitingOn).toEqual([{ id: hidden, title: null, projectId: null, done: false }])
   })
 })
 
