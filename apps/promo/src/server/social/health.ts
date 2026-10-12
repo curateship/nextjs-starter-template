@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNotNull, ne, sql } from "drizzle-orm"
+import { and, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm"
 
 import {
   redditHealth,
@@ -92,20 +92,24 @@ export async function readAccountHealth(
   }
 }
 
-/** Asks for a reading now. One waiting at a time, so a second press adds nothing. */
+/**
+ * Asks for a reading now. One waiting at a time, so a second press adds
+ * nothing. Answers whether a reading was queued.
+ */
 export async function queueHealthCheck(
   userId: string,
   accountId: string,
   db: CustomShellDb = defaultDb
-): Promise<void> {
+): Promise<boolean> {
   const [account] = await db
     .select({ id: promoAccounts.id })
     .from(promoAccounts)
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
     .limit(1)
   if (!account) throw new Error("Set up a Reddit account first.")
-  if (await pendingHealthJob(userId, accountId, db)) return
+  if (await pendingHealthJob(userId, accountId, db)) return false
   await queueJob(userId, "health", { accountId }, db)
+  return true
 }
 
 /**
@@ -216,7 +220,8 @@ export function accountFigures(
  * Queues a reading for every Reddit account whose last one is a day old.
  *
  * Only accounts with a browser profile that were signed in when last seen,
- * since anything else would be refused. One health job per account per day
+ * since anything else would be refused, and never a retired account, which
+ * Promo no longer drives. One health job per account per day
  * at most, counted from when the job was made, so a check that keeps failing
  * is tried once a day and not on every tick.
  */
@@ -233,7 +238,8 @@ export async function queueDueHealthChecks(
       and(
         eq(promoAccounts.platform, "reddit"),
         isNotNull(promoAccounts.profileId),
-        ne(promoAccounts.handle, "")
+        ne(promoAccounts.handle, ""),
+        isNull(promoAccounts.retiredAt)
       )
     )
   if (!accounts.length) return 0

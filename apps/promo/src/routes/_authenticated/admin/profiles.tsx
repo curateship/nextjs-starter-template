@@ -8,7 +8,7 @@ import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 /**
  * Every browser profile: its proxy, whether its browser is open, who is signed
  * in inside it. `?open=<id>` opens one in its window, which is where the
- * Reddit dashboard's "Open Main" link leads.
+ * Reddit accounts dashboard's profile links lead.
  */
 export const Route = createFileRoute("/_authenticated/admin/profiles")({
   validateSearch: readOpenSearch,

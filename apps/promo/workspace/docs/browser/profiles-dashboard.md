@@ -116,7 +116,7 @@ account uses, with a link to it here, and which voice it drafts with, with a
 link to the [Voices dashboard](../voices-dashboard.md). A profile that already
 holds a Reddit account is not offered.
 
-Every message on the Reddit dashboard about the browser names the profile and
+Every message on the Projects dashboard about the browser names the profile and
 the dashboard to find it on: "The browser is not signed in to Reddit. Open the
 profile Main on the Browser profiles dashboard and sign in once." It shows in
 the tooltip on the greyed-out Post to Reddit button.

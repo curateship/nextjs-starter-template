@@ -42,9 +42,10 @@ function compare(a: VoiceView, b: VoiceView, column: SortColumn): number {
 }
 
 /**
- * Every voice the AI can write in: the voice, what you make, and your rules,
- * named once and shared by any number of accounts on any network. Tyler asked
- * for this on 6 Oct 2026, so a second account does not retype all three.
+ * Every voice the AI can write in: how it sounds and your rules, named once
+ * and shared by any number of accounts on any network. Tyler asked for this
+ * on 6 Oct 2026, so a second account does not retype them. What you make is
+ * the project's description, on the Projects dashboard.
  *
  * Built like the Proxies dashboard. A voice opens as a window over the list,
  * with `?open=<id>` in the address, which is where the Reddit account tab's

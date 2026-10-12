@@ -20,9 +20,10 @@ import {
 } from "@/lib/social/options"
 
 import { exampleComments } from "./examples"
+import { projectDescription, projectOfFind } from "./projects"
 import { promptRules } from "./reddit/rules"
 import { promoAccounts, promoDrafts, promoFinds } from "./schema"
-import { wordsForAccount } from "./voices"
+import { NO_WORDS, wordsForAccount } from "./voices"
 
 /**
  * Asking an AI to write a Reddit comment.
@@ -174,7 +175,12 @@ const PROVIDERS: Record<AiTextProvider, ProviderRequest> = {
 export type DraftRequest = {
   userId: string
   findId: string
-  accountId: string
+  /**
+   * The account clicked on the Projects dashboard, whose voice it drafts in
+   * and whose project's description it is told. Null before one is clicked:
+   * no voice, and the post's own project's description.
+   */
+  accountId: string | null
   provider?: string
   model?: string
 }
@@ -205,6 +211,10 @@ export function buildDraftPrompt(input: {
   linkPage?: LinkPage | null
   replies: FindThread["replies"]
   voice: string
+  /**
+   * What I make: the project's description. Empty when the account is in no
+   * project, which drafts with no mention of a product.
+   */
   product: string
   commentRules: string
   /**
@@ -337,9 +347,9 @@ export function splitDrafts(answer: string, count: number): string[] {
 /**
  * Writes the drafts and stores them.
  *
- * Throws when there is no key, no account or no post, because each of those is
- * something a person has to go and fix, and a silent empty list would send
- * them looking in the wrong place.
+ * Throws when there is no key, no post, or the account has gone, because each
+ * of those is something a person has to go and fix, and a silent empty list
+ * would send them looking in the wrong place.
  */
 export async function draftComments(
   request: DraftRequest,
@@ -357,14 +367,18 @@ export async function draftComments(
     .limit(1)
   if (!find) throw new Error("That post is no longer saved.")
 
-  const [account] = await db
-    .select()
-    .from(promoAccounts)
-    .where(
-      and(eq(promoAccounts.id, request.accountId), eq(promoAccounts.userId, request.userId))
-    )
-    .limit(1)
-  if (!account) throw new Error("Set up a Reddit account first, in Settings.")
+  const account = request.accountId
+    ? (
+        await db
+          .select()
+          .from(promoAccounts)
+          .where(
+            and(eq(promoAccounts.id, request.accountId), eq(promoAccounts.userId, request.userId))
+          )
+          .limit(1)
+      )[0]
+    : null
+  if (request.accountId && !account) throw new Error("That account is not there any more.")
 
   const key = await getAiKey(provider)
   if (!key) {
@@ -374,11 +388,19 @@ export async function draftComments(
   }
 
   // The account's voice, shared with any other account pointed at it. An
-  // account with none drafts plainly.
-  const words = await wordsForAccount(request.userId, account.id, db)
+  // account with none, or no account yet, drafts plainly.
+  const words = account ? await wordsForAccount(request.userId, account.id, db) : NO_WORDS
+  // What you make is the account's project's description, never the voice's.
+  // An account in no project is told nothing about a product. Before an
+  // account is clicked, the post's own project counts.
+  const product = await projectDescription(
+    request.userId,
+    account ? account.projectId : await projectOfFind(request.userId, find.id, db),
+    db
+  )
   // The comments this account really sent, as examples of its voice. None
   // before the first one goes out, and the voice box carries it alone.
-  const examples = await exampleComments(request.userId, account.id, db)
+  const examples = account ? await exampleComments(request.userId, account.id, db) : []
   // The rules the subreddit posted, read when its first post turned up.
   const subredditRules = await promptRules(request.userId, find.subreddit, db)
   const prompt = buildDraftPrompt({
@@ -388,6 +410,7 @@ export async function draftComments(
     linkPage: find.linkPage,
     replies: find.thread?.replies ?? [],
     ...words,
+    product,
     examples,
     subredditRules,
     count: DRAFT_COUNT,

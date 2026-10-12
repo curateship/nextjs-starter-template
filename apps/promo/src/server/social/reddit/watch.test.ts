@@ -7,6 +7,7 @@ import {
   type TestDatabase,
 } from "@/server/test-support"
 import { addKeyword, listFinds, listKeywords } from "@/server/social/keywords"
+import { createProject } from "@/server/social/projects"
 import { promoFinds, promoKeywords } from "@/server/social/schema"
 
 import { blockSubreddit } from "./blocked"
@@ -49,6 +50,7 @@ describe("watching a subreddit", () => {
   let client: PGlite
   let db: TestDatabase
   let userId: string
+  let projectId: string
 
   beforeEach(async () => {
     searchReddit.mockReset()
@@ -56,6 +58,7 @@ describe("watching a subreddit", () => {
     client = made.client
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
+    projectId = await createProject(userId, "A project", db)
   })
 
   afterEach(async () => {
@@ -63,31 +66,31 @@ describe("watching a subreddit", () => {
   })
 
   it("saves a watch with no words and one subreddit, read newest first", async () => {
-    const id = await addKeyword(userId, { term: "", subreddits: ["r/SaaS"], ...search }, db)
+    const id = await addKeyword(userId, projectId, { term: "", subreddits: ["r/SaaS"], ...search }, db)
     const [row] = await db.select().from(promoKeywords)
     expect(row).toMatchObject({ id, term: "", subreddits: ["SaaS"], sort: "new" })
   })
 
   it("still refuses a saved search with neither words nor a subreddit", async () => {
-    await expect(addKeyword(userId, { term: "  ", subreddits: [], ...search }, db)).rejects.toThrow(
+    await expect(addKeyword(userId, projectId, { term: "  ", subreddits: [], ...search }, db)).rejects.toThrow(
       "Type a keyword first, or name one subreddit to watch."
     )
     await expect(
-      addKeyword(userId, { term: "", subreddits: ["SaaS", "startups"], ...search }, db)
+      addKeyword(userId, projectId, { term: "", subreddits: ["SaaS", "startups"], ...search }, db)
     ).rejects.toThrow("A watch takes one subreddit.")
   })
 
   it("keeps one watch per subreddit, without case, and leaves keywords alone", async () => {
-    await addKeyword(userId, { term: "", subreddits: ["SaaS"], ...search }, db)
+    await addKeyword(userId, projectId, { term: "", subreddits: ["SaaS"], ...search }, db)
     await expect(
-      addKeyword(userId, { term: "", subreddits: ["saas"], ...search }, db)
+      addKeyword(userId, projectId, { term: "", subreddits: ["saas"], ...search }, db)
     ).rejects.toThrow("r/saas is already watched.")
-    await addKeyword(userId, { term: "", subreddits: ["startups"], ...search }, db)
+    await addKeyword(userId, projectId, { term: "", subreddits: ["startups"], ...search }, db)
 
     // Keywords with words behave exactly as before, beside the watches.
-    await addKeyword(userId, { term: "crm tool", subreddits: ["SaaS"], ...search }, db)
+    await addKeyword(userId, projectId, { term: "crm tool", subreddits: ["SaaS"], ...search }, db)
     await expect(
-      addKeyword(userId, { term: "CRM tool", subreddits: [], ...search }, db)
+      addKeyword(userId, projectId, { term: "CRM tool", subreddits: [], ...search }, db)
     ).rejects.toThrow('"CRM tool" is already saved.')
     const rows = await db.select().from(promoKeywords)
     expect(rows.find((row) => row.term === "crm tool")?.sort).toBe("relevance")
@@ -95,7 +98,7 @@ describe("watching a subreddit", () => {
   })
 
   it("reads the subreddit's new posts and says each one's place by newest", async () => {
-    const id = await addKeyword(userId, { term: "", subreddits: ["SaaS"], ...search }, db)
+    const id = await addKeyword(userId, projectId, { term: "", subreddits: ["SaaS"], ...search }, db)
     searchReddit.mockResolvedValue({
       source: "json",
       url: "https://www.reddit.com/r/SaaS/new/",
@@ -110,17 +113,17 @@ describe("watching a subreddit", () => {
       sort: "new",
       window: "week",
     })
-    const finds = await listFinds(userId, { keywordId: id, status: "all" }, db, NOW)
+    const finds = await listFinds(userId, { projectId, keywordId: id, status: "all" }, db, NOW)
     expect(finds.map((find) => find.rankReason)).toEqual([
       "The subreddit's newest post, posted in the last few hours, no replies yet",
       "The subreddit's post 2 by newest, posted in the last few hours, no replies yet",
     ])
-    const [card] = await listKeywords(userId, db)
+    const [card] = await listKeywords(userId, projectId, db)
     expect(card).toMatchObject({ term: "", subreddits: ["SaaS"], postCount: 2 })
   })
 
   it("reads nothing for a watch on a blocked subreddit", async () => {
-    const id = await addKeyword(userId, { term: "", subreddits: ["SaaS"], ...search }, db)
+    const id = await addKeyword(userId, projectId, { term: "", subreddits: ["SaaS"], ...search }, db)
     await blockSubreddit(userId, "SaaS", db)
     await runKeywordSearch(userId, id, target, db, NOW)
     expect(searchReddit).not.toHaveBeenCalled()
@@ -135,6 +138,7 @@ describe("link posts and the Everything list", () => {
   let client: PGlite
   let db: TestDatabase
   let userId: string
+  let projectId: string
 
   beforeEach(async () => {
     searchReddit.mockReset()
@@ -142,6 +146,7 @@ describe("link posts and the Everything list", () => {
     client = made.client
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
+    projectId = await createProject(userId, "A project", db)
   })
 
   afterEach(async () => {
@@ -153,7 +158,7 @@ describe("link posts and the Everything list", () => {
   }
 
   it("keeps a link post's address, drops a picture's, and never loses it to a scraped re-run", async () => {
-    const id = await addKeyword(userId, { term: "", subreddits: ["SaaS"], ...search }, db)
+    const id = await addKeyword(userId, projectId, { term: "", subreddits: ["SaaS"], ...search }, db)
     searchReddit.mockResolvedValue(
       answer([
         { ...post("t3_link", 0), linkUrl: "https://example.com/churn" },
@@ -173,18 +178,32 @@ describe("link posts and the Everything list", () => {
   })
 
   it("lists every keyword's posts in one ranked order when no keyword is named", async () => {
-    const saas = await addKeyword(userId, { term: "", subreddits: ["SaaS"], ...search }, db)
-    const tools = await addKeyword(userId, { term: "crm tool", subreddits: [], ...search }, db)
+    const saas = await addKeyword(userId, projectId, { term: "", subreddits: ["SaaS"], ...search }, db)
+    const tools = await addKeyword(userId, projectId, { term: "crm tool", subreddits: [], ...search }, db)
     searchReddit.mockResolvedValueOnce(answer([post("t3_a", 0), post("t3_b", 5)]))
     await runKeywordSearch(userId, saas, target, db, NOW)
     searchReddit.mockResolvedValueOnce(answer([post("t3_c", 1)]))
     await runKeywordSearch(userId, tools, target, db, NOW)
 
-    const everything = await listFinds(userId, { status: "all" }, db, NOW)
+    const everything = await listFinds(userId, { projectId, status: "all" }, db, NOW)
     expect(everything.map((find) => [find.permalink, find.keywordId])).toEqual([
       ["/r/SaaS/comments/t3_a/", saas],
       ["/r/SaaS/comments/t3_c/", tools],
       ["/r/SaaS/comments/t3_b/", saas],
     ])
+  })
+
+  it("keeps each project's keywords and posts to itself, even with the same words", async () => {
+    const mine = await addKeyword(userId, projectId, { term: "crm tool", subreddits: [], ...search }, db)
+    const other = await createProject(userId, "Another product", db)
+    const theirs = await addKeyword(userId, other, { term: "CRM tool", subreddits: [], ...search }, db)
+    searchReddit.mockResolvedValueOnce(answer([post("t3_a", 0)]))
+    await runKeywordSearch(userId, mine, target, db, NOW)
+    searchReddit.mockResolvedValueOnce(answer([post("t3_b", 0)]))
+    await runKeywordSearch(userId, theirs, target, db, NOW)
+
+    expect((await listFinds(userId, { projectId, status: "all" }, db, NOW)).map((find) => find.keywordId)).toEqual([mine])
+    expect((await listFinds(userId, { projectId: other, status: "all" }, db, NOW)).map((find) => find.keywordId)).toEqual([theirs])
+    expect((await listKeywords(userId, other, db)).map((keyword) => keyword.id)).toEqual([theirs])
   })
 })

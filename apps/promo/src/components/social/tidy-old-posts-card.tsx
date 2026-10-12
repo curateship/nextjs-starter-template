@@ -19,7 +19,7 @@ const SAVE_DELAY_MS = 700
  * How long an old post is kept before the regular tidy-up deals with it.
  *
  * One number. A skipped post no search has seen for this many days is
- * deleted, and an open one loses its stored replies, which the Reddit screen
+ * deleted, and an open one loses its stored replies, which the Projects dashboard
  * offers to read again. A post with a comment against it is never touched.
  * Saves itself, with the outcome in the sticky header.
  */

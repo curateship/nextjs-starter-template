@@ -8,6 +8,7 @@ import {
   insertUser,
   type TestDatabase,
 } from "@/server/test-support"
+import { createProject } from "@/server/social/projects"
 import { createProfile } from "@/server/browser/profiles"
 import { readBehaviour, saveBehaviour } from "@/server/social/behaviour"
 import { buildDraftPrompt } from "@/server/social/drafts"
@@ -86,7 +87,7 @@ describe("subreddit rules", () => {
 
   it("queues a read for each subreddit a search brought in, and only once", async () => {
     const keywordId = uuid()
-    await db.insert(promoKeywords).values({ id: keywordId, userId, term: "a term" })
+    await db.insert(promoKeywords).values({ id: keywordId, userId, projectId: await createProject(userId, "A project", db), term: "a term" })
     searchReddit.mockResolvedValue({
       source: "json",
       url: "",

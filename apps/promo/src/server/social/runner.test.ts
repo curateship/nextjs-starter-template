@@ -47,7 +47,7 @@ const command = await import("@/server/browser/command")
 const search = await import("./reddit/search")
 const { runOneJob } = await import("./runner")
 const { queueJob } = await import("./jobs")
-const { readBrowserStatus } = await import("./accounts")
+const { createProject, readProjectView } = await import("./projects")
 const { queueDueHealthChecks, queueHealthCheck, readAccountHealth } = await import("./health")
 const { readBehaviour, saveBehaviour } = await import("./behaviour")
 
@@ -366,14 +366,16 @@ describe("running a browser job", () => {
 })
 
 /**
- * What a dashboard reads. It must answer from the rows alone: asking a browser
- * used to move its page every two seconds while the Reddit dashboard was open.
+ * What the Projects dashboard reads about each account. It must answer from
+ * the rows alone: asking a browser used to move its page every two seconds
+ * while the dashboard was open.
  */
-describe("reading the browser's status", () => {
+describe("reading a project's accounts", () => {
   let client: PGlite
   let db: TestDatabase
   let userId: string
   let profileId: string
+  let projectId: string
 
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -382,10 +384,12 @@ describe("reading the browser's status", () => {
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
     profileId = await createProfile(userId, { name: "Main" }, db)
+    projectId = await createProject(userId, "A project", db)
     await db.insert(promoAccounts).values({
       id: uuid(),
       userId,
       profileId,
+      projectId,
       handle: "a_persona",
       blocked: true,
       blockedReason: "a challenge or captcha is on screen",
@@ -397,9 +401,10 @@ describe("reading the browser's status", () => {
   })
 
   it("answers from the saved rows, names the profile, and never calls a browser", async () => {
-    const status = await readBrowserStatus(userId, db)
+    const view = await readProjectView(userId, projectId, db)
 
-    expect(status).toMatchObject({
+    expect(view.accounts).toHaveLength(1)
+    expect(view.accounts[0]).toMatchObject({
       handle: "a_persona",
       blocked: true,
       reason: "a challenge or captcha is on screen",

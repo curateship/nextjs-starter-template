@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { uuid } from "@/server/auth/security"
 import { createProfile } from "@/server/browser/profiles"
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
+import { createProject } from "@/server/social/projects"
 import { localMinutes } from "@/lib/social/waking"
 
 import { readBehaviour, saveBehaviour, type BehaviourSettings } from "./behaviour"
@@ -73,7 +74,7 @@ describe("pressing Post", () => {
       redditCreatedAt: new Date(now.getTime() - 365 * DAY_MS),
     })
     const keywordId = uuid()
-    await db.insert(promoKeywords).values({ id: keywordId, userId, term: "a term" })
+    await db.insert(promoKeywords).values({ id: keywordId, userId, projectId: await createProject(userId, "A project", db), term: "a term" })
     findIds = []
     for (let index = 0; index < 8; index += 1) {
       const id = uuid()

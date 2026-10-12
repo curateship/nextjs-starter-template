@@ -8,6 +8,7 @@ import {
   insertUser,
   type TestDatabase,
 } from "@/server/test-support"
+import { createProject } from "@/server/social/projects"
 import type { FindStatus } from "@/lib/social/options"
 import { listFinds, listKeywords } from "@/server/social/keywords"
 import { promoFinds, promoKeywords } from "@/server/social/schema"
@@ -51,6 +52,7 @@ describe("blocked subreddits", () => {
   let db: TestDatabase
   let userId: string
   let keywordId: string
+  let projectId: string
 
   beforeEach(async () => {
     searchReddit.mockReset()
@@ -59,7 +61,8 @@ describe("blocked subreddits", () => {
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
     keywordId = uuid()
-    await db.insert(promoKeywords).values({ id: keywordId, userId, term: "reddit marketing tool" })
+    projectId = await createProject(userId, "A project", db)
+    await db.insert(promoKeywords).values({ id: keywordId, userId, projectId, term: "reddit marketing tool" })
   })
 
   afterEach(async () => {
@@ -87,14 +90,14 @@ describe("blocked subreddits", () => {
     const answer = await blockSubreddit(userId, "r/nosleep", db)
     expect(answer).toEqual({ subreddit: "nosleep", hidden: 2 })
 
-    const listed = await listFinds(userId, { status: "all" }, db)
+    const listed = await listFinds(userId, { projectId, status: "all" }, db)
     expect(listed.map((row) => row.subreddit).sort()).toEqual(["SaaS", "nosleep"])
     expect(listed.find((row) => row.subreddit === "nosleep")?.status).toBe("commented")
 
     // Hidden, not deleted.
     expect(await db.select().from(promoFinds)).toHaveLength(4)
 
-    const [keyword] = await listKeywords(userId, db)
+    const [keyword] = await listKeywords(userId, projectId, db)
     expect(keyword.postCount).toBe(2)
     expect(keyword.newCount).toBe(1)
   })
@@ -130,13 +133,13 @@ describe("blocked subreddits", () => {
   it("brings the posts back on unblocking", async () => {
     await insertFind("t3_a", "nosleep")
     await blockSubreddit(userId, "nosleep", db)
-    expect(await listFinds(userId, { status: "all" }, db)).toHaveLength(0)
+    expect(await listFinds(userId, { projectId, status: "all" }, db)).toHaveLength(0)
 
     expect(await unblockSubreddit(userId, "NoSleep", db)).toEqual({
       subreddit: "nosleep",
       restored: 1,
     })
-    expect(await listFinds(userId, { status: "all" }, db)).toHaveLength(1)
+    expect(await listFinds(userId, { projectId, status: "all" }, db)).toHaveLength(1)
     expect(await listBlockedSubreddits(userId, db)).toEqual([])
   })
 
@@ -160,6 +163,6 @@ describe("blocked subreddits", () => {
     await insertFind("t3_a", "nosleep")
     await blockSubreddit(other, "nosleep", db)
 
-    expect(await listFinds(userId, { status: "all" }, db)).toHaveLength(1)
+    expect(await listFinds(userId, { projectId, status: "all" }, db)).toHaveLength(1)
   })
 })

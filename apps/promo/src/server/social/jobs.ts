@@ -330,7 +330,7 @@ export async function jobCounts(
   db: CustomShellDb = defaultDb
 ): Promise<JobCounts> {
   // A job held back for hours is not work in progress. Counting it would keep
-  // the Reddit dashboard asking every two seconds until morning.
+  // the Projects dashboard asking every two seconds until morning.
   const rows = await db
     .select({
       status: promoJobs.status,

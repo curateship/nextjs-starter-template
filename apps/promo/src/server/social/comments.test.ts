@@ -8,6 +8,7 @@ import {
   insertUser,
   type TestDatabase,
 } from "@/server/test-support"
+import { createProject } from "@/server/social/projects"
 import { createProfile } from "@/server/browser/profiles"
 import { readBehaviour, saveBehaviour } from "@/server/social/behaviour"
 import { commentStateWords } from "@/lib/social/wording"
@@ -51,7 +52,7 @@ describe("the comments you sent", () => {
     accountId = uuid()
     await db.insert(promoAccounts).values({ id: accountId, userId, handle: "me" })
     const keywordId = uuid()
-    await db.insert(promoKeywords).values({ id: keywordId, userId, term: "a term" })
+    await db.insert(promoKeywords).values({ id: keywordId, userId, projectId: await createProject(userId, "A project", db), term: "a term" })
     findId = uuid()
     await db.insert(promoFinds).values({
       id: findId,

@@ -23,7 +23,7 @@ import { promoAccounts, promoJobs } from "./schema"
  * account is refused until its warm-up ends. A young account is refused past
  * its comments per hour or per day, with when the next is allowed. Outside
  * the account's waking hours a comment is not refused: it waits for its
- * morning, and the Reddit dashboard says when it goes. Every account also
+ * morning, and the Projects dashboard says when it goes. Every account also
  * gets the pace line and, past the per-hour number, a warning that never
  * refuses.
  *

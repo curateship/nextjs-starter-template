@@ -6,10 +6,13 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoAccounts, promoVoices } from "./schema"
 
 /**
- * Voices: what the AI is told when it writes a comment. The voice, what you
- * make, and the lines it must not cross. Any number of accounts, on any
- * network, may share one, which is why it is a record of its own rather than
- * three boxes on each account. Tyler asked for that on 6 Oct 2026.
+ * Voices: how the AI sounds when it writes a comment, and the lines it must
+ * not cross. Any number of accounts, on any network, may share one, which is
+ * why it is a record of its own rather than boxes on each account. Tyler asked
+ * for that on 6 Oct 2026.
+ *
+ * What you make is not here. It is the project's description since 12 Oct
+ * 2026 (`projects.ts`), and the voice's old product column is no longer read.
  *
  * Every query is scoped by the person's id, and that filter is the ownership
  * check: a foreign id finds nothing and changes nothing.
@@ -18,7 +21,6 @@ import { promoAccounts, promoVoices } from "./schema"
 export type VoiceInput = {
   name: string
   voice: string
-  product: string
   commentRules: string
 }
 
@@ -29,10 +31,10 @@ export type VoiceView = VoiceInput & {
   usedBy: Array<{ id: string; platform: string; handle: string }>
 }
 
-/** The words a draft is written with: a voice's, or three empty ones. */
-export type VoiceWords = Pick<VoiceInput, "voice" | "product" | "commentRules">
+/** The words a draft is written with: a voice's, or two empty ones. */
+export type VoiceWords = Pick<VoiceInput, "voice" | "commentRules">
 
-const NO_WORDS: VoiceWords = { voice: "", product: "", commentRules: "" }
+export const NO_WORDS: VoiceWords = { voice: "", commentRules: "" }
 
 function clean(input: VoiceInput) {
   const name = input.name.trim().slice(0, 120)
@@ -40,7 +42,6 @@ function clean(input: VoiceInput) {
   return {
     name,
     voice: input.voice.trim().slice(0, 4_000),
-    product: input.product.trim().slice(0, 4_000),
     commentRules: input.commentRules.trim().slice(0, 4_000),
   }
 }
@@ -76,7 +77,6 @@ export async function listVoices(
     id: voice.id,
     name: voice.name,
     voice: voice.voice,
-    product: voice.product,
     commentRules: voice.commentRules,
     updatedAt: voice.updatedAt,
     usedBy: accounts
@@ -129,7 +129,7 @@ export async function deleteVoices(
 
 /**
  * The words an account drafts with. An account with no voice drafts with none,
- * exactly as an account with three empty boxes did before voices existed.
+ * exactly as an account with empty boxes did before voices existed.
  */
 export async function wordsForAccount(
   userId: string,
@@ -139,7 +139,6 @@ export async function wordsForAccount(
   const [row] = await db
     .select({
       voice: promoVoices.voice,
-      product: promoVoices.product,
       commentRules: promoVoices.commentRules,
     })
     .from(promoAccounts)

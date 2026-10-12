@@ -30,7 +30,6 @@ export const getVoiceErrorMessage = createErrorMessage(
 const voiceInput = z.object({
   name: z.string().max(120),
   voice: z.string().max(4_000).default(""),
-  product: z.string().max(4_000).default(""),
   commentRules: z.string().max(4_000).default(""),
 })
 

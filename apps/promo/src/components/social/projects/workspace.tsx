@@ -1,8 +1,11 @@
 import * as React from "react"
-import { useRouter } from "@tanstack/react-router"
+import { useNavigate, useRouter } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
+import { AnswerPanel, type DraftView, type FindDetail } from "@/components/social/reddit/answer-panel"
+import { FindsPanel, type FindsTab } from "@/components/social/reddit/finds-panel"
+import { KeywordsPanel } from "@/components/social/reddit/keywords-panel"
 import {
   PanelReopenTab,
   ResizableHandle,
@@ -10,7 +13,14 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
-import { loadBrowserStatus, type BrowserStatus } from "@/lib/api/social/account"
+import {
+  getProjectErrorMessage,
+  loadProject,
+  putAccountInProject,
+  takeAccountOutOfProject,
+  type ProjectSummary,
+  type ProjectView,
+} from "@/lib/api/social/projects"
 import {
   blockRedditSubreddit,
   getBlockedErrorMessage,
@@ -41,7 +51,11 @@ import {
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
-import { EVERYTHING, REDDIT_PANEL_LAYOUT_KEY } from "@/lib/social/reddit/options"
+import {
+  EVERYTHING,
+  PROJECTS_MIDDLE_LAYOUT_KEY,
+  PROJECTS_PANEL_LAYOUT_KEY,
+} from "@/lib/social/reddit/options"
 import {
   keywordTitle,
   postingBlockedReason,
@@ -51,23 +65,31 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { FindRow, KeywordRow } from "@/server/social/keywords"
 
-import { AnswerPanel, type DraftView, type FindDetail } from "./answer-panel"
-import { FindsPanel, type FindsTab } from "./finds-panel"
-import { KeywordsPanel } from "./keywords-panel"
+import { ProjectDialogs, type ProjectDialog } from "./project-dialogs"
+import { ProjectPanel } from "./project-panel"
 
 /**
- * The Reddit screen: find a post, read it, write the comment, send it.
+ * The Projects dashboard: one project's description and accounts, its
+ * keywords and the posts they found, and the post being answered.
  *
- * Three panels in one row, built from the same parts as the Automation Canvas
- * and the CRM rather than a second system: the sides collapse all the way to
- * nothing and leave a tab on the middle panel's edge to bring them back,
- * double-clicking a panel's blank space shuts it, the dividers drag, the
- * arrangement is remembered, and below 1280px the panels are dropped because
- * three columns on a phone is three unreadable columns.
+ * Tyler, 12 Oct 2026: "Left panel holds project discription, under it shows
+ * all the accounts under this project. Clicking on the account opens up in the
+ * middle panel to search for keywords and showing all the posts and the right
+ * col shows the post and comment box".
  *
- * There is no bottom panel. The post and the comment are one piece of work and
- * live in one panel, the way the CRM reads a conversation and writes the reply
- * in one.
+ * Three columns in one row, the Reddit dashboard's layout carried over whole:
+ * the sides collapse all the way to nothing and leave a tab on the middle
+ * column's edge to bring them back, double-clicking a side's blank space shuts
+ * it, the dividers drag, the arrangement is remembered, and below 1280px the
+ * columns stack because three columns on a phone is three unreadable columns.
+ * The middle column holds the keywords above the posts, split by a divider of
+ * its own that is remembered too.
+ *
+ * Keywords belong to the project, so the middle column is the same whichever
+ * account is clicked. The account only changes who comments: Post sends from
+ * it, every rule that guards Post follows it, and with none clicked Post says
+ * to pick one. Nothing here picks an account for the person or posts by
+ * itself.
  *
  * Browser work never happens inside a request. A search takes tens of seconds,
  * so pressing Search writes a job and this asks what the queue is doing until
@@ -84,30 +106,44 @@ const POLL_MS = 2_000
  */
 const FINDS_LIMIT = 500
 
-export function RedditWorkspace({
+export function ProjectsWorkspace({
+  projects,
+  initialView,
   initialKeywords,
-  initialStatus,
 }: {
+  projects: ProjectSummary[]
+  initialView: ProjectView
   initialKeywords: KeywordRow[]
-  initialStatus: BrowserStatus
 }) {
   const router = useRouter()
+  const navigate = useNavigate()
   const desktop = useWideScreen()
+  const projectId = initialView.project.id
 
-  const [keywordsCollapsed, setKeywordsCollapsed] = React.useState(false)
+  const [projectCollapsed, setProjectCollapsed] = React.useState(false)
   const [answerCollapsed, setAnswerCollapsed] = React.useState(false)
-  const keywordsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const projectPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const answerPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const layout = useRememberedPanelLayout(REDDIT_PANEL_LAYOUT_KEY)
+  const layout = useRememberedPanelLayout(PROJECTS_PANEL_LAYOUT_KEY)
+  const middleLayout = useRememberedPanelLayout(PROJECTS_MIDDLE_LAYOUT_KEY)
 
-  const toggleKeywords = usePanelToggle(keywordsPanelRef)
+  const toggleProject = usePanelToggle(projectPanelRef)
   const toggleAnswer = usePanelToggle(answerPanelRef)
-  const keywordsDoubleClick = useBlankSpaceDoubleClick(toggleKeywords)
+  const projectDoubleClick = useBlankSpaceDoubleClick(toggleProject)
   const answerDoubleClick = useBlankSpaceDoubleClick(toggleAnswer)
 
+  const [view, setView] = React.useState(initialView)
   const [keywords, setKeywords] = React.useState(initialKeywords)
-  const [status, setStatus] = React.useState(initialStatus)
   const [keywordsLoading, setKeywordsLoading] = React.useState(false)
+  const [dialog, setDialog] = React.useState<ProjectDialog>(null)
+
+  /**
+   * The account clicked on the left, whose comment Post sends. Nothing is
+   * clicked to begin with, because picking one for the person is the one
+   * thing this column must not do.
+   */
+  const [rawAccountId, setAccountId] = React.useState<string | null>(null)
+  const account = view.accounts.find((row) => row.id === rawAccountId) ?? null
 
   /**
    * A keyword's id, or `EVERYTHING`: every keyword's posts in one ranked
@@ -151,23 +187,30 @@ export function RedditWorkspace({
   const detail = detailReady ? detailState.detail : null
   const drafts = detailReady ? detailState.drafts : []
 
-  const working = status.jobs.queued + status.jobs.running > 0
+  const working = view.jobs.queued + view.jobs.running > 0
+
+  const refreshView = React.useCallback(async () => {
+    try {
+      setView(await loadProject(projectId))
+    } catch (error) {
+      showErrorToast(getProjectErrorMessage(error))
+    }
+  }, [projectId])
 
   const refreshKeywords = React.useCallback(async () => {
     setKeywordsLoading(true)
     try {
-      setKeywords(await loadKeywords())
+      setKeywords(await loadKeywords(projectId))
     } catch (error) {
       showErrorToast(getRedditErrorMessage(error))
     } finally {
       setKeywordsLoading(false)
     }
-  }, [])
+  }, [projectId])
 
   /**
-   * Reads the posts for a keyword, or for every keyword when Everything is
-   * chosen. Everything leaves the keyword out of the call, and the existing
-   * endpoint then answers with all of the person's posts in the same order.
+   * Reads the posts for a keyword, or for every keyword in the project when
+   * Everything is chosen.
    *
    * Every `setState` lands in a callback the fetch calls back into, never in
    * the body of an effect, which is the rule this app follows: an effect may
@@ -176,6 +219,7 @@ export function RedditWorkspace({
   const refreshFinds = React.useCallback(
     (keywordId: string): Promise<void> =>
       loadFinds({
+        projectId,
         keywordId: keywordId === EVERYTHING ? undefined : keywordId,
         status: "all",
         limit: FINDS_LIMIT,
@@ -188,7 +232,7 @@ export function RedditWorkspace({
             error: getRedditErrorMessage(error),
           })
       ),
-    []
+    [projectId]
   )
 
   const refreshDetail = React.useCallback(
@@ -229,7 +273,8 @@ export function RedditWorkspace({
           setDetailState({ findId, detail: null, drafts: [] })
         }
       ),
-    []
+    // Listed only because the React Compiler would not keep the memo without it.
+    [setDetailState]
   )
 
   // The first list, and every later one when the chosen keyword changes. The
@@ -255,9 +300,9 @@ export function RedditWorkspace({
     let live = true
     const timer = setInterval(async () => {
       try {
-        const next = await loadBrowserStatus()
+        const next = await loadProject(projectId)
         if (!live) return
-        setStatus(next)
+        setView(next)
         // The work has finished, so whatever it wrote is worth reading.
         if (next.jobs.queued + next.jobs.running === 0) {
           await refreshKeywords()
@@ -276,6 +321,7 @@ export function RedditWorkspace({
     }
   }, [
     working,
+    projectId,
     refreshKeywords,
     refreshFinds,
     refreshDetail,
@@ -285,18 +331,55 @@ export function RedditWorkspace({
 
   async function afterQueueing() {
     try {
-      setStatus(await loadBrowserStatus())
+      setView(await loadProject(projectId))
     } catch {
       // The job is written either way; the asking above will catch up.
     }
   }
 
   // Named by the queue rather than guessed. A job that reads one post's
-  // replies belongs to no keyword, so reading replies no longer makes every
+  // replies belongs to no keyword, so reading replies never makes every
   // keyword card claim it is searching.
   const runningKeywords = React.useMemo(
-    () => new Set(status.jobs.searchingKeywordIds),
-    [status.jobs.searchingKeywordIds]
+    () => new Set(view.jobs.searchingKeywordIds),
+    [view.jobs.searchingKeywordIds]
+  )
+
+  /** The picker's new name, read again so it says what was typed. */
+  const afterRename = React.useCallback(() => {
+    void router.invalidate()
+  }, [router])
+
+  const projectPanel = (
+    <ProjectPanel
+      projects={projects}
+      view={view}
+      selectedAccountId={account?.id ?? null}
+      onSelectProject={(next) =>
+        void navigate({ to: "/admin/projects/$projectId", params: { projectId: next } })
+      }
+      onSelectAccount={setAccountId}
+      onNewProject={() => setDialog({ kind: "new" })}
+      onDeleteProject={() => setDialog({ kind: "delete", project: view.project })}
+      onAddAccount={async (accountId) => {
+        try {
+          await putAccountInProject(projectId, accountId)
+          await refreshView()
+        } catch (error) {
+          showErrorToast(getProjectErrorMessage(error))
+        }
+      }}
+      onRemoveAccount={async (accountId) => {
+        try {
+          await takeAccountOutOfProject(accountId)
+          if (accountId === rawAccountId) setAccountId(null)
+          await refreshView()
+        } catch (error) {
+          showErrorToast(getProjectErrorMessage(error))
+        }
+      }}
+      onSaved={afterRename}
+    />
   )
 
   const keywordsPanel = (
@@ -311,7 +394,7 @@ export function RedditWorkspace({
       }}
       onAdd={async (input) => {
         try {
-          const { id } = await saveNewKeyword(input)
+          const { id } = await saveNewKeyword({ ...input, projectId })
           await refreshKeywords()
           setSelectedKeyword(id)
           setSelectedFind(null)
@@ -345,7 +428,6 @@ export function RedditWorkspace({
             await refreshFinds(EVERYTHING)
           }
           await refreshKeywords()
-          await router.invalidate()
         } catch (error) {
           showErrorToast(getRedditErrorMessage(error))
         }
@@ -442,16 +524,18 @@ export function RedditWorkspace({
     />
   )
 
+  const handle = account?.handle || null
+
   const answerPanel = (
     <AnswerPanel
       find={detail}
-      handle={status.handle}
+      handle={handle}
       drafts={drafts}
       loading={detailLoading}
       working={working}
-      disabledReason={postingBlockedReason(status, detail)}
-      postingState={status.posting}
-      voiceName={status.voice?.name ?? null}
+      disabledReason={postingBlockedReason(account, detail)}
+      postingState={account?.posting ?? null}
+      voiceName={account?.voice?.name ?? null}
       // Only the narrow layout, where the post covers the list. Clears the
       // chosen post and nothing else, so the keyword and the tab stay put.
       onBack={desktop ? undefined : () => setSelectedFind(null)}
@@ -475,7 +559,7 @@ export function RedditWorkspace({
       }}
       onDraft={async (findId: string) => {
         try {
-          const written = await writeDrafts({ findId })
+          const written = await writeDrafts({ findId, accountId: account?.id ?? null })
           // A draft is born unsent. The endpoint does not say so because there
           // is nothing else it could be.
           setDetailState((current) => ({
@@ -491,9 +575,9 @@ export function RedditWorkspace({
       }}
       onPost={async (input) => {
         try {
-          const { runAfter } = await sendComment(input)
+          const { runAfter } = await sendComment({ ...input, accountId: account?.id ?? null })
           await afterQueueing()
-          if (runAfter) toast.success(waitingCommentText(runAfter, status.handle))
+          if (runAfter) toast.success(waitingCommentText(runAfter, handle))
         } catch (error) {
           showErrorToast(getPostErrorMessage(error))
           // A refusal may come from figures that moved since the last look.
@@ -525,21 +609,25 @@ export function RedditWorkspace({
     />
   )
 
+  const dialogs = <ProjectDialogs dialog={dialog} onClose={() => setDialog(null)} />
+
   if (!desktop) {
-    // Under 1280px the panels are dropped, exactly as the editors do it. The
-    // post takes the screen once one is picked, and the list is what shows
-    // until then. Keywords stay above the list, where they are the way in.
-    // The arrow on the post's header is the way back to the list.
+    // Under 1280px the columns are dropped, exactly as the editors do it. The
+    // post takes the screen once one is picked, and the project, its
+    // keywords and its posts are what show until then, one above the next.
+    // The arrow on the post's header is the way back.
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
-          {selectedFind ? answerPanel : keywordsPanel}
-        </WorkspacePanel>
-        {selectedFind ? null : (
-          <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
-            {findsPanel}
-          </WorkspacePanel>
+        {selectedFind ? (
+          <WorkspacePanel className="flex min-w-0 flex-1 flex-col">{answerPanel}</WorkspacePanel>
+        ) : (
+          <>
+            <WorkspacePanel className="flex min-w-0 flex-1 flex-col">{projectPanel}</WorkspacePanel>
+            <WorkspacePanel className="flex min-w-0 flex-1 flex-col">{keywordsPanel}</WorkspacePanel>
+            <WorkspacePanel className="flex min-w-0 flex-[2] flex-col">{findsPanel}</WorkspacePanel>
+          </>
         )}
+        {dialogs}
       </div>
     )
   }
@@ -554,36 +642,50 @@ export function RedditWorkspace({
         onLayoutChanged={layout.onLayoutChanged}
       >
         <ResizablePanel
-          id="keywords"
-          panelRef={keywordsPanelRef}
+          id="project"
+          panelRef={projectPanelRef}
           collapsible
           collapsedSize="0%"
           // Opens at its narrowest, so the posts get the room. Tyler, 6 Oct
           // 2026: each side panel's default is its minimum width.
-          defaultSize="15%"
-          minSize="15%"
+          defaultSize="18%"
+          minSize="18%"
           maxSize="32%"
-          onResize={(size) => setKeywordsCollapsed(size.asPercentage < 0.5)}
+          onResize={(size) => setProjectCollapsed(size.asPercentage < 0.5)}
         >
           <WorkspacePanel
             className="flex flex-col"
-            collapsed={keywordsCollapsed}
-            onDoubleClick={keywordsDoubleClick}
+            collapsed={projectCollapsed}
+            onDoubleClick={projectDoubleClick}
           >
-            {keywordsPanel}
+            {projectPanel}
           </WorkspacePanel>
         </ResizablePanel>
 
-        <ResizableHandle gap collapsed={keywordsCollapsed} />
+        <ResizableHandle gap collapsed={projectCollapsed} />
 
-        <ResizablePanel id="finds" defaultSize="61%" minSize="30%">
-          <WorkspacePanel className="relative flex flex-col">
-            {findsPanel}
-            {keywordsCollapsed ? (
+        <ResizablePanel id="middle" defaultSize="58%" minSize="30%">
+          <div className="relative flex h-full min-h-0 flex-col">
+            <ResizablePanelGroup
+              key={middleLayout.layoutKey}
+              orientation="vertical"
+              className="min-h-0 flex-1"
+              defaultLayout={middleLayout.defaultLayout}
+              onLayoutChanged={middleLayout.onLayoutChanged}
+            >
+              <ResizablePanel id="keywords" defaultSize="38%" minSize="20%" maxSize="70%">
+                <WorkspacePanel className="flex flex-col">{keywordsPanel}</WorkspacePanel>
+              </ResizablePanel>
+              <ResizableHandle gap />
+              <ResizablePanel id="finds" defaultSize="62%" minSize="30%">
+                <WorkspacePanel className="flex flex-col">{findsPanel}</WorkspacePanel>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+            {projectCollapsed ? (
               <PanelReopenTab
                 side="left"
-                label="Show the keywords"
-                onClick={toggleKeywords}
+                label="Show the project and its accounts"
+                onClick={toggleProject}
               />
             ) : null}
             {answerCollapsed ? (
@@ -593,7 +695,7 @@ export function RedditWorkspace({
                 onClick={toggleAnswer}
               />
             ) : null}
-          </WorkspacePanel>
+          </div>
         </ResizablePanel>
 
         <ResizableHandle gap collapsed={answerCollapsed} />
@@ -617,6 +719,7 @@ export function RedditWorkspace({
           </WorkspacePanel>
         </ResizablePanel>
       </ResizablePanelGroup>
+      {dialogs}
     </div>
   )
 }

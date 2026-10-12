@@ -246,7 +246,7 @@ export function CommentsDashboard({ initial }: { initial: CommentRow[] }) {
       emptyText={
         rows.length
           ? "No comments match that."
-          : "Nothing has been sent yet. A comment posted from the Reddit screen shows up here."
+          : "Nothing has been sent yet. A comment posted from the Projects dashboard shows up here."
       }
       emptyColSpan={COLUMNS.length + 2}
       footer={{

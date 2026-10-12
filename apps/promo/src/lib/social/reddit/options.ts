@@ -22,20 +22,16 @@ export const REDDIT_WINDOWS = [
 export type RedditWindow = (typeof REDDIT_WINDOWS)[number]
 
 /**
- * Where the Reddit screen's panel arrangement is remembered.
+ * Where the Projects dashboard's panel arrangement is remembered: the three
+ * columns, and inside the middle one the keywords above the posts.
  *
  * Not added to `panelLayoutKey` in `src/lib/layout/panel-layout.ts`, which is
  * the shell's own registry of its own keys and a file an app never edits.
  * `useRememberedPanelLayout` takes any string, and the `promo-` prefix is what
- * keeps this from colliding with a shell key. The value is what a browser has
- * already saved under, so it does not change when the constant moves.
- *
- * The `-2` is deliberate. On 6 Oct 2026 the side panels' default widths became
- * their minimum widths, and a remembered layout outranks the default, so a
- * browser that had already drawn the old widths would keep them and the change
- * would appear to do nothing. A new key starts every browser on the new widths.
+ * keeps these from colliding with a shell key.
  */
-export const REDDIT_PANEL_LAYOUT_KEY = "promo-reddit-workspace-2"
+export const PROJECTS_PANEL_LAYOUT_KEY = "promo-projects-workspace"
+export const PROJECTS_MIDDLE_LAYOUT_KEY = "promo-projects-middle"
 
 /**
  * The Everything row at the top of the keywords panel, chosen in place of a

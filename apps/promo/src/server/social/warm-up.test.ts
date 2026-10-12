@@ -6,6 +6,7 @@ import { uuid } from "@/server/auth/security"
 import { createProfile, listFoldersAndLabels } from "@/server/browser/profiles"
 import { promoProfiles } from "@/server/browser/schema"
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
+import { createProject } from "@/server/social/projects"
 import { localMinutes } from "@/lib/social/waking"
 
 vi.mock("@/server/browser/command", async (importOriginal) => {
@@ -131,7 +132,7 @@ describe("warming up a new account", () => {
 
   it("joins the subreddits found most often, skipping blocked and joined ones, and remembers them", async () => {
     const keywordId = uuid()
-    await db.insert(promoKeywords).values({ id: keywordId, userId, term: "a term" })
+    await db.insert(promoKeywords).values({ id: keywordId, userId, projectId: await createProject(userId, "A project", db), term: "a term" })
     const counts: Record<string, number> = { SaaS: 3, startups: 2, Entrepreneur: 4, smallbusiness: 1 }
     let index = 0
     for (const [subreddit, count] of Object.entries(counts)) {

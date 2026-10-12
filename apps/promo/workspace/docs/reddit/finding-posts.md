@@ -37,6 +37,11 @@ A saved search: the words, which subreddits to look in, Reddit's own order, and
 how far back to look. Running it again adds whatever is new and leaves alone
 every decision already made about the posts it found before.
 
+Every keyword belongs to one project, since 12 Oct 2026 (Tyler: "Keywords belong
+to the project"). Every account in the project sees the same keywords and posts.
+The same words may be saved in two projects; inside one project they are saved
+once. [The Projects dashboard](../projects-dashboard.md) has the rest.
+
 ## Watching a subreddit
 
 People describe your problem without using your words. Somebody in r/SaaS
@@ -168,17 +173,19 @@ says how many posts it is hiding and comes back off with Unblock.
 
 ## The screen
 
-Three panels in a row, built from the same parts as the Automation Canvas and
-the CRM rather than a second system.
+The keywords and the posts are the middle column of the
+[Projects dashboard](../projects-dashboard.md), keywords above posts, with the
+project and its accounts on the left. They were the Reddit dashboard's left and
+middle columns until 12 Oct 2026. Every list below is one project's.
 
-- **Keywords**, on the left. Each saved search is a card saying what it searches
+- **Keywords**, at the top of the middle column. Each saved search is a card saying what it searches
   — "25 posts · Past week · All of Reddit", or "r/SaaS" over "Watching · 25 posts ·
   Newest first" for a watch — with a button to run it again and
   one to remove it. The box that adds a keyword is pinned to the bottom of the
   panel, because a keyword is added once and pressed many times.
 - **Everything**, pinned above the keyword cards, lists every keyword's posts
-  in one ranked order. See "Everything" below.
-- **The posts**, in the middle, under the keyword's own name in quotes, or
+  in the project in one ranked order. See "Everything" below.
+- **The posts**, under the keywords, under the keyword's own name in quotes, or
   "Everything". Three counts across the top say where the work is: To look at,
   Replied, Skipped. Pressing one shows those posts. A search box sits beside
   them; see "Finding a post you remember" below.
@@ -192,8 +199,8 @@ There is no bottom panel.
 
 The morning question is what to answer, not what one saved search found. The
 ranking already puts every post on one scale, and its freshness part means the
-best post today could be under any keyword, so the Everything row lists them
-all in one order.
+best post today could be under any keyword, so the Everything row lists the
+project's posts in one order.
 
 - **Chosen whenever nothing else is**: when the screen opens, and when the
   chosen keyword is removed. Adding a keyword still chooses the new one.

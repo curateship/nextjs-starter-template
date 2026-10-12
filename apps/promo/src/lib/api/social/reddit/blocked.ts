@@ -14,7 +14,7 @@ import { createErrorMessage } from "../../error-message"
 export type { BlockedSubreddit }
 
 /**
- * The subreddits the Reddit screen never shows. Blocked with one press from a
+ * The subreddits the Projects dashboard never shows. Blocked with one press from a
  * post's row, and taken back off on the Reddit account settings tab. Admin
  * only, like every other Reddit endpoint.
  */

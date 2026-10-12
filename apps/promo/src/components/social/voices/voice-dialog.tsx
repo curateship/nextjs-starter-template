@@ -20,20 +20,20 @@ import { getVoiceErrorMessage, saveVoice, type VoiceView } from "@/lib/api/socia
 import { voiceUsersWords } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-type Form = { name: string; voice: string; product: string; commentRules: string }
+type Form = { name: string; voice: string; commentRules: string }
 
 function formFrom(voice: VoiceView | null): Form {
   return {
     name: voice?.name ?? "",
     voice: voice?.voice ?? "",
-    product: voice?.product ?? "",
     commentRules: voice?.commentRules ?? "",
   }
 }
 
 /**
- * One voice, as a window over the list: its name, and the three things the AI
- * is told when it drafts a comment. Saving it changes every account using it.
+ * One voice, as a window over the list: its name, how it sounds and the lines
+ * it must not cross. What you make is the project's description, on the
+ * Projects dashboard. Saving it changes every account using it.
  */
 export function VoiceDialog({
   open,
@@ -118,18 +118,6 @@ export function VoiceDialog({
                         value={form.voice}
                         placeholder="Plain and direct. I have run a small agency for six years, so I answer from experience rather than theory."
                         onChange={(event) => set("voice", event.target.value)}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="voice-product">
-                        What you make, for when it genuinely answers the question
-                      </Label>
-                      <Textarea
-                        id="voice-product"
-                        rows={1}
-                        value={form.product}
-                        placeholder="Leave this empty and no draft will ever mention a product."
-                        onChange={(event) => set("product", event.target.value)}
                       />
                     </div>
                     <div className="grid gap-2">

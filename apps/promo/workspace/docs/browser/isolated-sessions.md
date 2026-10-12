@@ -164,7 +164,7 @@ Open the profile's browser on the Browser profiles dashboard and the browser
 shows inside the app, in a large window over the list. Turn on the switch under
 the picture to take control, sign in to Reddit, and the cookies land in the
 profile's own storage, which outlives every restart of the container. It is not
-asked again. Then press **Check who is signed in**, so the Reddit dashboard
+asked again. Then press **Check who is signed in**, so the Projects dashboard
 knows the name. [The Browser profiles dashboard](profiles-dashboard.md) has the
 details.
 
@@ -185,7 +185,7 @@ seconds on a Mac, and 14 seconds once the image is warm. The browser counts as
 ready when it answers, not when Reddit has finished loading.
 
 The same window is where a captcha gets cleared. When Reddit shows one mid-search
-the job stops, the post keeps the status it had, and the Reddit dashboard links
+the job stops, the post keeps the status it had, and the Projects dashboard links
 to the profile on the Browser profiles dashboard rather than retrying.
 
 ## The proxy
@@ -220,9 +220,9 @@ it saw on the Reddit account: the signed-in name, whether Reddit is asking the
 browser something, what, and when that was read. A job that failed still gets
 the look, because a failed search is often a sign-out or a captcha.
 
-The Reddit dashboard and Settings read those saved answers and never ask a
+The Projects dashboard and Settings read those saved answers and never ask a
 browser. They used to, and the question sent the page to Reddit's front page.
-The Reddit dashboard asks every two seconds while a search runs, so a sign-in
+The Projects dashboard asks every two seconds while a search runs, so a sign-in
 form being typed into in the window was replaced every two seconds.
 
 The look that moves the page runs only for a `check` job, which is the **Check

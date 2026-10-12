@@ -26,7 +26,8 @@ import {
 import { createErrorMessage } from "../../error-message"
 
 /**
- * The Reddit screen's endpoints.
+ * The keywords and posts endpoints, for the Projects dashboard's middle
+ * column. Keywords belong to a project, so every list names one.
  *
  * Every one is admin-only. Promo is a tool one person runs, and a member who
  * could queue browser work could spend somebody else's AI allowance and post
@@ -44,6 +45,7 @@ export const getRedditErrorMessage = createErrorMessage(
     "A watch takes one subreddit": "A watch takes one subreddit. Type a keyword to search several.",
     "Type a keyword": "Type a keyword first, or name one subreddit to watch.",
     "no longer saved": "That keyword has been removed. Reload the page.",
+    "project does not exist": "That project is not there any more. Reload the page.",
     "There is no reader browser": NO_READER_MESSAGE,
     "now holds an account": "The reader browser now holds an account, so nothing is read in it. Pick another reader in Settings → Behaviour.",
   },
@@ -60,22 +62,26 @@ const keywordInput = z.object({
 
 const loadKeywordsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async ({ context }): Promise<KeywordRow[]> =>
-    listKeywords(context.user.id)
+  .inputValidator(z.object({ projectId: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<KeywordRow[]> =>
+    listKeywords(context.user.id, data.projectId)
   )
 
-export function loadKeywords() {
-  return loadKeywordsFn()
+export function loadKeywords(projectId: string) {
+  return loadKeywordsFn({ data: { projectId } })
 }
 
+const newKeywordInput = keywordInput.extend({ projectId: z.string().min(1) })
+
+/** Makes a keyword in a project. */
 const addKeywordFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(keywordInput)
-  .handler(async ({ context, data }): Promise<{ id: string }> => ({
-    id: await addKeyword(context.user.id, data),
+  .inputValidator(newKeywordInput)
+  .handler(async ({ context, data: { projectId, ...input } }): Promise<{ id: string }> => ({
+    id: await addKeyword(context.user.id, projectId, input),
   }))
 
-export function saveNewKeyword(data: z.input<typeof keywordInput>) {
+export function saveNewKeyword(data: z.input<typeof newKeywordInput>) {
   return addKeywordFn({ data })
 }
 
@@ -111,6 +117,7 @@ const loadFindsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(
     z.object({
+      projectId: z.string().min(1),
       keywordId: z.string().optional(),
       status: z.enum([...FIND_STATUSES, "all"]).optional(),
       limit: z.number().int().min(1).max(500).optional(),
@@ -120,7 +127,9 @@ const loadFindsFn = createServerFn({ method: "GET" })
     listFinds(context.user.id, data)
   )
 
+/** A project's posts: one keyword's, or with none every keyword's in one order. */
 export function loadFinds(query: {
+  projectId: string
   keywordId?: string
   status?: (typeof FIND_STATUSES)[number] | "all"
   limit?: number

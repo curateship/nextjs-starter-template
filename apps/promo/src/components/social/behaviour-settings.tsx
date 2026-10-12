@@ -197,7 +197,7 @@ function BehaviourSettingsPanel() {
         </div>
         <p className="text-sm text-muted-foreground">
           A comment pressed outside these hours waits for the account&apos;s morning, and the
-          Reddit dashboard says when it goes. A health check may run at any hour, because it
+          Projects dashboard says when it goes. A health check may run at any hour, because it
           only reads.
         </p>
         <AccountLines accounts={accounts} render={(account) => clockLine(account, settings)} />
@@ -362,7 +362,7 @@ function clockLine(account: BehaviourAccount, settings: BehaviourSettings): stri
 function warmUpLine(account: BehaviourAccount): string {
   const name = accountName(account)
   if (account.ageUnknown) {
-    return `${name}: Promo has not read how old it is yet, so its warm-up cannot be counted. Press Check now on Settings → Reddit account.`
+    return `${name}: Promo has not read how old it is yet, so its warm-up cannot be counted. Tick it on the Reddit accounts dashboard and press Check now.`
   }
   const age = account.redditCreatedAt ? `is ${accountAgeText(account.redditCreatedAt)}` : "has no age read"
   if (!account.warmUpEndsAt) return `${name} ${age} and past its warm-up.`

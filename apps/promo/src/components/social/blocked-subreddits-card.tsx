@@ -17,7 +17,7 @@ import { postsWord } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * The subreddits the Reddit dashboard never shows, on the Reddit account tab.
+ * The subreddits the Projects dashboard never shows, on the Reddit account tab.
  *
  * Blocking is one press on a post's row; this is where a subreddit comes back
  * off the list, and where one can be blocked before it has turned up. A
@@ -85,7 +85,7 @@ export function BlockedSubredditsCard() {
     <CollapsibleSettingsCard
       storageId="promo-reddit-blocked"
       title="Subreddits you never see"
-      description="Posts from these never show on the Reddit dashboard, under any keyword."
+      description="Posts from these never show on the Projects dashboard, under any keyword."
       contentClassName="grid gap-4"
     >
         <form
@@ -129,7 +129,7 @@ export function BlockedSubredditsCard() {
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nothing is blocked. The block button at the end of a post&apos;s row on
-            the Reddit dashboard stops its subreddit turning up under any keyword.
+            the Projects dashboard stops its subreddit turning up under any keyword.
           </p>
         ) : (
           <ul className="-mx-4 divide-y border-t">

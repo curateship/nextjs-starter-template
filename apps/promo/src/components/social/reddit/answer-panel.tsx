@@ -14,7 +14,12 @@ import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
-import { MAX_COMMENT_CHARS, type FindThread, type LinkPage } from "@/lib/social/options"
+import {
+  MAX_COMMENT_CHARS,
+  PICK_AN_ACCOUNT,
+  type FindThread,
+  type LinkPage,
+} from "@/lib/social/options"
 import {
   linkHostText,
   noWordsText,
@@ -93,7 +98,11 @@ export function AnswerPanel({
 }: {
   /** Null when no post is selected. */
   find: FindDetail | null
-  /** The Reddit account it posts as, or null when none is set up. */
+  /**
+   * The Reddit account it posts as, without the u/: the one clicked on the
+   * Projects dashboard. Null when none is clicked, or the clicked one was
+   * never seen signed in.
+   */
   handle: string | null
   drafts: DraftView[]
   loading: boolean
@@ -101,7 +110,7 @@ export function AnswerPanel({
   working: boolean
   /** Why posting is impossible right now, in words, or null. */
   disabledReason: BlockedReason | null
-  /** The account's pace and the comments waiting for its morning. Null with no account. */
+  /** The clicked account's pace and the comments waiting for its morning. Null with none clicked. */
   postingState: PostingState | null
   /** The voice drafts are written in, or null when the account has none. */
   voiceName: string | null
@@ -253,7 +262,11 @@ export function AnswerPanel({
         // A light ground, the same muted tone the shell's table headers and
         // footers use, so the writing area reads as its own section under
         // the post. The box and the drafts keep the page colour on it.
-        <div className="grid gap-3 border-t bg-muted/50 p-4">
+        // `grid-cols-1` is a column that may shrink below its widest line.
+        // A plain grid sized itself to the rules row and its button, 301px
+        // inside the 290px panel at a 1440px window, and pushed the post off
+        // the panel's left edge. Measured 12 Oct 2026.
+        <div className="grid grid-cols-1 gap-3 border-t bg-muted/50 p-4">
           {/* First in the writing area, because the rules are the thing to
               read before writing, not after. */}
           <SubredditRules
@@ -337,34 +350,42 @@ export function AnswerPanel({
           ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            {/* The account's pace, always in plain counts. Past the per-hour
-                number it warns in amber and in words, and Post still works:
-                pace is a judgement. A young account's hard limit shows in
-                Post's own tooltip instead. */}
-            {postingState ? (
-              <span
-                className={cn(
-                  "flex items-start gap-1.5 text-xs",
-                  paceWarning ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
-                )}
-              >
-                {paceWarning ? (
-                  <AlertTriangleIcon className="mt-px size-3.5 shrink-0" aria-hidden="true" />
-                ) : null}
-                {paceLineText(postingState)}
-                {paceWarning ? ` ${paceWarning}` : null}
-              </span>
-            ) : (
-              <span />
-            )}
-            <div className="flex items-center gap-2">
-              {/* Said beside the button, because a plain draft that never
-                  mentions what you make is otherwise a puzzle. */}
+            <div className="grid min-w-0 gap-1">
+              {/* Who it posts as, then the account's pace, always in plain
+                  counts. Past the per-hour number it warns in amber and in
+                  words, and Post still works: pace is a judgement. A young
+                  account's hard limit shows in Post's own tooltip instead. */}
+              {postingState ? (
+                <span
+                  className={cn(
+                    "flex items-start gap-1.5 text-xs",
+                    paceWarning ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                  )}
+                >
+                  {paceWarning ? (
+                    <AlertTriangleIcon className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+                  ) : null}
+                  <span>
+                    {handle ? (
+                      <span className="font-medium text-foreground">Posts as u/{handle}. </span>
+                    ) : null}
+                    {paceLineText(postingState)}
+                    {paceWarning ? ` ${paceWarning}` : null}
+                  </span>
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">{PICK_AN_ACCOUNT}</span>
+              )}
+              {/* Said by the buttons, because a plain draft is otherwise a
+                  puzzle. On a line of its own, so a narrow panel wraps it
+                  rather than squeezing it to a word a line. */}
               {voiceName === null ? (
                 <span className="text-xs text-muted-foreground">
                   No voice picked, so drafts are plain
                 </span>
               ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
                 variant="outline"

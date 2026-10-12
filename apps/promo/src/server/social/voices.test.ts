@@ -26,9 +26,11 @@ import {
 
 const words = {
   voice: "Plain and helpful, never salesy.",
-  product: "A tool that finds Reddit threads worth answering.",
   commentRules: "Never pretend to be a customer.",
 }
+
+/** The account's old product box, which a project's description replaced. */
+const product = "A tool that finds Reddit threads worth answering."
 
 /**
  * The migration that gives every existing account a voice. The one thing it
@@ -60,7 +62,7 @@ describe("adopting the accounts that already have words", () => {
     const accountId = uuid()
     await client.query(
       `INSERT INTO promo_accounts (id, user_id, voice, product, comment_rules) VALUES ($1, $2, $3, $4, $5)`,
-      [accountId, userId, words.voice, words.product, words.commentRules]
+      [accountId, userId, words.voice, product, words.commentRules]
     )
 
     const files = (await readdir(folder)).filter((file) => file.endsWith(".sql")).sort()
@@ -133,7 +135,7 @@ describe("voices shared by accounts", () => {
 
   it("drafts plainly for an account with no voice", async () => {
     const id = await account("a_persona", null)
-    expect(await wordsForAccount(userId, id, db)).toEqual({ voice: "", product: "", commentRules: "" })
+    expect(await wordsForAccount(userId, id, db)).toEqual({ voice: "", commentRules: "" })
   })
 
   it("refuses a voice with no name", async () => {

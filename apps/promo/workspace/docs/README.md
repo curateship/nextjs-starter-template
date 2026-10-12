@@ -8,8 +8,17 @@ the repo's `docs/`, and is never copied here.
 - [Where the code lives](where-the-code-lives.md) — what every network shares,
   what belongs to Reddit alone, and how to add the next one.
 
+## Projects
+
+- [The Projects dashboard](projects-dashboard.md): the table of every project,
+  and one project's description, accounts, keywords and posts on one screen, which account comments, what the
+  AI is told about what you make, and the order accounts are listed in.
+
 ## Reddit
 
+- [The Reddit accounts dashboard](reddit/accounts-dashboard.md): every account
+  with its status (Warming up, Ready, Working, Banned), project, profile and
+  proxy, adding one, setting a status by hand, and retiring.
 - [Finding posts worth answering](reddit/finding-posts.md) — what a keyword is,
   watching a subreddit, why there is no Reddit API, how the order is worked
   out, the Everything list, searching the posts, the subreddits you never see,
@@ -54,8 +63,9 @@ the repo's `docs/`, and is never copied here.
 
 ## Writing
 
-- [The Voices dashboard](voices-dashboard.md) — the words the AI is told, as a
-  record any number of accounts share, and how the first account's words moved.
+- [The Voices dashboard](voices-dashboard.md) — how the AI sounds and the lines
+  it must not cross, as a record any number of accounts share, and how the
+  first account's words moved.
 
 ## Shell
 

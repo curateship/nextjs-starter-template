@@ -65,17 +65,24 @@ app waits 15.5, so the app hears the browser's own answer.
   their upvotes. This is the part that earns its place: without it a draft
   confidently repeats whatever the top reply already said.
 - **The subreddit's name.**
-- **Your voice**, in your words, from the voice the account uses. Voices are
-  kept on the [Voices dashboard](../voices-dashboard.md) and picked in Settings.
-- **What you make**, from the same voice, and only when it genuinely answers
-  what was asked. Leave that box empty and no draft will ever mention a product.
+- **Your voice**, in your words, from the voice of the account clicked on the
+  Projects dashboard. Voices are kept on the
+  [Voices dashboard](../voices-dashboard.md).
+- **What you make**: the description of the clicked account's project, and
+  only when it genuinely answers what was asked. Before an account is clicked,
+  the post's own project's description. An account in no project, or an empty
+  description, means no draft will ever mention a product. Until 12 Oct 2026
+  this came from a box on the voice;
+  [the Projects dashboard](../projects-dashboard.md) has why it moved.
 - **Your rules**, the lines it must not cross, from the same voice.
 - **The subreddit's own rules**, as its moderators posted them, in a block of
   their own. See below.
 - **Comments you really posted**, up to three, as examples of how you write.
 
-An account with no voice is told none of the first three, and the Reddit
-dashboard says "No voice picked, so drafts are plain" beside Write with AI.
+An account with no voice, or no account clicked yet, is told no voice and no
+rules, and the Projects dashboard says "No voice picked, so drafts are plain"
+beside Write with AI. The example comments below are the clicked account's own,
+so before one is clicked there are none.
 
 ### Your sent comments as examples
 
@@ -180,13 +187,16 @@ It is never off without a reason in its tooltip. The reasons:
 
 - **The replies have not been read.** Read them first, so the comment does not
   repeat one of them.
+- **No account is clicked.** "Pick an account on the left." A comment always
+  goes out from the account clicked on the Projects dashboard, and every reason
+  below is about that account.
 - **The browser is not signed in to Reddit.** Open it in Settings and sign in
   once.
 - **Reddit is showing a challenge or a captcha.** Open the browser window and
   clear it by hand.
 - **The account is still warming up.** The tooltip says when its first comment
   is allowed. An account whose age has never been read is off too, until Check
-  now on Settings → Reddit account reads it.
+  now on the Reddit accounts dashboard reads it.
 - **A young account is at its pace limit.** The tooltip says when the next one
   is allowed. The server refuses the same comment with the same words.
 - **A comment on this post is already waiting** for the account's morning.
@@ -194,7 +204,8 @@ It is never off without a reason in its tooltip. The reasons:
 
 ## The pace line
 
-Beside Post, always: "3 comments in the last hour, 11 today." Past the number
+Beside Post, always, after who it posts as: "Posts as u/name. 3 comments in the
+last hour, 11 today." Past the number
 in Settings → Behaviour (4 an hour) it turns amber and says "That would be the
 5th comment this hour. New accounts get banned for less." That warning never
 turns Post off. Failed attempts are not counted.

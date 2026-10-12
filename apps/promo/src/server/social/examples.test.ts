@@ -7,6 +7,7 @@ import {
   insertUser,
   type TestDatabase,
 } from "@/server/test-support"
+import { createProject } from "@/server/social/projects"
 
 import { buildDraftPrompt } from "./drafts"
 import { exampleComments, nextExampleIds, setNotExample } from "./examples"
@@ -33,7 +34,7 @@ describe("sent comments as examples", () => {
     accountId = uuid()
     await db.insert(promoAccounts).values({ id: accountId, userId, handle: "me" })
     const keywordId = uuid()
-    await db.insert(promoKeywords).values({ id: keywordId, userId, term: "a term" })
+    await db.insert(promoKeywords).values({ id: keywordId, userId, projectId: await createProject(userId, "A project", db), term: "a term" })
     findId = uuid()
     await db
       .insert(promoFinds)
