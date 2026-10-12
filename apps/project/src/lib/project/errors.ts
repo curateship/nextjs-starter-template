@@ -118,6 +118,13 @@ export const PROJECT_ERRORS = {
   fieldValueWrong: "That value doesn't fit this field.",
   fieldPersonNotOnProject: "Pick someone who is on this project.",
   cantChangeType: "Only whoever handed the task out, the owner or an admin can change its type.",
+  messageEmpty: "Write the message or add a file first.",
+  tooManyMessageFiles: "A message can carry at most 5 files. Send the rest in another message.",
+  replyNotInChat: "The message you're replying to isn't in this chat any more.",
+  linkNotVisible: "You can only link tasks you can see that aren't in a bin.",
+  noAnnouncement: "There's no announcement up right now.",
+  tooManyAnnouncements: "That's a lot of announcements in an hour. Wait a while, then post again.",
+  noteVersionNotFound: "That version of the notes no longer exists.",
 } as const
 
 /**

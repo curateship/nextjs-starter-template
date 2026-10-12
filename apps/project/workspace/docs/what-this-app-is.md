@@ -170,6 +170,20 @@ Each was the recommended option.
   admins can change a task's type once it exists, so nobody switches a task
   to a plain one to get past "Needed before Done".
 
+## Choices for chat and talking
+
+Tyler answered these on 12 Oct 2026, before More features task 03 was built.
+Each was the recommended option.
+
+- **Live updates** come through Project's own stream, so a message shows in
+  about a second, rather than a check every 15 seconds.
+- **Typing # in a task's notes** links a task. Tyler allowed the small shell
+  edit this needs: an optional slot for extra behaviour on the shared editor.
+- **Files in a project's chat** are 10 MB each with no count, inside the
+  team's 5 GB.
+- **A reply in a project's chat** tells the person replied to, as well as
+  anyone tagged.
+
 ## The first version
 
 - Teams, email invites, projects and tasks.

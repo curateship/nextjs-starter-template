@@ -26,7 +26,7 @@ import {
   removeProjectMember,
 } from "@/server/project/projects"
 import { projectNavigationAdded, projectNoticeLinks, projectTasks } from "@/server/project/schema"
-import { addComment } from "@/server/project/task-chat"
+import { sendMessage } from "@/server/project/task-chat"
 import {
   acceptTask,
   assignTask,
@@ -331,7 +331,7 @@ describe("notices after someone leaves", () => {
     await leaveTeam(ben.id, database)
 
     await setTaskStatus(carla, { taskId: id, status: "stuck", stuckReason: "Blocked" }, database)
-    await addComment(carla, { taskId: id, body: "Any news?" }, database)
+    await sendMessage(carla, { chat: { taskId: id }, body: "Any news?", replyToId: null }, database)
     expect(await noticesFor(ben.id)).toEqual([])
   })
 })

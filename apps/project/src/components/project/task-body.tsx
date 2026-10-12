@@ -69,6 +69,7 @@ import {
 } from "@/lib/project/rules"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 import { usePeopleRoom } from "@/lib/project/use-people-room"
+import { useProjectLive } from "@/lib/project/use-project-live"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
@@ -138,6 +139,13 @@ export function TaskView({
     setReloads((n) => n + 1)
     await router.invalidate()
   }, [router])
+
+  // Someone else's message, reaction or change to this task shows as it happens.
+  useProjectLive(
+    loaded.state === "ready" ? loaded.detail.task.projectId : undefined,
+    (change) => change === `task:${taskId}`,
+    () => setReloads((n) => n + 1)
+  )
 
   if (loaded.state === "ready") {
     return (
@@ -638,7 +646,8 @@ function TaskForm({
             key={task.id}
             notes={task.notes}
             readOnly={readOnly}
-            onSave={(notes) => change(() => saveTask({ taskId: task.id, notes }))}
+            onSave={(notes, notesSession) => change(() => saveTask({ taskId: task.id, notes, notesSession }))}
+            task={{ id: task.id, links: detail.noteLinks, change }}
           />
           {canHandBack && !task.waiting && !handingBack && !readOnly ? (
             <div>

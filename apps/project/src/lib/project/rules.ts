@@ -225,7 +225,29 @@ export const LIMITS = {
   fieldLink: 2048,
   /** Field columns a project's List can add when filtered to one type. */
   fieldColumns: 3,
+  /** Files sent with one chat message, so one send stays one upload of at most 50 MB. */
+  filesPerMessage: 5,
+  /** The team's pinned announcement: one message, never a chat. */
+  announcement: 500,
+  /** Earlier versions of a task's notes kept behind the current one. */
+  noteVersions: 20,
+  /** Project chat messages loaded at a time; older ones wait behind "Show earlier messages". */
+  chatPage: 50,
+  /** The most a refresh reloads at once: ten pages. */
+  chatMostShown: 500,
 } as const
+
+/** The five fixed reactions under a chat message, in the order they are offered. */
+export const REACTIONS = ["thumbs_up", "tick", "eyes", "heart", "laugh"] as const
+export type Reaction = (typeof REACTIONS)[number]
+
+export const REACTION_LOOK: Record<Reaction, { emoji: string; label: string }> = {
+  thumbs_up: { emoji: "\u{1F44D}", label: "Thumbs up" },
+  tick: { emoji: "\u2705", label: "Tick" },
+  eyes: { emoji: "\u{1F440}", label: "Eyes" },
+  heart: { emoji: "\u2764\uFE0F", label: "Heart" },
+  laugh: { emoji: "\u{1F602}", label: "Laugh" },
+}
 
 /** How far back My week steps. */
 export const MY_WEEK_BACK = 12
@@ -422,6 +444,8 @@ export const updateTaskSchema = z.object({
   taskId: id,
   title: trimmed(LIMITS.taskTitle, "The task title").optional(),
   notes: notesSchema.optional(),
+  /** One editing session of the notes, so it keeps one earlier version however often it saves. */
+  notesSession: z.string().uuid().optional(),
   dueDate: dueDateSchema.optional(),
   sectionId: id.nullable().optional(),
   snoozedUntil: dueDateSchema.optional(),
@@ -522,16 +546,45 @@ export const reviewSchema = z.discriminatedUnion("action", [
   z.object({ taskId: id, action: z.literal("send_back"), reason: reasonSchema }),
 ])
 
-const messageSchema = trimmed(LIMITS.comment, "The message")
+/** A message's words. Empty is allowed when the message carries files; the server checks. */
+const messageSchema = z
+  .string()
+  .trim()
+  .max(LIMITS.comment, `A message can be at most ${LIMITS.comment} characters.`)
 
-export const commentSchema = z.object({
-  taskId: id,
+/** Which chat a message goes in: a task's, or a project's own. */
+export const chatSchema = z.union([
+  z.object({ taskId: id }).strict(),
+  z.object({ projectId: id }).strict(),
+])
+export type ChatPlace = z.infer<typeof chatSchema>
+
+/** A new message, without its files, which travel beside it in the same form. */
+export const sendMessageSchema = z.object({
+  chat: chatSchema,
   body: messageSchema,
+  replyToId: id.nullable(),
 })
 
 export const editCommentSchema = z.object({
   commentId: id,
   body: messageSchema,
+})
+
+export const deleteCommentSchema = z.object({
+  commentId: id,
+  /** Its files stay under "Message deleted", and on the task, rather than going with it. */
+  keepFiles: z.boolean(),
+})
+
+export const reactSchema = z.object({
+  commentId: id,
+  reaction: z.enum(REACTIONS),
+  on: z.boolean(),
+})
+
+export const announcementSchema = z.object({
+  text: trimmed(LIMITS.announcement, "The announcement"),
 })
 
 /** A check-in's three notes. An empty box saves as no note. */

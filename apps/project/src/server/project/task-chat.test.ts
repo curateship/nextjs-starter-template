@@ -10,7 +10,7 @@ import type { CustomShellDb } from "@/server/db"
 import { createInvite, acceptInvite } from "@/server/project/invites"
 import { addProjectMember, createProject, removeProjectMember } from "@/server/project/projects"
 import { projectNoticeLinks, projectProjects, projectTaskFiles } from "@/server/project/schema"
-import { addComment, deleteComment, editComment } from "@/server/project/task-chat"
+import { deleteComment, editComment, sendMessage } from "@/server/project/task-chat"
 import {
   addTaskFile,
   deleteTaskFile,
@@ -102,7 +102,7 @@ const tag = (person: CustomShellUser) => `@[${person.name}](${person.id})`
 describe("the chat's @ tags", () => {
   it("sends a tagged person one notice, and everyone else on the task the usual one", async () => {
     const { taskId } = await setUp()
-    await addComment(anna, { taskId, body: `${tag(leo)} did the old URLs come from the sitemap?` }, database)
+    await sendMessage(anna, { chat: { taskId: taskId }, body: `${tag(leo)} did the old URLs come from the sitemap?`, replyToId: null }, database)
 
     expect(await noticesFor(leo.id)).toEqual([
       {
@@ -117,14 +117,14 @@ describe("the chat's @ tags", () => {
 
   it("tells the assignee once when they are also tagged", async () => {
     const { taskId } = await setUp()
-    await addComment(anna, { taskId, body: `${tag(ben)} any news?` }, database)
+    await sendMessage(anna, { chat: { taskId: taskId }, body: `${tag(ben)} any news?`, replyToId: null }, database)
     expect((await noticesFor(ben.id)).map((n) => n.kind)).toEqual(["task_mention"])
   })
 
   it("refuses a tag of someone not on the project, and saves nothing", async () => {
     const { taskId } = await setUp()
     await expect(
-      addComment(anna, { taskId, body: `${tag(carla)} can you look?` }, database)
+      sendMessage(anna, { chat: { taskId: taskId }, body: `${tag(carla)} can you look?`, replyToId: null }, database)
     ).rejects.toThrow(PROJECT_ERRORS.tagNotOnProject)
     expect((await loadTaskDetail(anna.id, taskId, database)).comments).toEqual([])
     expect(await noticesFor(carla.id)).toEqual([])
@@ -132,13 +132,13 @@ describe("the chat's @ tags", () => {
 
   it("sends nothing for tagging yourself", async () => {
     const { taskId } = await setUp()
-    await addComment(ben, { taskId, body: `${tag(ben)} note to self` }, database)
+    await sendMessage(ben, { chat: { taskId: taskId }, body: `${tag(ben)} note to self`, replyToId: null }, database)
     expect(await noticesFor(ben.id)).toEqual([])
   })
 
   it("reads a message from before tags exactly as written", async () => {
     const { taskId } = await setUp()
-    await addComment(anna, { taskId, body: "Plain words, an @ sign, and [brackets](too)" }, database)
+    await sendMessage(anna, { chat: { taskId: taskId }, body: "Plain words, an @ sign, and [brackets](too)", replyToId: null }, database)
     const [comment] = (await loadTaskDetail(ben.id, taskId, database)).comments
     expect(comment.body).toBe("Plain words, an @ sign, and [brackets](too)")
     expect(messageText(comment.body)).toBe(comment.body)
@@ -158,7 +158,7 @@ describe("the chat's @ tags", () => {
 describe("editing and deleting messages", () => {
   it("lets only the writer edit, marks it edited, and tells only people newly tagged", async () => {
     const { taskId } = await setUp()
-    const { id } = await addComment(anna, { taskId, body: `${tag(leo)} first` }, database)
+    const { id } = await sendMessage(anna, { chat: { taskId: taskId }, body: `${tag(leo)} first`, replyToId: null }, database)
     await database.delete(customShellNotifications)
 
     await expect(
@@ -176,12 +176,12 @@ describe("editing and deleting messages", () => {
 
   it("lets the writer, the owner and admins delete, and leaves the message's place", async () => {
     const { taskId } = await setUp()
-    const { id } = await addComment(ben, { taskId, body: `${tag(leo)} question` }, database)
+    const { id } = await sendMessage(ben, { chat: { taskId: taskId }, body: `${tag(leo)} question`, replyToId: null }, database)
 
-    await expect(deleteComment(leo, id, database)).rejects.toThrow(
+    await expect(deleteComment(leo, { commentId: id, keepFiles: true }, database)).rejects.toThrow(
       PROJECT_ERRORS.cantDeleteMessage
     )
-    await deleteComment(anna, id, database)
+    await deleteComment(anna, { commentId: id, keepFiles: true }, database)
 
     const [comment] = (await loadTaskDetail(leo.id, taskId, database)).comments
     expect(comment).toMatchObject({ deleted: true, body: "", canEdit: false, canDelete: false })
@@ -202,7 +202,7 @@ describe("following a task", () => {
     await followTask(leo.id, taskId, database)
     expect((await loadTaskDetail(leo.id, taskId, database)).following).toBe(true)
 
-    await addComment(ben, { taskId, body: "Started" }, database)
+    await sendMessage(ben, { chat: { taskId: taskId }, body: "Started", replyToId: null }, database)
     await setTaskStatus(ben, { taskId, status: "stuck", stuckReason: "No sitemap" }, database)
     await setTaskStatus(ben, { taskId, status: "done", stuckReason: null }, database)
     // Already Done: no second notice.
@@ -215,14 +215,14 @@ describe("following a task", () => {
 
     await unfollowTask(leo.id, taskId, database)
     await database.delete(customShellNotifications)
-    await addComment(ben, { taskId, body: "One more thing" }, database)
+    await sendMessage(ben, { chat: { taskId: taskId }, body: "One more thing", replyToId: null }, database)
     expect(await noticesFor(leo.id)).toEqual([])
   })
 
   it("sends a follower who is also tagged one notice", async () => {
     const { taskId } = await setUp()
     await followTask(leo.id, taskId, database)
-    await addComment(ben, { taskId, body: `${tag(leo)} quick one` }, database)
+    await sendMessage(ben, { chat: { taskId: taskId }, body: `${tag(leo)} quick one`, replyToId: null }, database)
     expect((await noticesFor(leo.id)).map((n) => n.kind)).toEqual(["task_mention"])
   })
 
@@ -230,7 +230,7 @@ describe("following a task", () => {
     const { projectId, taskId } = await setUp()
     await followTask(leo.id, taskId, database)
     await removeProjectMember(anna.id, projectId, leo.id, database)
-    await addComment(ben, { taskId, body: "Started" }, database)
+    await sendMessage(ben, { chat: { taskId: taskId }, body: "Started", replyToId: null }, database)
     await setTaskStatus(ben, { taskId, status: "done", stuckReason: null }, database)
     expect(await noticesFor(leo.id)).toEqual([])
   })

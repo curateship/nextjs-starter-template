@@ -18,6 +18,7 @@ import type {
   DueReminderKind,
   MeetingRepeat,
   ProjectColor,
+  Reaction,
   RepeatEvery,
   TaskEventKind,
   TaskStatus,
@@ -60,6 +61,13 @@ export const projectTeams = pgTable("project_teams", {
   questionBlocker: varchar("question_blocker", { length: 40 }),
   /** Titles each new member gets as "Just me" tasks. */
   starterTasks: text("starter_tasks").array().notNull().default([]),
+  /** The team's one pinned announcement (`drizzle/0109_project_chat_and_talking.sql`). */
+  announcementId: varchar("announcement_id", { length: 36 }),
+  announcementText: varchar("announcement_text", { length: 500 }),
+  announcementByUserId: varchar("announcement_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  announcementAt: timestamp("announcement_at", { withTimezone: true }),
 })
 
 /** Each join through a team's link, for the daily cap. */
@@ -95,6 +103,8 @@ export const projectTeamMembers = pgTable(
     timeZone: text("time_zone"),
     /** A short job title, such as "Copywriter" (`drizzle/0104_project_running_the_team.sql`). */
     title: varchar("title", { length: 40 }),
+    /** The announcement this person hid; a newer one shows again. */
+    hiddenAnnouncementId: varchar("hidden_announcement_id", { length: 36 }),
   },
   (table) => [primaryKey({ columns: [table.teamId, table.userId] })]
 )
@@ -372,11 +382,23 @@ export const projectTaskSteps = pgTable("project_task_steps", {
   dueDate: date("due_date", { mode: "string" }),
 })
 
+/**
+ * A chat message: on a task (`taskId`), or in a project's own chat
+ * (`projectId`), never both (`drizzle/0109_project_chat_and_talking.sql`).
+ */
 export const projectTaskComments = pgTable("project_task_comments", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  taskId: varchar("task_id", { length: 36 })
-    .notNull()
-    .references(() => projectTasks.id, { onDelete: "cascade" }),
+  taskId: varchar("task_id", { length: 36 }).references(() => projectTasks.id, {
+    onDelete: "cascade",
+  }),
+  projectId: varchar("project_id", { length: 36 }).references(() => projectProjects.id, {
+    onDelete: "cascade",
+  }),
+  /** The message this one answers. */
+  replyToCommentId: varchar("reply_to_comment_id", { length: 36 }).references(
+    (): AnyPgColumn => projectTaskComments.id,
+    { onDelete: "set null" }
+  ),
   authorUserId: varchar("author_user_id", { length: 36 }).references(userRef, {
     onDelete: "set null",
   }),
@@ -401,6 +423,22 @@ export const projectCommentMentions = pgTable(
   (table) => [primaryKey({ columns: [table.commentId, table.userId] })]
 )
 
+/** Who reacted to a chat message, and with which of the five reactions. */
+export const projectCommentReactions = pgTable(
+  "project_comment_reactions",
+  {
+    commentId: varchar("comment_id", { length: 36 })
+      .notNull()
+      .references(() => projectTaskComments.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    reaction: varchar("reaction", { length: 16 }).$type<Reaction>().notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ columns: [table.commentId, table.userId, table.reaction] })]
+)
+
 /** People who get a task's chat, Stuck and Done notices without being assigned. */
 export const projectTaskFollowers = pgTable(
   "project_task_followers",
@@ -416,12 +454,15 @@ export const projectTaskFollowers = pgTable(
   (table) => [primaryKey({ columns: [table.taskId, table.userId] })]
 )
 
-/** A file on a task. `storagePath` is the bucket key and never leaves the server. */
+/**
+ * A file on a task, or sent in a project's chat (`taskId` null, `commentId`
+ * set). `storagePath` is the bucket key and never leaves the server.
+ */
 export const projectTaskFiles = pgTable("project_task_files", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  taskId: varchar("task_id", { length: 36 })
-    .notNull()
-    .references(() => projectTasks.id, { onDelete: "cascade" }),
+  taskId: varchar("task_id", { length: 36 }).references(() => projectTasks.id, {
+    onDelete: "cascade",
+  }),
   teamId: varchar("team_id", { length: 36 })
     .notNull()
     .references(() => projectTeams.id, { onDelete: "cascade" }),
@@ -437,6 +478,28 @@ export const projectTaskFiles = pgTable("project_task_files", {
   fieldId: varchar("field_id", { length: 36 }).references(() => projectTaskTypeFields.id, {
     onDelete: "cascade",
   }),
+  /** The chat message it was sent in (`drizzle/0109_project_chat_and_talking.sql`). */
+  commentId: varchar("comment_id", { length: 36 }).references(() => projectTaskComments.id, {
+    onDelete: "cascade",
+  }),
+})
+
+/**
+ * Each saved state of a task's notes, one per editing session. The newest is
+ * the current notes; the 20 before it are "Earlier versions".
+ */
+export const projectTaskNoteVersions = pgTable("project_task_note_versions", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  taskId: varchar("task_id", { length: 36 })
+    .notNull()
+    .references(() => projectTasks.id, { onDelete: "cascade" }),
+  notes: text("notes").notNull(),
+  savedByUserId: varchar("saved_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
+  /** The editing session that saved it; null for the notes from before versions were kept. */
+  sessionId: varchar("session_id", { length: 36 }),
 })
 
 export const projectNoticeLinks = pgTable("project_notice_links", {

@@ -53,17 +53,47 @@ export function storedTaskNotes(value: unknown): string {
   return writtenPageBodyIsEmpty(body) ? "" : JSON.stringify(body)
 }
 
-/** The notes' words alone, for searching. */
-export function taskNotesText(stored: string): string {
+const TASK_ADDRESS = /^\/projects\/[\w-]{1,36}\?task=([\w-]{1,36})$/
+
+/** The task a notes link points at, when the link is a task's address (a # link). */
+export function linkedTaskOf(href: string): string | null {
+  return TASK_ADDRESS.exec(href)?.[1] ?? null
+}
+
+/**
+ * The notes' words alone, for searching. A # task link's words are left out,
+ * because they are the title as it was written, which not every reader may
+ * see. `withTaskLinks` keeps them, for notes already named for one reader.
+ */
+export function taskNotesText(stored: string, { withTaskLinks = false } = {}): string {
   const notes = readTaskNotes(stored)
   if (notes.kind === "text") return notes.text
   const words: string[] = []
   const walk = (node: WrittenPageNode) => {
-    if (node.text) words.push(node.text)
+    const taskLink =
+      !withTaskLinks &&
+      node.marks?.some((mark) => mark.type === "link" && mark.attrs && linkedTaskOf(mark.attrs.href))
+    if (node.text && !taskLink) words.push(node.text)
     node.content?.forEach(walk)
     // Blocks end a line, so words from two paragraphs don't run together.
     if (node.type !== "text") words.push("\n")
   }
   walk(notes.body)
   return words.join("").replace(/\n+/g, "\n").trim()
+}
+
+/**
+ * The notes as drawn for reading: a # link to a task this reader can't open
+ * ("a task you can't see", "deleted task") loses its link and keeps its words.
+ */
+export function notesForDisplay(body: WrittenPageNode, openable: Record<string, string>): WrittenPageNode {
+  const marks = body.marks?.filter((mark) => {
+    const taskId = mark.type === "link" && mark.attrs ? linkedTaskOf(mark.attrs.href) : null
+    return !taskId || Boolean(openable[taskId])
+  })
+  return {
+    ...body,
+    marks: marks?.length ? marks : undefined,
+    content: body.content?.map((child) => notesForDisplay(child, openable)),
+  }
 }

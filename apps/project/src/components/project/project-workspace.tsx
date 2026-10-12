@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useRouter } from "@tanstack/react-router"
 
 import { ProjectDetailsPanel } from "@/components/project/project-details-panel"
 import { ProjectMembersPanel } from "@/components/project/project-members-panel"
@@ -10,6 +10,9 @@ import type { ProjectPage } from "@/lib/api/project/projects"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { PROJECT_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
 import type { TaskFilters } from "@/lib/project/task-filters"
+import { useProjectLive } from "@/lib/project/use-project-live"
+
+const PROJECT_ROUTE_ID = "/_authenticated/projects/$projectId"
 
 /**
  * The project page: details on the left, tasks in the middle, the project's
@@ -26,13 +29,49 @@ export function ProjectWorkspace({
   page,
   openTaskId,
   filters,
+  openChat = false,
 }: {
   page: ProjectPage
   openTaskId: string | undefined
   filters: TaskFilters
+  /** A chat notice's link: open the Chat tab. */
+  openChat?: boolean
 }) {
   const taskAddress = useTaskAddress()
   const navigate = useNavigate()
+  const router = useRouter()
+
+  // A task changed by someone else moves on the Board and List as it happens.
+  // Only this page's own data reloads. While a task covers the Board, the
+  // reload waits for Back, so an open chat isn't slowed by a Board nobody sees.
+  const boardStale = React.useRef(false)
+  const reloadBoard = React.useCallback(
+    () => void router.invalidate({ filter: (match) => match.routeId === PROJECT_ROUTE_ID }),
+    [router]
+  )
+  useProjectLive(
+    page.project.id,
+    (change) => change !== "chat",
+    () => {
+      if (openTaskId) boardStale.current = true
+      else reloadBoard()
+    }
+  )
+  React.useEffect(() => {
+    if (openTaskId || !boardStale.current) return
+    boardStale.current = false
+    reloadBoard()
+  }, [openTaskId, reloadBoard])
+
+  const chatOpened = React.useCallback(
+    () =>
+      void navigate({
+        to: ".",
+        replace: true,
+        search: (previous: Record<string, unknown>) => ({ ...previous, chat: undefined }),
+      }),
+    [navigate]
+  )
   const setFilters = React.useCallback(
     (patch: Partial<TaskFilters>) =>
       void navigate({
@@ -65,6 +104,8 @@ export function ProjectWorkspace({
               filters={filters}
               onFilters={setFilters}
               onOpenTask={taskAddress.open}
+              openChat={openChat}
+              onChatOpened={chatOpened}
             />
           </TaskInPlace>
         ),

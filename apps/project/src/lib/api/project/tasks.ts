@@ -12,8 +12,6 @@ import {
   setRepeatSchema,
   setWaitingOnSchema,
   updateStepSchema,
-  commentSchema,
-  editCommentSchema,
   reasonSchema,
   setTaskStatusSchema,
   updateTaskSchema,
@@ -30,7 +28,6 @@ import {
   moveTask,
   promoteStep,
 } from "@/server/project/task-changes"
-import { addComment, deleteComment, editComment } from "@/server/project/task-chat"
 import {
   emptyProjectBin,
   findTasksToWaitOn,
@@ -40,6 +37,7 @@ import {
   setWaitingOn,
 } from "@/server/project/planning"
 import { followTask, unfollowTask } from "@/server/project/task-followers"
+import { listNoteVersions, restoreNoteVersion } from "@/server/project/task-note-versions"
 import { reviewTask, setNeedsReview } from "@/server/project/task-review"
 import { thankForTask } from "@/server/project/task-thanks"
 import { listTeamTypes } from "@/server/project/task-types"
@@ -58,7 +56,7 @@ import {
   updateTask,
 } from "@/server/project/tasks"
 
-export type { TaskComment } from "@/server/project/task-chat"
+export type { NoteVersion } from "@/server/project/task-note-versions"
 export type { BinEntry, ProjectBin, RepeatRule, TaskChoice } from "@/server/project/planning"
 export type {
   BulkChange,
@@ -198,20 +196,15 @@ const deleteStepFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ stepId: id }))
   .handler(async ({ data, context }) => deleteStep(context.user, data.stepId))
 
-const addCommentFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(commentSchema)
-  .handler(async ({ data, context }) => addComment(context.user, data))
+const listNoteVersionsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ taskId: id }))
+  .handler(async ({ data, context }) => listNoteVersions(context.user.id, data.taskId))
 
-const editCommentFn = createServerFn({ method: "POST" })
+const restoreNoteVersionFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(editCommentSchema)
-  .handler(async ({ data, context }) => editComment(context.user, data))
-
-const deleteCommentFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ commentId: id }))
-  .handler(async ({ data, context }) => deleteComment(context.user, data.commentId))
+  .inputValidator(z.object({ versionId: id }))
+  .handler(async ({ data, context }) => restoreNoteVersion(context.user, data.versionId))
 
 const followFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -302,14 +295,11 @@ export function loadNewTaskProjects() {
 export function deleteTaskStep(stepId: string) {
   return deleteStepFn({ data: { stepId } })
 }
-export function addTaskComment(data: z.input<typeof commentSchema>) {
-  return addCommentFn({ data })
+export function loadNoteVersions(taskId: string) {
+  return listNoteVersionsFn({ data: { taskId } })
 }
-export function editTaskComment(data: z.input<typeof editCommentSchema>) {
-  return editCommentFn({ data })
-}
-export function deleteTaskComment(commentId: string) {
-  return deleteCommentFn({ data: { commentId } })
+export function bringBackNoteVersion(versionId: string) {
+  return restoreNoteVersionFn({ data: { versionId } })
 }
 export function followProjectTask(taskId: string, follow: boolean) {
   return followFn({ data: { taskId, follow } })

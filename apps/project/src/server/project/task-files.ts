@@ -12,8 +12,15 @@ import {
   R2StorageNotConfiguredError,
   uploadToR2,
 } from "@/server/media/storage"
-import { requireTaskAccess, type Membership, type ProjectDb, type TaskRow } from "@/server/project/access"
-import { projectTaskFiles, projectTaskTypeFields } from "@/server/project/schema"
+import {
+  requireOpenProject,
+  requireProjectAccess,
+  requireTaskAccess,
+  type Membership,
+  type ProjectDb,
+  type TaskRow,
+} from "@/server/project/access"
+import { projectTaskComments, projectTaskFiles, projectTaskTypeFields } from "@/server/project/schema"
 import type { Actor } from "@/server/project/tasks"
 import { customShellUsers } from "@/server/schema"
 
@@ -29,6 +36,12 @@ import { customShellUsers } from "@/server/schema"
  * A file can also sit in a task type's File field (`fieldId`). It shares the
  * same storage, limits, download address and bin, and the Files card leaves
  * it out. Adding or deleting one also needs the right to change that field.
+ *
+ * A file sent in a chat message carries the message (`commentId`). In a
+ * task's chat it is one of the task's files too, so it shows on the Files
+ * card and counts toward the 10. In a project's chat it has no task: the
+ * 10 MB and the team's 5 GB still hold, with no count (Tyler, 12 Oct 2026).
+ * Messages are sent with their files in `task-chat.ts`.
  */
 
 export type TaskFile = {
@@ -42,6 +55,8 @@ export type TaskFile = {
   canDelete: boolean
   /** The File field it sits in; null for the task's Files card. */
   fieldId: string | null
+  /** The chat message it was sent in, if it was. */
+  commentId: string | null
 }
 
 /** Where the bytes go. The tests hand in their own, so they never reach the bucket. */
@@ -50,7 +65,7 @@ export type FileStorage = {
   remove: (path: string) => Promise<void>
 }
 
-const bucket: FileStorage = {
+export const bucket: FileStorage = {
   put: async (path, data, mimeType) => {
     await uploadToR2(path, data, mimeType)
   },
@@ -58,6 +73,16 @@ const bucket: FileStorage = {
 }
 
 const MIME_TYPE = /^[\w.+-]{1,60}\/[\w.+-]{1,60}$/
+
+/** The type a browser said, when it is a sensible one; otherwise "some file". */
+export function cleanMimeType(mimeType: string) {
+  return MIME_TYPE.test(mimeType) ? mimeType : "application/octet-stream"
+}
+
+/** A new random place in the bucket. The name never leaves the server. */
+export function newStoragePath(teamId: string) {
+  return `project-task-files/${teamId}/${uuid()}`
+}
 
 /** The task's Files card: every file that isn't in a File field. */
 export function listTaskFiles(
@@ -79,7 +104,8 @@ export function listFieldFiles(
   return listFiles(viewer, and(eq(projectTaskFiles.taskId, taskId), isNotNull(projectTaskFiles.fieldId)), archived, database)
 }
 
-async function listFiles(
+/** Files matching `where`, oldest first, as this viewer may use them. */
+export async function listFiles(
   viewer: { userId: string; role: TeamRole },
   where: SQL | undefined,
   archived: boolean,
@@ -104,6 +130,7 @@ async function listFiles(
     canDelete:
       !archived && (file.uploadedByUserId === viewer.userId || runsTheTeam(viewer.role)),
     fieldId: file.fieldId,
+    commentId: file.commentId,
   }))
 }
 
@@ -151,8 +178,8 @@ export async function addTaskFile(
   // and again under the lock below so two uploads at once can't both fit.
   await requireRoom(project.teamId, task.id, size, database)
 
-  const storagePath = `project-task-files/${project.teamId}/${uuid()}`
-  const mimeType = MIME_TYPE.test(input.mimeType) ? input.mimeType : "application/octet-stream"
+  const storagePath = newStoragePath(project.teamId)
+  const mimeType = cleanMimeType(input.mimeType)
   try {
     await storage.put(storagePath, input.data, mimeType)
   } catch (error) {
@@ -163,9 +190,7 @@ export async function addTaskFile(
   const id = uuid()
   try {
     await database.transaction(async (tx) => {
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${`project-task-files:${project.teamId}`}))`
-      )
+      await lockTeamFiles(project.teamId, tx)
       await requireRoom(project.teamId, task.id, size, tx)
       await tx.insert(projectTaskFiles).values({
         id,
@@ -187,12 +212,29 @@ export async function addTaskFile(
   return { id }
 }
 
-async function requireRoom(teamId: string, taskId: string, size: number, database: ProjectDb) {
-  const [onTask] = await database
-    .select({ files: count() })
-    .from(projectTaskFiles)
-    .where(eq(projectTaskFiles.taskId, taskId))
-  if (onTask.files >= LIMITS.filesPerTask) throw new Error(PROJECT_ERRORS.tooManyFiles)
+/** Held until the transaction ends, so two uploads at once can't both take the last space. */
+export async function lockTeamFiles(teamId: string, database: ProjectDb) {
+  await database.execute(sql`select pg_advisory_xact_lock(hashtext(${`project-task-files:${teamId}`}))`)
+}
+
+/**
+ * Room for `files` more files of `size` bytes in all: on the task, when there
+ * is one, and in the team's 5 GB.
+ */
+export async function requireRoom(
+  teamId: string,
+  taskId: string | null,
+  size: number,
+  database: ProjectDb,
+  files = 1
+) {
+  if (taskId) {
+    const [onTask] = await database
+      .select({ files: count() })
+      .from(projectTaskFiles)
+      .where(eq(projectTaskFiles.taskId, taskId))
+    if (onTask.files + files > LIMITS.filesPerTask) throw new Error(PROJECT_ERRORS.tooManyFiles)
+  }
   const [onTeam] = await database
     .select({ bytes: sum(projectTaskFiles.sizeBytes) })
     .from(projectTaskFiles)
@@ -214,11 +256,11 @@ export async function deleteTaskFile(
   storage: FileStorage = bucket
 ) {
   const file = await requireFile(fileId, database)
-  const { membership, task } = await requireTaskAccess(actor.id, file.taskId, database)
+  const { membership, task } = await requireFileAccess(actor.id, file, database)
   if (file.uploadedByUserId !== actor.id && !runsTheTeam(membership.role)) {
     throw new Error(PROJECT_ERRORS.cantDeleteFile)
   }
-  if (file.fieldId) await requireFileField(membership, task, file.fieldId, database)
+  if (file.fieldId && task) await requireFileField(membership, task, file.fieldId, database)
   await removeStored([file.storagePath], storage)
   await database.delete(projectTaskFiles).where(eq(projectTaskFiles.id, file.id))
 }
@@ -255,7 +297,7 @@ export async function removeFieldFilesFromStorage(
   )
 }
 
-async function removeStored(paths: string[], storage: FileStorage) {
+export async function removeStored(paths: string[], storage: FileStorage) {
   try {
     await Promise.all(paths.map((path) => storage.remove(path)))
   } catch {
@@ -267,7 +309,7 @@ async function removeStored(paths: string[], storage: FileStorage) {
 export async function loadTaskFileForDownload(userId: string, fileId: string, database = db) {
   try {
     const file = await requireFile(fileId, database)
-    await requireTaskAccess(userId, file.taskId, database, { allowArchived: true })
+    await requireFileAccess(userId, file, database, { allowArchived: true })
     return {
       storagePath: file.storagePath,
       name: file.originalName,
@@ -276,6 +318,40 @@ export async function loadTaskFileForDownload(userId: string, fileId: string, da
   } catch {
     return null
   }
+}
+
+type FileRow = typeof projectTaskFiles.$inferSelect
+
+/**
+ * The file's task, or the project chat it was sent in, when this person can
+ * see it. Without `allowArchived` the project must be open, for changes.
+ */
+async function requireFileAccess(
+  userId: string,
+  file: FileRow,
+  database: ProjectDb,
+  { allowArchived = false } = {}
+): Promise<{ membership: Membership; task: TaskRow | null }> {
+  if (file.taskId) return requireTaskAccess(userId, file.taskId, database, { allowArchived })
+  const [message] = file.commentId
+    ? await database
+        .select({ projectId: projectTaskComments.projectId })
+        .from(projectTaskComments)
+        .where(eq(projectTaskComments.id, file.commentId))
+        .limit(1)
+    : []
+  if (!message?.projectId) throw new Error(PROJECT_ERRORS.fileNotFound)
+  const access = await (allowArchived ? requireProjectAccess : requireOpenProject)(
+    userId,
+    message.projectId,
+    database
+  ).catch((error: unknown) => {
+    if (error instanceof Error && error.message === PROJECT_ERRORS.projectNotFound) {
+      throw new Error(PROJECT_ERRORS.fileNotFound)
+    }
+    throw error
+  })
+  return { membership: access.membership, task: null }
 }
 
 async function requireFile(fileId: string, database: ProjectDb) {

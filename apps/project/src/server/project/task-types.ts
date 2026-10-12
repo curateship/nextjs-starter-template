@@ -549,7 +549,7 @@ export async function valuesForTasks(
     byTask.set(row.taskId, { ...(byTask.get(row.taskId) ?? {}), [row.fieldId]: value })
   }
   for (const row of files) {
-    if (!row.fieldId) continue
+    if (!row.fieldId || !row.taskId) continue
     byTask.set(row.taskId, { ...(byTask.get(row.taskId) ?? {}), [row.fieldId]: row.total })
   }
   return byTask

@@ -16,7 +16,7 @@ import {
   updateProject,
 } from "@/server/project/projects"
 import { createSection } from "@/server/project/sections"
-import { addComment } from "@/server/project/task-chat"
+import { sendMessage } from "@/server/project/task-chat"
 import {
   acceptTask,
   addStep,
@@ -83,7 +83,7 @@ describe("copying a project", () => {
     await updateStep(actor(anna), { stepId: step.id, done: true }, database)
     const label = await createLabel(anna.id, { name: "Client", color: "pink" }, database)
     await setTaskLabels(anna.id, { taskId: brief, labelIds: [label.id] }, database)
-    await addComment(actor(ben), { taskId: brief, body: "Started" }, database)
+    await sendMessage(actor(ben), { chat: { taskId: brief }, body: "Started", replyToId: null }, database)
     await setTaskStatus(actor(ben), { taskId: brief, status: "done", stuckReason: null }, database)
     const binned = await task("Old idea")
     await deleteTask(actor(anna), binned, database)
@@ -137,7 +137,7 @@ describe("the Activity tab", () => {
     const id = await task("Build the contact form")
     await acceptTask(actor(ben), id, database)
     await setTaskStatus(actor(ben), { taskId: id, status: "doing", stuckReason: null }, database)
-    await addComment(actor(ben), { taskId: id, body: "Halfway" }, database)
+    await sendMessage(actor(ben), { chat: { taskId: id }, body: "Halfway", replyToId: null }, database)
     await deleteTask(actor(anna), id, database)
     await restoreTask(actor(anna), id, database)
 

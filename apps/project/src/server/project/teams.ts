@@ -12,6 +12,7 @@ import {
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { isOwnedImageUrl } from "@/server/media/library"
+import { loadAnnouncement, type Announcement } from "@/server/project/announcements"
 import { requireKnownZone } from "@/server/project/checkins"
 import { listHolidays, type Holiday } from "@/server/project/holidays"
 import { listTeamLabels, type Label } from "@/server/project/labels"
@@ -83,6 +84,8 @@ export type TeamDashboard = {
   joinLink: JoinLinkState | null
   /** The team's holidays from today on. */
   holidays: Holiday[]
+  /** The pinned announcement, unless there is none or I hid it. */
+  announcement: Announcement | null
 }
 
 export async function createTeam(
@@ -148,6 +151,7 @@ export async function loadTeamDashboard(
       localNow(now(), team.timeZone).day,
       database
     ),
+    announcement: await loadAnnouncement(membership, database),
   }
 }
 

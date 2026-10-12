@@ -273,7 +273,7 @@ function FileRow({ file, change }: { file: TaskFile; change: Change }) {
  * 404 for Project's file address. The live server has no such step, but this
  * way the card shows the same picture on both.
  */
-function SmallPicture({ fileId }: { fileId: string }) {
+export function SmallPicture({ fileId, className = "size-10" }: { fileId: string; className?: string }) {
   const [src, setSrc] = React.useState<string | null>(null)
   const [failed, setFailed] = React.useState(false)
 
@@ -301,7 +301,7 @@ function SmallPicture({ fileId }: { fileId: string }) {
 
   if (!src) {
     return (
-      <span className="flex size-10 items-center justify-center rounded-md border">
+      <span className={cn("flex items-center justify-center rounded-md border", className)}>
         {failed ? (
           <FileIcon className="size-4 text-muted-foreground" aria-hidden />
         ) : (
@@ -310,5 +310,5 @@ function SmallPicture({ fileId }: { fileId: string }) {
       </span>
     )
   }
-  return <img src={src} alt="" className="size-10 rounded-md border object-cover" />
+  return <img src={src} alt="" className={cn("rounded-md border object-cover", className)} />
 }

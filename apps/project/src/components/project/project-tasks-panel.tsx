@@ -6,6 +6,7 @@ import { BinDialog } from "@/components/project/bin-dialog"
 import { FieldColumnsMenu } from "@/components/project/field-columns-menu"
 import { NewTaskDialog } from "@/components/project/new-task-dialog"
 import { ProjectActivity } from "@/components/project/project-activity"
+import { ProjectChat } from "@/components/project/project-chat"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { TaskBoard } from "@/components/project/task-board"
 import { TaskFiltersBar } from "@/components/project/task-filters-bar"
@@ -29,30 +30,45 @@ import { placesAfterReorder } from "@/lib/project/task-order"
 import { offeredTypes } from "@/lib/project/task-types"
 import { useFieldColumns } from "@/lib/project/use-field-columns"
 
-const VIEWS = ["board", "list", "activity"] as const
+const VIEWS = ["board", "list", "activity", "chat"] as const
 type View = (typeof VIEWS)[number]
 
 const NO_SECTION = "none"
 
 /**
  * The project's tasks, as a Board (one column per status) or a List grouped
- * under the project's sections. The tab last used is remembered in this
- * browser; the search and filters live in the address. A status change or a
- * new order shows at once and is put back if the server refuses it.
+ * under the project's sections, its Activity, and its own Chat. The tab last
+ * used is remembered in this browser; the search and filters live in the
+ * address. A status change or a new order shows at once and is put back if
+ * the server refuses it. A "Just me" list has no Chat, since nobody else
+ * can read it.
  */
 export function ProjectTasksPanel({
   page,
   filters,
   onFilters,
   onOpenTask,
+  openChat,
+  onChatOpened,
 }: {
   page: ProjectPage
   filters: TaskFilters
   onFilters: (patch: Partial<TaskFilters>) => void
   onOpenTask: (taskId: string) => void
+  /** A chat notice's link asked for the Chat tab. */
+  openChat: boolean
+  onChatOpened: () => void
 }) {
   const router = useRouter()
-  const [view, setView] = useRememberedChoice<View>(PROJECT_TASK_VIEW_KEY, "board", VIEWS)
+  const [chosenView, setView] = useRememberedChoice<View>(PROJECT_TASK_VIEW_KEY, "board", VIEWS)
+  const hasChat = !page.project.personal
+  const view = chosenView === "chat" && !hasChat ? "board" : chosenView
+
+  React.useEffect(() => {
+    if (!openChat) return
+    if (hasChat) setView("chat")
+    onChatOpened()
+  }, [openChat, hasChat, setView, onChatOpened])
   const [tasks, setTasks] = useSyncedDraft(page.tasks)
   const [creating, setCreating] = React.useState(false)
   const [binOpen, setBinOpen] = React.useState(false)
@@ -156,9 +172,10 @@ export function ProjectTasksPanel({
           <TabsTrigger value="board">Board</TabsTrigger>
           <TabsTrigger value="list">List</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
+          {hasChat ? <TabsTrigger value="chat">Chat</TabsTrigger> : null}
         </DashboardCardTabsHeader>
       </Tabs>
-      {view === "activity" ? null : (
+      {view === "activity" || view === "chat" ? null : (
         <TaskFiltersBar
           filters={filters}
           onChange={onFilters}
@@ -175,7 +192,9 @@ export function ProjectTasksPanel({
           ) : null}
         </TaskFiltersBar>
       )}
-      {view === "activity" ? (
+      {view === "chat" ? (
+        <ProjectChat page={page} />
+      ) : view === "activity" ? (
         <ProjectActivity projectId={page.project.id} onOpenTask={onOpenTask} />
       ) : hasTaskFilters(filters) && filtered.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">

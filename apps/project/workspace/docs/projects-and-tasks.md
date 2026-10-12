@@ -62,8 +62,10 @@ panels and nothing along the bottom.
   in too.
 - **Middle: tasks.** A Board tab with one column per status, a List tab
   with the same tasks in rows, grouped under the project's sections when it
-  has any, and an Activity tab (below). A card drags between Board columns to change its status, and up or
-  down to set the project's order. The tab last used is remembered in this
+  has any, an Activity tab and a Chat tab (both below). A card drags between Board columns to change its status, and up or
+  down to set the project's order. The Board and List change on their own
+  when someone else changes a task (see
+  [Task chat](task-chat.md#live-updates)). The tab last used is remembered in this
   browser. Clicking a task opens it here, in the Board or List's place (see
   Opening a task below).
 - **Right: members.** Everyone on the project, with their role and how many
@@ -108,6 +110,37 @@ older". Each line says how long ago, with the exact time on hover.
 - **Who sees it:** the same people who can see the project.
 - **The History card stays the task's own story.** It shows the same moments
   for one task, except comments, which are already in its chat.
+
+## The project's chat
+
+The Chat tab, after Activity, is where talk about the project as a whole
+goes, so it no longer ends up on whatever task was open.
+
+- **The same chat as a task's**: @ tags, # links, reactions, replies, files,
+  editing and deleting, all as [Task chat](task-chat.md) describes, and it
+  updates as messages are sent.
+- **Who can read and write it:** the people who can see the project, which is
+  its members and the team's owner and admins. Anyone else gets "That project
+  doesn't exist or you can't see it." An archived project's chat can be read
+  but not written in.
+- **It tells people only when they're tagged or replied to.** "Anna tagged you
+  in a project chat", or "Anna replied to you in a project chat" (Tyler, 12
+  Oct 2026), with the project's name and the start of the message under it.
+  Tagged and replied to at once is one notice. Either opens the project on
+  its Chat tab (`?chat=1`).
+- **Someone who leaves the project stops getting its tags**, because tagging
+  them is refused once they're off it, and a reply to their old message tells
+  only someone who can still see the project.
+- **Files have no count here.** Each is at most 10 MB, within the team's
+  5 GB (Tyler, 12 Oct 2026).
+- **50 messages at a time**, newest at the bottom, with "Show earlier
+  messages" at the top.
+- **A "Just me" list has no Chat tab**, since nobody else can read it.
+- **Talk, not an announcement.** The project chat is talk among the people
+  on one project. The team's announcement is one pinned message to the
+  whole team (see [Teams and invites](teams-and-invites.md#the-teams-announcement)).
+- **Where it is saved:** in `project_task_comments` beside the task chats,
+  with `project_id` set and no task.
 
 ## Finding tasks
 
@@ -418,7 +451,8 @@ project page:
 - **"Ben unblocked a task"** when it leaves Stuck for To do or Doing.
 - **"Ben marked a task Done"** once, when it becomes Done.
 - **"Anna commented on a task"** to the person assigned, whoever handed it
-  out, whoever made it, and the task's followers.
+  out, whoever made it, the task's followers, and whoever the message replies
+  to.
 - **"Anna asked you about a task"** to each person tagged with @ in the chat.
 - **"Anna gave you a step"** to the person a step is given to.
 - **"Anna finished what your task was waiting on"** to the person on a task
@@ -440,6 +474,13 @@ Two come from teammates about the check-in rather than a task, and open the
 Team dashboard on that day: **"Maya answered your blocker"** and **"Leo
 mentioned you in their check-in"** (see
 [The morning check-in](morning-check-in.md)).
+
+Two come from a project's chat and open it on its Chat tab: **"Anna tagged
+you in a project chat"** and **"Anna replied to you in a project chat"** (see
+The project's chat above). One comes from the team: **"Maya posted an
+announcement"** to everyone on the team, which opens the Team dashboard (see
+[Teams and invites](teams-and-invites.md#the-teams-announcement)). A reaction
+sends no notice.
 
 Three more come from the app itself, with nobody as the sender:
 

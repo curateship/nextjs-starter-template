@@ -27,7 +27,14 @@ import {
   requireSectionOf,
   type Section,
 } from "@/server/project/sections"
-import { loadTaskComments, type TaskComment } from "@/server/project/task-chat"
+import { loadTaskMessages, type ChatMessage } from "@/server/project/task-chat"
+import { keepNotesVersion } from "@/server/project/task-note-versions"
+import {
+  notesForReader,
+  notesLinkedTaskIds,
+  openableLinks,
+  resolveTaskLinks,
+} from "@/server/project/task-links"
 import { listTaskFiles, type TaskFile } from "@/server/project/task-files"
 import { resolveProjectId } from "@/server/project/personal"
 import { repeatRuleOf, tellWaitingTasks, waitingOnThis, type RepeatRule } from "@/server/project/planning"
@@ -289,7 +296,9 @@ export type TaskStep = {
 export type TaskDetail = {
   task: TaskCard & { notes: string }
   steps: TaskStep[]
-  comments: TaskComment[]
+  comments: ChatMessage[]
+  /** Tasks the notes link to that I can open: task id to project id. */
+  noteLinks: Record<string, string>
   files: TaskFile[]
   /** Who the task can be handed to, and who the chat can tag: the project's members. */
   assignable: Person[]
@@ -390,10 +399,13 @@ export async function loadTaskDetail(
     .where(eq(projectProjectMembers.projectId, project.id))
     .orderBy(asc(customShellUsers.name))
 
+  const noteTargets = await resolveTaskLinks(membership, notesLinkedTaskIds(task.notes), database)
+
   return {
-    task: { ...card, notes: task.notes },
+    task: { ...card, notes: notesForReader(task.notes, noteTargets) },
+    noteLinks: openableLinks(noteTargets),
     steps,
-    comments: await loadTaskComments(viewer, taskId, archived, database),
+    comments: await loadTaskMessages(membership, taskId, archived, database),
     files: await listTaskFiles(viewer, taskId, archived, database),
     assignable: assignable.map((row) => ({ ...row, avatarUrl: row.avatarUrl ?? "" })),
     following: Boolean(follow),
@@ -543,19 +555,26 @@ export async function updateTask(
     taskId: string
     title?: string
     notes?: string
+    /** The notes editor's session, which keeps one earlier version however often it saves. */
+    notesSession?: string
     dueDate?: string | null
     sectionId?: string | null
     snoozedUntil?: string | null
   },
-  database = db
+  database: ProjectDb = db
 ) {
-  const { taskId, ...fields } = patch
-  const { task } = await requireTaskAccess(actor.id, taskId, database)
-  if (fields.sectionId) await requireSectionOf(task.projectId, fields.sectionId, database)
-  await database
-    .update(projectTasks)
-    .set({ ...fields, updatedAt: now() })
-    .where(eq(projectTasks.id, taskId))
+  const { taskId, notesSession, ...fields } = patch
+  await database.transaction(async (tx) => {
+    const { task } = await requireTaskAccess(actor.id, taskId, tx)
+    if (fields.sectionId) await requireSectionOf(task.projectId, fields.sectionId, tx)
+    await tx
+      .update(projectTasks)
+      .set({ ...fields, updatedAt: now() })
+      .where(eq(projectTasks.id, taskId))
+    if (fields.notes !== undefined && fields.notes !== task.notes) {
+      await keepNotesVersion(tx, task, fields.notes, actor, notesSession ?? uuid())
+    }
+  })
 }
 
 export async function setTaskStatus(
