@@ -170,8 +170,8 @@ export async function queueCommentChecks(
     if (!row.commentUrl) continue
     const check = checks.get(row.id)
     if (check?.status === "queued" || check?.status === "running") continue
-    // Filed under the account that sent it, so it reads through that
-    // account's own browser.
+    // Read in the reader browser, signed in to nobody, which is how a
+    // stranger sees it. The account it came from stays in the payload.
     await queueJob(userId, "comment_check", { commentId: row.id, accountId: row.accountId }, db)
     completed.push(row.id)
   }

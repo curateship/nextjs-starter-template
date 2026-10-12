@@ -22,12 +22,15 @@ const DEFAULT_TIMEOUT_MS = 60_000
 const HEALTH_TIMEOUT_MS = 5_000
 
 /**
- * A comment is typed at a person's pace after reading the post: about two
- * minutes for 900 characters. The launcher gives it 240 seconds; the app waits
- * a little longer so it hears the launcher's own answer rather than giving up
- * first. Whatever happens, a comment job is never tried twice.
+ * A comment is a whole visit: a few minutes in the feed, the post read, the
+ * comment typed at a person's pace (about two minutes for 900 characters),
+ * then a little more feed. A warm-up is the same visit without the comment.
+ * The launcher gives either 900 seconds and the visit plans to finish well
+ * inside that; the app waits a little longer so it hears the launcher's own
+ * answer rather than giving up first. Whatever happens, a comment job is
+ * never tried twice.
  */
-const COMMENT_TIMEOUT_MS = 270_000
+const VISIT_TIMEOUT_MS = 930_000
 
 /**
  * A rules read or a comment check may have to load a Reddit page first, which
@@ -208,20 +211,53 @@ const profileReadShape = z.object({
   suspended: z.boolean(),
 })
 
+/**
+ * The account's half of a health reading. The profile as a stranger sees it
+ * is the reader's half (`redditStrangerProfile`), never read in here.
+ */
 const accountHealthShape = z.object({
   handle: z.string().nullable(),
   ...accountFigures,
   blocked: z.boolean(),
   reason: z.string().default(""),
   /** Null when signed out, since there is no profile to ask about. */
-  profile: z
-    .object({ signedIn: profileReadShape, signedOut: profileReadShape })
-    .nullable(),
+  profile: z.object({ signedIn: profileReadShape }).nullable(),
 })
 
 export type AccountHealthReading = z.infer<typeof accountHealthShape>
 
-const commentShape = z.object({ commentUrl: z.string() })
+/** The visit around a comment or a warm-up, as the browser reports it. */
+const visitShape = z.object({
+  beforeSeconds: z.number(),
+  afterSeconds: z.number(),
+  postsOpened: z.number(),
+  reachedBy: z.enum(["subreddit", "address"]),
+  scrolls: z.number(),
+  problems: z.array(z.string()),
+})
+
+/**
+ * The visit is optional on purpose. A comment answer that failed this shape
+ * would be recorded as failed after Reddit took it, so an image built before
+ * visits still answers with the address alone.
+ */
+const commentShape = z.object({
+  commentUrl: z.string(),
+  visit: visitShape.nullable().default(null),
+})
+
+/** What a day's warm-up did: its time in the feed, and the subreddits it joined. */
+const warmUpShape = z.object({
+  feedSeconds: z.number(),
+  postsOpened: z.number(),
+  scrolls: z.number(),
+  /** Lower case, as asked. "Already" means Reddit showed it joined before the press. */
+  joined: z.array(z.string()),
+  alreadyJoined: z.array(z.string()),
+  problems: z.array(z.string()),
+})
+
+export type BrowserWarmUp = z.infer<typeof warmUpShape>
 
 /**
  * A subreddit's posted rules. `answered` false means Reddit would not say,
@@ -340,12 +376,20 @@ export function redditQuickState(target: CommandTarget) {
 }
 
 /**
- * Karma, account age, and the profile read signed in and signed out, all in a
- * tab of its own so the page a person may be using never moves. A read, so
- * the ticker may ask for it on a schedule.
+ * Karma, account age, and the profile read as the account, in a tab of its
+ * own so the page a person may be using never moves. A read, so the ticker
+ * may ask for it on a schedule.
  */
 export function redditHealth(target: CommandTarget) {
   return call(target, "reddit/health", {}, accountHealthShape)
+}
+
+/**
+ * A profile as a stranger sees it, asked from the reader browser, signed in
+ * to nobody, in a tab of its own.
+ */
+export function redditStrangerProfile(target: CommandTarget, args: { handle: string }) {
+  return call(target, "reddit/stranger_profile", { ...args }, profileReadShape, PAGE_THEN_READ_TIMEOUT_MS)
 }
 
 /**
@@ -367,14 +411,24 @@ export function redditThread(
 }
 
 /**
- * Writes one Reddit comment. Only ever called after a person pressed Post,
- * which is enforced by the endpoint that calls it rather than here.
+ * Writes one Reddit comment, inside a visit: feed before, the post reached
+ * through its subreddit where it can be, feed after. Only ever called after a
+ * person pressed Post, which is enforced by the endpoint that calls it rather
+ * than here.
  */
 export function redditComment(
   target: CommandTarget,
-  args: { permalink: string; text: string }
+  args: { permalink: string; text: string; subreddit: string }
 ) {
-  return call(target, "reddit/comment", { ...args }, commentShape, COMMENT_TIMEOUT_MS)
+  return call(target, "reddit/comment", { ...args }, commentShape, VISIT_TIMEOUT_MS)
+}
+
+/**
+ * A warming account's daily visit: the feed, a few posts, and joining the
+ * subreddits named. Nothing is written and nothing is voted on.
+ */
+export function redditWarmUp(target: CommandTarget, args: { subreddits: string[] }) {
+  return call(target, "reddit/warm_up", { ...args }, warmUpShape, VISIT_TIMEOUT_MS)
 }
 
 /**

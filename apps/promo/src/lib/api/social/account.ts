@@ -16,6 +16,7 @@ import {
   readAccountHealth,
   type AccountHealth,
 } from "@/server/social/health"
+import { readBehaviour } from "@/server/social/behaviour"
 import { listVoices } from "@/server/social/voices"
 
 import { createErrorMessage } from "../error-message"
@@ -36,6 +37,7 @@ export const getAccountErrorMessage = createErrorMessage(
     "browser profile does not exist": "That browser profile is not there any more. Pick another.",
     "voice does not exist": "That voice is not there any more. Pick another.",
     "Set up a Reddit account first": "Save the account with a browser profile first, then check it.",
+    "is the reader browser": "That profile is the reader browser, which stays signed in to nobody. Pick another, or change the reader in Settings → Behaviour.",
   },
   "That did not work. Please try again."
 )
@@ -45,7 +47,7 @@ export type AccountSettings = {
   /**
    * The profiles this account could use: every profile with no other Reddit
    * account in it. One Reddit account per profile, or they sign in over each
-   * other.
+   * other. The reader browser is left out, since it is signed in to nobody.
    */
   profiles: Array<{ id: string; name: string }>
   /** Every voice, since any number of accounts may share one. */
@@ -56,15 +58,17 @@ const loadFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<AccountSettings> => {
     const userId = context.user.id
-    const [account, profiles, voices] = await Promise.all([
+    const [account, profiles, voices, behaviour] = await Promise.all([
       readAccount(userId),
       listProfiles(userId),
       listVoices(userId),
+      readBehaviour(userId),
     ])
     const accounts = await accountsByProfile(userId, profiles.map((profile) => profile.id))
     return {
       account,
       profiles: profiles
+        .filter((profile) => profile.id !== behaviour.readerProfileId)
         .filter((profile) =>
           (accounts.get(profile.id) ?? []).every(
             (other) => other.platform !== "reddit" || other.id === account?.id

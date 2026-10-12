@@ -96,7 +96,7 @@ sits on UTC.
 ## How code drives it
 
 The container runs a small server on a port bound to this machine only, and it
-accepts five named instructions and nothing else:
+accepts named instructions and nothing else. Reddit's are:
 
 - **what it can see** — signed in as whom, and whether a challenge is in the way.
   Goes to Reddit's front page to find out.
@@ -104,9 +104,34 @@ accepts five named instructions and nothing else:
   Reddit's own "who am I" with the page's cookies and looks at what is already
   on screen. If the page is not on Reddit it says it could not tell, rather than
   "signed out".
-- **search** — a keyword, and the posts come back as data
-- **thread** — a post, and its replies come back
-- **comment** — a post and some words, and the new comment's address comes back
+- **search** — a keyword, and the posts come back as data. Reader only.
+- **thread** — a post, and its replies come back. Reader only.
+- **rules** and **comment check** — a subreddit's rules, a sent comment read
+  again. Reader only.
+- **stranger profile** — an account's profile as a stranger sees it. Reader
+  only.
+- **health** — the account's karma, age and its own view of its profile.
+- **comment** — a post and some words, inside a visit to the feed, and the new
+  comment's address and the visit's record come back
+- **warm up** — a warming account's daily visit: the feed, a few posts, a
+  subreddit or two joined
+
+## The reader browser
+
+One profile, signed in to nobody and with a proxy of its own, does every read
+for every account: searches, reply reads, rules, comment checks and the
+stranger's look at a profile. It is picked in Settings → Behaviour. An
+account's own browser only visits Reddit: the feed, the post it comments on,
+and the warm-up. Without a reader, those reads are refused rather than run in
+the account's browser. The rules and the reasons are in
+`accounts/behaving-like-a-person.md`.
+
+Reader jobs are filed under the reader's lane, so they run one at a time in the
+reader and beside an account's comment, never behind it. A reader job found
+under another lane, from before readers or from before the reader was changed,
+is filed again under the reader's and waits its turn. Two such jobs once
+opened the reader at the same moment, and the second failed with "already has
+a browser open".
 
 Named instructions rather than a general way to drive a browser. The page
 knowledge lives in one Python file beside the browser, so when Reddit redesigns
@@ -122,7 +147,13 @@ account.
 Adding `.json` to a Reddit address returns the page as data, in a shape that has
 barely moved in ten years. A plain program gets a 403 for it, but this browser
 has already solved Reddit's puzzle and holds the cookie that proves it, so the
-same request from inside the page answers. That is the first choice.
+same request from inside the page answers. That is the first choice, and it is
+only ever taken in the reader. A person's browser does not ask Reddit for raw
+results, so an account's browser does not either.
+
+A request made from inside the page gives up after 20 seconds and reports no
+answer. The browser has one driver, so a request that never answered would
+hold up every later job in that browser.
 
 When it is refused, the posts are read off the rendered page instead. Less
 steady, so it is the fallback, and a search says which of the two answered.

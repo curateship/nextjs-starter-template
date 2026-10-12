@@ -54,6 +54,20 @@ export const appServerOptions: AppServerOptions = {
         },
       },
       {
+        name: "promo-account-warm-up",
+        /**
+         * Once a day per warming Reddit account, picks a time inside its
+         * waking hours for a visit to Reddit: the feed, a few posts, a
+         * subreddit or two joined. Only writes a job; the browser program
+         * visits. Also moves a profile labelled Warming to Ready when the
+         * warm-up is over.
+         */
+        tick: async () => {
+          const { queueWarmUps } = await import("@/server/social/upkeep")
+          await queueWarmUps()
+        },
+      },
+      {
         name: "promo-tidy-old-posts",
         /**
          * Every ten minutes, deletes skipped Reddit posts no search has seen

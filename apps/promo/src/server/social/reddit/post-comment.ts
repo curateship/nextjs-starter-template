@@ -71,10 +71,14 @@ export async function postComment(
   const commentId = uuid()
 
   try {
-    const { commentUrl } = await redditComment(target, {
+    const { commentUrl, visit } = await redditComment(target, {
       permalink: find.permalink,
       text,
+      subreddit: find.subreddit,
     })
+    // To the program's log as well as the row, so a visit can be read back
+    // from either.
+    if (visit) console.log(`Comment visit for find ${find.id}: ${JSON.stringify(visit)}`)
 
     await db.insert(promoComments).values({
       id: commentId,
@@ -85,6 +89,7 @@ export async function postComment(
       text,
       status: "posted",
       commentUrl,
+      visit,
     })
 
     await db

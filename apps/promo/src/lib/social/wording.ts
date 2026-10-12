@@ -6,6 +6,8 @@ import {
   type ProfileCheck,
   type SubredditRule,
 } from "@/lib/social/options"
+import { clockText, knownTimeZone, localDateKey, localMinutes } from "@/lib/social/waking"
+import type { PostingState } from "@/server/social/posting"
 
 /**
  * The sentences the Reddit screens put in front of a person.
@@ -36,7 +38,8 @@ export type BlockedReason = { text: string }
  */
 export function postingBlockedReason(
   status: BrowserStatus,
-  detail: FindLike | null
+  detail: FindLike | null,
+  now: Date = new Date()
 ): BlockedReason | null {
   if (detail && detail.thread === null) {
     return { text: "Read the replies first, so the comment does not repeat one of them." }
@@ -55,7 +58,88 @@ export function postingBlockedReason(
       text: `The browser is not signed in to Reddit. Open the profile ${profile.name} on the Browser profiles dashboard and sign in once.`,
     }
   }
-  return null
+  const refusal = status.posting ? postingRefusalText(status.posting, now) : null
+  return refusal ? { text: refusal } : null
+}
+
+/**
+ * Why the account may not comment yet, or null when it may: still warming
+ * up, or a young account at its pace limit. The server refuses Post with the
+ * same words on the account's own clock, naming it; the screen shows them on
+ * the viewer's.
+ */
+export function postingRefusalText(
+  state: PostingState,
+  now: Date = new Date(),
+  timeZone?: string
+): string | null {
+  if (state.warmUp.ageUnknown) {
+    return "Promo has not read how old this account is, so it cannot tell when the warm-up ends. Press Check now on Settings → Reddit account, then try again."
+  }
+  if (state.warmUp.endsAt && state.warmUp.endsAt > now) {
+    return `This account is still warming up. Its first comment is allowed ${whenText(state.warmUp.endsAt, now, timeZone)}.`
+  }
+  const limit = state.limit
+  if (!limit) return null
+  const allowed = limit.limit === "hour" ? state.youngPerHour : state.youngPerDay
+  const span = limit.limit === "hour" ? "an hour" : "a day"
+  if (!limit.nextAllowedAt) {
+    return `A young account may send ${allowed} ${allowed === 1 ? "comment" : "comments"} ${span}, and that many are sent or waiting to go. Post again once the waiting ones have gone.`
+  }
+  if (limit.nextAllowedAt <= now) return null
+  return `A young account may send ${allowed} ${allowed === 1 ? "comment" : "comments"} ${span}, and this one has. The next one is allowed ${whenText(limit.nextAllowedAt, now, timeZone)}.`
+}
+
+/** "3 comments in the last hour, 11 today." Plain counts, no gauge. */
+export function paceLineText(state: Pick<PostingState, "lastHour" | "lastDay">): string {
+  const hour = `${state.lastHour} ${state.lastHour === 1 ? "comment" : "comments"} in the last hour`
+  return `${hour}, ${state.lastDay} today.`
+}
+
+/**
+ * The warning past the per-hour number, or null under it. It warns and never
+ * refuses: pace is a judgement, and blocking it would stop the one comment
+ * that mattered.
+ */
+export function paceWarningText(state: Pick<PostingState, "lastHour" | "warnPerHour">): string | null {
+  if (state.lastHour < state.warnPerHour) return null
+  return `That would be the ${ordinal(state.lastHour + 1)} comment this hour. New accounts get banned for less.`
+}
+
+/** What a comment held back for the account's morning says on the post. */
+export function waitingCommentText(runAfter: Date, handle: string | null, now: Date = new Date()): string {
+  const who = handle ? `u/${handle}'s` : "the account's"
+  return `Your comment is waiting for ${who} waking hours and goes ${whenText(runAfter, now)}.`
+}
+
+/**
+ * "today at 14:20", "tomorrow at 8:00", "on Wed 15 Oct at 8:00": a moment in
+ * the words a person uses, on the viewer's clock. Given `timeZone`, on that
+ * clock instead and saying so ("tomorrow at 8:00 Europe/Berlin time"), since
+ * the reader's own clock may differ: the server words Post's refusals on the
+ * account's clock, because it cannot know the viewer's.
+ */
+export function whenText(at: Date, now: Date = new Date(), timeZone?: string): string {
+  const zone = knownTimeZone(timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const clock = clockText(localMinutes(at, zone)) + (timeZone ? ` ${zone} time` : "")
+  const day = localDateKey(at, zone)
+  if (day === localDateKey(now, zone)) return `today at ${clock}`
+  if (day === localDateKey(new Date(now.getTime() + 86_400_000), zone)) return `tomorrow at ${clock}`
+  const date = new Intl.DateTimeFormat("en-GB", {
+    timeZone: zone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(at)
+  return `on ${date} at ${clock}`
+}
+
+/** 1st, 2nd, 3rd, 4th, 11th, 21st. */
+function ordinal(value: number): string {
+  const tens = value % 100
+  if (tens >= 11 && tens <= 13) return `${value}th`
+  const suffix = ["th", "st", "nd", "rd"][value % 10] ?? "th"
+  return `${value}${suffix}`
 }
 
 /**

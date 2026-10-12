@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { adminGet, adminPost } from "@/server/guards"
-import { MAX_CHECKS_PER_PRESS } from "@/lib/social/options"
+import { MAX_CHECKS_PER_PRESS, NO_READER_MESSAGE } from "@/lib/social/options"
 import {
   listSentComments,
   queueCommentChecks,
@@ -21,7 +21,11 @@ export type { CommentRow }
  */
 
 export const getCommentsErrorMessage = createErrorMessage(
-  { "no longer saved": "That comment is not there any more. Reload the page." },
+  {
+    "no longer saved": "That comment is not there any more. Reload the page.",
+    "There is no reader browser": NO_READER_MESSAGE,
+    "now holds an account": "The reader browser now holds an account, so nothing is read in it. Pick another reader in Settings → Behaviour.",
+  },
   "That did not work. Please try again."
 )
 

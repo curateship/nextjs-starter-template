@@ -17,7 +17,9 @@ import {
   unblockRedditSubreddit,
 } from "@/lib/api/social/reddit/blocked"
 import {
+  cancelComment,
   getDraftErrorMessage,
+  getPostErrorMessage,
   sendComment,
   writeDrafts,
 } from "@/lib/api/social/reddit/drafts"
@@ -42,7 +44,7 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
 import {
   REDDIT_PANEL_LAYOUT_KEY,
 } from "@/lib/social/reddit/options"
-import { postingBlockedReason, postsWord } from "@/lib/social/wording"
+import { postingBlockedReason, postsWord, waitingCommentText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { FindRow, KeywordRow } from "@/server/social/keywords"
 
@@ -415,6 +417,7 @@ export function RedditWorkspace({
       loading={detailLoading}
       working={working}
       disabledReason={postingBlockedReason(status, detail)}
+      postingState={status.posting}
       voiceName={status.voice?.name ?? null}
       // Only the narrow layout, where the post covers the list. Clears the
       // chosen post and nothing else, so the keyword and the tab stay put.
@@ -455,11 +458,23 @@ export function RedditWorkspace({
       }}
       onPost={async (input) => {
         try {
-          await sendComment(input)
+          const { runAfter } = await sendComment(input)
           await afterQueueing()
+          if (runAfter) toast.success(waitingCommentText(runAfter, status.handle))
         } catch (error) {
-          showErrorToast(getDraftErrorMessage(error))
+          showErrorToast(getPostErrorMessage(error))
+          // A refusal may come from figures that moved since the last look.
+          await afterQueueing()
         }
+      }}
+      onCancelWaiting={async (findId: string) => {
+        try {
+          await cancelComment(findId)
+          toast.success("Cancelled. Nothing was sent.")
+        } catch (error) {
+          showErrorToast(getPostErrorMessage(error))
+        }
+        await afterQueueing()
       }}
       onSkip={async (findId: string) => {
         try {

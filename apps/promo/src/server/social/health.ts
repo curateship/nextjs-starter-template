@@ -1,6 +1,10 @@
 import { and, desc, eq, gte, inArray, isNotNull, ne, sql } from "drizzle-orm"
 
-import { redditHealth, type CommandTarget } from "@/server/browser/command"
+import {
+  redditHealth,
+  redditStrangerProfile,
+  type CommandTarget,
+} from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import type { ProfileCheck } from "@/lib/social/options"
@@ -20,7 +24,17 @@ import { promoAccounts, promoJobs } from "./schema"
  *
  * Every reading is a read, so the ticker takes one a day on its own. Nothing
  * here acts on a bad reading.
+ *
+ * A reading is two jobs. The account's own browser reads who is signed in,
+ * the karma, the age, and the profile as the account sees it. The stranger's
+ * look then runs in the reader browser, signed in to nobody, as a
+ * `profile_check` job, and writes the whole profile check once both halves
+ * are in. Asking as a stranger from inside the account's own browser, with
+ * its cookies left off, still came from the account's browser and proxy.
  */
+
+/** The jobs one reading is made of, so the card says "checking" until both are done. */
+const HEALTH_KINDS = ["health", "profile_check"] as const
 
 /** How long a reading stands before the ticker takes another. */
 const HEALTH_EVERY_HOURS = 24
@@ -59,7 +73,7 @@ export async function readAccountHealth(
     .where(
       and(
         eq(promoJobs.userId, userId),
-        eq(promoJobs.kind, "health"),
+        inArray(promoJobs.kind, [...HEALTH_KINDS]),
         sql`${promoJobs.payload}->>'accountId' = ${accountId}`
       )
     )
@@ -95,11 +109,14 @@ export async function queueHealthCheck(
 }
 
 /**
- * Takes a reading through the account's browser and stores it. Run by the
- * browser program for a `health` job.
+ * Takes the account's half of a reading through its own browser, stores the
+ * karma and the age, and queues the stranger's half for the reader. Run by
+ * the browser program for a `health` job.
  *
  * Signed out there is no profile to ask about, which is refused with a reason
- * a person can act on, and the last reading is left where it was.
+ * a person can act on, and the last reading is left where it was. With no
+ * reader picked, the karma and age are kept and the stranger's half is
+ * refused with how to pick one.
  */
 export async function recordAccountHealth(
   userId: string,
@@ -118,14 +135,53 @@ export async function recordAccountHealth(
     )
   }
 
-  const { signedIn, signedOut } = reading.profile
+  await db
+    .update(promoAccounts)
+    .set({ handle: reading.handle, ...accountFigures(reading, now) })
+    .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
+
+  // Queued here, never run in this browser, so the stranger's look comes from
+  // a browser and a proxy that have nothing to do with the account. With no
+  // reader picked, the queue refuses it and this job fails saying so.
+  await queueJob(
+    userId,
+    "profile_check",
+    { accountId, handle: reading.handle, signedIn: reading.profile.signedIn },
+    db
+  )
+}
+
+const signedInShape = (value: unknown) => {
+  const read = (value ?? {}) as Record<string, unknown>
+  return {
+    status: typeof read.status === "number" ? read.status : 0,
+    found: read.found === true,
+    suspended: read.suspended === true,
+  }
+}
+
+/**
+ * The stranger's half of a reading, from the reader browser, written with the
+ * account's half the `health` job carried over. Run for a `profile_check` job.
+ */
+export async function recordStrangerCheck(
+  userId: string,
+  payload: Record<string, unknown>,
+  target: CommandTarget,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<void> {
+  const accountId = String(payload.accountId ?? "")
+  const handle = String(payload.handle ?? "")
+  if (!accountId || !handle) throw new Error("That profile check names no account.")
+  const signedIn = signedInShape(payload.signedIn)
+  const signedOut = await redditStrangerProfile(target, { handle })
+
   await db
     .update(promoAccounts)
     .set({
-      handle: reading.handle,
-      ...accountFigures(reading, now),
       profileCheck: {
-        handle: reading.handle,
+        handle,
         signedInStatus: signedIn.status,
         signedInFound: signedIn.found,
         signedOutStatus: signedOut.status,
@@ -208,7 +264,7 @@ async function pendingHealthJob(
     .where(
       and(
         eq(promoJobs.userId, userId),
-        eq(promoJobs.kind, "health"),
+        inArray(promoJobs.kind, [...HEALTH_KINDS]),
         inArray(promoJobs.status, ["queued", "running"]),
         sql`${promoJobs.payload}->>'accountId' = ${accountId}`
       )

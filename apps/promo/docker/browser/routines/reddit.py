@@ -19,10 +19,16 @@ Two ways to read a page, in this order:
 2. **The rendered page.** If the JSON is refused, the post data is pulled off
    the `<shreddit-post>` elements Reddit draws. Less stable, so it is the
    fallback rather than the first choice.
+
+The JSON shortcut is for the reader browser only, signed in to nobody: the app
+runs searches, reply reads, rules reads and comment checks there and never in
+an account's own browser. An account's browser only visits: the feed, a few
+posts, and the post it comments on.
 """
 
 import html
 import json
+import random
 import re
 import time
 import urllib.parse
@@ -34,10 +40,44 @@ import human
 # is generous but finite.
 NAV_TIMEOUT_MS = 45_000
 
+# How long a request made from inside a page may take. The browser has one
+# driver, so a request that never answers would hold up every later job in
+# that browser; this gives up instead and reports no answer (status 0).
+FETCH_TIMEOUT_MS = 20_000
+
 # Reddit's search answers at most this many posts a page. Asking for more than
 # one page of them is a later job; one page is already more than a person can
 # write comments on in a sitting.
 SEARCH_LIMIT = 25
+
+# The visit around a comment. Every length is drawn fresh for each visit, so
+# two visits never take the same time or the same path.
+FEED_BEFORE_SECONDS = (90, 210)
+POSTS_BEFORE = (1, 2)
+FEED_AFTER_SECONDS = (25, 75)
+# A post opened from the feed is read for a few seconds, longer if it is long.
+FEED_POST_CHARACTERS = (300, 1500)
+# How far down the subreddit's newest posts the browser looks for the post
+# before going to its address instead.
+FIND_IN_SUBREDDIT_SCROLLS = 6
+
+# A warming account's day: a longer stay in the feed and a few more posts.
+WARM_UP_FEED_SECONDS = (180, 420)
+WARM_UP_POSTS = (2, 4)
+
+# The launcher stops a visit at 900 seconds. The visit plans to end by this,
+# leaving room for one slow page after it.
+VISIT_BUDGET_SECONDS = 800
+# Kept back for reading the post and typing the comment, per character and
+# on top, so the feed before can never eat the time the comment needs.
+TYPING_SECONDS_PER_CHARACTER = 0.25
+COMMENT_RESERVE_SECONDS = 120
+
+# A post's title in a feed or a listing, which is what a person presses to
+# open it. The whole card is a link too, but a press on its middle often lands
+# on a picture or a video, which plays rather than opens. Adverts are a
+# different element, so they are never opened.
+POST_LINKS = "shreddit-post a[slot='title']"
 
 
 class CommandError(Exception):
@@ -56,20 +96,25 @@ def _fetch(page, url, credentials="include"):
     none. Returns {"ok", "status", "body"}; status 0 means no answer at all.
     """
     script = """
-    async ([target, credentials]) => {
+    async ([target, credentials, limit]) => {
+      const stop = new AbortController()
+      const timer = setTimeout(() => stop.abort(), limit)
       try {
         const response = await fetch(target, {
           headers: { accept: "application/json" },
           credentials,
           cache: "no-store",
+          signal: stop.signal,
         })
         return { ok: response.ok, status: response.status, body: await response.text() }
       } catch (error) {
         return { ok: false, status: 0, body: "" }
+      } finally {
+        clearTimeout(timer)
       }
     }
     """
-    return page.evaluate(script, [url, credentials]) or {"ok": False, "status": 0, "body": ""}
+    return page.evaluate(script, [url, credentials, FETCH_TIMEOUT_MS]) or {"ok": False, "status": 0, "body": ""}
 
 
 def _parse(answer):
@@ -391,69 +436,87 @@ def _me(page):
     }
 
 
-def _profile_reads(page, handle):
-    """Reddit's own data about a profile, asked for once signed in and once not.
+def _profile_read(page, handle):
+    """Reddit's own data about a profile, asked with this browser's cookies.
 
-    The signed-out read leaves the cookies off the request, which is the only
-    way to be a stranger inside this browser. Its cookies live in one saved
-    session that a second, empty one cannot be opened beside, and loading the
-    profile page signed out in a tab would write a signed-out visitor's cookies
-    over the signed-in ones. A request with its cookies left off sends none and
-    keeps none. It still comes from this browser and this proxy, so a refusal
-    is Reddit refusing the browser, not proof about the profile.
+    In the account's browser that is the account looking at itself. In the
+    reader, signed in to nobody, it is a stranger looking. Says what came
+    back; a refusal is Reddit refusing the browser, not proof about the
+    profile.
     """
     script = """
-    async (handle) => {
+    async ([handle, limit]) => {
       const target = `https://www.reddit.com/user/${encodeURIComponent(handle)}/about.json`
-      const read = async (credentials) => {
-        try {
-          const response = await fetch(target, {
-            headers: { accept: "application/json" },
-            credentials,
-            cache: "no-store",
-          })
-          let data = null
-          try { data = ((await response.json()) || {}).data || null } catch (error) { data = null }
-          return {
-            status: response.status,
-            found: Boolean(response.ok && data && data.name),
-            suspended: Boolean(data && data.is_suspended),
-          }
-        } catch (error) {
-          return { status: 0, found: false, suspended: false }
+      const stop = new AbortController()
+      setTimeout(() => stop.abort(), limit)
+      try {
+        const response = await fetch(target, {
+          headers: { accept: "application/json" },
+          credentials: "include",
+          cache: "no-store",
+          signal: stop.signal,
+        })
+        let data = null
+        try { data = ((await response.json()) || {}).data || null } catch (error) { data = null }
+        return {
+          status: response.status,
+          found: Boolean(response.ok && data && data.name),
+          suspended: Boolean(data && data.is_suspended),
         }
+      } catch (error) {
+        return { status: 0, found: false, suspended: false }
       }
-      return { signedIn: await read("include"), signedOut: await read("omit") }
     }
     """
-    return page.evaluate(script, handle)
+    return page.evaluate(script, [handle, FETCH_TIMEOUT_MS])
 
 
-def reddit_health(page, args=None):
-    """Karma, account age, and whether a stranger can see the profile.
+def _in_own_tab(page, read):
+    """Runs `read` on a tab of its own that has been to Reddit's front page.
 
-    Run in a tab of its own, so the page a person may be using is never moved:
-    the tab goes to Reddit's front page to read who is signed in, then asks for
-    the profile both ways, then closes. Says what loaded and what did not. It
-    never decides what that means; the app words it, carefully.
+    The page a person may be using is never moved.
     """
     tab = page.context.new_page()
     try:
         _goto(tab, "https://www.reddit.com/")
-        me = _me(tab)
-        signs = _page_signs(tab)
-        profile = _profile_reads(tab, me["handle"]) if me["handle"] else None
-        return {
-            **me,
-            "blocked": signs["blocked"],
-            "reason": signs["reason"],
-            "profile": profile,
-        }
+        _past_the_check(tab)
+        return read(tab)
     finally:
         try:
             tab.close()
         except Exception:  # noqa: BLE001 - the reading is what matters
             pass
+
+
+def reddit_health(page, args=None):
+    """Karma, account age, and the profile as the account sees it.
+
+    The account's half of a health reading. The stranger's half runs in the
+    reader browser (`reddit_stranger_profile`), never here: asking as a
+    stranger from inside the account's own browser still came from the
+    account's browser and proxy. Says what loaded and what did not; the app
+    words it, carefully.
+    """
+
+    def read(tab):
+        me = _me(tab)
+        signs = _page_signs(tab)
+        profile = {"signedIn": _profile_read(tab, me["handle"])} if me["handle"] else None
+        return {**me, "blocked": signs["blocked"], "reason": signs["reason"], "profile": profile}
+
+    return _in_own_tab(page, read)
+
+
+def reddit_stranger_profile(page, args):
+    """A profile as a stranger sees it, from the reader browser.
+
+    The reader is signed in to nobody, so its own cookies are a stranger's,
+    and the request is the one a visitor's browser makes.
+    """
+    handle = (args.get("handle") or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", handle):
+        raise CommandError("stranger_profile: no account name given")
+    return _in_own_tab(page, lambda tab: _profile_read(tab, handle))
 
 
 def _page_signs(page):
@@ -504,23 +567,181 @@ def _page_signs(page):
     }
 
 
-def reddit_comment(page, args):
-    """Writes one comment under a post and returns where it landed.
+def _short(error):
+    """An error as one short line for a visit's record."""
+    return (str(error) or error.__class__.__name__).splitlines()[0][:200]
 
-    Deliberately strict. Every step that can fail says which step it was, so a
-    failure on screen names the thing that went wrong rather than "could not
-    post". Nothing here decides whether to comment: the app only calls this
-    after a person has pressed Post.
+
+def _open_feed_post(page, visit, deadline):
+    """Opens one post from the posts on screen, reads it a little, comes back.
+
+    Picks one at random among those a person could see now. Returns whether a
+    post was opened. A failure is written down and the feed carries on.
+    """
+    try:
+        links = page.locator(POST_LINKS)
+        # The window's own height: a persistent Camoufox window has no set
+        # viewport for Playwright to report.
+        height = page.evaluate("() => window.innerHeight") or 900
+        shown = []
+        for index in range(min(links.count(), 30)):
+            box = links.nth(index).bounding_box()
+            if box and box["height"] > 8 and 0 <= box["y"] < height - box["height"]:
+                shown.append(index)
+        if not shown:
+            return False
+        before = page.url
+        human.click(links.nth(random.choice(shown)))
+        human.wait_for_address(page, lambda address: "/comments/" in address and address != before)
+        if time.monotonic() < deadline:
+            human.read_page(page, random.randint(*FEED_POST_CHARACTERS), visit["_sizes"])
+        # Back as the browser's back button goes back. A key press sent by
+        # Playwright reaches the page but never the browser's own back
+        # shortcut (measured 12 Oct 2026), and Reddit opened the post without
+        # a page load, so the address is watched rather than a load awaited.
+        try:
+            page.go_back(wait_until="commit", timeout=10_000)
+        except Exception:  # noqa: BLE001 - the address below says whether it went
+            pass
+        human.wait_for_address(page, lambda address: "/comments/" not in address)
+        return True
+    except Exception as error:  # noqa: BLE001 - the feed carries on without it
+        visit["problems"].append("opening a post from the feed: %s" % _short(error))
+        if "/comments/" in (page.url or ""):
+            _goto_listing(page, "https://www.reddit.com/")
+        return False
+
+
+def _past_the_check(page):
+    """Waits for Reddit's "prove you are a person" page to solve itself and move on.
+
+    A browser without Reddit's cookie gets it first, and it reloads the page
+    once solved. A read taken during that reload measured on 12 Oct 2026 as
+    "Execution context was destroyed". Up to 20 seconds; a check that does not
+    clear is left for the read to report.
+    """
+    try:
+        page.wait_for_selector('form input[name="solution"]', state="detached", timeout=20_000)
+        page.wait_for_load_state("domcontentloaded", timeout=NAV_TIMEOUT_MS)
+    except Exception:  # noqa: BLE001 - the read says what it found
+        pass
+
+
+def _goto_listing(page, url):
+    """Goes to a page of posts and waits for the posts to be drawn.
+
+    A browser without Reddit's cookie first gets a "prove you are a person"
+    page that solves itself and moves on after a few seconds. Measured on
+    12 Oct 2026: a fresh browser scrolled that page for its whole first stop.
+    Waiting for the posts means the visit scrolls the feed, not the check.
+    A listing that never draws posts is left as it is; the visit carries on.
+    """
+    _goto(page, url)
+    try:
+        page.locator("shreddit-post").first.wait_for(state="attached", timeout=20_000)
+    except Exception:  # noqa: BLE001 - scrolling an empty page is harmless
+        pass
+
+
+def _feed(page, seconds, posts, visit, deadline):
+    """Time in the home feed, opening `posts` of them along the way."""
+    _goto_listing(page, "https://www.reddit.com/")
+    stops = posts + 1
+    for stop in range(stops):
+        if time.monotonic() >= deadline:
+            break
+        share = seconds / stops * random.uniform(0.7, 1.3)
+        visit["_sizes"].extend(human.browse(page, share, deadline))
+        if stop < posts and time.monotonic() < deadline and _open_feed_post(page, visit, deadline):
+            visit["postsOpened"] += 1
+
+
+def _reach_post(page, permalink, subreddit, visit):
+    """Gets to the post through its subreddit's newest posts where it can.
+
+    Falls back to the post's address when the listing does not show it within
+    a few scrolls, which an older post usually is not.
+    """
+    found = re.search(r"/comments/([a-z0-9]+)/", permalink)
+    if subreddit and found and re.fullmatch(r"[A-Za-z0-9_]{1,60}", subreddit):
+        post_id = found.group(1)
+        try:
+            _goto_listing(page, "https://www.reddit.com/r/%s/new/" % subreddit)
+            link = page.locator("shreddit-post[permalink*='/comments/%s/'] a[slot='title']" % post_id).first
+            for _ in range(FIND_IN_SUBREDDIT_SCROLLS):
+                if link.count() and link.is_visible():
+                    human.click(link)
+                    human.wait_for_address(page, lambda address: "/comments/%s/" % post_id in address)
+                    visit["reachedBy"] = "subreddit"
+                    return
+                visit["_sizes"].append(abs(human.scroll_once(page)))
+                page.wait_for_timeout(random.randint(600, 1600))
+        except Exception as error:  # noqa: BLE001 - the address still works
+            visit["problems"].append("finding the post in r/%s: %s" % (subreddit, _short(error)))
+    _goto(page, "https://www.reddit.com" + permalink)
+    visit["reachedBy"] = "address"
+
+
+def _new_visit():
+    return {
+        "beforeSeconds": 0,
+        "afterSeconds": 0,
+        "postsOpened": 0,
+        "reachedBy": "address",
+        "scrolls": 0,
+        "problems": [],
+        "_sizes": [],
+    }
+
+
+def _finish_visit(visit):
+    """The visit as the app stores it, with the scroll sizes logged and dropped."""
+    sizes = visit.pop("_sizes")
+    visit["scrolls"] = len(sizes)
+    return visit, human.describe_scrolls(sizes)
+
+
+def reddit_comment(page, args):
+    """Writes one comment under a post, inside an ordinary visit.
+
+    Before: a few minutes in the home feed, opening a post or two. Then the
+    post, reached through its subreddit where it can be. Then the comment.
+    After: a little more feed. Every length is drawn fresh, so no two visits
+    match. A failure in the feed before never stops the comment, and nothing
+    after the comment can fail it: the comment is on Reddit by then, and it is
+    never sent twice.
+
+    The comment itself is deliberately strict. Every step that can fail says
+    which step it was, so a failure on screen names the thing that went wrong
+    rather than "could not post". Nothing here decides whether to comment: the
+    app only calls this after a person has pressed Post.
     """
     permalink = (args.get("permalink") or "").strip()
     text = (args.get("text") or "").strip()
+    subreddit = (args.get("subreddit") or "").strip()
     if not permalink.startswith("/"):
         raise CommandError("comment: permalink must start with /")
     if not text:
         raise CommandError("comment: no words to post")
 
-    url = "https://www.reddit.com" + permalink
-    _goto(page, url)
+    started = time.monotonic()
+    deadline = started + VISIT_BUDGET_SECONDS
+    reserve = COMMENT_RESERVE_SECONDS + len(text) * TYPING_SECONDS_PER_CHARACTER
+    visit = _new_visit()
+
+    try:
+        _feed(
+            page,
+            random.uniform(*FEED_BEFORE_SECONDS),
+            random.randint(*POSTS_BEFORE),
+            visit,
+            deadline - reserve,
+        )
+    except Exception as error:  # noqa: BLE001 - the comment still goes
+        visit["problems"].append("the feed before: %s" % _short(error))
+    visit["beforeSeconds"] = int(time.monotonic() - started)
+
+    _reach_post(page, permalink, subreddit, visit)
 
     state = reddit_state_quick(page)
     if not state.get("handle"):
@@ -555,15 +776,15 @@ def reddit_comment(page, args):
     body_length = page.evaluate(
         "() => (document.querySelector('shreddit-post') || document.body).innerText.length"
     )
-    human.read_page(page, body_length)
-    started = time.monotonic()
-    editor.click()
+    human.read_page(page, body_length, visit["_sizes"])
+    typing_started = time.monotonic()
+    human.click(editor)
     gaps = human.type_text(editor, text)
     human.pause_before_submit(page)
     # To the container log, so a test run can show the gaps vary.
     print(
         "comment typed: %d characters in %d seconds; %s"
-        % (len(text), time.monotonic() - started, human.describe_gaps(gaps)),
+        % (len(text), time.monotonic() - typing_started, human.describe_gaps(gaps)),
         flush=True,
     )
 
@@ -577,11 +798,13 @@ def reddit_comment(page, args):
         button = page.locator(selector).first
         try:
             button.wait_for(state="visible", timeout=5_000)
-            button.click()
-            pressed = True
-            break
         except Exception:  # noqa: BLE001 - try the next shape
             continue
+        # Pressed once, never tried again with another shape: a press that
+        # raised may still have sent the comment.
+        human.click(button)
+        pressed = True
+        break
     if not pressed:
         raise CommandError(
             "comment: the words were typed but no Comment button could be pressed"
@@ -589,17 +812,133 @@ def reddit_comment(page, args):
 
     # Reddit adds the comment without a navigation, so the proof is the new
     # address appearing under this account rather than the page changing.
-    deadline = time.time() + 20
-    while time.time() < deadline:
+    landed = None
+    waiting_until = time.time() + 20
+    while time.time() < waiting_until:
         page.wait_for_timeout(1_000)
         after = _own_comment_urls(page, state["handle"])
         fresh = [item for item in after if item not in before]
         if fresh:
-            return {"commentUrl": fresh[0]}
+            landed = fresh[0]
+            break
+    if not landed:
+        raise CommandError(
+            "comment: pressed Comment but no new comment appeared within 20 seconds"
+        )
 
-    raise CommandError(
-        "comment: pressed Comment but no new comment appeared within 20 seconds"
+    # After: a little more feed. Nothing here may fail the comment, which is
+    # already on Reddit.
+    after_started = time.monotonic()
+    try:
+        seconds = min(random.uniform(*FEED_AFTER_SECONDS), deadline - after_started)
+        if seconds > 5:
+            _feed(page, seconds, 0, visit, deadline)
+    except Exception as error:  # noqa: BLE001 - the comment is already sent
+        visit["problems"].append("the feed after: %s" % _short(error))
+    visit["afterSeconds"] = int(time.monotonic() - after_started)
+
+    record, scrolls = _finish_visit(visit)
+    print(
+        "comment visit: %d seconds in the feed before, %d after, %d posts opened, reached by %s; %s; %s"
+        % (
+            record["beforeSeconds"],
+            record["afterSeconds"],
+            record["postsOpened"],
+            record["reachedBy"],
+            scrolls,
+            "; ".join(record["problems"]) or "no problems",
+        ),
+        flush=True,
     )
+    return {"commentUrl": landed, "visit": record}
+
+
+def _join(page, name, result, deadline):
+    """Visits a subreddit, looks around a little, and joins it if it is not joined.
+
+    Reddit draws the button as `shreddit-join-button`, which carries a
+    `subscribed` attribute once joined. Pressing it again would leave, so it
+    is pressed only when that is absent.
+    """
+    try:
+        _goto_listing(page, "https://www.reddit.com/r/%s/" % name)
+        looked = human.browse(page, random.uniform(8, 25), deadline)
+        # Back up to the subreddit's header, where Join is, the way it came.
+        human.scroll_back(page, page.evaluate("() => window.scrollY") or sum(looked))
+        page.wait_for_timeout(random.randint(500, 1200))
+        button = page.locator("shreddit-join-button").first
+        button.wait_for(state="attached", timeout=8_000)
+        if button.get_attribute("subscribed") is not None:
+            result["alreadyJoined"].append(name)
+            return
+        human.click(page.locator("shreddit-join-button button").first)
+        page.wait_for_timeout(random.randint(1500, 3000))
+        if button.get_attribute("subscribed") is not None:
+            result["joined"].append(name)
+        else:
+            result["problems"].append("r/%s: pressed Join but Reddit does not show it joined" % name)
+    except Exception as error:  # noqa: BLE001 - the rest of the day goes on
+        result["problems"].append("joining r/%s: %s" % (name, _short(error)))
+
+
+def reddit_warm_up(page, args):
+    """A warming account's day on Reddit: the feed, a few posts, a subreddit or two joined.
+
+    Nothing is written and nothing is voted on. Every length is drawn fresh.
+    Refuses when the browser is not signed in, because a warm-up is the
+    account building its own history.
+    """
+    names = [
+        name.lower()
+        for name in (args.get("subreddits") or [])
+        if isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9_]{1,60}", name)
+    ][:3]
+    started = time.monotonic()
+    deadline = started + VISIT_BUDGET_SECONDS
+
+    _goto(page, "https://www.reddit.com/")
+    # Asked while the "prove you are a person" page reloads, "who am I" fails
+    # and the account would read as signed out.
+    _past_the_check(page)
+    if not _me(page)["handle"]:
+        raise CommandError("warm_up: the browser is not signed in to Reddit")
+
+    visit = _new_visit()
+    result = {"joined": [], "alreadyJoined": [], "problems": visit["problems"]}
+    seconds = random.uniform(*WARM_UP_FEED_SECONDS)
+    posts = random.randint(*WARM_UP_POSTS)
+    # Some of the feed, the subreddits, then the rest of the feed, so joining
+    # sits in the middle of the visit rather than opening it.
+    first = random.uniform(0.3, 0.7)
+    _feed(page, seconds * first, posts // 2, visit, deadline)
+    for name in names:
+        if time.monotonic() >= deadline:
+            break
+        _join(page, name, result, deadline)
+    _feed(page, seconds * (1 - first), posts - posts // 2, visit, deadline)
+
+    record, scrolls = _finish_visit(visit)
+    feed_seconds = int(time.monotonic() - started)
+    print(
+        "warm-up visit: %d seconds, %d posts opened, joined %s, already in %s; %s; %s"
+        % (
+            feed_seconds,
+            record["postsOpened"],
+            ", ".join(result["joined"]) or "none",
+            ", ".join(result["alreadyJoined"]) or "none",
+            scrolls,
+            "; ".join(result["problems"]) or "no problems",
+        ),
+        flush=True,
+    )
+    return {
+        "feedSeconds": feed_seconds,
+        "postsOpened": record["postsOpened"],
+        "scrolls": record["scrolls"],
+        "joined": result["joined"],
+        "alreadyJoined": result["alreadyJoined"],
+        "problems": result["problems"],
+    }
 
 
 def reddit_state_quick(page, args=None):
@@ -803,6 +1142,8 @@ ROUTINES = {
     "thread": reddit_thread,
     "comment": reddit_comment,
     "health": reddit_health,
+    "stranger_profile": reddit_stranger_profile,
     "rules": reddit_rules,
     "comment_check": reddit_comment_check,
+    "warm_up": reddit_warm_up,
 }

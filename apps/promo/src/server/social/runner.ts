@@ -15,15 +15,26 @@ import {
   touchSession,
 } from "@/server/browser/session"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { NO_PROFILE_MESSAGE } from "@/lib/social/options"
+import { NO_PROFILE_MESSAGE, READER_JOB_KINDS } from "@/lib/social/options"
+import { nextWakeAt } from "@/lib/social/waking"
 
-import { accountFigures, recordAccountHealth } from "./health"
+import { profileTimeZone, readBehaviour, readerProfile } from "./behaviour"
+import { accountFigures, recordAccountHealth, recordStrangerCheck } from "./health"
 import { recordCommentCheck } from "./reddit/comment-check"
 import { postComment } from "./reddit/post-comment"
 import { readSubredditRules } from "./reddit/rules"
-import { JOB_MAX_ATTEMPTS, claimNextJob, failJob, finishJob, jobAccount, type QueuedJob } from "./jobs"
+import {
+  JOB_MAX_ATTEMPTS,
+  claimNextJob,
+  failJob,
+  finishJob,
+  jobAccount,
+  putJobBack,
+  type QueuedJob,
+} from "./jobs"
 import { loadFindThread, runKeywordSearch } from "./reddit/search"
 import { promoAccounts } from "./schema"
+import { runWarmUp } from "./warm-up"
 
 /**
  * One turn of the browser work.
@@ -42,8 +53,27 @@ import { promoAccounts } from "./schema"
 export type TurnResult =
   | { did: "nothing" }
   | { did: "job"; kind: string; jobId: string; ok: boolean; error?: string }
+  | { did: "put back"; kind: string; jobId: string; why: string }
 
 type Account = typeof promoAccounts.$inferSelect
+
+/**
+ * A job that did nothing and goes back on the queue untried: taken outside
+ * its account's waking hours, so it waits for them, or filed under a lane
+ * that is not the reader's, so it is filed again under the reader's.
+ */
+class PutBack extends Error {
+  readonly change: { runAfter: Date } | { lane: string }
+
+  constructor(change: { runAfter: Date } | { lane: string }) {
+    super(
+      "runAfter" in change
+        ? `waits for the account's waking hours, until ${change.runAfter.toISOString()}`
+        : `filed again under the reader's lane ${change.lane}`
+    )
+    this.change = change
+  }
+}
 
 export async function runOneJob(
   claimToken: string,
@@ -57,6 +87,10 @@ export async function runOneJob(
     await finishJob(job.id, claimToken, db)
     return { did: "job", kind: job.kind, jobId: job.id, ok: true }
   } catch (error) {
+    if (error instanceof PutBack) {
+      await putJobBack(job.id, claimToken, error.change, db)
+      return { did: "put back", kind: job.kind, jobId: job.id, why: error.message }
+    }
     const message = error instanceof Error ? error.message : String(error)
     // Fails at once, never re-queued, for two reasons. A refusal would only
     // say the same thing again. A comment may already be on Reddit: the app
@@ -121,22 +155,33 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
     return
   }
 
+  if (READER_JOB_KINDS.includes(job.kind)) {
+    await runReaderJob(job, db)
+    return
+  }
+
   const account = await accountForJob(job, db)
   if (!account.profileId) throw new Refusal(NO_PROFILE_MESSAGE)
+
+  // An account acts only while it is awake, in its own time zone. A health
+  // reading is only a read, so it may run at any hour; a comment and a
+  // warm-up wait for morning, before a browser is even opened.
+  if (job.kind === "comment" || job.kind === "warm_up") {
+    const behaviour = await readBehaviour(job.userId, db)
+    const wakes = nextWakeAt(
+      new Date(),
+      await profileTimeZone(account.profileId, db),
+      behaviour.wakeFromMinute,
+      behaviour.wakeUntilMinute
+    )
+    if (wakes) throw new PutBack({ runAfter: wakes })
+  }
 
   const session = await ensureSession(job.userId, account.profileId, db)
   await touchSession(session.id, db)
 
   try {
-    if (job.kind === "search") {
-      const keywordId = String(job.payload.keywordId ?? "")
-      if (!keywordId) throw new Error("That search job names no keyword.")
-      await runKeywordSearch(job.userId, keywordId, session.target, db)
-    } else if (job.kind === "thread") {
-      const findId = String(job.payload.findId ?? "")
-      if (!findId) throw new Error("That thread job names no post.")
-      await loadFindThread(job.userId, findId, session.target, db)
-    } else if (job.kind === "comment") {
+    if (job.kind === "comment") {
       const findId = String(job.payload.findId ?? "")
       const text = String(job.payload.text ?? "")
       if (!findId || !text) throw new Error("That comment job is missing its post or its words.")
@@ -153,6 +198,51 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
       )
     } else if (job.kind === "health") {
       await recordAccountHealth(job.userId, account.id, session.target, db)
+    } else if (job.kind === "warm_up") {
+      await runWarmUp(job.userId, account, session.target, db)
+    } else {
+      throw new Error(`There is no job kind called "${job.kind}".`)
+    }
+  } finally {
+    // Whether the job worked or not, what the browser can see now is worth
+    // writing down: a failed search is often a sign-out or a captcha, and
+    // that is exactly what a dashboard needs to show.
+    await touchSession(session.id, db)
+    await readSignIns(job.userId, account.profileId, session.target, db)
+  }
+}
+
+/**
+ * A job for the reader browser, signed in to nobody: a search, a post's
+ * replies, a subreddit's rules, a sent comment read again, or the stranger's
+ * look at an account's profile. The account Reddit sees commenting never does
+ * any of these, so its history shows no searches.
+ *
+ * A reader found signed in to Reddit is refused, before and after, because
+ * whatever it read would then be read as somebody.
+ *
+ * A job filed under another lane goes back under the reader's before it
+ * opens anything. Jobs queued before readers existed were filed under the
+ * account's profile, and a reader changed in Settings leaves jobs under the
+ * old one; either way two jobs would open one reader at once, and the second
+ * loses with "already has a browser open" (seen 12 Oct 2026).
+ */
+async function runReaderJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
+  const reader = await readerProfile(job.userId, db)
+  if (job.lane !== reader.id) throw new PutBack({ lane: reader.id })
+  const session = await ensureSession(job.userId, reader.id, db)
+  await touchSession(session.id, db)
+  await refuseSignedInReader(reader.name, session.target)
+
+  try {
+    if (job.kind === "search") {
+      const keywordId = String(job.payload.keywordId ?? "")
+      if (!keywordId) throw new Error("That search job names no keyword.")
+      await runKeywordSearch(job.userId, keywordId, session.target, db)
+    } else if (job.kind === "thread") {
+      const findId = String(job.payload.findId ?? "")
+      if (!findId) throw new Error("That thread job names no post.")
+      await loadFindThread(job.userId, findId, session.target, db)
     } else if (job.kind === "rules") {
       const subreddits = Array.isArray(job.payload.subreddits)
         ? job.payload.subreddits.filter((name): name is string => typeof name === "string" && name !== "")
@@ -163,15 +253,34 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
       const commentId = String(job.payload.commentId ?? "")
       if (!commentId) throw new Error("That check names no comment.")
       await recordCommentCheck(job.userId, commentId, session.target, db)
+    } else if (job.kind === "profile_check") {
+      await recordStrangerCheck(job.userId, job.payload, session.target, db)
     } else {
       throw new Error(`There is no job kind called "${job.kind}".`)
     }
   } finally {
-    // Whether the job worked or not, what the browser can see now is worth
-    // writing down: a failed search is often a sign-out or a captcha, and
-    // that is exactly what a dashboard needs to show.
     await touchSession(session.id, db)
-    await readSignIns(job.userId, account.profileId, session.target, db)
+  }
+
+  await refuseSignedInReader(reader.name, session.target)
+}
+
+/**
+ * Refuses when the reader is signed in to Reddit. A look that cannot be taken
+ * is let go: the page may not be on Reddit yet, and the next look will tell.
+ */
+async function refuseSignedInReader(name: string, target: CommandTarget): Promise<void> {
+  let handle: string | null = null
+  try {
+    const state = await redditQuickState(target)
+    handle = state.checked ? state.handle : null
+  } catch (error) {
+    console.error(`Could not read who the reader ${name} is signed in as`, error)
+  }
+  if (handle) {
+    throw new Refusal(
+      `The reader browser ${name} is signed in to Reddit as u/${handle}. A reader has to be signed in to nobody: sign it out on the Browser profiles dashboard.`
+    )
   }
 }
 

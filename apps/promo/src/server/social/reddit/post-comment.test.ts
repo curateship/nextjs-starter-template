@@ -70,7 +70,7 @@ describe("sending a comment", () => {
   const target = { port: 1, token: "t" }
 
   it("records the comment and marks the post replied to", async () => {
-    sendToReddit.mockResolvedValue({ commentUrl: "https://reddit.com/x/comment/1" })
+    sendToReddit.mockResolvedValue({ commentUrl: "https://reddit.com/x/comment/1", visit: null })
 
     const result = await postComment(
       { userId, findId, accountId, text: "Some words." },
@@ -87,7 +87,7 @@ describe("sending a comment", () => {
   })
 
   it("refuses a second comment on the same post", async () => {
-    sendToReddit.mockResolvedValue({ commentUrl: "https://reddit.com/x/comment/1" })
+    sendToReddit.mockResolvedValue({ commentUrl: "https://reddit.com/x/comment/1", visit: null })
     await postComment({ userId, findId, accountId, text: "First." }, target, db)
 
     await expect(
@@ -136,7 +136,7 @@ describe("sending a comment", () => {
   })
 
   it("notes when the account last posted", async () => {
-    sendToReddit.mockResolvedValue({ commentUrl: "https://reddit.com/x/comment/1" })
+    sendToReddit.mockResolvedValue({ commentUrl: "https://reddit.com/x/comment/1", visit: null })
     await postComment({ userId, findId, accountId, text: "Some words." }, target, db)
 
     const [account] = await db

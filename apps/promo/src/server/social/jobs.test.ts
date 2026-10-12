@@ -16,10 +16,12 @@ import {
   finishJob,
   jobAccount,
   jobCounts,
+  putJobBack,
   queueJob,
   JOB_MAX_ATTEMPTS,
 } from "./jobs"
 import { createProfile } from "@/server/browser/profiles"
+import { readBehaviour, saveBehaviour } from "./behaviour"
 
 import { promoAccounts, promoJobs } from "./schema"
 
@@ -27,12 +29,16 @@ describe("the browser work queue", () => {
   let client: PGlite
   let db: TestDatabase
   let userId: string
+  let readerId: string
 
   beforeEach(async () => {
     const made = await createTestDatabase()
     client = made.client
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
+    // Searches run in the reader, so every search below needs one picked.
+    readerId = await createProfile(userId, { name: "Reader" }, db)
+    await saveBehaviour(userId, { ...(await readBehaviour(userId, db)), readerProfileId: readerId }, db)
   })
 
   afterEach(async () => {
@@ -76,20 +82,23 @@ describe("the browser work queue", () => {
       return id
     }
 
-    it("puts a Reddit job in its account's profile, and a dashboard job in the one it names", async () => {
+    it("puts an account's job in its profile, a search in the reader's, and a dashboard job in the one it names", async () => {
       const profileId = await createProfile(userId, { name: "Main" }, db)
       const named = await createProfile(userId, { name: "Named" }, db)
-      await db.insert(promoAccounts).values({ id: uuid(), userId, profileId })
+      const accountId = uuid()
+      await db.insert(promoAccounts).values({ id: accountId, userId, profileId })
 
-      const reddit = await queueJob(userId, "search", { keywordId: "a" }, db)
+      const health = await queueJob(userId, "health", { accountId }, db)
+      const search = await queueJob(userId, "search", { keywordId: "a" }, db)
       const dashboard = await queueJob(userId, "open", { profileId: named }, db)
 
       const rows = await db.select().from(promoJobs)
-      expect(rows.find((row) => row.id === reddit)?.lane).toBe(profileId)
+      expect(rows.find((row) => row.id === health)?.lane).toBe(profileId)
+      expect(rows.find((row) => row.id === search)?.lane).toBe(readerId)
       expect(rows.find((row) => row.id === dashboard)?.lane).toBe(named)
     })
 
-    it("files a search under the same account's profile the runner will use, with two Reddit accounts", async () => {
+    it("files an account's job under the same profile the runner will use, with two Reddit accounts", async () => {
       const older = await createProfile(userId, { name: "Older" }, db)
       const newer = await createProfile(userId, { name: "Newer" }, db)
       // Inserted newest first, so an unordered read would likely take it.
@@ -98,7 +107,7 @@ describe("the browser work queue", () => {
         .insert(promoAccounts)
         .values({ id: uuid(), userId, profileId: older, createdAt: new Date(Date.now() - 60_000) })
 
-      const id = await queueJob(userId, "search", { keywordId: "a" }, db)
+      const id = await queueJob(userId, "health", {}, db)
 
       const [row] = await db.select().from(promoJobs).where(eq(promoJobs.id, id))
       expect(row.lane).toBe(older)
@@ -143,6 +152,31 @@ describe("the browser work queue", () => {
     })
   })
 
+  it("holds a job back until its time, and leaves it out of the counts until then", async () => {
+    const later = await queueJob(userId, "comment", { findId: "f1", text: "Hi." }, db, new Date(Date.now() + 3_600_000))
+
+    expect(await claimNextJob(uuid(), db)).toBeNull()
+    // Counted, the Reddit dashboard would ask every two seconds until morning.
+    expect((await jobCounts(userId, db)).queued).toBe(0)
+
+    await db.update(promoJobs).set({ runAfter: new Date(Date.now() - 1000) }).where(eq(promoJobs.id, later))
+    expect((await claimNextJob(uuid(), db))?.id).toBe(later)
+  })
+
+  it("puts a job taken too early back to wait, without counting the go", async () => {
+    const id = await queueJob(userId, "comment", { findId: "f1", text: "Hi." }, db)
+    const token = uuid()
+    await claimNextJob(token, db)
+    const until = new Date(Date.now() + 3_600_000)
+
+    await putJobBack(id, token, { runAfter: until }, db)
+
+    const [row] = await db.select().from(promoJobs).where(eq(promoJobs.id, id))
+    expect(row).toMatchObject({ status: "queued", attempts: 0, claimToken: null })
+    expect(row.runAfter?.getTime()).toBe(until.getTime())
+    expect(await claimNextJob(uuid(), db)).toBeNull()
+  })
+
   it("answers with nothing when the queue is empty", async () => {
     expect(await claimNextJob(uuid(), db)).toBeNull()
   })
@@ -167,12 +201,25 @@ describe("the browser work queue", () => {
     expect(again?.attempts).toBe(2)
   })
 
+  it("gives a comment's whole visit longer before calling its worker gone", async () => {
+    await queueJob(userId, "comment", { findId: "f1", text: "Hello." }, db)
+    const claimed = await claimNextJob(uuid(), db)
+    // Twenty minutes in, a comment may still be in its visit's feed.
+    await db
+      .update(promoJobs)
+      .set({ claimedAt: new Date(Date.now() - 20 * 60_000) })
+      .where(eq(promoJobs.id, claimed!.id))
+
+    expect(await failExpiredClaims(db)).toBe(0)
+    expect((await db.select().from(promoJobs))[0].status).toBe("running")
+  })
+
   it("never hands back a comment whose worker vanished", async () => {
     await queueJob(userId, "comment", { findId: "f1", text: "Hello." }, db)
     const claimed = await claimNextJob(uuid(), db)
     await db
       .update(promoJobs)
-      .set({ claimedAt: new Date(Date.now() - 20 * 60_000) })
+      .set({ claimedAt: new Date(Date.now() - 30 * 60_000) })
       .where(eq(promoJobs.id, claimed!.id))
 
     await failExpiredClaims(db)
@@ -315,8 +362,8 @@ describe("the browser work queue", () => {
 
   it("keeps one person's jobs out of another's counts", async () => {
     const other = (await insertUser(db)).id
-    await queueJob(userId, "search", {}, db)
-    await queueJob(other, "search", {}, db)
+    await queueJob(userId, "health", {}, db)
+    await queueJob(other, "health", {}, db)
 
     expect((await jobCounts(userId, db)).queued).toBe(1)
     expect((await jobCounts(other, db)).queued).toBe(1)

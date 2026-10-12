@@ -2,6 +2,7 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import { queueDueHealthChecks } from "./health"
 import { tidyOldFinds } from "./tidy"
+import { queueDueWarmUps } from "./warm-up"
 import {
   markDeadSessions,
   reapIdleSessions,
@@ -72,4 +73,27 @@ export async function tidyOldPosts(
       `Tidied old Reddit posts: deleted ${deleted} skipped post(s), cleared the stored replies of ${cleared} open one(s)`
     )
   }
+}
+
+/**
+ * How often the warm-up looks for accounts to warm. A day's warm-up is picked
+ * once per day per account, so every five minutes is plenty.
+ */
+const WARM_UP_GAP_MS = 5 * 60_000
+
+let lastWarmUpAt = 0
+
+/**
+ * Queues each warming account's daily visit inside its waking hours, and moves
+ * a profile labelled Warming to Ready once its warm-up is over. Only writes
+ * jobs and labels; the browser program does the visiting.
+ */
+export async function queueWarmUps(
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<void> {
+  if (now.getTime() - lastWarmUpAt < WARM_UP_GAP_MS) return
+  lastWarmUpAt = now.getTime()
+  const queued = await queueDueWarmUps(db, now)
+  if (queued) console.log(`Picked a time for ${queued} account warm-up visit(s)`)
 }

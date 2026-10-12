@@ -22,6 +22,7 @@ import {
   type SearchStatus,
   type SubredditRule,
   type SubredditRulesStatus,
+  type VisitRecord,
 } from "@/lib/social/options"
 import {
   type RedditSort,
@@ -133,6 +134,11 @@ export const promoAccounts = pgTable(
     /** The profile read signed in and signed out. Null until one is taken. */
     profileCheck: jsonb("profile_check").$type<ProfileCheck | null>(),
     lastPostedAt: timestamp("last_posted_at", { withTimezone: true }),
+    /**
+     * The subreddits the daily warm-up joined, lower case, so it never asks to
+     * join one twice. Added by `drizzle/0106_promo_behaviour.sql`.
+     */
+    joinedSubreddits: jsonb("joined_subreddits").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -276,6 +282,35 @@ export const promoRedditSettings = pgTable("promo_reddit_settings", {
    * skipped, or clears its stored replies if still open. 0 switches it off.
    */
   tidyAfterDays: integer("tidy_after_days").notNull().default(30),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
+ * How every account behaves, whatever network it is on: the signed-out reader
+ * browser that searches for it, its waking hours, its warm-up, and the pace
+ * for young accounts. No row means the defaults and no reader. The SQL is
+ * `drizzle/0106_promo_behaviour.sql`; the bounds are `BEHAVIOUR_RANGES`.
+ */
+export const promoBehaviourSettings = pgTable("promo_behaviour_settings", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  /** The profile signed in to nobody that runs every search. Null means none picked. */
+  readerProfileId: varchar("reader_profile_id", { length: 36 }).references(
+    () => promoProfiles.id,
+    { onDelete: "set null" }
+  ),
+  /** Minutes past midnight, in the account's own time zone. */
+  wakeFromMinute: integer("wake_from_minute").notNull().default(480),
+  wakeUntilMinute: integer("wake_until_minute").notNull().default(1380),
+  /** Days from the day Reddit made the account before it may comment. 0 is off. */
+  warmUpDays: integer("warm_up_days").notNull().default(3),
+  /** Younger than this many days, the per-hour and per-day limits refuse Post. */
+  youngDays: integer("young_days").notNull().default(90),
+  youngPerHour: integer("young_per_hour").notNull().default(2),
+  youngPerDay: integer("young_per_day").notNull().default(6),
+  /** Past this many comments in an hour, any account's composer warns. It never refuses. */
+  warnPerHour: integer("warn_per_hour").notNull().default(4),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -468,6 +503,13 @@ export const promoComments = pgTable(
     stillVisible: boolean("still_visible"),
     checkedAs: varchar("checked_as", { length: 10 }).$type<"stranger" | "you">(),
     checkedAt: timestamp("checked_at", { withTimezone: true }),
+    /**
+     * The visit around the comment as the browser reported it: feed time
+     * before and after, posts opened, and how it reached the post. Null on a
+     * failure and on comments from before visits. Added by
+     * `drizzle/0106_promo_behaviour.sql`.
+     */
+    visit: jsonb("visit").$type<VisitRecord | null>(),
     postedAt: timestamp("posted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -515,6 +557,13 @@ export const promoJobs = pgTable(
     claimedAt: timestamp("claimed_at", { withTimezone: true }),
     attempts: integer("attempts").notNull().default(0),
     lastError: text("last_error").notNull().default(""),
+    /**
+     * Not started before this time. A comment pressed outside the account's
+     * waking hours waits for its morning; the daily warm-up waits for a time
+     * picked inside them. Null starts at once. Added by
+     * `drizzle/0106_promo_behaviour.sql`.
+     */
+    runAfter: timestamp("run_after", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

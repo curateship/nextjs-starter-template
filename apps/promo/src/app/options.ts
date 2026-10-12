@@ -50,6 +50,15 @@ export const appOptions: AppOptions = {
         /** How many browsers may be open at once, and when an unused one closes. */
         panel: () => import("@/components/browser/browser-settings"),
       },
+      {
+        id: "behaviour",
+        label: "Behaviour",
+        /**
+         * How every account acts: the reader browser that searches for it,
+         * its waking hours, its warm-up and its pace.
+         */
+        panel: () => import("@/components/social/behaviour-settings"),
+      },
     ],
   },
 }

@@ -40,6 +40,11 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  * `rules` reads the posted rules of the subreddits a search brought in, once
  * each. `comment_check` reads one sent comment again; it is not `check`,
  * which already means a person's look at a profile's browser.
+ * `profile_check` is the stranger's half of a health reading, and
+ * `warm_up` is a new account's daily visit to Reddit.
+ *
+ * `READER_JOB_KINDS` run in the signed-out reader browser, never in the
+ * account's own: the account Reddit sees commenting never searches.
  */
 export type JobKind =
   | "search"
@@ -54,6 +59,17 @@ export type JobKind =
   | "health"
   | "rules"
   | "comment_check"
+  | "profile_check"
+  | "warm_up"
+
+/** The kinds that run in the reader browser, signed in to nobody. */
+export const READER_JOB_KINDS: readonly JobKind[] = [
+  "search",
+  "thread",
+  "rules",
+  "comment_check",
+  "profile_check",
+]
 
 /**
  * The account's profile, asked for once signed in and once signed out, as it
@@ -81,6 +97,51 @@ export type ProfileCheck = {
  */
 export const NO_PROFILE_MESSAGE =
   "This Reddit account has no browser profile. Pick one in Settings."
+
+/**
+ * What a search, a reply read or a stranger's check says when no reader
+ * browser is picked. They are refused rather than run in the account's own
+ * browser, because the account Reddit sees commenting never searches.
+ */
+export const NO_READER_MESSAGE =
+  "There is no reader browser, so this is refused rather than run in your account's own browser. Pick a reader in Settings → Behaviour."
+
+/**
+ * The visit around one comment, as the browser reported it. Seconds are whole
+ * seconds. `reachedBy` is how the browser got to the post: through the
+ * subreddit's own listing, or straight to its address when the listing did not
+ * show it. `problems` are steps of the visit that failed, which never stop the
+ * comment.
+ */
+export type VisitRecord = {
+  beforeSeconds: number
+  afterSeconds: number
+  postsOpened: number
+  reachedBy: "subreddit" | "address"
+  scrolls: number
+  problems: string[]
+}
+
+/** The behaviour settings, and the bounds the tab and the server both check. */
+export const BEHAVIOUR_DEFAULTS = {
+  wakeFromMinute: 480,
+  wakeUntilMinute: 1380,
+  warmUpDays: 3,
+  youngDays: 90,
+  youngPerHour: 2,
+  youngPerDay: 6,
+  warnPerHour: 4,
+} as const
+
+export const BEHAVIOUR_RANGES = {
+  wakeFromMinute: { min: 0, max: 1439 },
+  wakeUntilMinute: { min: 0, max: 1439 },
+  warmUpDays: { min: 0, max: 60 },
+  youngDays: { min: 0, max: 730 },
+  youngPerHour: { min: 1, max: 30 },
+  youngPerDay: { min: 1, max: 200 },
+  warnPerHour: { min: 1, max: 60 },
+} as const
 
 export const PROXY_PROTOCOLS = ["http", "https", "socks5"] as const
 export type ProxyProtocol = (typeof PROXY_PROTOCOLS)[number]

@@ -23,6 +23,14 @@ So every read goes through a real browser, which solves the puzzle the way a
 person's browser does. `browser/isolated-sessions.md` describes that browser.
 One engine does the reading and the posting, rather than two.
 
+**The account never searches.** Keyword searches, subreddit watches, reading a
+post's replies and reading a subreddit's rules all run in the reader browser, a
+profile signed in to nobody, picked in Settings → Behaviour. With no reader
+picked, Run and Read the replies are refused at once and say to pick one; they
+never fall back to the account's own browser. An account that searches the
+same words dozens of times a day looks like a bot, however good its
+fingerprint. `accounts/behaving-like-a-person.md` has the rest of the rules.
+
 ## What a keyword is
 
 A saved search: the words, which subreddits to look in, Reddit's own order, and

@@ -53,10 +53,12 @@ if not COMMAND_TOKEN:
 # navigation cannot wedge the queue for every later request.
 WORK_TIMEOUT_SECONDS = 90
 
-# Routines that are slow on purpose get longer. A comment is typed at a
-# person's speed after reading the post: about two minutes for 900 characters,
-# never more than four. The app waits a little longer than this.
-ROUTINE_TIMEOUT_SECONDS = {"reddit.comment": 240}
+# Routines that are slow on purpose get longer. A comment is a whole visit:
+# minutes in the feed, the post read, the comment typed at a person's speed
+# (about two minutes for 900 characters), a little more feed. A warm-up is the
+# same visit without the comment. Both plan to finish by 800 seconds. The app
+# waits a little longer than this.
+ROUTINE_TIMEOUT_SECONDS = {"reddit.comment": 900, "reddit.warm_up": 900}
 
 work = queue.Queue()
 

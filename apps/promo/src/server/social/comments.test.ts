@@ -8,6 +8,8 @@ import {
   insertUser,
   type TestDatabase,
 } from "@/server/test-support"
+import { createProfile } from "@/server/browser/profiles"
+import { readBehaviour, saveBehaviour } from "@/server/social/behaviour"
 import { commentStateWords } from "@/lib/social/wording"
 
 import { listSentComments, queueCommentChecks } from "./comments"
@@ -34,6 +36,7 @@ describe("the comments you sent", () => {
   let db: TestDatabase
   let userId: string
   let accountId: string
+  let readerId: string
   let findId: string
 
   beforeEach(async () => {
@@ -42,6 +45,9 @@ describe("the comments you sent", () => {
     client = made.client
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
+    // Comment checks are read in the reader browser, so one has to be picked.
+    readerId = await createProfile(userId, { name: "Reader" }, db)
+    await saveBehaviour(userId, { ...(await readBehaviour(userId, db)), readerProfileId: readerId }, db)
     accountId = uuid()
     await db.insert(promoAccounts).values({ id: accountId, userId, handle: "me" })
     const keywordId = uuid()
@@ -98,7 +104,7 @@ describe("the comments you sent", () => {
     expect(commentStateWords(rows[0]).label).toBe("Not read yet")
   })
 
-  it("queues one check per comment, files it under the sending account, and never twice", async () => {
+  it("queues one check per comment, reads it in the reader browser, and never twice", async () => {
     const id = await sent()
     const otherUser = (await insertUser(db, { role: "admin" })).id
 
@@ -111,7 +117,7 @@ describe("the comments you sent", () => {
 
     const jobs = await db.select().from(promoJobs)
     expect(jobs).toHaveLength(1)
-    expect(jobs[0]).toMatchObject({ kind: "comment_check", payload: { commentId: id, accountId } })
+    expect(jobs[0]).toMatchObject({ kind: "comment_check", payload: { commentId: id, accountId }, lane: readerId })
     const [row] = await listSentComments(userId, db)
     expect(row.checking).toBe(true)
     expect(commentStateWords(row).label).toBe("Reading")

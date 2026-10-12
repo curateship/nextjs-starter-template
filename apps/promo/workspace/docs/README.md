@@ -22,6 +22,13 @@ the repo's `docs/`, and is never copied here.
 - [How Reddit sees the account](reddit/account-health.md) — karma, account age,
   and whether a stranger can see the profile, read once a day and on request.
 
+## Accounts
+
+- [Behaving like a person](accounts/behaving-like-a-person.md) — the reader
+  browser that searches so accounts never do, the visit around every comment,
+  waking hours, warm-up, the pace limit for young accounts, and clicks and
+  scrolls like a hand. Settings → Behaviour.
+
 ## The browser
 
 - [The isolated browser](browser/isolated-sessions.md) — Camoufox in a container,

@@ -8,6 +8,8 @@ import {
   insertUser,
   type TestDatabase,
 } from "@/server/test-support"
+import { createProfile } from "@/server/browser/profiles"
+import { readBehaviour, saveBehaviour } from "@/server/social/behaviour"
 import { buildDraftPrompt } from "@/server/social/drafts"
 import { promoJobs, promoKeywords, promoSubredditRules } from "@/server/social/schema"
 import { rulesSummaryText } from "@/lib/social/wording"
@@ -68,6 +70,9 @@ describe("subreddit rules", () => {
     client = made.client
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
+    // Rules are read in the reader browser, so one has to be picked.
+    const readerId = await createProfile(userId, { name: "Reader" }, db)
+    await saveBehaviour(userId, { ...(await readBehaviour(userId, db)), readerProfileId: readerId }, db)
   })
 
   afterEach(async () => {

@@ -19,16 +19,18 @@ see it is to look at the profile signed out, which is what this reading does.
   already reads after every job to see who is signed in. So they are brought up
   to date after every search, every reply read and every comment, at no extra
   cost. Signed out, the last reading stays with its own date.
-- **The stranger's view** asks Reddit for the profile's own data twice, once
-  with the browser's cookies and once with them left off. It runs in a tab of
-  its own that closes afterwards, so a page a person is using is never moved.
+- **The stranger's view** is two jobs. The account's own browser asks Reddit
+  for the profile's data as the account. Then a `profile_check` job asks for it
+  again from the reader browser, signed in to nobody, with its own proxy, and
+  only then is the whole reading written. Each runs in a tab of its own that
+  closes afterwards, so a page a person is using is never moved. The card says
+  it is checking until both are done.
 
-The task asked for a fresh browser with no cookies. That cannot be opened
-inside a profile's browser: its cookies live in one saved session, and Reddit
-offers no second, empty one beside it. Loading the profile page signed out in a
-tab would also write a signed-out visitor's cookies over the signed-in ones. A
-request with its cookies left off sends none and keeps none, so that is what
-is used. It still comes from the same browser and the same proxy.
+Until 12 Oct 2026 the stranger's half was asked from inside the account's own
+browser with the cookies left off. That sent no cookies, but it still came from
+the account's browser and proxy, so it moved to the reader. With no reader
+picked, the karma and age are still read and the check says to pick one in
+Settings → Behaviour.
 
 ## What the words say
 

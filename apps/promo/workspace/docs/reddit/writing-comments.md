@@ -4,11 +4,15 @@ The AI drafts, a person reads it, and only then does anything reach Reddit.
 
 ## Nothing posts without a press
 
-There is no schedule, no queue of approved comments going out later, and no
-automatic retry. The whole posting path is: press the button to ask for drafts,
-read them, edit one if you like, press Post. A failed post stays failed and
-visible rather than being tried again, because a comment that quietly posted
-twice is worse than one that did not post.
+There is no schedule and no automatic retry. The whole posting path is: press
+the button to ask for drafts, read them, edit one if you like, press Post. A
+failed post stays failed and visible rather than being tried again, because a
+comment that quietly posted twice is worse than one that did not post.
+
+One wait exists, and only because a person pressed Post. Outside the account's
+waking hours the comment waits for its morning. The post says when it goes and
+offers Cancel comment until then. `accounts/behaving-like-a-person.md` has the
+waking hours.
 
 **A comment job is tried once, whatever went wrong.** Every other browser job
 gets three tries, and until 6 Oct 2026 a comment did too, which contradicted
@@ -30,14 +34,27 @@ a second at a fixed pace, starting the moment the page loaded: 900 characters in
   list, so two comments never share a rhythm, with longer pauses after the end
   of a sentence and the occasional stop mid-sentence.
 - **It waits a moment before pressing Comment.**
-- **The cursor moves like a hand on a mouse,** as it always has.
+- **It presses like a hand.** The box and the Comment button are pressed a
+  little off their middle, at a different point each time, by the mouse
+  itself, and the cursor travels there along a curve.
 
 Measured on 6 Oct 2026 in the same browser, typing into a blank box: 900
 characters took 2.5 and 2.6 minutes from opening the page to pressing, with gaps
 from 60 thousandths of a second to just over a second, typically 114. The
-browser gives a comment 4 minutes and the app waits 4.5, so the app hears the
-browser's own answer. The helper is `docker/browser/human.py`, beside the
-network routines, so the next network types the same way.
+helper is `docker/browser/human.py`, beside the network routines, so the next
+network types the same way.
+
+## The visit around it
+
+The comment is one moment in an ordinary visit. Before it, the account scrolls
+its home feed for a few minutes and opens a post or two. It reaches the post
+through the subreddit's newest posts where it can, and by its address where it
+cannot. After it, it scrolls the feed a little more. A failure in the feed
+before never stops the comment, nothing after the comment can fail it, and it
+is still sent once. Each sent comment keeps the visit's record in
+`promo_comments.visit`. The browser allows the whole visit 15 minutes and the
+app waits 15.5, so the app hears the browser's own answer.
+`accounts/behaving-like-a-person.md` has the details and the measurements.
 
 ## What the AI is told
 
@@ -157,7 +174,7 @@ No key saved means the draft button says so and names the screen to fix it on.
 
 ## Why Post is sometimes off
 
-It is never off without a reason beside it. The three reasons:
+It is never off without a reason in its tooltip. The reasons:
 
 - **The replies have not been read.** Read them first, so the comment does not
   repeat one of them.
@@ -165,3 +182,17 @@ It is never off without a reason beside it. The three reasons:
   once.
 - **Reddit is showing a challenge or a captcha.** Open the browser window and
   clear it by hand.
+- **The account is still warming up.** The tooltip says when its first comment
+  is allowed. An account whose age has never been read is off too, until Check
+  now on Settings → Reddit account reads it.
+- **A young account is at its pace limit.** The tooltip says when the next one
+  is allowed. The server refuses the same comment with the same words.
+- **A comment on this post is already waiting** for the account's morning.
+  Cancel it to send a different one.
+
+## The pace line
+
+Beside Post, always: "3 comments in the last hour, 11 today." Past the number
+in Settings → Behaviour (4 an hour) it turns amber and says "That would be the
+5th comment this hour. New accounts get banned for less." That warning never
+turns Post off. Failed attempts are not counted.

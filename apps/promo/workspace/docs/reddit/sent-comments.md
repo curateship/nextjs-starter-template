@@ -52,14 +52,17 @@ and returns. The screen asks again every two seconds while any check is waiting
 or running, and stops when none is. A press checks at most 50, and a comment
 already being read is skipped and counted as skipped.
 
-The browser asks Reddit for the comment twice from inside a Reddit page: once
-with no cookies, as a stranger, and once as the account. **The stranger's
-answer decides whether it is there**, because a moderator's removal shows to
-everybody except the person who wrote the comment, who still sees their own
-words. When Reddit refuses the stranger, the browser's own view is used. If
-nobody is signed in to Reddit in that browser, its view is a stranger's anyway
-and counts as one. If the account is signed in, the row says **There for you**,
-with a note that a removal would not show this way.
+The check runs in the reader browser, signed in to nobody (Settings >
+Behaviour), never in the account's own. With no reader picked, Check is
+refused and says to pick one. The reader asks Reddit for the comment twice from
+inside a Reddit page: once with no cookies, and once with its own, which are a
+stranger's too. **The stranger's answer decides whether it is there**, because
+a moderator's removal shows to everybody except the person who wrote the
+comment, who still sees their own words. **There for you** can only appear on
+checks taken before 12 Oct 2026, when checks still ran in the account's own
+browser. One thing is lost by moving: where a subreddit hides new scores, only
+the author could see the number, so that comment's upvotes stay "not shown yet"
+until Reddit shows them to everybody.
 
 Measured on 11 Oct 2026 against a real r/SaaS comment: Reddit refused the
 cookie-less request and answered the browser's own, which was signed out. The

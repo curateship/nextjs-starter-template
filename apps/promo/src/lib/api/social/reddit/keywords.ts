@@ -16,6 +16,7 @@ import { queueRulesRead } from "@/server/social/reddit/rules"
 import { setFindStatus } from "@/server/social/reddit/search"
 import {
   FIND_STATUSES,
+  NO_READER_MESSAGE,
 } from "@/lib/social/options"
 import {
   REDDIT_SORTS,
@@ -43,6 +44,8 @@ export const getRedditErrorMessage = createErrorMessage(
     "A watch takes one subreddit": "A watch takes one subreddit. Type a keyword to search several.",
     "Type a keyword": "Type a keyword first, or name one subreddit to watch.",
     "no longer saved": "That keyword has been removed. Reload the page.",
+    "There is no reader browser": NO_READER_MESSAGE,
+    "now holds an account": "The reader browser now holds an account, so nothing is read in it. Pick another reader in Settings → Behaviour.",
   },
   "That did not work. Please try again."
 )

@@ -91,7 +91,9 @@ async function turn(): Promise<boolean> {
   try {
     const result = await runOneJob(claimToken)
     if (result.did === "nothing") return false
-    if (result.ok) {
+    if (result.did === "put back") {
+      console.log(`Put ${result.kind} job ${result.jobId} back untried: ${result.why}`)
+    } else if (result.ok) {
       console.log(`Finished ${result.kind} job ${result.jobId}`)
     } else {
       // The job row already carries this message and the screen shows it.

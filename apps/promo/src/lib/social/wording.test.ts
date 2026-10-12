@@ -7,11 +7,16 @@ import {
   keywordTitle,
   profileCheckWords,
   postedDateText,
+  paceLineText,
+  paceWarningText,
   postingBlockedReason,
+  postingRefusalText,
   splitIntoBlocks,
   voiceDeleteWords,
   voiceUsersWords,
+  whenText,
 } from "./wording"
+import type { PostingState } from "@/server/social/posting"
 
 const NOW = new Date("2099-06-10T12:00:00.000Z")
 
@@ -89,6 +94,7 @@ describe("why posting is off", () => {
     jobs: { queued: 0, running: 0, failed: 0, searchingKeywordIds: [] },
     profile: { id: "p1", name: "Main" },
     voice: { id: "v1", name: "Main voice" },
+    posting: null,
   }
   const read = { thread: { body: "", replies: [] } }
 
@@ -279,5 +285,61 @@ describe("what a stranger sees of the profile", () => {
         signedOutFound: false,
       }).text
     ).toBe('Reddit answered "not found" for u/a_persona both signed in and signed out.')
+  })
+})
+
+describe("why the account may not comment yet", () => {
+  const now = new Date("2026-10-12T12:00:00Z")
+  const free: PostingState = {
+    timeZone: "UTC",
+    awake: true,
+    nextWakeAt: null,
+    warmUp: { endsAt: null, ageUnknown: false },
+    young: true,
+    lastHour: 0,
+    lastDay: 0,
+    warnPerHour: 4,
+    youngPerHour: 2,
+    youngPerDay: 6,
+    limit: null,
+    waiting: [],
+  }
+
+  it("has nothing to say when the account may comment", () => {
+    expect(postingRefusalText(free, now, "UTC")).toBeNull()
+  })
+
+  it("names the day and time a warm-up ends", () => {
+    const state = { ...free, warmUp: { endsAt: new Date("2026-10-14T09:12:00Z"), ageUnknown: false } }
+    expect(postingRefusalText(state, now, "UTC")).toBe(
+      "This account is still warming up. Its first comment is allowed on Wed 14 Oct at 9:12 UTC time."
+    )
+  })
+
+  it("says when a young account's next comment is allowed", () => {
+    const state = { ...free, limit: { limit: "hour" as const, nextAllowedAt: new Date("2026-10-12T12:40:00Z") } }
+    expect(postingRefusalText(state, now, "UTC")).toBe(
+      "A young account may send 2 comments an hour, and this one has. The next one is allowed today at 12:40 UTC time."
+    )
+    // Once that time has passed, it is no longer a reason.
+    expect(postingRefusalText(state, new Date("2026-10-12T12:41:00Z"), "UTC")).toBeNull()
+  })
+
+  it("puts the pace in plain counts and warns past the hour's number", () => {
+    expect(paceLineText({ lastHour: 1, lastDay: 11 })).toBe("1 comment in the last hour, 11 today.")
+    expect(paceWarningText({ lastHour: 3, warnPerHour: 4 })).toBeNull()
+    expect(paceWarningText({ lastHour: 4, warnPerHour: 4 })).toBe(
+      "That would be the 5th comment this hour. New accounts get banned for less."
+    )
+    expect(paceWarningText({ lastHour: 10, warnPerHour: 4 })).toContain("the 11th comment")
+  })
+
+  it("says today, tomorrow, or the date, naming a clock it was given", () => {
+    expect(whenText(new Date("2026-10-12T18:05:00Z"), now, "UTC")).toBe("today at 18:05 UTC time")
+    expect(whenText(new Date("2026-10-13T08:00:00Z"), now, "UTC")).toBe("tomorrow at 8:00 UTC time")
+    // Midnight in Toronto is still the 12th there.
+    expect(whenText(new Date("2026-10-13T03:00:00Z"), now, "America/Toronto")).toBe(
+      "today at 23:00 America/Toronto time"
+    )
   })
 })

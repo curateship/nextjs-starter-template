@@ -3,8 +3,9 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
-import type { JobKind } from "@/lib/social/options"
+import { READER_JOB_KINDS, type JobKind } from "@/lib/social/options"
 
+import { readerProfile } from "./behaviour"
 import { promoAccounts, promoJobs } from "./schema"
 
 /**
@@ -24,12 +25,21 @@ import { promoAccounts, promoJobs } from "./schema"
 /**
  * A claim older than this belonged to a worker that is gone.
  *
- * Ten minutes, longer than the slowest real job: opening a cold browser can
- * take five, and a comment typed at a person's pace up to four more. Shorter,
- * a second copy of the browser program could call a comment still being typed
- * abandoned, and report a comment that posted as failed.
+ * Ten minutes, longer than the slowest ordinary job: opening a cold browser
+ * can take five. Shorter, a second copy of the browser program could call a
+ * job still working abandoned.
  */
 const CLAIM_TIMEOUT_MINUTES = 10
+
+/**
+ * A comment and a warm-up are whole visits to Reddit: minutes in the feed,
+ * then a comment typed at a person's pace, then a little more feed. The
+ * browser allows the visit 15 minutes (`docker/browser/launch.py`), and a cold
+ * browser can take five to open, so their claims last 25. Shorter, a comment
+ * still being typed could be called abandoned and reported as failed after it
+ * posted.
+ */
+const VISIT_CLAIM_TIMEOUT_MINUTES = 25
 
 /** Three goes, then the job stays failed and says so on screen. A comment gets one. */
 const MAX_ATTEMPTS = 3
@@ -44,6 +54,8 @@ export type QueuedJob = {
   kind: JobKind
   payload: Record<string, unknown>
   attempts: number
+  /** The profile it was filed under, which keeps it from running beside another job there. */
+  lane: string | null
 }
 
 /**
@@ -53,16 +65,24 @@ export type QueuedJob = {
  */
 const CLAIM_LOCK_KEY = 7718235309136512n
 
-/** Adds a job. The screen never waits for it. */
+/**
+ * Adds a job. The screen never waits for it. `runAfter` holds it back until
+ * then: a comment pressed outside the account's waking hours, or the daily
+ * warm-up at the time picked for it.
+ *
+ * A reader job with no reader picked is refused here, so the person who
+ * pressed the button reads why at once.
+ */
 export async function queueJob(
   userId: string,
   kind: JobKind,
   payload: Record<string, unknown>,
-  db: CustomShellDb = defaultDb
+  db: CustomShellDb = defaultDb,
+  runAfter: Date | null = null
 ): Promise<string> {
   const id = uuid()
-  const lane = await laneFor(userId, payload, db)
-  await db.insert(promoJobs).values({ id, userId, kind, payload, lane })
+  const lane = await laneFor(userId, kind, payload, db)
+  await db.insert(promoJobs).values({ id, userId, kind, payload, lane, runAfter })
   return id
 }
 
@@ -96,15 +116,17 @@ export async function jobAccount(
 
 /**
  * The profile a job works in, which is its lane: the one a dashboard job
- * names, or its account's. Null when there is none, so the job is its own
- * lane and is refused when it runs.
+ * names, the reader for a reader job, or its account's. Null when there is
+ * none, so the job is its own lane and is refused when it runs.
  */
 async function laneFor(
   userId: string,
+  kind: JobKind,
   payload: Record<string, unknown>,
   db: CustomShellDb
 ): Promise<string | null> {
   if (typeof payload.profileId === "string" && payload.profileId) return payload.profileId
+  if (READER_JOB_KINDS.includes(kind)) return (await readerProfile(userId, db)).id
   return (await jobAccount(userId, payload, db))?.profileId ?? null
 }
 
@@ -138,6 +160,7 @@ export async function claimNextJob(
       WHERE "promo_jobs"."id" IN (
         SELECT "inner"."id" FROM "promo_jobs" AS "inner"
         WHERE "inner"."status" = 'queued'
+          AND ("inner"."run_after" IS NULL OR "inner"."run_after" <= now())
           AND (
             "inner"."lane" IS NULL
             OR NOT EXISTS (
@@ -153,7 +176,8 @@ export async function claimNextJob(
                 "promo_jobs"."user_id",
                 "promo_jobs"."kind",
                 "promo_jobs"."payload",
-                "promo_jobs"."attempts"
+                "promo_jobs"."attempts",
+                "promo_jobs"."lane"
     `)
   })
 
@@ -164,6 +188,7 @@ export async function claimNextJob(
       kind: JobKind
       payload: Record<string, unknown>
       attempts: number
+      lane: string | null
     }>
   )[0]
   if (!row) return null
@@ -174,6 +199,7 @@ export async function claimNextJob(
     kind: row.kind,
     payload: row.payload ?? {},
     attempts: row.attempts,
+    lane: row.lane,
   }
 }
 
@@ -213,9 +239,11 @@ export async function failExpiredClaims(
           ELSE NULL
         END
     WHERE "promo_jobs"."status" = 'running'
-      AND "promo_jobs"."claimed_at" < now() - ${sql.raw(
-        `interval '${CLAIM_TIMEOUT_MINUTES} minutes'`
-      )}
+      AND "promo_jobs"."claimed_at" < now() - CASE
+        WHEN "promo_jobs"."kind" IN ('comment', 'warm_up')
+          THEN ${sql.raw(`interval '${VISIT_CLAIM_TIMEOUT_MINUTES} minutes'`)}
+        ELSE ${sql.raw(`interval '${CLAIM_TIMEOUT_MINUTES} minutes'`)}
+      END
     RETURNING "promo_jobs"."id"
   `)
   return recovered.rows.length
@@ -229,6 +257,29 @@ export async function finishJob(
   await db
     .update(promoJobs)
     .set({ status: "done", finishedAt: new Date(), claimToken: null })
+    .where(and(eq(promoJobs.id, jobId), eq(promoJobs.claimToken, claimToken)))
+}
+
+/**
+ * Puts a claimed job back without counting the go, because it did nothing:
+ * to wait until `runAfter`, taken outside the account's waking hours, or
+ * under `lane`, filed under a profile it no longer runs in.
+ */
+export async function putJobBack(
+  jobId: string,
+  claimToken: string,
+  change: { runAfter: Date } | { lane: string },
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  await db
+    .update(promoJobs)
+    .set({
+      status: "queued",
+      ...change,
+      attempts: sql`greatest(${promoJobs.attempts} - 1, 0)`,
+      claimToken: null,
+      claimedAt: null,
+    })
     .where(and(eq(promoJobs.id, jobId), eq(promoJobs.claimToken, claimToken)))
 }
 
@@ -260,6 +311,7 @@ export async function failJob(
 }
 
 export type JobCounts = {
+  /** Waiting to start now. A job held back for a later time is not counted. */
   queued: number
   running: number
   failed: number
@@ -277,6 +329,8 @@ export async function jobCounts(
   userId: string,
   db: CustomShellDb = defaultDb
 ): Promise<JobCounts> {
+  // A job held back for hours is not work in progress. Counting it would keep
+  // the Reddit dashboard asking every two seconds until morning.
   const rows = await db
     .select({
       status: promoJobs.status,
@@ -284,7 +338,12 @@ export async function jobCounts(
       payload: promoJobs.payload,
     })
     .from(promoJobs)
-    .where(eq(promoJobs.userId, userId))
+    .where(
+      and(
+        eq(promoJobs.userId, userId),
+        sql`(${promoJobs.runAfter} IS NULL OR ${promoJobs.runAfter} <= now() OR ${promoJobs.status} <> 'queued')`
+      )
+    )
 
   const counts: JobCounts = {
     queued: 0,

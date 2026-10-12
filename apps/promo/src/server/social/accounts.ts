@@ -4,7 +4,9 @@ import { uuid } from "@/server/auth/security"
 import { promoProfiles } from "@/server/browser/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
+import { readBehaviour } from "./behaviour"
 import { jobCounts, type JobCounts } from "./jobs"
+import { readPostingState, type PostingState } from "./posting"
 import { promoAccounts, promoJobs, promoVoices } from "./schema"
 
 /**
@@ -21,6 +23,8 @@ export type AccountView = {
   id: string
   handle: string
   karma: number | null
+  /** When Reddit made the account, or null when never read. */
+  redditCreatedAt: Date | null
   lastPostedAt: Date | null
   /** Null when none was picked, or the one picked was deleted. */
   profile: { id: string; name: string } | null
@@ -39,6 +43,7 @@ export async function readAccount(
     id: account.id,
     handle: account.handle,
     karma: account.karma,
+    redditCreatedAt: account.redditCreatedAt,
     lastPostedAt: account.lastPostedAt,
     profile: account.profile,
     voice: account.voiceRef,
@@ -72,6 +77,11 @@ export async function saveAccount(
       .where(and(eq(promoProfiles.id, input.profileId), eq(promoProfiles.userId, userId)))
       .limit(1)
     if (!profile) throw new Error("That browser profile does not exist.")
+    if ((await readBehaviour(userId, db)).readerProfileId === input.profileId) {
+      throw new Error(
+        `The profile ${profile.name} is the reader browser, which stays signed in to nobody. Pick another profile, or change the reader in Settings → Behaviour.`
+      )
+    }
 
     const [taken] = await db
       .select({ id: promoAccounts.id })
@@ -158,6 +168,11 @@ export type BrowserStatus = {
   profile: { id: string; name: string } | null
   /** The voice it drafts with, or null when it drafts plainly. */
   voice: { id: string; name: string } | null
+  /**
+   * Whether the account may comment now: warm-up, pace and waking hours,
+   * and the comments waiting for its morning. Null with no account.
+   */
+  posting: PostingState | null
 }
 
 /**
@@ -181,6 +196,7 @@ export async function readBrowserStatus(
     jobs,
     profile: account?.profile ?? null,
     voice: account?.voiceRef ?? null,
+    posting: account ? await readPostingState(userId, account, db) : null,
   }
 }
 

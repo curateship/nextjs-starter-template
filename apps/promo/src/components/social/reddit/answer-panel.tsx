@@ -1,6 +1,8 @@
 import * as React from "react"
 import {
+  AlertTriangleIcon,
   ArrowUpIcon,
+  ClockIcon,
   ExternalLinkIcon,
   Loader2Icon,
   MessageSquareIcon,
@@ -14,12 +16,16 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { MAX_COMMENT_CHARS, type FindThread } from "@/lib/social/options"
 import {
+  paceLineText,
+  paceWarningText,
   postedDateText,
   splitIntoBlocks,
+  waitingCommentText,
   type BlockedReason,
 } from "@/lib/social/wording"
 import { cn } from "@/lib/utils"
 
+import type { PostingState } from "@/server/social/posting"
 import type { RulesView } from "@/server/social/reddit/rules"
 
 import { SubredditRules } from "./subreddit-rules"
@@ -55,8 +61,9 @@ export type DraftView = {
  * replies and the drafts scroll together, and the box you send from stays at
  * the bottom where it can always be reached.
  *
- * Nothing posts without the button below being pressed. There is no schedule,
- * no queue of approved comments going out later, and no automatic retry.
+ * Nothing posts without the button below being pressed. There is no schedule
+ * and no automatic retry. A comment pressed outside the account's waking hours
+ * waits for its morning, says when it goes, and can be cancelled until then.
  */
 export function AnswerPanel({
   find,
@@ -65,11 +72,13 @@ export function AnswerPanel({
   loading,
   working,
   disabledReason,
+  postingState,
   voiceName,
   onRead,
   onReadRules,
   onDraft,
   onPost,
+  onCancelWaiting,
   onSkip,
   onBack,
 }: {
@@ -83,6 +92,8 @@ export function AnswerPanel({
   working: boolean
   /** Why posting is impossible right now, in words, or null. */
   disabledReason: BlockedReason | null
+  /** The account's pace and the comments waiting for its morning. Null with no account. */
+  postingState: PostingState | null
   /** The voice drafts are written in, or null when the account has none. */
   voiceName: string | null
   onRead: (findId: string) => Promise<void>
@@ -94,6 +105,8 @@ export function AnswerPanel({
     text: string
     draftId: string | null
   }) => Promise<void>
+  /** Cancels this post's comment while it waits for the account's morning. */
+  onCancelWaiting: (findId: string) => Promise<void>
   onSkip: (findId: string) => Promise<void>
   /**
    * Closes the post and goes back to the list, leaving the keyword and the
@@ -108,6 +121,7 @@ export function AnswerPanel({
   const [drafting, setDrafting] = React.useState(false)
   const [posting, setPosting] = React.useState(false)
   const [skipping, setSkipping] = React.useState(false)
+  const [cancelling, setCancelling] = React.useState(false)
 
   // A different post is a different comment. Worked out during this render
   // rather than in an effect, so the box is never briefly showing the words
@@ -120,8 +134,13 @@ export function AnswerPanel({
   }
 
   const over = text.length > MAX_COMMENT_CHARS
+  const waiting = find ? (postingState?.waiting.find((item) => item.findId === find.id) ?? null) : null
+  const paceWarning = postingState ? paceWarningText(postingState) : null
   // Every reason Post can be off, in the order a person fixes them.
   const postReason =
+    (waiting
+      ? "Your comment on this post is already waiting to go. Cancel it to send a different one."
+      : null) ??
     disabledReason?.text ??
     (over
       ? `That is ${text.length} characters, and a comment stops at ${MAX_COMMENT_CHARS}.`
@@ -283,7 +302,52 @@ export function AnswerPanel({
             }
           />
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          {waiting ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="flex items-start gap-1.5">
+                <ClockIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                {waitingCommentText(waiting.runAfter, handle)}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={cancelling}
+                onClick={async () => {
+                  setCancelling(true)
+                  try {
+                    await onCancelWaiting(find.id)
+                  } finally {
+                    setCancelling(false)
+                  }
+                }}
+              >
+                {cancelling ? <Loader2Icon className="animate-spin" /> : null}
+                Cancel comment
+              </Button>
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* The account's pace, always in plain counts. Past the per-hour
+                number it warns in amber and in words, and Post still works:
+                pace is a judgement. A young account's hard limit shows in
+                Post's own tooltip instead. */}
+            {postingState ? (
+              <span
+                className={cn(
+                  "flex items-start gap-1.5 text-xs",
+                  paceWarning ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                )}
+              >
+                {paceWarning ? (
+                  <AlertTriangleIcon className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+                ) : null}
+                {paceLineText(postingState)}
+                {paceWarning ? ` ${paceWarning}` : null}
+              </span>
+            ) : (
+              <span />
+            )}
             <div className="flex items-center gap-2">
               {/* Said beside the button, because a plain draft that never
                   mentions what you make is otherwise a puzzle. */}

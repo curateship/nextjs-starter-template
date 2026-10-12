@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { FindRow } from "@/server/social/keywords"
+import type { PostingState } from "@/server/social/posting"
 
 import { AnswerPanel, type FindDetail } from "./answer-panel"
 import { FindsPanel } from "./finds-panel"
@@ -29,7 +30,11 @@ const find: FindDetail = {
   threadReadAt: null,
 }
 
-function answerPanel(onBack?: () => void, shown: FindDetail = find) {
+function answerPanel(
+  onBack?: () => void,
+  shown: FindDetail = find,
+  postingState: PostingState | null = null
+) {
   return renderToStaticMarkup(
     <TooltipProvider>
       <AnswerPanel
@@ -39,11 +44,13 @@ function answerPanel(onBack?: () => void, shown: FindDetail = find) {
         loading={false}
         working={false}
         disabledReason={null}
+        postingState={postingState}
         voiceName={null}
         onRead={nothing}
         onReadRules={nothing}
         onDraft={nothing}
         onPost={nothing}
+        onCancelWaiting={nothing}
         onSkip={nothing}
         onBack={onBack}
       />
@@ -147,5 +154,50 @@ describe("blocking a subreddit from a row", () => {
     const html = findsPanel([row({ status: "commented" })], "commented")
     expect(html).toContain("A horror story")
     expect(html).not.toContain("Block r/nosleep")
+  })
+})
+
+/** The account's pace and a comment held for its morning, as the Post panel shows them. */
+describe("the pace line and a waiting comment", () => {
+  const quiet: PostingState = {
+    timeZone: "UTC",
+    awake: true,
+    nextWakeAt: null,
+    warmUp: { endsAt: null, ageUnknown: false },
+    young: false,
+    lastHour: 3,
+    lastDay: 11,
+    warnPerHour: 4,
+    youngPerHour: 2,
+    youngPerDay: 6,
+    limit: null,
+    waiting: [],
+  }
+
+  it("says the counts in plain figures", () => {
+    const html = answerPanel(undefined, find, quiet)
+    expect(html).toContain("3 comments in the last hour, 11 today.")
+    expect(html).not.toContain("New accounts get banned")
+  })
+
+  it("warns in words past the per-hour number, and Post is not refused for it", () => {
+    const html = answerPanel(undefined, find, { ...quiet, lastHour: 4 })
+    expect(html).toContain("That would be the 5th comment this hour. New accounts get banned for less.")
+    expect(html).not.toContain("already waiting")
+  })
+
+  it("shows when a waiting comment goes, with a way to cancel it", () => {
+    const runAfter = new Date(Date.now() + 3 * 3_600_000)
+    const html = answerPanel(undefined, find, { ...quiet, waiting: [{ findId: find.id, runAfter }] })
+    expect(html).toContain("Your comment is waiting for u/me&#x27;s waking hours and goes")
+    expect(html).toContain("Cancel comment")
+  })
+
+  it("says nothing about a comment waiting on another post", () => {
+    const html = answerPanel(undefined, find, {
+      ...quiet,
+      waiting: [{ findId: "another", runAfter: new Date(Date.now() + 3_600_000) }],
+    })
+    expect(html).not.toContain("Cancel comment")
   })
 })
