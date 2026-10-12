@@ -2,8 +2,22 @@ import * as React from "react"
 import { CheckCircle2Icon } from "lucide-react"
 
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
+import { signInFrameLoader } from "@/lib/app-options"
 
-/** Shared frame for every signed-out page: sign in, register, verify, reset. */
+// Declared once, here, and only loaded when first drawn: the function inside
+// runs on first render, not at import. That matters because the options
+// module and this file sit in one import circle, so the option may not be
+// read while modules are still loading.
+const AppFrame = React.lazy(() => {
+  const load = signInFrameLoader()
+  if (!load) throw new Error("AuthShell drew the app frame with none set")
+  return load()
+})
+
+/**
+ * Shared frame for every signed-out page: sign in, register, verify, reset.
+ * An app may draw its own around the card through `signIn.frame`.
+ */
 export function AuthShell({
   title,
   description,
@@ -48,21 +62,26 @@ export function AuthShell({
     </>
   )
 
+  const card = onSubmit ? (
+    <form
+      onSubmit={onSubmit}
+      className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm"
+    >
+      {body}
+    </form>
+  ) : (
+    <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm">
+      {body}
+    </div>
+  )
+
+  if (!signInFrameLoader()) return <PublicPageFrame>{card}</PublicPageFrame>
+  // Nothing rather than the public frame while the app's loads, so the page
+  // never flashes the look it is about to replace.
   return (
-    <PublicPageFrame>
-      {onSubmit ? (
-        <form
-          onSubmit={onSubmit}
-          className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm"
-        >
-          {body}
-        </form>
-      ) : (
-        <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm">
-          {body}
-        </div>
-      )}
-    </PublicPageFrame>
+    <React.Suspense fallback={null}>
+      <AppFrame>{card}</AppFrame>
+    </React.Suspense>
   )
 }
 
