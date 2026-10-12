@@ -1,0 +1,617 @@
+import * as React from "react"
+import { Link } from "@tanstack/react-router"
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  Loader2Icon,
+  PlusIcon,
+  RefreshCwIcon,
+  UsersIcon,
+} from "lucide-react"
+import { toast } from "sonner"
+
+import { ProxyTestBadge } from "@/components/browser/proxy-test-badge"
+import { DashboardTable } from "@/components/shared/dashboard-table"
+import {
+  DashboardToolbarButton,
+  DashboardToolbarSearch,
+  DashboardToolbarSelectTrigger,
+} from "@/components/shared/dashboard-toolbar"
+import {
+  SelectAllTableHead,
+  SortableTableHeader,
+  type TableHeaderColumn,
+} from "@/components/shared/sortable-table-header"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import {
+  checkRedditAccounts,
+  getRedditAccountsErrorMessage,
+  loadRedditAccounts,
+  retireRedditAccounts,
+  setRedditAccountVoice,
+  setRedditAccountsStatus,
+  type BulkAnswer,
+  type RedditAccountRow,
+  type RedditAccountsPage,
+} from "@/lib/api/social/reddit-accounts"
+import { describeBulkResult } from "@/lib/format/bulk-result"
+import { formatTimeAgo } from "@/lib/format/format-time"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
+import {
+  ACCOUNT_STATUSES,
+  ACCOUNT_STATUS_LABELS,
+  type AccountStatus,
+} from "@/lib/social/account-status"
+import { accountAgeText, postedDateText } from "@/lib/social/wording"
+import { showErrorToast } from "@/lib/toast/error-toast"
+
+import { AccountStatusBadge } from "./account-status-badge"
+import { AddAccountDialog } from "./add-account-dialog"
+
+type SortColumn = "account" | "status" | "project" | "profile" | "age" | "karma" | "last"
+
+const COLUMNS: TableHeaderColumn<SortColumn>[] = [
+  { key: "account", label: "Account", column: "main" },
+  { key: "status", label: "Status", column: "meta" },
+  { key: "project", label: "Project", column: "meta", className: "hidden lg:table-cell" },
+  { key: "profile", label: "Browser profile", column: "meta", className: "hidden md:table-cell" },
+  { key: "proxy", label: "Proxy", column: "meta", className: "hidden lg:table-cell", sortable: false },
+  { key: "voice", label: "Voice", column: "meta", className: "hidden xl:table-cell", sortable: false },
+  // Under 1536px these three fold into a line under the account's name, or
+  // the row is wider than the window and its buttons go off the edge.
+  { key: "age", label: "Age", column: "meta", className: "hidden 2xl:table-cell" },
+  { key: "karma", label: "Karma", column: "meta", className: "hidden 2xl:table-cell text-right" },
+  { key: "last", label: "Last comment", column: "meta", className: "hidden 2xl:table-cell" },
+]
+
+/** Status order when sorting: the four in Tyler's order, then never read. */
+const STATUS_ORDER: Record<AccountStatus, number> = { warming_up: 0, ready: 1, working: 2, banned: 3 }
+
+const time = (value: Date | null) => (value ? new Date(value).getTime() : Number.NEGATIVE_INFINITY)
+
+function compare(a: RedditAccountRow, b: RedditAccountRow, column: SortColumn): number {
+  switch (column) {
+    case "status":
+      return (a.status.status ? STATUS_ORDER[a.status.status] : 4) - (b.status.status ? STATUS_ORDER[b.status.status] : 4)
+    case "project":
+      return (a.project?.name ?? "").localeCompare(b.project?.name ?? "")
+    case "profile":
+      return (a.profile?.name ?? "").localeCompare(b.profile?.name ?? "")
+    // Older first when sorting up, so an account made earlier sorts above.
+    case "age":
+      return time(b.redditCreatedAt) - time(a.redditCreatedAt)
+    case "karma":
+      return (a.karma ?? Number.NEGATIVE_INFINITY) - (b.karma ?? Number.NEGATIVE_INFINITY)
+    case "last":
+      return time(a.lastPostedAt) - time(b.lastPostedAt)
+    default:
+      return (a.handle || "~").localeCompare(b.handle || "~")
+  }
+}
+
+const ALL = "all"
+/** The bulk status menu's value for "let the app decide". */
+const APP_DECIDES = "app"
+/** The voice menu's value for "no voice". */
+const NO_VOICE = "none"
+
+/**
+ * Every Reddit account: its status, the project it comments for, the browser
+ * profile it signs in inside and the proxy that profile goes through.
+ *
+ * Copied from the Comments dashboard and built from the shell's table. The
+ * status is worked out by the app each time the list is read (Warming up,
+ * Ready, Working, Banned) and a person can set another by hand, which the row
+ * says. Rows group under their profile's folder from the Browser profiles
+ * dashboard and filter by its tags; nothing new is stored for either.
+ *
+ * Retiring takes an account out of every list and picker. It never posts and
+ * never warms up again, and its comments stay. "Show retired" brings the
+ * retired ones back into the list, with Bring back on each.
+ */
+export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPage }) {
+  const [page, setPage] = React.useState(initial)
+  const [showRetired, setShowRetired] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [search, setSearch] = React.useState("")
+  const [statusFilter, setStatusFilter] = React.useState<string>(ALL)
+  const [tagFilter, setTagFilter] = React.useState(ALL)
+  const { sort, direction, toggleSort } = useTableSort<SortColumn>("account")
+  const selection = useSelection()
+  const [busy, setBusy] = React.useState(false)
+  const [rowBusy, setRowBusy] = React.useState<string | null>(null)
+  const [adding, setAdding] = React.useState(false)
+
+  const refresh = React.useCallback(
+    (retired: boolean): Promise<void> =>
+      loadRedditAccounts(retired).then(
+        (next) => {
+          setPage(next)
+          setError(null)
+        },
+        (failure: unknown) => setError(getRedditAccountsErrorMessage(failure))
+      ),
+    []
+  )
+
+  const accounts = page.accounts
+  const tags = React.useMemo(
+    () =>
+      Array.from(new Set(accounts.flatMap((row) => row.profile?.tags ?? []))).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+    [accounts]
+  )
+
+  const shown = React.useMemo(() => {
+    const query = search.trim().toLowerCase()
+    const factor = direction === "asc" ? 1 : -1
+    return accounts
+      .filter((row) => {
+        if (statusFilter !== ALL && row.status.status !== statusFilter) return false
+        if (tagFilter !== ALL && !(row.profile?.tags ?? []).includes(tagFilter)) return false
+        if (!query) return true
+        return [row.handle, row.project?.name, row.profile?.name, row.voice?.name]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query))
+      })
+      .sort((a, b) => factor * compare(a, b, sort))
+  }, [accounts, direction, search, sort, statusFilter, tagFilter])
+
+  /**
+   * The rows under their profile's folder, folders by name and "No folder"
+   * last. With no folder anywhere there is one group and no heading.
+   */
+  const groups = React.useMemo(() => {
+    const byFolder = new Map<string, { name: string | null; rows: RedditAccountRow[] }>()
+    for (const row of shown) {
+      const folder = row.profile?.folder ?? null
+      const key = folder?.id ?? ""
+      const group = byFolder.get(key) ?? { name: folder?.name ?? null, rows: [] }
+      group.rows.push(row)
+      byFolder.set(key, group)
+    }
+    return [...byFolder.values()].sort((a, b) =>
+      a.name === null ? 1 : b.name === null ? -1 : a.name.localeCompare(b.name)
+    )
+  }, [shown])
+  const headings = groups.some((group) => group.name !== null)
+
+  const visibleIds = shown.map((row) => row.id)
+  const selectedIds = Array.from(selection.selected).filter((id) => visibleIds.includes(id))
+  const columnCount = COLUMNS.length + 2
+
+  /** Runs one action over the ticked rows and says what it did, in one line. */
+  async function bulk(run: () => Promise<BulkAnswer>, verb: string, keptReason?: string) {
+    setBusy(true)
+    try {
+      const answer = await run()
+      toast.success(
+        describeBulkResult({
+          done: answer.completed.length,
+          kept: answer.skipped.length,
+          one: "account",
+          many: "accounts",
+          verb,
+          keptReason,
+        })
+      )
+      selection.clear()
+      await refresh(showRetired)
+    } catch (failure) {
+      showErrorToast(getRedditAccountsErrorMessage(failure))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function oneRow(id: string, run: () => Promise<unknown>, success: string) {
+    setRowBusy(id)
+    try {
+      await run()
+      toast.success(success)
+      await refresh(showRetired)
+    } catch (failure) {
+      showErrorToast(getRedditAccountsErrorMessage(failure))
+    } finally {
+      setRowBusy(null)
+    }
+  }
+
+  return (
+    <>
+      <DashboardTable
+        title="Reddit accounts"
+        icon={<UsersIcon />}
+        count={shown.length}
+        error={error ? { message: error, onRetry: () => void refresh(showRetired) } : null}
+        selectedCount={selectedIds.length}
+        onClearSelection={selection.clear}
+        controls={
+          <>
+            {selectedIds.length ? (
+              <>
+                <Select
+                  value=""
+                  disabled={busy}
+                  onValueChange={(value) => {
+                    const status = value === APP_DECIDES ? null : (value as AccountStatus)
+                    void bulk(
+                      () => setRedditAccountsStatus(selectedIds, status),
+                      status ? `set to ${ACCOUNT_STATUS_LABELS[status]}` : "left for the app to decide"
+                    )
+                  }}
+                >
+                  <DashboardToolbarSelectTrigger aria-label="Set the ticked accounts' status">
+                    <SelectValue placeholder="Set status" />
+                  </DashboardToolbarSelectTrigger>
+                  <SelectContent>
+                    {ACCOUNT_STATUSES.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {ACCOUNT_STATUS_LABELS[status]}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={APP_DECIDES}>Let the app decide</SelectItem>
+                  </SelectContent>
+                </Select>
+                <DashboardToolbarButton
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() =>
+                    void bulk(
+                      () => checkRedditAccounts(selectedIds),
+                      "queued to be checked",
+                      "already being checked, or retired"
+                    )
+                  }
+                >
+                  <RefreshCwIcon className="size-4" />
+                  Check now
+                </DashboardToolbarButton>
+                {showRetired ? (
+                  <DashboardToolbarButton
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() =>
+                      void bulk(() => retireRedditAccounts(selectedIds, false), "brought back", "not retired")
+                    }
+                  >
+                    <ArchiveRestoreIcon className="size-4" />
+                    Bring back
+                  </DashboardToolbarButton>
+                ) : null}
+                <DashboardToolbarButton
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() =>
+                    void bulk(() => retireRedditAccounts(selectedIds, true), "retired", "already retired")
+                  }
+                >
+                  <ArchiveIcon className="size-4" />
+                  Retire ({selectedIds.length})
+                </DashboardToolbarButton>
+              </>
+            ) : null}
+            <DashboardToolbarSearch
+              name="reddit-account-search"
+              aria-label="Search accounts"
+              placeholder="Search accounts…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <DashboardToolbarSelectTrigger aria-label="Filter by status" className="hidden sm:flex">
+                <SelectValue />
+              </DashboardToolbarSelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All statuses</SelectItem>
+                {ACCOUNT_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {ACCOUNT_STATUS_LABELS[status]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {tags.length ? (
+              <Select value={tagFilter} onValueChange={setTagFilter}>
+                <DashboardToolbarSelectTrigger aria-label="Filter by tag" className="hidden sm:flex">
+                  <SelectValue />
+                </DashboardToolbarSelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All tags</SelectItem>
+                  {tags.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            <span className="flex h-8 items-center gap-2">
+              <Switch
+                id="reddit-accounts-retired"
+                checked={showRetired}
+                onCheckedChange={(checked) => {
+                  setShowRetired(checked)
+                  selection.clear()
+                  void refresh(checked)
+                }}
+              />
+              <Label htmlFor="reddit-accounts-retired" className="text-sm font-normal whitespace-nowrap">
+                Show retired
+              </Label>
+            </span>
+            <DashboardToolbarButton type="button" onClick={() => setAdding(true)}>
+              <PlusIcon className="size-4" />
+              Add account
+            </DashboardToolbarButton>
+          </>
+        }
+        header={
+          <SortableTableHeader
+            columns={COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="accounts"
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
+        }
+        isEmpty={shown.length === 0}
+        emptyText={
+          accounts.length
+            ? "No accounts match that."
+            : "No Reddit accounts yet. Press Add account, pick a browser profile, then sign in to Reddit in that profile's browser."
+        }
+        emptyColSpan={columnCount}
+        footer={{ type: "summary", count: shown.length, label: "accounts" }}
+      >
+        <>
+          {groups.map((group) => (
+            <React.Fragment key={group.name ?? ""}>
+              {headings ? (
+                <TableRow className="hover:bg-muted/50">
+                  <TableCell colSpan={columnCount} className="bg-muted/50 py-1.5 text-xs font-medium">
+                    {group.name ?? "No folder"}
+                    <span className="ml-2 font-normal text-muted-foreground">{group.rows.length}</span>
+                  </TableCell>
+                </TableRow>
+              ) : null}
+              {group.rows.map((row) => (
+                <AccountRow
+                  key={row.id}
+                  row={row}
+                  voices={page.voices}
+                  ticked={selection.selected.has(row.id)}
+                  busy={rowBusy === row.id}
+                  onTick={() => selection.toggle(row.id)}
+                  onVoice={(voiceId) =>
+                    void oneRow(
+                      row.id,
+                      () => setRedditAccountVoice(row.id, voiceId),
+                      voiceId ? "Voice changed." : "No voice now. Drafts are plain."
+                    )
+                  }
+                  onCheck={() =>
+                    void oneRow(
+                      row.id,
+                      () => checkRedditAccounts([row.id]),
+                      "Queued to be checked."
+                    )
+                  }
+                  onRetire={(retire) =>
+                    void oneRow(
+                      row.id,
+                      () => retireRedditAccounts([row.id], retire),
+                      retire ? "Retired. Its comments stay." : "Brought back."
+                    )
+                  }
+                />
+              ))}
+            </React.Fragment>
+          ))}
+        </>
+      </DashboardTable>
+      <AddAccountDialog
+        open={adding}
+        profiles={page.freeProfiles}
+        voices={page.voices}
+        onClose={() => setAdding(false)}
+        onAdded={async () => {
+          setAdding(false)
+          await refresh(showRetired)
+        }}
+      />
+    </>
+  )
+}
+
+function AccountRow({
+  row,
+  voices,
+  ticked,
+  busy,
+  onTick,
+  onVoice,
+  onCheck,
+  onRetire,
+}: {
+  row: RedditAccountRow
+  voices: RedditAccountsPage["voices"]
+  ticked: boolean
+  busy: boolean
+  onTick: () => void
+  onVoice: (voiceId: string | null) => void
+  onCheck: () => void
+  onRetire: (retire: boolean) => void
+}) {
+  const name = row.handle ? `u/${row.handle}` : "Not signed in"
+  const age = row.redditCreatedAt ? accountAgeText(new Date(row.redditCreatedAt)) : "Age not read yet"
+  const karma = row.karma === null ? "karma not read yet" : `${row.karma} karma`
+  const lastComment = row.lastPostedAt
+    ? `last comment ${postedDateText(new Date(row.lastPostedAt)).toLowerCase()}`
+    : "no comment yet"
+  return (
+    <TableRow className="group">
+      <TableCell column="select">
+        <Checkbox checked={ticked} onCheckedChange={onTick} aria-label={`Select ${name}`} />
+      </TableCell>
+      <TableCell column="main" className="max-w-0">
+        <span className={row.handle ? "block truncate text-sm font-medium" : "block truncate text-sm text-muted-foreground"}>
+          {name}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground 2xl:hidden">
+          {[age, karma, lastComment].join(" · ")}
+        </span>
+        {row.retiredAt ? (
+          <span className="block truncate text-xs text-muted-foreground">
+            Retired {formatTimeAgo(row.retiredAt)}
+          </span>
+        ) : null}
+      </TableCell>
+      <TableCell column="meta">
+        <span className="grid gap-0.5">
+          <AccountStatusBadge view={row.status} />
+          {row.status.byHand ? <span className="text-xs text-muted-foreground">Set by hand</span> : null}
+          {row.status.warning ? (
+            <span
+              className="block max-w-48 truncate text-xs text-amber-600 dark:text-amber-400"
+              title={row.status.warning}
+            >
+              {row.status.warning}
+            </span>
+          ) : null}
+        </span>
+      </TableCell>
+      <TableCell column="meta" className="hidden max-w-40 lg:table-cell">
+        {row.project ? (
+          <Link
+            to="/admin/projects/$projectId"
+            params={{ projectId: row.project.id }}
+            className="block truncate hover:underline"
+          >
+            {row.project.name}
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">No project</span>
+        )}
+      </TableCell>
+      <TableCell column="meta" className="hidden max-w-40 md:table-cell">
+        {row.profile ? (
+          <Link
+            to="/admin/profiles"
+            search={{ open: row.profile.id }}
+            className="block truncate hover:underline"
+          >
+            {row.profile.name}
+          </Link>
+        ) : (
+          <span className="text-destructive">No profile</span>
+        )}
+      </TableCell>
+      <TableCell column="meta" className="hidden lg:table-cell">
+        {!row.profile ? (
+          <span className="text-muted-foreground">—</span>
+        ) : row.proxy ? (
+          <span className="flex items-center gap-2">
+            <span className="max-w-32 truncate" title={row.proxy.label}>
+              {row.proxy.label || "A proxy with no name"}
+            </span>
+            <ProxyTestBadge result={row.proxy.lastTestResult} compact />
+          </span>
+        ) : (
+          <span className="text-muted-foreground">No proxy</span>
+        )}
+      </TableCell>
+      <TableCell column="meta" className="hidden xl:table-cell">
+        <Select
+          value={row.voice?.id ?? NO_VOICE}
+          disabled={busy}
+          onValueChange={(value) => onVoice(value === NO_VOICE ? null : value)}
+        >
+          <SelectTrigger aria-label={`Voice for ${name}`} className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_VOICE}>No voice</SelectItem>
+            {voices.map((voice) => (
+              <SelectItem key={voice.id} value={voice.id}>
+                {voice.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell column="meta" className="hidden text-muted-foreground 2xl:table-cell">
+        {row.redditCreatedAt ? accountAgeText(new Date(row.redditCreatedAt)) : "Not read yet"}
+      </TableCell>
+      <TableCell column="meta" className="hidden text-right tabular-nums 2xl:table-cell">
+        {row.karma === null ? <span className="text-muted-foreground" title="Not read yet">—</span> : row.karma}
+      </TableCell>
+      <TableCell column="meta" className="hidden text-muted-foreground 2xl:table-cell">
+        {row.lastPostedAt ? postedDateText(new Date(row.lastPostedAt)) : "Never"}
+      </TableCell>
+      <TableCell column="actions">
+        {row.retiredAt ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            disabled={busy}
+            onClick={() => onRetire(false)}
+            title="Bring it back"
+            aria-label={`Bring ${name} back`}
+          >
+            {busy ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveRestoreIcon className="size-4" />}
+          </Button>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={busy}
+              onClick={onCheck}
+              title="Check now: read its karma, age and profile again"
+              aria-label={`Check ${name} now`}
+            >
+              {busy ? <Loader2Icon className="size-4 animate-spin" /> : <RefreshCwIcon className="size-4" />}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={busy}
+              onClick={() => onRetire(true)}
+              title="Retire: out of every list and picker, its comments stay"
+              aria-label={`Retire ${name}`}
+            >
+              <ArchiveIcon className="size-4" />
+            </Button>
+          </>
+        )}
+      </TableCell>
+    </TableRow>
+  )
+}

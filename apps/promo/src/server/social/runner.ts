@@ -162,6 +162,13 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
 
   const account = await accountForJob(job, db)
   if (!account.profileId) throw new Refusal(NO_PROFILE_MESSAGE)
+  // Retired after the job was queued. A retired account never posts and
+  // never warms up; a health reading is only a read and still runs.
+  if (account.retiredAt && (job.kind === "comment" || job.kind === "warm_up")) {
+    throw new Refusal(
+      "This account is retired, so it no longer posts or warms up. Bring it back on the Reddit accounts dashboard first."
+    )
+  }
 
   // An account acts only while it is awake, in its own time zone. A health
   // reading is only a read, so it may run at any hour; a comment and a

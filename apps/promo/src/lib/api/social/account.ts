@@ -6,10 +6,8 @@ import { listProfiles } from "@/server/browser/profiles"
 import {
   accountsByProfile,
   readAccount,
-  readBrowserStatus,
   saveAccount,
   type AccountView,
-  type BrowserStatus,
 } from "@/server/social/accounts"
 import {
   queueHealthCheck,
@@ -21,11 +19,12 @@ import { listVoices } from "@/server/social/voices"
 
 import { createErrorMessage } from "../error-message"
 
-export type { AccountHealth, AccountView, BrowserStatus }
+export type { AccountHealth, AccountView }
 
 /**
- * The Reddit account settings tab: which browser profile the account signs in
- * inside, and which voice it drafts with.
+ * The Reddit account settings tab: which browser profile the oldest account
+ * in use signs in inside, and which voice it drafts with. Every other account
+ * is on the Reddit accounts dashboard.
  *
  * The browser itself is on the Browser profiles dashboard and the words are on
  * the Voices dashboard. Nothing here starts, stops or drives a browser.
@@ -95,19 +94,6 @@ const saveFn = createServerFn({ method: "POST" })
 
 export function saveRedditAccount(data: { profileId: string | null; voiceId: string | null }) {
   return saveFn({ data })
-}
-
-/**
- * What the Reddit dashboard needs to know about the browser, from the saved
- * rows. Asks no browser anything, so the dashboard can ask every two seconds
- * and nothing moves.
- */
-const browserStatusFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .handler(async ({ context }): Promise<BrowserStatus> => readBrowserStatus(context.user.id))
-
-export function loadBrowserStatus() {
-  return browserStatusFn()
 }
 
 /**

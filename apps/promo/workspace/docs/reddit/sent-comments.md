@@ -6,9 +6,17 @@ app sent a comment and forgot it, so nothing showed whether a comment was read,
 upvoted, replied to, or removed by a moderator twenty minutes later. Without
 that, neither the ranking nor the drafts can be judged.
 
+Each comment is counted against the account that sent it: the account clicked
+on the [Projects dashboard](../projects-dashboard.md) when Post was pressed,
+stored on the comment as `promo_comments.account_id`. That is what makes an
+account Working on the [Reddit accounts dashboard](accounts-dashboard.md). A
+retired account's comments stay on this screen.
+
 ## Where it is
 
-`/admin/comments`, under Reddit in the left menu. The left menu is a saved list
+`/admin/comments`, under Projects in the left menu since 12 Oct 2026, when
+`drizzle/0108_promo_projects.sql` turned the Reddit link into Projects and kept
+Comments under it. Before that it was under Reddit. The left menu is a saved list
 on each workspace, so `drizzle/0105_promo_comment_checks.sql` adds the link to
 the saved lists: under the Reddit link where there is one, and otherwise as a
 Reddit link with Comments under it at the end of the Administration section. A

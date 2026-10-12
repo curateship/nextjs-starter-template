@@ -8,6 +8,8 @@ import {
   type TestDatabase,
 } from "@/server/test-support"
 
+import { createProject } from "@/server/social/projects"
+
 import {
   promoBrowserSessions,
   promoProfiles,
@@ -32,12 +34,13 @@ import {
  *
  * It also pins the rules the SQL enforces rather than the code: one post per
  * keyword, one live browser per profile, one account per network inside a
- * profile, one profile per cookie volume, and one keyword per person.
+ * profile, one profile per cookie volume, and one keyword per project.
  */
 describe("promo reddit tables", () => {
   let client: PGlite
   let db: TestDatabase
   let userId: string
+  let projectId: string
 
   beforeEach(async () => {
     const made = await createTestDatabase()
@@ -45,6 +48,7 @@ describe("promo reddit tables", () => {
     db = made.db
     const user = await insertUser(db, { role: "admin" })
     userId = user.id
+    projectId = await createProject(userId, "A project", db)
   })
 
   afterEach(async () => {
@@ -94,12 +98,13 @@ describe("promo reddit tables", () => {
     return account
   }
 
-  async function insertKeyword(term = "project management") {
+  async function insertKeyword(term = "project management", inProject = projectId) {
     const [keyword] = await db
       .insert(promoKeywords)
       .values({
         id: uuid(),
         userId,
+        projectId: inProject,
         term,
         subreddits: ["productivity", "smallbusiness"],
         sort: "new",
@@ -247,10 +252,14 @@ describe("promo reddit tables", () => {
     ).rejects.toThrow()
   })
 
-  it("refuses the same keyword twice however it is capitalised", async () => {
+  it("refuses the same keyword twice in a project however it is capitalised, and allows it in another", async () => {
     await insertKeyword("Project Management")
 
     await expect(insertKeyword("project management")).rejects.toThrow()
+    const other = await createProject(userId, "Another product", db)
+    await expect(insertKeyword("project management", other)).resolves.toMatchObject({
+      projectId: other,
+    })
   })
 
   it("keeps one find per post per keyword", async () => {

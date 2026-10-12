@@ -156,7 +156,7 @@ describe("the browser work queue", () => {
     const later = await queueJob(userId, "comment", { findId: "f1", text: "Hi." }, db, new Date(Date.now() + 3_600_000))
 
     expect(await claimNextJob(uuid(), db)).toBeNull()
-    // Counted, the Reddit dashboard would ask every two seconds until morning.
+    // Counted, the Projects dashboard would ask every two seconds until morning.
     expect((await jobCounts(userId, db)).queued).toBe(0)
 
     await db.update(promoJobs).set({ runAfter: new Date(Date.now() - 1000) }).where(eq(promoJobs.id, later))

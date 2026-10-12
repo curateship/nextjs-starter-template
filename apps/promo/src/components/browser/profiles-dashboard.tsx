@@ -111,7 +111,7 @@ const NONE = "none"
  * and the row follows what it saves. The dashboard never calls a browser.
  *
  * Two windows open over the list. Settings, with the profile's history, keeps
- * the open profile in `?open=<id>`, which is where the Reddit dashboard's
+ * the open profile in `?open=<id>`, which is where the Reddit accounts dashboard's
  * links lead. Open shows the browser itself, inside the app.
  */
 export function ProfilesDashboard({

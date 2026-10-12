@@ -8,6 +8,7 @@ import {
   insertUser,
   type TestDatabase,
 } from "@/server/test-support"
+import { createProject } from "@/server/social/projects"
 import type { FindStatus } from "@/lib/social/options"
 
 import {
@@ -41,7 +42,7 @@ describe("tidying up old posts", () => {
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
     keywordId = uuid()
-    await db.insert(promoKeywords).values({ id: keywordId, userId, term: "a term" })
+    await db.insert(promoKeywords).values({ id: keywordId, userId, projectId: await createProject(userId, "A project", db), term: "a term" })
     accountId = uuid()
     await db.insert(promoAccounts).values({ id: accountId, userId, handle: "me" })
   })
@@ -125,7 +126,7 @@ describe("tidying up old posts", () => {
     // Another person on the default is still tidied.
     const other = (await insertUser(db, { role: "admin" })).id
     const otherKeyword = uuid()
-    await db.insert(promoKeywords).values({ id: otherKeyword, userId: other, term: "a term" })
+    await db.insert(promoKeywords).values({ id: otherKeyword, userId: other, projectId: await createProject(other, "A project", db), term: "a term" })
     const theirs = await find("skipped", 400, other, otherKeyword)
 
     expect(await tidyOldFinds(db, NOW)).toEqual({ deleted: 1, cleared: 0 })

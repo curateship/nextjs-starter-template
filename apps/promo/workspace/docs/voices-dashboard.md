@@ -1,15 +1,22 @@
 # The Voices dashboard
 
-A voice is what the AI is told when it drafts a comment: how you sound, what
-you make, and the lines it must not cross. It is a record of its own, kept at
-`/admin/voices` and reached from **Voices** in the left menu, so any number of
-accounts on any network can share one. Tyler asked for this on 6 Oct 2026, so a
-second account, or an Instagram account later, does not retype all three.
+A voice is how the AI sounds when it drafts a comment, and the lines it must
+not cross. It is a record of its own, kept at `/admin/voices` and reached from
+**Voices** under Projects in the left menu, so any number of accounts on any
+network can share one. Tyler asked for this on 6 Oct 2026, so a second account,
+or an Instagram account later, does not retype them.
+
+What you make is not on the voice. Since 12 Oct 2026 it is the project's
+description on the [Projects dashboard](projects-dashboard.md), and the voice
+window has no "what you make" box. Tyler, 12 Oct 2026: the AI is told the
+project description, and the voice keeps only how it sounds and its comment
+rules.
 
 ## What it holds
 
-The table is `promo_voices`: a name, the three boxes, the person it belongs to,
-and the usual dates. It names no network. An account points at one through
+The table is `promo_voices`: a name, how it sounds, the comment rules, the
+person it belongs to, and the usual dates. Its `product` column, the old "what
+you make" box, keeps its words and nothing reads it. It names no network. An account points at one through
 `promo_accounts.voice_id`; deleting the voice leaves the account with none.
 
 ## The dashboard
@@ -26,10 +33,10 @@ Reddit account tab's "Open Main voice" link leads.
 
 ## An account with no voice
 
-It drafts plainly: none of the three boxes is sent, so a draft never mentions
-what you make. That is exactly what an account with three empty boxes did
-before voices existed. The Reddit dashboard says "No voice picked, so drafts
-are plain" beside Write with AI, and the Reddit account tab links here.
+It drafts plainly: neither box is sent. What you make still comes from its
+project's description. The Projects dashboard says "No voice picked, so drafts
+are plain" beside Write with AI, and the Reddit account tab links here. A voice
+can be swapped on each row of the Reddit accounts dashboard.
 
 ## The first account's words
 
@@ -38,4 +45,5 @@ existing account, with that account's three boxes word for word, and pointed
 the account at it. Measured on the local database on 6 Oct 2026, the words read
 the same before and after. The old `voice`, `product` and `comment_rules`
 columns on the account stay where they are, with their words, and nothing reads
-them any more.
+them any more. On 12 Oct 2026 the voice's product text moved again, into the
+first project's description (`drizzle/0108_promo_projects.sql`).

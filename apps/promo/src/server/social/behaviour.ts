@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm"
+import { and, asc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 
 import { Refusal } from "@/server/browser/refusal"
 import { promoProfiles, promoProxies } from "@/server/browser/schema"
@@ -219,12 +219,18 @@ export async function recentComments(
   return { posted: rows.map((row) => row.postedAt), waiting: pending?.count ?? 0 }
 }
 
-/** Every Reddit account with a browser profile, for the tickers. */
+/** Every Reddit account in use with a browser profile, for the tickers. A retired one never warms up. */
 export async function accountsWithProfiles(db: CustomShellDb = defaultDb) {
   return db
     .select()
     .from(promoAccounts)
-    .where(and(eq(promoAccounts.platform, "reddit"), isNotNull(promoAccounts.profileId)))
+    .where(
+      and(
+        eq(promoAccounts.platform, "reddit"),
+        isNotNull(promoAccounts.profileId),
+        isNull(promoAccounts.retiredAt)
+      )
+    )
 }
 
 export type BehaviourAccount = {
@@ -261,7 +267,13 @@ export async function readBehaviourView(
   const accounts = await db
     .select()
     .from(promoAccounts)
-    .where(and(eq(promoAccounts.userId, userId), eq(promoAccounts.platform, "reddit")))
+    .where(
+      and(
+        eq(promoAccounts.userId, userId),
+        eq(promoAccounts.platform, "reddit"),
+        isNull(promoAccounts.retiredAt)
+      )
+    )
     .orderBy(asc(promoAccounts.createdAt))
 
   const views: BehaviourAccount[] = []

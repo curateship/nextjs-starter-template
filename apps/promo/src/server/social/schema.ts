@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
+import type { AccountStatus } from "@/lib/social/account-status"
 import {
   type DraftStatus,
   type FindStatus,
@@ -51,9 +52,13 @@ import { customShellUsers } from "@/server/schema"
  */
 
 /**
- * How the AI should write: the voice, the product and the rules. Any number of
- * accounts on any network may share one. The SQL is
- * `drizzle/0096_promo_voices.sql`.
+ * How the AI should write: the voice and the rules. Any number of accounts on
+ * any network may share one. The SQL is `drizzle/0096_promo_voices.sql`.
+ *
+ * The table still has `product`, the "what you make" box, from before the
+ * project description replaced it (`drizzle/0108_promo_projects.sql`). It is
+ * kept, as every stored column is, and nothing reads it any more, which is why
+ * it is not listed here.
  */
 export const promoVoices = pgTable(
   "promo_voices",
@@ -64,7 +69,6 @@ export const promoVoices = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 120 }).notNull(),
     voice: text("voice").notNull().default(""),
-    product: text("product").notNull().default(""),
     commentRules: text("comment_rules").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -74,6 +78,32 @@ export const promoVoices = pgTable(
       .defaultNow(),
   },
   (table) => [index("ix_promo_voices_user").on(table.userId)]
+)
+
+/**
+ * One thing being promoted: its description, its Reddit accounts and its
+ * keywords. The description is what the AI is told about what you make, in
+ * place of the voice's old product box. Tyler, 12 Oct 2026: keywords belong to
+ * the project, and an account belongs to one project only. The SQL is
+ * `drizzle/0108_promo_projects.sql`.
+ */
+export const promoProjects = pgTable(
+  "promo_projects",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    description: text("description").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("ix_promo_projects_user").on(table.userId)]
 )
 
 /**
@@ -140,6 +170,22 @@ export const promoAccounts = pgTable(
      * join one twice. Added by `drizzle/0106_promo_behaviour.sql`.
      */
     joinedSubreddits: jsonb("joined_subreddits").$type<string[]>().notNull().default([]),
+    /**
+     * The project it comments for, or null for none. Deleting a project is
+     * refused while it holds accounts in use. Added by
+     * `drizzle/0108_promo_projects.sql`, as are the two below.
+     */
+    projectId: varchar("project_id", { length: 36 }).references(() => promoProjects.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * A status a person chose on the Reddit accounts dashboard, outranking the
+     * one the app works out. Null lets the app decide. It is only shown: Post
+     * and the warm-up go by the account's age, never by this.
+     */
+    statusOverride: varchar("status_override", { length: 20 }).$type<AccountStatus>(),
+    /** When it was retired: out of every list and picker, never posts, never warms up. */
+    retiredAt: timestamp("retired_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -149,6 +195,7 @@ export const promoAccounts = pgTable(
   },
   (table) => [
     index("ix_promo_accounts_user").on(table.userId),
+    index("ix_promo_accounts_project").on(table.projectId),
     /**
      * One account per network inside a profile. Two Reddit accounts in one
      * browser would be signed in over each other; a Reddit account and an
@@ -171,6 +218,13 @@ export const promoKeywords = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /**
+     * The project it searches for. Every account in the project sees its
+     * posts. A project holding keywords cannot be deleted.
+     */
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => promoProjects.id, { onDelete: "restrict" }),
     /** The words. Empty for a watch, which names one subreddit instead. */
     term: varchar("term", { length: 200 }).notNull(),
     /** Subreddits to search inside, or an empty list for all of Reddit. */
@@ -201,16 +255,21 @@ export const promoKeywords = pgTable(
       .defaultNow(),
   },
   (table) => [
-    /** One saved search per set of words, compared without case. */
-    uniqueIndex("ux_promo_keywords_user_term")
-      .on(table.userId, sql`lower(${table.term})`)
+    index("ix_promo_keywords_project").on(table.projectId),
+    /**
+     * One saved search per set of words in a project, compared without case.
+     * Two projects may search the same words. Per project since
+     * `drizzle/0108_promo_projects.sql`.
+     */
+    uniqueIndex("ux_promo_keywords_project_term")
+      .on(table.projectId, sql`lower(${table.term})`)
       .where(sql`${table.term} <> ''`),
     /**
      * A watch: no words and exactly one subreddit, listing its new posts. One
-     * per subreddit. Added by `drizzle/0102_promo_subreddit_watches.sql`.
+     * per subreddit in a project.
      */
-    uniqueIndex("ux_promo_keywords_user_watch")
-      .on(table.userId, sql`lower(${table.subreddits}->>0)`)
+    uniqueIndex("ux_promo_keywords_project_watch")
+      .on(table.projectId, sql`lower(${table.subreddits}->>0)`)
       .where(sql`${table.term} = ''`),
   ]
 )

@@ -91,9 +91,7 @@ describe("why posting is off", () => {
     handle: "a_persona",
     blocked: false,
     reason: "",
-    jobs: { queued: 0, running: 0, failed: 0, searchingKeywordIds: [] },
     profile: { id: "p1", name: "Main" },
-    voice: { id: "v1", name: "Main voice" },
     posting: null,
   }
   const read = { thread: { body: "", replies: [] } }
@@ -121,9 +119,13 @@ describe("why posting is off", () => {
     )
   })
 
-  it("sends a person to Settings when the account has no profile", () => {
+  it("sends a person to the Reddit accounts dashboard when the account has no profile", () => {
     const reason = postingBlockedReason({ ...ready, profile: null }, read)
-    expect(reason?.text).toContain("Pick one in Settings")
+    expect(reason?.text).toContain("on the Reddit accounts dashboard")
+  })
+
+  it("says to pick an account on the left before one is clicked", () => {
+    expect(postingBlockedReason(null, read)?.text).toBe("Pick an account on the left.")
   })
 
   it("is off when everything is ready", () => {

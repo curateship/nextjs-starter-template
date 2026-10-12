@@ -5,7 +5,7 @@ import { routeErrorComponent } from "@/components/shell/route-error"
 import { getCommentsErrorMessage, loadComments } from "@/lib/api/social/comments"
 
 /**
- * Every comment the app has sent, and what became of it. Under Reddit in the
+ * Every comment the app has sent, and what became of it. Under Projects in the
  * left menu.
  */
 export const Route = createFileRoute("/_authenticated/admin/comments")({

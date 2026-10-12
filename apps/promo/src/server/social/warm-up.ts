@@ -13,7 +13,7 @@ import {
   type BehaviourSettings,
 } from "./behaviour"
 import { queueJob } from "./jobs"
-import { promoAccounts, promoBlockedSubreddits, promoFinds, promoJobs } from "./schema"
+import { promoAccounts, promoBlockedSubreddits, promoFinds, promoJobs, promoKeywords } from "./schema"
 
 /**
  * Warming up a new account before its first comment.
@@ -136,11 +136,14 @@ async function keepLabelInStep(
 
 /**
  * The subreddits to join today: those Promo has found the most posts in for
- * the saved keywords, leaving out blocked ones and ones already joined. One
- * or two, so joining is spread over the days.
+ * the keywords of the account's project, or of every project when it is in
+ * none, leaving out blocked ones and ones already joined. One or two, so
+ * joining is spread over the days. Keeping to its project's subreddits makes
+ * an account look like one person with one interest.
  */
 async function subredditsToJoin(
   userId: string,
+  projectId: string | null,
   joined: readonly string[],
   db: CustomShellDb,
   random: () => number
@@ -157,7 +160,14 @@ async function subredditsToJoin(
       posts: sql<number>`count(*)::int`,
     })
     .from(promoFinds)
-    .where(and(eq(promoFinds.userId, userId), ne(promoFinds.subreddit, "")))
+    .innerJoin(promoKeywords, eq(promoKeywords.id, promoFinds.keywordId))
+    .where(
+      and(
+        eq(promoFinds.userId, userId),
+        ne(promoFinds.subreddit, ""),
+        ...(projectId ? [eq(promoKeywords.projectId, projectId)] : [])
+      )
+    )
     .groupBy(sql`lower(${promoFinds.subreddit})`)
     .orderBy(sql`count(*) desc`)
     .limit(50)
@@ -180,7 +190,7 @@ export async function runWarmUp(
   random: () => number = Math.random
 ): Promise<void> {
   const joined = (account.joinedSubreddits ?? []).map((name) => name.toLowerCase())
-  const subreddits = await subredditsToJoin(userId, joined, db, random)
+  const subreddits = await subredditsToJoin(userId, account.projectId, joined, db, random)
   const result = await redditWarmUp(target, { subreddits })
   console.log(`Warm-up for account ${account.id}: ${JSON.stringify(result)}`)
 

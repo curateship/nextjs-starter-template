@@ -93,7 +93,7 @@ address, from the proxy's last test, then the time zone the browser last showed
 a site, then UTC. An account behind a German proxy wakes at German morning.
 
 - **A comment pressed outside the hours waits.** It is not refused. The post on
-  the Reddit dashboard says when it goes, with a Cancel comment button until
+  the Projects dashboard says when it goes, with a Cancel comment button until
   then, and a second Post on that post is refused while it waits.
 - **The warm-up runs only inside the hours.**
 - **A health reading may run at any hour,** because it only reads.
@@ -106,7 +106,7 @@ An account Reddit made fewer than 3 days ago (the setting) is warming up.
 
 - **Post is refused** with the day and time the warm-up ends. An account whose
   age Promo has never read is refused too, with how to read it (Check now on
-  Settings → Reddit account), because nobody can tell when its warm-up ends.
+  the Reddit accounts dashboard), because nobody can tell when its warm-up ends.
 - **Once a day,** at a time picked at random within the next four hours of its
   waking day, a signed-in warming account visits Reddit: 3 to 7 minutes of
   feed, two to four posts opened, and one or two subreddits joined in the middle

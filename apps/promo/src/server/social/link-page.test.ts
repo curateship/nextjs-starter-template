@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
+import { createProject } from "@/server/social/projects"
 import type { FindStatus } from "@/lib/social/options"
 
 import {
@@ -213,7 +214,7 @@ describe("the regular pass over link posts", () => {
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
     keywordId = uuid()
-    await db.insert(promoKeywords).values({ id: keywordId, userId, term: "a term" })
+    await db.insert(promoKeywords).values({ id: keywordId, userId, projectId: await createProject(userId, "A project", db), term: "a term" })
   })
 
   afterEach(async () => {

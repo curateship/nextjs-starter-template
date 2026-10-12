@@ -8,6 +8,7 @@ import {
   insertUser,
   type TestDatabase,
 } from "@/server/test-support"
+import { createProject } from "@/server/social/projects"
 import { promoFinds, promoKeywords } from "@/server/social/schema"
 import { setFindStatus } from "@/server/social/reddit/search"
 
@@ -30,7 +31,7 @@ describe("running a keyword again", () => {
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
     keywordId = uuid()
-    await db.insert(promoKeywords).values({ id: keywordId, userId, term: "a term" })
+    await db.insert(promoKeywords).values({ id: keywordId, userId, projectId: await createProject(userId, "A project", db), term: "a term" })
   })
 
   afterEach(async () => {
@@ -93,7 +94,7 @@ describe("running a keyword again", () => {
   it("lets the same post be found under a different keyword", async () => {
     await insertFind()
     const second = uuid()
-    await db.insert(promoKeywords).values({ id: second, userId, term: "another" })
+    await db.insert(promoKeywords).values({ id: second, userId, projectId: await createProject(userId, "A project", db), term: "another" })
 
     // Two keywords can each have their own view of one post, with their own
     // decision about it.
@@ -114,7 +115,7 @@ describe("moving posts to a status", () => {
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
     keywordId = uuid()
-    await db.insert(promoKeywords).values({ id: keywordId, userId, term: "a term" })
+    await db.insert(promoKeywords).values({ id: keywordId, userId, projectId: await createProject(userId, "A project", db), term: "a term" })
   })
 
   afterEach(async () => {

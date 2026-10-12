@@ -22,7 +22,12 @@ an app wide feature, not just a reddit feature."
 | `src/lib/api/browser/` | The two dashboards' endpoints and the Browsers tab's. Open, close, restart, check, backup and restore never touch a browser; each writes a job. |
 | `src/components/browser/` | The Proxies and Browser profiles dashboards, their windows, the browser window inside the app, and the Browsers tab in Settings. |
 | `src/server/social/voices.ts` | Voices: the words the AI is told, shared by any number of accounts on any network. |
-| `src/lib/api/social/account.ts` | The Reddit account and the status the Reddit dashboard reads, as endpoints. |
+| `src/lib/api/social/account.ts` | Settings → Reddit account's endpoints, for the oldest account in use. |
+| `src/server/social/account-list.ts`, `src/lib/api/social/reddit-accounts.ts` | Every account as a list, with its status, and the actions on ticked rows: the Reddit accounts dashboard. |
+| `src/lib/social/account-status.ts` | Warming up, Ready, Working and Banned, and the order the Projects dashboard lists accounts in. |
+| `src/server/social/projects.ts`, `src/lib/api/social/projects.ts` | Projects: a description, accounts and keywords, and the check that an account comments only on its own project's posts. |
+| `src/components/social/projects/` | The Projects table, and a project's own dashboard: the page that holds the three columns and its project column. |
+| `src/components/social/accounts/` | The Reddit accounts dashboard, its Add account window and the status badge. |
 | `src/lib/api/social/voices.ts` | The Voices dashboard's endpoints. |
 | `src/components/social/account-settings.tsx` | The Reddit account tab in Settings: which profile and which voice the account uses. |
 | `src/components/social/voices/` | The Voices dashboard and its window. |
@@ -32,9 +37,9 @@ an app wide feature, not just a reddit feature."
 | Folder | What is in it |
 | --- | --- |
 | `src/server/social/reddit/` | Searching Reddit, reading a thread, posting a comment, and the ranking that decides which posts are worth answering. |
-| `src/lib/social/reddit/options.ts` | Reddit's own sort orders and time windows, and the key its screen remembers its panels under. |
-| `src/lib/api/social/reddit/` | The endpoints the Reddit screen calls. |
-| `src/components/social/reddit/` | The three panels of the Reddit screen. |
+| `src/lib/social/reddit/options.ts` | Reddit's own sort orders and time windows, and the keys the Projects dashboard remembers its columns under. |
+| `src/lib/api/social/reddit/` | The keyword, post, draft and Post endpoints the Projects dashboard calls. |
+| `src/components/social/reddit/` | The keywords panel, the posts list and the post-and-comment panel, which the Projects dashboard shows. |
 | `docker/browser/routines/reddit.py` | The only file that knows how a Reddit page is put together. |
 
 ## The browser container
@@ -102,5 +107,5 @@ needs no key, and never opens or drives one.
   `browser/`. A table is renamed for a very good reason and this is not one.
   `promo_accounts` already carries a `platform` column, which is how a second
   network shares them.
-- **The route is `/admin/reddit`.** A folder name is ours to change and an
-  address is not.
+- **The old route `/admin/reddit` still answers,** by sending to
+  `/admin/projects`. A folder name is ours to change and an address is not.

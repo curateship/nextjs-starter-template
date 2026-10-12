@@ -1,22 +1,24 @@
-import { and, eq, inArray, ne, sql } from "drizzle-orm"
+import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
 import { promoProfiles } from "@/server/browser/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import { readBehaviour } from "./behaviour"
-import { jobCounts, type JobCounts } from "./jobs"
-import { readPostingState, type PostingState } from "./posting"
 import { promoAccounts, promoJobs, promoVoices } from "./schema"
 
 /**
- * The one Reddit account.
+ * The Reddit accounts, as records a person picks for.
  *
- * Build one has a single account on purpose, so this is a one-record form
- * rather than a table screen. The account owns neither its browser nor its
- * words. It points at a browser profile, managed on the Browser profiles
- * dashboard, and at a voice, managed on the Voices dashboard. The Reddit
- * settings tab only picks which of each.
+ * An account owns neither its browser nor its words. It points at a browser
+ * profile, managed on the Browser profiles dashboard, and at a voice, managed
+ * on the Voices dashboard. There can be any number of accounts, one per
+ * profile, listed on the Reddit accounts dashboard (`account-list.ts`) and
+ * grouped into projects (`projects.ts`).
+ *
+ * Settings → Reddit account still edits one of them: the oldest account in
+ * use. Which account a comment goes out from is picked on the Projects
+ * dashboard, per comment.
  */
 
 export type AccountView = {
@@ -32,7 +34,7 @@ export type AccountView = {
   voice: { id: string; name: string } | null
 }
 
-/** The account, or null when one has never been set up. */
+/** The oldest account in use, the one Settings → Reddit account edits, or null when there is none. */
 export async function readAccount(
   userId: string,
   db: CustomShellDb = defaultDb
@@ -58,10 +60,8 @@ export type SaveAccountInput = {
 }
 
 /**
- * Creates or updates the account: which browser profile and which voice.
- *
- * A profile that already holds another Reddit account is refused here with
- * its name, before the database's own rule refuses it with an index name.
+ * Creates or updates the oldest account in use: which browser profile and
+ * which voice. Settings → Reddit account's one form.
  */
 export async function saveAccount(
   userId: string,
@@ -69,7 +69,58 @@ export async function saveAccount(
   db: CustomShellDb = defaultDb
 ): Promise<AccountView> {
   const existing = await readAccount(userId, db)
+  await checkPicks(userId, input, existing?.id ?? null, db)
 
+  const fields = { profileId: input.profileId, voiceId: input.voiceId }
+
+  if (existing) {
+    await db
+      .update(promoAccounts)
+      .set({ ...fields, updatedAt: new Date() })
+      .where(and(eq(promoAccounts.id, existing.id), eq(promoAccounts.userId, userId)))
+  } else {
+    await db.insert(promoAccounts).values({ id: uuid(), userId, platform: "reddit", ...fields })
+  }
+
+  const saved = await readAccount(userId, db)
+  if (!saved) throw new Error("The account could not be read back after saving.")
+  return saved
+}
+
+/**
+ * Adds another Reddit account, in a browser profile of its own, from the
+ * Reddit accounts dashboard. It is signed in to Reddit inside that profile's
+ * browser afterwards, and starts in no project.
+ */
+export async function addAccount(
+  userId: string,
+  input: { profileId: string; voiceId: string | null },
+  db: CustomShellDb = defaultDb
+): Promise<string> {
+  await checkPicks(userId, input, null, db)
+  const id = uuid()
+  await db.insert(promoAccounts).values({
+    id,
+    userId,
+    platform: "reddit",
+    profileId: input.profileId,
+    voiceId: input.voiceId,
+  })
+  return id
+}
+
+/**
+ * Refuses a profile or voice that cannot be used, by name, before the
+ * database's own rule would refuse it with an index name: a profile that is
+ * not theirs, is the reader browser, or already holds another Reddit account,
+ * and a voice that is not theirs.
+ */
+async function checkPicks(
+  userId: string,
+  input: SaveAccountInput,
+  accountId: string | null,
+  db: CustomShellDb
+): Promise<void> {
   if (input.profileId) {
     const [profile] = await db
       .select({ name: promoProfiles.name })
@@ -90,7 +141,7 @@ export async function saveAccount(
         and(
           eq(promoAccounts.profileId, input.profileId),
           eq(promoAccounts.platform, "reddit"),
-          ...(existing ? [ne(promoAccounts.id, existing.id)] : [])
+          ...(accountId ? [ne(promoAccounts.id, accountId)] : [])
         )
       )
       .limit(1)
@@ -109,21 +160,6 @@ export async function saveAccount(
       .limit(1)
     if (!voice) throw new Error("That voice does not exist.")
   }
-
-  const fields = { profileId: input.profileId, voiceId: input.voiceId }
-
-  if (existing) {
-    await db
-      .update(promoAccounts)
-      .set({ ...fields, updatedAt: new Date() })
-      .where(and(eq(promoAccounts.id, existing.id), eq(promoAccounts.userId, userId)))
-  } else {
-    await db.insert(promoAccounts).values({ id: uuid(), userId, platform: "reddit", ...fields })
-  }
-
-  const saved = await readAccount(userId, db)
-  if (!saved) throw new Error("The account could not be read back after saving.")
-  return saved
 }
 
 /**
@@ -156,57 +192,20 @@ export async function accountsByProfile(
   return out
 }
 
-export type BrowserStatus = {
-  /** The Reddit handle the browser program last saw, or null. */
-  handle: string | null
-  /** True when a challenge or captcha needs a person at the browser. */
-  blocked: boolean
-  reason: string
-  /** What the queue is doing, including which keywords are being searched. */
-  jobs: JobCounts
-  /** The profile the Reddit account uses, so a message can name it and link to it. */
-  profile: { id: string; name: string } | null
-  /** The voice it drafts with, or null when it drafts plainly. */
-  voice: { id: string; name: string } | null
-  /**
-   * Whether the account may comment now: warm-up, pace and waking hours,
-   * and the comments waiting for its morning. Null with no account.
-   */
-  posting: PostingState | null
-}
-
-/**
- * What the Reddit dashboard needs to know about the browser, read from the
- * rows the browser program writes.
- *
- * Never calls a browser. Asking one which account is signed in used to send
- * its page to Reddit's front page, and the Reddit dashboard asks every two
- * seconds, so a sign-in form being typed into was replaced every two seconds.
- */
-export async function readBrowserStatus(
-  userId: string,
-  db: CustomShellDb = defaultDb
-): Promise<BrowserStatus> {
-  const jobs = await jobCounts(userId, db)
-  const account = await readAccountRow(userId, db)
-  return {
-    handle: account?.handle || null,
-    blocked: account?.blocked ?? false,
-    reason: account?.blockedReason ?? "",
-    jobs,
-    profile: account?.profile ?? null,
-    voice: account?.voiceRef ?? null,
-    posting: account ? await readPostingState(userId, account, db) : null,
-  }
-}
-
 async function readAccountRow(userId: string, db: CustomShellDb) {
   const [row] = await db
     .select({ account: promoAccounts, profileName: promoProfiles.name, voiceName: promoVoices.name })
     .from(promoAccounts)
     .leftJoin(promoProfiles, eq(promoProfiles.id, promoAccounts.profileId))
     .leftJoin(promoVoices, eq(promoVoices.id, promoAccounts.voiceId))
-    .where(and(eq(promoAccounts.userId, userId), eq(promoAccounts.platform, "reddit")))
+    .where(
+      and(
+        eq(promoAccounts.userId, userId),
+        eq(promoAccounts.platform, "reddit"),
+        isNull(promoAccounts.retiredAt)
+      )
+    )
+    .orderBy(asc(promoAccounts.createdAt), asc(promoAccounts.id))
     .limit(1)
   if (!row) return null
   const { account, profileName, voiceName } = row

@@ -1,7 +1,7 @@
 import { daysBetween } from "@/lib/format/format-time"
-import type { BrowserStatus } from "@/lib/api/social/account"
 import {
   NO_PROFILE_MESSAGE,
+  PICK_AN_ACCOUNT,
   type FindThread,
   type ProfileCheck,
   type SubredditRule,
@@ -10,7 +10,7 @@ import { clockText, knownTimeZone, localDateKey, localMinutes } from "@/lib/soci
 import type { PostingState } from "@/server/social/posting"
 
 /**
- * The sentences the Reddit screens put in front of a person.
+ * The sentences the Projects and Reddit accounts dashboards put in front of a person.
  *
  * Their own file for two reasons. One, a file that exports both components and
  * plain functions loses React's fast refresh, so editing a sentence would
@@ -28,22 +28,35 @@ type FindLike = { thread: FindThread | null }
 /** Why Post is off, in words a person can act on. */
 export type BlockedReason = { text: string }
 
+/** Just enough of the clicked account for the wording below. */
+type PostingAccount = {
+  /** Empty or null when the browser was never seen signed in. */
+  handle: string | null
+  blocked: boolean
+  reason: string
+  profile: { id: string; name: string } | null
+  posting: PostingState | null
+}
+
 /**
  * Why Post cannot be pressed, in words, or null when it can.
  *
  * Every one of these is something a person goes and fixes, so each says what
- * to do rather than just refusing. A browser problem names the profile it is
- * in and the dashboard to find it on. The panel shows it in the Post button's
+ * to do rather than just refusing. No account clicked on the Projects
+ * dashboard comes first after the replies, because a comment always goes out
+ * from the account clicked. A browser problem names the profile it is in and
+ * the dashboard to find it on. The panel shows it in the Post button's
  * tooltip.
  */
 export function postingBlockedReason(
-  status: BrowserStatus,
+  status: PostingAccount | null,
   detail: FindLike | null,
   now: Date = new Date()
 ): BlockedReason | null {
   if (detail && detail.thread === null) {
     return { text: "Read the replies first, so the comment does not repeat one of them." }
   }
+  if (!status) return { text: PICK_AN_ACCOUNT }
   const profile = status.profile
   if (!profile) return { text: NO_PROFILE_MESSAGE }
   if (status.blocked) {
@@ -74,7 +87,7 @@ export function postingRefusalText(
   timeZone?: string
 ): string | null {
   if (state.warmUp.ageUnknown) {
-    return "Promo has not read how old this account is, so it cannot tell when the warm-up ends. Press Check now on Settings → Reddit account, then try again."
+    return "Promo has not read how old this account is, so it cannot tell when the warm-up ends. Tick it on the Reddit accounts dashboard and press Check now, then try again."
   }
   if (state.warmUp.endsAt && state.warmUp.endsAt > now) {
     return `This account is still warming up. Its first comment is allowed ${whenText(state.warmUp.endsAt, now, timeZone)}.`
@@ -94,6 +107,23 @@ export function postingRefusalText(
 export function paceLineText(state: Pick<PostingState, "lastHour" | "lastDay">): string {
   const hour = `${state.lastHour} ${state.lastHour === 1 ? "comment" : "comments"} in the last hour`
   return `${hour}, ${state.lastDay} today.`
+}
+
+/**
+ * An account's pace for today, for its row on the Projects dashboard: "2 of 6
+ * comments today" for a young account, which has a limit, or the count alone
+ * for an older one. Asleep, it says until when, which is also why the row has
+ * moved down the list.
+ */
+export function accountPaceText(
+  state: Pick<PostingState, "lastDay" | "young" | "youngPerDay" | "awake" | "nextWakeAt">,
+  now: Date = new Date()
+): string {
+  const comments = state.young
+    ? `${state.lastDay} of ${state.youngPerDay} comments today`
+    : `${state.lastDay} ${state.lastDay === 1 ? "comment" : "comments"} today`
+  if (state.awake || !state.nextWakeAt) return comments
+  return `${comments} · asleep until ${whenText(state.nextWakeAt, now)}`
 }
 
 /**
@@ -240,7 +270,7 @@ export function emptyFindsWords(input: {
 }): string {
   if (input.loading) return "Reading the posts"
   if (input.searchHidAll) return "No post matches those words."
-  if (!input.hasKeywords) return "No keywords yet. Add one on the left and it searches straight away."
+  if (!input.hasKeywords) return "No keywords yet. Add one above and it searches straight away."
   if (input.everything) {
     if (input.tab === "commented") return "You have not replied to any post yet."
     if (input.tab === "skipped") return "You have not skipped any post."

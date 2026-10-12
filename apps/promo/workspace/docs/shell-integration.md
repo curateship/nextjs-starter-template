@@ -101,16 +101,21 @@ with a shell key.
 
 ## One thing that is not in code at all
 
-**The Reddit screen is reachable because somebody added it to the sidebar.** The
+**The Projects dashboard is reachable because the sidebar was edited.** The
 admin sidebar is saved settings, edited in Settings → Navigation, not a list in a
 file. A route file on its own is not a reachable screen. The entry points at
-`/admin/reddit` and is admin-only.
+`/admin/projects` and is admin-only. It used to be a Reddit entry pointing at
+`/admin/reddit`, which now sends to `/admin/projects`.
 
 `drizzle/0105_promo_comment_checks.sql` writes into those saved settings once:
 it puts Comments (`/admin/comments`) under the Reddit link, or adds a Reddit
 link with Comments under it to the Administration section where there is no
 Reddit link. A sidebar that already has Comments, or was never saved, is left
-alone. After that the entries are an admin's to move or remove like any other.
+alone. `drizzle/0108_promo_projects.sql` then turned the saved Reddit entry into
+Projects, kept what sat under it, and added Reddit accounts
+(`/admin/reddit-accounts`); a sidebar with no Reddit entry got Projects at the
+end of its Administration section. After that the entries are an admin's to
+move or remove like any other.
 
 ## Two shell hazards worth knowing
 

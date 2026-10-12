@@ -52,7 +52,7 @@ describe("what an empty list says", () => {
 
   it("says to add a keyword when none is saved", () => {
     expect(emptyFindsWords({ ...base, everything: true, hasKeywords: false })).toBe(
-      "No keywords yet. Add one on the left and it searches straight away."
+      "No keywords yet. Add one above and it searches straight away."
     )
   })
 })

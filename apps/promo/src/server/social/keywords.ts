@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, notExists, or, sql } from "drizzle-orm"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
+import { ownedProject } from "./projects"
 import { fitBand, rankReason, type FitBand } from "./reddit/rank"
 import { rulesForSubreddit } from "./reddit/rules"
 import {
@@ -101,14 +102,16 @@ export type FindRow = {
   threadRead: boolean
 }
 
+/** A project's keywords, newest first. */
 export async function listKeywords(
   userId: string,
+  projectId: string,
   db: CustomShellDb = defaultDb
 ): Promise<KeywordRow[]> {
   const keywords = await db
     .select()
     .from(promoKeywords)
-    .where(eq(promoKeywords.userId, userId))
+    .where(and(eq(promoKeywords.userId, userId), eq(promoKeywords.projectId, projectId)))
     .orderBy(desc(promoKeywords.createdAt))
 
   if (!keywords.length) return []
@@ -198,7 +201,7 @@ export function cleanSubreddits(raw: string[]): string[] {
 }
 
 /**
- * Saves a search: words, or a watch.
+ * Saves a search in a project: words, or a watch.
  *
  * A watch has no words and exactly one subreddit, and lists that subreddit's
  * new posts in Reddit's own order, which is newest first. Words or a
@@ -207,9 +210,11 @@ export function cleanSubreddits(raw: string[]): string[] {
  */
 export async function addKeyword(
   userId: string,
+  projectId: string,
   input: SaveKeywordInput,
   db: CustomShellDb = defaultDb
 ): Promise<string> {
+  await ownedProject(userId, projectId, db)
   const term = input.term.trim()
   const subreddits = cleanSubreddits(input.subreddits)
   if (!term && !subreddits.length) {
@@ -229,6 +234,7 @@ export async function addKeyword(
     await db.insert(promoKeywords).values({
       id,
       userId,
+      projectId,
       term,
       subreddits,
       // A watch is read newest first whatever is picked, so it is stored that
@@ -238,8 +244,8 @@ export async function addKeyword(
     })
   } catch {
     // The only unique rules on this table are one search per set of words and
-    // one watch per subreddit, so there is one thing this can mean and it is
-    // worth saying rather than "failed".
+    // one watch per subreddit in a project, so there is one thing this can
+    // mean and it is worth saying rather than "failed".
     throw new Error(
       term ? `"${term}" is already saved.` : `r/${subreddits[0]} is already watched.`
     )
@@ -259,6 +265,9 @@ export async function deleteKeyword(
 }
 
 export type FindsQuery = {
+  /** The project whose keywords' posts are listed. */
+  projectId: string
+  /** One of its keywords, or none for every keyword's posts in one order. */
   keywordId?: string
   /** "all" shows everything, including posts already dealt with. */
   status?: FindStatus | "all"
@@ -273,7 +282,17 @@ export async function listFinds(
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<FindRow[]> {
-  const filters = [eq(promoFinds.userId, userId), shownFind(userId)]
+  const filters = [
+    eq(promoFinds.userId, userId),
+    shownFind(userId),
+    inArray(
+      promoFinds.keywordId,
+      db
+        .select({ id: promoKeywords.id })
+        .from(promoKeywords)
+        .where(and(eq(promoKeywords.userId, userId), eq(promoKeywords.projectId, query.projectId)))
+    ),
+  ]
   if (query.keywordId) filters.push(eq(promoFinds.keywordId, query.keywordId))
   if (query.status && query.status !== "all") {
     filters.push(eq(promoFinds.status, query.status))
