@@ -15,6 +15,7 @@ import {
   DRAFTS_PER_PRESS,
   MAX_COMMENT_CHARS,
   type FindThread,
+  type LinkPage,
   type SubredditRule,
 } from "@/lib/social/options"
 
@@ -196,6 +197,12 @@ export function buildDraftPrompt(input: {
   subreddit: string
   title: string
   body: string
+  /**
+   * The page a link post points to, read because the post has no words of its
+   * own. Labelled as the linked page and never as the post, so a draft does
+   * not answer the article as though the poster wrote it.
+   */
+  linkPage?: LinkPage | null
   replies: FindThread["replies"]
   voice: string
   product: string
@@ -226,7 +233,7 @@ export function buildDraftPrompt(input: {
     `You are writing a comment on a Reddit post in r/${input.subreddit || "an unnamed subreddit"}.`,
     "",
     `POST TITLE: ${input.title}`,
-    input.body ? `POST BODY:\n${input.body.slice(0, 4_000)}` : "POST BODY: (a link or image post, no words)",
+    postBodyBlock(input.body, input.linkPage ?? null),
     "",
     "REPLIES ALREADY THERE:",
     repliesBlock,
@@ -242,6 +249,9 @@ export function buildDraftPrompt(input: {
     "Hard rules:",
     `- Each comment is under ${MAX_DRAFT_CHARS} characters.`,
     "- Answer the post. Do not open by restating the question.",
+    !input.body && input.linkPage
+      ? "- The poster shared that page; they did not write it. Talk to the poster about what they shared, not to the page's author, and do not summarise the page back to them."
+      : "",
     "- Do not repeat a point one of the replies above already made.",
     "- Do not mention what I make unless it directly answers what was asked. A comment that reads as an advert gets me banned, which is worse than a comment nobody clicks.",
     input.subredditRules?.length
@@ -253,6 +263,23 @@ export function buildDraftPrompt(input: {
     "Separate the comments with a line containing only ---",
   ]
     .filter((line) => line !== "")
+    .join("\n")
+}
+
+/**
+ * The post's own words, or for a link post with none, the page it links to,
+ * marked as somebody else's page.
+ */
+function postBodyBlock(body: string, linkPage: LinkPage | null): string {
+  if (body) return `POST BODY:\n${body.slice(0, 4_000)}`
+  if (!linkPage) return "POST BODY: (a link or image post, no words)"
+  return [
+    "POST BODY: (none. The post is a link the poster shared, with no words of their own.)",
+    `THE PAGE THIS POST LINKS TO, written by somebody else, not the poster (${linkPage.url}):`,
+    linkPage.title ? `Page title: ${linkPage.title}` : "",
+    linkPage.text ? `Page opening: ${linkPage.text}` : "",
+  ]
+    .filter(Boolean)
     .join("\n")
 }
 
@@ -358,6 +385,7 @@ export async function draftComments(
     subreddit: find.subreddit,
     title: find.title,
     body: find.thread?.body || find.body,
+    linkPage: find.linkPage,
     replies: find.thread?.replies ?? [],
     ...words,
     examples,

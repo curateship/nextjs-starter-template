@@ -25,6 +25,10 @@ const find: FindDetail = {
   commentCount: 1,
   postedAt: null,
   body: "A question.",
+  linkUrl: "",
+  linkPage: null,
+  linkReadAt: null,
+  linkError: "",
   thread: null,
   rules: { state: "unread", rules: [], readAt: null, error: "", reading: false },
   threadReadAt: null,
@@ -69,6 +73,32 @@ describe("the way back to the list on a phone", () => {
 
   it("draws no back arrow on the wide layout", () => {
     expect(answerPanel()).not.toContain("Back to the list")
+  })
+})
+
+describe("a link post in the answer panel", () => {
+  const link = { ...find, body: "", linkUrl: "https://example.com/churn" }
+
+  it("shows the linked page, labelled as the page the post links to", () => {
+    const html = answerPanel(undefined, {
+      ...link,
+      linkReadAt: new Date(),
+      linkPage: { url: "https://example.com/churn", title: "We cut our churn in half", text: "Last year." },
+    })
+    expect(html).toContain("The page this post links to")
+    expect(html).toContain("example.com")
+    expect(html).toContain("We cut our churn in half")
+    expect(html).not.toContain("no words of its own")
+  })
+
+  it("keeps the honest line, with the reason, when the page could not be read", () => {
+    const html = answerPanel(undefined, { ...link, linkReadAt: new Date(), linkError: "The page answered 403." })
+    expect(html).toContain("This post has no words of its own. It is a link or a picture.")
+    expect(html).toContain("The page it links to could not be read. The page answered 403.")
+  })
+
+  it("says the page is being read rather than that it failed, before it has been tried", () => {
+    expect(answerPanel(undefined, link)).toContain("Promo is reading the page it links to")
   })
 })
 
@@ -125,11 +155,20 @@ function row(overrides: Partial<FindRow>): FindRow {
   }
 }
 
-function findsPanel(finds: FindRow[], tab: "new" | "commented") {
+function findsPanel(
+  finds: FindRow[],
+  tab: "new" | "commented",
+  keyword: { term: string; subreddits: string[] } | null = {
+    term: "reddit marketing tool",
+    subreddits: [],
+  }
+) {
   return renderToStaticMarkup(
     <TooltipProvider>
       <FindsPanel
-        keyword={{ term: "reddit marketing tool", subreddits: [] }}
+        keyword={keyword}
+        keywordNames={new Map([["k1", "reddit marketing tool"], ["k2", "r/SaaS"]])}
+        hasKeywords
         finds={finds}
         loading={false}
         error={null}
@@ -154,6 +193,32 @@ describe("blocking a subreddit from a row", () => {
     const html = findsPanel([row({ status: "commented" })], "commented")
     expect(html).toContain("A horror story")
     expect(html).not.toContain("Block r/nosleep")
+  })
+})
+
+describe("the search box over the posts", () => {
+  it("sits in the panel's controls, beside the status tabs", () => {
+    const html = findsPanel([row({})], "new")
+    expect(html).toContain('aria-label="Search these posts by title, subreddit or author"')
+    expect(html).toContain("To look at")
+  })
+})
+
+describe("Everything, every keyword's posts in one list", () => {
+  it("names the keyword that found each row", () => {
+    const html = findsPanel(
+      [row({}), row({ id: "r2", keywordId: "k2", title: "Pricing a tool" })],
+      "new",
+      null
+    )
+    expect(html).toContain(">Everything<")
+    expect(html).toContain(">Keyword<")
+    expect(html).toContain(">reddit marketing tool<")
+    expect(html).toContain(">r/SaaS<")
+  })
+
+  it("keeps the Keyword column off a single keyword's list, where every row would say the same", () => {
+    expect(findsPanel([row({})], "new")).not.toContain(">Keyword<")
   })
 })
 

@@ -173,6 +173,17 @@ def _text(value):
     return html.unescape(value) if isinstance(value, str) else ""
 
 
+def _link_url(data):
+    """Where a link post points, or "" for a post with words of its own.
+
+    Passed on as Reddit gave it, with its HTML escaping undone. The app decides
+    which links are worth reading: not pictures, not video, not Reddit itself.
+    """
+    if data.get("is_self"):
+        return ""
+    return _text(data.get("url_overridden_by_dest") or data.get("url"))
+
+
 def _post_from_json(child):
     """One post out of Reddit's own listing shape."""
     data = child.get("data") or {}
@@ -186,6 +197,7 @@ def _post_from_json(child):
         "subreddit": data.get("subreddit") or "",
         "title": _text(data.get("title")),
         "body": _text(data.get("selftext")),
+        "linkUrl": _link_url(data),
         "author": data.get("author") or "",
         "score": int(data.get("score") or 0),
         "commentCount": int(data.get("num_comments") or 0),
@@ -219,6 +231,9 @@ def _posts_from_page(page):
           subreddit: attr("subreddit-prefixed-name").replace(/^r\\//, ""),
           title: attr("post-title"),
           body: "",
+          // The address a link post points to. A post with words points at
+          // itself on Reddit, which the app drops.
+          linkUrl: attr("content-href"),
           author: attr("author"),
           score: num("score"),
           commentCount: num("comment-count"),

@@ -363,6 +363,15 @@ export async function loadFindDetail(
     thread: find.thread,
     threadReadAt: find.threadReadAt,
     body: find.thread?.body || find.body,
+    /**
+     * What a link post points to, and what the page said. `linkPage` is the
+     * linked page's words, never the post's own; null with `linkReadAt` set
+     * means it could not be read, and `linkError` says why.
+     */
+    linkUrl: find.linkUrl,
+    linkPage: find.linkPage,
+    linkReadAt: find.linkReadAt,
+    linkError: find.linkError,
     /** The subreddit's own posted rules, to read before writing. */
     rules,
     drafts: drafts.map((draft) => ({

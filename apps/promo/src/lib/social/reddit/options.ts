@@ -36,3 +36,11 @@ export type RedditWindow = (typeof REDDIT_WINDOWS)[number]
  * would appear to do nothing. A new key starts every browser on the new widths.
  */
 export const REDDIT_PANEL_LAYOUT_KEY = "promo-reddit-workspace-2"
+
+/**
+ * The Everything row at the top of the keywords panel, chosen in place of a
+ * keyword's id. It lists every saved search's posts in one ranked order, by
+ * asking for the posts with no keyword at all. Keyword ids are uuids, so this
+ * can never be mistaken for one.
+ */
+export const EVERYTHING = "everything"

@@ -14,8 +14,10 @@ import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
-import { MAX_COMMENT_CHARS, type FindThread } from "@/lib/social/options"
+import { MAX_COMMENT_CHARS, type FindThread, type LinkPage } from "@/lib/social/options"
 import {
+  linkHostText,
+  noWordsText,
   paceLineText,
   paceWarningText,
   postedDateText,
@@ -40,6 +42,13 @@ export type FindDetail = {
   commentCount: number
   postedAt: Date | null
   body: string
+  /** Where a link post points, or "" for a post with words or a picture. */
+  linkUrl: string
+  /** The linked page's title and opening, never the post's own words. */
+  linkPage: LinkPage | null
+  /** Null until the page has been tried. */
+  linkReadAt: Date | null
+  linkError: string
   thread: FindThread | null
   threadReadAt: Date | null
   /** The subreddit's own posted rules, shown above the box. */
@@ -228,10 +237,10 @@ export function AnswerPanel({
 
               {find.body ? (
                 <PostBody body={find.body} />
+              ) : find.linkPage ? (
+                <LinkedPage page={find.linkPage} />
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  This post has no words of its own. It is a link or a picture.
-                </p>
+                <p className="text-sm text-muted-foreground">{noWordsText(find)}</p>
               )}
 
               <Replies find={find} working={working} onRead={onRead} />
@@ -440,6 +449,31 @@ function PostBody({ body }: { body: string }) {
           </p>
         )
       )}
+    </div>
+  )
+}
+
+/**
+ * The page a link post points to, in place of the words the post does not
+ * have. Its own box and its own label, because these are somebody else's
+ * words and must never read as the poster's.
+ */
+function LinkedPage({ page }: { page: LinkPage }) {
+  return (
+    <div className="grid gap-1.5 rounded-lg border p-3 text-sm">
+      <p className="text-xs text-muted-foreground">
+        The page this post links to,{" "}
+        <a
+          href={page.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          {linkHostText(page.url)}
+        </a>
+      </p>
+      {page.title ? <p className="font-medium">{page.title}</p> : null}
+      {page.text ? <p className="leading-relaxed">{page.text}</p> : null}
     </div>
   )
 }

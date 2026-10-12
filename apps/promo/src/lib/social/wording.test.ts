@@ -82,7 +82,7 @@ describe("what a saved keyword searches", () => {
     expect(keywordScopeText(watch)).toBe("Watching · 25 posts · Newest first")
     expect(findsHeading(watch)).toBe("New posts in r/SaaS")
     expect(findsHeading({ term: "a tool", subreddits: [] })).toBe('"a tool"')
-    expect(findsHeading(null)).toBe("Posts worth answering")
+    expect(findsHeading(null)).toBe("Everything")
   })
 })
 

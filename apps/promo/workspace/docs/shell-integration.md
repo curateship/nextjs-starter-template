@@ -32,13 +32,22 @@ promo created, which has no shell version and so can never conflict.
 
 `src/app/server-options.ts`, which the browser never sees:
 
-- **`background.workers`** — four quick jobs on the shell's ticker. Every ten
-  minutes one [tidies away old posts](reddit/finding-posts.md#old-posts-are-tidied-away),
-  one delete and one update each capped at 500 rows. The other three: re-testing the
-  three proxies that have waited longest, looking after the browsers (closing an idle one,
-  marking a dead one, removing a container nothing claims), and asking once a
-  day for each Reddit account's [health reading](reddit/account-health.md).
-  The first two only ask Docker or a proxy, and the third only writes a job. The slow browser work is deliberately not here; see below.
+- **`background.workers`** — six quick jobs on the shell's ticker, listed in
+  `src/app/server-options.ts`:
+  - re-testing the three proxies that have waited longest;
+  - asking once a day for each Reddit account's
+    [health reading](reddit/account-health.md);
+  - picking a time for each warming account's daily visit;
+  - every ten minutes, [tidying away old posts](reddit/finding-posts.md#old-posts-are-tidied-away),
+    one delete and one update each capped at 500 rows;
+  - reading the page a few [link posts](reddit/link-posts.md) point to, four a
+    pass, each capped at eight seconds, refusing any address inside the network;
+  - looking after the browsers: closing an idle one, marking a dead one,
+    removing a container nothing claims.
+
+  None of them opens or drives a browser. They ask Docker, a proxy or a web
+  page, or only write a job. The slow browser work is deliberately not here;
+  see below.
 
 ## The tables it owns
 

@@ -41,10 +41,13 @@ import {
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
+import { EVERYTHING, REDDIT_PANEL_LAYOUT_KEY } from "@/lib/social/reddit/options"
 import {
-  REDDIT_PANEL_LAYOUT_KEY,
-} from "@/lib/social/reddit/options"
-import { postingBlockedReason, postsWord, waitingCommentText } from "@/lib/social/wording"
+  keywordTitle,
+  postingBlockedReason,
+  postsWord,
+  waitingCommentText,
+} from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { FindRow, KeywordRow } from "@/server/social/keywords"
 
@@ -74,6 +77,13 @@ import { KeywordsPanel } from "./keywords-panel"
 /** How often to ask what the queue is doing, while it is doing something. */
 const POLL_MS = 2_000
 
+/**
+ * The most posts one list reads, the endpoint's own ceiling. Everything gathers
+ * every keyword's posts, so the endpoint's default of 100 would cut it short
+ * after a few days, with the tab counts quietly short with it.
+ */
+const FINDS_LIMIT = 500
+
 export function RedditWorkspace({
   initialKeywords,
   initialStatus,
@@ -99,9 +109,12 @@ export function RedditWorkspace({
   const [status, setStatus] = React.useState(initialStatus)
   const [keywordsLoading, setKeywordsLoading] = React.useState(false)
 
-  const [selectedKeyword, setSelectedKeyword] = React.useState<string | null>(
-    initialKeywords[0]?.id ?? null
-  )
+  /**
+   * A keyword's id, or `EVERYTHING`: every keyword's posts in one ranked
+   * order. Everything is chosen whenever nothing else is, because the morning
+   * question is what to answer, not what one saved search found.
+   */
+  const [selectedKeyword, setSelectedKeyword] = React.useState<string>(EVERYTHING)
 
   /**
    * The posts, and which keyword they belong to.
@@ -125,13 +138,11 @@ export function RedditWorkspace({
     drafts: DraftView[]
   }>({ findId: null, detail: null, drafts: [] })
 
-  // Nothing chosen is not the same as still reading, and neither switches any
-  // state on: both are worked out from what is on screen against what was
-  // asked for. Rows belonging to a different keyword are simply not shown.
-  const findsReady = Boolean(
-    selectedKeyword && findsState.keywordId === selectedKeyword
-  )
-  const findsLoading = Boolean(selectedKeyword) && !findsReady
+  // Still reading is worked out from what is on screen against what was asked
+  // for, rather than switched on. Rows belonging to a different list are
+  // simply not shown.
+  const findsReady = findsState.keywordId === selectedKeyword
+  const findsLoading = !findsReady
   const finds = findsReady ? findsState.rows : []
   const findsError = findsReady ? findsState.error : null
 
@@ -154,7 +165,9 @@ export function RedditWorkspace({
   }, [])
 
   /**
-   * Reads the posts for a keyword.
+   * Reads the posts for a keyword, or for every keyword when Everything is
+   * chosen. Everything leaves the keyword out of the call, and the existing
+   * endpoint then answers with all of the person's posts in the same order.
    *
    * Every `setState` lands in a callback the fetch calls back into, never in
    * the body of an effect, which is the rule this app follows: an effect may
@@ -162,7 +175,11 @@ export function RedditWorkspace({
    */
   const refreshFinds = React.useCallback(
     (keywordId: string): Promise<void> =>
-      loadFinds({ keywordId, status: "all" }).then(
+      loadFinds({
+        keywordId: keywordId === EVERYTHING ? undefined : keywordId,
+        status: "all",
+        limit: FINDS_LIMIT,
+      }).then(
         (rows) => setFindsState({ keywordId, rows, error: null }),
         (error: unknown) =>
           setFindsState({
@@ -194,6 +211,10 @@ export function RedditWorkspace({
               commentCount: found.commentCount,
               postedAt: found.postedAt,
               body: found.body,
+              linkUrl: found.linkUrl,
+              linkPage: found.linkPage,
+              linkReadAt: found.linkReadAt,
+              linkError: found.linkError,
               thread: found.thread,
               threadReadAt: found.threadReadAt,
               rules: found.rules,
@@ -214,7 +235,6 @@ export function RedditWorkspace({
   // The first list, and every later one when the chosen keyword changes. The
   // guard is what keeps every `setState` inside the fetch's own callback.
   React.useEffect(() => {
-    if (!selectedKeyword) return
     void refreshFinds(selectedKeyword)
   }, [refreshFinds, selectedKeyword])
 
@@ -241,7 +261,7 @@ export function RedditWorkspace({
         // The work has finished, so whatever it wrote is worth reading.
         if (next.jobs.queued + next.jobs.running === 0) {
           await refreshKeywords()
-          if (selectedKeyword) await refreshFinds(selectedKeyword)
+          await refreshFinds(selectedKeyword)
           if (selectedFind) await refreshDetail(selectedFind)
         }
       } catch {
@@ -312,9 +332,17 @@ export function RedditWorkspace({
       onDelete={async (id) => {
         try {
           await removeKeyword(id)
-          if (selectedKeyword === id) {
-            setSelectedKeyword(null)
+          // The open post goes with its keyword, wherever it is listed.
+          if (finds.some((row) => row.id === selectedFind && row.keywordId === id)) {
             setSelectedFind(null)
+          }
+          if (selectedKeyword === id) {
+            setSelectedKeyword(EVERYTHING)
+            setSelectedFind(null)
+          } else if (selectedKeyword === EVERYTHING) {
+            // Everything stays chosen, so nothing else re-reads it, and the
+            // removed keyword's posts would stay listed.
+            await refreshFinds(EVERYTHING)
           }
           await refreshKeywords()
           await router.invalidate()
@@ -327,9 +355,14 @@ export function RedditWorkspace({
 
   const chosenKeyword = keywords.find((row) => row.id === selectedKeyword)
 
+  const keywordNames = React.useMemo(
+    () => new Map(keywords.map((row) => [row.id, keywordTitle(row)])),
+    [keywords]
+  )
+
   /** Re-reads the list and the keyword counts after a block or an unblock. */
   async function afterBlockChange() {
-    if (selectedKeyword) await refreshFinds(selectedKeyword)
+    await refreshFinds(selectedKeyword)
     await refreshKeywords()
   }
 
@@ -374,6 +407,8 @@ export function RedditWorkspace({
   const findsPanel = (
     <FindsPanel
       keyword={chosenKeyword ?? null}
+      keywordNames={keywordNames}
+      hasKeywords={keywords.length > 0}
       tab={tab}
       onTabChange={(next) => {
         setTab(next)
@@ -387,15 +422,13 @@ export function RedditWorkspace({
       error={findsError}
       selectedId={selectedFind}
       onSelect={setSelectedFind}
-      onRetry={() => {
-        if (selectedKeyword) void refreshFinds(selectedKeyword)
-      }}
+      onRetry={() => void refreshFinds(selectedKeyword)}
       onBlock={blockSubreddit}
       onSkip={async (findIds) => {
         try {
           if (findIds.includes(selectedFind ?? "")) setSelectedFind(null)
           const answer = await setFindsStatus(findIds, "skipped")
-          if (selectedKeyword) await refreshFinds(selectedKeyword)
+          await refreshFinds(selectedKeyword)
           await refreshKeywords()
           if (answer.skipped.length) {
             showErrorToast(
@@ -483,7 +516,7 @@ export function RedditWorkspace({
           // after it had gone from the list.
           setSelectedFind(null)
           await setFindsStatus([findId], "skipped")
-          if (selectedKeyword) await refreshFinds(selectedKeyword)
+          await refreshFinds(selectedKeyword)
           await refreshKeywords()
         } catch (error) {
           showErrorToast(getRedditErrorMessage(error))

@@ -1,6 +1,7 @@
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import { queueDueHealthChecks } from "./health"
+import { readDueLinkPages } from "./link-page"
 import { tidyOldFinds } from "./tidy"
 import { queueDueWarmUps } from "./warm-up"
 import {
@@ -96,4 +97,22 @@ export async function queueWarmUps(
   lastWarmUpAt = now.getTime()
   const queued = await queueDueWarmUps(db, now)
   if (queued) console.log(`Picked a time for ${queued} account warm-up visit(s)`)
+}
+
+/**
+ * Reads the page a few link posts point to, so a post with no words of its
+ * own can still be answered. A handful a pass, side by side, each capped at
+ * eight seconds, so the shared ticker is never held for long. See
+ * `link-page.ts` for the guard against addresses inside the network.
+ */
+export async function readLinkPages(
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<void> {
+  const { read, failed, refused } = await readDueLinkPages(db, now)
+  if (read || failed || refused) {
+    console.log(
+      `Read the linked page of ${read} Reddit post(s); ${failed} could not be read; ${refused} pointed inside the network and were refused`
+    )
+  }
 }
