@@ -400,6 +400,8 @@ const KIND_LABELS: Record<string, string> = {
   exchange: "Break chat",
   leave: "Goodbye",
   arrive: "Hello in a real room",
+  welcome: "Hello back to somebody real",
+  ask: "Question after a hello",
   reaction: "Reaction",
 }
 

@@ -1,8 +1,8 @@
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm"
 
 import { mentionedHandles } from "@/lib/pomodoro/notices"
-import { drawFrom, drawInt, seededRandom } from "@/lib/pomodoro/simulated-days"
-import { CHATTINESS, chattinessWhileLooking, type LineKind, type Voice } from "@/lib/pomodoro/simulated-voice"
+import { drawFrom, drawInt, seededRandom, shuffled } from "@/lib/pomodoro/simulated-days"
+import { CHATTINESS, chattinessWhileLooking, isGreeting, type LineKind, type Voice } from "@/lib/pomodoro/simulated-voice"
 import { db } from "@/server/db"
 import { loadAppSettings } from "@/server/pomodoro/app-settings"
 import { notifyRoom, postRoomMessage, toggleRoomReaction } from "@/server/pomodoro/rooms"
@@ -61,6 +61,8 @@ const PRUNE_EVERY_MS = 60 * 60_000
 const REPLY_WINDOW_MS = 30 * 60_000
 /** How long after a real line it may still get a reaction. */
 const REACT_WINDOW_MS = 5 * 60_000
+/** A hello is answered within this long, or not at all: a late "hey" reads oddly. */
+const GREETING_WINDOW_MS = 5 * 60_000
 
 let passRunning = false
 let lastPruneAt = 0
@@ -128,6 +130,35 @@ export async function runSimulatedChat(now = new Date()) {
       await tendChat(room, openedAt, now, voice, blockedWords, presence.quiet)
     } catch (error) {
       console.error("a made-up room's chat could not move on", error)
+    }
+  }
+  // A real host's room with made-up visitors in it: they only answer a hello.
+  const visited = await db
+    .selectDistinct({ room: rooms })
+    .from(rooms)
+    .innerJoin(roomMemberships, and(eq(roomMemberships.roomId, rooms.id), isNull(roomMemberships.leftAt)))
+    .innerJoin(pomodoroSimulatedAccounts, eq(pomodoroSimulatedAccounts.userId, roomMemberships.userId))
+    .where(
+      and(
+        isNull(rooms.closedAt),
+        sql`${rooms.phase} in ('waiting', 'short', 'long')`,
+        sql`not exists (select 1 from pomodoro_simulated_rooms t where t.room_id = ${rooms.id})`
+      )
+    )
+  for (const { room } of visited) {
+    try {
+      const { people, lines, done } = await readRoom(room.id)
+      await answerGreetings(room, {
+        people,
+        lines,
+        done,
+        mayAddress: await readBlocks(people),
+        chance: CHATTINESS[voice.chattiness],
+        now,
+        say: (speaker, kind, trigger, extra) => sayLine(room, speaker, kind, trigger, { lines, handles: people.flatMap((person) => person.handle ?? []), voice, blockedWords, now, ...extra }),
+      })
+    } catch (error) {
+      console.error("a made-up visitor could not answer a hello", error)
     }
   }
 }
@@ -279,6 +310,10 @@ async function tendChat(room: Room, openedAt: Date, now: Date, voice: Voice, blo
   }
   if (inFocus) return
 
+  // Somebody real said hello: one or two say it back, and now and then a
+  // question. This goes ahead of everything else below.
+  if (await answerGreetings(room, { people, lines, done, mayAddress, chance, now, say })) return
+
   // A real person just came in: the host says hello.
   for (const person of real) {
     const trigger = `greet:${person.membershipId}`
@@ -294,7 +329,8 @@ async function tendChat(room: Room, openedAt: Date, now: Date, voice: Voice, blo
     const trigger = `reply:${lastReal.id}`
     const namesSomeone = mentionedHandles(lastReal.body).some((handle) => madeUp.some((person) => person.handle === handle))
     const speakers = madeUp.filter((person) => mayAddress(person.userId, lastReal.userId))
-    if (!handled.has(trigger) && !namesSomeone && speakers.length && happens(trigger, chance.reply)) {
+    // A hello gets hellos back (`answerGreetings`), never an ordinary reply too.
+    if (!handled.has(trigger) && !namesSomeone && !isGreeting(lastReal.body) && speakers.length && happens(trigger, chance.reply)) {
       // The reply takes the slot: no break line goes out ahead of it.
       if (!due(lastReal.createdAt.getTime() + delayMs(trigger, 20, 90))) return
       const speaker = drawFrom(seededRandom("chat-who", trigger), speakers)
@@ -343,6 +379,82 @@ async function tendChat(room: Room, openedAt: Date, now: Date, voice: Voice, blo
   if (opener && mayFollow(opener) && !realRecently && !handled.has(exchangeTrigger) && happens(exchangeTrigger, chance.exchange) && due(started + delayMs(exchangeTrigger, 60, 150)) && left > 60_000) {
     await say(opener, "exchange", exchangeTrigger)
   }
+}
+
+type GreetingContext = {
+  people: Person[]
+  lines: Line[]
+  /** Every moment already answered in this room, and when. */
+  done: { triggerKey: string; createdAt: Date }[]
+  mayAddress: (one: string, other: string) => boolean
+  chance: (typeof CHATTINESS)[keyof typeof CHATTINESS]
+  now: Date
+  say: (speaker: Person, kind: LineKind, trigger: string, extra?: Partial<SayContext>) => Promise<unknown>
+}
+
+/**
+ * Somebody real says hello to the room: one or two of the made-up members in
+ * it say hello back, the host first when the host is one of them, and by the
+ * card's chattiness one of them then asks a casual question (Tyler, 11 Oct
+ * 2026: "when user greet, one or 2 made up members and host greet back and
+ * spring in some random questions"). The first hello comes 6 to 25 seconds
+ * after theirs, a second 10 to 30 seconds after that, the question 15 to 40
+ * seconds after the last hello. Never during a focus: a hello said in one is
+ * answered when the break starts, the way a person looks up. Never across a
+ * block, and a hello said outside a focus is let go after five minutes. A
+ * host that already said hello when they came in is not the one to say it
+ * again.
+ *
+ * Answers true while a hello is being answered, so nothing else is said
+ * ahead of it.
+ */
+async function answerGreetings(room: Room, context: GreetingContext) {
+  if (room.phase === "focus") return false
+  const { people, lines, done, mayAddress, chance, now, say } = context
+  const answeredAt = new Map(done.map((row) => [row.triggerKey, row.createdAt]))
+  const handled = new Set(answeredAt.keys())
+  const madeUp = people.filter((person) => person.madeUp)
+  // The focus that has just ended, when the room is on a break.
+  const breakFrom = room.phase === "short" || room.phase === "long" ? room.phaseStartedAt?.getTime() ?? null : null
+  const lastFocusFrom = breakFrom === null ? null : breakFrom - (room.focusMinutes + 1) * 60_000
+  for (const line of lines) {
+    if (line.madeUp || !isGreeting(line.body)) continue
+    const said = line.createdAt.getTime()
+    // Said in the focus that just ended: heard as the break starts.
+    const inLastFocus = breakFrom !== null && lastFocusFrom !== null && said >= lastFocusFrom && said < breakFrom
+    if (!inLastFocus && now.getTime() - said > GREETING_WINDOW_MS) continue
+    const greeter = people.find((person) => person.userId === line.userId)
+    if (!greeter) continue
+    const greetedOnArrival = `greet:${greeter.membershipId}`
+    const host = madeUp.find((person) => person.role === "host" && mayAddress(person.userId, line.userId))
+    // The host answers unless it said hello to them before this line. Its
+    // hello uses the arrival greeting's moment, so it is only ever said once.
+    const hostGreetedEarlier = (answeredAt.get(greetedOnArrival)?.getTime() ?? Infinity) < line.createdAt.getTime()
+    const others = shuffled(
+      seededRandom("greet-back", line.id),
+      madeUp.filter((person) => person.role !== "host" && mayAddress(person.userId, line.userId))
+    )
+    const answerers = [
+      ...(host && !hostGreetedEarlier ? [{ person: host, trigger: greetedOnArrival }] : []),
+      ...others.map((person, index) => ({ person, trigger: `welcome:${line.id}:${index}` })),
+    ].slice(0, seededRandom("greet-back-count", line.id)() < 0.5 ? 1 : 2)
+    if (!answerers.length) continue
+    let dueAt = inLastFocus && breakFrom !== null ? breakFrom : said
+    for (const [index, answer] of answerers.entries()) {
+      dueAt += delayMs(answer.trigger, index === 0 ? 6 : 10, index === 0 ? 25 : 30)
+      if (handled.has(answer.trigger)) continue
+      if (now.getTime() < dueAt) return true
+      await say(answer.person, "welcome", answer.trigger, { replyTo: line, realName: firstName(line.name) })
+      return true
+    }
+    const askTrigger = `ask:${line.id}`
+    if (handled.has(askTrigger) || !happens(askTrigger, chance.ask)) continue
+    if (now.getTime() < dueAt + delayMs(askTrigger, 15, 40)) return true
+    const asker = drawFrom(seededRandom("chat-who", askTrigger), answerers).person
+    await say(asker, "ask", askTrigger, { realName: firstName(line.name) })
+    return true
+  }
+  return false
 }
 
 /**
@@ -405,6 +517,8 @@ const HAPPENED: Record<LineKind, string> = {
   exchange: "It is a break. Say something to the others about your work or how it is going.",
   leave: "You are leaving the room now, before the next focus.",
   arrive: "You just walked into somebody else's room to work alongside them. Say hello.",
+  welcome: "Somebody just said hello to the room. Say hello back.",
+  ask: "Somebody just arrived and said hello. Ask them one short, casual question about their work, their day or where they are.",
 }
 
 /**
@@ -416,7 +530,11 @@ async function sayLine(room: Room, speaker: Person, kind: LineKind, trigger: str
   const happened =
     kind === "greet" && context.realName
       ? `${context.realName} just joined the room.`
-      : context.replyTo
+      : kind === "welcome" && context.realName
+        ? `${context.realName} just said hello to the room. Say hello back.`
+        : kind === "ask" && context.realName
+          ? `${context.realName} just arrived and said hello. Ask them one short, casual question about their work, their day or where they are.`
+          : context.replyTo
         ? `${context.replyTo.name} wrote in the room.`
         : HAPPENED[kind]
   const written = await writeLine(

@@ -200,6 +200,20 @@ What the laptop could not prove:
 
 ## Release record
 
+### The watch page fix, 11 Oct 2026 (later)
+
+- **Commit:** `fb493c6cd`, 3 commits after `b8968f834`: the watch page's React
+  error 418 fix and the once-per-hour schedule (`4fa1974e7`), and a Project
+  polish commit with its merge, which Pomoder's build does not install. No
+  migrations, so the website and worker built together.
+- **Deployments:** web `p2goog3pxmbjgvyx3p8y9v5c` (718s), worker
+  `c12xvvp20wfte7eut2fteayg` (641s), both healthy. Health 200. Both menus and
+  the four AI keys were already the same.
+- **Browser check:** signed in as Tyler, the watch page's Today, All and
+  Paused tabs open with no page error in a Toronto browser and a Tokyo one,
+  the schedule in each browser's own time, and nobody listed twice in an
+  hour.
+
 ### Made-up members touching real ones, Tyler's controls, 11 Oct 2026
 
 - **Commit:** `b8968f834`, 20 commits after `a9ae0ea53`, six of them
@@ -228,11 +242,12 @@ What the laptop could not prove:
   carries `noindex` and is not in `/sitemap.xml`.
 - **Found:** the watch page threw React error 418, because its times were
   drawn on the server in the server's time zone. Fixed after this release by
-  drawing them only in the browser, proved locally in a Tokyo browser; not
-  live until the next deploy.
-- **Still owed:** the 418 fix deployed, a walk-through as a real member (a
-  follow arriving, a visitor in a hosted room, a report in a room), and the
-  room name as a chip in the tray, which waits on Tyler's call.
+  drawing them only in the browser, proved locally in a Tokyo browser, and
+  deployed in the next release.
+- **Still owed:** a walk-through as a real member (a follow arriving, a
+  visitor in a hosted room, a report in a room), and the room name as a chip
+  in the tray, which waits on Tyler's call. The 418 fix went live in the next
+  release.
 
 ### Uploads, sharing, rooms and the shell merge, 10 Oct 2026 (evening)
 

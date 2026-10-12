@@ -92,9 +92,11 @@ the background. A screen with no pointer, such as a phone, shows them all the ti
   cards. Tyler, 8 Oct 2026: "Let the gradient flow lower", then "a bit
   higher". It used to be 720px tall and reached the page colour there, so the
   picture was gone by the title. On a phone (below 768px wide) both are less:
-  a 660px band with the content starting 429px down, so the background is not a
+  a 660px band with the content starting 386px down, so the background is not a
   tall empty stretch above the timer (Tyler, 10 Oct 2026: "on mobile this
-  background is too tall", 30% less, then "10% higher on mobile"). The heights are in `pomodoro-shell.tsx`; the
+  background is too tall", 30% less, then "10% higher on mobile"). The content
+  started 429px down until Tyler, 11 Oct 2026: "in mobile, move the content
+  area up 10%". The heights are in `pomodoro-shell.tsx`; the
   fade's stops are the `hero` shading in `scene-backdrop.tsx`. Zen mode keeps
   its own even wash.
 - **Failures fall back:** a background or upload whose file errors falls back to
