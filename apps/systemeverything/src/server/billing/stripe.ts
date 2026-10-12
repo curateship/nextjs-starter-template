@@ -8,6 +8,7 @@ import {
 } from "@/lib/automations/nodes/billing-moment"
 import { formatMoney } from "@/lib/format/money"
 import { formatUtcDate } from "@/lib/format/format-time"
+import { appBillingReturnPaths } from "@/server/app-options"
 import { appUrlFor } from "@/server/app-url"
 import {
   automationSubjectLabel,
@@ -151,10 +152,8 @@ export async function createCheckoutSession(
       metadata: { userId: user.id, planId: plan.id },
       ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
     },
-    success_url: appUrlFor(
-      "/account/billing/success?session_id={CHECKOUT_SESSION_ID}"
-    ),
-    cancel_url: appUrlFor("/pricing"),
+    success_url: appUrlFor(checkoutSuccessPath(appBillingReturnPaths())),
+    cancel_url: appUrlFor(appBillingReturnPaths().checkoutCancel),
   })
 
   if (!session.url) {
@@ -162,6 +161,15 @@ export async function createCheckoutSession(
   }
 
   return { url: session.url }
+}
+
+/**
+ * The success path with Stripe's session placeholder on it, whatever the app
+ * chose: the page there confirms the purchase by that id.
+ */
+export function checkoutSuccessPath(paths: { checkoutSuccess: string }) {
+  const joiner = paths.checkoutSuccess.includes("?") ? "&" : "?"
+  return `${paths.checkoutSuccess}${joiner}session_id={CHECKOUT_SESSION_ID}`
 }
 
 export async function createPortalSession(
@@ -179,7 +187,7 @@ export async function createPortalSession(
     await stripe()
   ).billingPortal.sessions.create({
     customer: subscription.stripeCustomerId,
-    return_url: appUrlFor("/?account=billing"),
+    return_url: appUrlFor(appBillingReturnPaths().portalReturn),
   })
 
   return { url: session.url }
@@ -773,55 +781,7 @@ export async function applyStripeEvent(
     }
 
     if (values) {
-      await tx
-        .insert(customShellSubscriptions)
-        .values(values.insert)
-        .onConflictDoUpdate({
-          target: customShellSubscriptions.userId,
-          set: values.update,
-        })
-
-      // The history entry rides in the same transaction as the change it
-      // describes, so the two can never disagree. Null when this event only
-      // repeated what we already knew — a renewal, a mirrored admin cancel —
-      // and the timeline stays a list of events rather than of deliveries.
-      if (values.event) {
-        await recordSubscriptionEvent(
-          tx,
-          {
-            userId: values.insert.userId,
-            ...values.event,
-            source: "stripe",
-            stripeEventId: event.id,
-          },
-          values.insert.updatedAt
-        )
-
-        if (values.event.kind === "subscribed") {
-          await emitMemberEventForUser("subscribed", values.insert.userId, tx)
-        } else if (values.memberCancellation) {
-          await emitMemberEventForUser("canceled", values.insert.userId, tx)
-        }
-      }
-
-      // The free trial is used up the moment one actually starts, which is
-      // here — Stripe confirming it — and not when the checkout button was
-      // clicked, so a checkout somebody walked away from costs them nothing.
-      //
-      // `isNull` is the whole rule: only the first trial is ever written down,
-      // so the repeat events that arrive all the way through a trial cannot
-      // keep moving the date, and re-running an old event cannot either.
-      if (values.trialStartedAt) {
-        await tx
-          .update(customShellUsers)
-          .set({ firstTrialAt: values.trialStartedAt })
-          .where(
-            and(
-              eq(customShellUsers.id, values.insert.userId),
-              isNull(customShellUsers.firstTrialAt)
-            )
-          )
-      }
+      await writeSubscription(tx, values, event.id)
     }
 
     // Started inside the same transaction as the event claim on purpose. A
@@ -839,6 +799,131 @@ export async function applyStripeEvent(
 
     return true
   })
+}
+
+type SubscriptionValues = NonNullable<
+  Awaited<ReturnType<typeof buildSubscriptionValues>>
+>
+
+/**
+ * Writes what Stripe says about a subscription, plus the one line of history
+ * it is worth. Shared by the webhook and the checkout return page, which is
+ * what keeps the two from ever disagreeing about a row or writing the same
+ * history line twice: whichever lands second finds the row already saying what
+ * it came to say and derives no event.
+ */
+async function writeSubscription(
+  tx: Parameters<Parameters<CustomShellDb["transaction"]>[0]>[0],
+  values: SubscriptionValues,
+  stripeEventId: string | null
+) {
+  await tx
+    .insert(customShellSubscriptions)
+    .values(values.insert)
+    .onConflictDoUpdate({
+      target: customShellSubscriptions.userId,
+      set: values.update,
+    })
+
+  // The history entry rides in the same transaction as the change it
+  // describes, so the two can never disagree. Null when this only repeated
+  // what we already knew — a renewal, a mirrored admin cancel — and the
+  // timeline stays a list of events rather than of deliveries.
+  if (values.event) {
+    await recordSubscriptionEvent(
+      tx,
+      {
+        userId: values.insert.userId,
+        ...values.event,
+        source: "stripe",
+        stripeEventId,
+      },
+      values.insert.updatedAt
+    )
+
+    if (values.event.kind === "subscribed") {
+      await emitMemberEventForUser("subscribed", values.insert.userId, tx)
+    } else if (values.memberCancellation) {
+      await emitMemberEventForUser("canceled", values.insert.userId, tx)
+    }
+  }
+
+  // The free trial is used up the moment one actually starts, which is
+  // here — Stripe confirming it — and not when the checkout button was
+  // clicked, so a checkout somebody walked away from costs them nothing.
+  //
+  // `isNull` is the whole rule: only the first trial is ever written down,
+  // so the repeat events that arrive all the way through a trial cannot
+  // keep moving the date, and re-running an old event cannot either.
+  if (values.trialStartedAt) {
+    await tx
+      .update(customShellUsers)
+      .set({ firstTrialAt: values.trialStartedAt })
+      .where(
+        and(
+          eq(customShellUsers.id, values.insert.userId),
+          isNull(customShellUsers.firstTrialAt)
+        )
+      )
+  }
+}
+
+/** The two Stripe reads a checkout confirmation makes, injectable for tests. */
+export type CheckoutConfirmApi = {
+  loadSession: (sessionId: string) => Promise<Stripe.Checkout.Session>
+  loadSubscription: SubscriptionLoader
+}
+
+const stripeCheckoutConfirmApi: CheckoutConfirmApi = {
+  loadSession: async (sessionId) =>
+    (await stripe()).checkout.sessions.retrieve(sessionId),
+  loadSubscription: loadStripeSubscription,
+}
+
+/**
+ * Confirms a checkout the moment the person comes back from Stripe, without
+ * waiting for the webhook.
+ *
+ * The webhook is the usual way a purchase reaches this app, but it can land a
+ * beat late, be pointed at the wrong address, or not reach a laptop at all.
+ * Asking Stripe directly about the session the person just paid for closes
+ * that gap: the row and the history line are written through the same code
+ * the webhook uses, so the webhook arriving later finds nothing new to say.
+ *
+ * The session has to be the signed-in person's own. The id comes from the
+ * browser, and a session that names somebody else is treated as not found
+ * rather than described.
+ */
+export async function confirmCheckout(
+  user: Pick<CustomShellUser, "id">,
+  sessionId: string,
+  database: CustomShellDb = db,
+  api: CheckoutConfirmApi = stripeCheckoutConfirmApi
+) {
+  requireBilling()
+
+  const session = await api.loadSession(sessionId)
+  const owner = session.client_reference_id ?? session.metadata?.userId ?? null
+  if (owner !== user.id) {
+    throw new Error("CHECKOUT_SESSION_NOT_FOUND")
+  }
+
+  const subscriptionId = idOf(session.subscription)
+  if (!subscriptionId) {
+    return { confirmed: false }
+  }
+
+  const subscription = await api.loadSubscription(subscriptionId)
+  const values = await buildSubscriptionValues(database, subscription)
+  if (!values || values.insert.userId !== user.id) {
+    throw new Error("CHECKOUT_SESSION_NOT_FOUND")
+  }
+
+  await database.transaction(async (tx) => {
+    await writeSubscription(tx, values, null)
+  })
+
+  return { confirmed: subscriptionIsActive(values.update) }
 }
 
 /**
