@@ -2,6 +2,7 @@ import {
   AtSignIcon,
   AwardIcon,
   CalendarClockIcon,
+  CalendarXIcon,
   CircleCheckIcon,
   ClockIcon,
   DoorClosedIcon,
@@ -120,6 +121,7 @@ const NOTICE_LOOK: Record<PomodoroNoticeKind, AppNoticeDetail> = {
   share_weekly: { icon: HeartIcon, toneClassName: GOOD },
   share_removed: { icon: EyeOffIcon, toneClassName: BAD },
   share_waiting: { icon: ShieldCheckIcon, toneClassName: PLAIN },
+  room_not_opening: { icon: CalendarXIcon, toneClassName: PLAIN },
 }
 
 /** A kind's whole look: its tile and the tab it is filed under. */

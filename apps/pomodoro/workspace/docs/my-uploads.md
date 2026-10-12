@@ -67,6 +67,14 @@ A frame that cannot be taken from the film marks the clip, so the catch-up
 pass moves on. A machine with no FFmpeg, or a bucket that did not answer,
 marks nothing, and the clip is tried again on a later pass.
 
+## When Pro ends
+
+Without Pro, every file stays. The cards are greyed with a lock and the mark
+"Comes back with Pro", they don't preview and have no "+", and a line over
+them says "Your files are kept. They come back with Pro." The space line reads
+"1.2 GB kept". Renaming and the bin still work. See
+[When Pro ends](when-pro-ends.md).
+
 ## Moving files to the bin
 
 The bin icon on a card's corner moves that file to the bin. A tick box on the

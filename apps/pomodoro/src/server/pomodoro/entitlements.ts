@@ -77,7 +77,20 @@ export async function loadPomodoroEntitlements(
   userId: string,
   database: CustomShellDb = db
 ): Promise<PomodoroEntitlements> {
-  const [{ entitlements }, admin, space] = await Promise.all([
+  return (await loadPlanStanding(userId, database)).perks
+}
+
+/**
+ * Everything this module knows about one member's plan in one read: the
+ * shell's answer and the subscription row it came from, whether they are an
+ * admin, the space they bought, and the perks all of that adds up to.
+ * Settings → Plan draws from it; every can-do question asks for `perks`.
+ */
+export async function loadPlanStanding(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const [{ entitlements, subscription }, admin, space] = await Promise.all([
     loadEntitlements(userId, database),
     userIsAdmin(userId, database),
     loadBoughtSpace(userId, database),
@@ -86,10 +99,11 @@ export async function loadPomodoroEntitlements(
   // 10 GB bought for a year adds to the plan's space while the year lasts
   // (task 07). Once it ends nothing is deleted; uploads are refused until the
   // member is back under the plan's own limit.
-  return {
+  const perks: PomodoroEntitlements = {
     ...resolved,
     storageLimitBytes: resolved.storageLimitBytes + space.extraBytes,
   }
+  return { entitlements, subscription, admin, space, perks }
 }
 
 async function userIsAdmin(userId: string, database: CustomShellDb) {

@@ -134,7 +134,11 @@ hand.
   all future days and cancels a booked one that has not opened. Rooms that
   already ran, or are running, are never touched.
 - **A host who loses Pro is skipped, not cancelled.** The rule moves on each
-  week without booking, and books again if the plan comes back.
+  week without booking, and books again if the plan comes back. The first
+  skipped week tells the host and the invitees with an account that it is
+  paused, once. A day already booked when Pro ended is closed at its start
+  time instead of opening, and a one-off booking is cancelled the same way.
+  See [When Pro ends](when-pro-ends.md).
 - **Five weekly rules per person.** Weekly rooms do not count towards the ten
   one-off bookings.
 

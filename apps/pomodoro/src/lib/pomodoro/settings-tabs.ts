@@ -9,6 +9,7 @@ export const SETTINGS_TABS = [
   { key: "profile", label: "Profile", guest: true },
   { key: "public", label: "Public page", guest: false },
   { key: "privacy", label: "Privacy", guest: false },
+  { key: "plan", label: "Plan", guest: false },
 ] as const
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number]["key"]

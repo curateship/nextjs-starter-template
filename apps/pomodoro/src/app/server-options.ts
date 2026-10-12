@@ -43,15 +43,17 @@ import { runSimulatedSocialPass } from "@/server/pomodoro/simulated-social"
 export const appServerOptions: AppServerOptions = {
   billing: {
     /**
-     * Stripe hands everyone back to the product's own plans page, never to
-     * the shell's `/pricing` or its success page, which the product does not
+     * Stripe hands everyone back to the product's own pages, never to the
+     * shell's `/pricing` or its success page, which the product does not
      * link to. The paid return carries `welcome=pro`, and the plans page
-     * confirms the session itself so Pro is on before the page draws.
+     * confirms the session itself so Pro is on before the page draws. The
+     * billing page's "return" link lands on Settings → Plan (payments task
+     * 04), where Manage billing is.
      */
     returnPaths: {
       checkoutSuccess: "/plans?welcome=pro",
       checkoutCancel: "/plans",
-      portalReturn: "/plans",
+      portalReturn: "/settings?tab=plan",
     },
   },
   pages: {

@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
+  CreditCardIcon,
   LayoutDashboardIcon,
   LogOutIcon,
   MoonIcon,
@@ -127,6 +128,12 @@ export function AccountMenu({
             </Link>
           </DropdownMenuItem>
         ) : null}
+        <DropdownMenuItem asChild>
+          <Link to="/settings" search={{ tab: "plan" }}>
+            <CreditCardIcon />
+            Plan and billing
+          </Link>
+        </DropdownMenuItem>
         {facts && !facts.isPaid ? (
           <DropdownMenuItem asChild>
             <Link to="/plans">
