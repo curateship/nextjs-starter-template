@@ -33,6 +33,14 @@ sent to a members-only tab sees Timer. The tabs are the shared `ui/tabs.tsx`
 pills, h-8, and arrow keys move between them. On a phone the row scrolls
 sideways inside itself rather than pushing the page wider.
 
+A tab is drawn the first time you open it and then stays, hidden, until you
+leave Settings (`KeptTabContent` in `settings-page.tsx`). Change the focus
+minutes, look at Appearance, come back, and the unsaved 30 is still in the box
+for Save to send. Coming back never shows the tab's loading row again either.
+A tab you never open is never loaded, so opening Settings does not ask Stripe
+for the Plan tab's figures. A hidden tab is out of the Tab order and away from
+screen readers.
+
 ## Presets
 
 - **Three built-ins live in code** (`src/lib/pomodoro/timer-presets.ts`),
@@ -68,6 +76,20 @@ sideways inside itself rather than pushing the page wider.
 
 The tab edits the same `user_preferences` row the dashboard reads on load,
 so the next visit to `/timer` picks the new rhythm up.
+
+## The boxes follow the timer until you type
+
+The header's Timer popover, its presets, the dashboard's goal stepper and its
+auto-start switch all change the same values while Settings is open. Every box
+you have not typed in since the last save takes the timer's new value at once,
+so Save never sends an old number back over a change made from the header
+(`followTimer` in `src/lib/pomodoro/timer-settings-form.ts`).
+
+- **A box you typed in keeps your number.** Type 30 into Focus, press + on the
+  short break in the header, and Save sends focus 30 with the header's new
+  short break.
+- **Saving, or picking a preset, starts the count again.** Every box then
+  follows the timer until the next time you type in it.
 
 ## The number boxes
 

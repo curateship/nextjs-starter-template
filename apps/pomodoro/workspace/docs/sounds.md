@@ -75,6 +75,16 @@ goes for the sound library as well."
   (`use-preview-audio.ts`), and a second click stops it. Moving the pointer
   off the card does not stop it. The header's player, the timer and what is
   saved are never touched.
+- **One preview plays at a time, across the page's tabs.** Catalogue, Shared
+  by members and Saved share the page's one player, and switching tab stops
+  whatever was playing, so no sound plays on under a tab with no card left to
+  stop it.
+- **A muted header makes a silent preview, and the page says so.** The
+  preview takes the header's volume and mute on every press. While muted, the
+  line over the cards reads "Your sound is muted, so this preview is silent.
+  Unmute it in the header, then click the card again." (`preview-status.tsx`).
+- **A touch screen always shows the play button**, since it has no hover. The
+  same goes for sound cards on My uploads and Shared by members.
 - **Hovering shows the play button and nothing more.** The same goes for a
   member's own sounds on My uploads. Backgrounds still play on hover, because a
   film makes no sound.

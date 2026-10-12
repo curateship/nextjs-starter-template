@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -41,7 +42,7 @@ import {
   addBackgroundToPersonalRoom,
   addSoundToPersonalRoom,
 } from "@/lib/pomodoro/room-media-store"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   getGenerationErrorMessage,
   loadGenerationPanel,
@@ -183,7 +184,11 @@ export function MediaGeneratorSection({
   // Everything is shut until the server has answered. Treating an unknown
   // answer as allowed is how the uploads strip let a free account open a file
   // picker it should never have seen.
-  const known = panel !== null || (auth.known && !auth.authenticated)
+  // A first load that failed is an answer too: it shows Try again rather than
+  // leave Generate grey with no reason for good.
+  const loadFailed = panel === null && error !== null
+  const known =
+    panel !== null || loadFailed || (auth.known && !auth.authenticated)
   const allowed = Boolean(panel && panel.limit > 0)
   const ready = Boolean(panel?.providerReady)
   const hasCredit = Boolean(panel && panel.left + panel.packLeft > 0)
@@ -196,6 +201,8 @@ export function MediaGeneratorSection({
     ? null
     : !signedIn
       ? "Log in on a Pro plan to make your own with AI."
+      : loadFailed
+        ? "Your AI credits could not be loaded, so Generate waits until they are."
       : !allowed
         ? "AI generation is a Pro perk. Upgrade to make your own."
         : !ready
@@ -382,7 +389,15 @@ export function MediaGeneratorSection({
             {notice}
           </p>
         ) : null}
-        {error ? (
+        {loadFailed ? (
+          <ErrorRow
+            message={error}
+            onRetry={() => {
+              dismissErrorToast()
+              void refresh()
+            }}
+          />
+        ) : error ? (
           <p role="alert" className="text-sm text-destructive">
             {error}
           </p>

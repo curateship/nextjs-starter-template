@@ -14,8 +14,11 @@ Drawn to Tyler's design of 7 Oct 2026
 (`assets/pasted-image-1791403503197534000.png`).
 
 - **A headline over the hero:** "Focus longer, together." and "The timer,
-  tasks and rooms are free. Pro unlocks every sound and background, AI mixes,
-  hosting and your full history." Both lines sit on the left edge, in line
+  tasks and rooms are free. Pro adds every sound and background, AI
+  backgrounds and soundscapes, hosting rooms, your own uploads and your full
+  history." That second line is `PLANS_PAGE_SUMMARY` in
+  `src/lib/pomodoro/pro.ts`, which the page's link preview uses too, built on
+  the one Pro sentence described in [Pro perks](pro-perks.md). Both lines sit on the left edge, in line
   with the cards, at the same size as every other page's title (36px, with
   the line under it at the body size). The "Paid plans can't be bought just
   yet" notice sits on the left too. Tyler, 8 Oct 2026: "for the pricing page,
@@ -94,7 +97,15 @@ The yearly card's figures are worked out from the real prices:
   that session before it draws (the shell's `confirmCheckoutSession`), and a
   line under the headline says "You're on Pro" with what just unlocked while
   the Pro card reads "Current plan". If the ask fails the line says Stripe is
-  confirming and the page refreshes a few times until the webhook lands.
+  confirming and the page refreshes 8 times, 1.5 seconds apart, until the
+  webhook lands. While it checks, each Pro card's button says "Confirming
+  payment…" with a spinner and cannot be pressed.
+- **A payment the checks miss is said out loud.** After the 8th refresh the
+  line changes to "Your payment is still being confirmed. Check again in a
+  minute, or look at Settings → Plan", with a link to that tab and a Check
+  again button that runs the 8 refreshes once more. A Pro card pressed then
+  answers with an error toast asking for Check again before paying a second
+  time, instead of opening a second checkout.
   Backing out of Stripe's page lands on `/plans`. The "return" link in the
   Stripe billing portal lands on Settings → Plan (`/settings?tab=plan`),
   where Manage billing is, since 12 Oct 2026. The three addresses are the app's

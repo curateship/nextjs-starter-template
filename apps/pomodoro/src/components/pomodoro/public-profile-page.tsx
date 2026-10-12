@@ -44,6 +44,9 @@ const PHASE_WORDS: Record<string, string> = {
 }
 
 export function PublicProfilePage({ profile }: { profile: PublicProfileView }) {
+  // A block from this page takes the page away at once, as the block window
+  // promises: neither of you can open the other's page.
+  const [blocked, setBlocked] = React.useState(false)
   // Pinned badges lead the shelf, then the rest in the order they arrived.
   const badges = [
     ...(profile.badges ?? []).filter((badge) =>
@@ -54,12 +57,19 @@ export function PublicProfilePage({ profile }: { profile: PublicProfileView }) {
     ),
   ]
 
+  if (blocked)
+    return (
+      <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
+        <BlockedCard name={profile.name} />
+      </div>
+    )
+
   return (
     // The product's own content column, the same one History and the other
     // app screens use. This page draws inside `_pomodoro`, not the shell's
     // public frame, so the width is the page's own to set.
     <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
-      <ProfileHeader profile={profile} />
+      <ProfileHeader profile={profile} onBlocked={() => setBlocked(true)} />
 
       {profile.focusingNow ? (
         <FocusingNowCard
@@ -186,8 +196,46 @@ function LastYearPanel({ profile }: { profile: PublicProfileView }) {
   )
 }
 
-function ProfileHeader({ profile }: { profile: PublicProfileView }) {
+/** What is left of a page once its owner has been blocked from it. */
+function BlockedCard({ name }: { name: string }) {
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>You blocked {name}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col items-start gap-3">
+        <p className="text-sm text-muted-foreground">
+          Neither of you can open the other&rsquo;s page now, and you will not
+          see each other on boards or in rooms. You can undo this in Settings.
+        </p>
+        <Button asChild variant="outline">
+          <Link to="/settings" search={{ tab: "privacy" }}>
+            Blocked people
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ProfileHeader({
+  profile,
+  onBlocked,
+}: {
+  profile: PublicProfileView
+  onBlocked: () => void
+}) {
   const figures = profile.figures
+  // Follow and Unfollow move the count by one as soon as the server agrees.
+  // The change is held against the count it was made on, so a fresh load of
+  // the page shows the server's own number rather than adding to it twice.
+  const [followChange, setFollowChange] = React.useState({
+    base: profile.followers,
+    by: 0,
+  })
+  const followers =
+    profile.followers +
+    (followChange.base === profile.followers ? followChange.by : 0)
   return (
     <section
       aria-label={profile.name}
@@ -242,9 +290,9 @@ function ProfileHeader({ profile }: { profile: PublicProfileView }) {
           <p className="flex gap-5 text-sm text-muted-foreground">
             <span>
               <strong className="font-semibold text-foreground">
-                {profile.followers.toLocaleString()}
+                {followers.toLocaleString()}
               </strong>{" "}
-              {profile.followers === 1 ? "follower" : "followers"}
+              {followers === 1 ? "follower" : "followers"}
             </span>
             <span>
               <strong className="font-semibold text-foreground">
@@ -257,6 +305,14 @@ function ProfileHeader({ profile }: { profile: PublicProfileView }) {
             handle={profile.handle}
             name={profile.name}
             isOwner={profile.isOwner}
+            onBlocked={onBlocked}
+            onFollowChange={(by) =>
+              setFollowChange((current) => ({
+                base: profile.followers,
+                by:
+                  (current.base === profile.followers ? current.by : 0) + by,
+              }))
+            }
           />
         </div>
         <div className="flex flex-wrap gap-2 md:justify-end">

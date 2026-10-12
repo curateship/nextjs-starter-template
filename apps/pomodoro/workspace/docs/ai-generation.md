@@ -27,6 +27,11 @@ says why:
   provider settings, so the line no longer tells them about operators and
   keys. Operators see the keys on Settings → AI in the admin.
 - A member who has used the month's allowance is told when the next lot arrives.
+- **Credits that could not be loaded say so, with Try again.** The window
+  shows the shared error row in the card, and Generate's reason reads "Your AI
+  credits could not be loaded, so Generate waits until they are." Generate used
+  to stay grey with no reason for good, because a failed load never counted as
+  an answer (`media-generator-section.tsx`).
 
 **A prompt that is too short does not grey the button out.** Prompts need 5
 characters (`PROMPT_MIN_LENGTH` in `src/lib/pomodoro/generation.ts`). Pressing

@@ -304,6 +304,7 @@ function GroupPanels({
   )
   const [confirmingDelete, setConfirmingDelete] = React.useState(false)
   const [confirmingLeave, setConfirmingLeave] = React.useState(false)
+  const [confirmingNewLink, setConfirmingNewLink] = React.useState(false)
   // The member the owner pressed the bin beside, until they confirm or back out.
   const [removing, setRemoving] = React.useState<Member | null>(null)
   const [run, busy] = useAsyncAction(groupErrorMessage)
@@ -544,12 +545,7 @@ function GroupPanels({
                   variant="outline"
                   size="sm"
                   disabled={busy}
-                  onClick={() =>
-                    void run(
-                      () => resetFocusGroupInvite(group.id).then(onChanged),
-                      "New link made. The old one no longer works."
-                    )
-                  }
+                  onClick={() => setConfirmingNewLink(true)}
                 >
                   New link
                 </Button>
@@ -601,6 +597,21 @@ function GroupPanels({
             await refreshMembers()
             await onChanged()
           }, "Removed from the group.")
+        }
+      />
+      <ConfirmDialog
+        open={confirmingNewLink}
+        onOpenChange={setConfirmingNewLink}
+        title="Replace the invite link?"
+        description="Anyone holding the old link can no longer join with it. People already in the group stay in."
+        confirmLabel="Replace link"
+        loading={busy}
+        onConfirm={() =>
+          void run(async () => {
+            await resetFocusGroupInvite(group.id)
+            setConfirmingNewLink(false)
+            await onChanged()
+          }, "New link made. The old one no longer works.")
         }
       />
       <ConfirmDialog

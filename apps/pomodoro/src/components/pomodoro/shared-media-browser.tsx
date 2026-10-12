@@ -19,7 +19,11 @@ import {
 } from "@/lib/api/pomodoro/shared-media"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { pillTabsList, pillTabsTrigger } from "@/lib/pomodoro/pill-tabs"
-import { usePreviewAudio } from "@/lib/pomodoro/use-preview-audio"
+import {
+  usePreviewAudio,
+  type PreviewAudio,
+} from "@/lib/pomodoro/use-preview-audio"
+import { PreviewStatus } from "@/components/pomodoro/preview-status"
 import { sameSoundReference } from "@/lib/pomodoro/sound-catalog"
 import {
   MEDIA_PAGE_VIEWS,
@@ -45,6 +49,7 @@ export function SharedMediaBrowser({
   scope,
   tag,
   onTags,
+  preview: pagePreview,
 }: {
   purpose: PomodoroUploadPurpose
   scope: SharedScope
@@ -52,6 +57,11 @@ export function SharedMediaBrowser({
   tag: string | null
   /** The tags on the shared files of this kind, for that filter. */
   onTags: (tags: string[]) => void
+  /**
+   * The page's own preview player, so the page can stop a preview started
+   * here when its tabs change. Without one the browser plays its own.
+   */
+  preview?: PreviewAudio
 }) {
   const [searchText, setSearchText] = React.useState("")
   const [query, setQuery] = React.useState<
@@ -69,7 +79,8 @@ export function SharedMediaBrowser({
   }
   const [reload, setReload] = React.useState(0)
   const searchTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  const preview = usePreviewAudio()
+  const ownPreview = usePreviewAudio()
+  const preview = pagePreview ?? ownPreview
   const noun = purpose === "sound" ? "sound" : "background"
 
   const key = JSON.stringify({ purpose, scope, tag, ...query, reload })
@@ -145,11 +156,7 @@ export function SharedMediaBrowser({
         </Select>
       </div>
 
-      {preview.failed ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          That preview could not be played. Click the card to try again.
-        </p>
-      ) : null}
+      <PreviewStatus failed={preview.failed} muted={preview.muted} />
 
       {loaded?.error && loading === false ? (
         <ErrorRow

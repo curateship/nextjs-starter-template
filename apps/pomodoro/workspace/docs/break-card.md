@@ -16,6 +16,12 @@ minute long break".
 - **The numbers are the real ones.** The minutes are the break's own length
   and the sessions are your round's length, so a 10-minute short break says
   "Take a 10 minute break".
+- **"You finished all 4 sessions" only follows a full round.** The timer and a
+  room's host can both pick the long break early. Taken after fewer focuses
+  than the round holds, the line reads "Long break. Get up and move around
+  properly." instead. It used to claim all 4 after a single focus
+  (`break-card.tsx`, fed the round's count by `timer-dashboard.tsx` and
+  `active-room.tsx`).
 - **It shows for as long as the timer is on a break**, before Start is pressed
   as well as while it runs, and goes when the timer is back on Focus.
 - **In a room it shows during the room's break**, with the host's break

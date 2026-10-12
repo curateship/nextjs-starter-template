@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
@@ -35,7 +36,7 @@ import {
   type UploadLibrary,
 } from "@/lib/api/pomodoro/media-uploads"
 import { describeBulkResult } from "@/lib/format/bulk-result"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
 import { UploadWindow } from "@/components/pomodoro/upload-window"
 import { BuyButton } from "@/components/pomodoro/buy-button"
@@ -45,6 +46,7 @@ import { UploadEditDialog } from "@/components/pomodoro/upload-edit-dialog"
 import { CurrentlySelectedLabel } from "@/components/pomodoro/media-add-actions"
 import { useOpenPlans } from "@/lib/pomodoro/use-open-plans"
 import { SHARE_WAITING_LABEL } from "@/lib/pomodoro/shared-media"
+import { useTappedCard } from "@/lib/pomodoro/tapped-card"
 
 /**
  * A member's own backgrounds or sound loops, under the curated ones: one card
@@ -176,7 +178,11 @@ export function MediaUploadsSection({
   // answer, arrived at the wrong way round. The Pro scenes above already start
   // locked and unlock on hydration; this now matches them.
   // A guest gets a settled answer without a request: uploads need an account.
-  const known = library !== null || (auth.known && !auth.authenticated)
+  // A first load that failed is an answer too: it shows Try again rather than
+  // leave Upload spinning for good.
+  const loadFailed = library === null && error !== null
+  const known =
+    library !== null || loadFailed || (auth.known && !auth.authenticated)
   const locked = !library || !library.canUploadMedia
   // Files made while the plan had Pro stay stored without it (payments task
   // 05). They are drawn, locked, so the member can see they are kept.
@@ -290,6 +296,7 @@ export function MediaUploadsSection({
         label={uploadLabel}
         hint={`${UPLOAD_HINT[purpose]} ${description}`}
         known={known}
+        loadFailed={loadFailed}
         signedIn={signedIn}
         locked={locked}
         full={full}
@@ -315,9 +322,13 @@ export function MediaUploadsSection({
       ) : null}
 
       {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
+        <ErrorRow
+          message={error}
+          onRetry={() => {
+            dismissErrorToast()
+            void refresh()
+          }}
+        />
       ) : null}
 
       {ticked.length ? (
@@ -437,6 +448,7 @@ function UploadActions({
   label,
   hint,
   known,
+  loadFailed,
   signedIn,
   locked,
   full,
@@ -449,6 +461,8 @@ function UploadActions({
   hint: string
   /** The answer is settled — either the server replied, or nobody is signed in. */
   known: boolean
+  /** The files could not be read, so nothing is known about the plan yet. */
+  loadFailed: boolean
   signedIn: boolean
   locked: boolean
   full: boolean
@@ -467,6 +481,8 @@ function UploadActions({
     ? null
     : !signedIn
       ? "Log in on a Pro plan to put your own backgrounds and sounds here."
+      : loadFailed
+        ? "Your files could not be loaded, so uploading waits until they are."
       : locked
         ? PRO_PERKS.uploadMedia.lockedReason
         : fullReason
@@ -492,12 +508,17 @@ function UploadActions({
             type="button"
             className="rounded-full"
             onClick={() => {
-              if (locked) openPlans()
+              if (loadFailed)
+                showErrorToast(
+                  "Your files could not be loaded. Press Try again first."
+                )
+              else if (locked) openPlans()
               else if (full) setFullNotice(true)
               else onUpload()
             }}
           >
-            {locked ? (
+            {/* A failed load is not a locked plan, so no padlock. */}
+            {locked && !loadFailed ? (
               <LockIcon aria-hidden="true" />
             ) : (
               <UploadIcon aria-hidden="true" />
@@ -607,7 +628,9 @@ function UploadCard({
     upload.inUse && !held ? "In use" : null,
   ].filter((mark): mark is string => mark !== null)
   const [hovered, setHovered] = React.useState(false)
-  const [tapped, setTapped] = React.useState(false)
+  const { tapped, toggle: toggleTapped, clear: clearTapped } = useTappedCard(
+    `upload:${upload.mediaId}`
+  )
 
   const pickButton = (
     <button
@@ -625,7 +648,7 @@ function UploadCard({
       disabled={!playable}
       onClick={() => {
         if (!playable) return
-        if (!sound) setTapped((current) => !current)
+        if (!sound) toggleTapped()
         onPick()
       }}
     >
@@ -659,7 +682,7 @@ function UploadCard({
               className={cn(
                 "grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm",
                 !playing &&
-                  "opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                  "opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
               )}
             >
               {playing ? (
@@ -670,7 +693,7 @@ function UploadCard({
             </span>
           ) : (
             <KindIcon
-              className="size-6 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100"
+              className="size-6 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100"
               aria-hidden="true"
             />
           )}
@@ -739,7 +762,7 @@ function UploadCard({
       onPointerLeave={(event) => {
         if (!ready || sound || event.pointerType !== "mouse") return
         setHovered(false)
-        setTapped(false)
+        clearTapped()
       }}
     >
       {pickButton}

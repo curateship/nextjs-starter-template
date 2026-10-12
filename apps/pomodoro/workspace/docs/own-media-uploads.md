@@ -228,8 +228,13 @@ After a file is up, its card turns into one line saying what happens next.
   seconds says "in under a minute", up to 90 "in about a minute", and past
   that the minutes rounded, so the tenth of ten clips says "in about 3
   minutes".
-- When nothing is left to send, the footer is a single Done that closes the
-  window. The card grid behind it has already re-read its list after each file.
+- When nothing is left to send and at least one file went up, the footer is a
+  single Done that closes the window. The card grid behind it has already
+  re-read its list after each file.
+- **A window holding only refused files never says Done.** It keeps Cancel and
+  Upload, and pressing Upload says "None of these files can be uploaded.
+  Remove them, or choose other files." One film too big used to leave a red
+  card and a Done button, as if something had worked.
 
 ### AI fills in the name
 

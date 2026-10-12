@@ -9,6 +9,7 @@ import {
   loadBillingOverview,
   loadPublicPricing,
 } from "@/lib/api/billing/billing"
+import { PLANS_PAGE_SUMMARY } from "@/lib/pomodoro/pro"
 
 /**
  * The plans screen, inside the product shell rather than the shell's public
@@ -72,8 +73,7 @@ export const Route = createFileRoute("/_pomodoro/plans")({
       { title: "Pricing - Pomoder" },
       {
         name: "description",
-        content:
-          "Focus alone for free. A paid plan adds focus rooms, premium sounds and backgrounds, your own uploads and the long history ranges.",
+        content: PLANS_PAGE_SUMMARY,
       },
     ],
   }),

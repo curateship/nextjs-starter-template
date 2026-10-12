@@ -22,7 +22,6 @@ import { browserTimezone } from "@/lib/pomodoro/timer"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   normalizeSessionsBeforeLongBreak,
-  SESSIONS_BEFORE_LONG_BREAK_DEFAULT,
   SESSIONS_BEFORE_LONG_BREAK_MAX,
   SESSIONS_BEFORE_LONG_BREAK_MIN,
 } from "@/lib/pomodoro/timer-presets"
@@ -35,6 +34,13 @@ import {
   usePomodoro,
 } from "@/lib/pomodoro/use-pomodoro"
 import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
+import {
+  DEFAULT_RHYTHM,
+  followTimer,
+  presetRhythm,
+  rhythmKey,
+  type Rhythm,
+} from "@/lib/pomodoro/timer-settings-form"
 
 const DEFAULT_ALERT_HELP =
   "Plays a chime and shows a browser notification when a timer finishes."
@@ -50,12 +56,13 @@ export default function TimerSettingsPanel() {
   const { authenticated, known } = useProductAuth()
   const pomodoro = usePomodoro()
   const [alertHelp, setAlertHelp] = React.useState(DEFAULT_ALERT_HELP)
-  const [focus, setFocus] = React.useState(25)
-  const [short, setShort] = React.useState(5)
-  const [long, setLong] = React.useState(15)
-  const [dailyGoal, setDailyGoal] = React.useState(4)
-  const [cycle, setCycle] = React.useState(SESSIONS_BEFORE_LONG_BREAK_DEFAULT)
-  const [autoStart, setAutoStart] = React.useState(false)
+  const [values, setValues] = React.useState<Rhythm>(DEFAULT_RHYTHM)
+  // The boxes typed in since the last save. Every other box follows the
+  // timer, so a change made from the header's Timer popover or the dashboard
+  // shows here at once, and Save never sends the old number back over it.
+  const [edited, setEdited] = React.useState<ReadonlySet<keyof Rhythm>>(
+    () => new Set()
+  )
   const [loaded, setLoaded] = React.useState(false)
   // Only the load failure is held in state, because it decides whether the
   // boxes are drawn at all. Saves report themselves through the toasts.
@@ -64,34 +71,59 @@ export default function TimerSettingsPanel() {
   const [attempt, setAttempt] = React.useState(0)
   const [saving, setSaving] = React.useState(false)
 
-  React.useEffect(() => {
-    if (!known || loaded) return
-    if (!authenticated) {
-      // A guest's values are already in the engine, hydrated from the
-      // browser by the layout.
-      setFocus(pomodoro.durations.focus)
-      setShort(pomodoro.durations.short)
-      setLong(pomodoro.durations.long)
-      setDailyGoal(pomodoro.dailyGoalSessions)
-      setCycle(pomodoro.sessionsBeforeLongBreak)
-      setAutoStart(pomodoro.autoStart)
-      setLoaded(true)
-      return
+  const engine: Rhythm = {
+    focus: pomodoro.durations.focus,
+    short: pomodoro.durations.short,
+    long: pomodoro.durations.long,
+    dailyGoal: pomodoro.dailyGoalSessions,
+    cycle: pomodoro.sessionsBeforeLongBreak,
+    autoStart: pomodoro.autoStart,
+  }
+  const engineKey = rhythmKey(engine)
+  // A guest's values are already in the engine, hydrated from the browser
+  // by the layout, so there is nothing to load.
+  if (known && !authenticated && !loaded) {
+    setValues(engine)
+    setLoaded(true)
+  }
+  // The timer's values when the boxes last took them. A difference means
+  // the timer changed since, so the untouched boxes take the new values. An
+  // account's boxes start from its saved row; the timer reading the same row
+  // a moment later is followed too, and changes nothing.
+  const [followed, setFollowed] = React.useState(engineKey)
+  if (loaded && engineKey !== followed) {
+    setFollowed(engineKey)
+    setValues(followTimer(values, engine, edited))
+  }
+
+  const edit =
+    <Key extends keyof Rhythm>(key: Key) =>
+    (value: Rhythm[Key]) => {
+      setValues((current) => ({ ...current, [key]: value }))
+      setEdited((current) => new Set(current).add(key))
     }
+  const takeSaved = (next: Rhythm) => {
+    setValues(next)
+    setEdited(new Set())
+  }
+  const { focus, short, long, dailyGoal, cycle, autoStart } = values
+
+  React.useEffect(() => {
+    if (!known || loaded || !authenticated) return
     let cancelled = false
     void loadProductivity(browserTimezone())
       .then((data) => {
         if (cancelled) return
-        setFocus(data.preferences.focusMinutes)
-        setShort(data.preferences.shortBreakMinutes)
-        setLong(data.preferences.longBreakMinutes)
-        setDailyGoal(data.preferences.dailyGoalSessions)
-        setCycle(
-          normalizeSessionsBeforeLongBreak(
+        setValues({
+          focus: data.preferences.focusMinutes,
+          short: data.preferences.shortBreakMinutes,
+          long: data.preferences.longBreakMinutes,
+          dailyGoal: data.preferences.dailyGoalSessions,
+          cycle: normalizeSessionsBeforeLongBreak(
             data.preferences.sessionsBeforeLongBreak
-          )
-        )
-        setAutoStart(data.preferences.autoStart)
+          ),
+          autoStart: data.preferences.autoStart,
+        })
         setLoaded(true)
       })
       .catch(() => {
@@ -105,10 +137,6 @@ export default function TimerSettingsPanel() {
     known,
     authenticated,
     loaded,
-    pomodoro.durations,
-    pomodoro.dailyGoalSessions,
-    pomodoro.sessionsBeforeLongBreak,
-    pomodoro.autoStart,
   ])
 
   const save = async () => {
@@ -117,8 +145,10 @@ export default function TimerSettingsPanel() {
         dailyGoalSessions: dailyGoal,
         sessionsBeforeLongBreak: cycle,
       })
-      if (applied) toast.success("Saved in this browser.")
-      else showErrorToast("Reset or finish the timer first.")
+      if (applied) {
+        setEdited(new Set())
+        toast.success("Saved in this browser.")
+      } else showErrorToast("Reset or finish the timer first.")
       return
     }
     setSaving(true)
@@ -135,6 +165,7 @@ export default function TimerSettingsPanel() {
       // read straight back. Without it the cycle would keep the old number
       // until some other screen mounted and reloaded it.
       void reloadPomodoroData()
+      setEdited(new Set())
       toast.success("Focus rhythm saved.")
     } catch {
       showErrorToast("The focus rhythm could not be saved.")
@@ -179,36 +210,26 @@ export default function TimerSettingsPanel() {
                 autoStart,
               }}
               dailyGoalSessions={dailyGoal}
-              onApplied={(values) => {
-                setFocus(values.focusMinutes)
-                setShort(values.shortBreakMinutes)
-                setLong(values.longBreakMinutes)
-                setCycle(values.sessionsBeforeLongBreak)
-                setAutoStart(values.autoStart)
+              onApplied={(preset) => {
+                takeSaved({ ...presetRhythm(preset), dailyGoal })
                 // The preset wrote the preferences row itself, so the engine
                 // reads it back rather than being told twice.
                 void reloadPomodoroData()
               }}
-              onApplyLocally={(values) => {
+              onApplyLocally={(preset) => {
                 const applied = applyDurations(
                   {
-                    focus: values.focusMinutes,
-                    short: values.shortBreakMinutes,
-                    long: values.longBreakMinutes,
+                    focus: preset.focusMinutes,
+                    short: preset.shortBreakMinutes,
+                    long: preset.longBreakMinutes,
                   },
-                  values.autoStart,
+                  preset.autoStart,
                   {
                     dailyGoalSessions: dailyGoal,
-                    sessionsBeforeLongBreak: values.sessionsBeforeLongBreak,
+                    sessionsBeforeLongBreak: preset.sessionsBeforeLongBreak,
                   }
                 )
-                if (applied) {
-                  setFocus(values.focusMinutes)
-                  setShort(values.shortBreakMinutes)
-                  setLong(values.longBreakMinutes)
-                  setCycle(values.sessionsBeforeLongBreak)
-                  setAutoStart(values.autoStart)
-                }
+                if (applied) takeSaved({ ...presetRhythm(preset), dailyGoal })
                 return applied
               }}
             />
@@ -220,9 +241,9 @@ export default function TimerSettingsPanel() {
                 focusMinutes={focus}
                 shortBreakMinutes={short}
                 longBreakMinutes={long}
-                onFocusMinutes={setFocus}
-                onShortBreakMinutes={setShort}
-                onLongBreakMinutes={setLong}
+                onFocusMinutes={edit("focus")}
+                onShortBreakMinutes={edit("short")}
+                onLongBreakMinutes={edit("long")}
               />
               <NumberField
                 id="timer-goal"
@@ -231,7 +252,7 @@ export default function TimerSettingsPanel() {
                 value={dailyGoal}
                 min={DAILY_GOAL_MIN}
                 max={DAILY_GOAL_MAX}
-                onChange={setDailyGoal}
+                onChange={edit("dailyGoal")}
                 inputClassName="sm:max-w-40"
               />
               <NumberField
@@ -241,14 +262,14 @@ export default function TimerSettingsPanel() {
                 value={cycle}
                 min={SESSIONS_BEFORE_LONG_BREAK_MIN}
                 max={SESSIONS_BEFORE_LONG_BREAK_MAX}
-                onChange={setCycle}
+                onChange={edit("cycle")}
                 inputClassName="sm:max-w-40"
               />
               <div className="flex items-center gap-2">
                 <Switch
                   id="timer-auto-start"
                   checked={autoStart}
-                  onCheckedChange={setAutoStart}
+                  onCheckedChange={edit("autoStart")}
                 />
                 <Label htmlFor="timer-auto-start">Auto-start the next timer</Label>
               </div>

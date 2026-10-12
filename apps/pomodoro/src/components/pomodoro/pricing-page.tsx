@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useNavigate, useRouter } from "@tanstack/react-router"
+import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import { CheckIcon, Loader2Icon } from "lucide-react"
 
 import { PlanChangeConfirmation } from "@/components/shared/plan-change-confirmation"
@@ -16,6 +16,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 import { planCardFeatures } from "@/lib/pomodoro/plan-card-features"
+import { PLANS_PAGE_SUMMARY, PRO_WELCOME } from "@/lib/pomodoro/pro"
 import { useMediaCatalog } from "@/lib/pomodoro/room-media-store"
 
 /**
@@ -63,22 +64,32 @@ export function PricingPage({
 
   // Back from paying but the plan has not caught up: the loader's ask of
   // Stripe failed, so the webhook is what will land it. Refresh a few times
-  // rather than leave "Get Pro" on screen for somebody who just paid.
+  // rather than leave "Get Pro" on screen for somebody who just paid. After
+  // the last refresh the page says the payment is late and offers Check
+  // again, which runs the same round once more.
   const waiting = welcome && !isPaid
+  const [late, setLate] = React.useState(false)
+  const [round, setRound] = React.useState(0)
   React.useEffect(() => {
     if (!waiting) return
     let attempts = 0
+    let live = true
     let timer: ReturnType<typeof setTimeout>
     const refresh = () => {
       attempts += 1
-      void router.invalidate()
-      if (attempts < WELCOME_REFRESH_ATTEMPTS) {
-        timer = setTimeout(refresh, WELCOME_REFRESH_MS)
-      }
+      const last = attempts >= WELCOME_REFRESH_ATTEMPTS
+      void router.invalidate().finally(() => {
+        if (live && last) setLate(true)
+      })
+      if (!last) timer = setTimeout(refresh, WELCOME_REFRESH_MS)
     }
     timer = setTimeout(refresh, WELCOME_REFRESH_MS)
-    return () => clearTimeout(timer)
-  }, [router, waiting])
+    return () => {
+      live = false
+      clearTimeout(timer)
+    }
+  }, [router, waiting, round])
+  const confirming: Confirming = !waiting ? null : late ? "late" : "checking"
   const [busyKey, setBusyKey] = React.useState<string | null>(null)
   const [preview, setPreview] = React.useState<PlanChangePreview | null>(null)
   // A second click while the first checkout is opening would start two of them.
@@ -126,6 +137,7 @@ export function PricingPage({
     billingEnabled,
     trialUsed,
     changingPlan,
+    confirming,
     onSelect: select,
   }
   const sellsMonthly = proPlan ? proPlan.priceMonthlyCents > 0 : false
@@ -141,15 +153,41 @@ export function PricingPage({
           Focus longer, together.
         </h2>
         <p className="title-halo max-w-xl text-muted-foreground">
-          The timer, tasks and rooms are free. Pro unlocks every sound and
-          background, AI mixes, hosting and your full history.
+          {PLANS_PAGE_SUMMARY}
         </p>
         {welcome ? (
           <p role="status" className="max-w-xl text-sm">
-            {isPaid
-              ? "You're on Pro. Every sound and background, AI mixes, hosting and your full history are unlocked, and your receipt is in your inbox."
-              : "Stripe is confirming your payment. This usually takes a few seconds."}
+            {isPaid ? (
+              PRO_WELCOME
+            ) : late ? (
+              <>
+                Your payment is still being confirmed. Check again in a
+                minute, or look at{" "}
+                <Link
+                  to="/settings"
+                  search={{ tab: "plan" }}
+                  className="underline underline-offset-2"
+                >
+                  Settings → Plan
+                </Link>
+                .
+              </>
+            ) : (
+              "Stripe is confirming your payment. This usually takes a few seconds."
+            )}
           </p>
+        ) : null}
+        {confirming === "late" ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setLate(false)
+              setRound((count) => count + 1)
+            }}
+          >
+            Check again
+          </Button>
         ) : null}
       </header>
 
@@ -206,6 +244,12 @@ export function PricingPage({
   )
 }
 
+/**
+ * Where a payment just made stands while the plan has not caught up:
+ * still being checked, or past the last check. Null when nothing is waiting.
+ */
+type Confirming = "checking" | "late" | null
+
 /** The plan nobody pays for: the default one, or one with no price at all. */
 function isFreePlan(plan: PlanOption) {
   return (
@@ -246,6 +290,7 @@ function PriceCard({
   billingEnabled,
   trialUsed,
   changingPlan,
+  confirming,
   busy,
   onSelect,
 }: {
@@ -259,6 +304,8 @@ function PriceCard({
   billingEnabled: boolean
   trialUsed: boolean
   changingPlan: boolean
+  /** A payment just made is not on the account yet, so a paid card waits. */
+  confirming: Confirming
   busy: boolean
   onSelect: (plan: PlanOption, interval: BillingInterval | null) => void
 }) {
@@ -295,6 +342,10 @@ function PriceCard({
       ? `${formatMoney(yearlyCents, plan.currency)} billed yearly${savingShare > 0 ? ` · save ${savingShare}%` : ""}`
       : "Billed monthly"
 
+  // While a payment just made is being checked, a paid card's button waits
+  // with the check. Once the checks run out it answers a press with why,
+  // rather than opening a second checkout for somebody who has paid.
+  const checking = !free && confirming === "checking"
   const buttonLabel = current
     ? "Current plan"
     : free
@@ -376,13 +427,21 @@ function PriceCard({
             !free &&
             "bg-foreground text-background hover:bg-foreground/80 hover:text-background dark:hover:bg-foreground/80"
         )}
-        disabled={current || busy || (!free && !purchasable)}
-        onClick={() => onSelect(plan, interval)}
+        disabled={current || busy || checking || (!free && !purchasable)}
+        onClick={() => {
+          if (!free && confirming === "late") {
+            showErrorToast(
+              "Your last payment is still being confirmed. Press Check again before paying a second time."
+            )
+            return
+          }
+          onSelect(plan, interval)
+        }}
       >
-        {busy ? (
+        {busy || checking ? (
           <>
             <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-            Opening…
+            {checking ? "Confirming payment…" : "Opening…"}
           </>
         ) : (
           buttonLabel

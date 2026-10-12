@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import {
   DEFAULT_SETTINGS_TAB,
@@ -44,6 +45,15 @@ export function SettingsPage({
   const shown = tabs.some((entry) => entry.key === tab)
     ? tab
     : DEFAULT_SETTINGS_TAB
+
+  // Every tab opened on this visit stays mounted, hidden, so its typed but
+  // unsaved edits survive a look at another tab, and coming back never shows
+  // its loading row again. A tab is first drawn when first opened, so opening
+  // Settings does not load the Plan tab's figures from Stripe for nothing.
+  const [opened, setOpened] = React.useState<ReadonlySet<SettingsTab>>(
+    () => new Set([shown])
+  )
+  if (!opened.has(shown)) setOpened(new Set(opened).add(shown))
 
   // On a phone the six tabs are wider than the screen and the row scrolls
   // sideways. Opening `?tab=privacy` must show the chosen tab, not leave it
@@ -89,32 +99,59 @@ export function SettingsPage({
           </TabsList>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
-        <TabsContent value="timer" className="flex flex-col gap-4">
+        <KeptTabContent value="timer" opened={opened} className="flex flex-col gap-4">
           <TimerSettingsPanel />
           {authenticated ? <StreakReminderCard /> : null}
-        </TabsContent>
-        <TabsContent value="appearance">
+        </KeptTabContent>
+        <KeptTabContent value="appearance" opened={opened}>
           <AppearanceSettingsPanel />
-        </TabsContent>
-        <TabsContent value="profile">
+        </KeptTabContent>
+        <KeptTabContent value="profile" opened={opened}>
           {authenticated ? <ProfileSettingsPanel /> : <SyncCard />}
-        </TabsContent>
+        </KeptTabContent>
         {authenticated ? (
           <>
-            <TabsContent value="public">
+            <KeptTabContent value="public" opened={opened}>
               <PublicProfileSettingsPanel />
-            </TabsContent>
-            <TabsContent value="privacy" className="flex flex-col gap-4">
+            </KeptTabContent>
+            <KeptTabContent value="privacy" opened={opened} className="flex flex-col gap-4">
               <BlockedAccountsCard />
               <StreakBadgeCard />
-            </TabsContent>
-            <TabsContent value="plan">
+            </KeptTabContent>
+            <KeptTabContent value="plan" opened={opened}>
               <PlanSettingsPanel />
-            </TabsContent>
+            </KeptTabContent>
           </>
         ) : null}
       </Tabs>
     </div>
+  )
+}
+
+/**
+ * A Settings tab that stays mounted once opened. Radix draws a kept tab even
+ * while another is picked, so `hidden` takes an inactive one off the screen,
+ * out of the Tab order and away from screen readers.
+ */
+function KeptTabContent({
+  value,
+  opened,
+  className,
+  children,
+}: {
+  value: SettingsTab
+  opened: ReadonlySet<SettingsTab>
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <TabsContent
+      value={value}
+      forceMount={opened.has(value) || undefined}
+      className={cn("data-[state=inactive]:hidden", className)}
+    >
+      {children}
+    </TabsContent>
   )
 }
 

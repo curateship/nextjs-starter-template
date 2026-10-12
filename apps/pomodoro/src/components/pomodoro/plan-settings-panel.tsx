@@ -15,6 +15,7 @@ import { loadMyPlan, type MyPlan } from "@/lib/api/pomodoro/plan"
 import { formatMoney } from "@/lib/format/money"
 import { formatBytes } from "@/lib/pomodoro/media-limits"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { PRO_SUMMARY } from "@/lib/pomodoro/pro"
 
 /**
  * Settings → Plan (payments task 04): the plan, the next payment, the month's
@@ -137,7 +138,7 @@ function planLines(plan: MyPlan): { text: string; alert?: boolean }[] {
   if (plan.kind === "free")
     return [
       {
-        text: "Pro adds every sound and background, AI backgrounds and soundscapes, hosting rooms, your own uploads and your full history.",
+        text: PRO_SUMMARY,
       },
     ]
   if (plan.kind === "admin")

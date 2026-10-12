@@ -693,6 +693,14 @@ export function useRoomMedia(seed?: MediaBootstrap | null) {
 }
 
 /**
+ * Whether you are in a hosted room right now, for code outside React. The
+ * header shows the room's clock then, and your own timer waits.
+ */
+export function inHostedRoom() {
+  return state.room !== null
+}
+
+/**
  * The Live themes and sounds, for a page that lists them or names one. It is
  * the list the page's own loader read, so the server and the browser draw the
  * same cards.

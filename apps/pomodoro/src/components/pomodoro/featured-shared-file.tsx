@@ -1,9 +1,9 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import { PauseIcon, PlayIcon } from "lucide-react"
 
 import { readFeaturedSharedMedia } from "@/lib/api/pomodoro/shared-media"
 import {
-  sharedFilePath,
   sharedSound,
   type SharedMediaItem,
 } from "@/lib/pomodoro/shared-media"
@@ -77,12 +77,13 @@ function FeaturedCard({ file }: { file: SharedMediaItem }) {
         </button>
         <div className="flex min-w-0 flex-col gap-1">
           {file.credit.handle ? (
-            <a
-              href={sharedFilePath(file.credit.handle, file.mediaId)}
+            <Link
+              to="/u/$handle/files/$mediaId"
+              params={{ handle: file.credit.handle, mediaId: file.mediaId }}
               className="truncate font-semibold underline-offset-2 hover:underline"
             >
               {file.name}
-            </a>
+            </Link>
           ) : (
             <strong className="truncate font-semibold">{file.name}</strong>
           )}

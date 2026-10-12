@@ -19,6 +19,15 @@ Reached from "My uploads" in the photo menu, the "+ Add" beside Shuffle on
 Backgrounds and Sounds, and the bell. A guest who opens it sees the Sign in
 card and nothing of anybody's.
 
+## When the files cannot be loaded
+
+The tab shows the shared error row with Try again, which reads the files once
+more without reloading the page. The Upload button stays pressable with no
+padlock, because a failed load says nothing about the plan, and a press says
+"Your files could not be loaded. Press Try again first." The line under the
+buttons says uploading waits until they are loaded. The button used to spin for
+good with no way out (`media-uploads-section.tsx`).
+
 ## What a card shows
 
 Each card is drawn like the catalogue's (see Your own backgrounds and
@@ -32,6 +41,11 @@ in the orange spaced capitals the catalogue's NEW uses:
   an admin unshared it. See [Shared sounds and backgrounds](shared-media.md).
 - **In use**: it is the background or sound of the member's personal room,
   or their profile banner.
+
+A film plays while the pointer is on its card, or after a tap on a phone, and
+tapping another card stops it, wherever that card is on the page. The
+backgrounds tab's line says "Tap or hover over one to see it play". A sound's
+play button and a film's mark show at all times on a touch screen.
 
 The marks sit on their own line, not beside the name, because a phone's
 narrow card has no room for both. The "+" is placed from the picture's

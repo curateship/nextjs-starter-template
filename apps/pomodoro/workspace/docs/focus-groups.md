@@ -98,7 +98,10 @@ link, so the owner deletes the group instead, which is a different button with a
 different question attached.
 
 Replacing the link is how a leaked one is killed: the old address stops pointing
-at anything the moment the new one is written.
+at anything the moment the new one is written. Because every invite already
+sent dies with it, "New link" asks first, the same as Delete, Leave and Remove:
+"Replace the invite link?" with a red "Replace link". Cancel leaves the old
+link working. People already in the group stay in either way.
 
 ## The invite link
 

@@ -19,7 +19,6 @@ import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import {
   creditLabel,
   sharedBackground,
-  sharedFilePath,
   sharedSound,
   type MediaCredit,
   type SharedMediaItem,
@@ -28,6 +27,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { MediaAddMenu } from "@/components/pomodoro/media-add-actions"
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
 import { SoundWave } from "@/components/pomodoro/sound-wave"
+import { useTappedCard } from "@/lib/pomodoro/tapped-card"
 
 /**
  * One file somebody shared, drawn like the catalogue's cards beside it: a
@@ -52,7 +52,9 @@ export function SharedMediaCard({
 }) {
   const sound = item.purpose === "sound"
   const [hovered, setHovered] = React.useState(false)
-  const [tapped, setTapped] = React.useState(false)
+  const { tapped, toggle: toggleTapped, clear: clearTapped } = useTappedCard(
+    `shared:${item.mediaId}`
+  )
   const filmPlaying = !sound && (hovered || tapped)
   const label = item.name
 
@@ -69,7 +71,7 @@ export function SharedMediaCard({
       onPointerLeave={(event) => {
         if (sound || event.pointerType !== "mouse") return
         setHovered(false)
-        setTapped(false)
+        clearTapped()
       }}
     >
       <button
@@ -85,7 +87,7 @@ export function SharedMediaCard({
         aria-pressed={sound ? playing : filmPlaying}
         onClick={() => {
           if (sound) onPlay?.()
-          else setTapped((current) => !current)
+          else toggleTapped()
         }}
       >
         <span
@@ -105,7 +107,7 @@ export function SharedMediaCard({
                 className={cn(
                   "grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm",
                   !playing &&
-                    "opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                    "opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
                 )}
               >
                 {playing ? (
@@ -164,13 +166,14 @@ export function SharedMediaCard({
             size="icon"
             className={cornerButton}
           >
-            <a
-              href={sharedFilePath(item.credit.handle, item.mediaId)}
+            <Link
+              to="/u/$handle/files/$mediaId"
+              params={{ handle: item.credit.handle, mediaId: item.mediaId }}
               aria-label={`Open the page for ${item.name}`}
               title="Open its page"
             >
               <SquareArrowOutUpRightIcon className="size-4" aria-hidden="true" />
-            </a>
+            </Link>
           </Button>
         ) : null}
       </div>

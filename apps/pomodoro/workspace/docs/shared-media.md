@@ -71,7 +71,10 @@ check", or "Taken off".
 - **A page per file** at `/u/<handle>/files/<id>`: a preview, who shared it,
   Add, Save, Share to X and Report. An unknown handle, a profile switched off
   or hidden, a file not shared, binned or taken off, and a block all answer the
-  same 404.
+  same 404. Every way in, the corner arrow on a shared card and the featured
+  file's name on the front page among them, is an in-app link, so the focus
+  sound keeps playing and the background does not restart on the way there.
+  The Report window's link to `/copyright` is the same.
 - **The front page**, for a visitor not signed in, when an admin features a
   file (below).
 
@@ -170,6 +173,10 @@ the card shows only without the extension.
   not suitable, broken, or something else. It lands in the admins' report queue
   as "Shared file: <name>". One report per member per file, and the address
   limit profile reports use.
+- **No reason is picked for the reporter.** The window opens on "Pick a
+  reason" every time, and Send report with none picked marks the box, says
+  "Pick a reason first." in the error toast, and sends nothing. It used to open on Copyright, so a
+  spam report sent in a hurry reached the queue as a copyright claim.
 - **`/copyright`** is for someone with no account: name, email, the file's
   address, what work it copies, and a statement they tick. It lands in the
   same queue as "Copyright: <name>", or "Copyright, outside" when the address

@@ -25,6 +25,9 @@ export function usePreviewAudio() {
   const [previewing, setPreviewing] = React.useState<SoundReference | null>(null)
   const [playing, setPlaying] = React.useState(false)
   const [failed, setFailed] = React.useState(false)
+  // The header's sound was muted when this preview started, so it plays
+  // silently. The page says so rather than show Pause over no sound.
+  const [muted, setMuted] = React.useState(false)
 
   React.useEffect(() => {
     const element = new Audio()
@@ -50,20 +53,24 @@ export function usePreviewAudio() {
       const element = audio.current
       if (!element) return
       setFailed(false)
+      // The header's volume and mute, so a preview is never louder than the
+      // sound it might replace. Read on every press, so unmuting the header
+      // and pressing the card again is heard.
+      const engine = soundEngineState()
+      element.volume = engine.muted ? 0 : engine.volume / 100
+      setMuted(engine.muted)
       if (sameSoundReference(previewing, reference)) {
         if (element.paused) void element.play().catch(() => setFailed(true))
-        else element.pause()
+        // Playing silently and the header is now unmuted: the press is for
+        // hearing it, so it keeps playing at the new volume.
+        else if (!(muted && !engine.muted)) element.pause()
         return
       }
-      const engine = soundEngineState()
-      // The header's volume and mute, so a preview is never louder than the
-      // sound it might replace.
-      element.volume = engine.muted ? 0 : engine.volume / 100
       element.src = soundSourceUrl(reference)
       setPreviewing(reference)
       void element.play().catch(() => setFailed(true))
     },
-    [previewing]
+    [muted, previewing]
   )
 
   /** Stops whatever is playing, when a window with its own player opens. */
@@ -72,5 +79,7 @@ export function usePreviewAudio() {
     setPreviewing(null)
   }, [])
 
-  return { previewing, playing, failed, toggle, stop }
+  return { previewing, playing, failed, muted: muted && playing, toggle, stop }
 }
+
+export type PreviewAudio = ReturnType<typeof usePreviewAudio>

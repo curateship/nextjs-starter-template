@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -43,12 +44,30 @@ export function ReportSharedFileDialog({
   mediaId: string
   name: string
 }) {
-  const [reason, setReason] =
-    React.useState<SharedFileReportReasonId>("copyright")
+  // Nothing is picked for the reporter, so a spam report is never sent as
+  // copyright by somebody who did not notice the box.
+  const [reason, setReason] = React.useState<SharedFileReportReasonId | null>(
+    null
+  )
+  const [missingReason, setMissingReason] = React.useState(false)
+  // Each opening starts empty, even though the window stays mounted.
+  const [shownOpen, setShownOpen] = React.useState(open)
+  if (shownOpen !== open) {
+    setShownOpen(open)
+    if (open) {
+      setReason(null)
+      setMissingReason(false)
+    }
+  }
   const [sending, setSending] = React.useState(false)
   const reasonId = React.useId()
 
   const send = async () => {
+    if (!reason) {
+      setMissingReason(true)
+      showErrorToast("Pick a reason first.")
+      return
+    }
     setSending(true)
     try {
       await reportSharedFile(mediaId, reason)
@@ -76,13 +95,17 @@ export function ReportSharedFileDialog({
           <div className="grid gap-2">
             <Label htmlFor={reasonId}>What is wrong?</Label>
             <Select
-              value={reason}
-              onValueChange={(value) =>
+              value={reason ?? ""}
+              onValueChange={(value) => {
                 setReason(value as SharedFileReportReasonId)
-              }
+                setMissingReason(false)
+              }}
             >
-              <SelectTrigger id={reasonId}>
-                <SelectValue />
+              <SelectTrigger
+                id={reasonId}
+                aria-invalid={missingReason || undefined}
+              >
+                <SelectValue placeholder="Pick a reason" />
               </SelectTrigger>
               <SelectContent>
                 {SHARED_FILE_REPORT_REASONS.map((option) => (
@@ -96,9 +119,9 @@ export function ReportSharedFileDialog({
           <p className="text-sm text-muted-foreground">
             Someone on our team reads every report. You do not need an account
             to send one. If you own the rights to the work, the{" "}
-            <a href="/copyright" className="underline underline-offset-2">
+            <Link to="/copyright" className="underline underline-offset-2">
               copyright page
-            </a>{" "}
+            </Link>{" "}
             lets us answer you by email.
           </p>
         </DialogBody>

@@ -11,6 +11,11 @@ import { MODE_LABELS, type TimerMode } from "@/lib/pomodoro/timer"
 
 export type CountdownFrame = {
   running: boolean
+  /**
+   * Started and stopped part-way. The tab keeps the time with a pause mark,
+   * so a paused focus in a background tab is not mistaken for no timer.
+   */
+  paused: boolean
   mode: TimerMode
   remainingSeconds: number
   durationSeconds: number
@@ -39,13 +44,15 @@ export function formatCountdownClock(remainingSeconds: number) {
 }
 
 /**
- * The title while running, time first because a narrow tab shows only the
- * first few characters. An idle timer gives back an empty string and the
- * caller leaves the page's own title alone.
+ * The title while running or paused, time first because a narrow tab shows
+ * only the first few characters, and a pause mark ahead of it when paused. An
+ * idle timer gives back an empty string and the caller leaves the page's own
+ * title alone.
  */
 export function countdownTitle(frame: CountdownFrame) {
-  if (!frame.running) return ""
-  return `${formatCountdownClock(frame.remainingSeconds)} ${MODE_LABELS[frame.mode]}`
+  if (!frame.running && !frame.paused) return ""
+  const title = `${formatCountdownClock(frame.remainingSeconds)} ${MODE_LABELS[frame.mode]}`
+  return frame.running ? title : `⏸ ${title}`
 }
 
 /**

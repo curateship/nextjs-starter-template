@@ -8,6 +8,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const following = vi.hoisted(() => ({
   send: vi.fn(),
   isFollowing: vi.fn(),
+  follow: vi.fn(),
+  unfollow: vi.fn(),
+  block: vi.fn(),
 }))
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
@@ -17,9 +20,9 @@ vi.mock("@/lib/pomodoro/auth-state", () => ({
   useProductAuth: () => ({ known: true, authenticated: true }),
 }))
 vi.mock("@/lib/api/pomodoro/following", () => ({
-  blockProfile: vi.fn(),
-  followProfile: vi.fn(),
-  unfollowProfile: vi.fn(),
+  blockProfile: following.block,
+  followProfile: following.follow,
+  unfollowProfile: following.unfollow,
   loadIsFollowing: following.isFollowing,
   sendCheer: following.send,
 }))
@@ -152,5 +155,96 @@ describe("the cheer picker", () => {
     expect(picker().disabled).toBe(false)
     expect(picker().value).toBe("")
     expect(placeholder()).toBe("Send a cheer")
+  })
+})
+
+describe("follow and block", () => {
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    following.isFollowing.mockReset()
+    following.follow.mockReset()
+    following.unfollow.mockReset()
+    following.block.mockReset()
+    toasts.success.mockReset()
+    toasts.error.mockReset()
+  })
+  afterEach(() => document.body.replaceChildren())
+
+  async function render(props: Partial<React.ComponentProps<typeof ProfileActions>>) {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    await act(async () => {
+      createRoot(host).render(
+        <ProfileActions handle="sam" name="Sam" isOwner={false} {...props} />
+      )
+    })
+  }
+
+  const button = (label: string) => {
+    const found = document.querySelector<HTMLButtonElement>(
+      `button[aria-label="${label}"]`
+    )
+    if (!found) throw new Error(`No button labelled ${label}`)
+    return found
+  }
+  const press = (element: HTMLElement) =>
+    act(async () => {
+      element.click()
+    })
+
+  it("moves the follower count up on Follow and says so", async () => {
+    following.isFollowing.mockResolvedValue(false)
+    following.follow.mockResolvedValue({ following: true })
+    const onFollowChange = vi.fn()
+    await render({ onFollowChange })
+
+    await press(button("Follow Sam"))
+
+    expect(onFollowChange).toHaveBeenCalledWith(1)
+    expect(toasts.success).toHaveBeenCalledWith("You follow Sam.")
+  })
+
+  it("moves the count down on Unfollow", async () => {
+    following.isFollowing.mockResolvedValue(true)
+    following.unfollow.mockResolvedValue({ following: false })
+    const onFollowChange = vi.fn()
+    await render({ onFollowChange })
+
+    await press(button("Unfollow Sam"))
+
+    expect(onFollowChange).toHaveBeenCalledWith(-1)
+  })
+
+  it("leaves the count alone when the follow is refused", async () => {
+    following.isFollowing.mockResolvedValue(false)
+    following.follow.mockRejectedValue(new Error("NOPE"))
+    const onFollowChange = vi.fn()
+    await render({ onFollowChange })
+
+    await press(button("Follow Sam"))
+
+    expect(onFollowChange).not.toHaveBeenCalled()
+    expect(toasts.error).toHaveBeenCalled()
+  })
+
+  it("tells the page once a block went through", async () => {
+    following.isFollowing.mockResolvedValue(false)
+    following.block.mockResolvedValue(undefined)
+    const onBlocked = vi.fn()
+    await render({ onBlocked })
+
+    const blockButton = [...document.querySelectorAll("button")].find(
+      (element) => element.textContent === "Block"
+    )
+    if (!blockButton) throw new Error("No Block button")
+    await press(blockButton)
+    const confirm = [...document.querySelectorAll("button")].find(
+      (element) => element.textContent === "Block Sam"
+    )
+    if (!confirm) throw new Error("The block window did not open")
+    await press(confirm)
+
+    expect(following.block).toHaveBeenCalledWith("sam")
+    expect(onBlocked).toHaveBeenCalledTimes(1)
   })
 })
