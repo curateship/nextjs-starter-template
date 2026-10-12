@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from "dr
 
 import { db } from "@/server/db"
 import { writeNotices } from "@/server/pomodoro/notices"
+import { forgetTeamPages } from "@/server/pomodoro/teams"
 import { pomodoroAuditLogs, pomodoroGroupMembers, pomodoroGroups } from "@/server/pomodoro/schema"
 import { customShellUsers as users } from "@/server/schema"
 import { groupDeletedMessage } from "@/lib/pomodoro/notices"
@@ -121,7 +122,7 @@ export type AdminGroup = Awaited<ReturnType<typeof loadAdminGroup>>
  * group is gone.
  */
 export async function deleteAdminGroups({ ids, actorUserId }: { ids: string[]; actorUserId: string }) {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const groups = await tx
       .select({ id: pomodoroGroups.id, name: pomodoroGroups.name })
       .from(pomodoroGroups)
@@ -140,11 +141,14 @@ export async function deleteAdminGroups({ ids, actorUserId }: { ids: string[]; a
         recipientUserId: member.userId,
         kind: "group_deleted" as const,
         message: groupDeletedMessage(names.get(member.groupId) ?? "you were in"),
-        href: "/leaderboard",
+        href: "/groups",
       }))
     )
     await tx.delete(pomodoroGroups).where(inArray(pomodoroGroups.id, found))
     await tx.insert(pomodoroAuditLogs).values({ actorUserId, action: "delete", resource: "groups", recordIds: found })
     return { deleted: found, skipped: ids.filter((id) => !found.includes(id)) }
   })
+  // A deleted group's public page goes with it on the next request.
+  forgetTeamPages()
+  return result
 }

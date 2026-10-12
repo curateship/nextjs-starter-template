@@ -70,7 +70,7 @@ saved with it.
 | room_removed | the person removed or banned | Rooms | nothing |
 | followed_room | people who follow the host | Rooms | the room |
 | cheer | the person cheered | Social | the sender's public page, while it opens |
-| group_join | a group's owner | Social | `/leaderboard`, where the group boards are |
+| group_join | a group's owner | Social | `/groups?group=<id>`, that group on Groups |
 | group_removed | the person removed | Social | nothing |
 | followed_streak | people who follow the streaker | Social | the streaker's public page, while it opens |
 | badge | the person who earned it | Account | `/history`, where the badges panel is |

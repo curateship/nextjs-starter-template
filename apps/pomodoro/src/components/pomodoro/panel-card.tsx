@@ -12,13 +12,21 @@ export function PanelCard({
   label,
   note,
   aside,
+  header,
   id,
   className,
   children,
 }: {
+  /** The small capitals title, and the panel's name for a screen reader. */
   label: string
   note?: string
   aside?: React.ReactNode
+  /**
+   * Replaces the small capitals row with a header of the panel's own, such
+   * as a group's name and its board tabs on Groups. `label` still names
+   * the panel.
+   */
+  header?: React.ReactNode
   id?: string
   className?: string
   children: React.ReactNode
@@ -32,17 +40,19 @@ export function PanelCard({
         className
       )}
     >
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-muted-foreground">
-          {label}
-        </h3>
-        {note ? (
-          <span className="font-mono text-[11px] text-muted-foreground">
-            {note}
-          </span>
-        ) : null}
-        {aside}
-      </header>
+      {header ?? (
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-muted-foreground">
+            {label}
+          </h3>
+          {note ? (
+            <span className="font-mono text-[11px] text-muted-foreground">
+              {note}
+            </span>
+          ) : null}
+          {aside}
+        </header>
+      )}
       {children}
     </section>
   )

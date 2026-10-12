@@ -13,13 +13,12 @@ import {
 type LeaderboardSearch = {
   show?: "following"
   window?: LeaderboardWindow
-  /** The group to open on, after joining one from its invite link. */
-  group?: string
 }
 
-const GROUP_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-/** The opt-in ranking, the Following board and your groups. */
+/**
+ * The opt-in ranking and the Following board. Groups have their own
+ * dashboard at `/groups` since 12 Oct 2026.
+ */
 export const Route = createFileRoute("/_pomodoro/leaderboard")({
   // Who is on the board and over which window live in the address, so a
   // reload or Back keeps them. Defaults are left off; anything unknown falls
@@ -31,7 +30,6 @@ export const Route = createFileRoute("/_pomodoro/leaderboard")({
     return {
       show: search.show === "following" ? "following" : undefined,
       window: window && window !== DEFAULT_LEADERBOARD_WINDOW ? window : undefined,
-      group: typeof search.group === "string" && GROUP_ID.test(search.group) ? search.group : undefined,
     }
   },
   head: () => ({ meta: [{ title: "Leaderboard - Pomoder" }] }),
@@ -59,7 +57,6 @@ function LeaderboardRoute() {
     <LeaderboardPage
       scope={scope}
       boardWindow={boardWindow}
-      groupId={search.group}
       onScopeChange={(next) => go({ scope: next, boardWindow })}
       onWindowChange={(next) => go({ scope, boardWindow: next })}
     />

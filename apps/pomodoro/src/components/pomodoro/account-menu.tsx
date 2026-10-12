@@ -8,6 +8,7 @@ import {
   SparklesIcon,
   UploadIcon,
   UserIcon,
+  UsersIcon,
 } from "lucide-react"
 
 import { ProfilePhoto } from "@/components/pomodoro/profile-photo"
@@ -110,6 +111,12 @@ export function AccountMenu({
           <Link to="/uploads">
             <UploadIcon />
             My uploads
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/groups" search={{ create: "group" }}>
+            <UsersIcon />
+            Create a group
           </Link>
         </DropdownMenuItem>
         {facts?.profileHandle ? (

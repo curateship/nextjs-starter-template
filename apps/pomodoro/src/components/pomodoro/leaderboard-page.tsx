@@ -4,7 +4,6 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PanelCard } from "@/components/pomodoro/panel-card"
-import { FocusGroupsCard } from "@/components/pomodoro/focus-groups-card"
 import { FocusedWithCard } from "@/components/pomodoro/focused-with-card"
 import { LeaderboardRows } from "@/components/pomodoro/leaderboard-rows"
 import { loadLeaderboard } from "@/lib/api/pomodoro/leaderboard"
@@ -27,12 +26,9 @@ import { pillTabsList, pillTabsTrigger } from "@/lib/pomodoro/pill-tabs"
 type Leaderboard = Awaited<ReturnType<typeof loadLeaderboard>>
 
 /**
- * The leaderboard page: the opt-in global ranking and your private groups'
- * boards. Your own stat cards live on History.
- *
- * One window choice runs both boards. Picking This month moves the global
- * ranking and every group board with it, because two windows on one screen is
- * two questions to answer before a figure means anything.
+ * The leaderboard page: the opt-in global ranking and the Following board.
+ * Your own stat cards live on History, and your private groups on their own
+ * Groups dashboard at `/groups`.
  */
 /** Everybody who opted in, or just the people you follow. */
 export type LeaderboardScope = "global" | "following"
@@ -40,14 +36,11 @@ export type LeaderboardScope = "global" | "following"
 export function LeaderboardPage({
   scope,
   boardWindow,
-  groupId,
   onScopeChange,
   onWindowChange,
 }: {
   scope: LeaderboardScope
   boardWindow: LeaderboardWindow
-  /** The group the groups card opens on, such as one just joined. */
-  groupId?: string
   onScopeChange: (scope: LeaderboardScope) => void
   onWindowChange: (window: LeaderboardWindow) => void
 }) {
@@ -229,10 +222,13 @@ export function LeaderboardPage({
       </PanelCard>
 
       {authenticated ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <>
+          <p className="text-sm text-muted-foreground">
+            Boards of just the people you invite are on{" "}
+            <TextLink to="/groups">Groups</TextLink>.
+          </p>
           <FocusedWithCard />
-          <FocusGroupsCard boardWindow={boardWindow} initialGroupId={groupId} />
-        </div>
+        </>
       ) : null}
       <FollowingFeedCard />
     </div>

@@ -1,8 +1,8 @@
 # Private focus groups
 
-A group is an invite-only board among people you know. It sits under the global
-ranking on `/leaderboard` and runs on the same figures, over whatever window the
-page has selected.
+A group is an invite-only board among people you know. Groups have their own
+dashboard at `/groups`, in the left menu after Leaderboard (Tyler, 12 Oct
+2026), and a board runs on the same figures as the global ranking.
 
 The global board is global, top 100, and useless to almost everybody on it.
 Somebody who joins and lands at 340th never looks again. Four people who know
@@ -22,7 +22,8 @@ to compete with four friends without being listed publicly.
   global query still tests the opt-in column and nothing about a group touches
   it.
 - Somebody with no display name can still be in a group. They are in it and not
-  on its board, and the group's window says so rather than showing a blank row.
+  on its board, and the Who is in it panel says so rather than showing a blank
+  row.
 
 ## What a group is
 
@@ -40,6 +41,40 @@ to compete with four friends without being listed publicly.
 - **No ranking is stored.** A group board is the leaderboard query filtered to
   that group's members, so a figure on a group board and the same figure on the
   global one can never disagree.
+
+## The Groups dashboard
+
+Tyler's layout of 12 Oct 2026, drawn in `groups-page.tsx`.
+
+- **Your groups, on the left:** one row per group with its member count, the
+  one in view marked, and Create a group and Join with a link under them. At
+  the cap of five, a line says so instead of the two buttons.
+- **The group in view, on the right:** one card holding its name, how many
+  people, the This week, This month and All time tabs at the top right, and
+  the board under them (Tyler's mark-up,
+  `assets/pasted-image-1791818740774117000.png`). Then Who is in it, the
+  invite link and the public page as panels on the page, never in a pop-up
+  window.
+- **Delete group and Leave group sit at the foot of Who is in it**, because
+  that panel is about who belongs. The owner sees Delete group, everybody
+  else Leave group. Tyler moved them out of the card's top row on 12 Oct
+  2026 to make room for the tabs.
+- **The address holds the choice:** `/groups?group=<id>&window=all`, so a
+  reload or a link lands on the same group and window. No group in the
+  address means the first one.
+- **Somebody in no group** sees one panel inviting them to make a group or
+  join one, and nothing else.
+- **The Leaderboard** no longer shows groups. It keeps one line under the
+  global ranking pointing at Groups.
+
+## Where a group is made
+
+- **On Groups**, with Create a group under the list, or in the middle of the
+  page for somebody in no group.
+- **From the account menu** (your photo, top right): Create a group opens
+  Groups with the same window already open, at `/groups?create=group`. Tyler
+  asked for the row on 12 Oct 2026. Closing the window takes `create` back
+  out of the address, so a reload does not open it again.
 
 ## Who may do what
 
@@ -71,9 +106,8 @@ at anything the moment the new one is written.
 an account, and a page that named the group to anybody holding the address would
 be a second, weaker door. Once signed in it names the group, says how many people
 are in it, and joins on one button. Joining says "You are in the group.", the
-same words as the Join window on the Leaderboard, and lands on the Leaderboard
-with the groups card open on that group (`/leaderboard?group=<id>`), not on
-whichever group comes first.
+same words as the Join window on Groups, and lands on Groups with that group
+open (`/groups?group=<id>`), not on whichever group comes first.
 
 Following the same link twice leaves you in the group once, not twice on the
 board.
@@ -90,8 +124,8 @@ their own group, tell nobody. See [Notifications](notifications.md).
 
 An admin can delete any group from `/admin/pomodoro-groups` (admin task 06,
 8 Oct 2026). Everybody who was in it, the owner included, gets "The Pomoder
-team deleted the group Study Buddies." in the bell, and the notice leads to the
-leaderboard. It never names the admin. The group, its members and its invite
+team deleted the group Study Buddies." in the bell, and the notice leads to
+Groups. It never names the admin. The group, its members and its invite
 link go at once, so the old link stops working. Nobody's focus time or place on
 the global board changes, because a group board is only a filter over the same
 figures. The admin side is in [Members in the admin](admin-members.md).
@@ -108,7 +142,7 @@ figures. The admin side is in [Members in the admin](admin-members.md).
 ## When a load fails
 
 The list of your groups and the board of the group in view each say so inside
-the card, with Try again, which runs that one load again. A failed list is
+its own panel, with Try again, which runs that one load again. A failed list is
 never drawn as an empty one, because "you are in no groups" invites somebody
 to make a group they already have. Neither asks you to reload the page.
 
@@ -120,10 +154,15 @@ to make a group they already have. Neither asks you to reload the page.
   and the board, each proving the caller's standing first.
 - `src/lib/api/pomodoro/groups.ts` — the endpoints, every one signed-in only.
 - `src/lib/pomodoro/groups.ts` — the caps and the words each refusal shows.
-- `src/components/pomodoro/focus-groups-card.tsx` — the card, the group tabs and
-  the three windows.
+- `src/routes/_pomodoro/groups.tsx` and
+  `src/components/pomodoro/groups-page.tsx` — the Groups dashboard, its
+  panels and the Create and Join windows.
 - `drizzle/0100_pomodoro_groups.sql` — `pomodoro_groups` and
   `pomodoro_group_members`.
 
-Somebody in no group sees an invitation to make one and nothing else, so the
-page is exactly as it was for everybody who does not want this.
+## A group's public page
+
+An owner on Pro can give the group a public page at `/team/<handle>` from the
+Public page panel on Groups. Being in a group still publishes nothing by itself: the page
+shows each member only as their own public profile already shows them. The
+rules are in [Team pages](team-pages.md).

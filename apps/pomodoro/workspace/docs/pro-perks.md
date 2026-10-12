@@ -1,7 +1,8 @@
 # Pro perks
 
 What a paid plan unlocks: hosting focus rooms, premium sounds and backgrounds,
-uploading your own media, history beyond two weeks, and AI credits, plus the
+uploading your own media, history beyond two weeks, AI credits, and a public
+page for a group you made ([Team pages](team-pages.md)), plus the
 numeric allowances (2GB storage, 5 backgrounds and 20 soundscapes a month on
 the old app's Pro).
 
@@ -30,7 +31,7 @@ the old app's Pro).
   25 Sep 2026.
 - **Feature keys** an admin can set on a plan (Settings → Plans):
   `hostRooms`, `premiumMedia`, `uploadMedia`, `longRangeReports`,
-  `aiCredits`, `storageLimitBytes`, `monthlyBackgrounds`,
+  `aiCredits`, `teamPage`, `storageLimitBytes`, `monthlyBackgrounds`,
   `monthlySoundscapes`, and `sharedMedia`.
 - **`sharedMedia` is on for every plan, free included.** It lets a member
   play, add and save files other members share (uploads-and-sharing task 03,

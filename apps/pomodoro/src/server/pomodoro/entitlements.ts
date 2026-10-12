@@ -65,6 +65,7 @@ export function resolvePomodoroEntitlements(
     canUsePremiumMedia: perkAllowed(paidEntitlements, "premiumMedia"),
     canUploadMedia: perkAllowed(paidEntitlements, "uploadMedia"),
     canUseLongRangeReports: perkAllowed(paidEntitlements, "longRangeReports"),
+    canPublishTeamPage: perkAllowed(paidEntitlements, "teamPage"),
     canUseSharedMedia: planAllowsSharedMedia(entitlements.features),
     storageLimitBytes: numericFeature(paidEntitlements, "storageLimitBytes"),
     monthlyBackgrounds: numericFeature(paidEntitlements, "monthlyBackgrounds"),
@@ -108,6 +109,7 @@ const PERK_FLAGS: Record<
     | "canUsePremiumMedia"
     | "canUploadMedia"
     | "canUseLongRangeReports"
+    | "canPublishTeamPage"
     | "isPaid"
   >
 > = {
@@ -115,6 +117,7 @@ const PERK_FLAGS: Record<
   premiumMedia: "canUsePremiumMedia",
   uploadMedia: "canUploadMedia",
   longRangeReports: "canUseLongRangeReports",
+  teamPage: "canPublishTeamPage",
   aiCredits: "isPaid",
 }
 

@@ -64,10 +64,10 @@ export function GroupInvitePage() {
     setFailure("")
     try {
       const { id } = await joinFocusGroup(token)
-      // The same words the Join window says, and the groups card opens on
-      // the group just joined rather than the first one.
+      // The same words the Join window says, and Groups opens on the group
+      // just joined rather than the first one.
       toast.success("You are in the group.")
-      void navigate({ to: "/leaderboard", search: { group: id } })
+      void navigate({ to: "/groups", search: { group: id } })
     } catch (cause) {
       setFailure(groupErrorMessage(cause))
       setJoining(false)
@@ -104,7 +104,7 @@ export function GroupInvitePage() {
                 asChild
                 variant="outline"
               >
-                <Link to="/leaderboard">Back to the leaderboard</Link>
+                <Link to="/groups">Back to Groups</Link>
               </Button>
             </>
           ) : !invite ? (
@@ -118,8 +118,16 @@ export function GroupInvitePage() {
                 {invite.memberCount === 1
                   ? "1 person is in this group."
                   : `${invite.memberCount} people are in this group.`}{" "}
-                Joining shows your display name on its board and nowhere else.
+                Joining shows your display name on its board
+                {invite.teamHandle ? "." : " and nowhere else."}
               </p>
+              {invite.teamHandle ? (
+                <p className="text-sm text-muted-foreground">
+                  The group also has a public page at /team/{invite.teamHandle}.
+                  You appear there only as your own public page already shows
+                  you, and not by name at all if you have no public page.
+                </p>
+              ) : null}
               <Button
                 disabled={joining}
                 onClick={() => void join()}
