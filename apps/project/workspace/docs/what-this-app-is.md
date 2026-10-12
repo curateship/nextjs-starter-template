@@ -37,7 +37,9 @@ the code. If the code disagrees with a line here, the code is wrong.
   we just have projects and team dashboard".
 - **Three dashboards: My dashboard, Projects and Team.** Tyler, 10 Oct 2026:
   "we dont need calender and check in with its own dashboard". There is no
-  separate check-in page, Today board or person calendar.
+  separate check-in page, Today board or person calendar. Task types got a
+  dashboard of its own on 12 Oct 2026, at Tyler's request (see "Choices for
+  task types" below).
 - **My dashboard.** Tyler, 10 Oct 2026: "There should be "My dashboard" and
   put check in there instead and my tasks there as well. This should be a 3
   col dashboard with left panel shows my avatar and my informations like
@@ -138,6 +140,35 @@ were built. Each was the recommended option.
   can't see whether they are done.
 - **A task waiting for review counts as Done** in progress bars and figures,
   with a "Waiting for review" mark beside it.
+
+## Choices for task types
+
+Tyler answered these on 12 Oct 2026, before Task types task 01 was built.
+Each was the recommended option.
+
+- **Who makes types.** The owner and admins make and change task types and
+  their fields, because a type shapes everyone's work. Everyone else picks a
+  type on a task.
+- **Removing a type** archives it. It leaves New task and the type picker,
+  and its tasks keep their type and their values.
+- **A File field** holds several files, up to the task's 10.
+- **Paste a list** leaves the type off and says "Pick their type one by one",
+  so it can't make 30 half-filled tasks.
+- **Task types have their own dashboard.** Tyler, 12 Oct 2026: "tasks type
+  should have its own dashboard". It is in the left menu after Team, everyone
+  on the team can open it, and only the owner and admins change anything on
+  it. It replaced the Task types card in Team settings.
+- **Who can change a field.** Tyler ticked this on 11 Oct 2026, bending the
+  rule that anyone who can see a project can change it: a field can be
+  limited to the person assigned or to whoever handed the task out, so a
+  brief can't be rewritten by the person doing the work and a result can't be
+  filled in by someone else. The owner and admins can always change it.
+- **Closing the gaps in that rule.** Tyler chose this on 12 Oct 2026, after
+  the audit found two ways round it. "Whoever handed it out" is whoever first
+  handed the task out (whoever made it, when nobody did), and stays with them
+  however the task is handed around later. Only that person, the owner and
+  admins can change a task's type once it exists, so nobody switches a task
+  to a plain one to get past "Needed before Done".
 
 ## The first version
 

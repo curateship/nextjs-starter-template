@@ -213,6 +213,18 @@ export const LIMITS = {
   starterTasks: 10,
   /** The biggest "Doing per person" a project can set. */
   doingLimit: 99,
+  /** Task types: Tyler's task file, 11 Oct 2026. Archived types count too. */
+  typesPerTeam: 50,
+  typeName: 40,
+  fieldsPerType: 30,
+  fieldName: 40,
+  choicesPerField: 50,
+  choiceName: 60,
+  fieldText: 500,
+  fieldLongText: 5000,
+  fieldLink: 2048,
+  /** Field columns a project's List can add when filtered to one type. */
+  fieldColumns: 3,
 } as const
 
 /** How far back My week steps. */

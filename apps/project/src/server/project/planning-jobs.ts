@@ -11,6 +11,7 @@ import {
   projectTasks,
 } from "@/server/project/schema"
 import { nextTaskPosition } from "@/server/project/sections"
+import { copyFieldValues } from "@/server/project/task-types"
 import type { FileStorage } from "@/server/project/task-files"
 
 /**
@@ -30,8 +31,9 @@ type DueCopy = { taskId: string; seriesId: string; day: string }
 
 /**
  * Once a new day starts in the team's time zone, a fresh copy of each
- * repeating task whose rule falls on that day: title, notes, labels and
- * section, steps unticked, the same person, To do. The rule moves to the copy,
+ * repeating task whose rule falls on that day: title, notes, labels, section,
+ * type and field values (files stay behind), steps unticked, the same person,
+ * To do. The rule moves to the copy,
  * so deleting the newest copy stops the repeat.
  *
  * Tyler's rule: when the newest copy isn't Done, no new one appears. The next
@@ -93,6 +95,7 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
         status: "todo",
         assigneeUserId: holder.assigneeUserId,
         assignedByUserId: holder.assignedByUserId,
+        firstHandedOutByUserId: holder.firstHandedOutByUserId,
         // Routine work the person already took on: no Waiting, no new notice.
         acceptedAt: holder.assigneeUserId ? at : null,
         // A copy with a date is due on the day it is made for.
@@ -106,7 +109,9 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
         repeatWeekDays: holder.repeatWeekDays,
         repeatMonthDay: holder.repeatMonthDay,
         repeatSeriesId: copy.seriesId,
+        typeId: holder.typeId,
       })
+      await copyFieldValues(tx, [{ from: holder.id, to: id }], null)
       await tx
         .update(projectTasks)
         .set({ repeatEvery: null, repeatWeekDays: null, repeatMonthDay: null })

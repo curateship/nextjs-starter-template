@@ -18,10 +18,15 @@ export function TaskNotesField({
   notes,
   readOnly,
   onSave,
+  label = "Notes",
+  labelId = "task-notes-label",
 }: {
   notes: string
   readOnly: boolean
   onSave: (notes: WrittenPageNode) => Promise<boolean>
+  /** A task type's notes outline uses the same field under its own name. */
+  label?: string
+  labelId?: string
 }) {
   const saved = readTaskNotes(notes)
   const [editing, setEditing] = React.useState(false)
@@ -61,10 +66,10 @@ export function TaskNotesField({
   }
 
   return (
-    <div className="grid gap-2" role="group" aria-labelledby="task-notes-label">
+    <div className="grid gap-2" role="group" aria-labelledby={labelId}>
       <div className="flex min-h-7 items-center justify-between gap-2">
-        <Label id="task-notes-label" asChild>
-          <span>Notes</span>
+        <Label id={labelId} asChild>
+          <span>{label}</span>
         </Label>
         {readOnly ? null : editing ? (
           <Button type="button" variant="outline" size="sm" disabled={finishing} onClick={() => void finish()}>

@@ -15,6 +15,7 @@ import { isOwnedImageUrl } from "@/server/media/library"
 import { requireKnownZone } from "@/server/project/checkins"
 import { listHolidays, type Holiday } from "@/server/project/holidays"
 import { listTeamLabels, type Label } from "@/server/project/labels"
+import { clearPersonValues } from "@/server/project/task-types"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
 import {
   findMembership,
@@ -393,6 +394,8 @@ export async function clearAssignee(
       updatedAt: now(),
     })
     .where(and(eq(projectTasks.assigneeUserId, userId), where))
+  // A Person field in those tasks loses them too, the same as the task.
+  await clearPersonValues(userId, where, tx)
   // Their steps in those tasks lose their name too: a step's person must be
   // on the project.
   await tx

@@ -6,6 +6,7 @@ import { NewTaskDialog } from "@/components/project/new-task-dialog"
 import { Button } from "@/components/ui/button"
 import type { AppHeaderActionProps } from "@/lib/app-options"
 import { loadNewTaskProjects, type NewTaskProject } from "@/lib/api/project/tasks"
+import type { TaskType } from "@/lib/project/task-types"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { lastProject, rememberProject } from "@/lib/project/new-task-project"
@@ -21,13 +22,16 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 export default function NewTaskHeader(_props: AppHeaderActionProps) {
   const here = useParams({ strict: false }).projectId
   const [projects, setProjects] = React.useState<NewTaskProject[] | null>(null)
+  const [types, setTypes] = React.useState<TaskType[]>([])
   const [open, setOpen] = React.useState(false)
   const [run, loading] = useAsyncAction(getProjectErrorMessage)
 
   async function start() {
     let found: NewTaskProject[] = []
     const ok = await run(async () => {
-      found = await loadNewTaskProjects()
+      const loaded = await loadNewTaskProjects()
+      found = loaded.projects
+      setTypes(loaded.types)
     })
     if (!ok) return
     if (found.length === 0) {
@@ -61,6 +65,7 @@ export default function NewTaskHeader(_props: AppHeaderActionProps) {
       {projects ? (
         <NewTaskDialog
           projects={projects}
+          types={types}
           initialProjectId={initial}
           open={open}
           onClose={() => setOpen(false)}

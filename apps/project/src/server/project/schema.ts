@@ -2,6 +2,7 @@ import {
   boolean,
   date,
   integer,
+  jsonb,
   type AnyPgColumn,
   pgTable,
   primaryKey,
@@ -23,6 +24,7 @@ import type {
   TeamInviteRole,
   TeamRole,
 } from "@/lib/project/rules"
+import type { FieldKind, FieldSettings, WhoCanChange } from "@/lib/project/task-fields"
 import { customShellNotifications, customShellUsers } from "@/server/schema"
 
 /**
@@ -137,6 +139,13 @@ export const projectProjects = pgTable("project_projects", {
   }),
   /** Warn when one person has more than this many tasks in Doing; null warns never. */
   doingLimit: smallint("doing_limit"),
+  /** The team's task types this project leaves out (`drizzle/0107_project_task_types.sql`). */
+  hiddenTypeIds: text("hidden_type_ids").array().notNull().default([]),
+  /** The type New task starts on here. */
+  defaultTypeId: varchar("default_type_id", { length: 36 }).references(
+    (): AnyPgColumn => projectTaskTypes.id,
+    { onDelete: "set null" }
+  ),
 })
 
 export const projectProjectMembers = pgTable(
@@ -215,7 +224,73 @@ export const projectTasks = pgTable("project_tasks", {
     onDelete: "set null",
   }),
   reviewWaitingSince: timestamp("review_waiting_since", { withTimezone: true }),
+  /**
+   * Who first handed it out; null until someone does, which then means whoever
+   * made it. It never moves with later hand-overs (`drizzle/0108_project_first_handed_out_by.sql`).
+   */
+  firstHandedOutByUserId: varchar("first_handed_out_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  /** The kind of task, such as "Video editing"; null is a plain task (`drizzle/0107_project_task_types.sql`). */
+  typeId: varchar("type_id", { length: 36 }).references((): AnyPgColumn => projectTaskTypes.id, {
+    onDelete: "set null",
+  }),
 })
+
+/** The team's kinds of task. Archived, never deleted, so their tasks keep them. */
+export const projectTaskTypes = pgTable("project_task_types", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  teamId: varchar("team_id", { length: 36 })
+    .notNull()
+    .references(() => projectTeams.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  icon: varchar("icon", { length: 32 }).notNull(),
+  color: varchar("color", { length: 16 }).$type<ProjectColor>().notNull(),
+  position: integer("position").notNull(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  /** The steps and notes New task starts with when the type is picked. */
+  steps: text("steps").array().notNull().default([]),
+  notes: text("notes").notNull().default(""),
+  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  createdAt: createdAt(),
+})
+
+/** One type's fields, such as "Footage link" or "Platform". */
+export const projectTaskTypeFields = pgTable("project_task_type_fields", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  typeId: varchar("type_id", { length: 36 })
+    .notNull()
+    .references(() => projectTaskTypes.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  kind: varchar("kind", { length: 16 }).$type<FieldKind>().notNull(),
+  position: integer("position").notNull(),
+  neededBeforeDone: boolean("needed_before_done").notNull().default(false),
+  neededWhenMade: boolean("needed_when_made").notNull().default(false),
+  whoCanChange: varchar("who_can_change", { length: 16 }).$type<WhoCanChange>().notNull().default("anyone"),
+  settings: jsonb("settings").$type<FieldSettings>().notNull().default({}),
+  createdAt: createdAt(),
+})
+
+/** What a task holds in one field. An empty field has no row. */
+export const projectTaskFieldValues = pgTable(
+  "project_task_field_values",
+  {
+    taskId: varchar("task_id", { length: 36 })
+      .notNull()
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
+    fieldId: varchar("field_id", { length: 36 })
+      .notNull()
+      .references(() => projectTaskTypeFields.id, { onDelete: "cascade" }),
+    value: jsonb("value").notNull(),
+    updatedByUserId: varchar("updated_by_user_id", { length: 36 }).references(userRef, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.fieldId] })]
+)
 
 /** One copy of a repeating task per day, claimed before it is made. */
 export const projectRepeatRuns = pgTable(
@@ -358,6 +433,10 @@ export const projectTaskFiles = pgTable("project_task_files", {
   sizeBytes: integer("size_bytes").notNull(),
   storagePath: text("storage_path").notNull(),
   createdAt: createdAt(),
+  /** Set when the file sits in a File field rather than the task's Files card. */
+  fieldId: varchar("field_id", { length: 36 }).references(() => projectTaskTypeFields.id, {
+    onDelete: "cascade",
+  }),
 })
 
 export const projectNoticeLinks = pgTable("project_notice_links", {

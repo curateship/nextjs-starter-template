@@ -25,7 +25,7 @@ import {
   loadProjectsPage,
   removeProjectMember,
 } from "@/server/project/projects"
-import { projectNoticeLinks, projectTasks } from "@/server/project/schema"
+import { projectNavigationAdded, projectNoticeLinks, projectTasks } from "@/server/project/schema"
 import { addComment } from "@/server/project/task-chat"
 import {
   acceptTask,
@@ -366,6 +366,45 @@ describe("left menu", () => {
       .where(eq(customShellWorkspaces.id, workspace.id))
     await addProjectNavigation(database)
     expect(await sectionsOf()).toEqual(["section-account"])
+  })
+
+  it("adds Task types after Team to a menu that already had the section, once", async () => {
+    const workEntries = async () => {
+      const [settings] = await database.select().from(customShellSettings)
+      const sections = (settings.settings as { memberSections: { id: string; entries: { id: string }[] }[] })
+        .memberSections
+      return sections.find((section) => section.id === PROJECT_NAV_SECTION_ID)!.entries.map((e) => e.id)
+    }
+    await addProjectNavigation(database)
+    const fresh = await workEntries()
+    expect(fresh.slice(fresh.indexOf("item-project-team"))).toEqual([
+      "item-project-team",
+      "item-project-task-types",
+    ])
+
+    // A menu from before Task types existed: the section without the link, and no marker for it.
+    const [settings] = await database.select().from(customShellSettings)
+    const old = settings.settings as { memberSections: { id: string; entries: { id: string }[] }[] }
+    const before = old.memberSections.map((section) =>
+      section.id === PROJECT_NAV_SECTION_ID
+        ? { ...section, entries: section.entries.filter((e) => e.id !== "item-project-task-types") }
+        : section
+    )
+    await database
+      .update(customShellSettings)
+      .set({ settings: { ...old, memberSections: before } })
+      .where(eq(customShellSettings.key, "default"))
+    await database.delete(projectNavigationAdded).where(eq(projectNavigationAdded.scope, "members:task-types"))
+    await addProjectNavigation(database)
+    expect(await workEntries()).toEqual(fresh)
+
+    // Removed again by an admin, it stays removed.
+    await database
+      .update(customShellSettings)
+      .set({ settings: { ...old, memberSections: before } })
+      .where(eq(customShellSettings.key, "default"))
+    await addProjectNavigation(database)
+    expect(await workEntries()).not.toContain("item-project-task-types")
   })
 })
 

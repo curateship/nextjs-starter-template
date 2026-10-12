@@ -82,6 +82,9 @@ disagrees.
 
 ## Files
 
+- **A task type's File fields hold files too** (see
+  [Task types](task-types.md)). They count toward the same 10 and 5 GB, and
+  the Files card leaves them out.
 - **Drop files on the Files card or browse for them.** Pictures (PNG, JPEG,
   GIF, WebP) show small and open full size in a new tab. Anything else is a
   name to download.

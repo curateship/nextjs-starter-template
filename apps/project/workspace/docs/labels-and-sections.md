@@ -10,7 +10,11 @@ and do different jobs:
   "Design" and "Build", and the List tab groups rows under them.
 
 Use a label when the same kind of work turns up in several projects. Use a
-section to split one big project into stages.
+section to split one big project into stages. Use a
+[task type](task-types.md) when a kind of work needs its own fields, such as
+a footage link and a final cut file: a task has one type, a type asks for
+its own fields, and it can block Done until they're filled. A label can't
+hold a link, a file or a number.
 
 ## Labels
 

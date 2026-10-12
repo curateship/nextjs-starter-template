@@ -20,7 +20,9 @@ import { cn } from "@/lib/utils"
  * small and open full size in a new tab; anything else is a name to download.
  * Up to 10 files of 10 MB each, and 5 GB for the whole team, which the server
  * checks too. A full task locks the drop area before anything is picked, and
- * a drop while files are still going up is ignored.
+ * a drop while files are still going up is ignored. Files in a task type's
+ * File fields show in their field instead (`task-fields-card.tsx`) and still
+ * count toward the 10.
  *
  * This is a file field, not an image field, so it doesn't use the shared
  * `ImageUpload`: that puts pictures in the public media library, and a task's
@@ -38,12 +40,59 @@ export function TaskFilesCard({
   change: Change
 }) {
   const { files } = detail
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Files{files.length ? ` · ${files.length}` : ""}</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <TaskFileDrop
+          taskId={detail.task.id}
+          files={files}
+          taskFileCount={detail.fields.fileCount}
+          readOnly={readOnly}
+          refresh={refresh}
+          change={change}
+          emptyText="No files yet."
+        />
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * A list of a task's files and a place to drop more: the Files card, or one
+ * File field (`fieldId`). Every file counts toward the task's 10, wherever
+ * it sits, so `taskFileCount` is the whole task's.
+ */
+export function TaskFileDrop({
+  taskId,
+  fieldId,
+  files,
+  taskFileCount,
+  readOnly,
+  refresh,
+  change,
+  emptyText,
+  labelledBy,
+}: {
+  taskId: string
+  fieldId?: string
+  files: TaskFile[]
+  taskFileCount: number
+  readOnly: boolean
+  refresh: () => Promise<void>
+  change: Change
+  emptyText: string
+  /** The field's label, which names the drop area for a screen reader. */
+  labelledBy?: string
+}) {
   const input = React.useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = React.useState<string[]>([])
   const [dragging, setDragging] = React.useState(false)
   // A ref as well as the list: a second drop can land before the list redraws.
   const inFlight = React.useRef(false)
-  const room = LIMITS.filesPerTask - files.length
+  const room = LIMITS.filesPerTask - taskFileCount
   const full = room <= 0
   const busy = uploading.length > 0
   const maxSize = formatFileSize(LIMITS.fileBytes)
@@ -67,7 +116,7 @@ export function TaskFilesCard({
     let added = 0
     for (const file of sending) {
       try {
-        await addFileToTask(detail.task.id, file)
+        await addFileToTask(taskId, file, fieldId)
         added += 1
       } catch (error) {
         showErrorToast(`"${file.name}" wasn't added. ${getProjectErrorMessage(error)}`)
@@ -82,77 +131,72 @@ export function TaskFilesCard({
   }
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>
-          Files{files.length ? ` · ${files.length} of ${LIMITS.filesPerTask}` : ""}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        {files.length === 0 && uploading.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No files yet.</p>
-        ) : (
-          <ul className="grid gap-2">
-            {files.map((file) => (
-              <FileRow key={file.id} file={file} change={change} />
-            ))}
-            {uploading.map((name, index) => (
-              <li key={`${name}-${index}`} className="flex items-center gap-3 text-sm">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-md border">
-                  <Loader2Icon className="size-4 animate-spin text-muted-foreground" aria-hidden />
-                </span>
-                <span className="min-w-0 truncate">Adding {name}…</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {readOnly ? null : (
-          <div
-            className={cn(
-              "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed bg-muted/50 px-3 py-4 text-center transition-colors",
-              dragging && "border-ring bg-muted"
-            )}
-            onDragOver={(event) => {
-              event.preventDefault()
-              if (!full && !busy) setDragging(true)
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(event) => {
-              event.preventDefault()
-              setDragging(false)
-              void upload([...event.dataTransfer.files])
-            }}
+    <>
+      {files.length === 0 && uploading.length === 0 ? (
+        readOnly || !fieldId ? <p className="text-sm text-muted-foreground">{emptyText}</p> : null
+      ) : (
+        <ul className="grid gap-2">
+          {files.map((file) => (
+            <FileRow key={file.id} file={file} change={change} />
+          ))}
+          {uploading.map((name, index) => (
+            <li key={`${name}-${index}`} className="flex items-center gap-3 text-sm">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-md border">
+                <Loader2Icon className="size-4 animate-spin text-muted-foreground" aria-hidden />
+              </span>
+              <span className="min-w-0 truncate">Adding {name}…</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {readOnly ? null : (
+        <div
+          role="group"
+          aria-labelledby={labelledBy}
+          className={cn(
+            "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed bg-muted/50 px-3 py-4 text-center transition-colors",
+            dragging && "border-ring bg-muted"
+          )}
+          onDragOver={(event) => {
+            event.preventDefault()
+            if (!full && !busy) setDragging(true)
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault()
+            setDragging(false)
+            void upload([...event.dataTransfer.files])
+          }}
+        >
+          <p className="text-sm text-muted-foreground">
+            {full
+              ? `This task has ${LIMITS.filesPerTask} files. Delete one to add another.`
+              : `Drop files here, up to ${maxSize} each.`}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy || full}
+            onClick={() => input.current?.click()}
           >
-            <p className="text-sm text-muted-foreground">
-              {full
-                ? `This task has ${LIMITS.filesPerTask} files. Delete one to add another.`
-                : `Drop files here, up to ${maxSize} each.`}
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busy || full}
-              onClick={() => input.current?.click()}
-            >
-              <UploadIcon className="size-4" />
-              Browse files
-            </Button>
-            <input
-              ref={input}
-              type="file"
-              multiple
-              hidden
-              aria-label="Add files to the task"
-              onChange={(event) => {
-                const picked = [...(event.target.files ?? [])]
-                event.target.value = ""
-                void upload(picked)
-              }}
-            />
-          </div>
-        )}
-      </CardContent>
-    </Card>
+            <UploadIcon className="size-4" />
+            Browse files
+          </Button>
+          <input
+            ref={input}
+            type="file"
+            multiple
+            hidden
+            aria-label={fieldId ? "Add files to this field" : "Add files to the task"}
+            onChange={(event) => {
+              const picked = [...(event.target.files ?? [])]
+              event.target.value = ""
+              void upload(picked)
+            }}
+          />
+        </div>
+      )}
+    </>
   )
 }
 

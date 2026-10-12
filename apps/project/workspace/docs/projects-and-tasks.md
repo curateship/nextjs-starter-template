@@ -7,7 +7,9 @@
 - **The team's owner and admins see every project**, without being listed as
   members. That way no project can be left with nobody able to open it.
 - **Anyone who can see a project can change it**, add a teammate to it, or
-  remove someone from it.
+  remove someone from it. One exception, which Tyler ticked on 11 Oct 2026: a
+  task type's field can be limited to the person assigned or to whoever
+  handed the task out (see [Task types](task-types.md)).
 - **A project you can't see answers like one that doesn't exist.** Guessing a
   project's or task's id from another team gets "doesn't exist or you can't
   see it", never the record.
@@ -29,9 +31,11 @@
   so typing replaces it and Copy project works at once. It makes a project
   from the old one: its
   description, colour, sections and every task not in the bin, in the same
-  order, with their labels and steps (unticked). Every task starts To do with
+  order, with their labels, steps (unticked), types and field values, and the
+  project's own pick of task types. Every task starts To do with
   nobody assigned and no due date (Tyler's choice, 10 Oct 2026). People,
-  chat, files and history stay behind. The person copying is the new
+  chat, files and history stay behind, and a Person field keeps only the
+  person copying. The person copying is the new
   project's only member, and the page opens on the copy.
 - **A project's due date** sits in Project settings (the cog) and saves the
   moment one is picked (Tyler, 11 Oct 2026: "the due date should be in the
@@ -109,11 +113,14 @@ older". Each line says how long ago, with the exact time on hover.
 
 - **Search and filters.** Above the Board and List, a search box looks
   through each task's title and notes, every word typed, whatever its
-  capitals. Beside it, Status, Person (anyone, nobody assigned, or one
-  member) and Label filters narrow both tabs at once. Clear filters brings
-  everything back, and a search that finds nothing says so.
-- **They live in the address** (`?q=…&status=…&person=…&label=…`), so a
+  capitals. It doesn't look inside a task type's fields. Beside it, Status,
+  Person (anyone, nobody assigned, or one member), Label and Type filters
+  narrow both tabs at once. Clear filters brings everything back, and a
+  search that finds nothing says so.
+- **They live in the address** (`?q=…&status=…&person=…&label=…&type=…`), so a
   pasted link opens the page filtered the same way.
+- **Field columns.** Filtered to one task type, the List's Columns menu adds
+  up to 3 of that type's fields as columns (see [Task types](task-types.md)).
 - **Old Done tasks fold away.** The Board's Done column shows tasks finished
   in the last 14 days, then "Show 34 older" for the rest. The List tab shows
   every task. A task's finish time is saved when it becomes Done
@@ -163,9 +170,10 @@ without leaving the page and without a window over it.
 ## Tasks
 
 - **What a task holds.** Title, formatted notes, project, the person assigned,
-  who handed it out, due date, status, optional steps, files, a chat, and the
-  people following it. The chat, following, notes and files are in
-  [Task chat](task-chat.md).
+  who handed it out, due date, status, optional steps, files, a chat, the
+  people following it, and an optional task type with that type's fields.
+  The chat, following, notes and files are in [Task chat](task-chat.md), and
+  types and their fields in [Task types](task-types.md).
 - **Four statuses.** To do, Doing, Done and Stuck.
 - **Stuck needs a reason.** Marking a task Stuck asks for one line. The reason
   shows on the task until it leaves Stuck. Whoever handed the task out gets a
@@ -179,6 +187,9 @@ without leaving the page and without a window over it.
 
 ### Making tasks quickly
 
+- **A task type** can be picked in New task, which then fills the type's
+  starting steps and notes and asks for its fields that are needed when made
+  (see [Task types](task-types.md)).
 - **New task in the header**, on every page. It opens the project page's
   window with a Project picker. On a project's page it starts on that
   project; anywhere else, or on an archived project, on the last project used
@@ -189,17 +200,20 @@ without leaving the page and without a window over it.
   each with the person and due date picked in the window. Blank lines and
   bullet marks (-, *, •, 1., [ ]) are left out. At most 50 at once; more is
   refused with the reason and nothing is made. "No, make one task" joins the
-  lines into one title instead.
+  lines into one title instead. Pasted tasks are made without a type (Tyler's
+  choice, 11 Oct 2026), and the window says "Pick their type one by one."
 - **Duplicate**, from the task's "More" menu, makes "<title> (copy)" in the
-  same project and section, with its notes, labels and steps (unticked), To
-  do and nobody assigned. The chat, history and files stay with the original.
+  same project and section, with its notes, labels, steps (unticked), type
+  and field values, To do and nobody assigned. The chat, history and files
+  stay with the original, so a File field starts empty.
   The copy opens straight away.
 
 ### Changing tasks
 
 - **Many at once.** Ticking rows on a project's List tab offers Status, Hand
   to (with one optional note for all of them), Due date and Move to project
-  beside Mark Done. My tasks has the same bar without Move to project. Stuck asks for one reason
+  beside Mark Done. Mark Done reports the same way as the rest, naming each
+  refused task with its reason, such as "Fill in Final cut first." My tasks has the same bar without Move to project. Stuck asks for one reason
   for all of them ("Why is it stuck?" for one task, "Why are they stuck?" for
   more). Each task is changed on its own, as if alone, so each still writes
   its history and sends its notices, and one that can't be changed is refused
@@ -219,9 +233,11 @@ without leaving the page and without a window over it.
   out, it says "You're not on any other project." If
   the person assigned isn't on the new one, the card says so and the task
   moves with nobody assigned (and their name kept). Steps, chat, files,
-  labels and history go with it; the section stays behind, since sections are
-  one project's own. People on its steps who aren't on the new project come
-  off them. Past check-in lines keep the old project, because that's where
+  labels, type, field values and history go with it; the section stays
+  behind, since sections are one project's own. People on its steps who
+  aren't on the new project come off them, and so does a Person field naming
+  them. When the new project doesn't offer the task's type, the card says so
+  and the task keeps it. Past check-in lines keep the old project, because that's where
   the task was that day. On the old project's page, the page follows the task
   to its new one.
 - **Make it a task.** A step that grew too big becomes its own task in the
@@ -295,7 +311,7 @@ Each task has a Plan card with three fields that save the moment they change.
   storage can't remove a file, the task stays in the bin and the job tries
   again on its next pass, so no file is left behind without its task.
 - **Files in the bin still count** toward the team's 5 GB until it is
-  emptied.
+  emptied, files in a task type's File fields included.
 - **A check-in line about a binned task** keeps its title but can't be
   opened, and its day doesn't count it as a blocker.
 
@@ -315,7 +331,9 @@ Each task has a Plan card with three fields that save the moment they change.
 ## Handing a task over
 
 - **Anyone can hand a task to anyone on the project.** The task records who
-  handed it out.
+  handed it out, and separately who first handed it out, which never changes
+  and decides who may change a task type's brief fields and the task's type
+  (see [Task types](task-types.md)).
 - **Every hand-over writes history and tells the person**, whether it's one
   task, many ticked rows, a pasted list or a step made into a task.
 - **Waiting.** A task handed to someone else shows Waiting until they accept
@@ -462,11 +480,15 @@ task picked on 3 or more check-ins and still not Done shows "Picked on 4 days"
 The shell keeps its menus in the database, and an app can't edit the shell code
 that writes them. So a background job (`src/server/project/navigation.ts`,
 listed in `src/app/server-options.ts`) adds a "Work" section with My dashboard,
-Projects and Team to the members' menu and to each admin menu.
+Projects, Team and Task types to the members' menu and to each admin menu.
 
 - **Each menu gets the section once.** The job writes down which menus it has
   done in `project_navigation_added`. An admin who later removes a link in
   Settings keeps it removed.
+- **A link added later gets its own pass.** Task types (12 Oct 2026) went
+  after Team in menus that already had the section, once each, with a marker
+  of its own (`members:task-types`, `workspace:<id>:task-types`). A menu
+  whose admin removed the whole Work section stays without it.
 - **Why not a migration.** On a brand-new install the first admin menu doesn't
   exist until the first admin signs in, which is after the migrations run.
 

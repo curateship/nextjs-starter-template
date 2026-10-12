@@ -3,8 +3,8 @@ import { DONE_RECENT_DAYS, isTaskStatus, type TaskStatus } from "@/lib/project/r
 
 /**
  * Narrowing a list of tasks: a search over title and notes, and Status,
- * Person and Label filters. They live in the page's address, so a pasted link
- * keeps them.
+ * Person, Label and Type filters. They live in the page's address, so a
+ * pasted link keeps them. The search doesn't look inside a type's fields.
  */
 
 /** A task with nobody assigned, for the Person filter. */
@@ -16,6 +16,8 @@ export type TaskFilters = {
   /** A person's id, or `NOBODY_FILTER`. */
   person?: string
   label?: string
+  /** A task type's id. */
+  type?: string
 }
 
 type Filterable = {
@@ -24,6 +26,7 @@ type Filterable = {
   status: TaskStatus
   assignee: { id: string } | null
   labels: { id: string }[]
+  type: { id: string } | null
 }
 
 const ID = /^[\w-]{1,36}$/
@@ -35,11 +38,12 @@ export function readTaskFilters(search: Record<string, unknown>): TaskFilters {
   if (isTaskStatus(search.status)) result.status = search.status
   if (typeof search.person === "string" && ID.test(search.person)) result.person = search.person
   if (typeof search.label === "string" && ID.test(search.label)) result.label = search.label
+  if (typeof search.type === "string" && ID.test(search.type)) result.type = search.type
   return result
 }
 
 export function hasTaskFilters(filters: TaskFilters) {
-  return Boolean(filters.q?.trim() || filters.status || filters.person || filters.label)
+  return Boolean(filters.q?.trim() || filters.status || filters.person || filters.label || filters.type)
 }
 
 export function filterTasks<T extends Filterable>(tasks: T[], filters: TaskFilters): T[] {
@@ -51,6 +55,7 @@ export function filterTasks<T extends Filterable>(tasks: T[], filters: TaskFilte
       if (id !== filters.person) return false
     }
     if (filters.label && !task.labels.some((label) => label.id === filters.label)) return false
+    if (filters.type && task.type?.id !== filters.type) return false
     if (words.length) {
       const haystack = `${task.title}\n${task.notesText}`.toLowerCase()
       if (!words.every((word) => haystack.includes(word))) return false

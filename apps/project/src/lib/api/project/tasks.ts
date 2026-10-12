@@ -13,12 +13,12 @@ import {
   setWaitingOnSchema,
   updateStepSchema,
   commentSchema,
-  createTaskSchema,
   editCommentSchema,
   reasonSchema,
   setTaskStatusSchema,
   updateTaskSchema,
 } from "@/lib/project/rules"
+import { newTaskSchema } from "@/lib/project/task-types"
 import { userGet, userPost } from "@/server/guards"
 import { findMembership } from "@/server/project/access"
 import { projectNoticeDetailsFor } from "@/server/project/notices"
@@ -42,7 +42,7 @@ import {
 import { followTask, unfollowTask } from "@/server/project/task-followers"
 import { reviewTask, setNeedsReview } from "@/server/project/task-review"
 import { thankForTask } from "@/server/project/task-thanks"
-import { eachOf } from "@/server/project/teams"
+import { listTeamTypes } from "@/server/project/task-types"
 import {
   acceptManyTasks,
   acceptTask,
@@ -79,7 +79,7 @@ const loadTaskFn = createServerFn({ method: "GET" })
 
 const createTaskFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(createTaskSchema)
+  .inputValidator(newTaskSchema)
   .handler(async ({ data, context }) => createTask(context.user, data))
 
 const updateTaskFn = createServerFn({ method: "POST" })
@@ -91,15 +91,6 @@ const setStatusFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(setTaskStatusSchema)
   .handler(async ({ data, context }) => setTaskStatus(context.user, data))
-
-const markManyDoneFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ taskIds: z.array(id).min(1).max(200) }))
-  .handler(async ({ data, context }) =>
-    eachOf(data.taskIds, (taskId) =>
-      setTaskStatus(context.user, { taskId, status: "done", stuckReason: null })
-    )
-  )
 
 const assignFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -186,18 +177,20 @@ const emptyBinFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ projectId: id }))
   .handler(async ({ data, context }) => emptyProjectBin(context.user.id, data.projectId))
 
-/** The projects New task can make a task in, for the header's button. */
+/** The projects New task can make a task in, and the team's types, for the header's button. */
 const loadNewTaskProjectsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }) => {
     const membership = await findMembership(context.user.id)
-    return membership
-      ? listNewTaskProjects(membership, {
-          id: context.user.id,
-          name: context.user.name,
-          avatarUrl: context.user.avatarUrl ?? "",
-        })
-      : []
+    if (!membership) return { projects: [], types: [] }
+    return {
+      projects: await listNewTaskProjects(membership, {
+        id: context.user.id,
+        name: context.user.name,
+        avatarUrl: context.user.avatarUrl ?? "",
+      }),
+      types: await listTeamTypes(membership.teamId),
+    }
   })
 
 const deleteStepFn = createServerFn({ method: "POST" })
@@ -243,7 +236,7 @@ const loadNoticeDetailsFn = createServerFn({ method: "GET" })
 export function loadTask(taskId: string) {
   return loadTaskFn({ data: { taskId } })
 }
-export function createProjectTask(data: z.input<typeof createTaskSchema>) {
+export function createProjectTask(data: z.input<typeof newTaskSchema>) {
   return createTaskFn({ data })
 }
 export function saveTask(data: z.input<typeof updateTaskSchema>) {
@@ -251,9 +244,6 @@ export function saveTask(data: z.input<typeof updateTaskSchema>) {
 }
 export function setStatus(data: z.input<typeof setTaskStatusSchema>) {
   return setStatusFn({ data })
-}
-export function markTasksDone(taskIds: string[]) {
-  return markManyDoneFn({ data: { taskIds } })
 }
 export function assignProjectTask(data: z.input<typeof assignTaskSchema>) {
   return assignFn({ data })

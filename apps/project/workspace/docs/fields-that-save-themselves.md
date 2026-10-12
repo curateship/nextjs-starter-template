@@ -17,6 +17,8 @@ noise.
   time zone together, and for "Use the team's time".
 - **Team settings**, at the top of the window beside "Changes save as you
   make them.", for the name, check-in time, time zone and work days.
+- **The Task types dashboard**, beside the picked type's name at the top of
+  the middle panel, for the type and its fields, steps and notes.
 - **Notes for the team** in the check-in window, in the card's header, once
   checked in.
 

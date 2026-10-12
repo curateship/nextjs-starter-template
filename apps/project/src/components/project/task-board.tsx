@@ -31,6 +31,7 @@ import {
   StepsCount,
   WaitingBadge,
   WaitingOnBadge,
+  TypeChip,
 } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -318,6 +319,11 @@ function CardContent({ task }: { task: TaskCard }) {
   return (
     <>
       <span className="font-medium break-words">{task.title}</span>
+      {task.type ? (
+        <span className="flex">
+          <TypeChip type={task.type} />
+        </span>
+      ) : null}
       {task.section ? (
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <FolderIcon className="size-3" aria-hidden />

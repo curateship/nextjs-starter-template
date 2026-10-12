@@ -3,6 +3,8 @@ import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { PersonAvatar, ProjectDot, RoomNote } from "@/components/project/task-bits"
+import { FieldControl } from "@/components/project/task-fields-card"
+import { TypeIconGlyph } from "@/components/project/task-type-icon"
 import { keyFromDate } from "@/lib/project/dates"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,13 +40,46 @@ import {
 } from "@/lib/pages/written-page-body"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { notesForEditor, readTaskNotes } from "@/lib/project/notes"
 import { LIMITS } from "@/lib/project/rules"
+import {
+  fillInFirst,
+  firstMissingField,
+  valueFromDraft,
+  visibleFieldIds,
+  type FieldDraft,
+  type FieldValues,
+} from "@/lib/project/task-fields"
+import type { TaskType } from "@/lib/project/task-types"
 import { linesToTitles } from "@/lib/project/paste-lines"
 import { usePeopleRoom } from "@/lib/project/use-people-room"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
 const NOBODY = "nobody"
+const NO_TYPE = "none"
+
+/** What a type puts into New task: its steps and its notes, as the editor holds them. */
+function templateOf(type: TaskType | undefined) {
+  return {
+    steps: type?.steps ?? [],
+    notes: type ? notesForEditor(readTaskNotes(type.notes)) : emptyWrittenPageBody(),
+  }
+}
+
+/**
+ * The fields New task asks for: each one "Needed when made", and any dropdown
+ * that decides whether one of those shows. File fields wait until the task
+ * exists.
+ */
+function fieldsAskedFor(type: TaskType | undefined) {
+  if (!type) return []
+  const needed = type.fields.filter((field) => field.neededWhenMade && field.kind !== "file")
+  const controllers = new Set(needed.flatMap((field) => field.settings.showWhen?.fieldId ?? []))
+  return type.fields.filter(
+    (field) => field.kind !== "file" && (field.neededWhenMade || controllers.has(field.id))
+  )
+}
 
 /**
  * A new task. It starts assigned to its maker when they are on the project.
@@ -55,15 +90,22 @@ const NOBODY = "nobody"
  * (`projects` holds more than one) it asks which project, with the one last
  * used chosen first. Pasting several lines into the title offers to make one
  * task per line.
+ *
+ * Picking a task type fills the Steps card and the notes from the type, and
+ * asks for the type's fields that are needed when it is made. A pasted list
+ * is made without a type.
  */
 export function NewTaskDialog({
   projects,
+  types,
   initialProjectId,
   open,
   onClose,
   onCreated,
 }: {
   projects: NewTaskProject[]
+  /** The team's types; each project says which of them it offers. */
+  types: TaskType[]
   initialProjectId: string
   open: boolean
   onClose: () => void
@@ -87,25 +129,63 @@ export function NewTaskDialog({
   const [steps, setSteps] = React.useState<string[]>([])
   const [stepText, setStepText] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
+  const offered = (target: NewTaskProject | undefined) =>
+    types.filter((type) => target?.typeIds.includes(type.id))
+  const startingType = (target: NewTaskProject | undefined) =>
+    target?.defaultTypeId && target.typeIds.includes(target.defaultTypeId) ? target.defaultTypeId : NO_TYPE
+  const [typeId, setTypeId] = React.useState(() => startingType(project))
+  const type = types.find((t) => t.id === typeId)
+  // What the type put in, so changing the type swaps it out and keeps what was typed.
+  const [template, setTemplate] = React.useState(() => templateOf(undefined))
+  const [notesKey, setNotesKey] = React.useState(0)
+  const [drafts, setDrafts] = React.useState<Record<string, FieldDraft>>({})
+  const [invalidField, setInvalidField] = React.useState<string | null>(null)
   const [run, saving] = useAsyncAction(getProjectErrorMessage)
+  // What the type filled in isn't anyone's typing, so it doesn't ask before closing.
+  const notesTyped =
+    !writtenPageBodyIsEmpty(notes) && JSON.stringify(notes) !== JSON.stringify(template.notes)
+  const stepsTyped = steps.join("\n") !== template.steps.join("\n")
   const dirty = Boolean(
     title.trim() ||
       pasted ||
-      !writtenPageBodyIsEmpty(notes) ||
-      steps.length ||
+      notesTyped ||
+      stepsTyped ||
       stepText.trim() ||
       due ||
-      handoverNote.trim()
+      handoverNote.trim() ||
+      Object.values(drafts).some((draft) => draft !== "" && draft !== false)
   )
 
-  // Opening again starts on the project the caller chose.
-  const [wasOpen, setWasOpen] = React.useState(open)
+  /** Swaps the old type's steps and notes for the new one's, keeping anything typed. */
+  function applyType(nextId: string, current = { steps, notes }) {
+    const next = templateOf(types.find((t) => t.id === nextId))
+    const untouchedNotes =
+      writtenPageBodyIsEmpty(current.notes) || JSON.stringify(current.notes) === JSON.stringify(template.notes)
+    setTypeId(nextId)
+    setSteps([
+      ...next.steps,
+      ...current.steps.filter((step) => !template.steps.includes(step) && !next.steps.includes(step)),
+    ].slice(0, LIMITS.stepsPerTask))
+    if (untouchedNotes) {
+      setNotes(next.notes)
+      setNotesKey((key) => key + 1)
+    }
+    setTemplate(next)
+    setInvalidField(null)
+  }
+
+  // Opening again starts on the project the caller chose. False at first, so
+  // a window that mounts open still fills in its type's steps and notes.
+  const [wasOpen, setWasOpen] = React.useState(false)
   if (wasOpen !== open) {
     setWasOpen(open)
+    const target = projects.find((p) => p.id === initialProjectId) ?? projects[0]
     if (open && initialProjectId !== projectId) {
       setProjectId(initialProjectId)
-      setAssignee(startingAssignee(projects.find((p) => p.id === initialProjectId)))
+      setAssignee(startingAssignee(target))
     }
+    // Each opening starts on the project's default type, with its steps and notes.
+    if (open) applyType(startingType(target), { steps: [], notes: emptyWrittenPageBody() })
   }
 
   function pickProject(id: string) {
@@ -115,6 +195,8 @@ export function NewTaskDialog({
     if (assignee !== NOBODY && !next?.members.some((m) => m.userId === assignee)) {
       setAssignee(startingAssignee(next))
     }
+    // A type the new project doesn't offer gives way to that project's default.
+    if (typeId !== NO_TYPE && !next?.typeIds.includes(typeId)) applyType(startingType(next))
   }
 
   function reset() {
@@ -127,6 +209,10 @@ export function NewTaskDialog({
     setSteps([])
     setStepText("")
     setInvalid(false)
+    setTypeId(startingType(project))
+    setTemplate(templateOf(undefined))
+    setDrafts({})
+    setInvalidField(null)
   }
 
   function close() {
@@ -158,6 +244,13 @@ export function NewTaskDialog({
     setPasted(titles)
   }
 
+  /** Marks the field, says why, and takes the cursor there, since it may sit below the fold. */
+  function showFieldProblem(fieldId: string, message: string) {
+    setInvalidField(fieldId)
+    showErrorToast(message)
+    document.getElementById(`new-task-field-${fieldId}`)?.focus()
+  }
+
   async function create() {
     if (!project) return
     const assigneeUserId = assignee === NOBODY ? null : assignee
@@ -184,6 +277,22 @@ export function NewTaskDialog({
         showErrorToast("Give the task a title.")
         return
       }
+      // The type's fields needed when made, checked here to spare a round trip.
+      const asked = fieldsAskedFor(type)
+      const fieldValues: FieldValues = {}
+      for (const field of asked) {
+        const result = valueFromDraft(field.kind, drafts[field.id] ?? (field.kind === "checkbox" ? false : ""))
+        if ("error" in result) {
+          showFieldProblem(field.id, result.error)
+          return
+        }
+        if (result.value !== null) fieldValues[field.id] = result.value
+      }
+      const missing = type ? firstMissingField(type.fields, fieldValues, "made") : null
+      if (missing) {
+        showFieldProblem(missing.id, fillInFirst(missing))
+        return
+      }
       // A step still in the "Add a step" box goes with the task, as if added.
       const typedStep = stepText.trim()
       if (typedStep && steps.length >= LIMITS.stepsPerTask) {
@@ -200,6 +309,8 @@ export function NewTaskDialog({
             dueDate: keyFromDate(due),
             steps: typedStep ? [...steps, typedStep] : steps,
             handoverNote: note,
+            typeId: type ? type.id : null,
+            fieldValues,
           }),
         someoneElse && name ? `Task handed to ${name}.` : "Task created."
       )
@@ -277,6 +388,31 @@ export function NewTaskDialog({
                       />
                     </div>
                   )}
+                  {offered(project).length ? (
+                    pasted ? (
+                      <p className="text-sm text-muted-foreground">
+                        Pasted tasks are made without a type. Pick their type one by one.
+                      </p>
+                    ) : (
+                      <div className="grid gap-2">
+                        <Label htmlFor="new-task-type">Type</Label>
+                        <Select value={typeId} onValueChange={(value) => applyType(value)}>
+                          <SelectTrigger id="new-task-type" className="w-full sm:w-fit">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NO_TYPE}>Plain task</SelectItem>
+                            {offered(project).map((option) => (
+                              <SelectItem key={option.id} value={option.id}>
+                                <TypeIconGlyph icon={option.icon} color={option.color} />
+                                {option.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )
+                  ) : null}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-2">
                       <Label htmlFor="new-task-assignee">Assigned to</Label>
@@ -331,6 +467,7 @@ export function NewTaskDialog({
                       </Label>
                       <div className="[&_.page-rte_.tiptap]:min-h-20 [&_.page-rte_.tiptap]:px-3 [&_.page-rte_.tiptap]:py-2 [&_.page-rte_.tiptap]:text-sm">
                         <DocumentEditor
+                          key={notesKey}
                           value={notes}
                           onChange={setNotes}
                           placeholder="Anything the person doing it should know. Select words to make them bold, a list or a link."
@@ -340,6 +477,18 @@ export function NewTaskDialog({
                   )}
                 </CardContent>
               </Card>
+              {pasted || !type ? null : (
+                <NewTaskFields
+                  type={type}
+                  drafts={drafts}
+                  invalidField={invalidField}
+                  people={(project?.members ?? []).map((m) => ({ id: m.userId, name: m.name, avatarUrl: m.avatarUrl }))}
+                  onDraft={(fieldId, draft) => {
+                    setDrafts((current) => ({ ...current, [fieldId]: draft }))
+                    setInvalidField(null)
+                  }}
+                />
+              )}
               {pasted ? null : (
                 <Card size="sm">
                   <CardHeader>
@@ -433,5 +582,64 @@ function PastedLines({ titles, onKeepOne }: { titles: string[]; onKeepOne: () =>
         </Button>
       </div>
     </div>
+  )
+}
+
+/** The picked type's fields that must be filled before the task is made. */
+function NewTaskFields({
+  type,
+  drafts,
+  invalidField,
+  people,
+  onDraft,
+}: {
+  type: TaskType
+  drafts: Record<string, FieldDraft>
+  invalidField: string | null
+  people: { id: string; name: string; avatarUrl: string }[]
+  onDraft: (fieldId: string, draft: FieldDraft) => void
+}) {
+  const asked = fieldsAskedFor(type)
+  if (asked.length === 0) return null
+  // Which show right now, worked out from what has been filled in so far.
+  const values: FieldValues = {}
+  for (const field of asked) {
+    const result = valueFromDraft(field.kind, drafts[field.id] ?? "")
+    if ("value" in result && result.value !== null) values[field.id] = result.value
+  }
+  const visible = visibleFieldIds(type.fields, values)
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <TypeIconGlyph icon={type.icon} color={type.color} />
+          {type.name}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <p className="text-sm text-muted-foreground">Fill these in now. The rest can wait for the task.</p>
+        {asked
+          .filter((field) => visible.has(field.id))
+          .map((field) => {
+            const id = `new-task-field-${field.id}`
+            return (
+              <div key={field.id} className="grid gap-2">
+                <Label htmlFor={id}>
+                  {field.name}
+                  {field.neededWhenMade ? null : <span className="font-normal text-muted-foreground"> (optional)</span>}
+                </Label>
+                <FieldControl
+                  id={id}
+                  field={field}
+                  draft={drafts[field.id] ?? (field.kind === "checkbox" ? false : "")}
+                  people={people}
+                  invalid={invalidField === field.id}
+                  onDraft={(draft) => onDraft(field.id, draft)}
+                />
+              </div>
+            )
+          })}
+      </CardContent>
+    </Card>
   )
 }

@@ -175,6 +175,11 @@ export function MoveTaskCard({ detail, onDone }: { detail: TaskDetail; onDone: (
               {task.assignee.name} isn't on {chosen.name}, so the task moves with nobody assigned.
             </p>
           ) : null}
+          {chosen && !chosen.offersType && task.type ? (
+            <p className="text-sm text-muted-foreground">
+              {chosen.name} doesn't offer {task.type.name}. The task keeps its type and its fields.
+            </p>
+          ) : null}
         </div>
       </CardContent>
     </Card>

@@ -15,7 +15,6 @@ import {
 } from "@dnd-kit/sortable"
 import { useRouter } from "@tanstack/react-router"
 import { CheckIcon, GripVerticalIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import {
   DueDate,
@@ -25,6 +24,7 @@ import {
   ReviewBadge,
   SnoozedBadge,
   StatusBadge,
+  TypeChip,
   WaitingBadge,
   WaitingOnBadge,
 } from "@/components/project/task-bits"
@@ -39,25 +39,54 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table"
-import { markTasksDone, type TaskCard } from "@/lib/api/project/tasks"
-import { describeBulkResult } from "@/lib/format/bulk-result"
+import { changeTasks, type BulkOutcome, type TaskCard } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { reportBulkOutcome } from "@/lib/project/bulk-outcome"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { todayKey } from "@/lib/project/dates"
 import { TASK_STATUSES } from "@/lib/project/rules"
+import { fieldSortValue, fieldValueText, type FieldRule } from "@/lib/project/task-fields"
 import { byPosition } from "@/lib/project/task-order"
-import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-/** "order" is the project's own order, set by dragging; the rest are columns. */
-export type TaskColumn = "order" | "title" | "project" | "status" | "assignee" | "due" | "steps"
+/**
+ * "order" is the project's own order, set by dragging; the rest are columns.
+ * A task type's field shows as a column named `field:<its id>`.
+ */
+export type TaskColumn =
+  | "order"
+  | "title"
+  | "project"
+  | "status"
+  | "assignee"
+  | "due"
+  | "steps"
+  | `field:${string}`
+
+/** A task type's field drawn as a column, with the words for each task's value. */
+export type FieldColumn = {
+  field: Pick<FieldRule, "id" | "name" | "kind" | "settings">
+  people: ReadonlyMap<string, string>
+}
 
 const STATUS_ORDER = Object.fromEntries(TASK_STATUSES.map((s, i) => [s, i]))
+const NO_FIELD_COLUMNS: readonly FieldColumn[] = []
 
-function compare(a: TaskCard, b: TaskCard, column: TaskColumn) {
+function compare(a: TaskCard, b: TaskCard, column: TaskColumn, fieldColumns: readonly FieldColumn[]) {
+  if (column.startsWith("field:")) {
+    const spec = fieldColumns.find((c) => `field:${c.field.id}` === column)
+    if (!spec) return 0
+    const left = fieldSortValue(spec.field, a.fieldValues[spec.field.id], spec.people)
+    const right = fieldSortValue(spec.field, b.fieldValues[spec.field.id], spec.people)
+    // A blank goes last whichever way the column is sorted, like a missing due date.
+    if (left === null || right === null) return left === right ? 0 : left === null ? 1 : -1
+    return typeof left === "number" && typeof right === "number"
+      ? left - right
+      : String(left).localeCompare(String(right))
+  }
   switch (column) {
     case "project":
       return a.projectName.localeCompare(b.projectName)
@@ -99,6 +128,7 @@ export function TaskList({
   onReorder,
   orderLabel = "the project's order",
   bulk,
+  fieldColumns = NO_FIELD_COLUMNS,
 }: {
   tasks: TaskCard[]
   readOnly: boolean
@@ -113,6 +143,8 @@ export function TaskList({
   orderLabel?: string
   /** Status, Hand to, Due date and Move to project for ticked rows. */
   bulk?: BulkTargets
+  /** Up to 3 of a task type's fields, when the List is filtered to that type. */
+  fieldColumns?: readonly FieldColumn[]
 }) {
   const router = useRouter()
   const { sort, direction, toggleSort } = useTableSort<TaskColumn>(
@@ -133,14 +165,19 @@ export function TaskList({
     ...(showProject ? [] : [{ key: "assignee" as const, label: "Assigned to", column: "preview" as const }]),
     { key: "due", label: "Due", column: "preview" },
     { key: "steps", label: "Steps", column: "preview" },
+    ...fieldColumns.map((spec) => ({
+      key: `field:${spec.field.id}` as const,
+      label: spec.field.name,
+      column: "preview" as const,
+    })),
   ]
 
   const rows = React.useMemo(() => {
     const sign = direction === "asc" ? 1 : -1
     return [...tasks].sort(
-      (a, b) => compare(a, b, sort) * sign || a.title.localeCompare(b.title)
+      (a, b) => compare(a, b, sort, fieldColumns) * sign || a.title.localeCompare(b.title)
     )
-  }, [direction, sort, tasks])
+  }, [direction, fieldColumns, sort, tasks])
   const sections = React.useMemo(() => {
     if (!groups || !groupOf) return [{ key: "all", label: null, rows }]
     return groups
@@ -155,21 +192,17 @@ export function TaskList({
   const selectedIds = ids.filter((id) => selection.selected.has(id))
   const colSpan = columns.length + 2
 
+  /** Each task is marked Done on its own, so one with a field still to fill is refused alone and named. */
   async function markDone() {
-    let result = { done: [] as string[], kept: [] as string[] }
+    let outcome: BulkOutcome = { changed: [], refused: [] }
     const ok = await run(async () => {
-      result = await markTasksDone(selectedIds)
+      outcome = await changeTasks({
+        taskIds: selectedIds,
+        change: { kind: "status", status: "done", stuckReason: null },
+      })
     })
     if (!ok) return
-    const line = describeBulkResult({
-      done: result.done.length,
-      kept: result.kept.length,
-      one: "task",
-      many: "tasks",
-      verb: "marked Done",
-    })
-    if (result.kept.length) showErrorToast(line)
-    else toast.success(line)
+    reportBulkOutcome(outcome, "marked Done")
     selection.clear()
     await router.invalidate()
   }
@@ -269,6 +302,7 @@ export function TaskList({
                           selected={selection.selected.has(task.id)}
                           onToggle={() => selection.toggle(task.id)}
                           onOpen={() => onOpenTask(task)}
+                          fieldColumns={fieldColumns}
                         />
                       ))}
                     </SortableContext>
@@ -292,6 +326,7 @@ function TaskRow({
   selected,
   onToggle,
   onOpen,
+  fieldColumns,
 }: {
   task: TaskCard
   showProject: boolean
@@ -300,6 +335,7 @@ function TaskRow({
   selected: boolean
   onToggle: () => void
   onOpen: () => void
+  fieldColumns: readonly FieldColumn[]
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id, disabled: !canDrag })
@@ -337,6 +373,7 @@ function TaskRow({
             </button>
           ) : null}
           <span className="truncate font-medium">{task.title}</span>
+          <TypeChip type={task.type} />
           {task.waiting ? <WaitingBadge /> : null}
           <ReviewBadge review={task.review} />
           <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
@@ -369,6 +406,12 @@ function TaskRow({
       <TableCell column="preview">
         {task.steps.total ? `${task.steps.done} of ${task.steps.total}` : null}
       </TableCell>
+      {fieldColumns.map((spec) => (
+        // A blank cell for a task that left the field empty.
+        <TableCell key={spec.field.id} column="preview" className="max-w-48 truncate">
+          {fieldValueText(spec.field, task.fieldValues[spec.field.id], spec.people)}
+        </TableCell>
+      ))}
       <TableCell column="actions">
         <Button
           type="button"

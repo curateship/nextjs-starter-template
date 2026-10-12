@@ -10,6 +10,7 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [Task chat](task-chat.md): a task's chat with @ tags, editing and deleting messages, following a task, formatted notes, and files with their limits and who can download them.
 - [History](history.md): each task's history on the task, the "Picked on 4 days" mark, and past days on the Team dashboard's calendar.
 - [Labels and sections](labels-and-sections.md): the team's labels, a project's own sections, how they differ, and the order everyone on a project shares.
+- [Task types](task-types.md): the team's own kinds of task, their fields, what must be filled before Done or when made, who can change a field, fields shown only when a dropdown says so, starting steps, which types a project offers, and the Type filter with field columns.
 - [Repeating tasks](repeating-tasks.md): tasks that come back every work day, week or month, and why a copy waits for the last one to be Done.
 - [Meetings](meetings.md): meetings on the Team dashboard's calendar, who can change them, repeats, the bell notice, and times in each person's own zone.
 - [Needs attention and workload](needs-attention.md): the Team dashboard's tabs listing tasks that need help and each person's open work.
