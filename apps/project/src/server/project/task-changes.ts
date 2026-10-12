@@ -27,6 +27,12 @@ import {
   projectTasks,
 } from "@/server/project/schema"
 import { requireSharedProject } from "@/server/project/personal"
+import {
+  clearPersonValuesOffProject,
+  copyFieldValues,
+  listTeamTypes,
+  projectOffersType,
+} from "@/server/project/task-types"
 import { nextTaskPosition } from "@/server/project/sections"
 import { recordTaskEvent } from "@/server/project/task-history"
 import {
@@ -85,9 +91,10 @@ export async function createTasksFromLines(
 }
 
 /**
- * "<title> (copy)" in the same project and section, with the notes, labels
- * and steps (unticked), To do and nobody assigned. Comments, history and
- * files stay with the original.
+ * "<title> (copy)" in the same project and section, with the notes, labels,
+ * steps (unticked), type and field values, To do and nobody assigned.
+ * Comments, history and files stay with the original, so a File field starts
+ * empty.
  */
 export async function duplicateTask(actor: Actor, taskId: string, database = db) {
   return database.transaction(async (tx) => {
@@ -107,7 +114,9 @@ export async function duplicateTask(actor: Actor, taskId: string, database = db)
       createdByUserId: actor.id,
       createdAt: at,
       updatedAt: at,
+      typeId: task.typeId,
     })
+    await copyFieldValues(tx, [{ from: task.id, to: id }], actor.id)
     const steps = await tx
       .select({ text: projectTaskSteps.text, position: projectTaskSteps.position })
       .from(projectTaskSteps)
@@ -143,16 +152,23 @@ export type MoveTarget = {
   color: ProjectColor
   /** Whether the person assigned is on that project; if not, the task moves with nobody assigned. */
   keepsAssignee: boolean
+  /** Whether that project offers the task's type. It keeps its type either way. */
+  offersType: boolean
 }
 
 /** The person's other open projects, for Move to project. */
 export async function listMoveTargets(
   membership: Membership,
-  task: Pick<TaskRow, "projectId" | "assigneeUserId">,
+  task: Pick<TaskRow, "projectId" | "assigneeUserId" | "typeId">,
   database: ProjectDb
 ): Promise<MoveTarget[]> {
-  const projects = await database
-    .select({ id: projectProjects.id, name: projectProjects.name, color: projectProjects.color })
+  const rows = await database
+    .select({
+      id: projectProjects.id,
+      name: projectProjects.name,
+      color: projectProjects.color,
+      hiddenTypeIds: projectProjects.hiddenTypeIds,
+    })
     .from(projectProjects)
     .where(
       and(
@@ -162,7 +178,12 @@ export async function listMoveTargets(
       )
     )
     .orderBy(asc(projectProjects.name))
-  const others = projects.filter((project) => project.id !== task.projectId)
+  const others = rows
+    .filter((project) => project.id !== task.projectId)
+    .map(({ hiddenTypeIds, ...project }) => ({
+      ...project,
+      offersType: projectOffersType({ hiddenTypeIds }, task.typeId),
+    }))
   if (!task.assigneeUserId || others.length === 0) {
     return others.map((project) => ({ ...project, keepsAssignee: true }))
   }
@@ -184,10 +205,12 @@ export async function listMoveTargets(
 
 /**
  * Moves a task to another open project in the team. Its steps, chat, files,
- * labels and history go with it. Its section stays behind, since sections
+ * labels, type, field values and history go with it, even when the new
+ * project doesn't offer its type. Its section stays behind, since sections
  * are one project's own. If the person assigned isn't on the new project,
- * the task moves with nobody assigned and their name kept. Past check-in
- * lines keep the old project: that's where the task was that day.
+ * the task moves with nobody assigned and their name kept, and a Person
+ * field naming someone who isn't on it is emptied. Past check-in lines keep
+ * the old project: that's where the task was that day.
  */
 export async function moveTask(
   actor: Actor,
@@ -225,6 +248,7 @@ export async function moveTask(
           .where(eq(projectTaskSteps.id, step.id))
       }
     }
+    await clearPersonValuesOffProject(task.id, to.id, tx)
     // The old project's id, not its name: the name is shown only to people
     // who can see that project.
     await recordTaskEvent(tx, {
@@ -353,6 +377,10 @@ export type NewTaskProject = {
   name: string
   color: ProjectColor
   members: { userId: string; name: string; avatarUrl: string }[]
+  /** The team's types this project offers, in the team's order. "Just me" offers every live type. */
+  typeIds: string[]
+  /** The type New task starts on here, when it is still offered. */
+  defaultTypeId: string | null
 }
 
 export async function listNewTaskProjects(
@@ -360,15 +388,26 @@ export async function listNewTaskProjects(
   me: { id: string; name: string; avatarUrl: string },
   database: ProjectDb = db
 ): Promise<NewTaskProject[]> {
+  const types = (await listTeamTypes(membership.teamId, database)).filter((type) => !type.archived)
+  const offered = (hidden: readonly string[]) =>
+    types.filter((type) => !hidden.includes(type.id)).map((type) => type.id)
   // "Just me" goes last, by its stand-in id, so opening the window makes nothing.
   const justMe: NewTaskProject = {
     id: PERSONAL_PROJECT_ID,
     name: PERSONAL_PROJECT_NAME,
     color: "slate",
     members: [{ userId: me.id, name: me.name, avatarUrl: me.avatarUrl }],
+    typeIds: offered([]),
+    defaultTypeId: null,
   }
   const projects = await database
-    .select({ id: projectProjects.id, name: projectProjects.name, color: projectProjects.color })
+    .select({
+      id: projectProjects.id,
+      name: projectProjects.name,
+      color: projectProjects.color,
+      hiddenTypeIds: projectProjects.hiddenTypeIds,
+      defaultTypeId: projectProjects.defaultTypeId,
+    })
     .from(projectProjects)
     .where(
       and(
@@ -396,8 +435,11 @@ export async function listNewTaskProjects(
     )
     .orderBy(asc(customShellUsers.name))
   return [
-    ...projects.map((project) => ({
+    ...projects.map(({ hiddenTypeIds, defaultTypeId, ...project }) => ({
       ...project,
+      typeIds: offered(hiddenTypeIds),
+      defaultTypeId:
+        defaultTypeId && offered(hiddenTypeIds).includes(defaultTypeId) ? defaultTypeId : null,
       members: members
         .filter((member) => member.projectId === project.id)
         .map(({ userId, name, avatarUrl }) => ({ userId, name, avatarUrl: avatarUrl ?? "" })),

@@ -139,7 +139,7 @@ function Dashboard({
           <TaskInPlace taskId={search.task} onBack={taskAddress.back}>
             <MyTasksPanel
               dashboard={dashboard}
-              filters={{ q: search.q, status: search.status, label: search.label }}
+              filters={{ q: search.q, status: search.status, label: search.label, type: search.type }}
               onFilters={(patch) => go(patch, { replace: true })}
               onOpenTask={taskAddress.open}
             />
@@ -333,7 +333,12 @@ function MyTasksPanel({
           </TabsTrigger>
         </DashboardCardTabsHeader>
       </Tabs>
-      <TaskFiltersBar filters={filters} onChange={onFilters} labels={dashboard.labels} />
+      <TaskFiltersBar
+        filters={filters}
+        onChange={onFilters}
+        labels={dashboard.labels}
+        types={dashboard.taskTypes}
+      />
       {tab === "open" && waiting && !filtered ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
           <p className="text-sm">

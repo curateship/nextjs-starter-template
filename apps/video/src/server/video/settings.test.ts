@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { createDefaultBrandKit } from "@/lib/video/brand-kit"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase } from "@/server/test-support"
-import { getVideoBrandKit, saveVideoBrandKit } from "@/server/video/settings"
+import {
+  getScriptBannedWords,
+  getVideoBrandKit,
+  saveScriptBannedWords,
+  saveVideoBrandKit,
+} from "@/server/video/settings"
 
 let client: PGlite
 let database: CustomShellDb
@@ -76,5 +81,33 @@ describe("the brand kit", () => {
     const kit = await getVideoBrandKit(database)
     expect(kit.colors).toEqual([{ name: "One", value: "#000000" }])
     expect(kit.logoUrl).toBe("")
+  })
+})
+
+describe("the script check's banned words", () => {
+  it("are the four starter words until a list is saved", async () => {
+    expect(await getScriptBannedWords(database)).toEqual([
+      "delve",
+      "crucial",
+      "game-changer",
+      "unlock",
+    ])
+  })
+
+  it("are exactly the saved list once there is one, and the brand kit is untouched", async () => {
+    await saveVideoBrandKit(
+      { ...createDefaultBrandKit(), colors: [{ name: "Brand", value: "#ff0000" }] },
+      database
+    )
+    await saveScriptBannedWords(["delve", "Let's dive in"], database)
+    expect(await getScriptBannedWords(database)).toEqual(["delve", "Let's dive in"])
+    expect((await getVideoBrandKit(database)).colors).toEqual([
+      { name: "Brand", value: "#ff0000" },
+    ])
+  })
+
+  it("stay empty when every word was taken off on purpose", async () => {
+    await saveScriptBannedWords([], database)
+    expect(await getScriptBannedWords(database)).toEqual([])
   })
 })

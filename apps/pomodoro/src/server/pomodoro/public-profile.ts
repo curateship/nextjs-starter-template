@@ -37,6 +37,7 @@ import {
 } from "@/server/pomodoro/productivity"
 import { blockedUserIdsFor, isBlockedBetween } from "@/server/pomodoro/blocks"
 import { listSharedMedia } from "@/server/pomodoro/shared-media"
+import { forgetTeamPages } from "@/server/pomodoro/teams"
 import { PROFILE_SHARED_COUNT } from "@/lib/pomodoro/shared-media"
 import {
   dailyFocusStats,
@@ -970,6 +971,9 @@ export async function saveMyPublicProfile(
   // The directory is held for five minutes, and a listing switched on or off
   // should take effect on the next load rather than after the window.
   forgetUsersPages()
+  // A team page shows only what this page publishes, so switching hours off
+  // here takes them off every team page on the next request too.
+  forgetTeamPages()
   return readMyPublicProfile(userId)
 }
 

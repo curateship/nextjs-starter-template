@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import { BellIcon, CheckIcon, ClipboardCheckIcon, HeartIcon, PlusIcon, UndoIcon } from "lucide-react"
 
 import { TaskChatCard } from "@/components/project/task-chat"
+import { TaskFieldsCard, TaskTypeField } from "@/components/project/task-fields-card"
 import { TaskFilesCard } from "@/components/project/task-files-card"
 import { TaskHistoryCard } from "@/components/project/task-history-card"
 import { TaskNotesField } from "@/components/project/task-notes"
@@ -68,6 +69,7 @@ import {
 } from "@/lib/project/rules"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 import { usePeopleRoom } from "@/lib/project/use-people-room"
+import { useProjectLive } from "@/lib/project/use-project-live"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
@@ -137,6 +139,13 @@ export function TaskView({
     setReloads((n) => n + 1)
     await router.invalidate()
   }, [router])
+
+  // Someone else's message, reaction or change to this task shows as it happens.
+  useProjectLive(
+    loaded.state === "ready" ? loaded.detail.task.projectId : undefined,
+    (change) => change === `task:${taskId}`,
+    () => setReloads((n) => n + 1)
+  )
 
   if (loaded.state === "ready") {
     return (
@@ -603,6 +612,7 @@ function TaskForm({
               ) : null}
             </div>
           </div>
+          <TaskTypeField detail={detail} readOnly={readOnly} busy={busy} change={change} />
           <div className="grid gap-4 sm:grid-cols-2">
             <TaskSectionField detail={detail} readOnly={readOnly} busy={busy} change={change} />
             <TaskLabelsField detail={detail} readOnly={readOnly} busy={busy} change={change} />
@@ -636,7 +646,8 @@ function TaskForm({
             key={task.id}
             notes={task.notes}
             readOnly={readOnly}
-            onSave={(notes) => change(() => saveTask({ taskId: task.id, notes }))}
+            onSave={(notes, notesSession) => change(() => saveTask({ taskId: task.id, notes, notesSession }))}
+            task={{ id: task.id, links: detail.noteLinks, change }}
           />
           {canHandBack && !task.waiting && !handingBack && !readOnly ? (
             <div>
@@ -649,6 +660,7 @@ function TaskForm({
         </CardContent>
       </Card>
 
+      <TaskFieldsCard detail={detail} readOnly={readOnly} change={change} refresh={refresh} />
       <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} />
       <StepsCard detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} busy={busy} />
       <TaskFilesCard detail={detail} readOnly={readOnly} refresh={refresh} change={change} />

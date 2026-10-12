@@ -23,6 +23,10 @@ import {
 } from "@/lib/video/ai-choices"
 import { SAFE_HOOK_ERRORS } from "@/lib/video/hooks"
 import {
+  SAFE_SCRIPT_CHECK_ERRORS,
+  type ScriptCheck,
+} from "@/lib/video/script-check"
+import {
   SAFE_TRANSLATE_ERRORS,
   TRANSLATE_LANGUAGES,
   TRANSLATE_LINE_MAX,
@@ -34,7 +38,9 @@ import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import {
   SAFE_VOICE_ERRORS,
   VOICE_MODEL_IDS,
-  createDefaultVoiceSettings,
+  rememberedVoiceSettings,
+  VOICE_SPEED_MAX,
+  VOICE_SPEED_MIN,
   VOICE_TEXT_MAX,
   voiceDefaultsSchema,
   voiceSettingsSchema,
@@ -53,6 +59,7 @@ import {
   saveVoiceDefaults,
 } from "@/server/video/settings"
 import { rewriteHook, type HookVariants } from "@/server/video/hooks"
+import { checkScript } from "@/server/video/script-check"
 import { translateLines } from "@/server/video/translate"
 import { listVoices, speak } from "@/server/video/voice"
 import {
@@ -86,6 +93,7 @@ export function getAiToolErrorMessage(error: unknown) {
   if (SAFE_JUMP_CUT_ERRORS.has(message)) return message
   if (SAFE_VOICE_ERRORS.has(message)) return message
   if (SAFE_HOOK_ERRORS.has(message)) return message
+  if (SAFE_SCRIPT_CHECK_ERRORS.has(message)) return message
   if (SAFE_TRANSLATE_ERRORS.has(message)) return message
   if (AI_KEY_MISSING_MESSAGES.has(message)) return message
   if (message === PROJECT_NOT_FOUND_MESSAGE) return message
@@ -245,6 +253,27 @@ export function rewriteOpeningLine(projectId: string) {
   return hookFn({ data: { projectId } })
 }
 
+const checkScriptFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      script: z.string().max(VOICE_TEXT_MAX),
+      speed: z.number().min(VOICE_SPEED_MIN).max(VOICE_SPEED_MAX),
+    })
+  )
+  .handler(async ({ data, context }): Promise<ScriptCheck> => {
+    return checkScript({
+      userId: context.user.id,
+      script: data.script,
+      speed: data.speed,
+    })
+  })
+
+/** Check a script against the five rules before it is read aloud. */
+export function checkVoiceScript(script: string, speed: number) {
+  return checkScriptFn({ data: { script, speed } })
+}
+
 const speakHookFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
@@ -264,9 +293,7 @@ const speakHookFn = createServerFn({ method: "POST" })
       // other provider works it out from the voice itself.
       modelId: remembered?.modelId ?? "eleven_multilingual_v2",
       text: data.text,
-      settings: remembered
-        ? { ...createDefaultVoiceSettings(), speed: remembered.speed }
-        : undefined,
+      settings: rememberedVoiceSettings(remembered),
     })
   })
 
@@ -325,9 +352,7 @@ const speakTranslationFn = createServerFn({ method: "POST" })
       speaker: "elevenlabs",
       modelId: TRANSLATE_VOICE_MODEL,
       text: data.text,
-      settings: remembered
-        ? { ...createDefaultVoiceSettings(), speed: remembered.speed }
-        : undefined,
+      settings: rememberedVoiceSettings(remembered),
       feature: "translation_voice",
     })
   })
@@ -341,7 +366,7 @@ export function speakTranslation(text: string, voice: Voice) {
 
 const voicesFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async (): Promise<Voice[]> => listVoices())
+  .handler(async ({ context }): Promise<Voice[]> => listVoices(context.user.id))
 
 export function loadVoices() {
   return voicesFn()
@@ -404,6 +429,7 @@ export type {
   ClipTranscript,
   HookVariants,
   JumpCutAnalysis,
+  ScriptCheck,
   Voice,
   VoiceDefaults,
   VoiceoverResult,

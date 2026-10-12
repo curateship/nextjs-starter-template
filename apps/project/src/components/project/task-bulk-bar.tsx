@@ -1,6 +1,5 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { toast } from "sonner"
 
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { ProjectDot, RoomNote } from "@/components/project/task-bits"
@@ -8,7 +7,6 @@ import { DashboardToolbarSelectTrigger } from "@/components/shared/dashboard-too
 import { DatePicker } from "@/components/ui/date-picker"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { changeTasks, type BulkChange } from "@/lib/api/project/tasks"
-import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { keyFromDate } from "@/lib/project/dates"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -20,7 +18,7 @@ import {
   type TaskStatus,
 } from "@/lib/project/rules"
 import { usePeopleRoom } from "@/lib/project/use-people-room"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { reportBulkOutcome } from "@/lib/project/bulk-outcome"
 
 const NOBODY = "nobody"
 const NO_DATE = "none"
@@ -29,9 +27,6 @@ export type BulkTargets = {
   people: { id: string; name: string }[]
   projects: { id: string; name: string; color: ProjectColor }[]
 }
-
-/** How many refused tasks the result names before it counts the rest. */
-const REFUSALS_NAMED = 3
 
 /**
  * Status, Hand to, Due date and Move to project for the ticked rows of a
@@ -64,19 +59,7 @@ export function TaskBulkBar({
     })
     setReset((n) => n + 1)
     if (!ok) return false
-    const changed = outcome.changed.length
-    const refused = outcome.refused.length
-    if (refused) {
-      const named = outcome.refused
-        .slice(0, REFUSALS_NAMED)
-        .map((one) => `${one.title ? `"${one.title}": ` : ""}${one.reason}`)
-      const more = refused - named.length
-      showErrorToast(
-        `${changed} ${plural(changed, "task")} ${verb}, ${refused} refused. ${named.join(" ")}${more ? ` And ${more} more.` : ""}`
-      )
-    } else {
-      toast.success(`${changed} ${plural(changed, "task")} ${verb}.`)
-    }
+    reportBulkOutcome(outcome, verb)
     onDone()
     await router.invalidate()
     return true

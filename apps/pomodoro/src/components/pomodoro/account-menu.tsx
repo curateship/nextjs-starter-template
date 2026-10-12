@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
+  CreditCardIcon,
   LayoutDashboardIcon,
   LogOutIcon,
   MoonIcon,
@@ -8,6 +9,7 @@ import {
   SparklesIcon,
   UploadIcon,
   UserIcon,
+  UsersIcon,
 } from "lucide-react"
 
 import { ProfilePhoto } from "@/components/pomodoro/profile-photo"
@@ -112,6 +114,12 @@ export function AccountMenu({
             My uploads
           </Link>
         </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/groups" search={{ create: "group" }}>
+            <UsersIcon />
+            Create a group
+          </Link>
+        </DropdownMenuItem>
         {facts?.profileHandle ? (
           <DropdownMenuItem asChild>
             <Link to="/u/$handle" params={{ handle: facts.profileHandle }}>
@@ -120,6 +128,12 @@ export function AccountMenu({
             </Link>
           </DropdownMenuItem>
         ) : null}
+        <DropdownMenuItem asChild>
+          <Link to="/settings" search={{ tab: "plan" }}>
+            <CreditCardIcon />
+            Plan and billing
+          </Link>
+        </DropdownMenuItem>
         {facts && !facts.isPaid ? (
           <DropdownMenuItem asChild>
             <Link to="/plans">

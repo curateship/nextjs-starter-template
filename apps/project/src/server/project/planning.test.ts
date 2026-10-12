@@ -23,7 +23,7 @@ import {
 } from "@/server/project/projects"
 import { projectNoticeLinks, projectTasks } from "@/server/project/schema"
 import { moveTask } from "@/server/project/task-changes"
-import { addComment } from "@/server/project/task-chat"
+import { sendMessage } from "@/server/project/task-chat"
 import {
   addStep,
   createTask,
@@ -238,7 +238,7 @@ describe("Just me tasks", () => {
 describe("the bin", () => {
   it("takes a deleted task off every list and brings it back whole", async () => {
     const id = await task("Wrong one")
-    await addComment(actor(ben), { taskId: id, body: "Notes from the call" }, database)
+    await sendMessage(actor(ben), { chat: { taskId: id }, body: "Notes from the call", replyToId: null }, database)
     await deleteTask(actor(anna), id, database)
     expect(await titlesIn()).toEqual([])
     expect(await loadMyWork(ben.id, database)).toEqual([])

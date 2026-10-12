@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import {
   MAX_FRONT_PAGE_ROWS,
+  type FrontPageListedPage,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 import { MAX_FRONT_PAGE_ROW_ID_LENGTH } from "@/lib/pages/front-page"
@@ -20,7 +21,10 @@ import {
   publicPagesWorkspaceId,
   visitorWorkspaceId,
 } from "@/server/workspaces/for-request"
-import { readPageVisibility } from "@/server/content/pages"
+import {
+  readListedPages,
+  readPageVisibility,
+} from "@/server/content/pages"
 import { findSessionContext } from "@/server/auth/security"
 
 import { createErrorMessage } from "../error-message"
@@ -158,4 +162,42 @@ const loadPublicPageBlocksFn = createServerFn({ method: "GET" })
 
 export function loadPublicPageBlocks(path: string) {
   return loadPublicPageBlocksFn({ data: { path } })
+}
+
+/**
+ * The cards each Pages list block on one page shows, by block id.
+ *
+ * No guard, for the same reason as the blocks above, and the same two checks
+ * first: nothing comes back for a page this visitor may not open. The blocks
+ * are read again here rather than taken from the browser, so a caller cannot
+ * name pages of its own and have their names and descriptions handed over;
+ * and each page listed is checked against its own Visibility as well.
+ *
+ * Asked for only by a page that has a Pages list block on it, so every other
+ * page pays nothing for it.
+ */
+const loadPublicListedPagesFn = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ path: pathSchema }))
+  .handler(
+    async ({ data }): Promise<Record<string, FrontPageListedPage[]>> => {
+      const workspaceId = await visitorWorkspaceId()
+      if (!workspaceId) return {}
+
+      const [visibility, session] = await Promise.all([
+        readPageVisibility(workspaceId, data.path),
+        findSessionContext(),
+      ])
+      if (visibility === "off") return {}
+      if (visibility === "members" && !session) return {}
+
+      return readListedPages(
+        workspaceId,
+        await readVisiblePageBlocks(workspaceId, data.path),
+        Boolean(session)
+      )
+    }
+  )
+
+export function loadPublicListedPages(path: string) {
+  return loadPublicListedPagesFn({ data: { path } })
 }

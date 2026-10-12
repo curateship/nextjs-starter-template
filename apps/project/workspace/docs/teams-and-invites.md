@@ -149,7 +149,8 @@ Day. The tab is "Day" so it doesn't sit over the panel's own Check-ins tab.
   and the members with
   their roles. The owner and admins also get an Invite member button. Manage
   opens the Members page.
-- **Middle: the calendar.** A month of the team's check-ins and meetings, with
+- **Middle: the calendar.** The team's announcement pinned at the top when
+  there is one (below), then a month of the team's check-ins and meetings, with
   New meeting in its header and the chosen day's meetings under it. See
   [Meetings](meetings.md) and
   [History](history.md#past-days-on-the-team-dashboard).
@@ -168,6 +169,31 @@ Day. The tab is "Day" so it doesn't sit over the panel's own Check-ins tab.
   everyone, and Needs attention, for the owner and admins (see
   [Needs attention and workload](needs-attention.md)). The tab last used is
   remembered in this browser.
+
+### The team's announcement
+
+Something for the whole team reaches everyone in one place: "Office closed
+Friday", pinned at the top of the Team dashboard's middle panel.
+
+- **The owner and admins post it.** The megaphone in the calendar's header
+  opens a window with one box, up to 500 characters, and Post announcement.
+  While one is up, "Post a new one" on it opens the same window.
+- **Everyone else on the team gets "Maya posted an announcement"** in the
+  bell, with the start of it under the heading. It opens the Team dashboard.
+- **One at a time.** A new one replaces the old one and rings the bell again.
+  Take down removes it for everyone, after "Take it down for everyone?".
+- **Each person can hide it for themselves** with the X. It stays hidden for
+  them until the next one is posted, which shows again.
+- **It shows who posted it and when**, with the exact time on hover.
+- **It is one message, never a team chat.** Nobody replies to it. Talk about
+  a project goes in that project's chat (see
+  [Projects and tasks](projects-and-tasks.md#the-projects-chat)).
+- **20 an hour at most per person**, since each one rings everyone's bell.
+- **Where it is saved:** on `project_teams` (`announcement_id`, `_text`,
+  `_by_user_id`, `_at`), and who hid which one on `project_team_members`
+  (`hidden_announcement_id`), in `drizzle/0109_project_chat_and_talking.sql`.
+  Rules in `src/server/project/announcements.ts`, the card and window in
+  `src/components/project/team-announcement.tsx`.
 
 ### The team photo
 
@@ -309,5 +335,6 @@ for app admins and a customer who owns a team is not one.
   in `team-checkin-settings.tsx`,
   `src/components/project/team-members.tsx` and
   `src/components/project/team-start.tsx`.
-- **Tests:** `src/server/project/project.test.ts`, and the figures and photo
-  in `src/server/project/team-dashboard.test.ts`.
+- **Tests:** `src/server/project/project.test.ts`, the figures and photo
+  in `src/server/project/team-dashboard.test.ts`, and the announcement in
+  `src/server/project/chat-and-talking.test.ts`.

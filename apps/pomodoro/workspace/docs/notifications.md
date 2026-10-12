@@ -70,7 +70,7 @@ saved with it.
 | room_removed | the person removed or banned | Rooms | nothing |
 | followed_room | people who follow the host | Rooms | the room |
 | cheer | the person cheered | Social | the sender's public page, while it opens |
-| group_join | a group's owner | Social | `/leaderboard`, where the group boards are |
+| group_join | a group's owner | Social | `/groups?group=<id>`, that group on Groups |
 | group_removed | the person removed | Social | nothing |
 | followed_streak | people who follow the streaker | Social | the streaker's public page, while it opens |
 | badge | the person who earned it | Account | `/history`, where the badges panel is |
@@ -88,6 +88,7 @@ saved with it.
 | share_weekly | an owner whose shared files at least 3 people added in the last seven days, on their own Monday | Account | My uploads, on the top file's kind |
 | share_removed | the owner of a file an admin took off sharing, with the reason as its detail | Account | My uploads, on the file's kind |
 | share_waiting | every active admin, while a member's first share waits for a check | Account | Member uploads, filtered to "Waiting to be shared" |
+| room_not_opening | the host and invitees with an account, when a booked room's host has no Pro at its start; once per pause for a weekly room | Rooms | the host's leads to `/plans`; the invitees' to nothing |
 
 Rooms is what happens in and around focus rooms. Social is other people outside
 a room. Account is your own badges, files and credits, and moderation: the

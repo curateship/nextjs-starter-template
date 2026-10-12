@@ -9,6 +9,7 @@ import {
   ClipboardListIcon,
   HeartIcon,
   ListChecksIcon,
+  MegaphoneIcon,
   MessageSquareIcon,
   MessageSquareReplyIcon,
   PlayIcon,
@@ -54,6 +55,9 @@ const APP_NOTICE_KINDS = [
   "meeting_invite",
   "blocker_reply",
   "checkin_mention",
+  "chat_mention",
+  "chat_reply",
+  "team_announcement",
 ] as const
 
 const PROJECT_NOTICE_KINDS = [...TASK_NOTICE_KINDS, ...APP_NOTICE_KINDS] as const
@@ -64,6 +68,8 @@ export const CHECKIN_REMINDER_HEADING = "Time to check in"
 export const CHECKIN_REMINDER_DETAIL = "Pick the tasks you'll work on today."
 /** My dashboard with the check-in window open. */
 export const CHECKIN_HREF = "/dashboard?checkin=true"
+/** The Team dashboard, where the announcement is pinned. */
+export const TEAM_HREF = "/team"
 
 const HEADING_ENDING: Record<Exclude<TaskNoticeKind, "tasks_handed">, string> = {
   task_assigned: " gave you a task",
@@ -110,6 +116,25 @@ export function blockerReplyHeading(name: string) {
 /** "Leo mentioned you in their check-in". */
 export function checkinMentionHeading(name: string) {
   return `${name}${CHECKIN_MENTION_ENDING}`
+}
+
+const CHAT_MENTION_ENDING = " tagged you in a project chat"
+const CHAT_REPLY_ENDING = " replied to you in a project chat"
+const ANNOUNCEMENT_ENDING = " posted an announcement"
+
+/** "Anna tagged you in a project chat". */
+export function chatMentionHeading(name: string) {
+  return `${name}${CHAT_MENTION_ENDING}`
+}
+
+/** "Anna replied to you in a project chat". */
+export function chatReplyHeading(name: string) {
+  return `${name}${CHAT_REPLY_ENDING}`
+}
+
+/** "Maya posted an announcement". */
+export function announcementHeading(name: string) {
+  return `${name}${ANNOUNCEMENT_ENDING}`
 }
 const TASKS_HANDED_WORDS = / gave you \d+ tasks$/
 
@@ -168,6 +193,9 @@ export function noticeKindFromWords(
   if (notice.message.endsWith(MEETING_INVITE_ENDING)) return "meeting_invite"
   if (notice.message.endsWith(BLOCKER_REPLY_ENDING)) return "blocker_reply"
   if (notice.message.endsWith(CHECKIN_MENTION_ENDING)) return "checkin_mention"
+  if (notice.message.endsWith(CHAT_MENTION_ENDING)) return "chat_mention"
+  if (notice.message.endsWith(CHAT_REPLY_ENDING)) return "chat_reply"
+  if (notice.message.endsWith(ANNOUNCEMENT_ENDING)) return "team_announcement"
   if (TASKS_HANDED_WORDS.test(notice.message)) return "tasks_handed"
   return (
     (Object.keys(HEADING_ENDING) as (keyof typeof HEADING_ENDING)[]).find((kind) =>
@@ -292,6 +320,22 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
     toneClassName: "bg-pink-500/10 text-pink-600 dark:text-pink-400",
     categoryId: "tasks",
   },
+  chat_mention: {
+    icon: AtSignIcon,
+    toneClassName: "bg-primary/10 text-primary",
+    categoryId: "tasks",
+  },
+  chat_reply: {
+    icon: MessageSquareReplyIcon,
+    toneClassName: "bg-primary/10 text-primary",
+    categoryId: "tasks",
+  },
+  team_announcement: {
+    icon: MegaphoneIcon,
+    toneClassName: "bg-primary/10 text-primary",
+    categoryId: "tasks",
+    href: TEAM_HREF,
+  },
 }
 
 export function noticeLook(kind: ProjectNoticeKind): AppNoticeDetail {
@@ -303,6 +347,11 @@ export const MY_DASHBOARD_HREF = "/dashboard"
 
 /** The team's Members page. */
 export const MEMBERS_HREF = "/team/members"
+
+/** A project's page with its Chat tab open. */
+export function projectChatHref(projectId: string) {
+  return `/projects/${encodeURIComponent(projectId)}?chat=1`
+}
 
 /** The Team dashboard on one day. */
 export function teamDayHref(day: string) {

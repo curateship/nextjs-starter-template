@@ -94,7 +94,47 @@ export const PROJECT_ERRORS = {
   cantAskForReview: "Only the person who handed the task out or made it can ask for a review.",
   notWaitingForReview: "This task isn't waiting for a review any more.",
   cantReview: "Only the person reviewing this task, the owner or an admin can confirm it or send it back.",
+  typeNotFound: "That task type no longer exists.",
+  typeNameTaken: "Your team already has a task type with that name.",
+  tooManyTypes: "A team can have at most 50 task types.",
+  typeArchived: "That task type is archived. Bring it back in Team settings to use it.",
+  typeNotOffered: "This project doesn't offer that task type. Tick it in Project settings first.",
+  fieldNotFound: "That field no longer exists.",
+  fieldNameTaken: "This type already has a field with that name.",
+  tooManyFields: "A task type can have at most 30 fields.",
+  tooManyChoices: "A dropdown can have at most 50 choices.",
+  choiceNameTaken: "Two choices can't have the same name.",
+  choiceNotFound: "Pick one of the field's choices.",
+  fieldKindLocked: "Tasks already have a value in this field, so its kind can't change.",
+  showWhenWrong: "A field can only depend on a Dropdown field of the same type, and one of its choices.",
+  showWhenLoop: "That dropdown already depends on this field, so this field can't depend on it.",
+  fieldNotOnType: "That field isn't on this task's type.",
+  fileFieldWhenMade: "A File field can't be needed when the task is made, because files are added after.",
+  notAFileField: "That field doesn't take files.",
+  fieldTooLong: "That's too long for this field.",
+  fieldNumber: "Type a number.",
+  fieldLink: "A link must start with https://.",
+  fieldDate: "Pick a date from the calendar.",
+  fieldValueWrong: "That value doesn't fit this field.",
+  fieldPersonNotOnProject: "Pick someone who is on this project.",
+  cantChangeType: "Only whoever handed the task out, the owner or an admin can change its type.",
+  messageEmpty: "Write the message or add a file first.",
+  tooManyMessageFiles: "A message can carry at most 5 files. Send the rest in another message.",
+  replyNotInChat: "The message you're replying to isn't in this chat any more.",
+  linkNotVisible: "You can only link tasks you can see that aren't in a bin.",
+  noAnnouncement: "There's no announcement up right now.",
+  tooManyAnnouncements: "That's a lot of announcements in an hour. Wait a while, then post again.",
+  noteVersionNotFound: "That version of the notes no longer exists.",
 } as const
+
+/**
+ * Refusals that carry a field's own name, such as "Fill in Final cut first."
+ * (`src/lib/project/task-fields.ts` writes them).
+ */
+const NAMED_REFUSALS = [
+  /^Fill in .{1,80} first\.$/,
+  /^Only (the person assigned|whoever handed the task out), the owner or an admin can change .{1,80}\.$/,
+]
 
 /** The shell's rate limiter refuses with this code rather than a sentence. */
 const RATE_LIMITED =
@@ -106,6 +146,7 @@ const KNOWN_MESSAGES = new Set<string>(Object.values(PROJECT_ERRORS))
 export function getProjectErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ""
   if (KNOWN_MESSAGES.has(message)) return message
+  if (NAMED_REFUSALS.some((pattern) => pattern.test(message))) return message
   if (message.includes("RATE_LIMITED")) return RATE_LIMITED
   return (
     describeAuthError(message) ??

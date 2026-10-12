@@ -94,13 +94,16 @@ export async function loadMediaBootstrap(userId: string): Promise<MediaBootstrap
     loadOrCreatePreferences(userId),
   ])
   // Saved shared files carry a credit; a plan without shared files keeps
-  // only the member's own (audit, 10 Oct 2026).
-  const own = entitlements.canUseSharedMedia
-    ? pool
-    : {
-        sounds: pool.sounds.filter((file) => !file.credit),
-        backgrounds: pool.backgrounds.filter((file) => !file.credit),
-      }
+  // only the member's own (audit, 10 Oct 2026). The member's own files need
+  // Pro (payments task 05): without it they stay stored and out of every
+  // group until it comes back. Someone else's shared file is not theirs to
+  // lose, so it stays.
+  const keep = (file: { credit?: unknown }) =>
+    file.credit ? entitlements.canUseSharedMedia : entitlements.canUploadMedia
+  const own = {
+    sounds: pool.sounds.filter(keep),
+    backgrounds: pool.backgrounds.filter(keep),
+  }
   // Somebody who never picked gets the admin's pair. A member who chose
   // silence saved `none`, which is not "never picked". A default an admin
   // has since made Pro or Draft is left out for anybody who cannot play it.
@@ -109,12 +112,8 @@ export async function loadMediaBootstrap(userId: string): Promise<MediaBootstrap
     list.some((item) => `${prefix}${item.key}` === stored && (entitlements.canUsePremiumMedia || !item.locked))
       ? stored
       : null
-  const sound =
-    personal.sound ?? (unset.shuffle ? "shuffle" : allowed(unset.defaults.sound, catalog.sounds, "curated:"))
-  const background =
-    personal.background ??
-    (unset.shuffle ? "shuffle" : allowed(unset.defaults.background, catalog.themes, "scene:"))
-  const shown = room ?? { sound, background }
+  const unsetSound = unset.shuffle ? "shuffle" : allowed(unset.defaults.sound, catalog.sounds, "curated:")
+  const unsetBackground = unset.shuffle ? "shuffle" : allowed(unset.defaults.background, catalog.themes, "scene:")
   // An upload is served from the bucket, so its address is resolved here. One
   // that is gone, not finished or not theirs comes back with no address, and
   // the page falls back to the default scene or to silence.
@@ -127,6 +126,28 @@ export async function loadMediaBootstrap(userId: string): Promise<MediaBootstrap
     soundRef?.type === "media" ? resolveUploadUrl(userId, soundRef.mediaId, shared) : null,
     sceneRef?.type === "media" ? resolveUploadUrl(userId, sceneRef.mediaId, shared) : null,
   ])
+  // A Pro choice saved while the plan had Pro is held, not played, once it
+  // has not (payments task 05): a Pro sound or background, or the member's
+  // own file. The saved value is left as it is, so it comes back with Pro;
+  // until then the room plays what somebody who never picked gets.
+  const heldSound =
+    soundRef?.type === "curated" && !entitlements.canUsePremiumMedia
+      ? (catalog.sounds.find((item) => item.key === soundRef.key && item.locked)?.label ?? null)
+      : soundUpload && !soundUpload.credit && !entitlements.canUploadMedia
+        ? soundUpload.name
+        : null
+  const heldBackground =
+    sceneRef?.type === "scene" && !entitlements.canUsePremiumMedia
+      ? (catalog.themes.find((item) => item.key === sceneRef.key && item.locked)?.label ?? null)
+      : sceneUpload && !sceneUpload.credit && !entitlements.canUploadMedia
+        ? sceneUpload.name
+        : null
+  const sound = heldSound !== null ? unsetSound : (personal.sound ?? unsetSound)
+  const background =
+    heldBackground !== null ? unsetBackground : (personal.background ?? unsetBackground)
+  const soundFile = heldSound !== null ? null : soundUpload
+  const sceneFile = heldBackground !== null ? null : sceneUpload
+  const shown = room ?? { sound, background }
   return {
     catalog,
     fallbackBackground: unset.defaults.background,
@@ -144,18 +165,19 @@ export async function loadMediaBootstrap(userId: string): Promise<MediaBootstrap
     breakLook: freeBreakLook(catalog, unset.breakLook, entitlements.canUsePremiumMedia),
     personal: {
       sound,
-      soundUrl: soundUpload?.url ?? null,
-      soundName: soundUpload?.name ?? null,
-      soundCredit: soundUpload?.credit ?? null,
+      soundUrl: soundFile?.url ?? null,
+      soundName: soundFile?.name ?? null,
+      soundCredit: soundFile?.credit ?? null,
       background,
-      backgroundUrl: sceneUpload?.url ?? null,
-      backgroundCredit: sceneUpload?.credit ?? null,
-      backgroundKind: sceneUpload
-        ? sceneUpload.kind === "video"
+      backgroundUrl: sceneFile?.url ?? null,
+      backgroundCredit: sceneFile?.credit ?? null,
+      backgroundKind: sceneFile
+        ? sceneFile.kind === "video"
           ? "video"
           : "image"
         : null,
     },
+    held: { sound: heldSound, background: heldBackground },
     room,
     canUsePremiumMedia: entitlements.canUsePremiumMedia,
     own,
@@ -186,7 +208,7 @@ export async function savePersonalSound(userId: string, sound: string | null) {
     if (entry.locked) await assertPremiumMedia(userId)
   }
   if (reference?.type === "media")
-    await noteSharedPick(userId, await assertUploadUsable(userId, reference.mediaId, "sound"), reference.mediaId)
+    await noteSharedPick(userId, await assertPickableFile(userId, reference.mediaId, "sound"), reference.mediaId)
   return writePersonalRoom(userId, { sound })
 }
 
@@ -211,7 +233,7 @@ export async function savePersonalBackground(
     if (entry.locked) await assertPremiumMedia(userId)
   }
   if (reference?.type === "media")
-    await noteSharedPick(userId, await assertUploadUsable(userId, reference.mediaId, "background"), reference.mediaId)
+    await noteSharedPick(userId, await assertPickableFile(userId, reference.mediaId, "background"), reference.mediaId)
   return writePersonalRoom(userId, { background })
 }
 
@@ -222,6 +244,24 @@ async function noteSharedPick(
   mediaId: string
 ) {
   if (usable.ownerUserId !== userId) await recordMediaAdd(db, userId, mediaId)
+}
+
+/**
+ * A file the member may put in their room now: someone else's shared file on
+ * any plan that allows shared files, their own only while the plan allows
+ * uploads (payments task 05).
+ */
+async function assertPickableFile(
+  userId: string,
+  mediaId: string,
+  purpose: "sound" | "background"
+) {
+  const usable = await assertUploadUsable(userId, mediaId, purpose)
+  if (usable.ownerUserId === userId) {
+    const entitlements = await loadPomodoroEntitlements(userId)
+    if (!entitlements.canUploadMedia) throw new Error("UPGRADE_REQUIRED:uploadMedia")
+  }
+  return usable
 }
 
 async function assertPremiumMedia(userId: string) {

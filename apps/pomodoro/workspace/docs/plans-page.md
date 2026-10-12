@@ -95,8 +95,9 @@ The yearly card's figures are worked out from the real prices:
   line under the headline says "You're on Pro" with what just unlocked while
   the Pro card reads "Current plan". If the ask fails the line says Stripe is
   confirming and the page refreshes a few times until the webhook lands.
-  Backing out of Stripe's page, and the "return" link in the Stripe billing
-  portal, both land on `/plans`. The three addresses are the app's
+  Backing out of Stripe's page lands on `/plans`. The "return" link in the
+  Stripe billing portal lands on Settings → Plan (`/settings?tab=plan`),
+  where Manage billing is, since 12 Oct 2026. The three addresses are the app's
   `billing.returnPaths` in `src/app/server-options.ts`, a shell option added
   on 9 Oct 2026; until then they were the shell's success page, its
   `/pricing` and the account dialog.

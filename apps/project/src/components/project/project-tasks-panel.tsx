@@ -3,8 +3,10 @@ import { useRouter } from "@tanstack/react-router"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
 import { BinDialog } from "@/components/project/bin-dialog"
+import { FieldColumnsMenu } from "@/components/project/field-columns-menu"
 import { NewTaskDialog } from "@/components/project/new-task-dialog"
 import { ProjectActivity } from "@/components/project/project-activity"
+import { ProjectChat } from "@/components/project/project-chat"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { TaskBoard } from "@/components/project/task-board"
 import { TaskFiltersBar } from "@/components/project/task-filters-bar"
@@ -25,31 +27,48 @@ import type { TaskStatus } from "@/lib/project/rules"
 import { filterTasks, hasTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
 import { overDoingLimit } from "@/lib/project/doing-limit"
 import { placesAfterReorder } from "@/lib/project/task-order"
+import { offeredTypes } from "@/lib/project/task-types"
+import { useFieldColumns } from "@/lib/project/use-field-columns"
 
-const VIEWS = ["board", "list", "activity"] as const
+const VIEWS = ["board", "list", "activity", "chat"] as const
 type View = (typeof VIEWS)[number]
 
 const NO_SECTION = "none"
 
 /**
  * The project's tasks, as a Board (one column per status) or a List grouped
- * under the project's sections. The tab last used is remembered in this
- * browser; the search and filters live in the address. A status change or a
- * new order shows at once and is put back if the server refuses it.
+ * under the project's sections, its Activity, and its own Chat. The tab last
+ * used is remembered in this browser; the search and filters live in the
+ * address. A status change or a new order shows at once and is put back if
+ * the server refuses it. A "Just me" list has no Chat, since nobody else
+ * can read it.
  */
 export function ProjectTasksPanel({
   page,
   filters,
   onFilters,
   onOpenTask,
+  openChat,
+  onChatOpened,
 }: {
   page: ProjectPage
   filters: TaskFilters
   onFilters: (patch: Partial<TaskFilters>) => void
   onOpenTask: (taskId: string) => void
+  /** A chat notice's link asked for the Chat tab. */
+  openChat: boolean
+  onChatOpened: () => void
 }) {
   const router = useRouter()
-  const [view, setView] = useRememberedChoice<View>(PROJECT_TASK_VIEW_KEY, "board", VIEWS)
+  const [chosenView, setView] = useRememberedChoice<View>(PROJECT_TASK_VIEW_KEY, "board", VIEWS)
+  const hasChat = !page.project.personal
+  const view = chosenView === "chat" && !hasChat ? "board" : chosenView
+
+  React.useEffect(() => {
+    if (!openChat) return
+    if (hasChat) setView("chat")
+    onChatOpened()
+  }, [openChat, hasChat, setView, onChatOpened])
   const [tasks, setTasks] = useSyncedDraft(page.tasks)
   const [creating, setCreating] = React.useState(false)
   const [binOpen, setBinOpen] = React.useState(false)
@@ -60,6 +79,16 @@ export function ProjectTasksPanel({
 
   const filtered = filterTasks(tasks, filters)
   const people = page.members.map((m) => ({ id: m.userId, name: m.name }))
+  // Filtered to one type, the List can show up to 3 of its fields as columns.
+  const filteredType = page.taskTypes.find((type) => type.id === filters.type)
+  const [columnIds, setColumnIds] = useFieldColumns(filteredType?.id)
+  const fieldColumns = React.useMemo(() => {
+    const names = new Map(page.members.map((m) => [m.userId, m.name]))
+    return columnIds.flatMap((id) => {
+      const field = filteredType?.fields.find((f) => f.id === id)
+      return field ? [{ field, people: names }] : []
+    })
+  }, [columnIds, filteredType, page.members])
   const sectionGroups = React.useMemo(
     () => [
       ...page.sections.map((section) => ({ key: section.id, label: section.name })),
@@ -143,12 +172,29 @@ export function ProjectTasksPanel({
           <TabsTrigger value="board">Board</TabsTrigger>
           <TabsTrigger value="list">List</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
+          {hasChat ? <TabsTrigger value="chat">Chat</TabsTrigger> : null}
         </DashboardCardTabsHeader>
       </Tabs>
-      {view === "activity" ? null : (
-        <TaskFiltersBar filters={filters} onChange={onFilters} people={people} labels={page.labels} />
+      {view === "activity" || view === "chat" ? null : (
+        <TaskFiltersBar
+          filters={filters}
+          onChange={onFilters}
+          people={people}
+          labels={page.labels}
+          types={page.taskTypes}
+        >
+          {view === "list" && filteredType?.fields.length ? (
+            <FieldColumnsMenu
+              fields={filteredType.fields}
+              chosen={fieldColumns.map((column) => column.field.id)}
+              onChange={setColumnIds}
+            />
+          ) : null}
+        </TaskFiltersBar>
       )}
-      {view === "activity" ? (
+      {view === "chat" ? (
+        <ProjectChat page={page} />
+      ) : view === "activity" ? (
         <ProjectActivity projectId={page.project.id} onOpenTask={onOpenTask} />
       ) : hasTaskFilters(filters) && filtered.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">
@@ -175,6 +221,7 @@ export function ProjectTasksPanel({
           showEmptyGroups={!hasTaskFilters(filters)}
           onReorder={readOnly ? undefined : (taskIds) => void reorder(taskIds)}
           bulk={{ people, projects: page.otherProjects }}
+          fieldColumns={fieldColumns}
         />
       )}
       <NewTaskDialog
@@ -184,8 +231,13 @@ export function ProjectTasksPanel({
             name: page.project.name,
             color: page.project.color,
             members: page.members,
+            typeIds: offeredTypes(page.taskTypes, page.project.personal ? [] : page.project.hiddenTypeIds).map(
+              (type) => type.id
+            ),
+            defaultTypeId: page.project.defaultTypeId,
           },
         ]}
+        types={page.taskTypes}
         initialProjectId={page.project.id}
         open={creating}
         onClose={() => setCreating(false)}

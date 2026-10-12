@@ -66,8 +66,7 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
         </div>
       </ScrollArea>
       <ProjectSettingsDialog
-        project={project}
-        sections={page.sections}
+        page={page}
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
       />

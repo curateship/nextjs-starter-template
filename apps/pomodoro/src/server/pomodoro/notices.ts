@@ -229,7 +229,7 @@ export async function noteGroupJoin(
     actorUserId: joinerUserId,
     kind: "group_join",
     subject: { groupId },
-    href: "/leaderboard",
+    href: `/groups?group=${groupId}`,
     compose: (waiting) => {
       const first = waiting?.detail ?? joinerName
       const foldCount = (waiting?.foldCount ?? 0) + 1

@@ -26,6 +26,8 @@ import {
   MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
   MAX_FRONT_PAGE_ITEM_NAME_LENGTH,
   MAX_FRONT_PAGE_ITEM_ROLE_LENGTH,
+  MAX_FRONT_PAGE_LISTED_PAGE_ID_LENGTH,
+  MAX_FRONT_PAGE_LISTED_PAGES,
   MAX_FRONT_PAGE_LOGOS,
   MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
   MAX_FRONT_PAGE_ROW_ID_LENGTH,
@@ -253,5 +255,16 @@ export const frontPageRowSchema = z.discriminatedUnion("kind", [
         })
       )
       .max(MAX_FRONT_PAGE_SCREENSHOTS),
+  }),
+  z.object({
+    ...frontPageRowBaseShape,
+    kind: z.literal("pages"),
+    // Only which pages, never what they say: the cards are read from the
+    // pages themselves when the block is drawn. Whether each id is a page on
+    // this site is decided by that read, which looks only inside the site
+    // being visited.
+    pageIds: z
+      .array(z.string().max(MAX_FRONT_PAGE_LISTED_PAGE_ID_LENGTH))
+      .max(MAX_FRONT_PAGE_LISTED_PAGES),
   }),
 ])

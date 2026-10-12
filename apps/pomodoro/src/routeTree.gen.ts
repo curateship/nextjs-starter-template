@@ -35,6 +35,7 @@ import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/h
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as PomodoroBackgroundsRouteImport } from './routes/_pomodoro/backgrounds'
 import { Route as PomodoroCopyrightRouteImport } from './routes/_pomodoro/copyright'
+import { Route as PomodoroGroupsRouteImport } from './routes/_pomodoro/groups'
 import { Route as PomodoroHistoryRouteImport } from './routes/_pomodoro/history'
 import { Route as PomodoroLeaderboardRouteImport } from './routes/_pomodoro/leaderboard'
 import { Route as PomodoroPlansRouteImport } from './routes/_pomodoro/plans'
@@ -96,6 +97,7 @@ import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authentic
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
 import { Route as PomodoroRoomsSlugRouteImport } from './routes/_pomodoro/rooms_.$slug'
+import { Route as PomodoroTeamHandleRouteImport } from './routes/_pomodoro/team.$handle'
 import { Route as PomodoroUHandleRouteImport } from './routes/_pomodoro/u.$handle'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
@@ -248,6 +250,11 @@ const PomodoroBackgroundsRoute = PomodoroBackgroundsRouteImport.update({
 const PomodoroCopyrightRoute = PomodoroCopyrightRouteImport.update({
   id: '/copyright',
   path: '/copyright',
+  getParentRoute: () => PomodoroRoute,
+} as any)
+const PomodoroGroupsRoute = PomodoroGroupsRouteImport.update({
+  id: '/groups',
+  path: '/groups',
   getParentRoute: () => PomodoroRoute,
 } as any)
 const PomodoroHistoryRoute = PomodoroHistoryRouteImport.update({
@@ -597,6 +604,11 @@ const PomodoroRoomsSlugRoute = PomodoroRoomsSlugRouteImport.update({
   path: '/rooms/$slug',
   getParentRoute: () => PomodoroRoute,
 } as any)
+const PomodoroTeamHandleRoute = PomodoroTeamHandleRouteImport.update({
+  id: '/team/$handle',
+  path: '/team/$handle',
+  getParentRoute: () => PomodoroRoute,
+} as any)
 const PomodoroUHandleRoute = PomodoroUHandleRouteImport.update({
   id: '/u/$handle',
   path: '/u/$handle',
@@ -760,6 +772,7 @@ export interface FileRoutesByFullPath {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/backgrounds': typeof PomodoroBackgroundsRoute
   '/copyright': typeof PomodoroCopyrightRoute
+  '/groups': typeof PomodoroGroupsRoute
   '/history': typeof PomodoroHistoryRoute
   '/leaderboard': typeof PomodoroLeaderboardRoute
   '/plans': typeof PomodoroPlansRoute
@@ -819,6 +832,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/rooms/$slug': typeof PomodoroRoomsSlugRoute
+  '/team/$handle': typeof PomodoroTeamHandleRoute
   '/u/$handle': typeof PomodoroUHandleRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -870,6 +884,7 @@ export interface FileRoutesByTo {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/backgrounds': typeof PomodoroBackgroundsRoute
   '/copyright': typeof PomodoroCopyrightRoute
+  '/groups': typeof PomodoroGroupsRoute
   '/history': typeof PomodoroHistoryRoute
   '/leaderboard': typeof PomodoroLeaderboardRoute
   '/plans': typeof PomodoroPlansRoute
@@ -929,6 +944,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/rooms/$slug': typeof PomodoroRoomsSlugRoute
+  '/team/$handle': typeof PomodoroTeamHandleRoute
   '/u/$handle': typeof PomodoroUHandleRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -985,6 +1001,7 @@ export interface FileRoutesById {
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_pomodoro/backgrounds': typeof PomodoroBackgroundsRoute
   '/_pomodoro/copyright': typeof PomodoroCopyrightRoute
+  '/_pomodoro/groups': typeof PomodoroGroupsRoute
   '/_pomodoro/history': typeof PomodoroHistoryRoute
   '/_pomodoro/leaderboard': typeof PomodoroLeaderboardRoute
   '/_pomodoro/plans': typeof PomodoroPlansRoute
@@ -1044,6 +1061,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/_pomodoro/rooms_/$slug': typeof PomodoroRoomsSlugRoute
+  '/_pomodoro/team/$handle': typeof PomodoroTeamHandleRoute
   '/_pomodoro/u/$handle': typeof PomodoroUHandleRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -1099,6 +1117,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/backgrounds'
     | '/copyright'
+    | '/groups'
     | '/history'
     | '/leaderboard'
     | '/plans'
@@ -1158,6 +1177,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/changelog/whats-new'
     | '/rooms/$slug'
+    | '/team/$handle'
     | '/u/$handle'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -1209,6 +1229,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/backgrounds'
     | '/copyright'
+    | '/groups'
     | '/history'
     | '/leaderboard'
     | '/plans'
@@ -1268,6 +1289,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/changelog/whats-new'
     | '/rooms/$slug'
+    | '/team/$handle'
     | '/u/$handle'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -1323,6 +1345,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspaces'
     | '/_pomodoro/backgrounds'
     | '/_pomodoro/copyright'
+    | '/_pomodoro/groups'
     | '/_pomodoro/history'
     | '/_pomodoro/leaderboard'
     | '/_pomodoro/plans'
@@ -1382,6 +1405,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/_authenticated/changelog/whats-new'
     | '/_pomodoro/rooms_/$slug'
+    | '/_pomodoro/team/$handle'
     | '/_pomodoro/u/$handle'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -1629,6 +1653,13 @@ declare module '@tanstack/react-router' {
       path: '/copyright'
       fullPath: '/copyright'
       preLoaderRoute: typeof PomodoroCopyrightRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
+    '/_pomodoro/groups': {
+      id: '/_pomodoro/groups'
+      path: '/groups'
+      fullPath: '/groups'
+      preLoaderRoute: typeof PomodoroGroupsRouteImport
       parentRoute: typeof PomodoroRoute
     }
     '/_pomodoro/history': {
@@ -2058,6 +2089,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PomodoroRoomsSlugRouteImport
       parentRoute: typeof PomodoroRoute
     }
+    '/_pomodoro/team/$handle': {
+      id: '/_pomodoro/team/$handle'
+      path: '/team/$handle'
+      fullPath: '/team/$handle'
+      preLoaderRoute: typeof PomodoroTeamHandleRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
     '/_pomodoro/u/$handle': {
       id: '/_pomodoro/u/$handle'
       path: '/u/$handle'
@@ -2435,6 +2473,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 interface PomodoroRouteChildren {
   PomodoroBackgroundsRoute: typeof PomodoroBackgroundsRoute
   PomodoroCopyrightRoute: typeof PomodoroCopyrightRoute
+  PomodoroGroupsRoute: typeof PomodoroGroupsRoute
   PomodoroHistoryRoute: typeof PomodoroHistoryRoute
   PomodoroLeaderboardRoute: typeof PomodoroLeaderboardRoute
   PomodoroPlansRoute: typeof PomodoroPlansRoute
@@ -2446,6 +2485,7 @@ interface PomodoroRouteChildren {
   PomodoroUploadsRoute: typeof PomodoroUploadsRoute
   PomodoroUsersRoute: typeof PomodoroUsersRoute
   PomodoroRoomsSlugRoute: typeof PomodoroRoomsSlugRoute
+  PomodoroTeamHandleRoute: typeof PomodoroTeamHandleRoute
   PomodoroUHandleRoute: typeof PomodoroUHandleRoute
   PomodoroGroupsJoinTokenRoute: typeof PomodoroGroupsJoinTokenRoute
   PomodoroUHandleYearRoute: typeof PomodoroUHandleYearRoute
@@ -2455,6 +2495,7 @@ interface PomodoroRouteChildren {
 const PomodoroRouteChildren: PomodoroRouteChildren = {
   PomodoroBackgroundsRoute: PomodoroBackgroundsRoute,
   PomodoroCopyrightRoute: PomodoroCopyrightRoute,
+  PomodoroGroupsRoute: PomodoroGroupsRoute,
   PomodoroHistoryRoute: PomodoroHistoryRoute,
   PomodoroLeaderboardRoute: PomodoroLeaderboardRoute,
   PomodoroPlansRoute: PomodoroPlansRoute,
@@ -2466,6 +2507,7 @@ const PomodoroRouteChildren: PomodoroRouteChildren = {
   PomodoroUploadsRoute: PomodoroUploadsRoute,
   PomodoroUsersRoute: PomodoroUsersRoute,
   PomodoroRoomsSlugRoute: PomodoroRoomsSlugRoute,
+  PomodoroTeamHandleRoute: PomodoroTeamHandleRoute,
   PomodoroUHandleRoute: PomodoroUHandleRoute,
   PomodoroGroupsJoinTokenRoute: PomodoroGroupsJoinTokenRoute,
   PomodoroUHandleYearRoute: PomodoroUHandleYearRoute,

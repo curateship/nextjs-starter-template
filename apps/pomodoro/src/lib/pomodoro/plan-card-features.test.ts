@@ -12,6 +12,7 @@ describe("planCardFeatures", () => {
       "Upload your own loops and clips, 2 GB",
       "Host focus rooms, now or booked for later",
       "Focus history over 12 months and the whole year",
+      "A public page for a group you made",
     ])
   })
 

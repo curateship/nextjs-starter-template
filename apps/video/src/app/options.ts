@@ -37,6 +37,12 @@ export const appOptions: AppOptions = {
         label: "YouTube",
         panel: () => import("@/components/video-viral/youtube-settings"),
       }),
+      /** The words the Voice window's script check flags. */
+      defineSettingsTab({
+        id: "scripts",
+        label: "Scripts",
+        panel: () => import("@/components/video-editor/script-settings"),
+      }),
     ],
   },
 }

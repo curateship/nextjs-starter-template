@@ -68,6 +68,12 @@ export type MediaBootstrap = {
     backgroundCredit: MediaCredit | null
     backgroundKind: "image" | "video" | null
   }
+  /**
+   * The names of a Pro choice the personal room keeps but does not play while
+   * the plan has no Pro (payments task 05), for "comes back with Pro". Null
+   * when nothing is held, and always for a guest.
+   */
+  held: { sound: string | null; background: string | null }
   /** The hosted room you are in, or null when you are in your own. */
   room: RoomMedia | null
   canUsePremiumMedia: boolean
@@ -212,6 +218,7 @@ export function guestMediaBootstrap(
       backgroundCredit: null,
       backgroundKind: null,
     },
+    held: { sound: null, background: null },
     room: null,
     canUsePremiumMedia: false,
     own: NO_OWN_POOL_MEDIA,

@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { alignWordTimes } from "@/lib/video/caption-words"
 import type { CaptionLine } from "@/lib/video/captions"
+import { steadinessForModel } from "@/lib/video/voice-direction"
 
 /**
  * Reading a script aloud.
@@ -15,8 +16,9 @@ import type { CaptionLine } from "@/lib/video/captions"
  */
 
 /**
- * The models offered. All three hand back where every character falls in the
- * sound, which is what the captions are built from.
+ * The models offered. All of them hand back where every character falls in
+ * the sound, which is what the captions are built from. Only the last three
+ * follow directions such as [whispering] (see `voice-direction.ts`).
  */
 export const VOICE_MODELS = [
   {
@@ -26,6 +28,21 @@ export const VOICE_MODELS = [
   },
   { id: "eleven_turbo_v2_5", label: "Quicker", note: "A good middle" },
   { id: "eleven_flash_v2_5", label: "Quickest", note: "For a rough check" },
+  {
+    id: "eleven_v4",
+    label: "Eleven v4",
+    note: "Follows [directions], 90 languages",
+  },
+  {
+    id: "eleven_v4_turbo",
+    label: "Eleven v4 Turbo",
+    note: "Follows [directions], quicker, half the price",
+  },
+  {
+    id: "eleven_v3",
+    label: "Eleven v3",
+    note: "Follows [directions], the older model",
+  },
 ] as const
 
 export type VoiceModelId = (typeof VOICE_MODELS)[number]["id"]
@@ -75,6 +92,8 @@ export type Voice = {
   description: string
   /** Which provider it lives on, so the right one is asked to speak. */
   speaker: VoiceSpeakerId
+  /** Made from the signed-in person's own sample in this app. */
+  yours?: boolean
 }
 
 /**
@@ -123,7 +142,11 @@ export type VoiceoverResult = {
   captions: CaptionLine[]
 }
 
-/** A remembered choice: whose voice, which one, at what quality, how fast. */
+/**
+ * A remembered choice: whose voice, which one, at what quality, how fast, how
+ * steady and how expressive. Steadiness and expressiveness came later, so a
+ * choice saved before them has neither and reads with the starting values.
+ */
 export const voiceDefaultsSchema = z
   .object({
     speaker: z.enum(["elevenlabs", "openai"]).optional(),
@@ -131,6 +154,8 @@ export const voiceDefaultsSchema = z
     voiceName: z.string().max(255),
     modelId: z.enum(VOICE_MODEL_IDS),
     speed: z.number().min(VOICE_SPEED_MIN).max(VOICE_SPEED_MAX),
+    stability: z.number().min(0).max(1).optional(),
+    styleExaggeration: z.number().min(0).max(1).optional(),
   })
   .strict()
 
@@ -142,17 +167,41 @@ export function readVoiceDefaults(value: unknown): VoiceDefaults | null {
   return parsed.success ? parsed.data : null
 }
 
+/**
+ * The settings a remembered voice reads with, for the tools that read aloud
+ * without asking (Hook and Another language). Nothing remembered means the
+ * account's own settings at ElevenLabs.
+ */
+export function rememberedVoiceSettings(
+  remembered: VoiceDefaults | null
+): VoiceSettings | undefined {
+  if (!remembered) return undefined
+  const start = createDefaultVoiceSettings()
+  return {
+    ...start,
+    speed: remembered.speed,
+    stability: remembered.stability ?? start.stability,
+    styleExaggeration: remembered.styleExaggeration ?? start.styleExaggeration,
+  }
+}
+
 export const VOICE_NO_TEXT_MESSAGE = "Write something for the voice to read"
 export const VOICE_NO_VOICE_MESSAGE = "Pick a voice first"
 export const VOICE_FAILED_MESSAGE = "That could not be read aloud"
 export const VOICE_NO_VOICES_MESSAGE =
   "That key has no voices on it — add one in your ElevenLabs account"
+export const VOICE_TOO_MANY_PAUSES_MESSAGE =
+  "A script can hold 10 pauses at most, because more make the voice speed up or crackle"
+export const VOICE_NOT_YOURS_MESSAGE =
+  "That voice was made from someone else's sample, so only they can read with it"
 
 export const SAFE_VOICE_ERRORS = new Set([
   VOICE_NO_TEXT_MESSAGE,
   VOICE_NO_VOICE_MESSAGE,
   VOICE_FAILED_MESSAGE,
   VOICE_NO_VOICES_MESSAGE,
+  VOICE_TOO_MANY_PAUSES_MESSAGE,
+  VOICE_NOT_YOURS_MESSAGE,
 ])
 
 /**
@@ -169,7 +218,7 @@ export function voiceoverRequestBody(
     text,
     model_id: modelId,
     voice_settings: {
-      stability: settings.stability,
+      stability: steadinessForModel(settings.stability, modelId),
       similarity_boost: settings.similarityBoost,
       style: settings.styleExaggeration,
       speed: settings.speed,
@@ -191,8 +240,10 @@ export type SpokenWord = { text: string; startMs: number; endMs: number }
  * Characters with times become words with times.
  *
  * A space belongs to no word: it ends the one before it. A word starts where
- * its first letter starts and ends where its last one ends. Anything with no
- * letters in it is not a word.
+ * its first letter starts and ends where its last one ends. A direction in
+ * square brackets and a `<break>` were sent but never said, so they end the
+ * word before them and are not words themselves, and nor is an ellipsis
+ * standing on its own, which is how a pause reaches v3 and v4.
  */
 export function alignmentToWords(alignment: VoiceAlignment): SpokenWord[] {
   const { characters } = alignment
@@ -203,8 +254,9 @@ export function alignmentToWords(alignment: VoiceAlignment): SpokenWord[] {
   let text = ""
   let startS = 0
   let endS = 0
+  let closer: "]" | ">" | null = null
   const flush = () => {
-    if (text.trim()) {
+    if (text.trim() && !/^[.…]+$/.test(text.trim())) {
       words.push({
         text: text.trim(),
         startMs: Math.round(startS * 1000),
@@ -215,6 +267,15 @@ export function alignmentToWords(alignment: VoiceAlignment): SpokenWord[] {
   }
 
   characters.forEach((character, index) => {
+    if (closer) {
+      if (character === closer) closer = null
+      return
+    }
+    if (sentButNotSaid(characters, index)) {
+      flush()
+      closer = character === "[" ? "]" : ">"
+      return
+    }
     if (/\s/.test(character)) {
       flush()
       return
@@ -225,6 +286,22 @@ export function alignmentToWords(alignment: VoiceAlignment): SpokenWord[] {
   })
   flush()
   return words
+}
+
+/**
+ * Whether a direction starts here: `[` with its `]` on the same line within
+ * 40 characters (the same rule `voice-direction.ts` sends tags by), or the
+ * start of `<break`. A lone "[" or "3 < 5" is ordinary writing.
+ */
+function sentButNotSaid(characters: string[], index: number) {
+  const character = characters[index]
+  if (character === "<") {
+    return characters.slice(index, index + 6).join("") === "<break"
+  }
+  if (character !== "[") return false
+  const ahead = characters.slice(index + 1, index + 42)
+  const close = ahead.indexOf("]")
+  return close > 0 && !ahead.slice(0, close).some((one) => /[[\n]/.test(one))
 }
 
 /** Caption chunks are short: four words at most, and no longer than a glance. */

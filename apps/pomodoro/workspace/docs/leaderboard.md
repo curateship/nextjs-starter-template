@@ -1,7 +1,8 @@
 # Leaderboard
 
-`/leaderboard`: the global ranking, then Who you focus with and Your groups
-side by side. Your own stat cards and the 7-day sessions chart moved to
+`/leaderboard`: the global ranking, a line pointing at
+[Groups](focus-groups.md), then Who you focus with. Groups moved to their own
+dashboard at `/groups` on 12 Oct 2026, on Tyler's word. Your own stat cards and the 7-day sessions chart moved to
 [Focus history](history.md) on 7 Oct 2026, on Tyler's word.
 
 ## How the page looks
@@ -21,9 +22,8 @@ Drawn to Tyler's design of 7 Oct 2026 (`assets/pasted-image-1791398305993222000.
   with no box around a row. Places 1 to 3 read brighter than the rest. Your own
   row has an orange border and tint. A phone hides the session count so the
   name keeps its room.
-- **The two empty states are centred.** Who you focus with shows three dashed
-  circles and a Browse focus rooms button that opens `/rooms`. Your groups
-  shows Create a group and Join with a link as round buttons.
+- **The empty state is centred.** Who you focus with shows three dashed
+  circles and a Browse focus rooms button that opens `/rooms`.
 - **People you follow** (the badges your follows earned) is not in the design.
   It stays under the two panels and draws nothing when there is nothing to
   show.

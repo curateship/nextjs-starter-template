@@ -522,6 +522,9 @@ export function parseShellGlobals(value: unknown) {
     // Rows saved before this setting existed have no value, and the feature is
     // meant to be on — so only an explicit `false` turns it off.
     liveNotifications: settings.liveNotifications !== false,
+    // Same rule as liveNotifications: passkeys were on before this switch
+    // existed, so only an explicit `false` turns them off.
+    passkeySignIn: settings.passkeySignIn !== false,
     notificationTypes: normalizeNotificationTypeVisibility(
       settings.notificationTypes
     ),
@@ -585,6 +588,7 @@ export function pickShellGlobals(
     | "memberSections"
     | "memberTopRightNavigation"
     | "liveNotifications"
+    | "passkeySignIn"
     | "notificationTypes"
     | "maintenance"
     | "automationPause"
@@ -631,6 +635,7 @@ export function pickShellGlobals(
     memberSections: settings.memberSections,
     memberTopRightNavigation: settings.memberTopRightNavigation,
     liveNotifications: settings.liveNotifications,
+    passkeySignIn: settings.passkeySignIn,
     notificationTypes: settings.notificationTypes,
     maintenance: settings.maintenance,
     automationPause: settings.automationPause,

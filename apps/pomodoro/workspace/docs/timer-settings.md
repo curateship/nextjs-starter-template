@@ -10,7 +10,7 @@ rhythm presets. The long-break number has its own doc,
 
 ## The tabs on Settings
 
-Settings is five tabs rather than one long column, so you open the part you
+Settings is six tabs rather than one long column, so you open the part you
 came for (`src/components/pomodoro/settings-page.tsx`, the list in
 `src/lib/pomodoro/settings-tabs.ts`):
 
@@ -22,10 +22,12 @@ came for (`src/components/pomodoro/settings-page.tsx`, the list in
   [The public profile](public-profile.md).
 - **Privacy**: [blocked people](reporting-and-blocking.md) and the
   [streak badge](streak-badge.md).
+- **Plan**: the plan, the next payment, the month's AI credits and the upload
+  space, and Manage billing. See [The Plan tab](plan-tab.md).
 
 The chosen tab is in the address, `/settings?tab=public`, so a link can open one
 tab and Back steps between them. Timer is the plain `/settings`, and an unknown
-`tab` falls back to it. A guest gets Timer, Appearance and Profile, and their
+`tab` falls back to it. A guest gets Timer, Appearance and Profile, never Public page, Privacy or Plan, and their
 Profile tab is the "Sync across devices" card asking them to sign in. A guest
 sent to a members-only tab sees Timer. The tabs are the shared `ui/tabs.tsx`
 pills, h-8, and arrow keys move between them. On a phone the row scrolls

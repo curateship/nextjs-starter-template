@@ -14,6 +14,7 @@ const task = (overrides: Partial<Parameters<typeof filterTasks>[0][number]> & { 
   status: "todo" as const,
   assignee: null as { id: string } | null,
   labels: [] as { id: string }[],
+  type: null as { id: string } | null,
   ...overrides,
 })
 
@@ -21,7 +22,7 @@ describe("filtering tasks", () => {
   const tasks = [
     task({ id: "a", title: "Set up redirects", assignee: { id: "ben" }, labels: [{ id: "client" }] }),
     task({ id: "b", title: "Fonts", notesText: "Check the redirect list first", status: "doing" }),
-    task({ id: "c", title: "Fix the 404 page", status: "stuck", assignee: { id: "maya" } }),
+    task({ id: "c", title: "Fix the 404 page", status: "stuck", assignee: { id: "maya" }, type: { id: "video" } }),
   ]
   const ids = (filters: Parameters<typeof filterTasks>[1]) => filterTasks(tasks, filters).map((t) => t.id)
 
@@ -37,13 +38,15 @@ describe("filtering tasks", () => {
     expect(ids({ person: "nobody" })).toEqual(["b"])
     expect(ids({ label: "client" })).toEqual(["a"])
     expect(ids({ q: "redirect", status: "doing" })).toEqual(["b"])
+    expect(ids({ type: "video" })).toEqual(["c"])
     expect(ids({})).toEqual(["a", "b", "c"])
   })
 
   it("reads only real filters from an address", () => {
-    expect(readTaskFilters({ q: "x", status: "nope", person: "ben", label: "<script>" })).toEqual({
+    expect(readTaskFilters({ q: "x", status: "nope", person: "ben", label: "<script>", type: "video" })).toEqual({
       q: "x",
       person: "ben",
+      type: "video",
     })
   })
 })

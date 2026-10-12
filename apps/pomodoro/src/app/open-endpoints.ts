@@ -35,6 +35,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "An invite link must say what it points at before sign-in: the lookup answers a status, the room's name and a member count, never member names, emails or ids.",
   "pomodoro/public-profile.ts:readPublicProfileFn":
     "A public profile is a page for the open internet, so its read must answer before sign-in. It returns only what that person switched on themselves, carries no user id and no email, and answers null for a handle nobody holds, a profile switched off and a deleted account alike.",
+  "pomodoro/teams.ts:readTeamPageFn":
+    "A group's public page at /team/<handle> is for the open internet, so its read must answer before sign-in. It names only members whose own public page is switched on, gives hours only for those whose own page already shows them, counts everybody else without naming them, carries no user id or email, and answers null for every kind of missing page alike.",
   "pomodoro/public-profile.ts:readUsersFn":
     "The /users directory is a public page listing the members who switched on a second opt-in asking to be listed. It answers a page of chosen names, pictures and one headline figure, carries no user id and no email, and a profile that is switched on but not listed never appears in it.",
   "pomodoro/profile-reports.ts:reportFn":

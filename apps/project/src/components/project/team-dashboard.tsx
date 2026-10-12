@@ -6,6 +6,7 @@ import {
   CircleAlertIcon,
   ClockIcon,
   HeartIcon,
+  MegaphoneIcon,
   PartyPopperIcon,
   PlusIcon,
   SettingsIcon,
@@ -16,6 +17,7 @@ import {
 import { BlockerReplies } from "@/components/project/blocker-replies"
 import { InviteDialog } from "@/components/project/invite-dialog"
 import { MeetingDialog } from "@/components/project/meeting-dialog"
+import { AnnouncementCard, AnnouncementDialog } from "@/components/project/team-announcement"
 import { TaggedWords } from "@/components/project/tag-textarea"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskDialog } from "@/components/project/task-dialog"
@@ -37,6 +39,7 @@ import { Meter } from "@/components/ui/meter"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type {
   TeamDay,
   TeamDayPerson,
@@ -330,6 +333,8 @@ function CalendarPanel({
   // window closes, so the window doesn't change under its closing animation.
   const [windowOpen, setWindowOpen] = React.useState(false)
   const [target, setTarget] = React.useState<Meeting | null>(null)
+  const [announcing, setAnnouncing] = React.useState(false)
+  const canRun = runsTheTeam(data.myRole)
 
   function edit(next: Meeting | "new") {
     setTarget(next === "new" ? null : next)
@@ -363,11 +368,28 @@ function CalendarPanel({
         <Button type="button" variant="outline" onClick={onToday}>
           Today
         </Button>
+        {canRun && !data.announcement ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="ml-auto"
+                aria-label="Post an announcement"
+                onClick={() => setAnnouncing(true)}
+              >
+                <MegaphoneIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Post an announcement</TooltipContent>
+          </Tooltip>
+        ) : null}
         {/* Words from 640px up; on a phone the month's name needs the room. */}
         <Button
           type="button"
           variant="outline"
-          className="ml-auto max-sm:size-8 max-sm:px-0"
+          className={cn("max-sm:size-8 max-sm:px-0", !(canRun && !data.announcement) && "ml-auto")}
           aria-label="New meeting"
           onClick={() => edit("new")}
         >
@@ -376,6 +398,15 @@ function CalendarPanel({
         </Button>
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
+        {data.announcement ? (
+          <div className="px-3 pt-3">
+            <AnnouncementCard
+              announcement={data.announcement}
+              canRun={canRun}
+              onReplace={() => setAnnouncing(true)}
+            />
+          </div>
+        ) : null}
         <div className="grid grid-cols-7 gap-1.5 p-3">
           {WEEK_DAYS.map(({ day, short }) => (
             <div key={day} aria-hidden className="pb-1 text-center text-xs text-muted-foreground">
@@ -456,6 +487,11 @@ function CalendarPanel({
           onEdit={edit}
         />
       </ScrollArea>
+      <AnnouncementDialog
+        open={announcing}
+        replacing={Boolean(data.announcement)}
+        onClose={() => setAnnouncing(false)}
+      />
       <MeetingDialog
         open={windowOpen}
         meeting={target}

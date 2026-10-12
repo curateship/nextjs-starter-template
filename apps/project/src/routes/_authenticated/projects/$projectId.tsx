@@ -9,11 +9,14 @@ import { pageTitleHead } from "@/lib/project/page-title"
 type ProjectSearch = TaskFilters & {
   /** The task open in the middle panel, so a bell notice can open it. */
   task?: string
+  /** Opens the Chat tab, for a project chat's bell notice. */
+  chat?: 1
 }
 
 function readProjectSearch(search: Record<string, unknown>): ProjectSearch {
   const result: ProjectSearch = readTaskFilters(search)
   if (typeof search.task === "string" && search.task.length <= 36) result.task = search.task
+  if (search.chat === 1 || search.chat === "1") result.chat = 1
   return result
 }
 
@@ -30,8 +33,14 @@ export const Route = createFileRoute("/_authenticated/projects/$projectId")({
 
 function ProjectRoute() {
   const page = Route.useLoaderData()
-  const { task, ...filters } = Route.useSearch()
+  const { task, chat, ...filters } = Route.useSearch()
   return (
-    <ProjectWorkspace key={page.project.id} page={page} openTaskId={task} filters={filters} />
+    <ProjectWorkspace
+      key={page.project.id}
+      page={page}
+      openTaskId={task}
+      filters={filters}
+      openChat={chat === 1}
+    />
   )
 }

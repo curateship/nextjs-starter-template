@@ -26,7 +26,7 @@ import {
   moveTask,
   promoteStep,
 } from "@/server/project/task-changes"
-import { addComment } from "@/server/project/task-chat"
+import { sendMessage } from "@/server/project/task-chat"
 import {
   addStep,
   createTask,
@@ -133,7 +133,7 @@ describe("duplicating", () => {
     await updateStep(actor(anna), { stepId: step.id, done: true }, database)
     const label = await createLabel(anna.id, { name: "Client", color: "pink" }, database)
     await setTaskLabels(anna.id, { taskId: original, labelIds: [label.id] }, database)
-    await addComment(actor(anna), { taskId: original, body: "First thoughts" }, database)
+    await sendMessage(actor(anna), { chat: { taskId: original }, body: "First thoughts", replyToId: null }, database)
 
     const { id } = await duplicateTask(actor(ben), original, database)
     const copy = await loadTaskDetail(ben.id, id, database)

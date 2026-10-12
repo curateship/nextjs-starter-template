@@ -195,6 +195,32 @@ export const videoVoiceovers = pgTable("video_voiceovers", {
 })
 
 /**
+ * Voices people made from their own sample in the Voices panel (see
+ * `src/server/video/cloned-voices.ts`). The voice itself lives at ElevenLabs
+ * under `voice_id`; this row says whose it is, so only its owner sees it in a
+ * voice list or can read with it. The sample stays in the media library, and
+ * deleting the file there only blanks `sample_media_id`, because the voice at
+ * ElevenLabs keeps working without it.
+ */
+export const videoClonedVoices = pgTable(
+  "video_cloned_voices",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    voiceId: varchar("voice_id", { length: 64 }).notNull().unique(),
+    name: varchar("name", { length: 100 }).notNull(),
+    sampleMediaId: varchar("sample_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_video_cloned_voices_user_id").on(table.userId)]
+)
+
+/**
  * Each person's sticker list for the studio's Text panel (see
  * `src/lib/video/stickers.ts`). The whole list is one JSON value read through
  * `readStickerList`, because its order is the order the panel shows. No row
@@ -489,6 +515,9 @@ export const videoSettings = pgTable(
     // The YouTube Data API key for the Viral page, scrambled the same way the
     // shell scrambles AI keys. NULL falls back to VIDEO_YOUTUBE_API_KEY.
     youtubeApiKey: text("youtube_api_key"),
+    // The words the script check flags, as a JSON list. NULL until somebody
+    // saves a list on Settings → Scripts; the starter words apply until then.
+    scriptBannedWords: jsonb("script_banned_words"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

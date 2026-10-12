@@ -57,7 +57,9 @@ let sent: SendEmailParams[]
 
 beforeEach(async () => {
   ;({ client, db } = await createTestDatabase())
-  const host = await insertUser(db, { name: "Sam Host" })
+  // An admin reads as Pro. Booking needs Pro, and since payments task 05 a
+  // booked room whose host has no Pro does not open.
+  const host = await insertUser(db, { name: "Sam Host", role: "admin" })
   hostId = host.id
   const workspace = await insertWorkspace(db, { userId: host.id })
   await db.insert(customShellEmailSettings).values({

@@ -5,6 +5,8 @@ import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import type { TaskNoticeKind } from "@/lib/project/notices"
 import { taskNotesText } from "@/lib/project/notes"
 import { LIMITS, runsTheTeam, type TaskStatus } from "@/lib/project/rules"
+import type { FieldValues } from "@/lib/project/task-fields"
+import type { TaskTypeChip } from "@/lib/project/task-types"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
@@ -25,7 +27,14 @@ import {
   requireSectionOf,
   type Section,
 } from "@/server/project/sections"
-import { loadTaskComments, type TaskComment } from "@/server/project/task-chat"
+import { loadTaskMessages, type ChatMessage } from "@/server/project/task-chat"
+import { keepNotesVersion } from "@/server/project/task-note-versions"
+import {
+  notesForReader,
+  notesLinkedTaskIds,
+  openableLinks,
+  resolveTaskLinks,
+} from "@/server/project/task-links"
 import { listTaskFiles, type TaskFile } from "@/server/project/task-files"
 import { resolveProjectId } from "@/server/project/personal"
 import { repeatRuleOf, tellWaitingTasks, waitingOnThis, type RepeatRule } from "@/server/project/planning"
@@ -33,6 +42,14 @@ import { canAskForReview, canReview, reviewerFor } from "@/server/project/task-r
 import { hasThanked } from "@/server/project/task-thanks"
 import { listMoveTargets, type MoveTarget } from "@/server/project/task-changes"
 import { followerIds } from "@/server/project/task-followers"
+import {
+  loadTaskFields,
+  requireDoneFields,
+  typeChipsFor,
+  valuesForTasks,
+  writeNewTaskFields,
+  type TaskFields,
+} from "@/server/project/task-types"
 import {
   loadTaskHistory,
   recordTaskEvent,
@@ -113,6 +130,10 @@ export type TaskCard = {
    */
   waitingOn: { taskId: string; title: string | null; ready: boolean } | null
   repeat: RepeatRule | null
+  /** The kind of task, drawn as its icon and name. Null is a plain task. */
+  type: TaskTypeChip | null
+  /** What it holds in its type's fields, for the List's field columns. A File field holds its file count. */
+  fieldValues: FieldValues
 }
 
 const assignee = alias(customShellUsers, "assignee")
@@ -174,6 +195,12 @@ export async function listTaskCards(
     : []
   const pickedRows = ids.length ? await pickedDaysFor(ids, database) : []
   const labels = await labelsForTasks(ids, database)
+  const tasks = rows.map((row) => row.task)
+  const types = await typeChipsFor(
+    tasks.flatMap((task) => (task.typeId ? [task.typeId] : [])),
+    database
+  )
+  const fieldValues = await valuesForTasks(tasks, database)
 
   return rows.map(({ task, ...row }) => {
     const steps = stepRows.filter((step) => step.taskId === task.id)
@@ -237,6 +264,8 @@ export async function listTaskCards(
             }
           : null,
       repeat: repeatRuleOf(task),
+      type: task.typeId ? (types.get(task.typeId) ?? null) : null,
+      fieldValues: fieldValues.get(task.id) ?? {},
     }
   })
 }
@@ -267,7 +296,9 @@ export type TaskStep = {
 export type TaskDetail = {
   task: TaskCard & { notes: string }
   steps: TaskStep[]
-  comments: TaskComment[]
+  comments: ChatMessage[]
+  /** Tasks the notes link to that I can open: task id to project id. */
+  noteLinks: Record<string, string>
   files: TaskFile[]
   /** Who the task can be handed to, and who the chat can tag: the project's members. */
   assignable: Person[]
@@ -293,6 +324,8 @@ export type TaskDetail = {
   canReview: boolean
   /** I've thanked whoever did it. */
   thanked: boolean
+  /** Its type, the fields as I may use them, their values and files, and the types it could have. */
+  fields: TaskFields
 }
 
 export async function loadTaskDetail(
@@ -366,10 +399,13 @@ export async function loadTaskDetail(
     .where(eq(projectProjectMembers.projectId, project.id))
     .orderBy(asc(customShellUsers.name))
 
+  const noteTargets = await resolveTaskLinks(membership, notesLinkedTaskIds(task.notes), database)
+
   return {
-    task: { ...card, notes: task.notes },
+    task: { ...card, notes: notesForReader(task.notes, noteTargets) },
+    noteLinks: openableLinks(noteTargets),
     steps,
-    comments: await loadTaskComments(viewer, taskId, archived, database),
+    comments: await loadTaskMessages(membership, taskId, archived, database),
     files: await listTaskFiles(viewer, taskId, archived, database),
     assignable: assignable.map((row) => ({ ...row, avatarUrl: row.avatarUrl ?? "" })),
     following: Boolean(follow),
@@ -384,6 +420,7 @@ export async function loadTaskDetail(
     canAskForReview: canAskForReview(task, userId),
     canReview: canReview(task, membership.role, userId),
     thanked: await hasThanked(userId, taskId, database),
+    fields: await loadTaskFields(viewer, task, project, archived, database),
   }
 }
 
@@ -432,13 +469,16 @@ export async function createTask(
     steps: string[]
     /** An optional line for the person it's handed to. */
     handoverNote?: string | null
+    /** Its type, and the values New task filled in for that type's fields. */
+    typeId?: string | null
+    fieldValues?: Record<string, unknown>
   },
   database: ProjectDb = db
 ): Promise<{ id: string }> {
   return database.transaction(async (tx) => {
     const projectId = await resolveProjectId(actor.id, input.projectId, tx)
     input = { ...input, projectId }
-    await requireOpenProject(actor.id, input.projectId, tx)
+    const { membership, project } = await requireOpenProject(actor.id, input.projectId, tx)
     if (input.assigneeUserId) await requireAssignable(input.projectId, input.assigneeUserId, tx)
     const at = now()
     const handedToSomeoneElse =
@@ -460,8 +500,20 @@ export async function createTask(
       updatedAt: at,
       position,
       handoverNote: handedToSomeoneElse ? (input.handoverNote ?? null) : null,
+      firstHandedOutByUserId: handedToSomeoneElse ? actor.id : null,
+      typeId: input.typeId ?? null,
     }
     await tx.insert(projectTasks).values(task)
+    if (input.typeId) {
+      await writeNewTaskFields(tx, {
+        membership,
+        project,
+        taskId: task.id,
+        typeId: input.typeId,
+        values: input.fieldValues ?? {},
+        actorId: actor.id,
+      })
+    }
     await recordTaskEvent(tx, { taskId: task.id, kind: "created", actorUserId: actor.id })
     if (input.steps.length) {
       await tx.insert(projectTaskSteps).values(
@@ -503,19 +555,26 @@ export async function updateTask(
     taskId: string
     title?: string
     notes?: string
+    /** The notes editor's session, which keeps one earlier version however often it saves. */
+    notesSession?: string
     dueDate?: string | null
     sectionId?: string | null
     snoozedUntil?: string | null
   },
-  database = db
+  database: ProjectDb = db
 ) {
-  const { taskId, ...fields } = patch
-  const { task } = await requireTaskAccess(actor.id, taskId, database)
-  if (fields.sectionId) await requireSectionOf(task.projectId, fields.sectionId, database)
-  await database
-    .update(projectTasks)
-    .set({ ...fields, updatedAt: now() })
-    .where(eq(projectTasks.id, taskId))
+  const { taskId, notesSession, ...fields } = patch
+  await database.transaction(async (tx) => {
+    const { task } = await requireTaskAccess(actor.id, taskId, tx)
+    if (fields.sectionId) await requireSectionOf(task.projectId, fields.sectionId, tx)
+    await tx
+      .update(projectTasks)
+      .set({ ...fields, updatedAt: now() })
+      .where(eq(projectTasks.id, taskId))
+    if (fields.notes !== undefined && fields.notes !== task.notes) {
+      await keepNotesVersion(tx, task, fields.notes, actor, notesSession ?? uuid())
+    }
+  })
 }
 
 export async function setTaskStatus(
@@ -529,6 +588,9 @@ export async function setTaskStatus(
       throw new Error(PROJECT_ERRORS.stuckNeedsReason)
     }
     const becameDone = input.status === "done" && task.status !== "done"
+    // Only a fresh move to Done is checked, so a task already Done stays Done
+    // when a field is later switched to "Needed before Done".
+    if (becameDone) await requireDoneFields(task, tx)
     // A task that needs review waits for its reviewer once it becomes Done,
     // unless nobody else is left to review it, when it confirms itself.
     const reviewer = becameDone ? await reviewerFor(project, task, actor.id, tx) : null
@@ -622,6 +684,9 @@ export async function assignTask(
         handedBackByUserId: null,
         formerAssigneeName: null,
         handoverNote: note,
+        // The first hand-out stays: later hand-overs never take over the brief.
+        firstHandedOutByUserId:
+          task.firstHandedOutByUserId ?? (handedToSomeoneElse ? actor.id : null),
         updatedAt: at,
       })
       .where(eq(projectTasks.id, task.id))

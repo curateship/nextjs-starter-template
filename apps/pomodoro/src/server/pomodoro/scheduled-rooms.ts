@@ -32,7 +32,12 @@ import {
   type PomoderTransaction,
   type RoomSettings,
 } from "@/server/pomodoro/rooms"
-import { roomInviteMessage, roomOpenMessage } from "@/lib/pomodoro/notices"
+import {
+  hostRoomNotOpeningMessage,
+  roomInviteMessage,
+  roomNotOpeningMessage,
+  roomOpenMessage,
+} from "@/lib/pomodoro/notices"
 import { formatRoomStart } from "@/lib/pomodoro/scheduled-rooms"
 import {
   describeRoomRepeat,
@@ -377,6 +382,69 @@ export async function openScheduledRoom(
   })
 }
 
+/**
+ * A booked room whose host no longer has Pro, at its start time (payments
+ * task 05, Tyler's calls of 12 Oct 2026). It closes instead of opening, the
+ * way the host's own cancel does. A one-off booking has no next date, so
+ * invitees hear it won't open; a weekly room's day pauses its rule, so they
+ * hear it is paused, once, and its days book again when Pro is back.
+ */
+async function holdScheduledRoom(
+  roomId: string,
+  sequence: number,
+  database: CustomShellDb = db,
+  timestamp = new Date()
+) {
+  const recipients = await openNoticeRecipients(roomId, database)
+  return database.transaction(async (tx) => {
+    const [room] = await tx
+      .select()
+      .from(rooms)
+      .where(and(eq(rooms.id, roomId), eq(rooms.sequence, sequence), eq(rooms.phase, "scheduled")))
+      .for("update")
+      .limit(1)
+    if (!room || room.closedAt) return false
+    await closeBookedRoom(tx, room, timestamp)
+    let tell = true
+    if (room.repeatId) {
+      // Only the day that starts the pause tells anyone.
+      const paused = await tx
+        .update(pomodoroRoomRepeats)
+        .set({ pausedAt: timestamp })
+        .where(and(eq(pomodoroRoomRepeats.id, room.repeatId), isNull(pomodoroRoomRepeats.pausedAt)))
+        .returning({ id: pomodoroRoomRepeats.id })
+      tell = paused.length > 0
+    }
+    if (tell) {
+      const [host, ...invitees] = recipients
+      await writeNotices(tx, notOpeningNotices(room.name, Boolean(room.repeatId), host ?? room.hostUserId, invitees))
+    }
+    return true
+  })
+}
+
+/** The host's notice and the invitees', which never say why. */
+function notOpeningNotices(
+  name: string,
+  weekly: boolean,
+  hostUserId: string,
+  inviteeUserIds: string[]
+) {
+  return [
+    {
+      recipientUserId: hostUserId,
+      kind: "room_not_opening" as const,
+      message: hostRoomNotOpeningMessage(name, weekly),
+      href: "/plans",
+    },
+    ...inviteeUserIds.map((recipientUserId) => ({
+      recipientUserId,
+      kind: "room_not_opening" as const,
+      message: roomNotOpeningMessage(name, weekly),
+    })),
+  ]
+}
+
 /** The host plus the invitees with accounts, for the "is open now" notice. */
 async function openNoticeRecipients(roomId: string, database: CustomShellDb) {
   const [room] = await database
@@ -412,7 +480,7 @@ export async function openDueRooms(
   // the same pass.
   const booked = await bookDueRepeatRooms(database, timestamp)
   const due = await database
-    .select({ id: rooms.id, sequence: rooms.sequence })
+    .select({ id: rooms.id, sequence: rooms.sequence, hostUserId: rooms.hostUserId })
     .from(rooms)
     .where(and(eq(rooms.phase, "scheduled"), sql`${rooms.closedAt} is null`, lte(rooms.startsAt, timestamp)))
     .orderBy(asc(rooms.startsAt))
@@ -423,6 +491,12 @@ export async function openDueRooms(
   // on its own once the start time passes — see UpcomingRooms.
   let opened = 0
   for (const row of due) {
+    // A host without Pro does not open a booked room (payments task 05).
+    // Asked here, before the transaction, like every read on the shared handle.
+    if (!(await mayHost(row.hostUserId, database))) {
+      await holdScheduledRoom(row.id, row.sequence, database, timestamp)
+      continue
+    }
     const result = await openScheduledRoom(row.id, row.sequence, database, timestamp)
     if (result.kind === "opened") opened += 1
   }
@@ -689,12 +763,15 @@ async function bookRepeatDay(
   const day = occurrenceAt(seen, seen.nextStartsAt)
   const bookable = Boolean(day && day.startsAt > timestamp)
   // Read before the transaction, like every other read on the shared handle.
-  const [allowed, recipients] = await Promise.all([
-    bookable
-      ? mayHost(seen.hostUserId, database).then(async (may) => may && !(await findSuspension(seen.hostUserId, database, timestamp)))
-      : false,
+  const [hosting, suspended, recipients] = await Promise.all([
+    bookable ? mayHost(seen.hostUserId, database) : false,
+    bookable ? findSuspension(seen.hostUserId, database, timestamp) : null,
     bookable ? bookingRecipients(seen.hostUserId, seen.invites, database) : null,
   ])
+  const allowed = hosting && !suspended
+  // A day skipped only because the host has no Pro pauses the rule (payments
+  // task 05). Everyone hears once, when the pause starts.
+  const lapsed = bookable && !hosting
   return database.transaction(async (tx) => {
     // Locked and matched on the cursor this pass read, so a skip or another
     // pass that moved it meanwhile wins and this one does nothing.
@@ -736,6 +813,15 @@ async function bookRepeatDay(
         recipients
       )
       made = room !== null
+    }
+    if (made && rule.pausedAt) {
+      await tx.update(pomodoroRoomRepeats).set({ pausedAt: null }).where(eq(pomodoroRoomRepeats.id, rule.id))
+    } else if (!made && lapsed && recipients && !rule.pausedAt) {
+      await tx.update(pomodoroRoomRepeats).set({ pausedAt: timestamp }).where(eq(pomodoroRoomRepeats.id, rule.id))
+      await writeNotices(
+        tx,
+        notOpeningNotices(rule.name, true, rule.hostUserId, recipients.invitees.map((invitee) => invitee.userId))
+      )
     }
     // Move on from whichever is later, the day just handled or now, so a rule
     // that fell behind catches up in one step instead of booking the past.

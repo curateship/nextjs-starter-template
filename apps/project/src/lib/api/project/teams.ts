@@ -1,14 +1,22 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { PROJECT_ERRORS } from "@/lib/project/errors"
 import {
   TEAM_INVITE_ROLES,
+  announcementSchema,
   createTeamSchema,
   inviteSchema,
   teamPhotoSchema,
   updateTeamSchema,
 } from "@/lib/project/rules"
+import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { userGet, userPost } from "@/server/guards"
+import {
+  hideAnnouncement,
+  postAnnouncement,
+  takeDownAnnouncement,
+} from "@/server/project/announcements"
 import { findMembership } from "@/server/project/access"
 import {
   acceptInvite,
@@ -39,6 +47,7 @@ export type {
   TeamMemberRow,
   TeamSummary,
 } from "@/server/project/teams"
+export type { Announcement } from "@/server/project/announcements"
 export type { InviteForMe, SentInvite } from "@/server/project/invites"
 export type { TeamFigures } from "@/server/project/team-figures"
 
@@ -176,4 +185,42 @@ export function acceptTeamInvite(inviteId: string) {
 }
 export function declineTeamInvite(inviteId: string) {
   return declineInviteFn({ data: { inviteId } })
+}
+
+/** Each one rings everyone's bell, so an owner or admin can post 20 an hour at most. */
+const postAnnouncementFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(announcementSchema)
+  .handler(async ({ data, context }) => {
+    try {
+      await enforceRateLimit(`project-announcement:${context.user.id}`, {
+        maxAttempts: 20,
+        windowSeconds: 60 * 60,
+      })
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("RATE_LIMITED")) {
+        throw new Error(PROJECT_ERRORS.tooManyAnnouncements)
+      }
+      throw error
+    }
+    return postAnnouncement(context.user, data.text)
+  })
+
+const takeDownAnnouncementFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .handler(async ({ context }) => takeDownAnnouncement(context.user))
+
+const hideAnnouncementFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ announcementId: id }))
+  .handler(async ({ data, context }) => hideAnnouncement(context.user.id, data.announcementId))
+
+export function postTeamAnnouncement(text: string) {
+  return postAnnouncementFn({ data: { text } })
+}
+export function takeDownTeamAnnouncement() {
+  return takeDownAnnouncementFn()
+}
+export function hideTeamAnnouncement(announcementId: string) {
+  return hideAnnouncementFn({ data: { announcementId } })
 }

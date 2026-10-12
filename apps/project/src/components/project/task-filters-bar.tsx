@@ -1,6 +1,8 @@
+import type * as React from "react"
 import { XIcon } from "lucide-react"
 
 import { ProjectDot } from "@/components/project/task-bits"
+import { TypeIconGlyph } from "@/components/project/task-type-icon"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -8,6 +10,7 @@ import {
 } from "@/components/shared/dashboard-toolbar"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import type { Label } from "@/lib/api/project/sorting"
+import type { TaskType } from "@/lib/project/task-types"
 import { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from "@/lib/project/rules"
 import { hasTaskFilters, NOBODY_FILTER, type TaskFilters } from "@/lib/project/task-filters"
 
@@ -23,11 +26,17 @@ export function TaskFiltersBar({
   onChange,
   people,
   labels,
+  types,
+  children,
 }: {
   filters: TaskFilters
   onChange: (patch: Partial<TaskFilters>) => void
   people?: { id: string; name: string }[]
   labels: Label[]
+  /** The team's task types; archived ones still find the tasks that have them. */
+  types: TaskType[]
+  /** More controls at the end of the bar, such as the List's Columns menu. */
+  children?: React.ReactNode
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
@@ -96,18 +105,39 @@ export function TaskFiltersBar({
           </SelectContent>
         </Select>
       ) : null}
+      {types.length ? (
+        <Select
+          value={filters.type ?? ALL}
+          onValueChange={(value) => onChange({ type: value === ALL ? undefined : value })}
+        >
+          <DashboardToolbarSelectTrigger aria-label="Filter by type">
+            <SelectValue />
+          </DashboardToolbarSelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any type</SelectItem>
+            {types.map((type) => (
+              <SelectItem key={type.id} value={type.id}>
+                <TypeIconGlyph icon={type.icon} color={type.color} />
+                {type.name}
+                {type.archived ? <span className="text-muted-foreground"> (archived)</span> : null}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
       {hasTaskFilters(filters) ? (
         <DashboardToolbarButton
           type="button"
           variant="ghost"
           onClick={() =>
-            onChange({ q: undefined, status: undefined, person: undefined, label: undefined })
+            onChange({ q: undefined, status: undefined, person: undefined, label: undefined, type: undefined })
           }
         >
           <XIcon className="size-4" />
           Clear filters
         </DashboardToolbarButton>
       ) : null}
+      {children}
     </div>
   )
 }

@@ -109,6 +109,7 @@ beforeEach(async () => {
         {
           id: "si_switch",
           quantity: 1,
+          current_period_start: Math.floor(Date.now() / 1000) - 29 * 86400,
           current_period_end: Math.floor(Date.now() / 1000) + 86400,
           price: {
             ...structuredClone(target),
@@ -200,13 +201,48 @@ describe("in-app plan changes", () => {
     expect(stripe.update.mock.calls[0][1].items?.[0].quantity).toBe(3)
   })
 
-  it("describes an interval switch as billing today and preserves an existing trial", async () => {
+  it("starts a new paid period today on an interval switch, in the preview and the change alike", async () => {
     target.id = "price_year"
     target.recurring!.interval = "year"
     const yearly = { ...choice, interval: "yearly" as const }
-    expect(
-      (await previewPlanChange(userId, yearly, database, api())).billsNow
-    ).toBe(true)
+    const stripe = api()
+    const preview = await previewPlanChange(userId, yearly, database, stripe)
+    expect(preview.billsNow).toBe(true)
+    expect(stripe.preview.mock.calls[0][0].subscription_details).toMatchObject({
+      billing_cycle_anchor: "now",
+      proration_behavior: "always_invoice",
+    })
+    expect(stripe.preview.mock.calls[0][0].subscription_details).not.toHaveProperty(
+      "proration_date"
+    )
+    // The unused-time credit keeps shrinking while the card is open. A cent
+    // of movement is the quote still being honest; a fixed line changing is
+    // not.
+    invoice.lines.data[0].amount += 1
+    invoice.amount_due += 1
+    await changePlan(userId, preview.token, database, stripe)
+    expect(stripe.update.mock.calls[0][1]).toMatchObject({
+      billing_cycle_anchor: "now",
+      proration_behavior: "always_invoice",
+    })
+    expect(stripe.update.mock.calls[0][1]).not.toHaveProperty("proration_date")
+    invoice.lines.data[2].amount += 100
+    invoice.amount_due += 100
+    await expect(
+      changePlan(userId, preview.token, database, stripe)
+    ).rejects.toThrow("PLAN_PREVIEW_EXPIRED")
+  })
+
+  it("keeps the renewal date on a same-period switch and preserves an existing trial", async () => {
+    const stripe = api()
+    const monthly = await previewPlanChange(userId, choice, database, stripe)
+    expect(monthly.billsNow).toBe(false)
+    expect(stripe.preview.mock.calls[0][0].subscription_details).not.toHaveProperty(
+      "billing_cycle_anchor"
+    )
+    target.id = "price_year"
+    target.recurring!.interval = "year"
+    const yearly = { ...choice, interval: "yearly" as const }
     subscription.status = "trialing"
     subscription.trial_end = Math.floor(Date.now() / 1000) + 86400
     const preview = await previewPlanChange(userId, yearly, database, api())

@@ -8,13 +8,23 @@ import tsconfigPaths from "vite-tsconfig-paths"
 
 import { DEV_APP_PORT } from "./app-port"
 
-function publicFontDevRoute(): Plugin {
+/**
+ * Addresses whose answer a browser asks for as a file rather than as a page.
+ *
+ * Nitro's dev middleware skips a request by what the browser says it is for:
+ * a `font` destination for the uploaded font, an `image` destination for every
+ * `<img srcset>` candidate. Both then fall through to the static file handler
+ * and come back 404 in development only. A built deployment has no such
+ * middleware, so this exists to make local development match it.
+ */
+const ASSET_DEV_ROUTES = ["/public-font.woff2", "/api/v1/media/resized"]
+
+function assetDevRoutes(): Plugin {
   return {
-    name: "custom-shell:public-font-dev-route",
+    name: "custom-shell:asset-dev-routes",
     apply: "serve",
     enforce: "pre",
     configureServer(server) {
-      // Nitro's dev middleware skips requests whose browser destination is font.
       server.middlewares.use(async (request, response, next) => {
         if (!request.url || request.method !== "GET") return next()
 
@@ -22,7 +32,7 @@ function publicFontDevRoute(): Plugin {
           request.url,
           `http://localhost:${DEV_APP_PORT}`
         )
-        if (requestUrl.pathname !== "/public-font.woff2") return next()
+        if (!ASSET_DEV_ROUTES.includes(requestUrl.pathname)) return next()
 
         try {
           const nitroEnvironment = server.environments.nitro
@@ -32,17 +42,17 @@ function publicFontDevRoute(): Plugin {
           const dispatchFetch = nitroEnvironment.dispatchFetch
           if (typeof dispatchFetch !== "function") return next()
 
-          const fontResponse = (await dispatchFetch.call(
+          const assetResponse = (await dispatchFetch.call(
             nitroEnvironment,
             new Request(requestUrl)
           )) as Response
 
-          response.statusCode = fontResponse.status
-          response.statusMessage = fontResponse.statusText
-          fontResponse.headers.forEach((value, name) => {
+          response.statusCode = assetResponse.status
+          response.statusMessage = assetResponse.statusText
+          assetResponse.headers.forEach((value, name) => {
             response.setHeader(name, value)
           })
-          response.end(Buffer.from(await fontResponse.arrayBuffer()))
+          response.end(Buffer.from(await assetResponse.arrayBuffer()))
         } catch (error) {
           next(error)
         }
@@ -54,7 +64,7 @@ function publicFontDevRoute(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    publicFontDevRoute(),
+    assetDevRoutes(),
     tanstackStart({
       router: {
         // `*.page.ts` files beside routes are page declarations (see
