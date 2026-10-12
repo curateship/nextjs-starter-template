@@ -235,6 +235,11 @@ export const LIMITS = {
   chatPage: 50,
   /** The most a refresh reloads at once: ten pages. */
   chatMostShown: 500,
+  /** A saved view's name, and how many one person keeps on one project or on My tasks. */
+  viewName: 60,
+  viewsPerPlace: 30,
+  /** Matches the header's search lists at once. */
+  searchResults: 20,
 } as const
 
 /** The five fixed reactions under a chat message, in the order they are offered. */

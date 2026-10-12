@@ -6,6 +6,7 @@ import { db } from "@/server/db"
 import { requireMembership } from "@/server/project/access"
 import { loadCheckinPage, type CheckinPage } from "@/server/project/checkins"
 import { listTeamLabels, type Label } from "@/server/project/labels"
+import { listSavedViews, type SavedView } from "@/server/project/saved-views"
 import { listTeamTypes } from "@/server/project/task-types"
 import type { TaskType } from "@/lib/project/task-types"
 import { loadCheckinRecord, type CheckinRecord } from "@/server/project/time-off"
@@ -38,6 +39,8 @@ export type MyDashboard = {
   taskTypes: TaskType[]
   /** "On time 18 of the last 20 work days": mine alone, never shown to anyone else. */
   record: CheckinRecord
+  /** My own saved views on My tasks. */
+  views: SavedView[]
 }
 
 export async function loadMyDashboard(userId: string, database = db): Promise<MyDashboard> {
@@ -74,5 +77,6 @@ export async function loadMyDashboard(userId: string, database = db): Promise<My
     labels: await listTeamLabels(membership.teamId, database),
     taskTypes: await listTeamTypes(membership.teamId, database),
     record: await loadCheckinRecord(userId, database),
+    views: await listSavedViews(userId, membership.teamId, null, database),
   }
 }

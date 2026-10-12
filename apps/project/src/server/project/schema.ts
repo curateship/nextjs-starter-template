@@ -25,6 +25,7 @@ import type {
   TeamInviteRole,
   TeamRole,
 } from "@/lib/project/rules"
+import type { SavedViewFilters, SavedViewNames } from "@/lib/project/saved-views"
 import type { FieldKind, FieldSettings, WhoCanChange } from "@/lib/project/task-fields"
 import { customShellNotifications, customShellUsers } from "@/server/schema"
 
@@ -753,3 +754,27 @@ export const projectTaskThanks = pgTable(
   },
   (table) => [primaryKey({ columns: [table.taskId, table.userId] })]
 )
+
+/**
+ * A person's own saved filters on one project (`projectId`) or on My tasks
+ * (`projectId` null). Nobody else sees them
+ * (`drizzle/0110_project_finding_and_seeing.sql`).
+ */
+export const projectSavedViews = pgTable("project_saved_views", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  teamId: varchar("team_id", { length: 36 })
+    .notNull()
+    .references(() => projectTeams.id, { onDelete: "cascade" }),
+  userId: varchar("user_id", { length: 36 })
+    .notNull()
+    .references(userRef, { onDelete: "cascade" }),
+  projectId: varchar("project_id", { length: 36 }).references(() => projectProjects.id, {
+    onDelete: "cascade",
+  }),
+  name: text("name").notNull(),
+  /** The address's filters: q, status, person, label, type. */
+  filters: jsonb("filters").$type<SavedViewFilters>().notNull(),
+  /** The person's and label's names when saved, so a view can say who has left. */
+  names: jsonb("names").$type<SavedViewNames>().notNull().default({}),
+  createdAt: createdAt(),
+})

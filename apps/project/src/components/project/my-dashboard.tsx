@@ -16,6 +16,7 @@ import { CheckoutDialog } from "@/components/project/checkout-dialog"
 import { MyWeekSection } from "@/components/project/my-week-card"
 import { MyCheckinTime } from "@/components/project/my-checkin-time"
 import { SaveLine } from "@/components/project/save-line"
+import { SavedViewsControls } from "@/components/project/saved-views"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskFiltersBar } from "@/components/project/task-filters-bar"
 import { TaskInPlace } from "@/components/project/task-in-place"
@@ -338,7 +339,14 @@ function MyTasksPanel({
         onChange={onFilters}
         labels={dashboard.labels}
         types={dashboard.taskTypes}
-      />
+      >
+        <SavedViewsControls
+          views={dashboard.views}
+          filters={filters}
+          onChange={onFilters}
+          here={{ projectId: null, labels: dashboard.labels, types: dashboard.taskTypes }}
+        />
+      </TaskFiltersBar>
       {tab === "open" && waiting && !filtered ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
           <p className="text-sm">

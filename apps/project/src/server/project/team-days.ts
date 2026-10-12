@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, inArray, isNotNull, lt, lte } from "drizzle-orm"
 
 import { addDays, localNow, weekdayOf } from "@/lib/project/days"
+import { monthGrid } from "@/lib/project/meetings"
 import {
   DEFAULT_CHECKIN_QUESTIONS,
   type CheckinNotes,
@@ -40,12 +41,12 @@ export type TeamMonthDay = {
 }
 
 export type TeamMonth = {
-  /** "YYYY-MM". */
+  /** "YYYY-MM". `days` and `holidays` cover its whole grid, a few days either side. */
   month: string
   /** The viewer's own today. */
   today: string
   days: TeamMonthDay[]
-  /** The team's holidays in the month, past and to come, which the squares name. */
+  /** The team's holidays in the month's grid, past and to come, which the squares name. */
   holidays: Holiday[]
 }
 
@@ -58,8 +59,9 @@ export async function loadTeamMonth(
   const { membership, clock } = await loadClock(viewerId, database)
   const today = personDay(clock, at).day
   const shown = month ?? today.slice(0, 7)
-  const first = `${shown}-01`
-  const last = addDays(`${addDays(first, 32).slice(0, 7)}-01`, -1)
+  // The whole grid, Monday before the 1st to Sunday after the last, so the
+  // week view has every day of a week that crosses into the next month.
+  const { start: first, end: last } = monthGrid(shown)
 
   const rows = await database
     .select({

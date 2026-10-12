@@ -1,4 +1,4 @@
-import { PlusIcon } from "lucide-react"
+import { PlusIcon, SearchIcon } from "lucide-react"
 
 import type { AppOptions } from "@/lib/app-options"
 import {
@@ -26,6 +26,17 @@ import {
 export const appOptions: AppOptions = {
   header: {
     rightActions: [
+      {
+        /**
+         * One search over every project the person can see, so a task in a
+         * forgotten project is one step away. A match opens on its project page.
+         */
+        id: "task-search",
+        label: "Search tasks",
+        icon: SearchIcon,
+        foldsOnPhone: true,
+        component: () => import("@/components/project/task-search-header"),
+      },
       {
         /**
          * New task from any page, so a task is written down the moment it is

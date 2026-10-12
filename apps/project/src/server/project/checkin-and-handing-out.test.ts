@@ -533,7 +533,7 @@ describe("handing out work", () => {
   it("warns about Doing over the limit, and says nothing without one", () => {
     const leo = { id: "leo", name: "Leo" }
     const doing = (n: number) => Array.from({ length: n }, () => ({ status: "doing", assignee: leo }))
-    expect(overDoingLimit(doing(4), 3)).toEqual(["Leo has 4 in Doing (limit 3)"])
+    expect(overDoingLimit(doing(4), 3)).toEqual([{ personId: "leo", text: "Leo has 4 in Doing (limit 3)" }])
     expect(overDoingLimit(doing(3), 3)).toEqual([])
     expect(overDoingLimit(doing(9), null)).toEqual([])
   })

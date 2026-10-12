@@ -8,7 +8,10 @@ on its own task; these put them in one place.
 
 For the owner and admins only. Tyler chose a tab here, rather than a page of
 its own, on 10 Oct 2026. The tab reads "Attention" so three tabs fit the
-panel, and the list inside is headed "Needs attention".
+panel, and the list inside is headed "Needs attention". Three tabs fill the
+panel at its usual width, so the team's Activity went beside Calendar in the
+middle panel instead (Tyler, 12 Oct 2026; see
+[Teams and invites](teams-and-invites.md#the-teams-activity)).
 
 - **Four kinds, grouped:**
   - **Stuck**, from the day it is marked Stuck, because someone can't carry

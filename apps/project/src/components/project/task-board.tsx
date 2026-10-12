@@ -18,7 +18,14 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { CircleAlertIcon, FolderIcon, MessageSquareIcon, TriangleAlertIcon, UndoIcon } from "lucide-react"
+import {
+  ChevronRightIcon,
+  CircleAlertIcon,
+  FolderIcon,
+  MessageSquareIcon,
+  TriangleAlertIcon,
+  UndoIcon,
+} from "lucide-react"
 
 import {
   DueDate,
@@ -39,9 +46,21 @@ import type { TaskCard } from "@/lib/api/project/tasks"
 import { plural } from "@/lib/format/plural"
 import { TASK_STATUSES, TASK_STATUS_LABEL, isTaskStatus, type TaskStatus } from "@/lib/project/rules"
 import { todayKey } from "@/lib/project/dates"
+import type { DoingWarning } from "@/lib/project/doing-limit"
 import { splitRecentDone } from "@/lib/project/task-filters"
 import { byPosition } from "@/lib/project/task-order"
 import { cn } from "@/lib/utils"
+
+/** A row of the Board: everyone's tasks, or one person's when grouped. */
+export type BoardLane = {
+  /** A person's id, `NOBODY_LANE`, or `ALL_LANE` when the Board isn't grouped. */
+  id: string
+  name: string
+  avatarUrl?: string
+}
+
+export const ALL_LANE = "all"
+export const NOBODY_LANE = "nobody"
 
 /**
  * One column per status. A card drags up or down inside its column to set the
@@ -49,6 +68,11 @@ import { cn } from "@/lib/utils"
  * change its status, landing where it is let go. A click opens the task. The
  * Done column shows tasks finished in the last 14 days, with the rest behind
  * "Show older".
+ *
+ * Grouped by person, each member gets a row of the four columns, plus
+ * "Nobody assigned", so who is stuck and who is idle shows at once. Dragging
+ * within a row is the same as above; dragging to another row asks the screen
+ * to hand the task over, which asks first. Rows fold.
  *
  * While a card is held, a copy follows the pointer and the columns make room
  * for it wherever it is over, so it never jumps back to where it started.
@@ -59,17 +83,23 @@ export function TaskBoard({
   onOpenTask,
   onMove,
   onReorder,
+  onHandOver,
+  lanes,
   doingWarnings = [],
 }: {
   tasks: TaskCard[]
   readOnly: boolean
-  /** "Leo has 4 in Doing (limit 3)", under the Doing column's heading. */
-  doingWarnings?: string[]
+  /** Grouped by person: a row per person, in this order. Left out, one row. */
+  lanes?: BoardLane[]
+  /** "Leo has 4 in Doing (limit 3)", under the Doing column's heading or in Leo's row. */
+  doingWarnings?: DoingWarning[]
   onOpenTask: (taskId: string) => void
   /** The task, its new status, and the new column's tasks in their new order. */
   onMove: (task: TaskCard, status: TaskStatus, taskIds: string[]) => void
   /** The column's tasks in their new order. */
   onReorder: (taskIds: string[]) => void
+  /** Dropped in another person's row: hand it to them (null for nobody), into this column. */
+  onHandOver?: (task: TaskCard, personId: string | null, status: TaskStatus, taskIds: string[]) => void
 }) {
   // A short drag threshold, so a click on a card still opens it.
   // No keyboard dragging: Enter on a card opens it, as a button should.
@@ -78,23 +108,32 @@ export function TaskBoard({
   // server and in the browser. Without it the page fails to hydrate.
   const dndId = React.useId()
   const [showOlder, setShowOlder] = React.useState(false)
+  const [folded, setFolded] = React.useState<ReadonlySet<string>>(() => new Set())
   const [today] = React.useState(() => new Date())
+  const rows = React.useMemo(() => lanes ?? [{ id: ALL_LANE, name: "" }], [lanes])
+  const grouped = Boolean(lanes)
 
   const columns = React.useMemo(() => {
     const sorted = [...tasks].sort(byPosition)
-    const done = splitRecentDone(
-      sorted.filter((task) => task.status === "done"),
-      today
-    )
-    return Object.fromEntries(
-      TASK_STATUSES.map((status) => [
-        status,
-        status === "done"
-          ? { shown: showOlder ? [...done.recent, ...done.older] : done.recent, hidden: showOlder ? 0 : done.older.length }
-          : { shown: sorted.filter((task) => task.status === status), hidden: 0 },
-      ])
-    ) as Record<TaskStatus, { shown: TaskCard[]; hidden: number }>
-  }, [today, showOlder, tasks])
+    const result: Record<string, { shown: TaskCard[]; hidden: number }> = {}
+    for (const lane of rows) {
+      const mine = grouped ? sorted.filter((task) => laneOf(task) === lane.id) : sorted
+      const done = splitRecentDone(
+        mine.filter((task) => task.status === "done"),
+        today
+      )
+      for (const status of TASK_STATUSES) {
+        result[columnKey(lane.id, status)] =
+          status === "done"
+            ? {
+                shown: showOlder ? [...done.recent, ...done.older] : done.recent,
+                hidden: showOlder ? 0 : done.older.length,
+              }
+            : { shown: mine.filter((task) => task.status === status), hidden: 0 }
+      }
+    }
+    return result
+  }, [grouped, rows, today, showOlder, tasks])
 
   // Each column's cards while one is held, moved as it crosses columns. The
   // ref is what the drop reads, so a drop in the same instant as a crossing
@@ -112,8 +151,8 @@ export function TaskBoard({
     setHeld({
       id: String(event.active.id),
       columns: Object.fromEntries(
-        TASK_STATUSES.map((status) => [status, columns[status].shown.map((task) => task.id)])
-      ) as Record<TaskStatus, string[]>,
+        Object.entries(columns).map(([key, column]) => [key, column.shown.map((task) => task.id)])
+      ),
     })
   }
 
@@ -143,19 +182,54 @@ export function TaskBoard({
     setHeld(null)
     const task = byId.get(String(active.id))
     if (!state || !task || !over) return
-    const status = columnOf(state.columns, active.id)
-    if (!status) return
-    let ids = state.columns[status]
+    const key = columnOf(state.columns, active.id)
+    if (!key) return
+    const { lane, status } = splitKey(key)
+    let ids = state.columns[key]
     const from = ids.indexOf(task.id)
     const to = ids.indexOf(String(over.id))
     if (to >= 0 && to !== from) ids = arrayMove(ids, from, to)
+    if (grouped && lane !== laneOf(task)) {
+      onHandOver?.(task, lane === NOBODY_LANE ? null : lane, status, ids)
+      return
+    }
     if (status !== task.status) {
       onMove(task, status, ids)
       return
     }
-    const before = columns[status].shown.map((t) => t.id)
+    const before = columns[key].shown.map((t) => t.id)
     if (ids.some((id, index) => id !== before[index])) onReorder(ids)
   }
+
+  function toggleFold(laneId: string) {
+    setFolded((current) => {
+      const next = new Set(current)
+      if (next.has(laneId)) next.delete(laneId)
+      else next.add(laneId)
+      return next
+    })
+  }
+
+  const columnsOf = (laneId: string) =>
+    TASK_STATUSES.map((status) => {
+      const key = columnKey(laneId, status)
+      return (
+        <BoardColumn
+          key={key}
+          id={key}
+          status={status}
+          tasks={held ? held.columns[key].flatMap((id) => byId.get(id) ?? []) : columns[key].shown}
+          hidden={columns[key].hidden}
+          warnings={
+            status === "doing" && !grouped ? doingWarnings.map((warning) => warning.text) : []
+          }
+          onShowOlder={() => setShowOlder(true)}
+          readOnly={readOnly}
+          onOpenTask={onOpenTask}
+          compact={grouped}
+        />
+      )
+    })
 
   return (
     <DndContext
@@ -168,24 +242,25 @@ export function TaskBoard({
       onDragCancel={() => setHeld(null)}
     >
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <div className="flex h-full min-h-0 gap-3 p-3">
-          {TASK_STATUSES.map((status) => (
-            <BoardColumn
-              key={status}
-              status={status}
-              tasks={
-                held
-                  ? held.columns[status].flatMap((id) => byId.get(id) ?? [])
-                  : columns[status].shown
-              }
-              hidden={columns[status].hidden}
-              warnings={status === "doing" ? doingWarnings : []}
-              onShowOlder={() => setShowOlder(true)}
-              readOnly={readOnly}
-              onOpenTask={onOpenTask}
-            />
-          ))}
-        </div>
+        {grouped ? (
+          // As wide as a row's four columns, so each row's frame runs past the panel's edge with them.
+          <div className="grid w-max min-w-full gap-3 p-3">
+            {rows.map((lane) => (
+              <LaneRow
+                key={lane.id}
+                lane={lane}
+                counts={laneCounts(tasks.filter((task) => laneOf(task) === lane.id))}
+                warning={doingWarnings.find((warning) => warning.personId === lane.id)?.text}
+                open={!folded.has(lane.id)}
+                onToggle={() => toggleFold(lane.id)}
+              >
+                {columnsOf(lane.id)}
+              </LaneRow>
+            ))}
+          </div>
+        ) : (
+          <div className="flex h-full min-h-0 gap-3 p-3">{columnsOf(ALL_LANE)}</div>
+        )}
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
       <DragOverlay>
@@ -199,17 +274,96 @@ export function TaskBoard({
   )
 }
 
-type Held = { id: string; columns: Record<TaskStatus, string[]> }
+type Held = { id: string; columns: Record<string, string[]> }
+
+const KEY_SEPARATOR = "::"
+const columnKey = (lane: string, status: TaskStatus) => `${lane}${KEY_SEPARATOR}${status}`
+function splitKey(key: string): { lane: string; status: TaskStatus } {
+  const at = key.lastIndexOf(KEY_SEPARATOR)
+  const status = key.slice(at + KEY_SEPARATOR.length)
+  return { lane: key.slice(0, at), status: isTaskStatus(status) ? status : "todo" }
+}
+
+/** The row a task sits in when grouped: its person's, or "Nobody assigned". */
+function laneOf(task: TaskCard) {
+  return task.assignee?.id ?? NOBODY_LANE
+}
 
 /** The column a card is in, or the column itself when the pointer is over its empty space. */
-function columnOf(columns: Record<TaskStatus, string[]>, id: UniqueIdentifier) {
-  if (isTaskStatus(id)) return id
-  return TASK_STATUSES.find((status) => columns[status].includes(String(id))) ?? null
+function columnOf(columns: Record<string, string[]>, id: UniqueIdentifier) {
+  const key = String(id)
+  if (key in columns) return key
+  return Object.keys(columns).find((column) => columns[column].includes(key)) ?? null
+}
+
+/** "2 Doing · 1 Stuck", the row's summary while folded and beside its name. */
+function laneCounts(tasks: TaskCard[]) {
+  const open = tasks.filter((task) => task.status !== "done")
+  const doing = open.filter((task) => task.status === "doing").length
+  const stuck = open.filter((task) => task.status === "stuck").length
+  if (open.length === 0) return "Nothing open"
+  return [
+    `${open.length} open`,
+    doing ? `${doing} Doing` : "nothing in Doing",
+    stuck ? `${stuck} Stuck` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+}
+
+/** One person's row: their name and counts, then the four columns, folding shut on its header. */
+function LaneRow({
+  lane,
+  counts,
+  warning,
+  open,
+  onToggle,
+  children,
+}: {
+  lane: BoardLane
+  counts: string
+  warning: string | undefined
+  open: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  const bodyId = `board-lane-${lane.id}`
+  return (
+    <section aria-label={lane.name} className="grid gap-2 rounded-lg border p-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={bodyId}
+        onClick={onToggle}
+        className="flex w-full min-w-0 items-center gap-2 rounded-md px-1 py-0.5 text-left text-sm hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <ChevronRightIcon
+          className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")}
+          aria-hidden
+        />
+        {lane.id === NOBODY_LANE ? null : <PersonAvatar name={lane.name} avatarUrl={lane.avatarUrl} />}
+        <span className="truncate font-medium">{lane.name}</span>
+        <span className="truncate text-muted-foreground">{counts}</span>
+      </button>
+      {warning ? (
+        <p className="flex items-start gap-1.5 px-1 text-xs text-destructive">
+          <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" aria-hidden />
+          {warning}
+        </p>
+      ) : null}
+      {open ? (
+        <div id={bodyId} className="flex gap-3">
+          {children}
+        </div>
+      ) : null}
+    </section>
+  )
 }
 
 const CARD_CLASS = "grid w-full gap-2 rounded-lg border bg-card p-3 text-left text-sm shadow-xs"
 
 function BoardColumn({
+  id,
   status,
   tasks,
   hidden,
@@ -217,7 +371,10 @@ function BoardColumn({
   onShowOlder,
   readOnly,
   onOpenTask,
+  compact,
 }: {
+  /** The column's drop id: its row and status. */
+  id: string
   status: TaskStatus
   tasks: TaskCard[]
   /** Done tasks older than 14 days, not shown yet. */
@@ -227,15 +384,18 @@ function BoardColumn({
   onShowOlder: () => void
   readOnly: boolean
   onOpenTask: (taskId: string) => void
+  /** In a person's row: no full height to fill. */
+  compact: boolean
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: status, disabled: readOnly })
-  const headingId = `board-column-${status}`
+  const { setNodeRef, isOver } = useDroppable({ id, disabled: readOnly })
+  const headingId = `board-column-${id.replace(/[^\w-]/g, "-")}`
   return (
     <section
       ref={setNodeRef}
       aria-labelledby={headingId}
       className={cn(
         "flex w-64 shrink-0 flex-col gap-2 rounded-lg bg-muted/60 p-2",
+        compact && "min-h-16",
         isOver && "ring-2 ring-ring"
       )}
     >

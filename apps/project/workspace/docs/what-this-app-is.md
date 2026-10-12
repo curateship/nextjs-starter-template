@@ -184,6 +184,15 @@ Each was the recommended option.
 - **A reply in a project's chat** tells the person replied to, as well as
   anyone tagged.
 
+## Choices for finding and seeing work
+
+Tyler answered this on 12 Oct 2026, before More features task 04 was built.
+
+- **The team's Activity** is a tab beside Calendar in the Team dashboard's
+  middle panel, because the right panel's three tabs already fill it. The
+  month's name, the arrows, Today and the Month and Week switch moved to a
+  row under the tabs.
+
 ## The first version
 
 - Teams, email invites, projects and tasks.

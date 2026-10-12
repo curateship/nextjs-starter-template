@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
+  ChartColumnIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleAlertIcon,
@@ -17,6 +18,8 @@ import {
 import { BlockerReplies } from "@/components/project/blocker-replies"
 import { InviteDialog } from "@/components/project/invite-dialog"
 import { MeetingDialog } from "@/components/project/meeting-dialog"
+import { DayNumber, MonthGrid } from "@/components/project/month-grid"
+import { TeamActivity } from "@/components/project/project-activity"
 import { AnnouncementCard, AnnouncementDialog } from "@/components/project/team-announcement"
 import { TaggedWords } from "@/components/project/tag-textarea"
 import { PersonAvatar } from "@/components/project/task-bits"
@@ -26,19 +29,19 @@ import { DayMeetings, MeetingChips } from "@/components/project/team-meetings"
 import { AttentionPanel, WorkloadPanel } from "@/components/project/team-work-panels"
 import { TeamSettingsDialog } from "@/components/project/team-settings-dialog"
 import { TeamStart } from "@/components/project/team-start"
+import { TeamTrendsDialog } from "@/components/project/team-trends-dialog"
+import { TeamWeek } from "@/components/project/team-week"
 import { ThreePanels } from "@/components/project/three-panels"
 import {
-  DashboardCardHeader,
   DashboardCardTabsHeader,
   DashboardCardTitleHeader,
-  dashboardCardHeadingClassName,
 } from "@/components/shared/dashboard-card-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Meter } from "@/components/ui/meter"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type {
   TeamDay,
@@ -53,9 +56,15 @@ import type {
   TeamFigures,
 } from "@/lib/api/project/teams"
 import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
-import { addDays, clockIn, clockLabel, longDayLabel, shortDayLabel, zoneCity } from "@/lib/project/days"
-import { meetingWords, meetingsByDay, monthGrid, nextMeetingColor } from "@/lib/project/meetings"
-import { TEAM_PANEL_LAYOUT_KEY, TEAM_RIGHT_TAB_KEY } from "@/lib/project/panel-keys"
+import { addDays, clockIn, clockLabel, dayLabel, longDayLabel, shortDayLabel, zoneCity } from "@/lib/project/days"
+import { dayCellClassName, meetingWords, meetingsByDay, monthGrid, nextMeetingColor } from "@/lib/project/meetings"
+import {
+  TEAM_CALENDAR_VIEW_KEY,
+  TEAM_MIDDLE_TAB_KEY,
+  TEAM_PANEL_LAYOUT_KEY,
+  TEAM_RIGHT_TAB_KEY,
+} from "@/lib/project/panel-keys"
+import { weekDays } from "@/lib/project/week-view"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { TEAM_ROLE_LABEL, WEEK_DAYS, runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
@@ -159,11 +168,13 @@ function Dashboard({
             onMonth={(next) =>
               go({ month: next, day: next === month.today.slice(0, 7) ? undefined : `${next}-01` })
             }
+            onWeek={(next) => go({ day: next, month: next.slice(0, 7) })}
             onToday={() => go({ month: undefined, day: undefined })}
             onSelect={(next) => {
               go({ day: next })
               setDayPicks((n) => n + 1)
             }}
+            onOpenTask={(taskId) => go({ task: taskId })}
           />
         ),
       }}
@@ -199,6 +210,7 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
   const canRun = runsTheTeam(data.myRole)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [inviting, setInviting] = React.useState(false)
+  const [trendsOpen, setTrendsOpen] = React.useState(false)
   const days = WEEK_DAYS.map(({ day, short }) => ({ day, short, on: team.workDays.includes(day) }))
   const workDayNames = days.filter((d) => d.on).map((d) => d.short).join(", ")
 
@@ -228,7 +240,13 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
               Created {formatDate(team.createdAt)} · {team.timeZone.replaceAll("_", " ")}
             </p>
           </div>
-          <TeamFiguresGrid figures={figures} />
+          <div className="grid gap-2">
+            <TeamFiguresGrid figures={figures} />
+            <Button type="button" variant="outline" onClick={() => setTrendsOpen(true)}>
+              <ChartColumnIcon className="size-4" />
+              Trends, last 12 weeks
+            </Button>
+          </div>
           <Separator />
           <section className="grid gap-3" aria-labelledby="team-schedule-heading">
             <h3 id="team-schedule-heading" className="text-sm font-medium">
@@ -302,29 +320,48 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
         onClose={() => setSettingsOpen(false)}
       />
       <InviteDialog open={inviting} onClose={() => setInviting(false)} />
+      <TeamTrendsDialog open={trendsOpen} onClose={() => setTrendsOpen(false)} />
     </>
   )
 }
 
+const MIDDLE_TABS = ["calendar", "activity"] as const
+type MiddleTab = (typeof MIDDLE_TABS)[number]
+const CALENDAR_VIEWS = ["month", "week"] as const
+type CalendarView = (typeof CALENDAR_VIEWS)[number]
+
+/**
+ * The middle panel: the Calendar, or the team's Activity across every
+ * project the viewer can see (Tyler's choice, 12 Oct 2026: a tab beside
+ * Calendar, since the right panel's three tabs already fill it). The
+ * calendar shows a month or the chosen day's week, with the day's meetings
+ * under it.
+ */
 function CalendarPanel({
   month,
   selected,
   meetings,
   data,
   onMonth,
+  onWeek,
   onToday,
   onSelect,
+  onOpenTask,
 }: {
   month: TeamMonth
   selected: string
   meetings: TeamMeetings
   data: TeamDashboardData
   onMonth: (month: string) => void
+  /** A week's arrow: the same weekday in the week before or after. */
+  onWeek: (day: string) => void
   onToday: () => void
   onSelect: (day: string) => void
+  onOpenTask: (taskId: string) => void
 }) {
+  const [tab, setTab] = useRememberedChoice<MiddleTab>(TEAM_MIDDLE_TAB_KEY, "calendar", MIDDLE_TABS)
+  const [view, setView] = useRememberedChoice<CalendarView>(TEAM_CALENDAR_VIEW_KEY, "month", CALENDAR_VIEWS)
   const [year, monthNumber] = month.month.split("-").map(Number)
-  // Weeks start on Monday, the way the team's work days are listed.
   const grid = monthGrid(month.month)
   const byDay = new Map(month.days.map((d) => [d.day, d]))
   const holidayOf = new Map(month.holidays.map((holiday) => [holiday.day, holiday.name]))
@@ -335,6 +372,7 @@ function CalendarPanel({
   const [target, setTarget] = React.useState<Meeting | null>(null)
   const [announcing, setAnnouncing] = React.useState(false)
   const canRun = runsTheTeam(data.myRole)
+  const week = weekDays(selected)
 
   function edit(next: Meeting | "new") {
     setTarget(next === "new" ? null : next)
@@ -343,150 +381,176 @@ function CalendarPanel({
 
   return (
     <>
-      <DashboardCardHeader className="gap-2">
-        <h2 className={cn("min-w-0 truncate", dashboardCardHeadingClassName)}>
-          {formatMonthAndYear(year, monthNumber)}
-        </h2>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label="Previous month"
-          onClick={() => onMonth(addDays(grid.first, -1).slice(0, 7))}
-        >
-          <ChevronLeftIcon className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label="Next month"
-          onClick={() => onMonth(addDays(grid.first, 32).slice(0, 7))}
-        >
-          <ChevronRightIcon className="size-4" />
-        </Button>
-        <Button type="button" variant="outline" onClick={onToday}>
-          Today
-        </Button>
-        {canRun && !data.announcement ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
+      <Tabs value={tab} onValueChange={(value) => setTab(value as MiddleTab)}>
+        <DashboardCardTabsHeader
+          action={
+            <>
+              {canRun && !data.announcement ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Post an announcement"
+                      onClick={() => setAnnouncing(true)}
+                    >
+                      <MegaphoneIcon className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Post an announcement</TooltipContent>
+                </Tooltip>
+              ) : null}
+              {/* Words from 640px up; on a phone the tabs need the room. */}
               <Button
                 type="button"
                 variant="outline"
-                size="icon"
-                className="ml-auto"
-                aria-label="Post an announcement"
-                onClick={() => setAnnouncing(true)}
+                className="max-sm:size-8 max-sm:px-0"
+                aria-label="New meeting"
+                onClick={() => edit("new")}
               >
-                <MegaphoneIcon className="size-4" />
+                <PlusIcon className="size-4" />
+                <span className="max-sm:hidden">New meeting</span>
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>Post an announcement</TooltipContent>
-          </Tooltip>
-        ) : null}
-        {/* Words from 640px up; on a phone the month's name needs the room. */}
-        <Button
-          type="button"
-          variant="outline"
-          className={cn("max-sm:size-8 max-sm:px-0", !(canRun && !data.announcement) && "ml-auto")}
-          aria-label="New meeting"
-          onClick={() => edit("new")}
+            </>
+          }
         >
-          <PlusIcon className="size-4" />
-          <span className="max-sm:hidden">New meeting</span>
-        </Button>
-      </DashboardCardHeader>
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        {data.announcement ? (
-          <div className="px-3 pt-3">
-            <AnnouncementCard
-              announcement={data.announcement}
-              canRun={canRun}
-              onReplace={() => setAnnouncing(true)}
-            />
+          <TabsTrigger value="calendar">Calendar</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+        </DashboardCardTabsHeader>
+      </Tabs>
+      {tab === "activity" ? (
+        <TeamActivity onOpenTask={onOpenTask} />
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
+            {/* Its own line on a phone, so the buttons don't squeeze it to nothing. */}
+            <h2 className="min-w-0 flex-1 truncate text-sm font-medium max-sm:basis-full">
+              {view === "week"
+                ? `${dayLabel(week[0])} to ${dayLabel(week[6])}`
+                : formatMonthAndYear(year, monthNumber)}
+            </h2>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label={view === "week" ? "Previous week" : "Previous month"}
+              onClick={() =>
+                view === "week" ? onWeek(addDays(selected, -7)) : onMonth(addDays(grid.first, -1).slice(0, 7))
+              }
+            >
+              <ChevronLeftIcon className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label={view === "week" ? "Next week" : "Next month"}
+              onClick={() =>
+                view === "week" ? onWeek(addDays(selected, 7)) : onMonth(addDays(grid.first, 32).slice(0, 7))
+              }
+            >
+              <ChevronRightIcon className="size-4" />
+            </Button>
+            <Button type="button" variant="outline" onClick={onToday}>
+              Today
+            </Button>
+            <Tabs value={view} onValueChange={(value) => setView(value as CalendarView)}>
+              <TabsList aria-label="Calendar view">
+                <TabsTrigger value="month">Month</TabsTrigger>
+                <TabsTrigger value="week">Week</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
-        ) : null}
-        <div className="grid grid-cols-7 gap-1.5 p-3">
-          {WEEK_DAYS.map(({ day, short }) => (
-            <div key={day} aria-hidden className="pb-1 text-center text-xs text-muted-foreground">
-              {short}
-            </div>
-          ))}
-          {Array.from({ length: grid.cells }, (_, index) => {
-            const date = addDays(grid.start, index)
-            const inMonth = date.startsWith(month.month)
-            const counts = inMonth ? byDay.get(date) : undefined
-            const dayMeetings = inMonth ? (meetingDays.get(date) ?? []) : []
-            const checkinWords = counts?.expected
-              ? `${counts.checkedIn} of ${counts.expected} checked in${counts.blocked ? `, ${counts.blocked} blocked` : ""}`
-              : null
-            const holiday = inMonth ? holidayOf.get(date) : undefined
-            const words = [
-              holiday ? `${holiday}, a team holiday` : null,
-              checkinWords,
-              meetingWords(dayMeetings, meetings.viewerZone),
-            ].filter(Boolean)
-            return (
-              <button
-                key={date}
-                type="button"
-                disabled={!inMonth}
-                aria-pressed={date === selected}
-                aria-current={date === month.today ? "date" : undefined}
-                aria-label={`${longDayLabel(date)}${words.length ? `: ${words.join(". ")}` : ""}`}
-                onClick={() => onSelect(date)}
-                className={cn(
-                  "flex min-h-20 min-w-0 flex-col items-start gap-1 rounded-md border p-1.5 text-left text-xs hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none sm:p-2",
-                  !inMonth && "border-transparent bg-muted/60 text-muted-foreground",
-                  date === selected && "ring-2 ring-ring"
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex size-6 items-center justify-center rounded-full text-sm",
-                    date === month.today && "bg-primary font-semibold text-primary-foreground"
-                  )}
-                >
-                  {Number(date.slice(8))}
-                </span>
-                {/* A phone's squares are too narrow for words: "4/6" and a mark with the number. */}
-                {holiday ? (
-                  <span className="flex max-w-full items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-muted-foreground sm:px-1.5">
-                    <PartyPopperIcon className="size-3 shrink-0" aria-hidden />
-                    <span className="truncate max-sm:hidden">{holiday}</span>
-                  </span>
-                ) : null}
-                {counts && counts.expected ? (
-                  <span className="max-w-full rounded bg-muted px-1 py-0.5 sm:px-1.5">
-                    <span className="sm:hidden">
-                      {counts.checkedIn}/{counts.expected}
-                    </span>
-                    <span className="max-sm:hidden">
-                      {counts.checkedIn} of {counts.expected} in
-                    </span>
-                  </span>
-                ) : null}
-                {counts?.blocked ? (
-                  <span className="flex max-w-full items-center gap-0.5 rounded bg-destructive/10 px-1 py-0.5 text-destructive sm:px-1.5">
-                    <CircleAlertIcon className="size-3 shrink-0 sm:hidden" aria-hidden />
-                    {counts.blocked}
-                    <span className="max-sm:hidden">&nbsp;blocked</span>
-                  </span>
-                ) : null}
-                <MeetingChips meetings={dayMeetings} />
-              </button>
-            )
-          })}
-        </div>
-        <DayMeetings
-          day={selected}
-          holiday={holidayOf.get(selected)}
-          meetings={meetingDays.get(selected) ?? []}
-          viewerZone={meetings.viewerZone}
-          onEdit={edit}
-        />
-      </ScrollArea>
+          <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
+            {data.announcement ? (
+              <div className="px-3 pt-3">
+                <AnnouncementCard
+                  announcement={data.announcement}
+                  canRun={canRun}
+                  onReplace={() => setAnnouncing(true)}
+                />
+              </div>
+            ) : null}
+            {view === "week" ? (
+              <TeamWeek
+                selected={selected}
+                month={month}
+                meetingDays={meetingDays}
+                holidays={holidayOf}
+                viewerZone={meetings.viewerZone}
+                onSelect={onSelect}
+              />
+            ) : (
+              <MonthGrid month={month.month}>
+                {({ date, inMonth }) => {
+                  const counts = inMonth ? byDay.get(date) : undefined
+                  const dayMeetings = inMonth ? (meetingDays.get(date) ?? []) : []
+                  const checkinWords = counts?.expected
+                    ? `${counts.checkedIn} of ${counts.expected} checked in${counts.blocked ? `, ${counts.blocked} blocked` : ""}`
+                    : null
+                  const holiday = inMonth ? holidayOf.get(date) : undefined
+                  const words = [
+                    holiday ? `${holiday}, a team holiday` : null,
+                    checkinWords,
+                    meetingWords(dayMeetings, meetings.viewerZone),
+                  ].filter(Boolean)
+                  return (
+                    <button
+                      key={date}
+                      type="button"
+                      disabled={!inMonth}
+                      aria-pressed={date === selected}
+                      aria-current={date === month.today ? "date" : undefined}
+                      aria-label={`${longDayLabel(date)}${words.length ? `: ${words.join(". ")}` : ""}`}
+                      onClick={() => onSelect(date)}
+                      className={cn(
+                        dayCellClassName(inMonth),
+                        "hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none",
+                        date === selected && "ring-2 ring-ring"
+                      )}
+                    >
+                      <DayNumber date={date} today={month.today} />
+                      {/* A phone's squares are too narrow for words: "4/6" and a mark with the number. */}
+                      {holiday ? (
+                        <span className="flex max-w-full items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-muted-foreground sm:px-1.5">
+                          <PartyPopperIcon className="size-3 shrink-0" aria-hidden />
+                          <span className="truncate max-sm:hidden">{holiday}</span>
+                        </span>
+                      ) : null}
+                      {counts && counts.expected ? (
+                        <span className="max-w-full rounded bg-muted px-1 py-0.5 sm:px-1.5">
+                          <span className="sm:hidden">
+                            {counts.checkedIn}/{counts.expected}
+                          </span>
+                          <span className="max-sm:hidden">
+                            {counts.checkedIn} of {counts.expected} in
+                          </span>
+                        </span>
+                      ) : null}
+                      {counts?.blocked ? (
+                        <span className="flex max-w-full items-center gap-0.5 rounded bg-destructive/10 px-1 py-0.5 text-destructive sm:px-1.5">
+                          <CircleAlertIcon className="size-3 shrink-0 sm:hidden" aria-hidden />
+                          {counts.blocked}
+                          <span className="max-sm:hidden">&nbsp;blocked</span>
+                        </span>
+                      ) : null}
+                      <MeetingChips meetings={dayMeetings} />
+                    </button>
+                  )
+                }}
+              </MonthGrid>
+            )}
+            <DayMeetings
+              day={selected}
+              holiday={holidayOf.get(selected)}
+              meetings={meetingDays.get(selected) ?? []}
+              viewerZone={meetings.viewerZone}
+              onEdit={edit}
+            />
+          </ScrollArea>
+        </>
+      )}
       <AnnouncementDialog
         open={announcing}
         replacing={Boolean(data.announcement)}
