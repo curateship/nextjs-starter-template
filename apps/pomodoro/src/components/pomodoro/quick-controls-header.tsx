@@ -243,6 +243,7 @@ function PersonalTimerQuickControl() {
   const minutes = Math.floor(pomodoro.remainingSeconds / 60)
   const seconds = pomodoro.remainingSeconds % 60
   const countdown = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+  const paused = !pomodoro.timer.running && !pomodoro.timerIdle
   const matched = matchTimerPreset(
     {
       focusMinutes: pomodoro.durations.focus,
@@ -286,11 +287,28 @@ function PersonalTimerQuickControl() {
                   ? "rounded-l-full pr-2 max-md:pr-1"
                   : "rounded-full pr-4 max-md:pr-2"
               )}
-              aria-label="Timer quick controls"
+              aria-label={
+                pomodoro.timer.running
+                  ? `Timer, ${countdown} left`
+                  : paused
+                    ? `Timer, ${countdown} left, paused`
+                    : "Timer quick controls"
+              }
             >
-              <Clock3Icon className="size-[18px]" aria-hidden="true" />
-              {pomodoro.timer.running || !pomodoro.timerIdle ? (
-                <span className="font-mono text-xs tabular-nums">
+              {/* A paused timer shows a pause mark and a dimmed time, so it
+                  is never mistaken for one that is running. */}
+              {paused ? (
+                <PauseIcon className="size-[18px]" aria-hidden="true" />
+              ) : (
+                <Clock3Icon className="size-[18px]" aria-hidden="true" />
+              )}
+              {pomodoro.timer.running || paused ? (
+                <span
+                  className={cn(
+                    "font-mono text-xs tabular-nums",
+                    paused && "text-muted-foreground"
+                  )}
+                >
                   {countdown}
                 </span>
               ) : (

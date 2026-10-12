@@ -56,11 +56,17 @@ export function ProfileActions({
   handle,
   name,
   isOwner,
+  onFollowChange,
+  onBlocked,
 }: {
   handle: string
   name: string
   /** Your own page shows no actions; you cannot follow or block yourself. */
   isOwner: boolean
+  /** A follow (1) or an unfollow (-1) the server agreed to, for the count. */
+  onFollowChange?: (by: 1 | -1) => void
+  /** The block went through, so the page should stop showing this person. */
+  onBlocked?: () => void
 }) {
   const { known, authenticated } = useProductAuth()
   const [following, setFollowing] = React.useState<boolean | null>(null)
@@ -96,10 +102,12 @@ export function ProfileActions({
         ? await unfollowProfile(handle)
         : await followProfile(handle)
       setFollowing(next.following)
-      // One press undoes a follow, so the toast is the confirmation that it
-      // was meant.
-      if (wasFollowing && !next.following)
-        toast.success(`You unfollowed ${name}.`)
+      if (next.following !== wasFollowing) {
+        onFollowChange?.(next.following ? 1 : -1)
+        toast.success(
+          next.following ? `You follow ${name}.` : `You unfollowed ${name}.`
+        )
+      }
     } catch (cause) {
       showErrorToast(followErrorMessage(cause))
     } finally {
@@ -216,7 +224,10 @@ export function ProfileActions({
         onOpenChange={setBlockOpen}
         handle={handle}
         name={name}
-        onBlocked={() => setFollowing(false)}
+        onBlocked={() => {
+          setFollowing(false)
+          onBlocked?.()
+        }}
       />
     </div>
   )

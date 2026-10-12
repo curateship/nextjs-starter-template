@@ -112,6 +112,15 @@ you could see your way around.
   header's Timer popover and the reason appears, the same sentence the mouse
   gets on hover.
 
+## The header's timer pill
+
+On every member screen the header's pill shows the time left while a timer
+runs, beside a clock icon. A paused timer swaps the clock for a pause icon and
+dims the time, so it is never mistaken for one that is running. A screen reader
+hears "Timer, 12:34 left" or "Timer, 12:34 left, paused"
+(`quick-controls-header.tsx`). The tab in the browser does the same; see
+[The tab countdown](tab-countdown.md).
+
 ## Controls that have gone dead say why
 
 A faded button with no explanation is the commonest reason someone decides an

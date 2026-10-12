@@ -54,6 +54,12 @@ page panel has two controls, and each saves itself.
   itself. It saves when the box is left or Enter is pressed. A team address
   and a person's handle are separate, so `/team/sam` and `/u/sam` can both
   exist.
+- **Changing the address of a live page asks first.** While the page is
+  public, leaving the box with a new address asks "Change the page address?":
+  the old `/team/<old>` link stops working for everybody it was shared with.
+  Emptying the box asks "Turn the page off?", because a page with no address
+  cannot be opened. "Keep the old address" puts the live one back in the box.
+  A page that is off saves without asking, since no link to it is out yet.
 - **Show this group on a public page.** Saves the moment it moves. Switching
   it on with no address, or a bad one, says why and stays off.
 - **A free owner** sees the Pro sentence and a See plans button instead of

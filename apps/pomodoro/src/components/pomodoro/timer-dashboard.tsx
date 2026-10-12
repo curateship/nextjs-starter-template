@@ -459,6 +459,7 @@ export function TimerDashboard() {
             kind={pomodoro.timer.mode}
             minutes={pomodoro.timer.durationMinutes}
             sessions={pomodoro.sessionsBeforeLongBreak}
+            finished={pomodoro.cycleFocusSessions}
           />
         ) : null}
 

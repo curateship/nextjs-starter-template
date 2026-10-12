@@ -48,6 +48,22 @@ export const PRO_PERKS = {
 
 export type ProPerk = keyof typeof PRO_PERKS
 
+/**
+ * What Pro adds, said the same way on every screen that says it: the plans
+ * page, its link preview and Settings → Plan. The three said three different
+ * things until 12 Oct 2026, when Tyler approved this wording.
+ */
+const PRO_ADDS =
+  "every sound and background, AI backgrounds and soundscapes, hosting rooms, your own uploads and your full history"
+
+export const PRO_SUMMARY = `Pro adds ${PRO_ADDS}.`
+
+/** The plans page's line once a payment has landed. */
+export const PRO_WELCOME = `You're on Pro, so ${PRO_ADDS} are yours now. Your receipt is in your inbox.`
+
+/** The plans page's headline line and its link preview. */
+export const PLANS_PAGE_SUMMARY = `The timer, tasks and rooms are free. ${PRO_SUMMARY}`
+
 /** The old app's Pro numbers, used when a plan does not name its own. */
 export const PAID_DEFAULTS = {
   storageLimitBytes: 2 * 1024 * 1024 * 1024,

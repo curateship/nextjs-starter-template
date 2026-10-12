@@ -11,6 +11,7 @@ import {
 function frame(changes: Partial<CountdownFrame> = {}): CountdownFrame {
   return {
     running: true,
+    paused: false,
     mode: "focus",
     remainingSeconds: 1500,
     durationSeconds: 1500,
@@ -44,8 +45,14 @@ describe("tab countdown", () => {
     )
   })
 
-  it("gives no title at all when the timer is not running", () => {
+  it("gives no title at all when the timer is idle", () => {
     expect(countdownTitle(frame({ running: false }))).toBe("")
+  })
+
+  it("keeps the time with a pause mark when a focus is paused", () => {
+    expect(
+      countdownTitle(frame({ running: false, paused: true, remainingSeconds: 754 }))
+    ).toBe("⏸ 12:34 Focus")
   })
 
   it("fills the ring as the phase runs out", () => {

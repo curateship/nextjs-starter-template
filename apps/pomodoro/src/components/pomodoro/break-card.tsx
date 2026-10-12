@@ -37,6 +37,7 @@ export function BreakCard({
   kind,
   minutes,
   sessions,
+  finished,
   className,
 }: {
   kind: "short" | "long"
@@ -44,6 +45,11 @@ export function BreakCard({
   minutes: number
   /** The focuses in a round, which the long break's line counts. */
   sessions: number
+  /**
+   * The focuses finished in this round. A long break can be picked after one,
+   * so the line only says the round is done when it is.
+   */
+  finished: number
   className?: string
 }) {
   const steps = kind === "short" ? SHORT_BREAK_STEPS : LONG_BREAK_STEPS
@@ -58,7 +64,9 @@ export function BreakCard({
   const line =
     kind === "short"
       ? "Stand up, stretch and give your eyes a rest."
-      : `You finished all ${sessions} ${plural(sessions, "session")}. Get up and move around properly.`
+      : finished >= sessions
+        ? `You finished all ${sessions} ${plural(sessions, "session")}. Get up and move around properly.`
+        : "Long break. Get up and move around properly."
 
   return (
     <section

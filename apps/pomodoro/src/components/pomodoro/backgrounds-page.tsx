@@ -37,6 +37,7 @@ import {
 import type { MediaPageView } from "@/lib/pomodoro/shared-media"
 import { useCatalogPage } from "@/lib/pomodoro/use-catalog-page"
 import { filterByTags, tickedFromPool } from "@/lib/pomodoro/media-pool"
+import { useTappedCard } from "@/lib/pomodoro/tapped-card"
 
 /**
  * The backgrounds page: the Live scenes from the catalogue, free and Pro, in
@@ -204,7 +205,9 @@ function ThemeCard({
   badges: React.ReactNode
 } & Omit<React.ComponentProps<typeof Card>, "children">) {
   const [hovered, setHovered] = React.useState(false)
-  const [tapped, setTapped] = React.useState(false)
+  const { tapped, toggle: toggleTapped, clear: clearTapped } = useTappedCard(
+    `background:${reference.key}`
+  )
   const playing = !locked && (hovered || tapped)
 
   return (
@@ -225,7 +228,7 @@ function ThemeCard({
         rest.onPointerLeave?.(event)
         if (event.pointerType !== "mouse") return
         setHovered(false)
-        setTapped(false)
+        clearTapped()
       }}
     >
       <button
@@ -236,7 +239,7 @@ function ThemeCard({
         // A locked card is never dead: it leads to the plans page.
         onClick={() => {
           if (locked) onLockedClick()
-          else setTapped((current) => !current)
+          else toggleTapped()
         }}
       >
         <span className="relative block aspect-video">

@@ -17,6 +17,7 @@ import {
 } from "@/lib/pomodoro/sound-catalog"
 import { useRoomMedia } from "@/lib/pomodoro/room-media-store"
 import { usePreviewAudio } from "@/lib/pomodoro/use-preview-audio"
+import { PreviewStatus } from "@/components/pomodoro/preview-status"
 import {
   CurrentlySelectedLabel,
   MediaAddMenu,
@@ -90,7 +91,15 @@ export function SoundsPage() {
               they wrap under the tabs and line up on the left ("its still
               not aligned left on mobile"). */}
           <div className="flex flex-wrap items-center justify-between gap-3">
-          <MediaViewTabs value={view} onChange={setView} />
+          <MediaViewTabs
+            value={view}
+            onChange={(next) => {
+              // A preview stops with its tab, so it never plays on under a
+              // tab with no card left to stop it.
+              preview.stop()
+              setView(next)
+            }}
+          />
           <div className="flex flex-wrap items-center gap-3 sm:ml-auto sm:justify-end">
             {view === "catalogue" ? (
               <MediaTagFilter
@@ -116,6 +125,9 @@ export function SoundsPage() {
         </header>
         {view !== "catalogue" ? (
           <SharedMediaBrowser
+            // The page's one preview, so a tab change stops whatever plays,
+            // on whichever tab it started.
+            preview={preview}
             purpose="sound"
             scope={view}
             tag={sharedTag}
@@ -123,11 +135,7 @@ export function SoundsPage() {
           />
         ) : (
         <div className="flex flex-col gap-6">
-          {preview.failed ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              That preview could not be played. Click the card to try again.
-            </p>
-          ) : null}
+          <PreviewStatus failed={preview.failed} muted={preview.muted} />
           <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
             {shown.map((sound) => {
               const reference: SoundReference = {
@@ -179,10 +187,11 @@ export function SoundsPage() {
                           className={cn(
                             "grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm",
                             // A card not being previewed shows its play button
-                            // only on hover or keyboard focus.
+                            // on hover or keyboard focus, and always on a
+                            // touch screen, which has no hover.
                             !locked &&
                               !previewed &&
-                              "opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                              "opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
                           )}
                         >
                           {locked ? (

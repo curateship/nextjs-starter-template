@@ -2,6 +2,7 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -49,6 +50,12 @@ export function TeamPageSettingsCard({
   const [attempt, setAttempt] = React.useState(0)
   const [handle, setHandle] = React.useState("")
   const [run, busy] = useAsyncAction(groupErrorMessage)
+  // A change to the address of a live page, held until the owner confirms,
+  // because the old link stops working for everybody it was shared with.
+  const [pending, setPending] = React.useState<{
+    handle: string | null
+    pagePublic: boolean
+  } | null>(null)
   const inputId = React.useId()
   const switchId = React.useId()
 
@@ -108,10 +115,14 @@ export function TeamPageSettingsCard({
     }
     // Clearing the address of a public page takes the page down with it,
     // because a page with no address cannot answer.
-    void save({
+    const next = {
       handle: typed || null,
       pagePublic: typed ? settings.pagePublic : false,
-    })
+    }
+    // A page that is live has a link out in the world, so changing its
+    // address asks first. A page that is off has nothing to break.
+    if (settings.pagePublic && settings.handle) setPending(next)
+    else void save(next)
   }
 
   // A Free owner with the page off is shown the perk, not two controls the
@@ -194,6 +205,30 @@ export function TeamPageSettingsCard({
         </p>
       ) : null}
       <p className="text-xs text-muted-foreground">{WHAT_IT_SHOWS}</p>
+      <ConfirmDialog
+        open={pending !== null}
+        onOpenChange={(open) => {
+          if (open) return
+          // Keep puts the live address back in the box.
+          setPending(null)
+          setHandle(settings.handle ?? "")
+        }}
+        title={
+          pending?.handle ? "Change the page address?" : "Turn the page off?"
+        }
+        description={
+          pending?.handle
+            ? `The old link /team/${settings.handle} stops working for everybody you shared it with. The page moves to /team/${pending.handle}.`
+            : `A page with no address cannot be opened, so the page goes off and /team/${settings.handle} stops working.`
+        }
+        cancelLabel="Keep the old address"
+        confirmLabel={pending?.handle ? "Change address" : "Turn the page off"}
+        loading={busy}
+        onConfirm={() => {
+          if (!pending) return
+          void save(pending).then(() => setPending(null))
+        }}
+      />
     </PageCard>
   )
 }

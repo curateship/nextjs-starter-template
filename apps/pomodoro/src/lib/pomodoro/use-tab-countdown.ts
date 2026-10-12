@@ -8,8 +8,9 @@ import {
   COUNTDOWN_TRACK_COLOR,
   type CountdownFrame,
 } from "@/lib/pomodoro/tab-countdown"
+import { inHostedRoom } from "@/lib/pomodoro/room-media-store"
 import { getRemainingSeconds } from "@/lib/pomodoro/timer"
-import { pomodoroEngineState } from "@/lib/pomodoro/use-pomodoro"
+import { pomodoroEngineState, timerIsIdle } from "@/lib/pomodoro/use-pomodoro"
 
 /**
  * The DOM half of the tab countdown: it writes the title, draws the favicon
@@ -57,9 +58,13 @@ let paintedIconKey = ""
 let paintedIconUrl = ""
 
 function readFrame(): CountdownFrame {
-  const { timer } = pomodoroEngineState()
+  const engine = pomodoroEngineState()
+  const { timer } = engine
   return {
     running: timer.running,
+    // In a room your own timer is paused by the room, and the header shows
+    // the room's clock, so the tab does not claim a paused focus of yours.
+    paused: !timer.running && !timerIsIdle(engine) && !inHostedRoom(),
     mode: timer.mode,
     remainingSeconds: getRemainingSeconds(timer),
     durationSeconds: timer.durationMinutes * 60,
@@ -166,7 +171,7 @@ function restoreTitle() {
 
 function paint() {
   const frame = readFrame()
-  if (!frame.running) {
+  if (!frame.running && !frame.paused) {
     restoreTitle()
     restoreIcon()
     return

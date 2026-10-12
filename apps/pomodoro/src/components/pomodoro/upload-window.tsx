@@ -210,7 +210,10 @@ export function UploadWindow({
   const current = rows.find((row) => row.status.step === "sending")
   const currentProgress =
     current?.status.step === "sending" ? current.status.progress : null
-  const finished = rows.length > 0 && !unsent && !running
+  // Done only once something went up. A window holding nothing but refused
+  // files keeps Cancel and Upload, because nothing worked.
+  const finished =
+    rows.some((row) => row.status.step === "done") && !unsent && !running
 
   function addFiles(files: File[]) {
     setNotice(null)
@@ -282,6 +285,12 @@ export function UploadWindow({
     setNotice(null)
     if (!rows.length) {
       fileInput.current?.click()
+      return
+    }
+    if (!toSend.length) {
+      setNotice(
+        "None of these files can be uploaded. Remove them, or choose other files."
+      )
       return
     }
     if (

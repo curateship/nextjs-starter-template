@@ -1,7 +1,8 @@
 # The tab countdown
 
 While a timer runs, the browser tab says how long is left and its icon fills
-up like a ring. Both go back to normal the moment the timer stops.
+up like a ring. A paused timer keeps both, with a pause mark ahead of the
+time. Both go back to normal once the timer is reset or its phase is over.
 
 ## What you see
 
@@ -12,10 +13,15 @@ up like a ring. Both go back to normal the moment the timer stops.
   and full at the end, with a dot in the middle so a 16px icon still reads as
   something. The ring is green in every phase. Tyler, 9 Oct 2026, about the
   focus ring: "this should be green not red". It was the app's orange before.
-- **Stopping puts both back.** Pause, Reset and picking another phase all
-  count as stopping, and so does the phase running out with auto-start off.
-- **Only running counts.** A paused timer shows the page's own title again,
-  because nothing is counting down to report.
+- **Pausing keeps the time, with a pause mark.** The title reads
+  `⏸ 12:34 Focus` and the ring holds still where it was. A paused focus used
+  to put the page's own title back, so a paused focus in a background tab
+  looked like no timer at all and was easy to forget.
+- **Stopping puts both back.** Reset and picking another phase count as
+  stopping, and so does the phase running out with auto-start off.
+- **In a room the tab shows neither.** The room pauses your own timer and the
+  header shows the room's clock, so the tab does not claim a paused focus of
+  yours (`inHostedRoom` in `room-media-store.ts`).
 
 ## Where it runs
 

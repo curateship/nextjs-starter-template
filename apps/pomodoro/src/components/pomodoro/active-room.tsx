@@ -307,6 +307,7 @@ export function ActiveRoomPanel({
             room.phase === "short" ? room.shortBreakMinutes : room.longBreakMinutes
           }
           sessions={4}
+          finished={room.cycleFocusCount}
         />
       ) : null}
 

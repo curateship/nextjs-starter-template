@@ -196,7 +196,7 @@ function BackgroundUploads({ seedPrompt }: { seedPrompt: string }) {
         title="Your own"
         uploadLabel="Upload clip"
         onGenerate={goToGenerator}
-        description="Hover over one to see it play, then press + to add it to your personal room."
+        description="Tap or hover over one to see it play, then press + to add it to your personal room."
         isSelected={(upload) =>
           sameBackgroundReference(inUse, {
             type: "media",

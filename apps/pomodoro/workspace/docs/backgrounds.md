@@ -68,6 +68,11 @@ the background. A screen with no pointer, such as a phone, shows them all the ti
   of cards loads no films until one is hovered. A tap plays or stops it on a
   phone. The page behind stays as it is. Your own uploaded films play on hover
   the same way.
+- **One tapped film plays at a time.** A tap on another card stops the one
+  tapped before it, on any grid: the catalogue, Your own, My uploads and
+  Shared by members (`useTappedCard` in `src/lib/pomodoro/tapped-card.ts`).
+  Tapping four cards on a phone used to play four films at once, each stopping
+  only when tapped again.
 - **The "+" on the picture's top-right corner opens the Add choices.** Tyler,
   9 Oct 2026: "add a "+" icon here to open a dropdown to add to room". "Add
   to my personal room" saves it, "Add to this room" is there for a host, and

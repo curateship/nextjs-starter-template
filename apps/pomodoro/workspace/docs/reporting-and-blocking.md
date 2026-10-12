@@ -118,6 +118,11 @@ Block is on a profile and undone in Settings.
 - **The blocked person learns nothing.** Their view of your profile is the
   same 404 as a profile that was never there. A cheer from them reports
   success and arrives nowhere. No list ever says somebody was removed from it.
+- **Blocking from a profile takes the profile away at once.** The page turns
+  into a card saying "You blocked Sam", that neither of you can open the
+  other's page, and a Blocked people button to Settings → Privacy, where it is
+  undone. The profile used to stay on screen with a Follow button that could
+  only fail.
 
 ### The check lives in one function
 

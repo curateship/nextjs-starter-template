@@ -33,7 +33,11 @@ A Follow button on a profile, and a Following tab on the leaderboard.
 - **Following:** the button reads Following, and turns into Unfollow on hover
   and on keyboard focus. A screen reader hears "Unfollow Sam".
 - **Unfollowing is still one press**, and a toast confirms it: "You unfollowed
-  Sam."
+  Sam." Following says "You follow Sam." the same way.
+- **The follower count on the page moves with the press.** Once the server
+  agrees, "12 followers" turns into 13, or back to 11 on Unfollow, without a
+  reload. A refused press leaves it where it was. The next load of the page
+  shows the server's own count (`public-profile-page.tsx`).
 
 "No such profile" and "you may not follow this one" give the same sentence on
 purpose. A different message for each would be a way to find out you had been
