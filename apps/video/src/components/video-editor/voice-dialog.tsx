@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, MicIcon } from "lucide-react"
+import { ListChecksIcon, Loader2Icon, MicIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -24,11 +24,14 @@ import {
 import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  checkVoiceScript,
   getAiToolErrorMessage,
   loadVoiceDefaults,
   loadVoices,
   readAloud,
   rememberVoice,
+  type AiToolsAvailability,
+  type ScriptCheck,
   type Voice,
 } from "@/lib/api/video/ai-tools"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
@@ -38,6 +41,7 @@ import {
   DEFAULT_CAPTION_ANIMATION,
   resolveCaptionAnimation,
 } from "@/lib/video/caption-animations"
+import { SCRIPT_CHECK_NO_TEXT_MESSAGE } from "@/lib/video/script-check"
 import {
   voiceoverClips,
   voiceoverRefusal,
@@ -46,12 +50,18 @@ import {
   createDefaultVoiceSettings,
   VOICE_MODELS,
   VOICE_SPEED_MAX,
+  VOICE_NO_TEXT_MESSAGE,
+  VOICE_NO_VOICE_MESSAGE,
   VOICE_SPEED_MIN,
   VOICE_TEXT_MAX,
   type VoiceModelId,
 } from "@/lib/video/voice"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import { useSavedCaptionLook } from "@/components/video-editor/use-saved-caption-look"
+import {
+  ScriptCheckList,
+  ScriptFigures,
+} from "@/components/video-editor/script-check-results"
 
 /**
  * Having something read aloud.
@@ -59,13 +69,20 @@ import { useSavedCaptionLook } from "@/components/video-editor/use-saved-caption
  * What comes back is the sound and the words as they are said, so both go on
  * the timeline together: the voice on its own lane and the captions above it,
  * already lined up. One action, so one press of undo removes the lot.
+ *
+ * Before it is read, the script can be checked: how long it runs is always
+ * shown under the box, and "Check it" reads it against a short checklist.
+ * Checking is never required to read aloud.
  */
 export function VoiceDialog({
   open,
   onOpenChange,
+  available,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Which writer would check the script, for the price shown. */
+  available: AiToolsAvailability | null
 }) {
   const { store, dispatch } = useEditorRuntime()
   const [script, setScript] = React.useState("")
@@ -80,6 +97,14 @@ export function VoiceDialog({
   const [look, setLook] = useSavedCaptionLook(open)
   const [speaking, setSpeaking] = React.useState(false)
   const [voicesRefused, setVoicesRefused] = React.useState(false)
+  const [checking, setChecking] = React.useState(false)
+  // The last check, with the script and speed it was made on, so an edit
+  // since can be pointed out instead of the old answer passing as current.
+  const [checked, setChecked] = React.useState<{
+    script: string
+    speed: number
+    result: ScriptCheck
+  } | null>(null)
   // Nothing to keep in step: it is fetching exactly while the window is open,
   // no voices are in hand, and nothing has gone wrong yet.
   const loadingVoices = open && voices === null && !voicesRefused
@@ -117,9 +142,34 @@ export function VoiceDialog({
     }
   }, [open, voices])
 
+  async function check() {
+    if (!script.trim()) {
+      showErrorToast(SCRIPT_CHECK_NO_TEXT_MESSAGE)
+      return
+    }
+    setChecking(true)
+    try {
+      const result = await checkVoiceScript(script, speed)
+      dismissErrorToast()
+      setChecked({ script, speed, result })
+    } catch (error) {
+      showErrorToast(getAiToolErrorMessage(error))
+    } finally {
+      setChecking(false)
+    }
+  }
+
   async function speak() {
+    if (!script.trim()) {
+      showErrorToast(VOICE_NO_TEXT_MESSAGE)
+      return
+    }
     const voice = voices?.find((one) => one.id === voiceId)
-    if (!look || !voice) return
+    if (!voice) {
+      showErrorToast(VOICE_NO_VOICE_MESSAGE)
+      return
+    }
+    if (!look) return
     setSpeaking(true)
     try {
       const result = await readAloud({
@@ -145,6 +195,7 @@ export function VoiceDialog({
       )
       onOpenChange(false)
       setScript("")
+      setChecked(null)
     } catch (error) {
       showErrorToast(getAiToolErrorMessage(error))
     } finally {
@@ -169,8 +220,6 @@ export function VoiceDialog({
     }
   }
 
-  const ready = !!script.trim() && !!voiceId && !!look && !speaking
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="admin" className="sm:max-w-lg">
@@ -185,7 +234,7 @@ export function VoiceDialog({
             <CardHeader>
               <CardTitle>What to say</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="grid gap-3">
               <Textarea
                 id="voice-script"
                 aria-label="What to say"
@@ -195,6 +244,17 @@ export function VoiceDialog({
                 placeholder="Type or paste the script…"
                 onChange={(event) => setScript(event.target.value)}
               />
+              <ScriptFigures
+                script={script}
+                speed={speed}
+                available={available}
+              />
+              {checked ? (
+                <ScriptCheckList
+                  result={checked.result}
+                  stale={checked.script !== script || checked.speed !== speed}
+                />
+              ) : null}
             </CardContent>
           </Card>
 
@@ -317,7 +377,25 @@ export function VoiceDialog({
           >
             Cancel
           </Button>
-          <Button type="button" disabled={!ready} onClick={() => void speak()}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={checking}
+            onClick={() => void check()}
+          >
+            {checking ? (
+              <Loader2Icon className="animate-spin" />
+            ) : (
+              <ListChecksIcon />
+            )}
+            {checking ? "Checking…" : "Check it"}
+          </Button>
+          {/* Waiting on the voices or the caption look is loading, not idle. */}
+          <Button
+            type="button"
+            disabled={speaking || loadingVoices || !look}
+            onClick={() => void speak()}
+          >
             {speaking ? (
               <Loader2Icon className="animate-spin" />
             ) : (

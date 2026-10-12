@@ -94,5 +94,6 @@ export function planCardFeatures(
     lines.push("Host focus rooms, now or booked for later")
   if (allowed("longRangeReports"))
     lines.push("Focus history over 12 months and the whole year")
+  if (allowed("teamPage")) lines.push("A public page for a group you made")
   return [...lines, ...extra]
 }

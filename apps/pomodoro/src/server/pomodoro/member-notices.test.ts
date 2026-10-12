@@ -110,7 +110,7 @@ describe("focus group notices", () => {
     expect(notices[0]).toMatchObject({
       message: "Sam joined your group Study Buddies.",
       kind: "group_join",
-      href: "/leaderboard",
+      href: `/groups?group=${groupId}`,
       actorUserId: sam,
     })
 

@@ -33,6 +33,11 @@ import {
  *   and nothing else. Tyler's call on 29 Sep 2026: someone should be able to
  *   compete with four friends without being listed publicly.
  *
+ * - A team page (a group's public page, public profile task 05) needs
+ *   membership of that group **and** a public profile whose "Hours and
+ *   streaks" switch is on. Being in the group publishes nothing by itself,
+ *   and the owner gets no more than a stranger does.
+ *
  * A name inside a group cannot reach the global board, because the global
  * filter still tests the opt-in column and a group never touches it.
  */
@@ -62,7 +67,8 @@ export type LeaderboardRow = {
  *
  * `groupId` swaps the global opt-in rule for membership of that group. The
  * caller has already proved the viewer belongs to it; this function does not
- * check, because it is not an endpoint.
+ * check, because it is not an endpoint. `teamGroupId` is the public page's
+ * rule for the same group, read with no viewer at all.
  *
  * User ids never leave: the viewer's own row is marked here and the id is
  * dropped, the same rule the room snapshots follow.
@@ -71,11 +77,22 @@ export async function readLeaderboardRows({
   start,
   viewerUserId,
   groupId,
+  teamGroupId,
   followedBy,
 }: {
   start: string
-  viewerUserId: string
+  /**
+   * Null for a page that is the same for everybody, such as a team page: no
+   * row is "you" and no blocks apply, so the page can be held and handed to
+   * every reader.
+   */
+  viewerUserId: string | null
   groupId?: string
+  /**
+   * Limits the board to the members of this group who publish their hours on
+   * their own public page. The team page's rule, not the group board's.
+   */
+  teamGroupId?: string
   /**
    * Limits the board to the accounts this person follows. The Following tab
    * filters this one query rather than getting a copy of it, so no two boards
@@ -83,7 +100,9 @@ export async function readLeaderboardRows({
    */
   followedBy?: string
 }): Promise<LeaderboardRow[]> {
-  const whoIsListed = groupId
+  const whoIsListed = teamGroupId
+    ? teamPageRule(teamGroupId)
+    : groupId
     ? and(
         isNotNull(pomodoroProfiles.publicDisplayName),
         // Taken off by an admin (admin task 06) means every board but the
@@ -110,8 +129,11 @@ export async function readLeaderboardRows({
         )
       : globalBoardRule()
 
-  // One extra query for the whole board, not one per row.
-  const blockedPromise = blockedUserIdsFor(viewerUserId)
+  // One extra query for the whole board, not one per row. A board read for
+  // nobody in particular has blocked nobody.
+  const blockedPromise = viewerUserId
+    ? blockedUserIdsFor(viewerUserId)
+    : Promise.resolve(new Set<string>())
 
   // Equal totals are ordered by account, so the order is the same on every
   // read and `readYourPlace` numbers rows in exactly this order.
@@ -144,6 +166,30 @@ export function globalBoardRule() {
     eq(pomodoroProfiles.leaderboardOptIn, true),
     isNotNull(pomodoroProfiles.publicDisplayName),
     isNull(pomodoroProfiles.leaderboardHiddenAt)
+  )
+}
+
+/**
+ * Who a team page ranks: in the group, with a profile that reads at
+ * `/u/<handle>`, and the profile's "Hours and streaks" switch on. Those are
+ * the same figures that person's own page already shows, which is the line
+ * that keeps a team page from being a way to watch people. An admin's
+ * leaderboard hide (admin task 06) takes them off this board too.
+ */
+function teamPageRule(groupId: string) {
+  return and(
+    isNotNull(pomodoroProfiles.handle),
+    eq(pomodoroProfiles.profilePublic, true),
+    isNull(pomodoroProfiles.hiddenAt),
+    eq(pomodoroProfiles.showFigures, true),
+    isNull(pomodoroProfiles.leaderboardHiddenAt),
+    inArray(
+      pomodoroProfiles.userId,
+      db
+        .select({ userId: pomodoroGroupMembers.userId })
+        .from(pomodoroGroupMembers)
+        .where(eq(pomodoroGroupMembers.groupId, groupId))
+    )
   )
 }
 

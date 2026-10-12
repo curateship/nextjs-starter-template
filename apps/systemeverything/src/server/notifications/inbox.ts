@@ -35,6 +35,7 @@ import {
   aiLimitNotificationText,
   createDefaultNotificationTypeVisibility,
   notificationTypeLabels,
+  SELF_WORDED_NOTIFICATION_TYPES,
   visibleNotificationTypes,
   type AutomationApprovalState,
   type NotificationType,
@@ -79,7 +80,10 @@ const recipientUsers = alias(customShellUsers, "recipient_users")
  * `notificationSubject` on the page.
  */
 const subjectExpression = sql<string>`case
-  when ${customShellNotifications.type} in ('account_update', 'system_email_failed', 'app_activity') then coalesce(${customShellNotifications.message}, '')
+  when ${customShellNotifications.type} in (${sql.join(
+    SELF_WORDED_NOTIFICATION_TYPES.map((type) => sql`${type}`),
+    sql`, `
+  )}) then coalesce(${customShellNotifications.message}, '')
   when ${customShellNotifications.type} = 'ai_limit_warning' then ${aiLimitNotificationText.ai_limit_warning.message}
   when ${customShellNotifications.type} = 'ai_limit_reached' then ${aiLimitNotificationText.ai_limit_reached.message}
   when ${customShellNotifications.type} = 'automation_approval' then coalesce(${customShellAutomations.name}, '')

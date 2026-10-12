@@ -16,6 +16,7 @@ import { readLeaderboardRows } from "@/server/pomodoro/leaderboard"
 import { localDateFor } from "@/server/pomodoro/productivity"
 import { noteGroupJoin, writeNotices } from "@/server/pomodoro/notices"
 import { loadOrCreateProfile } from "@/server/pomodoro/profile"
+import { forgetTeamPages } from "@/server/pomodoro/teams"
 import {
   pomodoroGroupMembers,
   pomodoroGroups,
@@ -76,6 +77,11 @@ export type GroupSummary = {
    * leaked link is killed.
    */
   joinToken: string
+  /**
+   * The group's public page address while its page is switched on, so every
+   * member can see that the group has one. Null when it has none.
+   */
+  teamHandle: string | null
 }
 
 /** Every group this account is in, oldest joined first. */
@@ -86,6 +92,8 @@ export async function listGroupsFor(userId: string): Promise<GroupSummary[]> {
       name: pomodoroGroups.name,
       ownerUserId: pomodoroGroups.ownerUserId,
       joinToken: pomodoroGroups.joinToken,
+      teamHandle: sql<string | null>`case
+        when ${pomodoroGroups.pagePublic} then ${pomodoroGroups.handle} end`,
       memberCount: sql<number>`(
         select count(*)::int from ${pomodoroGroupMembers}
         where ${pomodoroGroupMembers.groupId} = ${pomodoroGroups.id}
@@ -141,15 +149,24 @@ export async function resetGroupInvite(userId: string, groupId: string) {
   return updated.joinToken
 }
 
-/** What an invite link points at, before anybody commits to following it. */
+/**
+ * What an invite link points at, before anybody commits to following it,
+ * including the group's public page when it has one, so nobody joins a group
+ * without knowing it has a page on the open internet.
+ */
 export async function lookupGroupInvite(token: string) {
   const [group] = await db
-    .select({ id: pomodoroGroups.id, name: pomodoroGroups.name })
+    .select({
+      id: pomodoroGroups.id,
+      name: pomodoroGroups.name,
+      teamHandle: sql<string | null>`case
+        when ${pomodoroGroups.pagePublic} then ${pomodoroGroups.handle} end`,
+    })
     .from(pomodoroGroups)
     .where(eq(pomodoroGroups.joinToken, token))
     .limit(1)
   if (!group) throw new Error("GROUP_NOT_FOUND")
-  return { id: group.id, name: group.name, memberCount: await countMembers(group.id) }
+  return { ...group, memberCount: await countMembers(group.id) }
 }
 
 /**
@@ -221,6 +238,7 @@ export async function joinGroupByToken(userId: string, token: string) {
       groupName: group.name,
     })
   })
+  forgetTeamPages()
   return { id: group.id, name: group.name }
 }
 
@@ -250,6 +268,8 @@ export async function leaveGroup(userId: string, groupId: string) {
     )
     .returning({ id: pomodoroGroupMembers.id })
   if (removed.length === 0) throw new Error("GROUP_NOT_MEMBER")
+  // Leaving takes you off the group's public page on the next request.
+  forgetTeamPages()
 }
 
 /**
@@ -305,6 +325,7 @@ export async function removeGroupMember(
       },
     ])
   })
+  forgetTeamPages()
 }
 
 /** The owner deletes the group. Its memberships go with it, by the cascade. */
@@ -316,6 +337,7 @@ export async function deleteGroup(userId: string, groupId: string) {
     )
     .returning({ id: pomodoroGroups.id })
   if (removed.length === 0) throw new Error("GROUP_NOT_OWNER")
+  forgetTeamPages()
 }
 
 /** Everyone in the group, for the owner's manage window. */

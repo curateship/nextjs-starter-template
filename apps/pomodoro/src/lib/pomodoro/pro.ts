@@ -36,6 +36,14 @@ export const PRO_PERKS = {
     lockedReason:
       "AI generation is a Pro perk. Upgrade to get monthly credits.",
   },
+  // Tyler's call on 12 Oct 2026 (public profile task 05): only an owner on
+  // Pro can give a focus group a public page.
+  teamPage: {
+    key: "teamPage",
+    label: "A public page for your group",
+    lockedReason:
+      "A public page for a group is a Pro perk. Upgrade to give your group one.",
+  },
 } as const
 
 export type ProPerk = keyof typeof PRO_PERKS
@@ -98,6 +106,8 @@ export type PomodoroEntitlements = {
   canUsePremiumMedia: boolean
   canUploadMedia: boolean
   canUseLongRangeReports: boolean
+  /** Switch on a focus group's public page at /team/<handle>. */
+  canPublishTeamPage: boolean
   /** Play, add and save files other members share. Every plan, unless switched off. */
   canUseSharedMedia: boolean
   storageLimitBytes: number

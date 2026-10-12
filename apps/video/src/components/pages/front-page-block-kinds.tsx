@@ -2,6 +2,7 @@ import {
   AlignLeftIcon,
   BlocksIcon,
   CreditCardIcon,
+  FilesIcon,
   HelpCircleIcon,
   ImagesIcon,
   LayoutGridIcon,
@@ -54,6 +55,7 @@ const KIND_ICONS: Record<FrontPageRowKind, AutomationNodeIcon> = {
   faq: HelpCircleIcon,
   logos: ImagesIcon,
   screenshots: MonitorIcon,
+  pages: FilesIcon,
   divider: SeparatorHorizontalIcon,
 }
 

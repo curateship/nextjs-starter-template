@@ -1,7 +1,7 @@
 # Writing with AI
 
-Three tools in the studio write words, and all three use one saved choice of
-which AI does the writing. The choice is Gemini Flash, GPT-5 mini or Claude
+Four tools in the studio write or read words, and all four use one saved
+choice of which AI does the writing. The choice is Gemini Flash, GPT-5 mini or Claude
 Opus 5. Each one needs its own provider's key in Settings → AI.
 
 ## Which tools use the choice
@@ -11,14 +11,16 @@ Opus 5. Each one needs its own provider's key in Settings → AI.
 | Rewrite the opening line | Video editor → AI → Hook | Hook variants (`hook_variants`) |
 | Translate captions | Video editor → AI → Translate | Translation (`translation`) |
 | Polish selected text | Carousel studio, the sparkle button | Carousel text help (`carousel_text_help`) |
+| Check a script | Video editor → AI → Voice → Check it | Script check (`script_check`) |
 
 - **Where the choice is made:** the "Who rewrites it" dropdown in the Hook and
   Translate windows. It is saved the moment it is picked, in
   `video_settings.ai_defaults.writer`, and every tool above uses it from then on.
-- **The carousel has no dropdown:** it uses whatever was last picked in Hook or
-  Translate. Before Claude was added it always used Gemini.
+- **The carousel and the script check have no dropdown:** they use whatever
+  was last picked in Hook or Translate. Before Claude was added the carousel
+  always used Gemini. The Voice window names the writer in its price line.
 - **The one place that asks:** `askWriter` in `src/server/video/writer.ts`. The
-  three tools hand it their question and get back the answer, whoever wrote it.
+  four tools hand it their question and get back the answer, whoever wrote it.
 - **The list itself:** `WRITERS` in `src/lib/video/ai-choices.ts`. A new writer
   is one entry there, plus a caller if its provider is new.
 

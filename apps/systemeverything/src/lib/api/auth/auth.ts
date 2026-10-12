@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start"
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start"
 import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
@@ -38,6 +38,7 @@ import { isOwnedImageUrl } from "@/server/media/library"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
 import { enforceLoginRateLimit } from "@/server/auth/login-lockout"
 import { googleSignInEnabled } from "@/server/auth/google"
+import { readShellGlobals } from "@/server/shell-settings"
 import {
   customShellSessions,
   customShellUsers,
@@ -247,6 +248,8 @@ const authErrorMessages: Record<string, string> = {
   PASSKEY_FAILED: "That passkey could not be checked. Please try again.",
   PASSKEY_EXISTS: "That passkey is already saved to an account.",
   PASSKEY_NOT_FOUND: "That passkey is already removed.",
+  PASSKEYS_OFF:
+    "Passkeys are switched off here. Sign in with your password or an emailed link instead.",
   SUBSCRIPTION_CANCEL_FAILED:
     "We could not cancel your paid plan, so your account was not deleted. Please try again in a moment.",
   REFERRAL_NOT_FOUND:
@@ -297,15 +300,17 @@ const loadCurrentUserFn = createServerFn({ method: "GET" }).handler(
 /**
  * What the signed-out pages need to know before they draw themselves: the
  * Turnstile site key for the forms that carry the widget (null when the check
- * is switched off), and whether to offer "Continue with Google".
+ * is switched off), whether to offer "Continue with Google", and whether an
+ * admin has left "Sign in with a passkey" switched on in Settings.
  *
- * Both are public values that ship inside the page, and both are decided by the
+ * All are public values that ship inside the page, and all are decided by the
  * server so a button is never shown that this server cannot finish.
  */
 const loadSignInOptionsFn = createServerFn({ method: "GET" }).handler(
   async () => ({
     siteKey: getHumanCheckSiteKey(),
     google: googleSignInEnabled(),
+    passkeys: (await readShellGlobals()).passkeySignIn,
     linkExpiry: await getAuthLinkExpiry(await visitorWorkspaceId()),
   })
 )
@@ -1241,8 +1246,14 @@ export function serializeUser(user: {
  *
  * The import stays dynamic: workspaces.ts is a thousand lines of navigation
  * defaults that only the sign-in handlers ever need.
+ *
+ * Server-only, so the browser build drops the body and that dynamic import with
+ * it. Left as a plain function, the bundler still made a browser file for
+ * workspaces.ts that nothing loads, carrying the database and the session
+ * cookie code, and in an app whose `src/app/server-options.ts` lists workers
+ * that file failed the build's server-import check.
  */
-export async function startWorkspaceFor(
+export const startWorkspaceFor = createServerOnlyFn(async function startWorkspaceFor(
   user: Pick<CustomShellUser, "id" | "role">
 ) {
   // Whoever this app says may have one. Every sign-in used to make one for
@@ -1273,7 +1284,7 @@ export async function startWorkspaceFor(
   // them pick it again from the switcher is a needless step. On the
   // deployment's own address nothing moves, so an admin's last choice survives.
   await pointAtWorkspaceForHost(user.id)
-}
+})
 
 function sendVerificationEmail(
   email: string,

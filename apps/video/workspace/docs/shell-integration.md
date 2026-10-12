@@ -127,7 +127,10 @@ above rather than a copy.
 Three shell dev scripts are deliberately not carried: `crm-samples.mjs`,
 `crm-samples.test.mjs` and `send-sample-inbound.mjs`. They seed sample CRM
 leads on `npm run db:setup`, which is not something an app's database should
-grow on its own.
+grow on its own. So `scripts/setup-database.mjs` is the shell's file with the
+CRM sample step taken out, the same copy Trade carries. A merge that replaces it
+with the shell's copy breaks `db:setup`, because the shell's imports
+`crm-samples.mjs`.
 
 ## Shell merge, 5 October 2026
 
@@ -199,3 +202,55 @@ app was exactly seven files behind and gained one new file.
 Nothing was deleted and nothing forked. CMS's `lib/format/bulk-result.ts` is no
 longer a fork at all: the previous merge folded its "already that way" count
 into the shell's own copy, and this merge confirms the two are identical again.
+
+## Shell merge, 12 October 2026
+
+Every shell change since the 5 Oct merges is in Video. 58 shell files were
+replaced and 6 added. Each replaced file was first matched against every
+version of that file in custom-shell's history, and all 58 were unmodified
+older shell copies. Nothing was deleted, and no routes were added, so the route
+tree needed nothing.
+
+**What arrived.**
+
+- **A page an admin adds has its own picture and a description**, and the
+  Pages list block shows chosen pages as cards with both.
+- **AI has its own row in Settings**, at Platform settings → AI
+  (`/admin/settings/ai`), below Payments. The provider keys card left General.
+- **"Test this key" says why a key failed**, in the provider's own words, and
+  Gemini runs on 3.8 Flash and 3.1 Pro preview instead of the retired 2.5
+  models.
+- **A Passkeys switch in Settings → General** turns passkey sign-in off for the
+  whole app while keeping saved passkeys for when it goes back on.
+- **Three billing fixes.** The checkout return page asks Stripe itself instead
+  of waiting for the webhook, a monthly to yearly switch starts a new paid
+  period that day, and the `billing.returnPaths` app option names where Stripe
+  sends people back to.
+- **CRM follow-up reminders read as follow-ups** in the bell and the admin
+  Notifications table.
+- **`db:setup` uses this app's own Docker Postgres** whenever the database
+  address points at this machine, even when it is written out in full.
+
+**Two migrations**, under Video's next free numbers:
+`0107_custom_shell_written_page_picture.sql` (shell 0092) and
+`0108_custom_shell_written_page_description.sql` (shell 0093). Both are
+applied to the local database. The live database still needs them.
+
+**Two files merged by hand.** `src/theme.css` is the shell's current file plus
+Video's six font faces, and gained the shell's page-picture spacing; the result
+differs from the shell by additions only. `scripts/setup-database.mjs` is
+Trade's copy, the shell's file without the CRM sample step, as "What stays
+Video's own" explains.
+
+**The AI keys.** The four keys in custom-shell's local Settings → AI
+(Anthropic, OpenAI, Gemini and ElevenLabs) were scrambled again with Video's
+own encryption key and written into the local database, then read back. The
+Gemini and OpenAI keys saved there in August were older ones and were
+replaced. Workspace 17 shares this local database, so its Video sees the same
+keys. The live site gets its keys from the deploy, which copies them from
+`secrets.env`.
+
+**One script test fails, in the shell too.** `worker-page-registry.test.mjs`
+expects a page entry without the `blocks: false` field the registry now
+writes. It fails the same way in `apps/custom-shell` and the merge did not
+touch either file.

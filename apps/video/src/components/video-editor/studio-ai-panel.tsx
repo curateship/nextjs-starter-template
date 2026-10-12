@@ -186,7 +186,11 @@ export function AiPanel() {
         canUseWords={available?.words || available?.openai || false}
         available={available}
       />
-      <VoiceDialog open={voiceOpen} onOpenChange={setVoiceOpen} />
+      <VoiceDialog
+        open={voiceOpen}
+        onOpenChange={setVoiceOpen}
+        available={available}
+      />
       <HookDialog
         open={hookOpen}
         onOpenChange={setHookOpen}

@@ -92,3 +92,40 @@ and 2 added (`written-page-picture.tsx`, `front-page-listed-pages-editor.tsx`).
 number was 0092: `0092_custom_shell_written_page_picture.sql` and
 `0093_custom_shell_written_page_description.sql`. Both have been applied to
 the local database only.
+
+## Shell merge, 12 October 2026
+
+Every shell change since the 6 Oct merge is in this app. 34 shell files were
+replaced and 3 test files added. Each replaced file was first matched against
+every version of that file in custom-shell's history, and all 34 were
+unmodified older shell copies. Nothing was forked, deleted or added to the
+route tree, and no migration was carried, because the shell has none after
+0093.
+
+**What arrived.**
+
+- **AI has its own row in Settings**, at Platform settings → AI
+  (`/admin/settings/ai`), below Payments. The provider keys card left General.
+- **"Test this key" says why a key failed**, in the provider's own words, and
+  Gemini runs on 3.8 Flash and 3.1 Pro preview instead of the retired 2.5
+  models.
+- **A Passkeys switch in Settings → General** turns passkey sign-in off for the
+  whole app while keeping saved passkeys for when it goes back on.
+- **Three billing fixes.** The checkout return page asks Stripe itself instead
+  of waiting for the webhook, a monthly to yearly switch starts a new paid
+  period that day, and the `billing.returnPaths` app option names where Stripe
+  sends people back to.
+- **CRM follow-up reminders read as follow-ups** in the bell and the admin
+  Notifications table, instead of "Somebody commented on your feedback".
+- **The shell option that lets an app draw its own sign-in frame**, which this
+  app does not use.
+
+**The AI keys.** The four keys in custom-shell's local Settings → AI
+(Anthropic, OpenAI, Gemini and ElevenLabs) were copied into this app's local
+database and read back. This app's `.env.local` had no
+`CUSTOM_SHELL_SECRET_ENCRYPTION_KEY`, so the app could not read any saved
+secret, including the Resend key already in its email settings. That Resend key
+opens with custom-shell's encryption key, because this database started as a
+copy of custom-shell's, so `.env.local` now carries custom-shell's value and the
+AI keys are stored under it. There is no live deployment of this app yet, so
+nothing was written anywhere but the local database.

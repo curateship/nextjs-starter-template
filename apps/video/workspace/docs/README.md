@@ -63,6 +63,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [saved-voiceovers.md](saved-voiceovers.md) — the Voiceovers panel: what is
   kept beside every voiceover read aloud, how one is laid at the playhead with
   its captions, and what happens when its file is deleted.
+- [script-check.md](script-check.md) — the Voice window's run length as you
+  type and its "Check it" button: the five rules, where they came from, why it
+  is a checklist and not a prediction, the banned words on Settings → Scripts,
+  and what a check costs.
 - [writing-with-ai.md](writing-with-ai.md) — which AI rewrites words (Gemini,
   GPT or Claude), which tools use the choice, and what happens when a key is
   removed.
