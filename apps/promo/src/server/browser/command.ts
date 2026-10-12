@@ -139,6 +139,11 @@ const postShape = z.object({
   subreddit: z.string(),
   title: z.string(),
   body: z.string(),
+  /**
+   * Where a link post points, as Reddit gave it, or "". Defaults to "" so a
+   * browser image built before link posts were read still answers.
+   */
+  linkUrl: z.string().default(""),
   author: z.string(),
   score: z.number(),
   commentCount: z.number(),

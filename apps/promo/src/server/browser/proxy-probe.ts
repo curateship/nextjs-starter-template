@@ -46,11 +46,28 @@ export type ProxyTestInput = {
  * private address.
  */
 export async function assertPublicProxyHost(host: string): Promise<void> {
-  const addresses = isIP(host) ? [{ address: host }] : await lookup(host, { all: true })
-
-  if (!addresses.length || addresses.some(({ address }) => isBlockedIp(address))) {
+  if (!(await publicAddresses(host))) {
     throw new Error("A proxy host has to resolve to a public address.")
   }
+}
+
+/**
+ * Every address a host resolves to, or null when any of them is inside the
+ * network, or it resolves to none. The one rule for anything the server is
+ * about to reach on somebody else's say-so: a proxy, or the page a Reddit post
+ * links to (`src/server/social/link-page.ts`). A DNS failure throws.
+ *
+ * The caller connects to one of these addresses rather than looking the name
+ * up again, so a name cannot answer public here and private a moment later.
+ */
+export async function publicAddresses(host: string): Promise<string[] | null> {
+  // An IPv6 address in a URL comes wrapped in brackets.
+  const bare = host.replace(/^\[(.*)\]$/, "$1")
+  const addresses = isIP(bare)
+    ? [bare]
+    : (await lookup(bare, { all: true })).map(({ address }) => address)
+  if (!addresses.length || addresses.some(isBlockedIp)) return null
+  return addresses
 }
 
 function isBlockedIp(address: string) {
@@ -77,15 +94,23 @@ function isBlockedIpv4(address: string) {
   )
 }
 
+/**
+ * Only the public internet's own range, 2000::/3, is let through, rather than
+ * listing the private ranges one by one. Listing them missed the ways an IPv6
+ * address can carry an IPv4 one: a URL parser writes ::ffff:127.0.0.1 as
+ * ::ffff:7f00:1, which the dotted check above never sees, and that reached
+ * this machine. Inside 2000::/3, 6to4 (2002::/16) and Teredo (2001::/32) also
+ * carry an IPv4 address, and 2001:db8::/32 is for documentation only.
+ */
 function isBlockedIpv6(address: string) {
-  const normalized = address.split("%")[0].toLowerCase()
-  const first = Number.parseInt(normalized.split(":")[0] || "0", 16)
+  const groups = address.split("%")[0].toLowerCase().split(":")
+  const first = Number.parseInt(groups[0] || "0", 16)
+  const second = Number.parseInt(groups[1] || "0", 16)
 
   return (
-    normalized === "::" ||
-    normalized === "::1" ||
-    (first >= 0xfc00 && first <= 0xfdff) ||
-    (first >= 0xfe80 && first <= 0xfebf)
+    !(first >= 0x2000 && first <= 0x3fff) ||
+    first === 0x2002 ||
+    (first === 0x2001 && (second === 0 || second === 0xdb8))
   )
 }
 

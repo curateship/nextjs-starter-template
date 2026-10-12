@@ -164,3 +164,42 @@ describe("splitting the answer into comments", () => {
     expect(drafts[0].length).toBe(900)
   })
 })
+
+describe("a link post's page in the words handed to the model", () => {
+  const base = {
+    subreddit: "SaaS",
+    title: "Worth a read",
+    voice: "",
+    product: "",
+    commentRules: "",
+    replies: [],
+    count: 2,
+  }
+  const linkPage = {
+    url: "https://example.com/churn",
+    title: "We cut our churn in half",
+    text: "Last year we lost one customer in five every month.",
+  }
+
+  it("labels the page as the one the post links to, never as the poster's words", () => {
+    const prompt = buildDraftPrompt({ ...base, body: "", linkPage })
+    expect(prompt).toContain("THE PAGE THIS POST LINKS TO, written by somebody else, not the poster (https://example.com/churn)")
+    expect(prompt).toContain("Page title: We cut our churn in half")
+    expect(prompt).toContain("Page opening: Last year we lost one customer in five every month.")
+    expect(prompt).toContain("The poster shared that page; they did not write it.")
+    expect(prompt).not.toContain("POST BODY:\nLast year")
+  })
+
+  it("leaves a post with words of its own exactly as before, page or not", () => {
+    const prompt = buildDraftPrompt({ ...base, body: "My own words.", linkPage })
+    expect(prompt).toContain("POST BODY:\nMy own words.")
+    expect(prompt).not.toContain("THE PAGE THIS POST LINKS TO")
+    expect(prompt).not.toContain("The poster shared that page")
+  })
+
+  it("still says there are no words when the page could not be read", () => {
+    expect(buildDraftPrompt({ ...base, body: "", linkPage: null })).toContain(
+      "POST BODY: (a link or image post, no words)"
+    )
+  })
+})

@@ -12,7 +12,11 @@ the repo's `docs/`, and is never copied here.
 
 - [Finding posts worth answering](reddit/finding-posts.md) — what a keyword is,
   watching a subreddit, why there is no Reddit API, how the order is worked
-  out, the subreddits you never see, and how old posts are tidied away.
+  out, the Everything list, searching the posts, the subreddits you never see,
+  and how old posts are tidied away.
+- [Link posts](reddit/link-posts.md) — reading the title and opening of the
+  page a post links to, the guard that refuses any address inside the network,
+  and how the page is labelled for the AI.
 - [Writing the comment](reddit/writing-comments.md) — what the AI is told, the
   subreddit's own rules, the sent comments it copies the voice of, what comes
   back, and why Post is sometimes off.

@@ -81,6 +81,19 @@ export const appServerOptions: AppServerOptions = {
         },
       },
       {
+        name: "promo-read-link-pages",
+        /**
+         * Reads the title and opening paragraph of the page a few Reddit link
+         * posts point to, so the AI has something to answer. Refuses any
+         * address inside the network. No browser: a plain request with a
+         * short cap.
+         */
+        tick: async () => {
+          const { readLinkPages } = await import("@/server/social/upkeep")
+          await readLinkPages()
+        },
+      },
+      {
         name: "promo-browser-reaper",
         /**
          * Shuts down a browser nobody has used for an hour, marks one whose

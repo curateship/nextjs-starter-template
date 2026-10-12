@@ -176,14 +176,79 @@ the CRM rather than a second system.
   Newest first" for a watch — with a button to run it again and
   one to remove it. The box that adds a keyword is pinned to the bottom of the
   panel, because a keyword is added once and pressed many times.
-- **The posts**, in the middle, under the keyword's own name in quotes. Three
-  counts across the top say where the work is: To look at, Replied, Skipped.
-  Pressing one shows those posts.
+- **Everything**, pinned above the keyword cards, lists every keyword's posts
+  in one ranked order. See "Everything" below.
+- **The posts**, in the middle, under the keyword's own name in quotes, or
+  "Everything". Three counts across the top say where the work is: To look at,
+  Replied, Skipped. Pressing one shows those posts. A search box sits beside
+  them; see "Finding a post you remember" below.
 - **The post and your comment**, on the right. One panel, because they are one
   piece of work: the post, its replies and the drafts scroll together and the
   box you send from stays at the bottom where it can always be reached.
 
 There is no bottom panel.
+
+## Everything
+
+The morning question is what to answer, not what one saved search found. The
+ranking already puts every post on one scale, and its freshness part means the
+best post today could be under any keyword, so the Everything row lists them
+all in one order.
+
+- **Chosen whenever nothing else is**: when the screen opens, and when the
+  chosen keyword is removed. Adding a keyword still chooses the new one.
+- **The line under it says how many posts are waiting** across every keyword,
+  and how many keywords: "54 waiting · 2 keywords". Waiting means To look at,
+  the same count the keyword cards use.
+- **Not offered before the first keyword**, when there is nothing to gather.
+  The list then says "No keywords yet. Add one on the left and it searches
+  straight away."
+- **No new endpoint.** The screen asks for the posts with no keyword named,
+  which the existing endpoint already answered with all of the person's posts.
+  Both lists now read up to 500 posts, the endpoint's own ceiling, rather than
+  its default of 100, which Everything would have outgrown in a few days.
+- **A Keyword column** names the keyword that found each row, because a row
+  with no keyword beside it cannot be acted on when several are mixed. It is
+  the shell's `meta` column, so it shrinks to its content. A single keyword's
+  list leaves it off, since every row would say the same word.
+- **Everything else is the same list**: the three bands, the three status tabs,
+  ticking rows and Skip across keywords, the block button, the chosen row's
+  left edge line.
+- **The same Reddit post found by two keywords is two rows**, one under each,
+  because each keyword's copy has its own status. Skipping one leaves the
+  other.
+- **Too wide at 1440px.** With both side panels at their narrowest, the list
+  was already wider than its panel and scrolled sideways (894px of table in
+  735px); the Keyword column adds 128px to that. At 1920px it fits.
+
+## Finding a post you remember
+
+After a few weeks of daily searches there are hundreds of stored posts, and
+finding the one from Tuesday meant scrolling. The box beside the status tabs
+narrows the list as you type.
+
+- **Title, subreddit and author.** Not the post's own words, which are long
+  enough to match almost anything, and not the replies.
+- **Every word typed must appear**, in any order, across those three. So
+  "saas pricing" finds "How we set our pricing" in r/SaaS. A leading "r/" or
+  "u/" is dropped from a word, because that is how people write them.
+- **Narrowed in the browser**, over the posts already loaded for the chosen
+  keyword or for Everything. No request per keystroke. The text goes through
+  the shell's `readSearchText` (`src/lib/nav/list-search.ts`), so blank means
+  no search and the length is capped like every other dashboard's search. The
+  matching is `matchesFindSearch` in `src/lib/social/find-search.ts`; the
+  shell has no matcher of its own to reuse, and its dashboards match with the
+  same lower-case "contains".
+- **The counts follow the search.** The three tabs, the band headings and the
+  footer all count what the search lets through, so "Skipped 1" shows where a
+  remembered post went. A band with no matches disappears.
+- **"No post matches those words."** when the tab has posts and the words
+  matched none of them. "Nothing found yet" stays the answer for a tab that is
+  empty to begin with.
+- **The words stay in the box** when the keyword or the tab changes, where
+  they can be seen and cleared. They are not kept between visits.
+- **On a phone the box takes a row of its own**, or it squeezed the tabs past
+  the screen's edge.
 
 Both side panels shut all the way to nothing, either by dragging their divider
 across or by double-clicking their blank space, and a slim tab appears on the
@@ -197,7 +262,7 @@ list is already beside the post.
 
 ## What a row says
 
-Title, subreddit, when it went up, upvotes and replies, and at the end the
+Title, the keyword that found it (on Everything only), subreddit, when it went up, upvotes and replies, and at the end the
 button that blocks the row's subreddit. The line under each
 title says why it is where it is in plain words: "Reddit's best match, posted in
 the last few hours, no replies yet". The chosen row carries a line down its left

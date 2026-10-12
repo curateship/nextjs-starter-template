@@ -17,6 +17,7 @@ import {
   type FindStatus,
   type ProfileCheck,
   type FindThread,
+  type LinkPage,
   type JobKind,
   type JobStatus,
   type SearchStatus,
@@ -398,6 +399,21 @@ export const promoFinds = pgTable(
      */
     thread: jsonb("thread").$type<FindThread | null>(),
     threadReadAt: timestamp("thread_read_at", { withTimezone: true }),
+    /**
+     * Where a link post points, outside Reddit. Empty for a post with words of
+     * its own, a picture, a video or a link back into Reddit. The SQL for this
+     * and the three below is `drizzle/0107_promo_link_pages.sql`.
+     */
+    linkUrl: varchar("link_url", { length: 2000 }).notNull().default(""),
+    /**
+     * The linked page's title and opening paragraph, read so a post with no
+     * words still has something to answer. Never the post's own words.
+     */
+    linkPage: jsonb("link_page").$type<LinkPage | null>(),
+    /** Null until the page has been tried, so "not read yet" stays its own answer. */
+    linkReadAt: timestamp("link_read_at", { withTimezone: true }),
+    /** Why the page could not be read, including an address inside the network. */
+    linkError: text("link_error").notNull().default(""),
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

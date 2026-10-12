@@ -58,7 +58,9 @@ app waits 15.5, so the app hears the browser's own answer.
 
 ## What the AI is told
 
-- **The post**, its title and its own words.
+- **The post**, its title and its own words. A link post with no words of its
+  own gets the page it links to instead, labelled as somebody else's page.
+  [Link posts](link-posts.md) has how that page is read and guarded.
 - **The replies already there**, up to five of them with who wrote them and
   their upvotes. This is the part that earns its place: without it a draft
   confidently repeats whatever the top reply already said.

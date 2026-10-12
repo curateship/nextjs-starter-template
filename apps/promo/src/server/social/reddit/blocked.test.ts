@@ -32,6 +32,7 @@ function post(redditId: string, subreddit: string) {
     subreddit,
     title: `A post in ${subreddit}`,
     body: "",
+    linkUrl: "",
     author: "someone",
     score: 1,
     commentCount: 1,

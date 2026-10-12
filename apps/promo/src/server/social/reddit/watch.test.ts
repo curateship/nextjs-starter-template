@@ -7,7 +7,7 @@ import {
   type TestDatabase,
 } from "@/server/test-support"
 import { addKeyword, listFinds, listKeywords } from "@/server/social/keywords"
-import { promoKeywords } from "@/server/social/schema"
+import { promoFinds, promoKeywords } from "@/server/social/schema"
 
 import { blockSubreddit } from "./blocked"
 import { runKeywordSearch } from "./search"
@@ -30,6 +30,7 @@ function post(redditId: string, position: number) {
     subreddit: "SaaS",
     title: `Post ${redditId}`,
     body: "",
+    linkUrl: "",
     author: "someone",
     score: 1,
     commentCount: 0,
@@ -123,5 +124,67 @@ describe("watching a subreddit", () => {
     await blockSubreddit(userId, "SaaS", db)
     await runKeywordSearch(userId, id, target, db, NOW)
     expect(searchReddit).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Two things a search now carries beyond the posts themselves: where a link
+ * post points, and the Everything list, every keyword's posts in one order.
+ */
+describe("link posts and the Everything list", () => {
+  let client: PGlite
+  let db: TestDatabase
+  let userId: string
+
+  beforeEach(async () => {
+    searchReddit.mockReset()
+    const made = await createTestDatabase()
+    client = made.client
+    db = made.db
+    userId = (await insertUser(db, { role: "admin" })).id
+  })
+
+  afterEach(async () => {
+    await client.close()
+  })
+
+  function answer(posts: ReturnType<typeof post>[]) {
+    return { source: "json" as const, url: "https://www.reddit.com/r/SaaS/new/", posts }
+  }
+
+  it("keeps a link post's address, drops a picture's, and never loses it to a scraped re-run", async () => {
+    const id = await addKeyword(userId, { term: "", subreddits: ["SaaS"], ...search }, db)
+    searchReddit.mockResolvedValue(
+      answer([
+        { ...post("t3_link", 0), linkUrl: "https://example.com/churn" },
+        { ...post("t3_pic", 1), linkUrl: "https://i.redd.it/pic.png" },
+      ])
+    )
+    await runKeywordSearch(userId, id, target, db, NOW)
+
+    const stored = async () =>
+      Object.fromEntries((await db.select().from(promoFinds)).map((row) => [row.redditId, row.linkUrl]))
+    expect(await stored()).toEqual({ t3_link: "https://example.com/churn", t3_pic: "" })
+
+    // The rendered page could not see the link this time.
+    searchReddit.mockResolvedValue(answer([post("t3_link", 0)]))
+    await runKeywordSearch(userId, id, target, db, NOW)
+    expect((await stored()).t3_link).toBe("https://example.com/churn")
+  })
+
+  it("lists every keyword's posts in one ranked order when no keyword is named", async () => {
+    const saas = await addKeyword(userId, { term: "", subreddits: ["SaaS"], ...search }, db)
+    const tools = await addKeyword(userId, { term: "crm tool", subreddits: [], ...search }, db)
+    searchReddit.mockResolvedValueOnce(answer([post("t3_a", 0), post("t3_b", 5)]))
+    await runKeywordSearch(userId, saas, target, db, NOW)
+    searchReddit.mockResolvedValueOnce(answer([post("t3_c", 1)]))
+    await runKeywordSearch(userId, tools, target, db, NOW)
+
+    const everything = await listFinds(userId, { status: "all" }, db, NOW)
+    expect(everything.map((find) => [find.permalink, find.keywordId])).toEqual([
+      ["/r/SaaS/comments/t3_a/", saas],
+      ["/r/SaaS/comments/t3_c/", tools],
+      ["/r/SaaS/comments/t3_b/", saas],
+    ])
   })
 })

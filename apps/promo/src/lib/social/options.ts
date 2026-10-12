@@ -244,6 +244,17 @@ export type FindThread = {
 }
 
 /**
+ * What the page a link post points to says: its title and opening paragraph,
+ * both capped, because the point is context for a comment and not the
+ * article. `url` is where the reading ended up after any redirects.
+ */
+export type LinkPage = {
+  url: string
+  title: string
+  text: string
+}
+
+/**
  * The longest comment the app will send.
  *
  * A Reddit comment past this is a blog post nobody reads, and it is the same

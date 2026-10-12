@@ -170,10 +170,21 @@ export function keywordTitle(input: { term: string; subreddits: string[] }): str
   return input.term || `r/${input.subreddits[0] ?? ""}`
 }
 
-/** The heading over a saved search's posts, in the same terms as its card. */
+/**
+ * The heading over a saved search's posts, in the same terms as its card. No
+ * keyword means the Everything row, every saved search's posts in one order.
+ */
 export function findsHeading(input: { term: string; subreddits: string[] } | null): string {
-  if (!input) return "Posts worth answering"
+  if (!input) return "Everything"
   return input.term ? `"${input.term}"` : `New posts in r/${input.subreddits[0] ?? ""}`
+}
+
+/**
+ * The line under the Everything row: how many posts are waiting to be looked
+ * at across every keyword, and how many keywords that is.
+ */
+export function everythingLineText(waiting: number, keywords: number): string {
+  return `${waiting} waiting · ${keywords} ${keywords === 1 ? "keyword" : "keywords"}`
 }
 
 /**
@@ -213,21 +224,61 @@ export function keywordScopeText(input: {
  * What an empty list of posts says, and it is never the same sentence twice.
  *
  * "Nothing here" and "I have not looked yet" are different answers, and so is
- * "you have not replied to anything". Each one tells a person what to do next
- * rather than leaving them to work out which of the three they are looking at.
+ * "you have not replied to anything", and so is "the search box hid them all".
+ * Each one tells a person what to do next rather than leaving them to work out
+ * which of these they are looking at.
  */
-export function emptyFindsWords(
-  loading: boolean,
-  hasKeyword: boolean,
+export function emptyFindsWords(input: {
+  loading: boolean
+  /** Everything lists every keyword's posts; otherwise one keyword's. */
+  everything: boolean
+  /** Whether any keyword is saved at all. */
+  hasKeywords: boolean
   tab: "new" | "commented" | "skipped"
-): string {
-  if (loading) return "Reading the posts"
-  if (!hasKeyword) return "Pick a keyword on the left, or add one."
-  if (tab === "commented") return "You have not replied to anything here yet."
-  if (tab === "skipped") return "You have not skipped anything here."
+  /** The tab has posts, and the words in the search box matched none of them. */
+  searchHidAll: boolean
+}): string {
+  if (input.loading) return "Reading the posts"
+  if (input.searchHidAll) return "No post matches those words."
+  if (!input.hasKeywords) return "No keywords yet. Add one on the left and it searches straight away."
+  if (input.everything) {
+    if (input.tab === "commented") return "You have not replied to any post yet."
+    if (input.tab === "skipped") return "You have not skipped any post."
+    return "Nothing is waiting under any keyword. Press the search button beside one to look again."
+  }
+  if (input.tab === "commented") return "You have not replied to anything here yet."
+  if (input.tab === "skipped") return "You have not skipped anything here."
   return "Nothing found for this keyword yet. Press the search button beside it."
 }
 
+
+/**
+ * What the answer panel says in place of a post's words when it has none and
+ * the linked page is not there to show: not read yet, could not be read and
+ * why, or a picture with no link at all. The first is not a failure, so it
+ * never borrows the failure's words.
+ */
+export function noWordsText(find: {
+  linkUrl: string
+  linkReadAt: Date | null
+  linkError: string
+}): string {
+  const plain = "This post has no words of its own. It is a link or a picture."
+  if (!find.linkUrl) return plain
+  if (!find.linkReadAt) {
+    return "This post is a link with no words of its own. Promo is reading the page it links to, which shows here when you open the post again."
+  }
+  return `${plain} The page it links to could not be read. ${find.linkError || "Nothing came back."}`
+}
+
+/** "example.com" out of a full address, for the line naming a linked page. */
+export function linkHostText(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "")
+  } catch {
+    return url
+  }
+}
 
 export type PostBlock = { text: string; quoted: boolean }
 

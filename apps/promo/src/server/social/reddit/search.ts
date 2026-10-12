@@ -9,6 +9,8 @@ import {
   type CommandTarget,
 } from "@/server/browser/command"
 
+import { cleanLinkUrl } from "../link-page"
+
 import { blockedNames } from "./blocked"
 import { rankFind } from "./rank"
 import { queueRulesFor } from "./rules"
@@ -180,6 +182,7 @@ async function storeFinds(
       subreddit: post.subreddit,
       title: post.title,
       body: post.body,
+      linkUrl: cleanLinkUrl(post.linkUrl),
       author: post.author,
       score: post.score,
       commentCount: post.commentCount,
@@ -207,6 +210,9 @@ async function storeFinds(
         rank: sql`excluded.rank`,
         title: sql`excluded.title`,
         body: sql`excluded.body`,
+        // Filled in on a later run for a post stored before links were kept,
+        // and never emptied by a scraped answer that could not see the link.
+        linkUrl: sql`COALESCE(NULLIF(excluded.link_url, ''), ${promoFinds.linkUrl})`,
         lastSeenAt: sql`excluded.last_seen_at`,
       },
     })

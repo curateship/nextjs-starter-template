@@ -20,7 +20,8 @@ import { createErrorMessage, describeAuthError } from "../../error-message"
 
 export const getDraftErrorMessage = createErrorMessage(
   {
-    "no key": "Add an AI provider key in Settings before asking for a draft.",
+    // The server says "There is no anthropic key saved", naming the provider.
+    "key saved": "Add an AI provider key in Settings before asking for a draft.",
     "no longer saved": "That post has been removed. Reload the page.",
     "Set up a Reddit account": "Set up your Reddit account in Settings first.",
     AI_LIMIT_REACHED: "This month's AI allowance is used up.",

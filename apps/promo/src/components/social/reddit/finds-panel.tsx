@@ -2,6 +2,7 @@ import * as React from "react"
 import { BanIcon, Loader2Icon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -10,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { matchesFindSearch } from "@/lib/social/find-search"
 import { emptyFindsWords, findsHeading, postedDateText } from "@/lib/social/wording"
 import { cn } from "@/lib/utils"
 import type { FindRow } from "@/server/social/keywords"
@@ -40,6 +42,8 @@ export type FindsTab = (typeof TABS)[number]["id"]
 
 export function FindsPanel({
   keyword,
+  keywordNames,
+  hasKeywords,
   finds,
   loading,
   error,
@@ -52,10 +56,18 @@ export function FindsPanel({
   onRetry,
 }: {
   /**
-   * The saved search these posts came from, or null when none is chosen. A
-   * watch has no words, so the heading names its subreddit instead.
+   * The saved search these posts came from, or null for Everything, every
+   * saved search's posts in one order. A watch has no words, so the heading
+   * names its subreddit instead.
    */
   keyword: { term: string; subreddits: string[] } | null
+  /**
+   * Each keyword's name by id, for the Keyword column Everything adds. A row
+   * with no keyword beside it cannot be acted on when several are mixed.
+   */
+  keywordNames: Map<string, string>
+  /** Whether any keyword is saved, so an empty Everything can say to add one. */
+  hasKeywords: boolean
   /** Every post for the keyword, whatever its status. This panel splits them. */
   finds: FindRow[]
   loading: boolean
@@ -74,23 +86,40 @@ export function FindsPanel({
   onRetry: () => void
 }) {
   const [rawTicked, setTicked] = React.useState<Set<string>>(new Set())
+  /**
+   * The search box. Narrows the rows already loaded, in the browser, so there
+   * is no request per keystroke. Kept while the keyword or the tab changes,
+   * since the words are still in the box for anyone to see and clear.
+   */
+  const [searchText, setSearchText] = React.useState("")
   const [skipping, setSkipping] = React.useState(false)
   /** The subreddit whose block is on its way, so its rows' buttons wait. */
   const [blocking, setBlocking] = React.useState<string | null>(null)
 
+  const everything = keyword === null
+
+  /** The posts the search box lets through, whatever their status. */
+  const matched = React.useMemo(
+    () => finds.filter((find) => matchesFindSearch(find, searchText)),
+    [finds, searchText]
+  )
+
   // Shortlisted posts still need looking at, so they sit under the first tab
-  // rather than disappearing into a fourth nobody asked for.
+  // rather than disappearing into a fourth nobody asked for. Counted after the
+  // search, so a tab's number is how many of its posts are on offer, and a
+  // remembered post that was skipped shows up as "Skipped 1".
   const counts = React.useMemo(() => {
     const out: Record<FindsTab, number> = { new: 0, commented: 0, skipped: 0 }
-    for (const find of finds) {
+    for (const find of matched) {
       if (find.status === "commented") out.commented += 1
       else if (find.status === "skipped") out.skipped += 1
       else out.new += 1
     }
     return out
-  }, [finds])
+  }, [matched])
 
-  const shown = React.useMemo(
+  /** The tab's posts before the search, so "none match" and "none at all" stay apart. */
+  const inTab = React.useMemo(
     () =>
       finds.filter((find) =>
         tab === "commented"
@@ -101,6 +130,14 @@ export function FindsPanel({
       ),
     [finds, tab]
   )
+
+  const shown = React.useMemo(
+    () => inTab.filter((find) => matchesFindSearch(find, searchText)),
+    [inTab, searchText]
+  )
+
+  /** The table's columns, for the band headings and the empty row to span. */
+  const columnCount = everything ? 8 : 7
 
   /**
    * A tick only counts while its row is on screen, so "Skip 20" can never mean
@@ -149,7 +186,10 @@ export function FindsPanel({
       selectedCount={ticked.size}
       onClearSelection={() => setTicked(new Set())}
       controls={
-        <div className="flex items-center gap-2">
+        // Toolbar order is multi-row actions, then search, then filters. The
+        // status tabs are the filters here. On a phone the search takes a row
+        // of its own, or it would squeeze the tabs past the screen's edge.
+        <div className="flex flex-wrap items-center gap-2">
           {ticked.size ? (
             <Button
               type="button"
@@ -169,13 +209,30 @@ export function FindsPanel({
               Skip {ticked.size}
             </Button>
           ) : null}
+          <DashboardToolbarSearch
+            name="reddit-post-search"
+            aria-label="Search these posts by title, subreddit or author"
+            placeholder="Search posts…"
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            className="w-full flex-none sm:w-auto"
+            // Narrower than the shell's 240px at this width, because the
+            // tabs beside it carry three labels and three counts.
+            inputClassName="lg:w-[200px]"
+          />
           <StatusTabs tab={tab} counts={counts} onChange={onTabChange} />
         </div>
       }
       footer={{ type: "summary", count: shown.length, label: "posts" }}
       isEmpty={!shown.length}
-      emptyText={emptyFindsWords(loading, Boolean(keyword), tab)}
-      emptyColSpan={7}
+      emptyText={emptyFindsWords({
+        loading,
+        everything,
+        hasKeywords,
+        tab,
+        searchHidAll: inTab.length > 0 && shown.length === 0,
+      })}
+      emptyColSpan={columnCount}
       header={
         <TableHeader>
           <TableRow>
@@ -198,6 +255,9 @@ export function FindsPanel({
               title column to "I b…".
             */}
             <TableHead column="main">Post</TableHead>
+            {/* Only on Everything. Under one keyword every row would say
+                the same word. */}
+            {everything ? <TableHead column="meta">Keyword</TableHead> : null}
             <TableHead column="meta">Subreddit</TableHead>
             <TableHead column="meta">Date</TableHead>
             <TableHead column="meta" className="text-right">
@@ -216,7 +276,7 @@ export function FindsPanel({
           <React.Fragment key={band}>
             <TableRow className="hover:bg-muted/50">
               <TableCell
-                colSpan={7}
+                colSpan={columnCount}
                 className="bg-muted/50 py-1.5 text-xs font-medium"
               >
                 {FIT_BAND_LABELS[band]}
@@ -270,6 +330,16 @@ export function FindsPanel({
                     {find.rankReason}
                   </span>
                 </TableCell>
+                {everything ? (
+                  <TableCell column="meta" className="max-w-32">
+                    <span
+                      className="block truncate text-muted-foreground"
+                      title={keywordNames.get(find.keywordId)}
+                    >
+                      {keywordNames.get(find.keywordId)}
+                    </span>
+                  </TableCell>
+                ) : null}
                 <TableCell column="meta" className="max-w-32">
                   <span className="block truncate text-muted-foreground">
                     r/{find.subreddit}

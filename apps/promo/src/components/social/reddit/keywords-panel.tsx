@@ -14,12 +14,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  EVERYTHING,
   REDDIT_SORTS,
   REDDIT_WINDOWS,
   type RedditSort,
   type RedditWindow,
 } from "@/lib/social/reddit/options"
-import { keywordScopeText, keywordTitle } from "@/lib/social/wording"
+import { everythingLineText, keywordScopeText, keywordTitle } from "@/lib/social/wording"
 import { cn } from "@/lib/utils"
 import type { KeywordRow } from "@/server/social/keywords"
 
@@ -65,6 +66,7 @@ export function KeywordsPanel({
 }: {
   keywords: KeywordRow[]
   loading: boolean
+  /** A keyword's id, or `EVERYTHING` for the row above them all. */
   selectedId: string | null
   /** Keywords with a search job waiting or running. */
   runningIds: Set<string>
@@ -142,8 +144,21 @@ export function KeywordsPanel({
         meta={keywords.length ? `${keywords.length} saved` : undefined}
       />
 
+      {/* Pinned above the scrolling list, so the way back to every post is
+          never scrolled out of reach. Not offered before the first keyword,
+          when there is nothing for it to gather. */}
+      {keywords.length ? (
+        <div className="px-3 pt-3">
+          <EverythingCard
+            keywords={keywords}
+            selected={selectedId === EVERYTHING}
+            onSelect={() => onSelect(EVERYTHING)}
+          />
+        </div>
+      ) : null}
+
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-2 p-3">
+        <div className={cn("grid gap-2 p-3", keywords.length && "pt-2")}>
           {loading && !keywords.length ? (
             <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
               <Loader2Icon className="size-4 animate-spin" />
@@ -287,6 +302,42 @@ export function KeywordsPanel({
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * Every saved keyword's posts in one ranked order. The morning question is
+ * what to answer, not what one saved search found, and the ranking already
+ * puts every post on one scale.
+ */
+function EverythingCard({
+  keywords,
+  selected,
+  onSelect,
+}: {
+  keywords: KeywordRow[]
+  selected: boolean
+  onSelect: () => void
+}) {
+  const waiting = keywords.reduce((sum, keyword) => sum + keyword.newCount, 0)
+  const line = everythingLineText(waiting, keywords.length)
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={cn(
+        // The same box as a keyword card, so the two read as one list.
+        "flex w-full min-w-0 flex-col rounded-lg border p-3 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        selected && "bg-muted"
+      )}
+    >
+      <span className="block truncate text-sm font-medium">Everything</span>
+      <span className="block truncate text-xs text-muted-foreground" title={line}>
+        {line}
+      </span>
+    </button>
   )
 }
 
