@@ -9,6 +9,7 @@ import {
   RepeatIcon,
 } from "lucide-react"
 
+import { TypeIconGlyph } from "@/components/project/task-type-icon"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { initialsFor } from "@/lib/crm/inbox-time"
@@ -21,6 +22,7 @@ import {
   type TaskStatus,
 } from "@/lib/project/rules"
 import { isOverdue } from "@/lib/project/dates"
+import type { TaskTypeChip } from "@/lib/project/task-types"
 import { cn } from "@/lib/utils"
 
 /** The small pieces every Project screen draws a task or a person with. */
@@ -163,6 +165,17 @@ export function LabelChip({ label }: { label: { name: string; color: ProjectColo
     <Badge variant="outline" className="max-w-40">
       <ProjectDot color={label.color} className="size-2" />
       <span className="truncate">{label.name}</span>
+    </Badge>
+  )
+}
+
+/** A task's type on a card or row: its icon in its colour, and always its name. */
+export function TypeChip({ type }: { type: TaskTypeChip | null }) {
+  if (!type) return null
+  return (
+    <Badge variant="outline" className="max-w-40">
+      <TypeIconGlyph icon={type.icon} color={type.color} className="size-3" />
+      <span className="truncate">{type.name}</span>
     </Badge>
   )
 }

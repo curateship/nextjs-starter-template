@@ -17,6 +17,8 @@ import {
   type ProjectDb,
 } from "@/server/project/access"
 import { listTeamLabels, type Label } from "@/server/project/labels"
+import { copyFieldValues, listTeamTypes } from "@/server/project/task-types"
+import type { TaskType } from "@/lib/project/task-types"
 import { requireSharedProject } from "@/server/project/personal"
 import { listSections, type Section } from "@/server/project/sections"
 import { listTaskCards, type TaskCard } from "@/server/project/tasks"
@@ -162,8 +164,13 @@ export type ProjectPage = {
     personal: boolean
     /** "Doing per person": the Board warns past it. Null warns never. */
     doingLimit: number | null
+    /** The team's types this project leaves out, and the one New task starts on. */
+    hiddenTypeIds: string[]
+    defaultTypeId: string | null
   }
   sections: Section[]
+  /** The team's task types, archived ones included, for New task, the Type filter and field columns. */
+  taskTypes: TaskType[]
   /** The team's labels, for the Label filter and a task's labels. */
   labels: Label[]
   myUserId: string
@@ -219,8 +226,11 @@ export async function loadProjectPage(
       starred: (await starredProjectIds(userId, [project.id], database)).has(project.id),
       personal: Boolean(project.personalUserId),
       doingLimit: project.doingLimit,
+      hiddenTypeIds: project.hiddenTypeIds,
+      defaultTypeId: project.defaultTypeId,
     },
     sections: await listSections(project.id, database),
+    taskTypes: await listTeamTypes(membership.teamId, database),
     labels: await listTeamLabels(membership.teamId, database),
     myUserId: userId,
     myRole: membership.role,
@@ -393,8 +403,10 @@ export async function removeProjectMember(
 /**
  * A new project made from an old one, for teams that do the same kind of job
  * again and again: its description, colour, sections, and every task not in
- * the bin, in the same order, with their labels and steps (unticked). Every
- * task starts To do with nobody assigned and no due date (Tyler's choice).
+ * the bin, in the same order, with their labels, steps (unticked), types and
+ * field values, and the project's own pick of types. Every task starts To do
+ * with nobody assigned and no due date (Tyler's choice), and a Person field
+ * keeps only the person copying, the copy's one member.
  * People, chat, files and history stay with the original. The person copying
  * is the new project's only member.
  */
@@ -417,6 +429,8 @@ export async function copyProject(
       createdByUserId: userId,
       createdAt: at,
       updatedAt: at,
+      hiddenTypeIds: source.hiddenTypeIds,
+      defaultTypeId: source.defaultTypeId,
     })
     await tx.insert(projectProjectMembers).values({ projectId: id, userId, addedAt: at })
 
@@ -456,7 +470,14 @@ export async function copyProject(
           createdByUserId: userId,
           createdAt: at,
           updatedAt: at,
+          typeId: task.typeId,
         }))
+      )
+      await copyFieldValues(
+        tx,
+        tasks.map((task) => ({ from: task.id, to: taskIds.get(task.id)! })),
+        userId,
+        (personId) => personId === userId
       )
       const oldIds = tasks.map((task) => task.id)
       const steps = await tx

@@ -15,9 +15,10 @@ forgotten.
 ## How copies appear
 
 - **At midnight in the team's time zone**, on each day the rule falls on, the
-  job makes a fresh copy: the title, notes, labels and section, the steps
-  unticked, the same person (already accepted, so no new Waiting or notice),
-  and To do. A copy of a task with a due date is due on the day it was made
+  job makes a fresh copy: the title, notes, labels and section, the type and
+  its field values (files stay behind), the steps unticked, the same person
+  (already accepted, so no new Waiting or notice), and To do. A copy skips
+  the "Needed when made" check. A copy of a task with a due date is due on the day it was made
   for.
 - **Only once the last copy is Done.** Tyler's rule, 10 Oct 2026: when the
   newest copy isn't Done, no new one appears. The next comes on the first

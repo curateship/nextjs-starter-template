@@ -9,8 +9,8 @@ import { projectNavigationAdded } from "@/server/project/schema"
 import { customShellSettings, customShellWorkspaces } from "@/server/schema"
 
 /**
- * Puts Project's three screens in the left menu: My dashboard, Projects and
- * Team.
+ * Puts Project's dashboards in the left menu: My dashboard, Projects, Team
+ * and Task types.
  *
  * The shell keeps its menus in the database, not in code. Members share one
  * list on the settings row and an admin sees their workspace's own list, and
@@ -21,6 +21,10 @@ import { customShellSettings, customShellWorkspaces } from "@/server/schema"
  * It runs on the shell's background loop rather than in a migration because
  * the menus may not exist yet when migrations run: a brand-new install makes
  * its first workspace when its first admin signs in.
+ *
+ * A link added after a menu already has the section (Task types, 12 Oct 2026)
+ * goes in by its own pass with its own marker, into the section where it
+ * stands. A menu whose admin removed the whole section stays without it.
  */
 
 export const PROJECT_NAV_SECTION_ID = "section-project"
@@ -54,9 +58,43 @@ function projectNavSection(): ShellSection {
         icon: "users",
         visible: true,
       },
+      taskTypesItem(),
     ],
   }
 }
+
+const TASK_TYPES_ITEM_ID = "item-project-task-types"
+
+function taskTypesItem(): ShellSection["entries"][number] {
+  return {
+    type: "item",
+    id: TASK_TYPES_ITEM_ID,
+    label: "Task types",
+    href: "/task-types",
+    icon: "shapes",
+    visible: true,
+  }
+}
+
+/** Task types goes after Team in the Work section, when that section is still there. */
+function withTaskTypesLink(sections: unknown): ShellSection[] | null {
+  if (!Array.isArray(sections)) return null
+  const list = sections as ShellSection[]
+  return list.map((section) => {
+    if (section?.id !== PROJECT_NAV_SECTION_ID || !Array.isArray(section.entries)) return section
+    if (section.entries.some((entry) => entry?.id === TASK_TYPES_ITEM_ID)) return section
+    const team = section.entries.findIndex((entry) => entry?.id === "item-project-team")
+    const entries = [...section.entries]
+    entries.splice(team === -1 ? entries.length : team + 1, 0, taskTypesItem())
+    return { ...section, entries }
+  })
+}
+
+/** Each change to the menus, with the marker that says a menu has had it. */
+const PASSES = [
+  { suffix: "", change: withProjectSection },
+  { suffix: ":task-types", change: withTaskTypesLink },
+] as const
 
 /** The section goes first, ahead of whatever the menu already holds. */
 function withProjectSection(sections: unknown): ShellSection[] | null {
@@ -74,16 +112,20 @@ export async function addProjectNavigation(database: CustomShellDb = db) {
         .from(projectNavigationAdded)
     ).map((row) => row.scope)
   )
-  if (!done.has("members")) await addToMemberMenu(database)
   const workspaces = await database
     .select({ id: customShellWorkspaces.id })
     .from(customShellWorkspaces)
-  for (const workspace of workspaces) {
-    if (!done.has(workspaceScope(workspace.id))) {
-      await addToWorkspaceMenu(workspace.id, database)
+  for (const pass of PASSES) {
+    const members = `members${pass.suffix}`
+    if (!done.has(members)) await changeMemberMenu(members, pass.change, database)
+    for (const workspace of workspaces) {
+      const scope = `${workspaceScope(workspace.id)}${pass.suffix}`
+      if (!done.has(scope)) await changeWorkspaceMenu(scope, workspace.id, pass.change, database)
     }
   }
 }
+
+type MenuChange = (sections: unknown) => ShellSection[] | null
 
 function workspaceScope(workspaceId: string) {
   return `workspace:${workspaceId}`
@@ -102,9 +144,9 @@ async function claim(scope: string, tx: Parameters<Parameters<CustomShellDb["tra
   return claimed.length > 0
 }
 
-async function addToMemberMenu(database: CustomShellDb) {
+async function changeMemberMenu(scope: string, change: MenuChange, database: CustomShellDb) {
   await database.transaction(async (tx) => {
-    if (!(await claim("members", tx))) return
+    if (!(await claim(scope, tx))) return
     const at = new Date()
     await tx
       .insert(customShellSettings)
@@ -121,7 +163,7 @@ async function addToMemberMenu(database: CustomShellDb) {
     const current = Array.isArray(saved.memberSections)
       ? saved.memberSections
       : createDefaultMemberSections()
-    const next = withProjectSection(current)
+    const next = change(current)
     await tx
       .update(customShellSettings)
       .set({
@@ -132,17 +174,20 @@ async function addToMemberMenu(database: CustomShellDb) {
   })
 }
 
-async function addToWorkspaceMenu(workspaceId: string, database: CustomShellDb) {
+async function changeWorkspaceMenu(
+  scope: string,
+  workspaceId: string,
+  change: MenuChange,
+  database: CustomShellDb
+) {
   await database.transaction(async (tx) => {
-    if (!(await claim(workspaceScope(workspaceId), tx))) return
+    if (!(await claim(scope, tx))) return
     const [row] = await tx
       .select({ settings: customShellWorkspaces.settings })
       .from(customShellWorkspaces)
       .where(eq(customShellWorkspaces.id, workspaceId))
       .limit(1)
-    const next = withProjectSection(
-      (row?.settings as { sections?: unknown } | undefined)?.sections
-    )
+    const next = change((row?.settings as { sections?: unknown } | undefined)?.sections)
     // A workspace whose menu isn't a list is one the shell hasn't set up; it
     // is left alone rather than given a menu with only Project's links in it.
     if (!next) return

@@ -48,6 +48,7 @@ export async function giveStarterTasks(teamId: string, userId: string, tx: Proje
       status: "todo",
       assigneeUserId: userId,
       assignedByUserId: owner.id,
+      firstHandedOutByUserId: owner.id,
       acceptedAt: at,
       createdByUserId: owner.id,
       createdAt: at,

@@ -6,6 +6,8 @@ import { db } from "@/server/db"
 import { requireMembership } from "@/server/project/access"
 import { loadCheckinPage, type CheckinPage } from "@/server/project/checkins"
 import { listTeamLabels, type Label } from "@/server/project/labels"
+import { listTeamTypes } from "@/server/project/task-types"
+import type { TaskType } from "@/lib/project/task-types"
 import { loadCheckinRecord, type CheckinRecord } from "@/server/project/time-off"
 import { projectTeamMembers, projectTeams } from "@/server/project/schema"
 import { loadMyWork, type TaskCard } from "@/server/project/tasks"
@@ -32,6 +34,8 @@ export type MyDashboard = {
   checkin: CheckinPage
   /** The team's labels, for the Label filter. */
   labels: Label[]
+  /** The team's task types, for the Type filter. */
+  taskTypes: TaskType[]
   /** "On time 18 of the last 20 work days": mine alone, never shown to anyone else. */
   record: CheckinRecord
 }
@@ -68,6 +72,7 @@ export async function loadMyDashboard(userId: string, database = db): Promise<My
     tasks: await loadMyWork(userId, database),
     checkin: await loadCheckinPage(userId, database),
     labels: await listTeamLabels(membership.teamId, database),
+    taskTypes: await listTeamTypes(membership.teamId, database),
     record: await loadCheckinRecord(userId, database),
   }
 }

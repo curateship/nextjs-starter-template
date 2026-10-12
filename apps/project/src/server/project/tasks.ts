@@ -5,6 +5,8 @@ import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import type { TaskNoticeKind } from "@/lib/project/notices"
 import { taskNotesText } from "@/lib/project/notes"
 import { LIMITS, runsTheTeam, type TaskStatus } from "@/lib/project/rules"
+import type { FieldValues } from "@/lib/project/task-fields"
+import type { TaskTypeChip } from "@/lib/project/task-types"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
@@ -33,6 +35,14 @@ import { canAskForReview, canReview, reviewerFor } from "@/server/project/task-r
 import { hasThanked } from "@/server/project/task-thanks"
 import { listMoveTargets, type MoveTarget } from "@/server/project/task-changes"
 import { followerIds } from "@/server/project/task-followers"
+import {
+  loadTaskFields,
+  requireDoneFields,
+  typeChipsFor,
+  valuesForTasks,
+  writeNewTaskFields,
+  type TaskFields,
+} from "@/server/project/task-types"
 import {
   loadTaskHistory,
   recordTaskEvent,
@@ -113,6 +123,10 @@ export type TaskCard = {
    */
   waitingOn: { taskId: string; title: string | null; ready: boolean } | null
   repeat: RepeatRule | null
+  /** The kind of task, drawn as its icon and name. Null is a plain task. */
+  type: TaskTypeChip | null
+  /** What it holds in its type's fields, for the List's field columns. A File field holds its file count. */
+  fieldValues: FieldValues
 }
 
 const assignee = alias(customShellUsers, "assignee")
@@ -174,6 +188,12 @@ export async function listTaskCards(
     : []
   const pickedRows = ids.length ? await pickedDaysFor(ids, database) : []
   const labels = await labelsForTasks(ids, database)
+  const tasks = rows.map((row) => row.task)
+  const types = await typeChipsFor(
+    tasks.flatMap((task) => (task.typeId ? [task.typeId] : [])),
+    database
+  )
+  const fieldValues = await valuesForTasks(tasks, database)
 
   return rows.map(({ task, ...row }) => {
     const steps = stepRows.filter((step) => step.taskId === task.id)
@@ -237,6 +257,8 @@ export async function listTaskCards(
             }
           : null,
       repeat: repeatRuleOf(task),
+      type: task.typeId ? (types.get(task.typeId) ?? null) : null,
+      fieldValues: fieldValues.get(task.id) ?? {},
     }
   })
 }
@@ -293,6 +315,8 @@ export type TaskDetail = {
   canReview: boolean
   /** I've thanked whoever did it. */
   thanked: boolean
+  /** Its type, the fields as I may use them, their values and files, and the types it could have. */
+  fields: TaskFields
 }
 
 export async function loadTaskDetail(
@@ -384,6 +408,7 @@ export async function loadTaskDetail(
     canAskForReview: canAskForReview(task, userId),
     canReview: canReview(task, membership.role, userId),
     thanked: await hasThanked(userId, taskId, database),
+    fields: await loadTaskFields(viewer, task, project, archived, database),
   }
 }
 
@@ -432,13 +457,16 @@ export async function createTask(
     steps: string[]
     /** An optional line for the person it's handed to. */
     handoverNote?: string | null
+    /** Its type, and the values New task filled in for that type's fields. */
+    typeId?: string | null
+    fieldValues?: Record<string, unknown>
   },
   database: ProjectDb = db
 ): Promise<{ id: string }> {
   return database.transaction(async (tx) => {
     const projectId = await resolveProjectId(actor.id, input.projectId, tx)
     input = { ...input, projectId }
-    await requireOpenProject(actor.id, input.projectId, tx)
+    const { membership, project } = await requireOpenProject(actor.id, input.projectId, tx)
     if (input.assigneeUserId) await requireAssignable(input.projectId, input.assigneeUserId, tx)
     const at = now()
     const handedToSomeoneElse =
@@ -460,8 +488,20 @@ export async function createTask(
       updatedAt: at,
       position,
       handoverNote: handedToSomeoneElse ? (input.handoverNote ?? null) : null,
+      firstHandedOutByUserId: handedToSomeoneElse ? actor.id : null,
+      typeId: input.typeId ?? null,
     }
     await tx.insert(projectTasks).values(task)
+    if (input.typeId) {
+      await writeNewTaskFields(tx, {
+        membership,
+        project,
+        taskId: task.id,
+        typeId: input.typeId,
+        values: input.fieldValues ?? {},
+        actorId: actor.id,
+      })
+    }
     await recordTaskEvent(tx, { taskId: task.id, kind: "created", actorUserId: actor.id })
     if (input.steps.length) {
       await tx.insert(projectTaskSteps).values(
@@ -529,6 +569,9 @@ export async function setTaskStatus(
       throw new Error(PROJECT_ERRORS.stuckNeedsReason)
     }
     const becameDone = input.status === "done" && task.status !== "done"
+    // Only a fresh move to Done is checked, so a task already Done stays Done
+    // when a field is later switched to "Needed before Done".
+    if (becameDone) await requireDoneFields(task, tx)
     // A task that needs review waits for its reviewer once it becomes Done,
     // unless nobody else is left to review it, when it confirms itself.
     const reviewer = becameDone ? await reviewerFor(project, task, actor.id, tx) : null
@@ -622,6 +665,9 @@ export async function assignTask(
         handedBackByUserId: null,
         formerAssigneeName: null,
         handoverNote: note,
+        // The first hand-out stays: later hand-overs never take over the brief.
+        firstHandedOutByUserId:
+          task.firstHandedOutByUserId ?? (handedToSomeoneElse ? actor.id : null),
         updatedAt: at,
       })
       .where(eq(projectTasks.id, task.id))

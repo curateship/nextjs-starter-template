@@ -2,6 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
 import { InvitePage } from "@/components/project/invite-page"
+import { TaskTypesDashboard } from "@/components/project/task-types-dashboard"
+import type { TaskType } from "@/lib/project/task-types"
 import { ProjectWorkspace } from "@/components/project/project-workspace"
 import { ProjectsDashboard } from "@/components/project/projects-dashboard"
 import { TaskBoard } from "@/components/project/task-board"
@@ -52,6 +54,8 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     snoozedUntil: null,
     waitingOn: null,
     repeat: null,
+    type: null,
+    fieldValues: {},
     ...overrides,
   }
 }
@@ -64,6 +68,7 @@ const tasks = [
   card({ id: "e", title: "Late thing", status: "doing", dueDate: "2020-01-02", steps: { done: 1, total: 4 } }),
   card({ id: "f", title: "Ancient", status: "done", completedAt: "2020-01-01T00:00:00Z" }),
   card({ id: "g", title: "Tagged", labels: [{ id: "l1", name: "Client", color: "pink" }], section: { id: "s1", name: "Design" } }),
+  card({ id: "h", title: "Cut the trailer", type: { id: "ty1", name: "Video editing", icon: "video", color: "red" } }),
 ]
 
 describe("the board", () => {
@@ -99,6 +104,12 @@ describe("the board", () => {
     expect(html).not.toContain("Ancient")
   })
 
+  it("shows a task's type as its name beside the icon, and a plain task none", () => {
+    expect(html.match(/Video editing/g)).toHaveLength(1)
+    const card = html.slice(html.indexOf("Cut the trailer"), html.indexOf("Cut the trailer") + 2000)
+    expect(card).toContain("Video editing")
+  })
+
   it("says what a comment count is to a screen reader", () => {
     expect(html).toContain(`3<span class="sr-only">comments</span>`)
     expect(html).toContain(`1<span class="sr-only">comment</span>`)
@@ -119,6 +130,29 @@ describe("the list", () => {
       <TaskList tasks={[]} readOnly={false} onOpenTask={() => {}} emptyText="Nothing assigned to you right now." />
     )
     expect(empty).toContain("Nothing assigned to you right now.")
+  })
+
+  it("adds a type's fields as columns, blank where a task left one empty", () => {
+    const platform = {
+      id: "f1",
+      name: "Platform",
+      kind: "dropdown" as const,
+      settings: { choices: [{ id: "yt", name: "YouTube" }] },
+    }
+    const typed = [
+      card({ id: "x", title: "Trailer", fieldValues: { f1: "yt" } }),
+      card({ id: "y", title: "Teaser" }),
+    ]
+    const html = renderToStaticMarkup(
+      <TaskList
+        tasks={typed}
+        readOnly={false}
+        onOpenTask={() => {}}
+        fieldColumns={[{ field: platform, people: new Map() }]}
+      />
+    )
+    expect(html).toContain(">Platform<")
+    expect(html).toContain(">YouTube<")
   })
 
   it("names the project instead of the person on My dashboard", () => {
@@ -221,8 +255,11 @@ describe("the project page", () => {
       dueDate: null,
       personal: false,
       doingLimit: null,
+      hiddenTypeIds: [],
+      defaultTypeId: null,
     },
     sections: [{ id: "s1", name: "Design" }],
+    taskTypes: [],
     labels: [{ id: "l1", name: "Client", color: "pink" }],
     myUserId: "me",
     myRole: "owner",
@@ -280,5 +317,72 @@ describe("the project page", () => {
     )
     expect(html).toContain("No tasks match")
     expect(html).toContain("zebra")
+  })
+})
+
+describe("the Task types dashboard", () => {
+  const types: TaskType[] = [
+    {
+      id: "ty1",
+      name: "Video editing",
+      icon: "video",
+      color: "red",
+      archived: false,
+      steps: ["Rough cut"],
+      notes: "",
+      fields: [
+        {
+          id: "f1",
+          name: "Platform",
+          kind: "dropdown",
+          neededBeforeDone: false,
+          neededWhenMade: false,
+          whoCanChange: "anyone",
+          settings: { choices: [{ id: "yt", name: "YouTube" }] },
+        },
+        {
+          id: "f2",
+          name: "Thumbnail",
+          kind: "file",
+          neededBeforeDone: true,
+          neededWhenMade: false,
+          whoCanChange: "assignee",
+          settings: { showWhen: { fieldId: "f1", choiceId: "yt" } },
+        },
+      ],
+    },
+    { id: "ty2", name: "Research", icon: "search", color: "blue", archived: true, steps: [], notes: "", fields: [] },
+  ]
+  const draw = (myRole: "owner" | "member", selectedId?: string) =>
+    renderToStaticMarkup(
+      <TooltipProvider>
+        <TaskTypesDashboard page={{ myRole, types }} selectedId={selectedId} onSelect={() => {}} />
+      </TooltipProvider>
+    )
+
+  it("lets the owner change types, starting on the first live one", () => {
+    const html = draw("owner")
+    expect(html).toContain(`aria-label="New task type"`)
+    expect(html).toContain(`aria-label="Video editing settings"`)
+    expect(html).toContain(`aria-label="Drag Video editing to change the order"`)
+    // An archived type sits apart and isn't dragged.
+    expect(html).not.toContain(`aria-label="Drag Research to change the order"`)
+    expect(html).toContain(`aria-label="Field name: Platform"`)
+    expect(html).toContain("Archived")
+    expect(html).toContain("Rough cut")
+  })
+
+  it("shows a member every type as words, with nothing to change", () => {
+    const html = draw("member")
+    expect(html).not.toContain(`aria-label="New task type"`)
+    expect(html).not.toContain(`aria-label="Video editing settings"`)
+    expect(html).not.toContain("to change the order")
+    expect(html).not.toContain(`aria-label="Field name: Platform"`)
+    expect(html).toContain("File · Needed before Done · Only the person assigned · Only when Platform is YouTube")
+    expect(html).toContain("Dropdown · YouTube")
+  })
+
+  it("opens the type in the address, archived ones included", () => {
+    expect(draw("owner", "ty2")).toContain("Archived. New tasks can&#x27;t pick it")
   })
 })

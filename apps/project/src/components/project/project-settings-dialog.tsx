@@ -4,6 +4,7 @@ import { ArchiveIcon, ArchiveRestoreIcon } from "lucide-react"
 
 import { ProjectColorSelect } from "@/components/project/project-form-fields"
 import { ProjectSectionsCard } from "@/components/project/project-sections-card"
+import { ProjectTaskTypesCard } from "@/components/project/project-task-types-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -31,22 +32,21 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 type Project = ProjectPage["project"]
 
 /**
- * The project's name, colour, description, due date, Doing limit, Archive and sections, in a window
+ * The project's name, colour, description, due date, Doing limit, Archive, sections and task types, in a window
  * opened from the cog on the project page's details panel. Each field saves when it
  * is left or Enter is pressed, and the colour and due date the moment they are picked, so the
  * window ends with Done.
  */
 export function ProjectSettingsDialog({
-  project,
-  sections,
+  page,
   open,
   onClose,
 }: {
-  project: Project
-  sections: ProjectPage["sections"]
+  page: ProjectPage
   open: boolean
   onClose: () => void
 }) {
+  const { project, sections } = page
   // Fields save when they are left, so the one being typed in is left first:
   // Escape or a click outside would otherwise close the window over it.
   function close() {
@@ -68,6 +68,7 @@ export function ProjectSettingsDialog({
         <DialogBody>
           <ProjectSettingsFields project={project} />
           <ProjectSectionsCard projectId={project.id} sections={sections} readOnly={project.archived} />
+          <ProjectTaskTypesCard page={page} />
         </DialogBody>
         <DialogFooter>
           <Button type="button" onClick={close}>
