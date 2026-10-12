@@ -28,7 +28,11 @@ OpenAI characters.
 ## The list
 
 - **Each row shows** the words that were said (up to three lines), the voice's
-  name and the length, with a play button to hear it first.
+  name and the length, with a play button to hear it first. A voice made from
+  your own recording shows by the name you gave it, and the words never
+  include a [tag] or a pause (see `voice-direction.md`).
+- **Above the list** sit "Your voices", the voices made from your own
+  recordings, described in `voice-direction.md`.
 - **Search** matches any part of the words, or the voice's name, ignoring
   capitals. "next week" finds "Thanks for watching, see you next week."
 - **Order:** newest first. The panel shows the newest 100. Anything older is
