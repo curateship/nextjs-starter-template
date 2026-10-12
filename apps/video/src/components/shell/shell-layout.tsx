@@ -710,6 +710,7 @@ export function ShellLayout({
           tab={accountTab ?? null}
           user={user}
           plan={plan}
+          passkeys={config.passkeySignIn}
           onTabChange={(tab) =>
             navigate({ to: ".", search: (prev) => ({ ...prev, account: tab }) })
           }
@@ -818,6 +819,8 @@ function normalizeConfig(
     // Only an explicit `false` turns the live bell off, so a config saved
     // before this setting existed keeps it on.
     liveNotifications: settings.liveNotifications !== false,
+    // Same rule: a config saved before this switch existed keeps passkeys on.
+    passkeySignIn: settings.passkeySignIn !== false,
     notificationTypes: normalizeNotificationTypeVisibility(
       settings.notificationTypes
     ),

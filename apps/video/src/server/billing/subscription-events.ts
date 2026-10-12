@@ -31,6 +31,8 @@ import { now, uuid } from "@/server/auth/security"
 /** The state a subscription is in, as far as the history cares. */
 export type SubscriptionSnapshot = {
   planId: string | null
+  /** "monthly" or "yearly": the same plan on a new period is still a switch. */
+  interval: string | null
   planName: string | null
   status: string
   /** `manual` is a plan an admin granted; `stripe` is one being paid for. */
@@ -118,6 +120,23 @@ export function deriveSubscriptionEvent(
     return { kind: "plan_changed", planName: plan, detail: before.planName }
   }
 
+  // The same plan paid monthly instead of yearly, or the other way round. It
+  // is the same switch to the person who made it, so it gets the same line,
+  // with the period on each name so the two sides do not read as one plan.
+  if (
+    after.planId &&
+    after.planId === before.planId &&
+    after.interval &&
+    before.interval &&
+    after.interval !== before.interval
+  ) {
+    return {
+      kind: "plan_changed",
+      planName: `${plan ?? "Plan"} ${after.interval}`,
+      detail: `${before.planName ?? "Plan"} ${before.interval}`,
+    }
+  }
+
   if (after.status === "trialing" && before.status !== "trialing") {
     return { kind: "trial_started", planName: plan, detail: null }
   }
@@ -152,6 +171,7 @@ export function snapshotOf(
   subscription: Pick<
     CustomShellSubscription,
     | "planId"
+    | "interval"
     | "status"
     | "source"
     | "cancelAtPeriodEnd"
@@ -162,6 +182,7 @@ export function snapshotOf(
 ): SubscriptionSnapshot {
   return {
     planId: subscription.planId,
+    interval: subscription.interval,
     planName,
     status: subscription.status,
     source: subscription.source,

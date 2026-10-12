@@ -143,15 +143,27 @@ export async function removeAiKey(provider: AiProvider): Promise<void> {
 }
 
 /**
- * The four ways a key test can end. "rejected" and "unreachable" are verdicts
- * the UI words for the user, not errors; "error" carries the provider's HTTP
- * status because "it broke" without the number is undebuggable.
+ * The ways a key test can end. "rejected", "unreachable" and "slow" are
+ * verdicts the UI words for the user, not errors; "error" carries the
+ * provider's HTTP status because "it broke" without the number is undebuggable.
+ *
+ * `reason` is the provider's own sentence when it sent one, such as Anthropic's
+ * "Your credit balance is too low". A status number alone told an admin
+ * nothing on 8 Oct 2026, when three keys failed for three different reasons.
+ *
+ * "slow" is a provider that took longer than the test waits. It was reported
+ * as "unreachable" until Gemini, overloaded on 8 Oct 2026, was answered with
+ * advice to check the server's internet connection.
  */
 export type AiKeyTestResult =
   | { result: "ok" }
-  | { result: "rejected" }
+  | { result: "rejected"; reason: string | null }
   | { result: "unreachable" }
-  | { result: "error"; status: number }
+  | { result: "slow"; seconds: number }
+  | { result: "error"; status: number; reason: string | null }
+
+/** How long the test waits for a provider before calling it slow. */
+const KEY_TEST_WAIT_SECONDS = 15
 
 /** A test verdict travelling as a throw, so `runAiCall` records a failed row. */
 class AiKeyTestFailure extends Error {
@@ -254,6 +266,39 @@ const TEST_CALL: Record<
   },
 }
 
+/**
+ * The provider's explanation from a failed response, or null when it sent
+ * none we can find. Anthropic, OpenAI and Gemini put it at `error.message`;
+ * ElevenLabs at `detail.message`. The key is blanked out in case a provider
+ * ever repeats it back, and the length capped so one row stays one row.
+ */
+export async function providerReason(
+  response: Response,
+  key: string
+): Promise<string | null> {
+  let payload: unknown
+  try {
+    payload = await response.json()
+  } catch {
+    return null
+  }
+  const record = (value: unknown) =>
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {}
+  const body = record(payload)
+  const found = [
+    record(body.error).message,
+    record(body.detail).message,
+    body.detail,
+    body.error,
+    body.message,
+  ].find((value): value is string => typeof value === "string" && !!value.trim())
+  if (!found) return null
+  const text = found.split(key).join("••••").replace(/\s+/g, " ").trim()
+  return text.length > 300 ? `${text.slice(0, 299)}…` : text
+}
+
 /** A provider's token count, or 0 when the response shape surprises us. */
 function asTokenCount(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0
@@ -297,19 +342,25 @@ export async function testAiKey(
               method: request.method ?? "POST",
               headers: request.headers(key),
               body: request.body(model),
-              signal: AbortSignal.timeout(15_000),
+              signal: AbortSignal.timeout(KEY_TEST_WAIT_SECONDS * 1000),
             }
           )
-        } catch {
-          throw new AiKeyTestFailure({ result: "unreachable" })
-        }
-        if (response.status === 401 || response.status === 403) {
-          throw new AiKeyTestFailure({ result: "rejected" })
+        } catch (error) {
+          throw new AiKeyTestFailure(
+            error instanceof Error && error.name === "TimeoutError"
+              ? { result: "slow", seconds: KEY_TEST_WAIT_SECONDS }
+              : { result: "unreachable" }
+          )
         }
         if (!response.ok) {
+          const reason = await providerReason(response, key)
+          if (response.status === 401 || response.status === 403) {
+            throw new AiKeyTestFailure({ result: "rejected", reason })
+          }
           throw new AiKeyTestFailure({
             result: "error",
             status: response.status,
+            reason,
           })
         }
         const payload = (await response.json()) as Record<string, unknown>
