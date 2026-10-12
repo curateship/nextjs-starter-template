@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, type SQL } from "drizzle-orm"
 
+import { localNow } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import {
   DEFAULT_CHECKIN_TIME,
@@ -12,6 +13,7 @@ import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { requireKnownZone } from "@/server/project/checkins"
+import { listHolidays, type Holiday } from "@/server/project/holidays"
 import { listTeamLabels, type Label } from "@/server/project/labels"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
 import {
@@ -41,6 +43,10 @@ export type TeamSummary = {
   createdAt: string
   /** The team photo's address, or null. */
   photoUrl: string | null
+  /** The team's own words for the check-in's boxes; null keeps the usual one. */
+  questions: { yesterday: string | null; today: string | null; blocker: string | null }
+  /** Titles each new member gets as "Just me" tasks. */
+  starterTasks: string[]
 }
 
 export type TeamMemberRow = {
@@ -74,6 +80,8 @@ export type TeamDashboard = {
   labels: Label[]
   /** The join link's state, for the owner and admins; null for everyone else. */
   joinLink: JoinLinkState | null
+  /** The team's holidays from today on. */
+  holidays: Holiday[]
 }
 
 export async function createTeam(
@@ -134,6 +142,11 @@ export async function loadTeamDashboard(
     invites,
     labels: await listTeamLabels(membership.teamId, database),
     joinLink: runsTheTeam(membership.role) ? await joinLinkState(membership.teamId, database) : null,
+    holidays: await listHolidays(
+      membership.teamId,
+      localNow(now(), team.timeZone).day,
+      database
+    ),
   }
 }
 
@@ -208,6 +221,10 @@ export async function updateTeam(
     checkinTime?: string
     timeZone?: string
     workDays?: number[]
+    questionYesterday?: string | null
+    questionToday?: string | null
+    questionBlocker?: string | null
+    starterTasks?: string[]
   },
   database = db
 ): Promise<TeamSummary> {
@@ -408,7 +425,13 @@ function toTeamSummary(
   team: Pick<
     typeof projectTeams.$inferSelect,
     "id" | "name" | "checkinTime" | "timeZone" | "workDays" | "createdAt"
-  > & { photoUrl?: string | null }
+  > &
+    Partial<
+      Pick<
+        typeof projectTeams.$inferSelect,
+        "photoUrl" | "questionYesterday" | "questionToday" | "questionBlocker" | "starterTasks"
+      >
+    >
 ): TeamSummary {
   return {
     id: team.id,
@@ -418,6 +441,12 @@ function toTeamSummary(
     workDays: [...team.workDays],
     createdAt: team.createdAt.toISOString(),
     photoUrl: team.photoUrl ?? null,
+    questions: {
+      yesterday: team.questionYesterday ?? null,
+      today: team.questionToday ?? null,
+      blocker: team.questionBlocker ?? null,
+    },
+    starterTasks: team.starterTasks ? [...team.starterTasks] : [],
   }
 }
 

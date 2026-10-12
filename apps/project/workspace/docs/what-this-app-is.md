@@ -29,8 +29,8 @@ the code. If the code disagrees with a line here, the code is wrong.
 - **Progress.** A task's status is To do, Doing, Done or Stuck. A task can also
   carry an optional checklist of steps, so progress reads as "3 of 5 steps
   done". There is no percentage slider.
-- **Check-out.** The evening check-out is optional when it is built, and it is
-  not part of the first version.
+- **Check-out.** The evening check-out is optional. It was left out of the
+  first version and added on 11 Oct 2026.
 - **There is no workspace.** Tyler: "There is no workspace." The team is the
   top level, and a team holds its people and its projects. Tyler: "A
   workspace can come later as a workspace switcher like notion but right now
@@ -122,6 +122,23 @@ were built. Each was the recommended option.
 - **Open tasks** counts only projects the viewer can see, leaving out "Just
   me" lists and the bin.
 
+## Choices for the check-in and handing out work
+
+Tyler answered these on 11 Oct 2026, before More features tasks 01 and 02
+were built. Each was the recommended option.
+
+- **Answering a blocker.** Anyone on the team replies to a typed Blocker
+  note. Only people on a Stuck task's project reply to that task, because its
+  title is private to them.
+- **The evening check-out stays mine.** The Team dashboard never shows a
+  check-out note. It only fills my own next Yesterday box.
+- **The team's check-in questions** can be renamed only. There are always
+  three boxes.
+- **Starter tasks** are "Just me" tasks for the new member, so the owner
+  can't see whether they are done.
+- **A task waiting for review counts as Done** in progress bars and figures,
+  with a "Waiting for review" mark beside it.
+
 ## The first version
 
 - Teams, email invites, projects and tasks.
@@ -133,7 +150,7 @@ order they get built.
 
 ## Left out on purpose
 
-- The evening check-out and the weekly manager email.
+- The weekly manager email.
 - Guests who see only some projects.
 - Online status, screenshots and activity timers. The check-in is the only thing
   the app tracks about a person.

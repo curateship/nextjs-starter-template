@@ -57,6 +57,7 @@ export async function createTasksFromLines(
     titles: string[]
     assigneeUserId: string | null
     dueDate: string | null
+    handoverNote?: string | null
   },
   database = db
 ): Promise<{ ids: string[] }> {
@@ -73,6 +74,7 @@ export async function createTasksFromLines(
           assigneeUserId: input.assigneeUserId,
           dueDate: input.dueDate,
           steps: [],
+          handoverNote: input.handoverNote,
         },
         tx
       )
@@ -282,7 +284,7 @@ export async function promoteStep(actor: Actor, stepId: string, database = db) {
 
 export type BulkChange =
   | { kind: "status"; status: TaskStatus; stuckReason: string | null }
-  | { kind: "assign"; assigneeUserId: string | null }
+  | { kind: "assign"; assigneeUserId: string | null; note?: string | null }
   | { kind: "due"; dueDate: string | null }
   | { kind: "move"; projectId: string }
 
@@ -321,7 +323,11 @@ export async function changeManyTasks(
           database
         )
       } else if (change.kind === "assign") {
-        await assignTask(actor, { taskId, assigneeUserId: change.assigneeUserId }, database)
+        await assignTask(
+          actor,
+          { taskId, assigneeUserId: change.assigneeUserId, note: change.note },
+          database
+        )
       } else if (change.kind === "due") {
         await updateTask(actor, { taskId, dueDate: change.dueDate }, database)
       } else {

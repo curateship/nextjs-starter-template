@@ -197,12 +197,14 @@ without leaving the page and without a window over it.
 ### Changing tasks
 
 - **Many at once.** Ticking rows on a project's List tab offers Status, Hand
-  to, Due date and Move to project beside Mark Done. Stuck asks for one reason
+  to (with one optional note for all of them), Due date and Move to project
+  beside Mark Done. My tasks has the same bar without Move to project. Stuck asks for one reason
   for all of them ("Why is it stuck?" for one task, "Why are they stuck?" for
   more). Each task is changed on its own, as if alone, so each still writes
   its history and sends its notices, and one that can't be changed is refused
-  alone. The result says "5 tasks changed, 1 refused." with the reason, and
-  "2 tasks unassigned." when handed to Nobody.
+  alone. The result says "5 tasks changed, 1 refused." naming up to three
+  refused tasks with their reasons, and "2 tasks unassigned." when handed to
+  Nobody.
 - **Pick a date…** in the bulk Due date opens the calendar at once. Escape or
   a click outside brings the menu back.
 - **Stuck says so, wherever it's set.** "Marked Stuck." from the task and from
@@ -316,6 +318,22 @@ Each task has a Plan card with three fields that save the moment they change.
   task, many ticked rows, a pasted list or a step made into a task.
 - **Waiting.** A task handed to someone else shows Waiting until they accept
   it. Taking a task yourself skips Waiting.
+- **A note with the hand-over.** An optional line, up to 200 characters,
+  wherever a task is handed to someone: the task's person picker (picking
+  someone else opens a "Note for Priya (optional)" line with Hand over and
+  Cancel before anything changes), New task, bulk Hand to and Hand over all.
+  It rides in the bell, "Anna gave you a task" over "Write the About page:
+  Client wants it by Thursday", shows on the task beside Waiting until it's
+  accepted, and stays in the History line. An empty note changes nothing.
+  Bulk Hand to says the one note goes with every ticked task.
+- **Who has room.** Each name in every hand-to picker shows "6 open", and
+  "Away until Dec 4" when today falls in their time off. The count is the
+  Workload tab's for the same viewer, so a member counts only their own
+  projects (`loadPeopleRoom` in `team-running.ts`). Only the dates of time
+  off show, never a reason. Handing to someone away is still allowed. The
+  counts load when the picker's window opens; until then names show alone.
+- **Accept all** on My dashboard accepts every task waiting for me, each on
+  its own (see [My dashboard](my-dashboard.md)).
 - **Accept or hand back.** The person it was handed to can accept it, or hand it
   back with a one-line reason. A handed-back task returns to whoever handed it
   out, with "Ben handed this back: …" on it. If that person has left the
@@ -323,10 +341,56 @@ Each task has a Plan card with three fields that save the moment they change.
 - **Deleting** is for whoever made the task, the owner and admins. It moves
   the task to its project's bin (see The bin below).
 
+## Asking for a review
+
+So whoever hands out work can check it before it counts as finished.
+
+- **"Needs review"** is a switch on the task, for whoever handed it out or
+  made it. Whoever turns it on is the reviewer. Anyone else sees "Needs
+  review: Anna checks it once it's Done."
+- **When it's marked Done** the task stays Done and shows "Waiting for
+  review" on the task, the Board and the lists. The reviewer gets "Priya
+  finished a task for your review" instead of "marked a task Done".
+- **Confirm or Send back.** The reviewer (or the owner or an admin) confirms
+  it, or sends it back to Doing with a one-line reason, and the person
+  assigned gets "Anna sent a task back to you" with the reason. Both write
+  history.
+- **A mark on Done, never a fifth status.** Tyler's rule is four statuses. A
+  task waiting for review counts as Done in progress bars and the four
+  figures (Tyler's choice, 11 Oct 2026).
+- **Nobody to review it confirms itself**: when the reviewer marks it Done
+  themselves, or has left the project, it just stays Done. Turning the switch
+  off while it waits does the same.
+- **Where it lives:** `needs_review`, `reviewer_user_id` and
+  `review_waiting_since` on `project_tasks`, rules in
+  `src/server/project/task-review.ts`.
+
+## Thanks
+
+- **A Thanks button on a Done task**, for anyone who can see it but the
+  person who did it. They get "Maya thanked you for a task" with its title.
+- **One thanks per person per task.** After it, the task says "You thanked
+  Priya." Thanking yourself isn't offered.
+- **The Check-ins tab** shows each day's thanks in one small line per person
+  (see [Teams and invites](teams-and-invites.md#thanks-on-the-check-ins-tab)).
+- **No counts and no leaderboard.** It's a small touch, never a score.
+- **Where it lives:** `project_task_thanks`,
+  `src/server/project/task-thanks.ts`.
+
+## Doing per person
+
+- **An optional limit in Project settings**, "Doing per person", from 1 to
+  99. Empty means no limit.
+- **Over it, the Board's Doing column says so**: "Leo has 4 in Doing (limit
+  3)" under its heading, with a warning mark. It counts every task on the
+  project, whatever the filters show.
+- **It only warns.** Nothing is blocked, or it would get in the way of real
+  work. No limit, no lines (`src/lib/project/doing-limit.ts`).
+
 ## Bell notices
 
-Nine notices about a task, each opening it in the middle panel of its project
-page:
+Thirteen notices about a task, each opening it in the middle panel of its
+project page:
 
 - **"Anna gave you a task"** when a task is handed to you.
 - **"Ben handed a task back to you"** with the reason.
@@ -339,11 +403,23 @@ page:
 - **"Anna gave you a step"** to the person a step is given to.
 - **"Anna finished what your task was waiting on"** to the person on a task
   that was Waiting on the one just marked Done.
+- **"Priya finished a task for your review"** to the reviewer of a task that
+  needs review.
+- **"Anna sent a task back to you"** with the reason, when a review sends it
+  back.
+- **"Maya thanked you for a task"** to the person who did it.
+- **"Anna gave you 3 tasks"**, the same notice as Hand over all, to a new
+  member for their starter tasks.
 
 Stuck, unblocked and Done go to whoever handed the task out, or whoever made
 it when nobody did, and to the task's followers. That way the person who hands
 work out hears when it's finished or moving again without asking. Marking
 several rows Done sends one notice per task.
+
+Two come from teammates about the check-in rather than a task, and open the
+Team dashboard on that day: **"Maya answered your blocker"** and **"Leo
+mentioned you in their check-in"** (see
+[The morning check-in](morning-check-in.md)).
 
 Three more come from the app itself, with nobody as the sender:
 

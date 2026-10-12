@@ -32,6 +32,13 @@ disagrees.
 - **Only people on the project can be tagged.** Tagging anyone else refuses
   the whole message with "You can only tag people who are on this project."
 - **Tagging yourself sends nothing.**
+- **Tagging someone away says so.** While a tagged person is on time off,
+  "Leo is away until Dec 4." shows under the box before the message is sent,
+  and goes when the tag is taken out. The message still sends. Only the dates
+  show, never the reason for the time off.
+- **The same box as the check-in's notes.** The @ list lives in
+  `src/components/project/tag-textarea.tsx`, which the check-in's three notes
+  use too.
 - **One notice per person per message.** Someone tagged who would also have
   been told about the message (the assignee, a follower) gets only the "asked
   you about" notice.

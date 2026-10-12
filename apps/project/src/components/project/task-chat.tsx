@@ -1,7 +1,8 @@
 import * as React from "react"
-import { MoreHorizontalIcon, SendIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import { MoreHorizontalIcon, PlaneIcon, SendIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 
 import type { Change } from "@/components/project/task-body"
+import { TagTextarea, TaggedWords } from "@/components/project/tag-textarea"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,7 +14,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Textarea } from "@/components/ui/textarea"
 import {
   addTaskComment,
   deleteTaskComment,
@@ -21,11 +21,12 @@ import {
   type TaskComment,
   type TaskDetail,
 } from "@/lib/api/project/tasks"
+import type { PersonRoom } from "@/lib/api/project/team-running"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
-import { messageParts, messageText, tagPeople, tagQueryBefore } from "@/lib/project/mentions"
+import { dayLabel } from "@/lib/project/days"
+import { messageText, tagPeople, taggedUserIds } from "@/lib/project/mentions"
 import { LIMITS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
 
 type Person = TaskDetail["assignable"][number]
 
@@ -41,11 +42,14 @@ export function TaskChatCard({
   myUserId,
   readOnly,
   change,
+  room,
 }: {
   detail: TaskDetail
   myUserId: string
   readOnly: boolean
   change: Change
+  /** Who is away, so a tag of someone on time off says so before sending. */
+  room: Record<string, PersonRoom>
 }) {
   const [text, setText] = React.useState("")
   const [sending, setSending] = React.useState(false)
@@ -95,7 +99,7 @@ export function TaskChatCard({
           <ScrollArea viewportClassName="max-h-96">
             <ul className="grid gap-3 pr-3" aria-label="Messages">
               {detail.comments.map((comment) => (
-                <MessageRow key={comment.id} comment={comment} people={people} change={change} />
+                <MessageRow key={comment.id} comment={comment} people={people} room={room} change={change} />
               ))}
             </ul>
             <div ref={end} />
@@ -108,6 +112,7 @@ export function TaskChatCard({
             value={text}
             onChange={setText}
             people={people.filter((person) => person.id !== myUserId)}
+            room={room}
             busy={sending}
             submitLabel="Send"
             onSubmit={() => void send()}
@@ -121,10 +126,12 @@ export function TaskChatCard({
 function MessageRow({
   comment,
   people,
+  room,
   change,
 }: {
   comment: TaskComment
   people: Person[]
+  room: Record<string, PersonRoom>
   change: Change
 }) {
   const [editing, setEditing] = React.useState(false)
@@ -176,6 +183,7 @@ function MessageRow({
             value={draft}
             onChange={setDraft}
             people={people}
+            room={room}
             busy={busy}
             submitLabel="Save changes"
             autoFocus
@@ -184,7 +192,7 @@ function MessageRow({
           />
         ) : (
           <p className="text-sm break-words whitespace-pre-wrap">
-            <MessageWords body={comment.body} people={people} />
+            <TaggedWords body={comment.body} people={people} />
           </p>
         )}
         {confirmDelete ? (
@@ -241,28 +249,10 @@ function MessageRow({
   )
 }
 
-/** A message's words with each tag drawn as the person's current name. */
-function MessageWords({ body, people }: { body: string; people: Person[] }) {
-  return messageParts(body).map((part, index) =>
-    part.kind === "text" ? (
-      <React.Fragment key={index}>{part.text}</React.Fragment>
-    ) : (
-      <span key={index} className="font-medium text-primary">
-        @{people.find((person) => person.id === part.userId)?.name ?? part.name}
-      </span>
-    )
-  )
-}
-
-function matchesName(name: string, typed: string) {
-  const lower = name.toLowerCase()
-  const query = typed.toLowerCase()
-  return lower.startsWith(query) || lower.split(/\s+/).some((word) => word.startsWith(query))
-}
-
 /**
- * The box a message is written in, with the @ list. The list sits above the
- * box and follows the arrow keys; Enter or Tab picks, Escape closes it.
+ * The box a message is written in, with the @ list. A tagged person on time
+ * off shows "Leo is away until Dec 4" under it before it is sent, and goes
+ * when the tag is taken out. The message still sends.
  */
 function MessageBox({
   id,
@@ -270,6 +260,7 @@ function MessageBox({
   value,
   onChange,
   people,
+  room,
   busy,
   submitLabel,
   autoFocus,
@@ -281,135 +272,63 @@ function MessageBox({
   value: string
   onChange: (value: string) => void
   people: Person[]
+  room: Record<string, PersonRoom>
   busy: boolean
   submitLabel: string
   autoFocus?: boolean
   onSubmit: () => void
   onCancel?: () => void
 }) {
-  const box = React.useRef<HTMLTextAreaElement>(null)
-  const [tag, setTag] = React.useState<{ typed: string; start: number } | null>(null)
-  const [active, setActive] = React.useState(0)
-  const matches = tag ? people.filter((person) => matchesName(person.name, tag.typed)).slice(0, 8) : []
-  const listOpen = matches.length > 0
-  const listId = `${id}-people`
-
-  function readTag(area: HTMLTextAreaElement) {
-    const cursor = area.selectionStart
-    const typed = tagQueryBefore(area.value.slice(0, cursor))
-    setTag(typed === null ? null : { typed, start: cursor - typed.length - 1 })
-    setActive(0)
-  }
-
-  function pick(person: Person) {
-    const area = box.current
-    if (!area || !tag) return
-    const inserted = `@${person.name} `
-    onChange(value.slice(0, tag.start) + inserted + value.slice(area.selectionStart))
-    const cursor = tag.start + inserted.length
-    setTag(null)
-    requestAnimationFrame(() => {
-      area.focus()
-      area.setSelectionRange(cursor, cursor)
-    })
-  }
-
+  const away = taggedUserIds(tagPeople(value, people)).flatMap((userId) => {
+    const until = room[userId]?.awayUntil
+    const person = people.find((p) => p.id === userId)
+    return until && person ? [`${person.name} is away until ${dayLabel(until)}.`] : []
+  })
   return (
     <div className="grid gap-2">
       <Label htmlFor={id}>{label}</Label>
-      <div className="relative">
-        {listOpen ? (
-          <ul
-            id={listId}
-            role="listbox"
-            aria-label="People on the project"
-            className="absolute bottom-full left-0 z-10 mb-1 grid w-64 max-w-full gap-0.5 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
-          >
-            {matches.map((person, index) => (
-              <li
-                key={person.id}
-                id={`${listId}-${person.id}`}
-                role="option"
-                aria-selected={index === active}
-                className={cn(
-                  "flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm",
-                  index === active && "bg-accent text-accent-foreground"
-                )}
-                // Picked on press so the box keeps the cursor.
-                onMouseDown={(event) => {
-                  event.preventDefault()
-                  pick(person)
-                }}
-              >
-                <PersonAvatar name={person.name} avatarUrl={person.avatarUrl} />
-                <span className="truncate">{person.name}</span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <div className="flex items-end gap-2">
-          <Textarea
-            ref={box}
-            id={id}
-            rows={1}
-            value={value}
-            maxLength={LIMITS.comment}
-            autoFocus={autoFocus}
-            placeholder="Write a message. Type @ to tag someone."
-            role="combobox"
-            aria-expanded={listOpen}
-            aria-controls={listOpen ? listId : undefined}
-            aria-autocomplete="list"
-            aria-activedescendant={listOpen ? `${listId}-${matches[active]?.id}` : undefined}
-            className="max-h-48"
-            onChange={(event) => {
-              onChange(event.target.value)
-              readTag(event.target)
-            }}
-            onClick={(event) => readTag(event.currentTarget)}
-            onBlur={() => setTag(null)}
-            onKeyDown={(event) => {
-              if (listOpen) {
-                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                  event.preventDefault()
-                  const step = event.key === "ArrowDown" ? 1 : -1
-                  setActive((current) => (current + step + matches.length) % matches.length)
-                  return
-                }
-                if (event.key === "Enter" || event.key === "Tab") {
-                  event.preventDefault()
-                  pick(matches[active])
-                  return
-                }
-                if (event.key === "Escape") {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  setTag(null)
-                  return
-                }
-              }
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault()
-                onSubmit()
-              }
-              if (event.key === "Escape" && onCancel) {
-                event.preventDefault()
-                event.stopPropagation()
-                onCancel()
-              }
-            }}
-          />
-          {onCancel ? (
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-          ) : null}
-          <Button type="button" disabled={busy} onClick={onSubmit}>
-            {onCancel ? null : <SendIcon className="size-4" />}
-            {submitLabel}
+      <div className="flex items-end gap-2">
+        <TagTextarea
+          id={id}
+          rows={1}
+          value={value}
+          onChange={onChange}
+          people={people}
+          listLabel="People on the project"
+          maxLength={LIMITS.comment}
+          autoFocus={autoFocus}
+          placeholder="Write a message. Type @ to tag someone."
+          aria-describedby={away.length ? `${id}-away` : undefined}
+          className="max-h-48"
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              onSubmit()
+            }
+            if (event.key === "Escape" && onCancel) {
+              event.preventDefault()
+              event.stopPropagation()
+              onCancel()
+            }
+          }}
+        />
+        {onCancel ? (
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
           </Button>
-        </div>
+        ) : null}
+        <Button type="button" disabled={busy} onClick={onSubmit}>
+          {onCancel ? null : <SendIcon className="size-4" />}
+          {submitLabel}
+        </Button>
       </div>
+      {away.length ? (
+        // Only the dates, never the reason for the time off.
+        <p id={`${id}-away`} className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <PlaneIcon className="size-4 shrink-0" aria-hidden />
+          {away.join(" ")}
+        </p>
+      ) : null}
     </div>
   )
 }

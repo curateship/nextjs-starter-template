@@ -136,7 +136,12 @@ function Line({ entry, onOpenTask }: { entry: ActivityEntry; onOpenTask: (taskId
         </>
       )
     case "handed_over":
-      return <>{who} handed {task} to {entry.targetName ?? "someone who has left"}</>
+      return (
+        <>
+          {who} handed {task} to {entry.targetName ?? "someone who has left"}
+          {entry.reason ? `: ${entry.reason}` : ""}
+        </>
+      )
     case "accepted":
       return <>{who} accepted {task}</>
     case "handed_back":
@@ -155,6 +160,14 @@ function Line({ entry, onOpenTask }: { entry: ActivityEntry; onOpenTask: (taskId
       return <>{who} made the step "{entry.reason}" in {task} its own task</>
     case "moved":
       return <>{who} moved {task} here from {entry.fromProjectName ?? "another project"}</>
+    case "review_confirmed":
+      return <>{who} confirmed the review of {task}</>
+    case "sent_back":
+      return (
+        <>
+          {who} sent {task} back{entry.targetName ? ` to ${entry.targetName}` : ""}: {entry.reason}
+        </>
+      )
     default:
       return <>{who} changed {task}</>
   }

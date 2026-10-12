@@ -160,6 +160,8 @@ export type ProjectPage = {
     dueDate: string | null
     /** My own "Just me" list rather than a shared project. */
     personal: boolean
+    /** "Doing per person": the Board warns past it. Null warns never. */
+    doingLimit: number | null
   }
   sections: Section[]
   /** The team's labels, for the Label filter and a task's labels. */
@@ -216,6 +218,7 @@ export async function loadProjectPage(
       dueDate: project.dueDate,
       starred: (await starredProjectIds(userId, [project.id], database)).has(project.id),
       personal: Boolean(project.personalUserId),
+      doingLimit: project.doingLimit,
     },
     sections: await listSections(project.id, database),
     labels: await listTeamLabels(membership.teamId, database),
@@ -263,6 +266,7 @@ export async function updateProject(
     color?: ProjectColor
     description?: string
     dueDate?: string | null
+    doingLimit?: number | null
   },
   database = db
 ) {

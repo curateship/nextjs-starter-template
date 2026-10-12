@@ -3,6 +3,7 @@ import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { CheckCheckIcon, CircleAlertIcon, ClockIcon, Loader2Icon, PlusIcon } from "lucide-react"
 
 import { SaveLine } from "@/components/project/save-line"
+import { TagTextarea, type Taggable } from "@/components/project/tag-textarea"
 import {
   DueDate,
   PickedDaysBadge,
@@ -25,7 +26,6 @@ import {
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -44,7 +44,8 @@ import { createProjectTask, setStatus, type TaskCard } from "@/lib/api/project/t
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { clockIn, clockLabel, longDayLabel, shortDayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { LIMITS, type CheckinNotes } from "@/lib/project/rules"
+import { messageText, tagPeople } from "@/lib/project/mentions"
+import { CHECKIN_NOTE_FIELDS, LIMITS, type CheckinNotes, type CheckinQuestions } from "@/lib/project/rules"
 import type { SaveState } from "@/lib/project/use-save-line"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -54,13 +55,22 @@ const authenticatedRoute = getRouteApi("/_authenticated")
 type Answer = { action: "carry" | "drop"; reason: string }
 
 type NoteText = { yesterday: string; today: string; blocker: string }
-const NO_NOTES: NoteText = { yesterday: "", today: "", blocker: "" }
 
+/** Saved notes as the boxes show them: each tag as "@Name". */
 function textOf(notes: CheckinNotes): NoteText {
   return {
-    yesterday: notes.yesterday ?? "",
-    today: notes.today ?? "",
-    blocker: notes.blocker ?? "",
+    yesterday: messageText(notes.yesterday ?? ""),
+    today: messageText(notes.today ?? ""),
+    blocker: messageText(notes.blocker ?? ""),
+  }
+}
+
+/** The boxes' words as saved: each teammate's "@Name" becomes a tag. */
+function notesToSave(notes: NoteText, people: readonly Taggable[]): NoteText {
+  return {
+    yesterday: tagPeople(notes.yesterday, people),
+    today: tagPeople(notes.today, people),
+    blocker: tagPeople(notes.blocker, people),
   }
 }
 
@@ -87,7 +97,10 @@ export function CheckinDialog({
   const [ticked, setTicked] = React.useState<Set<string>>(() => new Set())
   const [answers, setAnswers] = React.useState<Record<string, Answer>>({})
   const [missing, setMissing] = React.useState<Set<string>>(() => new Set())
-  const [notes, setNotes] = React.useState<NoteText>(NO_NOTES)
+  // Before checking in, the Yesterday box starts from last evening's "What's left".
+  const startNotes = textOf(page.notes)
+  const [notes, setNotes] = React.useState<NoteText>(startNotes)
+  const people = page.people.filter((person) => person.id !== me.id)
   // Boxes holding typed text not yet added: the new task's title and any
   // Stuck reason, keyed by box. Closing asks first while any has text.
   const [typed, setTyped] = React.useState<ReadonlySet<string>>(() => new Set())
@@ -109,7 +122,7 @@ export function CheckinDialog({
       setTicked(new Set())
       setAnswers({})
       setMissing(new Set())
-      setNotes(NO_NOTES)
+      setNotes(startNotes)
       setTyped(new Set())
     }
   }
@@ -117,7 +130,7 @@ export function CheckinDialog({
   const leftovers = page.leftovers?.tasks ?? []
   // Before checking in the ticks are this window's own; after, they are the saved picks.
   const picked = checkedIn ? new Set(page.pickedTaskIds) : ticked
-  const wroteNotes = Object.values(notes).some((note) => note.trim())
+  const wroteNotes = CHECKIN_NOTE_FIELDS.some((field) => notes[field] !== startNotes[field])
   const dirty =
     typed.size > 0 || (!checkedIn && (ticked.size > 0 || Object.keys(answers).length > 0 || wroteNotes))
 
@@ -169,7 +182,7 @@ export function CheckinDialog({
               : { taskId: task.id, action: "carry" as const }
           }),
           picks: [...ticked],
-          notes,
+          notes: notesToSave(notes, page.people),
         }),
       "Checked in."
     )
@@ -287,10 +300,12 @@ export function CheckinDialog({
               </CardContent>
             </Card>
             {checkedIn ? (
-              <SavedNotes saved={page.notes} />
+              <SavedNotes saved={page.notes} questions={page.questions} people={page.people} myUserId={me.id} />
             ) : (
               <NotesCard
                 notes={notes}
+                questions={page.questions}
+                people={people}
                 onChange={(field, value) => setNotes((current) => ({ ...current, [field]: value }))}
               />
             )}
@@ -323,24 +338,30 @@ export function CheckinDialog({
   )
 }
 
-const NOTE_FIELDS = [
-  { field: "yesterday", label: "Yesterday", placeholder: "What you got done" },
-  { field: "today", label: "Today", placeholder: "What you'll work on" },
-  { field: "blocker", label: "Blocker", placeholder: "Anything stopping you" },
-] as const
+const NOTE_PLACEHOLDERS: Record<keyof NoteText, string> = {
+  yesterday: "What you got done",
+  today: "What you'll work on",
+  blocker: "Anything stopping you",
+}
 
 /**
- * Three short notes for the team, in the person's own words. They are
- * optional, everyone on the team reads them on the Team dashboard, and a
- * Blocker note marks the person blocked there.
+ * Three short notes for the team, in the person's own words, under the
+ * team's own names for the boxes. They are optional, everyone on the team
+ * reads them on the Team dashboard, and the third box marks the person
+ * blocked there. Typing @ tags a teammate.
  */
 function NotesCard({
   notes,
+  questions,
+  people,
   onChange,
   onBlur,
   status,
 }: {
   notes: NoteText
+  questions: CheckinQuestions
+  /** Teammates a note can tag. */
+  people: Taggable[]
   onChange: (field: keyof NoteText, value: string) => void
   onBlur?: () => void
   /** Saving…, Saved or Not saved, once checked in. */
@@ -357,17 +378,20 @@ function NotesCard({
       <CardContent className="grid gap-4">
         <p className="text-sm text-muted-foreground">
           Optional. Everyone on the team reads these beside your check-in on the Team dashboard.
+          Type @ to tag a teammate.
         </p>
-        {NOTE_FIELDS.map(({ field, label, placeholder }) => (
+        {CHECKIN_NOTE_FIELDS.map((field) => (
           <div key={field} className="grid gap-2">
-            <Label htmlFor={`checkin-note-${field}`}>{label}</Label>
-            <Textarea
+            <Label htmlFor={`checkin-note-${field}`}>{questions[field]}</Label>
+            <TagTextarea
               id={`checkin-note-${field}`}
               rows={1}
               value={notes[field]}
+              people={people}
+              listLabel="People on the team"
               maxLength={LIMITS.checkinNote}
-              placeholder={placeholder}
-              onChange={(event) => onChange(field, event.target.value)}
+              placeholder={NOTE_PLACEHOLDERS[field]}
+              onChange={(value) => onChange(field, value)}
               onBlur={onBlur}
             />
           </div>
@@ -382,53 +406,79 @@ const SAVE_AFTER_MS = 700
 /**
  * The notes after checking in: each change saves 700ms after the last key,
  * and at once when a box is left or the window shuts. Saves go out one at a
- * time, so an older one can never land after a newer one.
+ * time, so an older one can never land after a newer one. Newly tagged
+ * people are told only once a box is left or the window shuts, never from a
+ * save mid-word, so a name half typed can't reach the wrong person.
  */
-function SavedNotes({ saved }: { saved: CheckinNotes }) {
+function SavedNotes({
+  saved,
+  questions,
+  people,
+  myUserId,
+}: {
+  saved: CheckinNotes
+  questions: CheckinQuestions
+  people: Taggable[]
+  myUserId: string
+}) {
   const router = useRouter()
   const [notes, setNotes] = React.useState(() => textOf(saved))
   const [status, setStatus] = React.useState<SaveState>(null)
   const latest = React.useRef(notes)
+  // What was last saved, and what was last saved with its tags told.
   const sent = React.useRef(JSON.stringify(notes))
+  const told = React.useRef(JSON.stringify(notes))
   const queue = React.useRef(Promise.resolve())
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Read at save time, so a later page load never re-creates `flush` and fires its cleanup.
+  const everyone = React.useRef(people)
+  React.useEffect(() => {
+    everyone.current = people
+  }, [people])
 
-  const flush = React.useCallback(() => {
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = null
-    const next = latest.current
-    const body = JSON.stringify(next)
-    if (body === sent.current) return
-    sent.current = body
-    setStatus("saving")
-    queue.current = queue.current.then(async () => {
-      try {
-        await saveNotes(next)
-        setStatus("saved")
-        await router.invalidate()
-      } catch (error) {
-        // Left unsent, so the next change or leaving the box tries again.
-        sent.current = ""
-        setStatus("failed")
-        showErrorToast(getProjectErrorMessage(error))
-      }
-    })
-  }, [router])
+  const flush = React.useCallback(
+    (notify: boolean) => {
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = null
+      const next = latest.current
+      const body = JSON.stringify(next)
+      if (body === sent.current && (!notify || body === told.current)) return
+      sent.current = body
+      if (notify) told.current = body
+      setStatus("saving")
+      queue.current = queue.current.then(async () => {
+        try {
+          await saveNotes({ ...notesToSave(next, everyone.current), notify })
+          setStatus("saved")
+          await router.invalidate()
+        } catch (error) {
+          // Left unsent, so the next change or leaving the box tries again.
+          sent.current = ""
+          if (notify) told.current = ""
+          setStatus("failed")
+          showErrorToast(getProjectErrorMessage(error))
+        }
+      })
+    },
+    [router]
+  )
 
-  // Shutting the window mid-word still saves the word.
-  React.useEffect(() => flush, [flush])
+  // Shutting the window mid-word still saves the word, and tells anyone tagged.
+  React.useEffect(() => () => flush(true), [flush])
 
   return (
     <NotesCard
       notes={notes}
+      questions={questions}
+      people={people.filter((person) => person.id !== myUserId)}
       status={status}
-      onBlur={flush}
+      onBlur={() => flush(true)}
       onChange={(field, value) => {
         const next = { ...latest.current, [field]: value }
         latest.current = next
         setNotes(next)
         if (timer.current) clearTimeout(timer.current)
-        timer.current = setTimeout(flush, SAVE_AFTER_MS)
+        timer.current = setTimeout(() => flush(false), SAVE_AFTER_MS)
       }}
     />
   )
@@ -449,6 +499,11 @@ export function StatusLine({ page }: { page: CheckinPage }) {
   }
   if (today.away) {
     return <span>You're away today. You can still check in if you're working.</span>
+  }
+  if (today.holiday) {
+    return (
+      <span>Today is {today.holiday}, a team holiday. You can still check in if you're working.</span>
+    )
   }
   if (!today.workDay) {
     return <span>Today is a day off for your team. You can still check in if you're working.</span>

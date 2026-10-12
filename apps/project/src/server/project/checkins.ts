@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, max, ne, or, sql } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { localNow, momentOf } from "@/lib/project/days"
@@ -6,7 +6,9 @@ import {
   LIMITS,
   PERSONAL_PROJECT_ID,
   PERSONAL_PROJECT_NAME,
+  checkinQuestions,
   type CheckinNotes,
+  type CheckinQuestions,
   type ProjectColor,
 } from "@/lib/project/rules"
 import { uuid } from "@/server/auth/security"
@@ -19,6 +21,8 @@ import {
   type Membership,
   type ProjectDb,
 } from "@/server/project/access"
+import { requireTeamTags, tellNewlyTagged } from "@/server/project/checkin-mentions"
+import { holidayOn } from "@/server/project/holidays"
 import {
   projectCheckinItems,
   projectCheckins,
@@ -27,8 +31,9 @@ import {
   projectTeamMembers,
   projectTeams,
 } from "@/server/project/schema"
-import { listTaskCards, type TaskCard } from "@/server/project/tasks"
+import { listTaskCards, setTaskStatus, type Actor, type TaskCard } from "@/server/project/tasks"
 import { awayOn } from "@/server/project/time-off"
+import { customShellUsers } from "@/server/schema"
 
 /**
  * The morning check-in. The rules Tyler set are in
@@ -154,17 +159,37 @@ export type CheckinAnswer = {
 
 export type CheckinPage = {
   clock: CheckinClock
-  /** `pastDue`: checking in now would be marked late. `away`: the person's time off. */
-  today: { day: string; workDay: boolean; dueAt: string; pastDue: boolean; away: boolean }
+  /**
+   * `pastDue`: checking in now would be marked late. `away`: the person's time
+   * off. `holiday`: the team's holiday's name.
+   */
+  today: {
+    day: string
+    workDay: boolean
+    dueAt: string
+    pastDue: boolean
+    away: boolean
+    holiday: string | null
+  }
   /** Null until the person checks in today. */
   checkin: { checkedInAt: string; late: boolean } | null
+  /** Today's picks, in the person's own order. */
   pickedTaskIds: string[]
   /** Before checking in: the last check-in's picks that aren't Done, to answer first. */
   leftovers: { day: string; tasks: TaskCard[] } | null
   /** After checking in: what this morning's check-in said about the last one's tasks. */
   answers: CheckinAnswer[]
-  /** Today's three notes, empty until written. */
+  /**
+   * Today's three notes. Before checking in, the Yesterday box starts from the
+   * last check-out's "What's left", for the person to change.
+   */
   notes: CheckinNotes
+  /** The words the team's three boxes have now. */
+  questions: CheckinQuestions
+  /** Everyone on the team, who a note can tag with @. */
+  people: { id: string; name: string; avatarUrl: string }[]
+  /** Today's optional check-out, once checked in. Only the person sees it. */
+  checkout: { at: string | null; noteLeft: string | null } | null
   /** The tasks to pick from: mine and not Done, plus anything already picked today. */
   groups: { project: ProjectRef; tasks: TaskCard[] }[]
   /** Open projects this person can add a task to. */
@@ -177,7 +202,7 @@ export async function loadCheckinPage(
   at = new Date()
 ): Promise<CheckinPage> {
   const { membership, clock } = await loadClock(userId, database)
-  const today = await personWorkDay(userId, clock, at, database)
+  const today = await personWorkDay(userId, membership.teamId, clock, at, database)
   const row = await findDay(userId, today.day, database)
   const checkedIn = Boolean(row?.checkedInAt)
   const items = row && checkedIn ? await itemsOf(row.id, database) : []
@@ -244,6 +269,7 @@ export async function loadCheckinPage(
       dueAt: today.dueAt.toISOString(),
       pastDue: today.workDay && at > today.dueAt,
       away: today.away,
+      holiday: today.holiday,
     },
     checkin:
       row?.checkedInAt
@@ -259,7 +285,12 @@ export async function loadCheckinPage(
         action: item.kind === "drop" ? "drop" : "carry",
         reason: item.reason,
       })),
-    notes: notesOf(checkedIn ? row : null),
+    notes: checkedIn
+      ? notesOf(row)
+      : { yesterday: await lastNoteLeft(userId, today.day, database), today: null, blocker: null },
+    questions: await teamQuestions(membership.teamId, database),
+    people: await teamPeople(membership.teamId, database),
+    checkout: checkedIn ? { at: row!.checkedOutAt?.toISOString() ?? null, noteLeft: row!.noteLeft } : null,
     groups: [...byProject.values()].filter((group) => group.tasks.length > 0),
     projects: [
       ...projects
@@ -284,11 +315,58 @@ export function notesOf(
   }
 }
 
-/** The person's own day, with time off making a work day a day off. */
-async function personWorkDay(userId: string, clock: CheckinClock, at: Date, database: ProjectDb) {
+/** The person's own day, with time off or a team holiday making a work day a day off. */
+async function personWorkDay(
+  userId: string,
+  teamId: string,
+  clock: CheckinClock,
+  at: Date,
+  database: ProjectDb
+) {
   const day = personDay(clock, at)
   const away = (await awayOn([userId], day.day, database)).has(userId)
-  return { ...day, workDay: day.workDay && !away, away }
+  const holiday = await holidayOn(teamId, day.day, database)
+  return { ...day, workDay: day.workDay && !away && !holiday, away, holiday }
+}
+
+/** The words the team's three boxes have now. */
+export async function teamQuestions(teamId: string, database: ProjectDb): Promise<CheckinQuestions> {
+  const [team] = await database
+    .select({
+      yesterday: projectTeams.questionYesterday,
+      today: projectTeams.questionToday,
+      blocker: projectTeams.questionBlocker,
+    })
+    .from(projectTeams)
+    .where(eq(projectTeams.id, teamId))
+  return checkinQuestions(team ?? { yesterday: null, today: null, blocker: null })
+}
+
+async function teamPeople(teamId: string, database: ProjectDb) {
+  const rows = await database
+    .select({ id: customShellUsers.id, name: customShellUsers.name, avatarUrl: customShellUsers.avatarUrl })
+    .from(projectTeamMembers)
+    .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
+    .where(eq(projectTeamMembers.teamId, teamId))
+    .orderBy(asc(customShellUsers.name))
+  return rows.map((row) => ({ ...row, avatarUrl: row.avatarUrl ?? "" }))
+}
+
+/** The last check-out's "What's left", which starts the next check-in's Yesterday box. */
+async function lastNoteLeft(userId: string, today: string, database: ProjectDb) {
+  const [last] = await database
+    .select({ noteLeft: projectCheckins.noteLeft })
+    .from(projectCheckins)
+    .where(
+      and(
+        eq(projectCheckins.userId, userId),
+        lt(projectCheckins.day, today),
+        isNotNull(projectCheckins.checkedInAt)
+      )
+    )
+    .orderBy(desc(projectCheckins.day))
+    .limit(1)
+  return last?.noteLeft ?? null
 }
 
 async function findDay(userId: string, day: string, database: ProjectDb) {
@@ -305,8 +383,10 @@ function itemsOf(checkinId: string, database: ProjectDb) {
     .select()
     .from(projectCheckinItems)
     .where(eq(projectCheckinItems.checkinId, checkinId))
-    // Picks before drops when saved together, then by title, so the order holds.
+    // The person's own order first. Picks come before drops when saved
+    // together, then by title, so the order holds.
     .orderBy(
+      sql`${projectCheckinItems.position} ASC NULLS LAST`,
       asc(projectCheckinItems.createdAt),
       desc(projectCheckinItems.kind),
       asc(projectCheckinItems.taskTitle)
@@ -337,18 +417,12 @@ async function leftoversFor(
     .orderBy(desc(projectCheckins.day))
     .limit(1)
   if (!last) return null
-  const picks = await database
-    .select({ taskId: projectCheckinItems.taskId })
-    .from(projectCheckinItems)
-    .where(
-      and(
-        eq(projectCheckinItems.checkinId, last.id),
-        eq(projectCheckinItems.kind, "pick"),
-        isNotNull(projectCheckinItems.taskId)
-      )
-    )
+  const picks = (await itemsOf(last.id, database)).filter(
+    (item) => item.kind === "pick" && item.taskId
+  )
   const ids = picks.map((pick) => pick.taskId as string)
   if (ids.length === 0) return null
+  // In the order the person had them, so carrying them over keeps it.
   const tasks = (
     await listTaskCards(
       and(
@@ -358,7 +432,9 @@ async function leftoversFor(
       ),
       database
     )
-  ).filter((task) => visible.has(task.projectId))
+  )
+    .filter((task) => visible.has(task.projectId))
+    .sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
   return tasks.length ? { day: last.day, tasks } : null
 }
 
@@ -386,8 +462,8 @@ export async function submitCheckin(
   }
   await database.transaction(async (tx) => {
     const { membership, clock } = await loadClock(userId, tx)
-    // A check-in on time off is saved as a day off, so it is never late.
-    const today = await personWorkDay(userId, clock, at, tx)
+    // A check-in on time off or a holiday is saved as a day off, so it is never late.
+    const today = await personWorkDay(userId, membership.teamId, clock, at, tx)
     const existing = await findDay(userId, today.day, tx)
     if (existing?.checkedInAt) throw new Error(PROJECT_ERRORS.alreadyCheckedIn)
 
@@ -416,6 +492,10 @@ export async function submitCheckin(
 
     const pickable = await pickableTasks(userId, [...carried, ...fresh], tx)
     const leftoverById = new Map(leftovers?.tasks.map((task) => [task.id, task]))
+    const tags = await requireTeamTags(membership.teamId, input.notes ?? notesOf(null), tx)
+    // The words the boxes have today, so this day reads under them later.
+    const words = await teamQuestions(membership.teamId, tx)
+    const questionLabels = [words.yesterday, words.today, words.blocker]
 
     // A row with no check-in can already exist for today when the person
     // moved their time zone back onto a day the end-of-day job had saved as
@@ -433,6 +513,7 @@ export async function submitCheckin(
         checkedInAt: at,
         closedAt: null,
         createdAt: at,
+        questionLabels,
         ...notes,
       })
       .onConflictDoUpdate({
@@ -443,6 +524,7 @@ export async function submitCheckin(
           dueAt: today.dueAt,
           checkedInAt: at,
           closedAt: null,
+          questionLabels,
           ...notes,
         },
         setWhere: isNull(projectCheckins.checkedInAt),
@@ -450,8 +532,12 @@ export async function submitCheckin(
       .returning({ id: projectCheckins.id })
     if (!checkin) throw new Error(PROJECT_ERRORS.alreadyCheckedIn)
 
+    // Carried-over tasks keep the last check-in's order, then today's ticks in the order ticked.
+    const carriedInOrder = (leftovers?.tasks ?? [])
+      .map((task) => task.id)
+      .filter((id) => carried.includes(id))
     const rows = [
-      ...carried.map((taskId) => ({ task: pickable.get(taskId)!, kind: "pick" as const, carriedOver: true, reason: null })),
+      ...carriedInOrder.map((taskId) => ({ task: pickable.get(taskId)!, kind: "pick" as const, carriedOver: true, reason: null })),
       ...fresh.map((taskId) => ({ task: pickable.get(taskId)!, kind: "pick" as const, carriedOver: false, reason: null })),
       ...answers
         .filter((answer) => answer.action === "drop")
@@ -464,7 +550,7 @@ export async function submitCheckin(
     ]
     if (rows.length) {
       await tx.insert(projectCheckinItems).values(
-        rows.map((row) => ({
+        rows.map((row, index) => ({
           id: uuid(),
           checkinId: checkin.id,
           taskId: row.task.id,
@@ -475,9 +561,16 @@ export async function submitCheckin(
           reason: row.reason,
           endStatus: null,
           createdAt: at,
+          position: row.kind === "pick" ? index : null,
         }))
       )
     }
+    await tellNewlyTagged(
+      { id: checkin.id, userId, day: today.day },
+      input.notes ?? notesOf(null),
+      tags,
+      tx
+    )
   })
 }
 
@@ -515,6 +608,12 @@ export async function addPick(userId: string, taskId: string, database = db, at 
       .where(and(eq(projectCheckinItems.checkinId, checkin.id), eq(projectCheckinItems.kind, "pick")))
     if (picks.some((pick) => pick.taskId === taskId)) return
     if (picks.length >= LIMITS.picksPerDay) throw new Error(PROJECT_ERRORS.tooManyPicks)
+    // A task added later in the day goes to the bottom of the person's order.
+    const [{ last }] = await tx
+      .select({ last: max(projectCheckinItems.position) })
+      .from(projectCheckinItems)
+      .where(eq(projectCheckinItems.checkinId, checkin.id))
+    const position = (last ?? picks.length - 1) + 1
     // A task dropped this morning and picked again later becomes a carry-over:
     // the person changed their mind, so the drop no longer stands.
     await tx
@@ -530,10 +629,11 @@ export async function addPick(userId: string, taskId: string, database = db, at 
         reason: null,
         endStatus: null,
         createdAt: at,
+        position,
       })
       .onConflictDoUpdate({
         target: [projectCheckinItems.checkinId, projectCheckinItems.taskId],
-        set: { kind: "pick", carriedOver: true, reason: null },
+        set: { kind: "pick", carriedOver: true, reason: null, position },
       })
   })
 }
@@ -544,15 +644,82 @@ export async function addPick(userId: string, taskId: string, database = db, at 
  */
 export async function saveCheckinNotes(
   userId: string,
-  notes: CheckinNotes,
+  notes: CheckinNotes & {
+    /** Set once a box is left: only then are newly tagged people told. */
+    notify?: boolean
+  },
   database = db,
   at = new Date()
 ) {
-  const checkin = await requireCheckedInToday(userId, database, at)
-  await database
-    .update(projectCheckins)
-    .set({ noteYesterday: notes.yesterday, noteToday: notes.today, noteBlocker: notes.blocker })
-    .where(eq(projectCheckins.id, checkin.id))
+  await database.transaction(async (tx) => {
+    const checkin = await requireCheckedInToday(userId, tx, at)
+    const tags = await requireTeamTags(checkin.teamId, notes, tx)
+    await tx
+      .update(projectCheckins)
+      .set({ noteYesterday: notes.yesterday, noteToday: notes.today, noteBlocker: notes.blocker })
+      .where(eq(projectCheckins.id, checkin.id))
+    if (notes.notify) await tellNewlyTagged(checkin, notes, tags, tx)
+  })
+}
+
+/** Puts today's picks in the person's own order. Nobody else's view changes. */
+export async function orderTodaysPicks(
+  userId: string,
+  taskIds: string[],
+  database = db,
+  at = new Date()
+) {
+  await database.transaction(async (tx) => {
+    const checkin = await requireCheckedInToday(userId, tx, at)
+    const picks = await tx
+      .select({ id: projectCheckinItems.id, taskId: projectCheckinItems.taskId })
+      .from(projectCheckinItems)
+      .where(and(eq(projectCheckinItems.checkinId, checkin.id), eq(projectCheckinItems.kind, "pick")))
+    const byTask = new Map(picks.map((pick) => [pick.taskId, pick.id]))
+    const unique = [...new Set(taskIds)]
+    if (unique.length !== taskIds.length || unique.some((id) => !byTask.has(id))) {
+      throw new Error(PROJECT_ERRORS.notTodaysPicks)
+    }
+    // Picks not named keep their place after the named ones.
+    const rest = picks.filter((pick) => pick.taskId && !unique.includes(pick.taskId))
+    const order = [...unique.map((id) => byTask.get(id)!), ...rest.map((pick) => pick.id)]
+    for (const [position, id] of order.entries()) {
+      await tx.update(projectCheckinItems).set({ position }).where(eq(projectCheckinItems.id, id))
+    }
+  })
+}
+
+/**
+ * The optional evening check-out: marks the picks the person finished Done,
+ * one at a time as from the task itself, and keeps "What's left" for the next
+ * check-in's Yesterday box. Never needed to check in tomorrow, and nobody
+ * else ever sees it.
+ */
+export async function checkOut(
+  actor: Actor,
+  input: { doneTaskIds: string[]; noteLeft: string | null },
+  database = db,
+  at = new Date()
+) {
+  // All or nothing: a pick that can't be marked Done leaves the rest as they were.
+  await database.transaction(async (tx) => {
+    const checkin = await requireCheckedInToday(actor.id, tx, at)
+    const picks = await tx
+      .select({ taskId: projectCheckinItems.taskId, status: projectTasks.status })
+      .from(projectCheckinItems)
+      .innerJoin(projectTasks, eq(projectTasks.id, projectCheckinItems.taskId))
+      .where(and(eq(projectCheckinItems.checkinId, checkin.id), eq(projectCheckinItems.kind, "pick")))
+    const statusOf = new Map(picks.map((pick) => [pick.taskId, pick.status]))
+    if (input.doneTaskIds.some((id) => !statusOf.has(id))) throw new Error(PROJECT_ERRORS.notTodaysPicks)
+    for (const taskId of new Set(input.doneTaskIds)) {
+      if (statusOf.get(taskId) === "done") continue
+      await setTaskStatus(actor, { taskId, status: "done", stuckReason: null }, tx)
+    }
+    await tx
+      .update(projectCheckins)
+      .set({ checkedOutAt: at, noteLeft: input.noteLeft })
+      .where(eq(projectCheckins.id, checkin.id))
+  })
 }
 
 /** Takes a task off today's picks. */

@@ -107,6 +107,31 @@ export const INVITE_LIFETIME_DAYS = 7
 /** What a check-in holds: a task worked on that day, or one let go from the last check-in. */
 export type CheckinItemKind = "pick" | "drop"
 
+/** The check-in's three note boxes, as saved. Their words on screen can be the team's own. */
+export const CHECKIN_NOTE_FIELDS = ["yesterday", "today", "blocker"] as const
+export type CheckinNoteField = (typeof CHECKIN_NOTE_FIELDS)[number]
+
+/** The words a team's three boxes have until the owner renames them. */
+export const DEFAULT_CHECKIN_QUESTIONS: Record<CheckinNoteField, string> = {
+  yesterday: "Yesterday",
+  today: "Today",
+  blocker: "Blocker",
+}
+export type CheckinQuestions = Record<CheckinNoteField, string>
+
+/** A team's own words, with the usual one wherever a box keeps its name. */
+export function checkinQuestions(own: {
+  yesterday: string | null
+  today: string | null
+  blocker: string | null
+}): CheckinQuestions {
+  return {
+    yesterday: own.yesterday || DEFAULT_CHECKIN_QUESTIONS.yesterday,
+    today: own.today || DEFAULT_CHECKIN_QUESTIONS.today,
+    blocker: own.blocker || DEFAULT_CHECKIN_QUESTIONS.blocker,
+  }
+}
+
 /** A due date coming up, or one that has passed. */
 export type DueReminderKind = "due_soon" | "overdue"
 
@@ -137,6 +162,9 @@ export type TaskEventKind =
   | "created"
   | "status_changed"
   | "commented"
+  /** A Done task's reviewer confirmed it, or sent it back to Doing with the reason. */
+  | "review_confirmed"
+  | "sent_back"
 
 /**
  * A task picked on this many days and still not Done gets a mark saying so,
@@ -175,7 +203,23 @@ export const LIMITS = {
   videoUrl: 2048,
   /** One check-in note: a line, not a report. */
   checkinNote: 280,
+  /** A reply under a blocker: one line, so it never grows into a second chat. */
+  blockerReply: 280,
+  handoverNote: 200,
+  /** The team's own word for a check-in box, such as "Wins". */
+  checkinQuestion: 30,
+  holidayName: 60,
+  holidaysPerTeam: 100,
+  starterTasks: 10,
+  /** The biggest "Doing per person" a project can set. */
+  doingLimit: 99,
 } as const
+
+/** How far back My week steps. */
+export const MY_WEEK_BACK = 12
+
+/** Replies under blockers one person can write in an hour, so nobody can flood the bell. */
+export const BLOCKER_REPLIES_PER_HOUR = 60
 
 /** People who can join through one team link in a day, so a leaked link can't fill the team. */
 export const JOINS_PER_LINK_PER_DAY = 20
@@ -244,11 +288,30 @@ export const myCheckinTimeSchema = z.object({
   timeZone: timeZoneSchema.nullable().optional(),
 })
 
+const questionSchema = z
+  .string()
+  .trim()
+  .max(LIMITS.checkinQuestion, `A box's name can be at most ${LIMITS.checkinQuestion} characters.`)
+  .transform((value) => value || null)
+  .nullable()
+
 export const updateTeamSchema = z.object({
   name: teamNameSchema.optional(),
   checkinTime: checkinTimeSchema.optional(),
   timeZone: timeZoneSchema.optional(),
   workDays: workDaysSchema.optional(),
+  questionYesterday: questionSchema.optional(),
+  questionToday: questionSchema.optional(),
+  questionBlocker: questionSchema.optional(),
+  starterTasks: z
+    .array(trimmed(LIMITS.taskTitle, "A starter task"))
+    .max(LIMITS.starterTasks, `A team can have at most ${LIMITS.starterTasks} starter tasks.`)
+    .optional(),
+})
+
+export const holidaySchema = z.object({
+  day: z.string().refine(isRealDay, "Pick the holiday's day."),
+  name: trimmed(LIMITS.holidayName, "The holiday's name"),
 })
 
 export const inviteSchema = z.object({
@@ -271,6 +334,13 @@ export const createProjectSchema = z.object({
 
 export const updateProjectSchema = z.object({
   projectId: id,
+  doingLimit: z
+    .number()
+    .int("Type a whole number.")
+    .min(1, "The limit has to be at least 1.")
+    .max(LIMITS.doingLimit, `The limit can be at most ${LIMITS.doingLimit}.`)
+    .nullable()
+    .optional(),
   dueDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date from the calendar.")
@@ -302,7 +372,16 @@ export const memberTitleSchema = z.object({
   title: z.string().trim().max(LIMITS.memberTitle, "A job title can be at most 40 characters.").nullable(),
 })
 
-export const handOverAllSchema = z.object({ fromUserId: id, toUserId: id })
+/** The optional line that goes with a hand-over. Empty is no note. */
+const handoverNoteSchema = z
+  .string()
+  .trim()
+  .max(LIMITS.handoverNote, `A note can be at most ${LIMITS.handoverNote} characters.`)
+  .transform((value) => value || null)
+  .nullable()
+  .default(null)
+
+export const handOverAllSchema = z.object({ fromUserId: id, toUserId: id, note: handoverNoteSchema })
 
 export const copyProjectSchema = z.object({
   projectId: id,
@@ -324,6 +403,7 @@ export const createTaskSchema = z.object({
     .array(trimmed(LIMITS.stepText, "A step"))
     .max(LIMITS.stepsPerTask)
     .default([]),
+  handoverNote: handoverNoteSchema,
 })
 
 export const updateTaskSchema = z.object({
@@ -363,6 +443,7 @@ export const createTasksFromLinesSchema = z.object({
   titles: z.array(trimmed(LIMITS.taskTitle, "The task title")).min(1).max(LIMITS.tasksPerPaste),
   assigneeUserId: id.nullable(),
   dueDate: dueDateSchema.default(null),
+  handoverNote: handoverNoteSchema,
 })
 
 export const updateStepSchema = z.object({
@@ -381,7 +462,7 @@ export const bulkChangeSchema = z.object({
       status: z.enum(TASK_STATUSES),
       stuckReason: reasonSchema.nullable().default(null),
     }),
-    z.object({ kind: z.literal("assign"), assigneeUserId: id.nullable() }),
+    z.object({ kind: z.literal("assign"), assigneeUserId: id.nullable(), note: handoverNoteSchema }),
     z.object({ kind: z.literal("due"), dueDate: dueDateSchema }),
     z.object({ kind: z.literal("move"), projectId: id }),
   ]),
@@ -416,7 +497,18 @@ export const setTaskStatusSchema = z.object({
 export const assignTaskSchema = z.object({
   taskId: id,
   assigneeUserId: id.nullable(),
+  note: handoverNoteSchema,
 })
+
+/** Accepting every task waiting for me, each on its own. */
+export const acceptManySchema = z.object({ taskIds: z.array(id).min(1).max(200) })
+
+export const needsReviewSchema = z.object({ taskId: id, on: z.boolean() })
+
+export const reviewSchema = z.discriminatedUnion("action", [
+  z.object({ taskId: id, action: z.literal("confirm") }),
+  z.object({ taskId: id, action: z.literal("send_back"), reason: reasonSchema }),
+])
 
 const messageSchema = trimmed(LIMITS.comment, "The message")
 
@@ -442,6 +534,28 @@ export const checkinNotesSchema = z.object({
   today: noteSchema,
   blocker: noteSchema,
 })
+
+/**
+ * Notes saved during the day. `notify` is set once a box is left, so a name
+ * half typed while the notes save themselves never tells the wrong person.
+ */
+export const saveCheckinNotesSchema = checkinNotesSchema.extend({ notify: z.boolean().default(false) })
+
+export const blockerReplySchema = z.object({
+  checkinId: id,
+  /** The Stuck task replied about; null for the Blocker note. */
+  taskId: id.nullable(),
+  body: trimmed(LIMITS.blockerReply, "The reply"),
+})
+
+/** The optional evening check-out: the picks now Done, and what's left. */
+export const checkOutSchema = z.object({
+  doneTaskIds: z.array(id).max(LIMITS.picksPerDay),
+  noteLeft: noteSchema,
+})
+
+/** Today's picks in my own order. */
+export const orderPicksSchema = z.object({ taskIds: z.array(id).min(1).max(LIMITS.picksPerDay) })
 export type CheckinNotes = { yesterday: string | null; today: string | null; blocker: string | null }
 
 /**

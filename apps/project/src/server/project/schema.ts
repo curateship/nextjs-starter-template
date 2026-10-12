@@ -13,6 +13,7 @@ import {
 
 import type {
   CheckinItemKind,
+  CheckinNoteField,
   DueReminderKind,
   MeetingRepeat,
   ProjectColor,
@@ -51,6 +52,12 @@ export const projectTeams = pgTable("project_teams", {
   joinExpiresAt: timestamp("join_expires_at", { withTimezone: true }),
   /** The team's photo, a media library address (`drizzle/0105_project_team_dashboard.sql`). */
   photoUrl: text("photo_url"),
+  /** The team's own words for the check-in's boxes; null keeps the usual ones (`drizzle/0106_project_checkin_and_handing_out.sql`). */
+  questionYesterday: varchar("question_yesterday", { length: 40 }),
+  questionToday: varchar("question_today", { length: 40 }),
+  questionBlocker: varchar("question_blocker", { length: 40 }),
+  /** Titles each new member gets as "Just me" tasks. */
+  starterTasks: text("starter_tasks").array().notNull().default([]),
 })
 
 /** Each join through a team's link, for the daily cap. */
@@ -128,6 +135,8 @@ export const projectProjects = pgTable("project_projects", {
   personalUserId: varchar("personal_user_id", { length: 36 }).references(userRef, {
     onDelete: "cascade",
   }),
+  /** Warn when one person has more than this many tasks in Doing; null warns never. */
+  doingLimit: smallint("doing_limit"),
 })
 
 export const projectProjectMembers = pgTable(
@@ -198,6 +207,14 @@ export const projectTasks = pgTable("project_tasks", {
   deletedByUserId: varchar("deleted_by_user_id", { length: 36 }).references(userRef, {
     onDelete: "set null",
   }),
+  /** The hand-over's note, shown beside Waiting (`drizzle/0106_project_checkin_and_handing_out.sql`). */
+  handoverNote: text("handover_note"),
+  /** Done waits for whoever turned this on to confirm it. A mark on Done, never a fifth status. */
+  needsReview: boolean("needs_review").notNull().default(false),
+  reviewerUserId: varchar("reviewer_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  reviewWaitingSince: timestamp("review_waiting_since", { withTimezone: true }),
 })
 
 /** One copy of a repeating task per day, claimed before it is made. */
@@ -380,6 +397,11 @@ export const projectCheckins = pgTable("project_checkins", {
   noteYesterday: text("note_yesterday"),
   noteToday: text("note_today"),
   noteBlocker: text("note_blocker"),
+  /** The optional check-out, private to the person (`drizzle/0106_project_checkin_and_handing_out.sql`). */
+  checkedOutAt: timestamp("checked_out_at", { withTimezone: true }),
+  noteLeft: text("note_left"),
+  /** The words the three boxes had that day: Yesterday, Today, Blocker or the team's own. */
+  questionLabels: text("question_labels").array(),
 })
 
 /** Each task picked on a check-in, and each one dropped from the last one. */
@@ -400,6 +422,8 @@ export const projectCheckinItems = pgTable("project_checkin_items", {
   reason: text("reason"),
   endStatus: varchar("end_status", { length: 16 }).$type<TaskStatus>(),
   createdAt: createdAt(),
+  /** The person's own order for the day's picks. */
+  position: integer("position"),
 })
 
 /** One check-in reminder per person per day, written before the bell notice. */
@@ -522,4 +546,68 @@ export const projectMeetingPeople = pgTable(
       .references(userRef, { onDelete: "cascade" }),
   },
   (table) => [primaryKey({ columns: [table.meetingId, table.userId] })]
+)
+
+/** A one-line reply under someone's blocker on the Team dashboard. */
+export const projectBlockerReplies = pgTable("project_blocker_replies", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  checkinId: varchar("checkin_id", { length: 36 })
+    .notNull()
+    .references(() => projectCheckins.id, { onDelete: "cascade" }),
+  /** The Stuck task replied about; null for a reply to the Blocker note. */
+  taskId: varchar("task_id", { length: 36 }).references(() => projectTasks.id, {
+    onDelete: "set null",
+  }),
+  authorUserId: varchar("author_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  body: text("body").notNull(),
+  createdAt: createdAt(),
+})
+
+/** Who each check-in note tagged, so an edit tells only the newly tagged. */
+export const projectCheckinMentions = pgTable(
+  "project_checkin_mentions",
+  {
+    checkinId: varchar("checkin_id", { length: 36 })
+      .notNull()
+      .references(() => projectCheckins.id, { onDelete: "cascade" }),
+    field: varchar("field", { length: 16 }).$type<CheckinNoteField>().notNull(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.checkinId, table.field, table.userId] })]
+)
+
+/** A day off for the whole team, such as Christmas Day. */
+export const projectTeamHolidays = pgTable("project_team_holidays", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  teamId: varchar("team_id", { length: 36 })
+    .notNull()
+    .references(() => projectTeams.id, { onDelete: "cascade" }),
+  day: date("day", { mode: "string" }).notNull(),
+  name: text("name").notNull(),
+  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  createdAt: createdAt(),
+})
+
+/** One thanks per person per finished task. */
+export const projectTaskThanks = pgTable(
+  "project_task_thanks",
+  {
+    taskId: varchar("task_id", { length: 36 })
+      .notNull()
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    thankedUserId: varchar("thanked_user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.userId] })]
 )

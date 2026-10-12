@@ -15,7 +15,11 @@ A task ends with a History card, oldest first, wherever it opens.
   says "today, so far" with the status now.
 - **Every drop**, with who dropped it and the reason.
 - **Every hand-over**: "Anna handed it to Ben", "Ben accepted it", "Ben handed
-  it back to Anna: the reason". These are written down as they happen, in
+  it back to Anna: the reason". A hand-over's note shows after it, "Anna
+  handed it to Ben: Client wants it by Thursday", and stays after the task is
+  accepted.
+- **Reviews**: "Anna confirmed the review" and "Anna sent it back to Ben:
+  Missing the team photo", from 11 Oct 2026. These are written down as they happen, in
   `project_task_events` (`drizzle/0096_project_task_events.sql`), because a
   task only holds who has it now. Hand-overs from before 10 Oct 2026 weren't
   written down and don't show.
@@ -70,6 +74,14 @@ calender and check in with its own dashboard". Past days are read on the
   day's row, so a past day reads "Today · Work on members table" with the
   picked tasks in grey under it, exactly as it did on the day. Notes can only
   be changed on the day itself.
+- **Under the words of their day.** If the team renamed its boxes, a day
+  reads under the words it was checked in with, saved on the row. Days before
+  11 Oct 2026 read Yesterday, Today and Blocker.
+- **Holidays** show their name in the calendar square, and the day reads
+  "Christmas Day, a team holiday."
+- **Replies and thanks stay with the day.** A blocker's replies show under it
+  on any day, and each person's line of thanks counts the thanks they got on
+  that day of their own calendar.
 - **A task in a project the viewer isn't on** reads "1 task in another
   project", never its title, its reason or a link.
 - **A person removed from the team** no longer appears there. Their rows stay

@@ -1,7 +1,7 @@
 import * as React from "react"
 import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
-import { BellIcon, CheckIcon, PlusIcon, UndoIcon } from "lucide-react"
+import { BellIcon, CheckIcon, ClipboardCheckIcon, HeartIcon, PlusIcon, UndoIcon } from "lucide-react"
 
 import { TaskChatCard } from "@/components/project/task-chat"
 import { TaskFilesCard } from "@/components/project/task-files-card"
@@ -15,6 +15,8 @@ import {
   DueDate,
   PersonAvatar,
   PickedDaysBadge,
+  ReviewBadge,
+  RoomNote,
   StatusBadge,
   WaitingBadge,
 } from "@/components/project/task-bits"
@@ -23,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
 import { ErrorRow } from "@/components/ui/error-row"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -33,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import {
   acceptProjectTask,
   addTaskStep,
@@ -42,8 +46,11 @@ import {
   handBackProjectTask,
   loadTask,
   restoreProjectTask,
+  reviewProjectTask,
   saveTask,
   setStatus,
+  setTaskNeedsReview,
+  thankForProjectTask,
   updateTaskStep,
   type TaskDetail,
   type TaskStep,
@@ -60,6 +67,7 @@ import {
   type TaskStatus,
 } from "@/lib/project/rules"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
+import { usePeopleRoom } from "@/lib/project/use-people-room"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
@@ -200,6 +208,12 @@ function TaskForm({
   const [handingBack, setHandingBack] = React.useState(false)
   const [handBackReason, setHandBackReason] = React.useState("")
   const [moving, setMoving] = React.useState(false)
+  // Handing to someone else asks for an optional note before it goes.
+  const [handingTo, setHandingTo] = React.useState<{ id: string; name: string } | null>(null)
+  const [handoverNote, setHandoverNote] = React.useState("")
+  const [sendingBack, setSendingBack] = React.useState(false)
+  const [sendBackReason, setSendBackReason] = React.useState("")
+  const room = usePeopleRoom()
 
   const isMine = task.assignee?.id === myUserId
   const canHandBack = isMine && Boolean(task.assignedBy) && task.assignedBy?.id !== myUserId
@@ -261,6 +275,48 @@ function TaskForm({
     }
   }
 
+  function pickAssignee(value: string) {
+    if (value === (task.assignee?.id ?? NOBODY)) return
+    const person = detail.assignable.find((p) => p.id === value)
+    if (value !== NOBODY && value !== myUserId && person) {
+      setHandingTo({ id: person.id, name: person.name })
+      return
+    }
+    void change(() => assignProjectTask({ taskId: task.id, assigneeUserId: value === NOBODY ? null : value }))
+  }
+
+  async function handOver() {
+    if (!handingTo) return
+    const ok = await change(
+      () =>
+        assignProjectTask({
+          taskId: task.id,
+          assigneeUserId: handingTo.id,
+          note: handoverNote.trim() || null,
+        }),
+      `Handed to ${handingTo.name}.`
+    )
+    if (ok) {
+      setHandingTo(null)
+      setHandoverNote("")
+    }
+  }
+
+  async function sendBack() {
+    if (!sendBackReason.trim()) {
+      showErrorToast("Say in a line what still needs doing.")
+      return
+    }
+    const ok = await change(
+      () => reviewProjectTask({ taskId: task.id, action: "send_back", reason: sendBackReason.trim() }),
+      task.assignee ? `Sent back to ${task.assignee.name}.` : "Sent back to Doing."
+    )
+    if (ok) {
+      setSendingBack(false)
+      setSendBackReason("")
+    }
+  }
+
   async function remove() {
     const ok = await run(() => deleteProjectTask(task.id))
     if (!ok) return false
@@ -287,6 +343,12 @@ function TaskForm({
             <CardTitle>{task.assignedBy?.name ?? "Someone"} handed you this task</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
+            {task.handoverNote ? (
+              <p className="text-sm break-words">
+                <span className="text-muted-foreground">Note: </span>
+                {task.handoverNote}
+              </p>
+            ) : null}
             <p className="text-sm text-muted-foreground">
               Accept it to take it on, or hand it back with a reason.
             </p>
@@ -321,6 +383,84 @@ function TaskForm({
             setHandBackReason("")
           }}
         />
+      ) : null}
+
+      {task.waiting && !isMine && task.handoverNote ? (
+        <p className="rounded-lg border px-3 py-2 text-sm break-words">
+          Note from {task.assignedBy?.name ?? "whoever handed it out"}: {task.handoverNote}
+        </p>
+      ) : null}
+
+      {task.review.waiting ? (
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Waiting for review</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <p className="text-sm text-muted-foreground">
+              {detail.canReview
+                ? "It's Done and counts as Done. Confirm it, or send it back to Doing with what still needs doing."
+                : `It's Done. ${task.review.reviewer?.name ?? "The reviewer"} checks it before it's confirmed.`}
+            </p>
+            {detail.canReview && !readOnly && !sendingBack ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void change(() => reviewProjectTask({ taskId: task.id, action: "confirm" }), "Confirmed.")
+                  }
+                >
+                  <ClipboardCheckIcon className="size-4" />
+                  Confirm
+                </Button>
+                <Button type="button" variant="outline" disabled={busy} onClick={() => setSendingBack(true)}>
+                  <UndoIcon className="size-4" />
+                  Send back
+                </Button>
+              </div>
+            ) : null}
+            {sendingBack ? (
+              <ReasonRow
+                id="send-back-reason"
+                label="What still needs doing?"
+                value={sendBackReason}
+                onChange={setSendBackReason}
+                confirmLabel="Send back"
+                busy={busy}
+                onConfirm={() => void sendBack()}
+                onCancel={() => {
+                  setSendingBack(false)
+                  setSendBackReason("")
+                }}
+              />
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {task.status === "done" && task.assignee && task.assignee.id !== myUserId ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+          <span>
+            {detail.thanked
+              ? `You thanked ${task.assignee.name}.`
+              : `${task.assignee.name} finished this.`}
+          </span>
+          {detail.thanked ? null : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() =>
+                void change(() => thankForProjectTask(task.id), `${task.assignee?.name ?? "They"} will see your thanks.`)
+              }
+            >
+              <HeartIcon className="size-4" />
+              Thanks
+            </Button>
+          )}
+        </div>
       ) : null}
 
       {task.handedBack ? (
@@ -377,15 +517,8 @@ function TaskForm({
             <div className="grid gap-2">
               <Label htmlFor="task-assignee">Assigned to</Label>
               <Select
-                value={task.assignee?.id ?? NOBODY}
-                onValueChange={(value) =>
-                  void change(() =>
-                    assignProjectTask({
-                      taskId: task.id,
-                      assigneeUserId: value === NOBODY ? null : value,
-                    })
-                  )
-                }
+                value={handingTo?.id ?? task.assignee?.id ?? NOBODY}
+                onValueChange={pickAssignee}
                 disabled={readOnly || busy}
               >
                 <SelectTrigger id="task-assignee" className="w-full sm:w-fit">
@@ -400,6 +533,7 @@ function TaskForm({
                       {person.title ? (
                         <span className="text-muted-foreground"> · {person.title}</span>
                       ) : null}
+                      <RoomNote room={room[person.id]} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -411,6 +545,24 @@ function TaskForm({
               ) : null}
             </div>
           </div>
+          {handingTo ? (
+            <ReasonRow
+              id="handover-note"
+              label={`Note for ${handingTo.name} (optional)`}
+              value={handoverNote}
+              onChange={setHandoverNote}
+              confirmLabel="Hand over"
+              busy={busy}
+              optional
+              maxLength={LIMITS.handoverNote}
+              placeholder="Client wants it by Thursday"
+              onConfirm={() => void handOver()}
+              onCancel={() => {
+                setHandingTo(null)
+                setHandoverNote("")
+              }}
+            />
+          ) : null}
           {pendingStuck ? (
             <ReasonRow
               id="stuck-reason"
@@ -455,6 +607,31 @@ function TaskForm({
             <TaskSectionField detail={detail} readOnly={readOnly} busy={busy} change={change} />
             <TaskLabelsField detail={detail} readOnly={readOnly} busy={busy} change={change} />
           </div>
+          {detail.canAskForReview ? (
+            <div className="flex items-center justify-between gap-4">
+              <FieldLabel
+                htmlFor="task-needs-review"
+                hint="When it's marked Done, you get a notice and check it. It still counts as Done meanwhile."
+              >
+                Needs review
+              </FieldLabel>
+              <Switch
+                id="task-needs-review"
+                checked={task.review.needed}
+                disabled={readOnly || busy}
+                onCheckedChange={(on) =>
+                  void change(
+                    () => setTaskNeedsReview(task.id, on),
+                    on ? "You'll review it when it's Done." : "It no longer needs your review."
+                  )
+                }
+              />
+            </div>
+          ) : task.review.needed && task.review.reviewer ? (
+            <p className="text-sm text-muted-foreground">
+              Needs review: {task.review.reviewer.name} checks it once it's Done.
+            </p>
+          ) : null}
           <TaskNotesField
             key={task.id}
             notes={task.notes}
@@ -475,7 +652,7 @@ function TaskForm({
       <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} />
       <StepsCard detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} busy={busy} />
       <TaskFilesCard detail={detail} readOnly={readOnly} refresh={refresh} change={change} />
-      <TaskChatCard detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} />
+      <TaskChatCard detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} room={room} />
       <TaskHistoryCard detail={detail} />
     </>
   )
@@ -486,6 +663,7 @@ function TaskForm({
       <>
         <StatusBadge status={task.status} />
         {task.waiting ? <WaitingBadge /> : null}
+        <ReviewBadge review={task.review} />
         <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
       </>
     ),
@@ -519,6 +697,10 @@ function TaskForm({
   })
 }
 
+/**
+ * One line typed in the task itself, never in a window over it: a reason, or
+ * with `optional` a hand-over's note that may stay empty.
+ */
 function ReasonRow({
   id,
   label,
@@ -528,6 +710,9 @@ function ReasonRow({
   busy,
   onConfirm,
   onCancel,
+  optional = false,
+  maxLength = LIMITS.reason,
+  placeholder,
 }: {
   id: string
   label: string
@@ -537,6 +722,9 @@ function ReasonRow({
   busy: boolean
   onConfirm: () => void
   onCancel: () => void
+  optional?: boolean
+  maxLength?: number
+  placeholder?: string
 }) {
   const frame = React.useRef<HTMLDivElement>(null)
   useEscapeCancels(frame, onCancel)
@@ -547,7 +735,9 @@ function ReasonRow({
         <Input
           id={id}
           value={value}
-          maxLength={LIMITS.reason}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          aria-required={!optional || undefined}
           autoFocus
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={(event) => {

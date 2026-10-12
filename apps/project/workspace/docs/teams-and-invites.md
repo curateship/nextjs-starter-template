@@ -67,6 +67,11 @@ Project has no workspaces.
   Projects page, with Join and Decline. Decline asks first: "Decline the
   invite to Acme? You'd need a new invite to join."
 - **Joining lands on My dashboard**, by invite or by join link alike.
+- **Starter tasks.** Each person who joins, either way, gets the team's
+  starter tasks (see Team settings) as their own "Just me" tasks, handed out
+  by the owner, with one notice: "Anna gave you 3 tasks". They arrive
+  accepted rather than Waiting, because the owner can't open a "Just me" task
+  to take one back. People already on the team get nothing.
 - **Someone already on a team** sees the invite with "Leave your current team
   to join this one", and Join is refused until they leave. The invite and
   join pages say "Leave it from the Members page first" with an Open Members
@@ -208,13 +213,58 @@ Tyler chose what each counts on 11 Oct 2026.
   that is Stuck, which still shows its own red line. Both count in "1 blocked".
 - **Notes show to everyone on the team.** They are the person's own words.
   A picked task's title still shows only to people on its project.
+- **Under the team's own words**, if it renamed the boxes, and a tag shows as
+  the person's name in the primary colour.
 - See [The morning check-in](morning-check-in.md#notes-for-the-team).
+
+### Answering a blocker
+
+So a blocker gets help where it was written, not in a side chat.
+
+- **Reply** sits under each Blocker note and each Stuck line, on today and
+  past days, and never under someone without a blocker. It opens one line,
+  up to 280 characters. The reply shows under the blocker with the replier's
+  photo and how long ago.
+- **Who can reply** (Tyler's choice, 11 Oct 2026): anyone on the team to a
+  Blocker note; only people who can see a Stuck task's project to that task,
+  because its title is private to them. Everyone else doesn't see that
+  task's replies either.
+- **The blocked person gets "Maya answered your blocker"**, one notice per
+  reply, opening the Team dashboard on that day. Replying under your own
+  blocker tells nobody.
+- **A reply to a Stuck task also goes into the task's chat**, so the answer
+  stays with the task. The blocked person still gets the one notice, not also
+  "commented on a task".
+- **One line each, never a thread.** There's no reply to a reply. A person can
+  write 60 replies an hour, so nobody can flood the bell.
+- **Where it lives:** `project_blocker_replies`,
+  `src/server/project/blocker-replies.ts`,
+  `src/components/project/blocker-replies.tsx`.
+
+### Thanks on the Check-ins tab
+
+- **One small line per person**: "Thanked by Maya for Build the contact
+  form, Anna for a task". A task the reader can't see, or a "Just me" task,
+  reads "a task".
+- It counts the thanks they got that day, on their own calendar. See Thanks
+  in [Projects and tasks](projects-and-tasks.md#thanks).
 
 ### Team settings
 
 The cog in the left panel's header opens the Team settings window: name,
-daily check-in time, time zone and work days, the join link (owner and admins
-only), and the team's labels (see [Labels and sections](labels-and-sections.md)). Each field saves when it is
+daily check-in time, time zone and work days, the check-in boxes' names, team
+holidays, starter tasks and the join link (owner and admins only), and the
+team's labels (see [Labels and sections](labels-and-sections.md)).
+
+- **Check-in boxes**: rename the three notes, such as "Wins" and "Focus".
+  Empty keeps the usual word. See
+  [The morning check-in](morning-check-in.md#the-teams-own-words-for-the-boxes).
+- **Team holidays**: a date and a name, today or later. See
+  [Team holidays](morning-check-in.md#team-holidays).
+- **Starter tasks**: up to 10 titles each new member gets as "Just me" tasks.
+  The card says these are private, so whoever runs the team won't see
+  whether they're done (Tyler's choice, 11 Oct 2026). Members don't see this
+  card. Each field saves when it is
 left or picked, so the window ends with Done, and the top of the window says
 Saving…, then Saved or Not saved (see
 [Fields that save themselves](fields-that-save-themselves.md)). Closing it with
@@ -246,12 +296,17 @@ for app admins and a customer who owns a team is not one.
   in `src/server/project/team-running.ts`.
 - **Tables:** the join link and job titles in
   `drizzle/0104_project_running_the_team.sql`, the team photo in
-  `drizzle/0105_project_team_dashboard.sql`.
+  `drizzle/0105_project_team_dashboard.sql`, and the boxes' names, starter
+  tasks, holidays and blocker replies in
+  `drizzle/0106_project_checkin_and_handing_out.sql`.
+- **Starter tasks:** `src/server/project/starter-tasks.ts`, given out from
+  `acceptInvite` and `joinTeamByLink`.
 - **The four figures:** `src/server/project/team-figures.ts`, drawn by
   `src/components/project/team-figures.tsx` with the team photo.
 - **Who may do what:** `src/server/project/access.ts`.
 - **Screens:** `src/components/project/team-dashboard.tsx`,
-  `src/components/project/team-settings-dialog.tsx`,
+  `src/components/project/team-settings-dialog.tsx` with the check-in cards
+  in `team-checkin-settings.tsx`,
   `src/components/project/team-members.tsx` and
   `src/components/project/team-start.tsx`.
 - **Tests:** `src/server/project/project.test.ts`, and the figures and photo

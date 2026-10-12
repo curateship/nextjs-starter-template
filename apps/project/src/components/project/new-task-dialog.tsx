@@ -2,7 +2,7 @@ import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
-import { PersonAvatar, ProjectDot } from "@/components/project/task-bits"
+import { PersonAvatar, ProjectDot, RoomNote } from "@/components/project/task-bits"
 import { keyFromDate } from "@/lib/project/dates"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -40,6 +40,7 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS } from "@/lib/project/rules"
 import { linesToTitles } from "@/lib/project/paste-lines"
+import { usePeopleRoom } from "@/lib/project/use-people-room"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
@@ -80,13 +81,21 @@ export function NewTaskDialog({
   const [pasted, setPasted] = React.useState<string[] | null>(null)
   const [notes, setNotes] = React.useState<WrittenPageNode>(emptyWrittenPageBody)
   const [assignee, setAssignee] = React.useState(() => startingAssignee(project))
+  const [handoverNote, setHandoverNote] = React.useState("")
+  const room = usePeopleRoom(open)
   const [due, setDue] = React.useState<Date | undefined>()
   const [steps, setSteps] = React.useState<string[]>([])
   const [stepText, setStepText] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
   const [run, saving] = useAsyncAction(getProjectErrorMessage)
   const dirty = Boolean(
-    title.trim() || pasted || !writtenPageBodyIsEmpty(notes) || steps.length || stepText.trim() || due
+    title.trim() ||
+      pasted ||
+      !writtenPageBodyIsEmpty(notes) ||
+      steps.length ||
+      stepText.trim() ||
+      due ||
+      handoverNote.trim()
   )
 
   // Opening again starts on the project the caller chose.
@@ -113,6 +122,7 @@ export function NewTaskDialog({
     setPasted(null)
     setNotes(emptyWrittenPageBody())
     setAssignee(startingAssignee(project))
+    setHandoverNote("")
     setDue(undefined)
     setSteps([])
     setStepText("")
@@ -153,6 +163,8 @@ export function NewTaskDialog({
     const assigneeUserId = assignee === NOBODY ? null : assignee
     const someoneElse = assigneeUserId && assigneeUserId !== me.id
     const name = project.members.find((m) => m.userId === assigneeUserId)?.name
+    // The note only goes with a task handed to someone else.
+    const note = someoneElse ? handoverNote.trim() || null : null
     if (pasted) {
       const ok = await run(
         () =>
@@ -161,6 +173,7 @@ export function NewTaskDialog({
             titles: pasted,
             assigneeUserId,
             dueDate: keyFromDate(due),
+            handoverNote: note,
           }),
         `${pasted.length} tasks made${someoneElse && name ? ` and handed to ${name}` : ""}.`
       )
@@ -186,6 +199,7 @@ export function NewTaskDialog({
             assigneeUserId,
             dueDate: keyFromDate(due),
             steps: typedStep ? [...steps, typedStep] : steps,
+            handoverNote: note,
           }),
         someoneElse && name ? `Task handed to ${name}.` : "Task created."
       )
@@ -276,6 +290,7 @@ export function NewTaskDialog({
                             <SelectItem key={member.userId} value={member.userId}>
                               <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} />
                               {member.userId === me.id ? `${member.name} (you)` : member.name}
+                              <RoomNote room={room[member.userId]} />
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -291,6 +306,24 @@ export function NewTaskDialog({
                       />
                     </div>
                   </div>
+                  {assignee !== NOBODY && assignee !== me.id ? (
+                    <div className="grid gap-2">
+                      <Label htmlFor="new-task-handover-note">
+                        Note for {project?.members.find((m) => m.userId === assignee)?.name ?? "them"} (optional)
+                      </Label>
+                      <Input
+                        id="new-task-handover-note"
+                        value={handoverNote}
+                        maxLength={LIMITS.handoverNote}
+                        placeholder={
+                          pasted
+                            ? `Goes with all ${pasted.length} tasks`
+                            : "Client wants it by Thursday"
+                        }
+                        onChange={(event) => setHandoverNote(event.target.value)}
+                      />
+                    </div>
+                  ) : null}
                   {pasted ? null : (
                     <div className="grid gap-2" role="group" aria-labelledby="new-task-notes-label">
                       <Label id="new-task-notes-label" asChild>

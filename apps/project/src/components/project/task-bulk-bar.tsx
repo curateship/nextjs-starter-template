@@ -3,7 +3,7 @@ import { useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 
 import { ReasonDialog } from "@/components/project/reason-dialog"
-import { ProjectDot } from "@/components/project/task-bits"
+import { ProjectDot, RoomNote } from "@/components/project/task-bits"
 import { DashboardToolbarSelectTrigger } from "@/components/shared/dashboard-toolbar"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
@@ -13,11 +13,13 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { keyFromDate } from "@/lib/project/dates"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import {
+  LIMITS,
   TASK_STATUSES,
   TASK_STATUS_LABEL,
   type ProjectColor,
   type TaskStatus,
 } from "@/lib/project/rules"
+import { usePeopleRoom } from "@/lib/project/use-people-room"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const NOBODY = "nobody"
@@ -28,10 +30,15 @@ export type BulkTargets = {
   projects: { id: string; name: string; color: ProjectColor }[]
 }
 
+/** How many refused tasks the result names before it counts the rest. */
+const REFUSALS_NAMED = 3
+
 /**
  * Status, Hand to, Due date and Move to project for the ticked rows of a
- * project's List tab, beside Mark Done. Each task is changed on its own on the
- * server, so one that can't change is refused alone and the result says so.
+ * project's List tab and of My tasks (which has no Move to project), beside
+ * Mark Done. Each task is changed on its own on the server, so one that can't
+ * change is refused alone and the result names it with the reason. Hand to
+ * asks for one optional note, which goes with every ticked task.
  */
 export function TaskBulkBar({
   taskIds,
@@ -45,6 +52,8 @@ export function TaskBulkBar({
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [askingStuck, setAskingStuck] = React.useState(false)
+  const [handingTo, setHandingTo] = React.useState<{ id: string; name: string } | null>(null)
+  const room = usePeopleRoom()
   // The pickers are actions, not settings, so each goes back to its label.
   const [reset, setReset] = React.useState(0)
 
@@ -58,9 +67,12 @@ export function TaskBulkBar({
     const changed = outcome.changed.length
     const refused = outcome.refused.length
     if (refused) {
-      const first = outcome.refused[0]
+      const named = outcome.refused
+        .slice(0, REFUSALS_NAMED)
+        .map((one) => `${one.title ? `"${one.title}": ` : ""}${one.reason}`)
+      const more = refused - named.length
       showErrorToast(
-        `${changed} ${plural(changed, "task")} ${verb}, ${refused} refused. ${first.title ? `"${first.title}": ` : ""}${first.reason}`
+        `${changed} ${plural(changed, "task")} ${verb}, ${refused} refused. ${named.join(" ")}${more ? ` And ${more} more.` : ""}`
       )
     } else {
       toast.success(`${changed} ${plural(changed, "task")} ${verb}.`)
@@ -94,11 +106,14 @@ export function TaskBulkBar({
       <Select
         key={`hand-${reset}`}
         disabled={busy}
-        onValueChange={(value) =>
-          value === NOBODY
-            ? void apply({ kind: "assign", assigneeUserId: null }, "unassigned")
-            : void apply({ kind: "assign", assigneeUserId: value }, "handed over")
-        }
+        onValueChange={(value) => {
+          if (value === NOBODY) {
+            void apply({ kind: "assign", assigneeUserId: null, note: null }, "unassigned")
+            return
+          }
+          const person = targets.people.find((p) => p.id === value)
+          if (person) setHandingTo(person)
+        }}
       >
         <DashboardToolbarSelectTrigger aria-label="Hand the ticked tasks to">
           <SelectValue placeholder="Hand to" />
@@ -108,6 +123,7 @@ export function TaskBulkBar({
           {targets.people.map((person) => (
             <SelectItem key={person.id} value={person.id}>
               {person.name}
+              <RoomNote room={room[person.id]} />
             </SelectItem>
           ))}
         </SelectContent>
@@ -136,6 +152,34 @@ export function TaskBulkBar({
           </SelectContent>
         </Select>
       ) : null}
+      <ReasonDialog
+        open={Boolean(handingTo)}
+        optional
+        cardTitle="Note"
+        maxLength={LIMITS.handoverNote}
+        title={`Hand ${taskIds.length === 1 ? "the task" : `${taskIds.length} tasks`} to ${handingTo?.name ?? "them"}`}
+        description={
+          taskIds.length === 1
+            ? "Add a line saying why, if you like. It goes with the task."
+            : `Add a line saying why, if you like. The same note goes with all ${taskIds.length} tasks.`
+        }
+        label="Note (optional)"
+        confirmLabel="Hand over"
+        busy={busy}
+        onClose={() => {
+          setHandingTo(null)
+          setReset((n) => n + 1)
+        }}
+        onConfirm={async (note) => {
+          if (!handingTo) return false
+          const ok = await apply(
+            { kind: "assign", assigneeUserId: handingTo.id, note: note || null },
+            "handed over"
+          )
+          if (ok) setHandingTo(null)
+          return ok
+        }}
+      />
       <ReasonDialog
         open={askingStuck}
         title={taskIds.length === 1 ? "Why is it stuck?" : "Why are they stuck?"}

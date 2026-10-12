@@ -1,7 +1,7 @@
 import { and, asc, count, countDistinct, eq, inArray, isNull, max, type SQL } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
-import { PROJECT_ERRORS } from "@/lib/project/errors"
+import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import type { TaskNoticeKind } from "@/lib/project/notices"
 import { taskNotesText } from "@/lib/project/notes"
 import { LIMITS, runsTheTeam, type TaskStatus } from "@/lib/project/rules"
@@ -29,6 +29,8 @@ import { loadTaskComments, type TaskComment } from "@/server/project/task-chat"
 import { listTaskFiles, type TaskFile } from "@/server/project/task-files"
 import { resolveProjectId } from "@/server/project/personal"
 import { repeatRuleOf, tellWaitingTasks, waitingOnThis, type RepeatRule } from "@/server/project/planning"
+import { canAskForReview, canReview, reviewerFor } from "@/server/project/task-review"
+import { hasThanked } from "@/server/project/task-thanks"
 import { listMoveTargets, type MoveTarget } from "@/server/project/task-changes"
 import { followerIds } from "@/server/project/task-followers"
 import {
@@ -82,6 +84,13 @@ export type TaskCard = {
   assignedBy: { id: string; name: string } | null
   /** Handed to someone who hasn't accepted it yet. */
   waiting: boolean
+  /** The hand-over's note, shown beside Waiting until the task is accepted. */
+  handoverNote: string | null
+  /**
+   * "Needs review" is on, and who reviews it. `waiting`: Done and waiting for
+   * them to confirm it. It still counts as Done everywhere.
+   */
+  review: { needed: boolean; waiting: boolean; reviewer: { id: string; name: string } | null }
   formerAssigneeName: string | null
   handedBack: { byName: string; reason: string } | null
   steps: { done: number; total: number }
@@ -110,6 +119,7 @@ const assignee = alias(customShellUsers, "assignee")
 const blocker = alias(projectTasks, "blocker")
 const assigner = alias(customShellUsers, "assigner")
 const returner = alias(customShellUsers, "returner")
+const reviewer = alias(customShellUsers, "reviewer")
 
 export async function listTaskCards(
   where: SQL | undefined,
@@ -123,6 +133,7 @@ export async function listTaskCards(
       assigneeAvatar: assignee.avatarUrl,
       assignerName: assigner.name,
       returnerName: returner.name,
+      reviewerName: reviewer.name,
       sectionName: projectSections.name,
       blockerTitle: blocker.title,
       blockerProjectId: blocker.projectId,
@@ -134,6 +145,7 @@ export async function listTaskCards(
     .leftJoin(assignee, eq(assignee.id, projectTasks.assigneeUserId))
     .leftJoin(assigner, eq(assigner.id, projectTasks.assignedByUserId))
     .leftJoin(returner, eq(returner.id, projectTasks.handedBackByUserId))
+    .leftJoin(reviewer, eq(reviewer.id, projectTasks.reviewerUserId))
     .leftJoin(projectSections, eq(projectSections.id, projectTasks.sectionId))
     .leftJoin(blocker, eq(blocker.id, projectTasks.waitingOnTaskId))
     // A task in the bin is gone from every list until it is brought back.
@@ -186,6 +198,15 @@ export async function listTaskCards(
           ? { id: task.assignedByUserId, name: row.assignerName }
           : null,
       waiting: isWaiting(task),
+      handoverNote: isWaiting(task) ? task.handoverNote : null,
+      review: {
+        needed: task.needsReview,
+        waiting: task.status === "done" && Boolean(task.reviewWaitingSince),
+        reviewer:
+          task.reviewerUserId && row.reviewerName !== null
+            ? { id: task.reviewerUserId, name: row.reviewerName }
+            : null,
+      },
       formerAssigneeName: task.formerAssigneeName,
       handedBack:
         task.handedBackReason && row.returnerName !== null
@@ -266,6 +287,12 @@ export type TaskDetail = {
   waitingOnTitle: string | null
   /** Tasks waiting on this one: those this person can see, and how many elsewhere. */
   holdingUp: { tasks: { id: string; title: string; projectId: string }[]; elsewhere: number }
+  /** I handed it out or made it, so I can turn "Needs review" on or off. */
+  canAskForReview: boolean
+  /** I may confirm it or send it back while it waits for review. */
+  canReview: boolean
+  /** I've thanked whoever did it. */
+  thanked: boolean
 }
 
 export async function loadTaskDetail(
@@ -354,6 +381,9 @@ export async function loadTaskDetail(
     moveTargets: await listMoveTargets(membership, task, database),
     waitingOnTitle: await waitingOnTitleFor(task.waitingOnTaskId, visible, database),
     holdingUp: await waitingOnThis(taskId, visible, database),
+    canAskForReview: canAskForReview(task, userId),
+    canReview: canReview(task, membership.role, userId),
+    thanked: await hasThanked(userId, taskId, database),
   }
 }
 
@@ -400,6 +430,8 @@ export async function createTask(
     assigneeUserId: string | null
     dueDate: string | null
     steps: string[]
+    /** An optional line for the person it's handed to. */
+    handoverNote?: string | null
   },
   database: ProjectDb = db
 ): Promise<{ id: string }> {
@@ -427,6 +459,7 @@ export async function createTask(
       createdAt: at,
       updatedAt: at,
       position,
+      handoverNote: handedToSomeoneElse ? (input.handoverNote ?? null) : null,
     }
     await tx.insert(projectTasks).values(task)
     await recordTaskEvent(tx, { taskId: task.id, kind: "created", actorUserId: actor.id })
@@ -448,6 +481,7 @@ export async function createTask(
         kind: "handed_over",
         actorUserId: actor.id,
         targetUserId: input.assigneeUserId,
+        reason: task.handoverNote,
       })
       await writeTaskNotices(tx, [
         {
@@ -455,6 +489,7 @@ export async function createTask(
           recipientUserId: input.assigneeUserId,
           actor,
           task: taskRef(task),
+          extra: task.handoverNote,
         },
       ])
     }
@@ -486,13 +521,17 @@ export async function updateTask(
 export async function setTaskStatus(
   actor: Actor,
   input: { taskId: string; status: TaskStatus; stuckReason: string | null },
-  database = db
+  database: ProjectDb = db
 ) {
   await database.transaction(async (tx) => {
     const { project, task } = await requireTaskAccess(actor.id, input.taskId, tx)
     if (input.status === "stuck" && !input.stuckReason) {
       throw new Error(PROJECT_ERRORS.stuckNeedsReason)
     }
+    const becameDone = input.status === "done" && task.status !== "done"
+    // A task that needs review waits for its reviewer once it becomes Done,
+    // unless nobody else is left to review it, when it confirms itself.
+    const reviewer = becameDone ? await reviewerFor(project, task, actor.id, tx) : null
     await tx
       .update(projectTasks)
       .set({
@@ -501,6 +540,8 @@ export async function setTaskStatus(
         stuckReason: input.status === "stuck" ? input.stuckReason : null,
         // When it became Done, kept while it stays Done and cleared when it leaves.
         completedAt: input.status === "done" ? (task.status === "done" ? task.completedAt : now()) : null,
+        reviewWaitingSince:
+          input.status !== "done" ? null : becameDone ? (reviewer ? now() : null) : task.reviewWaitingSince,
         updatedAt: now(),
       })
       .where(eq(projectTasks.id, task.id))
@@ -524,18 +565,23 @@ export async function setTaskStatus(
       [handedOutBy, ...(await followerIds(task.id, tx))],
       tx
     )
-    await writeTaskNotices(
-      tx,
-      recipients.map(
-        (recipientUserId): TaskNotice => ({
-          kind,
-          recipientUserId,
-          actor,
-          task: taskRef(task),
-          extra: kind === "task_stuck" ? input.stuckReason : null,
-        })
-      )
-    )
+    await writeTaskNotices(tx, [
+      // The reviewer hears "Ready for your review" instead of "marked a task Done".
+      ...(reviewer
+        ? [{ kind: "task_review" as const, recipientUserId: reviewer, actor, task: taskRef(task) }]
+        : []),
+      ...recipients
+        .filter((recipientUserId) => recipientUserId !== reviewer)
+        .map(
+          (recipientUserId): TaskNotice => ({
+            kind,
+            recipientUserId,
+            actor,
+            task: taskRef(task),
+            extra: kind === "task_stuck" ? input.stuckReason : null,
+          })
+        ),
+    ])
   })
 }
 
@@ -549,7 +595,12 @@ function statusNoticeKind(from: TaskStatus, to: TaskStatus): TaskNoticeKind | nu
 
 export async function assignTask(
   actor: Actor,
-  input: { taskId: string; assigneeUserId: string | null },
+  input: {
+    taskId: string
+    assigneeUserId: string | null
+    /** An optional line for the person it's handed to. */
+    note?: string | null
+  },
   database: ProjectDb = db,
   /** Off when the caller sends one notice for many hand-overs. */
   { notify = true }: { notify?: boolean } = {}
@@ -559,6 +610,8 @@ export async function assignTask(
     if (input.assigneeUserId === task.assigneeUserId) return
     if (input.assigneeUserId) await requireAssignable(task.projectId, input.assigneeUserId, tx)
     const at = now()
+    const handedToSomeoneElse = Boolean(input.assigneeUserId) && input.assigneeUserId !== actor.id
+    const note = handedToSomeoneElse ? (input.note ?? null) : null
     await tx
       .update(projectTasks)
       .set({
@@ -568,15 +621,18 @@ export async function assignTask(
         handedBackReason: null,
         handedBackByUserId: null,
         formerAssigneeName: null,
+        handoverNote: note,
         updatedAt: at,
       })
       .where(eq(projectTasks.id, task.id))
-    if (input.assigneeUserId && input.assigneeUserId !== actor.id) {
+    if (handedToSomeoneElse && input.assigneeUserId) {
+      // The history line keeps the note after the task is accepted.
       await recordTaskEvent(tx, {
         taskId: task.id,
         kind: "handed_over",
         actorUserId: actor.id,
         targetUserId: input.assigneeUserId,
+        reason: note,
       })
       if (notify) {
         await writeTaskNotices(tx, [
@@ -585,6 +641,7 @@ export async function assignTask(
             recipientUserId: input.assigneeUserId,
             actor,
             task: taskRef(task),
+            extra: note,
           },
         ])
       }
@@ -597,9 +654,10 @@ export async function acceptTask(actor: Actor, taskId: string, database = db) {
     const { task } = await requireTaskAccess(actor.id, taskId, tx)
     if (task.assigneeUserId !== actor.id) throw new Error(PROJECT_ERRORS.notAssignee)
     if (task.acceptedAt) return
+    // The note was for the hand-over; its history line keeps it.
     await tx
       .update(projectTasks)
-      .set({ acceptedAt: now(), updatedAt: now() })
+      .set({ acceptedAt: now(), handoverNote: null, updatedAt: now() })
       .where(eq(projectTasks.id, task.id))
     await recordTaskEvent(tx, { taskId: task.id, kind: "accepted", actorUserId: actor.id })
   })
@@ -628,6 +686,7 @@ export async function handBackTask(
         assignedByUserId: giverStillHere ? actor.id : null,
         // It's back with the person who handed it out, so it isn't Waiting.
         acceptedAt: giverStillHere ? at : null,
+        handoverNote: null,
         handedBackReason: input.reason,
         handedBackByUserId: actor.id,
         updatedAt: at,
@@ -760,4 +819,40 @@ export async function touchTask(taskId: string, database: ProjectDb) {
     .update(projectTasks)
     .set({ updatedAt: now() })
     .where(eq(projectTasks.id, taskId))
+}
+
+export type AcceptOutcome = {
+  accepted: string[]
+  refused: { taskId: string; title: string; reason: string }[]
+}
+
+/**
+ * Accept all: every task waiting for me, each accepted on its own as if
+ * alone, so each writes its history line, and one that has changed hands
+ * since is refused alone with the reason.
+ */
+export async function acceptManyTasks(
+  actor: Actor,
+  taskIds: string[],
+  database = db
+): Promise<AcceptOutcome> {
+  const outcome: AcceptOutcome = { accepted: [], refused: [] }
+  for (const taskId of new Set(taskIds)) {
+    try {
+      await acceptTask(actor, taskId, database)
+      outcome.accepted.push(taskId)
+    } catch (error) {
+      const reason = getProjectErrorMessage(error)
+      // Only a task I can open, but that isn't mine to accept, is named.
+      const [row] =
+        reason !== PROJECT_ERRORS.notAssignee
+          ? []
+          : await database
+              .select({ title: projectTasks.title })
+              .from(projectTasks)
+              .where(eq(projectTasks.id, taskId))
+      outcome.refused.push({ taskId, title: row?.title ?? "", reason })
+    }
+  }
+  return outcome
 }

@@ -92,10 +92,15 @@ export async function sendDueReminders(database: CustomShellDb = db, at = new Da
         SELECT 1 FROM project_due_reminders r
         WHERE r.task_id = t.id AND r.kind = k.kind AND r.due_date = t.due_date
       )
-      -- Nobody hears about due dates on their time off; it waits for their return.
+      -- Nobody hears about due dates on their time off or a team holiday; it
+      -- waits for the next work day.
       AND NOT EXISTS (
         SELECT 1 FROM project_time_off o
         WHERE o.user_id = p.user_id AND l.day BETWEEN o.first_day AND o.last_day
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM project_team_holidays h
+        WHERE h.team_id = p.team_id AND h.day = l.day
       )
     ORDER BY p.user_id, t.due_date, t.title
     LIMIT ${BATCH}
@@ -177,7 +182,7 @@ function listTitles(titles: string[]) {
 /**
  * The team's morning, to its owner and admins: "5 of 6 checked in, 1
  * blocked", counted as the Team dashboard's square for today counts it. Sent
- * on the team's work days, once the latest check-in time in the team has
+ * on the team's work days but not its holidays, once the latest check-in time in the team has
  * passed by 30 minutes, so the numbers are complete (Tyler's choice). The day
  * is the team's own, in the team's time zone.
  */
@@ -192,6 +197,9 @@ export async function sendTeamMorningNotices(database: CustomShellDb = db, at = 
     SELECT tm.id AS "teamId", tm.day::text AS "day"
     FROM teams tm
     WHERE extract(dow FROM tm.day)::int = ANY (tm.work_days)
+      AND NOT EXISTS (
+        SELECT 1 FROM project_team_holidays h WHERE h.team_id = tm.id AND h.day = tm.day
+      )
       AND NOT EXISTS (
         SELECT 1 FROM project_team_morning_notices n
         WHERE n.team_id = tm.id AND n.day = tm.day

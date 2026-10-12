@@ -78,8 +78,10 @@ function EntryText({ entry }: { entry: Entry }) {
       )
     case "handed_over":
       return (
-        <span>
+        <span className="break-words">
           {entry.actorName} handed it to {entry.targetName ?? "someone who has left"}
+          {/* The hand-over's note, kept after the task is accepted. */}
+          {entry.reason ? `: ${entry.reason}` : ""}
         </span>
       )
     case "accepted":
@@ -130,6 +132,15 @@ function EntryText({ entry }: { entry: Entry }) {
       return <span>{entry.actorName} put it in the bin</span>
     case "restored":
       return <span>{entry.actorName} brought it back from the bin</span>
+    case "review_confirmed":
+      return <span>{entry.actorName} confirmed the review</span>
+    case "sent_back":
+      return (
+        <span className="break-words">
+          {entry.actorName} sent it back
+          {entry.targetName ? ` to ${entry.targetName}` : ""}: {entry.reason}
+        </span>
+      )
     case "commented":
       return null
   }

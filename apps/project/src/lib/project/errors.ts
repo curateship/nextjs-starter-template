@@ -79,6 +79,21 @@ export const PROJECT_ERRORS = {
   tooManyMeetings: "A team can have at most 200 meetings. Delete old ones to make another.",
   photoNotYours: "Pick a photo you uploaded yourself.",
   tooManyMeetingSaves: "That's a lot of meeting changes in an hour. Wait a while, then try again.",
+  tagNotOnTeam: "You can only tag people on your team.",
+  noBlockerHere: "There's no blocker there to answer.",
+  stuckTaskNotYours: "Only people on that task's project can reply about it.",
+  tooManyReplies: "That's a lot of replies in an hour. Wait a while, then try again.",
+  notTodaysPicks: "Those tasks aren't all in today's picks. Reload the page and try again.",
+  weekTooFarBack: "My week goes back 12 weeks at most.",
+  holidayTaken: "There's already a holiday on that day.",
+  holidayInThePast: "Pick today or a later day for a holiday.",
+  holidayNotFound: "That holiday no longer exists.",
+  tooManyHolidays: "A team can have at most 100 holidays. Delete old ones to add another.",
+  cantThankYourself: "You can't thank yourself for a task.",
+  nothingToThank: "Only a Done task with someone assigned can be thanked.",
+  cantAskForReview: "Only the person who handed the task out or made it can ask for a review.",
+  notWaitingForReview: "This task isn't waiting for a review any more.",
+  cantReview: "Only the person reviewing this task, the owner or an admin can confirm it or send it back.",
 } as const
 
 /** The shell's rate limiter refuses with this code rather than a sentence. */

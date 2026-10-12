@@ -1,5 +1,6 @@
 import {
   CircleAlertIcon,
+  ClipboardCheckIcon,
   ClockIcon,
   HourglassIcon,
   MoonIcon,
@@ -76,6 +77,34 @@ export function WaitingBadge() {
       <ClockIcon aria-hidden />
       Waiting
     </Badge>
+  )
+}
+
+/** A Done task its reviewer hasn't confirmed yet. It still counts as Done. */
+export function ReviewBadge({ review }: { review: { waiting: boolean } }) {
+  if (!review.waiting) return null
+  return (
+    <Badge variant="outline">
+      <ClipboardCheckIcon aria-hidden />
+      Waiting for review
+    </Badge>
+  )
+}
+
+/**
+ * "6 open · Away until Dec 4" beside a name in a hand-to picker, so nobody
+ * hands work to someone on holiday or already swamped. Handing it over is
+ * still allowed.
+ */
+export function RoomNote({ room }: { room: { open: number; awayUntil: string | null } | undefined }) {
+  if (!room) return null
+  return (
+    // Only in the open list: the chosen name in a closed picker stays short.
+    <span className="text-muted-foreground in-data-[slot=select-value]:hidden">
+      {" · "}
+      {room.open} open
+      {room.awayUntil ? ` · Away until ${dayLabel(room.awayUntil)}` : ""}
+    </span>
   )
 }
 

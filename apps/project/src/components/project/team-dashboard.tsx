@@ -5,14 +5,18 @@ import {
   ChevronRightIcon,
   CircleAlertIcon,
   ClockIcon,
+  HeartIcon,
+  PartyPopperIcon,
   PlusIcon,
   SettingsIcon,
   UserPlusIcon,
   UsersIcon,
 } from "lucide-react"
 
+import { BlockerReplies } from "@/components/project/blocker-replies"
 import { InviteDialog } from "@/components/project/invite-dialog"
 import { MeetingDialog } from "@/components/project/meeting-dialog"
+import { TaggedWords } from "@/components/project/tag-textarea"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskDialog } from "@/components/project/task-dialog"
 import { TeamFiguresGrid, TeamPhoto } from "@/components/project/team-figures"
@@ -172,6 +176,7 @@ function Dashboard({
                 day={day}
                 requested={search.day}
                 myUserId={data.myUserId}
+                members={data.members}
                 onDay={(next) => go({ day: next, month: next.slice(0, 7) })}
               />
             }
@@ -288,6 +293,7 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
         team={team}
         labels={data.labels}
         joinLink={data.joinLink}
+        holidays={data.holidays}
         canEdit={canRun}
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -318,6 +324,7 @@ function CalendarPanel({
   // Weeks start on Monday, the way the team's work days are listed.
   const grid = monthGrid(month.month)
   const byDay = new Map(month.days.map((d) => [d.day, d]))
+  const holidayOf = new Map(month.holidays.map((holiday) => [holiday.day, holiday.name]))
   const meetingDays = React.useMemo(() => meetingsByDay(meetings), [meetings])
   // The meeting the window shows, null for a new one. It stays set while the
   // window closes, so the window doesn't change under its closing animation.
@@ -383,7 +390,12 @@ function CalendarPanel({
             const checkinWords = counts?.expected
               ? `${counts.checkedIn} of ${counts.expected} checked in${counts.blocked ? `, ${counts.blocked} blocked` : ""}`
               : null
-            const words = [checkinWords, meetingWords(dayMeetings, meetings.viewerZone)].filter(Boolean)
+            const holiday = inMonth ? holidayOf.get(date) : undefined
+            const words = [
+              holiday ? `${holiday}, a team holiday` : null,
+              checkinWords,
+              meetingWords(dayMeetings, meetings.viewerZone),
+            ].filter(Boolean)
             return (
               <button
                 key={date}
@@ -408,6 +420,12 @@ function CalendarPanel({
                   {Number(date.slice(8))}
                 </span>
                 {/* A phone's squares are too narrow for words: "4/6" and a mark with the number. */}
+                {holiday ? (
+                  <span className="flex max-w-full items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-muted-foreground sm:px-1.5">
+                    <PartyPopperIcon className="size-3 shrink-0" aria-hidden />
+                    <span className="truncate max-sm:hidden">{holiday}</span>
+                  </span>
+                ) : null}
                 {counts && counts.expected ? (
                   <span className="max-w-full rounded bg-muted px-1 py-0.5 sm:px-1.5">
                     <span className="sm:hidden">
@@ -432,6 +450,7 @@ function CalendarPanel({
         </div>
         <DayMeetings
           day={selected}
+          holiday={holidayOf.get(selected)}
           meetings={meetingDays.get(selected) ?? []}
           viewerZone={meetings.viewerZone}
           onEdit={edit}
@@ -498,14 +517,21 @@ function CheckinsPanel({
   day,
   requested,
   myUserId,
+  members,
   onDay,
 }: {
   day: TeamDay
   /** The day picked on the calendar; a day still to come shows today instead. */
   requested: string | undefined
   myUserId: string
+  /** The team, so a tag in a note reads as the person's current name. */
+  members: TeamDashboardData["members"]
   onDay: (day: string) => void
 }) {
+  const people = React.useMemo(
+    () => members.map((member) => ({ id: member.userId, name: member.name })),
+    [members]
+  )
   return (
     <>
       <div className="flex items-center gap-2 border-b px-3 py-2">
@@ -538,9 +564,11 @@ function CheckinsPanel({
           // A day with no saved rows at all (before the team began, or a day
           // the end-of-day job never ran) isn't a day off; it's a day unknown.
           <p className="text-sm text-muted-foreground">
-            {day.people.every((row) => row.state === "no_record")
-              ? "Nothing was saved for this day."
-              : "A day off for the team."}
+            {day.holiday
+              ? `${day.holiday}, a team holiday.`
+              : day.people.every((row) => row.state === "no_record")
+                ? "Nothing was saved for this day."
+                : "A day off for the team."}
           </p>
         ) : (
           <>
@@ -568,6 +596,7 @@ function CheckinsPanel({
               row={row}
               viewerZone={day.viewerZone}
               isMe={row.person.id === myUserId}
+              people={people}
             />
           ))}
         </ul>
@@ -597,15 +626,23 @@ function stateLine(row: TeamDayPerson, viewerZone: string) {
   }
 }
 
+/**
+ * One person's day: their notes under the team's words for that day, their
+ * picks, each blocker with its replies and a Reply button, and the thanks
+ * they got that day in one small line.
+ */
 function PersonCheckin({
   row,
   viewerZone,
   isMe,
+  people,
 }: {
   row: TeamDayPerson
   viewerZone: string
   isMe: boolean
+  people: { id: string; name: string }[]
 }) {
+  const { questions } = row
   return (
     <li className="flex gap-3 px-4 py-4">
       <PersonAvatar name={row.person.name} avatarUrl={row.person.avatarUrl} size="default" />
@@ -620,18 +657,50 @@ function PersonCheckin({
           </div>
           {row.blocked ? <Badge variant="destructive">Blocked</Badge> : null}
         </div>
-        <NoteLine label="Yesterday" note={row.notes?.yesterday ?? null} tasks={row.before} />
-        <NoteLine label="Today" note={row.notes?.today ?? null} tasks={row.picked} />
+        <NoteLine label={questions.yesterday} note={row.notes?.yesterday ?? null} tasks={row.before} people={people} />
+        <NoteLine label={questions.today} note={row.notes?.today ?? null} tasks={row.picked} people={people} />
         {row.notes?.blocker ? (
-          <p className="text-sm break-words text-destructive">Blocker · {row.notes.blocker}</p>
+          <div className="grid gap-1">
+            <p className="text-sm break-words text-destructive">
+              {questions.blocker} · <TaggedWords body={row.notes.blocker} people={people} />
+            </p>
+            <BlockerReplies
+              replies={row.noteReplies}
+              checkinId={row.checkinId}
+              taskId={null}
+              blockedName={row.person.name}
+              canReply
+            />
+          </div>
         ) : null}
         {row.blockers.map((blocker, index) => (
-          <p key={blocker.taskId ?? index} className="text-sm break-words text-destructive">
-            Blocker ·{" "}
-            {blocker.title ?? (blocker.personal ? "a personal task" : "a task in another project")}
-            {blocker.reason ? `: ${blocker.reason}` : ""}
-          </p>
+          <div key={blocker.taskId ?? index} className="grid gap-1">
+            <p className="text-sm break-words text-destructive">
+              {questions.blocker} ·{" "}
+              {blocker.title ?? (blocker.personal ? "a personal task" : "a task in another project")}
+              {blocker.reason ? `: ${blocker.reason}` : ""}
+            </p>
+            {/* Only someone who can open the task replies about it; its title is private to them. */}
+            <BlockerReplies
+              replies={blocker.replies}
+              checkinId={row.checkinId}
+              taskId={blocker.taskId}
+              blockedName={row.person.name}
+              canReply={Boolean(blocker.taskId)}
+            />
+          </div>
         ))}
+        {row.thanks.length ? (
+          <p className="flex items-start gap-1.5 text-xs break-words text-muted-foreground">
+            <HeartIcon className="mt-0.5 size-3 shrink-0" aria-hidden />
+            <span>
+              Thanked by{" "}
+              {row.thanks
+                .map((line) => `${line.fromName} for ${line.taskTitle ?? "a task"}`)
+                .join(", ")}
+            </span>
+          </p>
+        ) : null}
       </div>
     </li>
   )
@@ -646,17 +715,19 @@ function NoteLine({
   label,
   note,
   tasks,
+  people,
 }: {
   label: string
   note: string | null
   tasks: TeamDayTask[]
+  people: { id: string; name: string }[]
 }) {
   if (!note) return tasks.length ? <TaskLine label={label} tasks={tasks} /> : null
   return (
     <div className="grid gap-0.5">
       <p className="text-sm break-words">
         <span className="text-muted-foreground">{label} · </span>
-        {note}
+        <TaggedWords body={note} people={people} />
       </p>
       {tasks.length ? <TaskLine tasks={tasks} quiet /> : null}
     </div>

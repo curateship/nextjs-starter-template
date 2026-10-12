@@ -22,6 +22,7 @@ import {
   LabelChip,
   PersonAvatar,
   PickedDaysBadge,
+  ReviewBadge,
   SnoozedBadge,
   StatusBadge,
   WaitingBadge,
@@ -96,6 +97,7 @@ export function TaskList({
   groupOf,
   showEmptyGroups = false,
   onReorder,
+  orderLabel = "the project's order",
   bulk,
 }: {
   tasks: TaskCard[]
@@ -107,6 +109,8 @@ export function TaskList({
   groupOf?: (task: TaskCard) => string
   showEmptyGroups?: boolean
   onReorder?: (taskIds: string[]) => void
+  /** What the dragged order is called: "the project's order", or "my order" on My dashboard's Today. */
+  orderLabel?: string
   /** Status, Hand to, Due date and Move to project for ticked rows. */
   bulk?: BulkTargets
 }) {
@@ -201,7 +205,7 @@ export function TaskList({
         <div className="flex items-center gap-2 border-b px-3 py-2 text-sm text-muted-foreground">
           Sorted by a column, so rows can't be dragged.
           <Button type="button" variant="ghost" size="sm" onClick={() => toggleSort("order")}>
-            Use the project's order
+            Use {orderLabel}
           </Button>
         </div>
       ) : null}
@@ -334,6 +338,7 @@ function TaskRow({
           ) : null}
           <span className="truncate font-medium">{task.title}</span>
           {task.waiting ? <WaitingBadge /> : null}
+          <ReviewBadge review={task.review} />
           <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
           <WaitingOnBadge waitingOn={task.waitingOn} />
           <SnoozedBadge until={task.snoozedUntil} today={todayKey()} />

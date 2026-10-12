@@ -2,7 +2,7 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
-import { PersonAvatar } from "@/components/project/task-bits"
+import { PersonAvatar, RoomNote } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -26,6 +27,8 @@ import { handOverAll, type HandOverOutcome } from "@/lib/api/project/team-runnin
 import type { TeamMemberRow } from "@/lib/api/project/teams"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { LIMITS } from "@/lib/project/rules"
+import { usePeopleRoom } from "@/lib/project/use-people-room"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -45,7 +48,9 @@ export function HandOverDialog({
 }) {
   const router = useRouter()
   const [to, setTo] = React.useState("")
+  const [note, setNote] = React.useState("")
   const [outcome, setOutcome] = React.useState<HandOverOutcome | null>(null)
+  const room = usePeopleRoom(Boolean(from))
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   // The person stays named while the window closes, when `from` is already
   // null, and each opening starts clean rather than each closing.
@@ -56,6 +61,7 @@ export function HandOverDialog({
     setWasOpen(Boolean(from))
     if (from) {
       setTo("")
+      setNote("")
       setOutcome(null)
     }
   }
@@ -72,7 +78,7 @@ export function HandOverDialog({
     }
     let result: HandOverOutcome | null = null
     const ok = await run(async () => {
-      result = await handOverAll(from.userId, receiver.userId)
+      result = await handOverAll(from.userId, receiver.userId, note.trim() || null)
     })
     if (!ok || !result) return
     setOutcome(result)
@@ -86,7 +92,8 @@ export function HandOverDialog({
           <DialogTitle>Hand over {person ? `${person.name}'s` : "their"} tasks</DialogTitle>
           <DialogDescription>
             Every task of theirs that isn't Done goes to the person you pick, who has to accept each
-            one. Tasks in projects they aren't on are left with nobody assigned.
+            one. Tasks in projects they aren't on are left with nobody assigned. A note goes with
+            every task.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -123,22 +130,35 @@ export function HandOverDialog({
               <CardHeader>
                 <CardTitle>Who gets them</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-2">
-                <Label htmlFor="hand-over-to">Hand them to</Label>
-                <Select value={to} onValueChange={setTo}>
-                  <SelectTrigger id="hand-over-to" className="w-full sm:w-fit">
-                    <SelectValue placeholder="Pick a teammate" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {others.map((member) => (
-                      <SelectItem key={member.userId} value={member.userId}>
-                        <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} />
-                        {member.name}
-                        {member.title ? ` · ${member.title}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="hand-over-to">Hand them to</Label>
+                  <Select value={to} onValueChange={setTo}>
+                    <SelectTrigger id="hand-over-to" className="w-full sm:w-fit">
+                      <SelectValue placeholder="Pick a teammate" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {others.map((member) => (
+                        <SelectItem key={member.userId} value={member.userId}>
+                          <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} />
+                          {member.name}
+                          {member.title ? ` · ${member.title}` : ""}
+                          <RoomNote room={room[member.userId]} />
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="hand-over-note">Note (optional)</Label>
+                  <Input
+                    id="hand-over-note"
+                    value={note}
+                    maxLength={LIMITS.handoverNote}
+                    placeholder="Ben is away until December"
+                    onChange={(event) => setNote(event.target.value)}
+                  />
+                </div>
               </CardContent>
             </Card>
           )}

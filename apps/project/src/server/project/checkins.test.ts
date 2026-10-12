@@ -291,7 +291,8 @@ describe("the Team dashboard's check-ins", () => {
       { taskId: null, title: null, personal: false },
       { taskId: null, title: null, personal: false },
     ])
-    expect(benRow?.blockers).toEqual([{ taskId: null, title: null, personal: false, reason: null }])
+    // A reply about a task the viewer can't see is as hidden as its title.
+    expect(benRow?.blockers).toEqual([{ taskId: null, title: null, personal: false, reason: null, replies: [] }])
   })
 
   it("shows the day before's picks, and nobody as missing on a day off", async () => {

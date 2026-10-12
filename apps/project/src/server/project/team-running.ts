@@ -1,4 +1,4 @@
-import { and, count, eq, gt, inArray, isNull, max, ne } from "drizzle-orm"
+import { and, count, eq, gt, gte, inArray, isNull, lte, max, ne } from "drizzle-orm"
 
 import { addDays, localNow, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
@@ -22,6 +22,7 @@ import {
   type ProjectDb,
 } from "@/server/project/access"
 import { writeAppNotices, writeTaskNotices } from "@/server/project/notices"
+import { clockOf, personDay } from "@/server/project/checkins"
 import {
   projectProjects,
   projectTaskEvents,
@@ -29,7 +30,9 @@ import {
   projectTeamJoins,
   projectTeamMembers,
   projectTeams,
+  projectTimeOff,
 } from "@/server/project/schema"
+import { giveStarterTasks } from "@/server/project/starter-tasks"
 import { assignTask, listTaskCards, type Actor, type TaskCard } from "@/server/project/tasks"
 import { clearAssignee } from "@/server/project/teams"
 import { customShellUsers } from "@/server/schema"
@@ -242,6 +245,84 @@ export async function loadWorkload(viewerId: string, database = db, at = new Dat
     .sort((a, b) => b.counts.open - a.counts.open || a.person.name.localeCompare(b.person.name))
 }
 
+export type PersonRoom = {
+  /** Open tasks, counted exactly as the Workload tab counts them for this viewer. */
+  open: number
+  /** The last day of time off that covers the person's own today, or null. */
+  awayUntil: string | null
+}
+
+/**
+ * Who has room, for every hand-to picker: each teammate's open tasks and
+ * whether they're away today. The counts are the Workload tab's for the same
+ * viewer, so a member counts only what's in their own projects. Only the
+ * dates of time off show, never a reason. Handing to someone away is still
+ * allowed.
+ */
+export async function loadPeopleRoom(
+  viewerId: string,
+  database = db,
+  at = new Date()
+): Promise<Record<string, PersonRoom>> {
+  const membership = await requireMembership(viewerId, database)
+  const people = await database
+    .select({
+      id: projectTeamMembers.userId,
+      teamTime: projectTeams.checkinTime,
+      teamZone: projectTeams.timeZone,
+      workDays: projectTeams.workDays,
+      ownTime: projectTeamMembers.checkinTime,
+      ownZone: projectTeamMembers.timeZone,
+    })
+    .from(projectTeamMembers)
+    .innerJoin(projectTeams, eq(projectTeams.id, projectTeamMembers.teamId))
+    .where(eq(projectTeamMembers.teamId, membership.teamId))
+  const counts = await database
+    .select({ userId: projectTasks.assigneeUserId, open: count() })
+    .from(projectTasks)
+    .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
+    .where(
+      and(
+        visibleProjectsWhere(membership),
+        isNull(projectProjects.personalUserId),
+        isNull(projectProjects.archivedAt),
+        isNull(projectTasks.deletedAt),
+        ne(projectTasks.status, "done")
+      )
+    )
+    .groupBy(projectTasks.assigneeUserId)
+  const todayOf = new Map(people.map((person) => [person.id, personDay(clockOf(person), at).day]))
+  const days = [...todayOf.values()].sort()
+  const offs = days.length
+    ? await database
+        .select({ userId: projectTimeOff.userId, firstDay: projectTimeOff.firstDay, lastDay: projectTimeOff.lastDay })
+        .from(projectTimeOff)
+        .where(
+          and(
+            eq(projectTimeOff.teamId, membership.teamId),
+            lte(projectTimeOff.firstDay, days[days.length - 1]),
+            gte(projectTimeOff.lastDay, days[0])
+          )
+        )
+    : []
+  return Object.fromEntries(
+    people.map((person) => {
+      const today = todayOf.get(person.id)!
+      const covering = offs
+        .filter((off) => off.userId === person.id && off.firstDay <= today && off.lastDay >= today)
+        .map((off) => off.lastDay)
+        .sort()
+      return [
+        person.id,
+        {
+          open: counts.find((row) => row.userId === person.id)?.open ?? 0,
+          awayUntil: covering.at(-1) ?? null,
+        },
+      ]
+    })
+  )
+}
+
 export type HandOverOutcome = {
   handed: { id: string; title: string }[]
   /** Left with nobody assigned, because the receiver isn't on the project. */
@@ -259,7 +340,7 @@ export type HandOverOutcome = {
  */
 export async function handOverAllTasks(
   actor: Actor,
-  input: { fromUserId: string; toUserId: string },
+  input: { fromUserId: string; toUserId: string; note?: string | null },
   database = db
 ): Promise<HandOverOutcome> {
   const membership = await requireTeamRunner(actor.id, database)
@@ -291,7 +372,12 @@ export async function handOverAllTasks(
     const outcome: HandOverOutcome = { handed: [], left: [] }
     for (const task of tasks) {
       if (await isProjectMember(task.projectId, input.toUserId, tx)) {
-        await assignTask(actor, { taskId: task.id, assigneeUserId: input.toUserId }, tx, { notify: false })
+        await assignTask(
+          actor,
+          { taskId: task.id, assigneeUserId: input.toUserId, note: input.note },
+          tx,
+          { notify: false }
+        )
         outcome.handed.push({ id: task.id, title: task.title })
       } else {
         await clearAssignee(input.fromUserId, eq(projectTasks.id, task.id), tx)
@@ -309,10 +395,13 @@ export async function handOverAllTasks(
           task: { id: first.id, projectId: first.projectId, title: first.title },
           extra: null,
           count: outcome.handed.length,
+          // The note rides along, as on a single hand-over.
           detail:
             outcome.handed.length === 1
-              ? first.title
-              : `From ${fromName}: ${titlesLine(outcome.handed.map((t) => t.title))}`,
+              ? input.note
+                ? `${first.title}: ${input.note}`
+                : first.title
+              : `From ${fromName}: ${titlesLine(outcome.handed.map((t) => t.title))}${input.note ? `. ${input.note}` : ""}`,
         },
       ])
     }
@@ -425,6 +514,7 @@ export async function joinTeamByLink(
     const at = now()
     await tx.insert(projectTeamMembers).values({ teamId: team.id, userId: user.id, role: "member", joinedAt: at })
     await tx.insert(projectTeamJoins).values({ teamId: team.id, userId: user.id, tokenHash: hash, joinedAt: at })
+    await giveStarterTasks(team.id, user.id, tx)
     const runners = await tx
       .select({ userId: projectTeamMembers.userId })
       .from(projectTeamMembers)

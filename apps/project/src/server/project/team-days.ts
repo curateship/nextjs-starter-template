@@ -1,10 +1,18 @@
 import { and, desc, eq, gte, inArray, isNotNull, lt, lte } from "drizzle-orm"
 
-import { addDays, weekdayOf } from "@/lib/project/days"
-import type { CheckinNotes, TeamRole } from "@/lib/project/rules"
+import { addDays, localNow, weekdayOf } from "@/lib/project/days"
+import {
+  DEFAULT_CHECKIN_QUESTIONS,
+  type CheckinNotes,
+  type CheckinQuestions,
+  type TeamRole,
+} from "@/lib/project/rules"
 import { db } from "@/server/db"
 import { visibleProjectIds, type ProjectDb } from "@/server/project/access"
+import { repliesFor, type BlockerReply } from "@/server/project/blocker-replies"
 import { clockOf, isLate, loadClock, notesOf, personDay } from "@/server/project/checkins"
+import { holidayOn, holidaysBetween, type Holiday } from "@/server/project/holidays"
+import { thanksBetween, type ThanksLine } from "@/server/project/task-thanks"
 import { awayOn } from "@/server/project/time-off"
 import {
   projectCheckinItems,
@@ -37,6 +45,8 @@ export type TeamMonth = {
   /** The viewer's own today. */
   today: string
   days: TeamMonthDay[]
+  /** The team's holidays in the month, past and to come, which the squares name. */
+  holidays: Holiday[]
 }
 
 export async function loadTeamMonth(
@@ -71,6 +81,8 @@ export async function loadTeamMonth(
     )
   const blockedCheckins = await blockedCheckinIds(rows, database)
   const { workDays, teamSize, memberIds } = await teamShape(membership.teamId, database)
+  const holidays = await holidaysBetween(membership.teamId, first, last, database)
+  const todayIsHoliday = holidays.some((holiday) => holiday.day === today)
   const awayToday = await awayNotCheckedIn(
     memberIds,
     today,
@@ -83,11 +95,20 @@ export async function loadTeamMonth(
     const mine = rows.filter((row) => row.day === day)
     if (mine.length || day === today) {
       days.push(
-        squareOf(day, day === today, mine, blockedCheckins, workDays, teamSize, day === today ? awayToday : 0)
+        squareOf(
+          day,
+          day === today,
+          mine,
+          blockedCheckins,
+          // Nobody is expected on a team holiday, the same as a day the team doesn't work.
+          day === today && todayIsHoliday ? [] : workDays,
+          teamSize,
+          day === today ? awayToday : 0
+        )
       )
     }
   }
-  return { month: shown, today, days }
+  return { month: shown, today, days, holidays }
 }
 
 type DayRow = {
@@ -211,7 +232,9 @@ export async function countTeamToday(
     })
     .from(projectCheckins)
     .where(and(eq(projectCheckins.teamId, teamId), eq(projectCheckins.day, day)))
-  const { workDays, teamSize, memberIds } = await teamShape(teamId, database)
+  const shape = await teamShape(teamId, database)
+  const { teamSize, memberIds } = shape
+  const workDays = (await holidayOn(teamId, day, database)) ? [] : shape.workDays
   const square = squareOf(
     day,
     true,
@@ -246,6 +269,10 @@ export type TeamDayTask = {
 
 export type TeamDayPerson = {
   person: { id: string; name: string; avatarUrl: string; role: TeamRole }
+  /** The check-in replies attach to; null without one. */
+  checkinId: string | null
+  /** The words the three boxes had that day. */
+  questions: CheckinQuestions
   /** `away`: on time off that day, so not expected. */
   state: "checked_in" | "not_yet" | "missed" | "day_off" | "away" | "no_record"
   checkedInAt: string | null
@@ -254,8 +281,16 @@ export type TeamDayPerson = {
   before: TeamDayTask[]
   /** What they picked on this day. */
   picked: TeamDayTask[]
-  /** Picks that were Stuck that day, with the reason when the task is still Stuck now. */
-  blockers: (TeamDayTask & { reason: string | null })[]
+  /**
+   * Picks that were Stuck that day, with the reason when the task is still
+   * Stuck now, and the replies under each, which only people who can see the
+   * task read.
+   */
+  blockers: (TeamDayTask & { reason: string | null; replies: BlockerReply[] })[]
+  /** Replies under the Blocker note, which everyone on the team reads. */
+  noteReplies: BlockerReply[]
+  /** Thanks the person got that day, on their own calendar. */
+  thanks: ThanksLine[]
   /**
    * The person's own notes on that day's check-in, null without one. They
    * show to everyone on the team: unlike a task title, they are the person's
@@ -269,6 +304,8 @@ export type TeamDayPerson = {
 export type TeamDay = {
   day: string
   today: string
+  /** The team's holiday's name, when the day is one. */
+  holiday: string | null
   /** The viewer's own time zone: everyone's check-in time reads in it. */
   viewerZone: string
   checkedIn: number
@@ -351,6 +388,19 @@ export async function loadTeamDay(
     : []
   const visible = await visibleProjectIds(membership, database)
   const away = await awayOn(ids, day, database)
+  const holiday = await holidayOn(membership.teamId, day, database)
+  const replies = await repliesFor(
+    onDay.map((row) => row.id),
+    database
+  )
+  // Each person's own calendar day, read as a window wide enough for every zone.
+  const thanks = await thanksBetween(
+    ids,
+    new Date(Date.parse(`${addDays(day, -1)}T00:00:00Z`)),
+    new Date(Date.parse(`${addDays(day, 2)}T00:00:00Z`)),
+    visible,
+    database
+  )
   const shown = (item: (typeof items)[number]): TeamDayTask => {
     if (item.personal) return { taskId: null, title: null, personal: true }
     const seen = item.projectId !== null && visible.has(item.projectId)
@@ -367,6 +417,7 @@ export async function loadTeamDay(
     const row = onDay.find((r) => r.userId === person.id) ?? null
     const previous = before.find((r) => r.userId === person.id) ?? null
     const own = personDay(personClock, at)
+    const ownWorkDay = own.workDay && !holiday
     // A day already saved keeps what it said; time off only names a day off "Away".
     const state: TeamDayPerson["state"] = row?.checkedInAt
       ? "checked_in"
@@ -379,20 +430,27 @@ export async function loadTeamDay(
         : day === own.day
           ? away.has(person.id)
             ? "away"
-            : own.workDay
+            : ownWorkDay
               ? "not_yet"
               : "day_off"
           : "no_record"
     const picks = row ? items.filter((item) => item.checkinId === row.id) : []
     const closed = Boolean(row?.closedAt)
+    const rowReplies = row ? (replies.get(row.id) ?? []) : []
     const blockers = picks
       .filter((item) => (closed ? item.endStatus : !item.deletedAt && item.liveStatus) === "stuck")
       .map((item) => {
         const task = shown(item)
         const stillStuck = item.liveStatus === "stuck"
-        return { ...task, reason: task.title !== null && stillStuck ? item.stuckReason : null }
+        return {
+          ...task,
+          reason: task.title !== null && stillStuck ? item.stuckReason : null,
+          // A reply about a task is as private as its title.
+          replies: task.title !== null ? rowReplies.filter((reply) => reply.taskId === item.taskId) : [],
+        }
       })
     const notes = row?.checkedInAt ? notesOf(row) : null
+    const labels = row?.questionLabels
     return {
       person: {
         id: person.id,
@@ -400,6 +458,15 @@ export async function loadTeamDay(
         avatarUrl: person.avatarUrl ?? "",
         role: person.role,
       },
+      checkinId: row?.checkedInAt ? row.id : null,
+      questions:
+        labels?.length === 3
+          ? { yesterday: labels[0], today: labels[1], blocker: labels[2] }
+          : DEFAULT_CHECKIN_QUESTIONS,
+      noteReplies: notes?.blocker ? rowReplies.filter((reply) => !reply.taskId) : [],
+      thanks: (thanks.get(person.id) ?? [])
+        .filter((line) => localNow(line.at, personClock.zone).day === day)
+        .map(({ fromName, taskTitle }) => ({ fromName, taskTitle })),
       state,
       checkedInAt: row?.checkedInAt?.toISOString() ?? null,
       late: row ? isLate(row) : false,
@@ -429,6 +496,7 @@ export async function loadTeamDay(
   return {
     day,
     today,
+    holiday,
     viewerZone: clock.zone,
     checkedIn: rows.filter((row) => row.state === "checked_in").length,
     expected: rows.filter((row) => !["day_off", "away", "no_record"].includes(row.state)).length,

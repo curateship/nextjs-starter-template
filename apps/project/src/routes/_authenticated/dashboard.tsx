@@ -16,6 +16,7 @@ function readSearch(search: Record<string, unknown>): MyDashboardSearch {
   const result: MyDashboardSearch = filters
   if (typeof search.task === "string" && ID.test(search.task)) result.task = search.task
   if (search.checkin === true || search.checkin === "true") result.checkin = true
+  if (search.checkout === true || search.checkout === "true") result.checkout = true
   return result
 }
 

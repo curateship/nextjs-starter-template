@@ -16,6 +16,7 @@ import {
   projectTeamMembers,
   projectTeams,
 } from "@/server/project/schema"
+import { giveStarterTasks } from "@/server/project/starter-tasks"
 import { customShellUsers } from "@/server/schema"
 
 /**
@@ -248,6 +249,7 @@ export async function acceptInvite(
       joinedAt: now(),
     })
     await tx.delete(projectTeamInvites).where(eq(projectTeamInvites.id, invite.id))
+    await giveStarterTasks(invite.teamId, user.id, tx)
     return { teamId: invite.teamId }
   })
 }

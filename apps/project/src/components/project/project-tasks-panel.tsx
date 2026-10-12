@@ -22,6 +22,7 @@ import { rememberProject } from "@/lib/project/new-task-project"
 import { PROJECT_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
 import type { TaskStatus } from "@/lib/project/rules"
 import { filterTasks, hasTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
+import { overDoingLimit } from "@/lib/project/doing-limit"
 import { placesAfterReorder } from "@/lib/project/task-order"
 
 const VIEWS = ["board", "list", "activity"] as const
@@ -147,6 +148,8 @@ export function ProjectTasksPanel({
           onOpenTask={onOpenTask}
           onMove={requestStatus}
           onReorder={(taskIds) => void reorder(taskIds)}
+          // Counted from every task, so a filter never hides who is over the limit.
+          doingWarnings={overDoingLimit(tasks, page.project.doingLimit)}
         />
       ) : (
         <TaskList

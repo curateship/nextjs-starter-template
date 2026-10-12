@@ -40,11 +40,14 @@ export function MeetingChips({ meetings }: { meetings: DayMeeting[] }) {
  */
 export function DayMeetings({
   day,
+  holiday,
   meetings,
   viewerZone,
   onEdit,
 }: {
   day: string
+  /** The team holiday's name, which a calendar square has too little room for. */
+  holiday?: string
   meetings: DayMeeting[]
   viewerZone: string
   onEdit: (meeting: Meeting) => void
@@ -52,8 +55,9 @@ export function DayMeetings({
   return (
     <section className="grid gap-3 border-t p-4" aria-labelledby="day-meetings-heading">
       <div className="flex items-baseline justify-between gap-2">
-        <h3 id="day-meetings-heading" className="font-medium">
+        <h3 id="day-meetings-heading" className="min-w-0 font-medium break-words">
           {shortDayLabel(day)}
+          {holiday ? <span className="font-normal text-muted-foreground"> · {holiday}</span> : null}
         </h3>
         <span className="shrink-0 text-sm text-muted-foreground">
           {meetings.length === 0

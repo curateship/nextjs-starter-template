@@ -3,20 +3,27 @@ import { z } from "zod"
 
 import { isRealDay } from "@/lib/project/days"
 import {
-  checkinNotesSchema,
+  blockerReplySchema,
+  checkOutSchema,
   myCheckinTimeSchema,
+  orderPicksSchema,
+  saveCheckinNotesSchema,
   submitCheckinSchema,
   timeOffSchema,
 } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
 import { findMembership } from "@/server/project/access"
+import { addBlockerReply } from "@/server/project/blocker-replies"
 import {
   addPick,
+  checkOut,
+  orderTodaysPicks,
   removePick,
   saveCheckinNotes,
   setMyCheckinTime,
   submitCheckin,
 } from "@/server/project/checkins"
+import { loadMyWeek } from "@/server/project/my-week"
 import { listInvitesForMe } from "@/server/project/invites"
 import { loadMyDashboard } from "@/server/project/my-dashboard"
 import { loadTeamDay, loadTeamMonth } from "@/server/project/team-days"
@@ -24,6 +31,9 @@ import { addTimeOff, listTimeOffFor, removeTimeOff } from "@/server/project/time
 
 export type { CheckinAnswer, CheckinClock, CheckinPage } from "@/server/project/checkins"
 export type { MyDashboard } from "@/server/project/my-dashboard"
+export type { BlockerReply } from "@/server/project/blocker-replies"
+export type { MyWeek, MyWeekTask } from "@/server/project/my-week"
+export type { ThanksLine } from "@/server/project/task-thanks"
 export type { CheckinRecord, TimeOff } from "@/server/project/time-off"
 export type {
   TeamDay,
@@ -64,7 +74,7 @@ const removePickFn = createServerFn({ method: "POST" })
 
 const saveCheckinNotesFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(checkinNotesSchema)
+  .inputValidator(saveCheckinNotesSchema)
   .handler(async ({ data, context }) => saveCheckinNotes(context.user.id, data))
 
 const setMyCheckinTimeFn = createServerFn({ method: "POST" })
@@ -96,7 +106,7 @@ export function pickTask(taskId: string) {
 export function unpickTask(taskId: string) {
   return removePickFn({ data: { taskId } })
 }
-export function saveNotes(data: z.input<typeof checkinNotesSchema>) {
+export function saveNotes(data: z.input<typeof saveCheckinNotesSchema>) {
   return saveCheckinNotesFn({ data })
 }
 export function saveMyCheckinTime(data: z.input<typeof myCheckinTimeSchema>) {
@@ -129,4 +139,38 @@ export function removeDaysOff(timeOffId: string) {
 }
 export function loadDaysOff(userId?: string) {
   return listTimeOffFn({ data: { userId } })
+}
+
+const replyFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(blockerReplySchema)
+  .handler(async ({ data, context }) => addBlockerReply(context.user, data))
+
+const checkOutFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(checkOutSchema)
+  .handler(async ({ data, context }) => checkOut(context.user, data))
+
+const orderPicksFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(orderPicksSchema)
+  .handler(async ({ data, context }) => orderTodaysPicks(context.user.id, data.taskIds))
+
+/** My week: only ever my own, so it takes no person. */
+const loadMyWeekFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ monday: day.optional() }))
+  .handler(async ({ data, context }) => loadMyWeek(context.user.id, data.monday))
+
+export function replyToBlocker(data: z.input<typeof blockerReplySchema>) {
+  return replyFn({ data })
+}
+export function checkOutForTheDay(data: z.input<typeof checkOutSchema>) {
+  return checkOutFn({ data })
+}
+export function orderMyPicks(taskIds: string[]) {
+  return orderPicksFn({ data: { taskIds } })
+}
+export function loadWeek(monday?: string) {
+  return loadMyWeekFn({ data: { monday } })
 }

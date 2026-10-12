@@ -5,9 +5,12 @@ import {
   CalendarClockIcon,
   CircleAlertIcon,
   CircleCheckIcon,
+  ClipboardCheckIcon,
   ClipboardListIcon,
+  HeartIcon,
   ListChecksIcon,
   MessageSquareIcon,
+  MessageSquareReplyIcon,
   PlayIcon,
   UndoIcon,
   UserPlusIcon,
@@ -35,6 +38,9 @@ const TASK_NOTICE_KINDS = [
   "task_step",
   "task_ready",
   "tasks_handed",
+  "task_review",
+  "task_sent_back",
+  "task_thanks",
 ] as const
 export type TaskNoticeKind = (typeof TASK_NOTICE_KINDS)[number]
 
@@ -46,6 +52,8 @@ const APP_NOTICE_KINDS = [
   "team_morning",
   "team_joined",
   "meeting_invite",
+  "blocker_reply",
+  "checkin_mention",
 ] as const
 
 const PROJECT_NOTICE_KINDS = [...TASK_NOTICE_KINDS, ...APP_NOTICE_KINDS] as const
@@ -67,6 +75,9 @@ const HEADING_ENDING: Record<Exclude<TaskNoticeKind, "tasks_handed">, string> = 
   task_unblocked: " unblocked a task",
   task_step: " gave you a step",
   task_ready: " finished what your task was waiting on",
+  task_review: " finished a task for your review",
+  task_sent_back: " sent a task back to you",
+  task_thanks: " thanked you for a task",
 }
 
 /** "Anna gave you a task", or "Anna gave you 9 tasks" for a hand-over of many. */
@@ -86,6 +97,19 @@ const MEETING_INVITE_ENDING = " invited you to a meeting"
 /** "Anna invited you to a meeting". */
 export function meetingInviteHeading(name: string) {
   return `${name}${MEETING_INVITE_ENDING}`
+}
+
+const BLOCKER_REPLY_ENDING = " answered your blocker"
+const CHECKIN_MENTION_ENDING = " mentioned you in their check-in"
+
+/** "Maya answered your blocker". */
+export function blockerReplyHeading(name: string) {
+  return `${name}${BLOCKER_REPLY_ENDING}`
+}
+
+/** "Leo mentioned you in their check-in". */
+export function checkinMentionHeading(name: string) {
+  return `${name}${CHECKIN_MENTION_ENDING}`
 }
 const TASKS_HANDED_WORDS = / gave you \d+ tasks$/
 
@@ -142,6 +166,8 @@ export function noticeKindFromWords(
   if (TEAM_MORNING_WORDS.test(notice.message)) return "team_morning"
   if (notice.message.endsWith(TEAM_JOINED_ENDING)) return "team_joined"
   if (notice.message.endsWith(MEETING_INVITE_ENDING)) return "meeting_invite"
+  if (notice.message.endsWith(BLOCKER_REPLY_ENDING)) return "blocker_reply"
+  if (notice.message.endsWith(CHECKIN_MENTION_ENDING)) return "checkin_mention"
   if (TASKS_HANDED_WORDS.test(notice.message)) return "tasks_handed"
   return (
     (Object.keys(HEADING_ENDING) as (keyof typeof HEADING_ENDING)[]).find((kind) =>
@@ -239,6 +265,31 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
   meeting_invite: {
     icon: VideoIcon,
     toneClassName: "bg-primary/10 text-primary",
+    categoryId: "tasks",
+  },
+  blocker_reply: {
+    icon: MessageSquareReplyIcon,
+    toneClassName: "bg-primary/10 text-primary",
+    categoryId: "tasks",
+  },
+  checkin_mention: {
+    icon: AtSignIcon,
+    toneClassName: "bg-primary/10 text-primary",
+    categoryId: "tasks",
+  },
+  task_review: {
+    icon: ClipboardCheckIcon,
+    toneClassName: "bg-primary/10 text-primary",
+    categoryId: "tasks",
+  },
+  task_sent_back: {
+    icon: UndoIcon,
+    toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    categoryId: "tasks",
+  },
+  task_thanks: {
+    icon: HeartIcon,
+    toneClassName: "bg-pink-500/10 text-pink-600 dark:text-pink-400",
     categoryId: "tasks",
   },
 }

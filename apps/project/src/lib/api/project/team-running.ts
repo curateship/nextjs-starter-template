@@ -1,10 +1,12 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { handOverAllSchema, memberTitleSchema } from "@/lib/project/rules"
+import { handOverAllSchema, holidaySchema, memberTitleSchema } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
+import { addHoliday, removeHoliday } from "@/server/project/holidays"
 import {
   handOverAllTasks,
+  loadPeopleRoom,
   joinTeamByLink,
   loadJoinOffer,
   loadNeedsAttention,
@@ -14,7 +16,9 @@ import {
   turnOffJoinLink,
 } from "@/server/project/team-running"
 
+export type { Holiday } from "@/server/project/holidays"
 export type {
+  PersonRoom,
   AttentionKind,
   AttentionRow,
   HandOverOutcome,
@@ -70,8 +74,8 @@ export function loadAttention() {
 export function loadTeamWorkload() {
   return loadWorkloadFn()
 }
-export function handOverAll(fromUserId: string, toUserId: string) {
-  return handOverAllFn({ data: { fromUserId, toUserId } })
+export function handOverAll(fromUserId: string, toUserId: string, note: string | null = null) {
+  return handOverAllFn({ data: { fromUserId, toUserId, note } })
 }
 export function newJoinLink() {
   return makeJoinLinkFn()
@@ -87,4 +91,29 @@ export function joinThroughLink(joinToken: string) {
 }
 export function saveMemberTitle(data: z.input<typeof memberTitleSchema>) {
   return setTitleFn({ data })
+}
+
+const loadPeopleRoomFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) => loadPeopleRoom(context.user.id))
+
+const addHolidayFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(holidaySchema)
+  .handler(async ({ data, context }) => addHoliday(context.user.id, data))
+
+const removeHolidayFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ holidayId: z.string().min(1).max(36) }))
+  .handler(async ({ data, context }) => removeHoliday(context.user.id, data.holidayId))
+
+/** Each teammate's open tasks and time off, for the hand-to pickers. */
+export function loadRoom() {
+  return loadPeopleRoomFn()
+}
+export function addTeamHoliday(data: z.input<typeof holidaySchema>) {
+  return addHolidayFn({ data })
+}
+export function removeTeamHoliday(holidayId: string) {
+  return removeHolidayFn({ data: { holidayId } })
 }

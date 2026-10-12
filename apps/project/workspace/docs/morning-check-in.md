@@ -85,8 +85,8 @@ check in with its own dashboard".
    handed the task out and its followers, the same as on the task itself.
 4. **Add a task for yourself.** A title and a project make a task assigned to
    you, ticked straight away.
-5. **Notes for the team.** Three short boxes, Yesterday, Today and Blocker,
-   each up to 280 characters. See below.
+5. **Notes for the team.** Three short boxes, Yesterday, Today and Blocker
+   unless the team has renamed them, each up to 280 characters. See below.
 6. **Check in.** Saves the answers, the ticks and the notes as today's
    check-in, and closes the window. Closing it before then with answers,
    ticks or notes in it asks first, because they would be lost. So does a
@@ -108,6 +108,40 @@ check in with its own dashboard".
   is left or the window shuts. The card's header says Saving…, Saved or Not
   saved. An empty box saves as no note.
 - **Only today's.** Once the day is over, its notes stay as they were.
+- **Yesterday starts from last evening's check-out.** If the person checked
+  out with a "What's left" note, the Yesterday box opens with it, for them to
+  change or clear. Leaving it as it is doesn't count as typing, so closing the
+  window doesn't ask first.
+
+### Tagging someone in a note
+
+- **Typing @ in any of the three boxes lists the team's members**, the same
+  list as a task's chat (`tag-textarea.tsx`, shared by both). Anyone on the
+  team can be tagged, because everyone on the team reads the notes.
+- **A tagged person gets "Leo mentioned you in their check-in"**, with the
+  note under it, and it opens the Team dashboard on that day.
+- **One notice per person per note.** Tagging the same person in two boxes
+  sends two. Tagging yourself sends nothing.
+- **Only once the box is left.** The notes save themselves 700ms after the
+  last key, so a name half typed could otherwise reach the wrong person. Those
+  saves tell nobody; leaving a box, closing the window, or checking in does.
+- **Editing tells only the newly tagged**, the chat's rule. Who each note
+  tagged is kept in `project_checkin_mentions`.
+- **Saved in the chat's format**, `@[Leo Park](<user id>)`, and drawn as the
+  person's current name on the Team dashboard. Tagging someone off the team
+  is refused: "You can only tag people on your team."
+
+### The team's own words for the boxes
+
+- **The owner and admins rename the boxes** in Team settings, under
+  "Check-in boxes", such as "Wins" and "Focus". Tyler chose renaming only on
+  11 Oct 2026: there are always three boxes.
+- **The third box still marks someone Blocked**, whatever it is called.
+- **The saved columns keep their names.** Only the words on screen change.
+- **Past days read under the words of their day.** Each check-in saves the
+  three words it was made under (`question_labels`). Days from before
+  11 Oct 2026 have none and read Yesterday, Today and Blocker, the words in
+  use then. An empty box in Team settings goes back to the usual word.
 
 ### Snoozed and Just me tasks
 
@@ -116,6 +150,30 @@ check in with its own dashboard".
   carried over or dropped, snoozed or not, so nothing is let go silently.
 - **"Add a task for yourself" offers "Just me"** beside the projects, for a
   task only that person can see.
+
+## The evening check-out
+
+Optional, and private to the person. Tyler's rule in
+[What this app is](what-this-app-is.md): "The evening check-out is optional".
+
+- **Check out** sits beside "Change today's picks" on My dashboard once the
+  person has checked in. It opens a window (`?checkout=true`).
+- **Today's picks are listed with their status.** Ticking one marks it Done
+  when the person presses Check out, one task at a time as from the task
+  itself, so each writes its history and sends its notices. A task already
+  Done shows ticked and can't be unticked here.
+- **All or nothing.** If one ticked task can't be marked Done, for example
+  because it went in the bin since the morning, the check-out says why and
+  saves nothing, so no task is left half finished (`checkOut` in
+  `src/server/project/checkins.ts`).
+- **"What's left"**: one note, up to 280 characters, which starts the next
+  check-in's Yesterday box.
+- **It can be changed until the day ends.** The button then reads "Change
+  check-out", and My dashboard says "You checked out at 5:31 PM."
+- **Never needed.** Checking in tomorrow works the same without it.
+- **Nobody else sees it** (Tyler's choice, 11 Oct 2026). The Team dashboard
+  never shows a check-out or its note, nothing counts who hasn't checked out,
+  and no reminder of any kind exists for it.
 
 ## After checking in
 
@@ -129,12 +187,41 @@ check in with its own dashboard".
 - **The morning's answers stay on show** in the window, with each drop's
   reason.
 - **The notes can change all day**, as above.
+- **Today's picks have my own order.** On My dashboard's Today tab rows drag
+  into the order the person plans to work them, saved on today's check-in
+  lines (`position` on `project_checkin_items`). Nobody else's view changes:
+  the project's own order is untouched. A task added later in the day goes to
+  the bottom. The next morning, carried-over tasks keep the last check-in's
+  order, followed by new picks in the order ticked.
 
 ## Days off
 
 - **No reminder, no "hasn't checked in" mark** on a day the team doesn't work.
 - **A person can still check in on a day off**, and that check-in is never
   late.
+
+## Team holidays
+
+A public holiday is a day off for everyone, set once.
+
+- **The owner and admins add them** in Team settings under "Team holidays":
+  a date and a name, such as "Christmas Day". Today or later only. Removing
+  one asks first.
+- **On that date nobody is reminded**: no check-in reminder, no "Due
+  tomorrow" or "Overdue", and no morning notice to the owner.
+- **Saved as a day off.** The end-of-day job saves the day with `work_day`
+  false, so nobody shows "Didn't check in" and the check-in rate leaves the
+  day out.
+- **The calendar square reads the holiday's name**, and the Check-ins tab
+  says "Christmas Day, a team holiday."
+- **The date is read on each person's own calendar**, the same way the team's
+  work days are. A person in another country marks their own country's
+  holidays as time off.
+- **Days already saved don't change**, the same rule as time off.
+- **Checking in on a holiday is allowed** and is never late.
+- **Where it lives:** `project_team_holidays`, rules in
+  `src/server/project/holidays.ts`, the card in
+  `src/components/project/team-checkin-settings.tsx`.
 
 ## Time off
 
@@ -172,7 +259,10 @@ again from today's tasks.
 - **`project_checkins`**: one row per person per day of their own calendar,
   with the time zone used, whether it was a work day, when they were due,
   when they checked in, and the three notes (`note_yesterday`, `note_today`,
-  `note_blocker`, from `drizzle/0105_project_team_dashboard.sql`).
+  `note_blocker`, from `drizzle/0105_project_team_dashboard.sql`). From
+  `drizzle/0106_project_checkin_and_handing_out.sql` it also keeps the words
+  the boxes had that day (`question_labels`), and the private check-out
+  (`checked_out_at`, `note_left`).
 - **`project_checkin_items`**: each task picked that day (and whether it was
   carried over), and each task dropped from the last check-in with the reason.
   The task's title and project are copied onto the row, so a deleted task
@@ -190,17 +280,22 @@ again from today's tasks.
 
 ## Where it lives
 
-- **Tables:** `drizzle/0095_project_checkins.sql`, and the reminder claims in
-  `drizzle/0098_project_reminders.sql`.
-- **Rules:** `src/server/project/checkins.ts`.
+- **Tables:** `drizzle/0095_project_checkins.sql`, the reminder claims in
+  `drizzle/0098_project_reminders.sql`, and tags, holidays, the check-out
+  and my own order in `drizzle/0106_project_checkin_and_handing_out.sql`.
+- **Rules:** `src/server/project/checkins.ts`, with tags in notes in
+  `checkin-mentions.ts` and holidays in `holidays.ts`.
 - **The two background jobs:** `src/server/project/checkin-jobs.ts`, listed as
   `project-checkins` in `src/app/server-options.ts`, on the shell's
   fifteen-second loop.
 - **Due-date reminders and the team's morning:**
   `src/server/project/reminder-jobs.ts`, listed as `project-reminders`.
 - **Endpoints:** `src/lib/api/project/checkins.ts`.
-- **Screen:** `src/components/project/checkin-dialog.tsx` and
+- **Screen:** `src/components/project/checkin-dialog.tsx`,
+  `src/components/project/checkout-dialog.tsx` and
   `src/components/project/my-checkin-time.tsx`.
 - **Tests:** `src/server/project/checkins.test.ts`, including the reminder
-  across two time zones and two overlapping passes sending one notice, and
-  the notes in `src/server/project/team-dashboard.test.ts`.
+  across two time zones and two overlapping passes sending one notice, the
+  notes in `src/server/project/team-dashboard.test.ts`, and tags, the
+  check-out, renamed boxes, my own order and holidays in
+  `src/server/project/checkin-and-handing-out.test.ts`.

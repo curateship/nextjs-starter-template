@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -28,7 +29,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 type Project = ProjectPage["project"]
 
 /**
- * The project's name, colour, description, Archive and sections, in a window
+ * The project's name, colour, description, Doing limit, Archive and sections, in a window
  * opened from the cog on the project page's details panel. Each field saves when it
  * is left or Enter is pressed, and the colour the moment it is picked, so the
  * window ends with Done.
@@ -80,13 +81,34 @@ function ProjectSettingsFields({ project }: { project: Project }) {
   const router = useRouter()
   const [name, setName] = useSyncedDraft(project.name)
   const [description, setDescription] = useSyncedDraft(project.description)
+  const [doingLimit, setDoingLimit] = useSyncedDraft(project.doingLimit ? String(project.doingLimit) : "")
+  const [limitInvalid, setLimitInvalid] = React.useState(false)
   const [nameInvalid, setNameInvalid] = React.useState(false)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const readOnly = project.archived
 
-  async function save(fields: { name?: string; color?: ProjectColor; description?: string }) {
+  async function save(fields: {
+    name?: string
+    color?: ProjectColor
+    description?: string
+    doingLimit?: number | null
+  }) {
     const ok = await run(() => saveProject({ projectId: project.id, ...fields }), "Saved.")
     if (ok) await router.invalidate()
+    return ok
+  }
+
+  /** Empty means no limit. A number that isn't 1 to 99 stays in the box, marked, until it's fixed. */
+  async function commitDoingLimit() {
+    const text = doingLimit.trim()
+    const next = text === "" ? null : Number(text)
+    if (next === project.doingLimit) return
+    if (next !== null && (!Number.isInteger(next) || next < 1 || next > LIMITS.doingLimit)) {
+      setLimitInvalid(true)
+      showErrorToast(`Type a whole number from 1 to ${LIMITS.doingLimit}, or leave it empty for no limit.`)
+      return
+    }
+    if (!(await save({ doingLimit: next }))) setLimitInvalid(true)
   }
 
   function commitName() {
@@ -156,6 +178,34 @@ function ProjectSettingsFields({ project }: { project: Project }) {
             placeholder="What this project is for"
             onChange={(event) => setDescription(event.target.value)}
             onBlur={commitDescription}
+          />
+        </div>
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="project-doing-limit"
+            hint="The Board warns when someone has more than this in Doing. It never stops anyone. Leave it empty for no limit."
+          >
+            Doing per person
+          </FieldLabel>
+          <Input
+            id="project-doing-limit"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={LIMITS.doingLimit}
+            className="w-full sm:w-28"
+            value={doingLimit}
+            disabled={readOnly}
+            placeholder="No limit"
+            aria-invalid={limitInvalid || undefined}
+            onChange={(event) => {
+              setDoingLimit(event.target.value)
+              setLimitInvalid(false)
+            }}
+            onBlur={() => void commitDoingLimit()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur()
+            }}
           />
         </div>
         <div>

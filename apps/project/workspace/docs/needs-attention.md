@@ -44,6 +44,11 @@ For everyone, to see who has room before handing out more work.
   project, as everywhere else; a member sees counts and tasks from their own
   projects only. "Just me" tasks never count.
 - **Busiest first**, by open tasks.
+- **The same Open count shows in every hand-to picker**, beside each name,
+  with "Away until Dec 4" for anyone on time off today, so nobody hands work
+  to someone on holiday or already swamped (`loadPeopleRoom` in
+  `team-running.ts`). See Handing a task over in
+  [Projects and tasks](projects-and-tasks.md#handing-a-task-over).
 
 ## Where it lives
 

@@ -20,7 +20,8 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 /**
  * Asks for the one line a reason needs: why a task is Stuck, or why it is
  * being handed back. Used where there is no task window open to type it in,
- * such as dragging a card into the Stuck column.
+ * such as dragging a card into the Stuck column. With `optional` it asks for
+ * a line that may be left empty, such as a hand-over's note.
  */
 export function ReasonDialog({
   open,
@@ -31,6 +32,9 @@ export function ReasonDialog({
   busy,
   onConfirm,
   onClose,
+  optional = false,
+  cardTitle = "Reason",
+  maxLength = LIMITS.reason,
 }: {
   open: boolean
   title: string
@@ -40,6 +44,9 @@ export function ReasonDialog({
   busy: boolean
   onConfirm: (reason: string) => Promise<boolean>
   onClose: () => void
+  optional?: boolean
+  cardTitle?: string
+  maxLength?: number
 }) {
   const [reason, setReason] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
@@ -51,7 +58,7 @@ export function ReasonDialog({
   }
 
   async function confirm() {
-    if (!reason.trim()) {
+    if (!reason.trim() && !optional) {
       setInvalid(true)
       showErrorToast("Say in a line why.")
       return
@@ -77,7 +84,7 @@ export function ReasonDialog({
             <DialogBody>
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>Reason</CardTitle>
+                  <CardTitle>{cardTitle}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   <div className="grid gap-2">
@@ -85,7 +92,7 @@ export function ReasonDialog({
                     <Input
                       id="reason-text"
                       value={reason}
-                      maxLength={LIMITS.reason}
+                      maxLength={maxLength}
                       aria-invalid={invalid || undefined}
                       onChange={(event) => {
                         setReason(event.target.value)

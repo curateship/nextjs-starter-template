@@ -3,7 +3,10 @@ import { z } from "zod"
 
 import {
   LIMITS,
+  acceptManySchema,
   assignTaskSchema,
+  needsReviewSchema,
+  reviewSchema,
   bulkChangeSchema,
   createTasksFromLinesSchema,
   setRepeatSchema,
@@ -37,8 +40,11 @@ import {
   setWaitingOn,
 } from "@/server/project/planning"
 import { followTask, unfollowTask } from "@/server/project/task-followers"
+import { reviewTask, setNeedsReview } from "@/server/project/task-review"
+import { thankForTask } from "@/server/project/task-thanks"
 import { eachOf } from "@/server/project/teams"
 import {
+  acceptManyTasks,
   acceptTask,
   addStep,
   assignTask,
@@ -61,7 +67,7 @@ export type {
   NewTaskProject,
 } from "@/server/project/task-changes"
 export type { TaskFile } from "@/server/project/task-files"
-export type { TaskCard, TaskDetail, TaskStep } from "@/server/project/tasks"
+export type { AcceptOutcome, TaskCard, TaskDetail, TaskStep } from "@/server/project/tasks"
 
 const id = z.string().min(1).max(36)
 const stepText = z.string().trim().min(1, "A step can't be empty.").max(LIMITS.stepText)
@@ -320,4 +326,37 @@ export function followProjectTask(taskId: string, follow: boolean) {
 }
 export function loadProjectNoticeDetails(notificationIds: readonly string[]) {
   return loadNoticeDetailsFn({ data: { notificationIds: [...notificationIds] } })
+}
+
+const acceptManyFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(acceptManySchema)
+  .handler(async ({ data, context }) => acceptManyTasks(context.user, data.taskIds))
+
+const needsReviewFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(needsReviewSchema)
+  .handler(async ({ data, context }) => setNeedsReview(context.user, data))
+
+const reviewFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(reviewSchema)
+  .handler(async ({ data, context }) => reviewTask(context.user, data))
+
+const thankFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ taskId: id }))
+  .handler(async ({ data, context }) => thankForTask(context.user, data.taskId))
+
+export function acceptTasks(taskIds: string[]) {
+  return acceptManyFn({ data: { taskIds } })
+}
+export function setTaskNeedsReview(taskId: string, on: boolean) {
+  return needsReviewFn({ data: { taskId, on } })
+}
+export function reviewProjectTask(data: z.input<typeof reviewSchema>) {
+  return reviewFn({ data })
+}
+export function thankForProjectTask(taskId: string) {
+  return thankFn({ data: { taskId } })
 }

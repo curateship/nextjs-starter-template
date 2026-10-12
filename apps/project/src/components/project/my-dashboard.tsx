@@ -3,12 +3,17 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
   BellIcon,
   CalendarCheckIcon,
+  CheckCheckIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
+  MoonIcon,
   PlaneIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { CheckinDialog, StatusLine } from "@/components/project/checkin-dialog"
+import { CheckoutDialog } from "@/components/project/checkout-dialog"
+import { MyWeekSection } from "@/components/project/my-week-card"
 import { MyCheckinTime } from "@/components/project/my-checkin-time"
 import { SaveLine } from "@/components/project/save-line"
 import { PersonAvatar } from "@/components/project/task-bits"
@@ -30,17 +35,21 @@ import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsCount, TabsTrigger } from "@/components/ui/tabs"
-import type { MyDashboard as MyDashboardData } from "@/lib/api/project/checkins"
+import { orderMyPicks, type MyDashboard as MyDashboardData } from "@/lib/api/project/checkins"
+import { acceptTasks } from "@/lib/api/project/tasks"
 import { markNotificationRead, type NotificationItem } from "@/lib/api/notification"
 import { saveMemberTitle } from "@/lib/api/project/team-running"
 import type { InviteForMe } from "@/lib/api/project/teams"
 import { formatDate } from "@/lib/format/format-time"
+import { plural } from "@/lib/format/plural"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useAppNotificationDetails } from "@/lib/hooks/use-app-notification-details"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { notificationAction } from "@/lib/notification-action"
 import { MY_DASHBOARD_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { clockIn } from "@/lib/project/days"
 import { LIMITS, TEAM_ROLE_LABEL } from "@/lib/project/rules"
 import {
   DUE_GROUPS,
@@ -49,6 +58,7 @@ import {
   hasTaskFilters,
   type TaskFilters,
 } from "@/lib/project/task-filters"
+import { todaysPicks } from "@/lib/project/todays-picks"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -57,6 +67,8 @@ export type MyDashboardSearch = Omit<TaskFilters, "person"> & {
   task?: string
   /** Opens the check-in window, which is where the bell's reminder goes. */
   checkin?: true
+  /** Opens the optional evening check-out. */
+  checkout?: true
 }
 
 type TaskTab = "today" | "open" | "done"
@@ -113,7 +125,13 @@ function Dashboard({
       left={{
         label: "Me",
         showLabel: "Show my details",
-        content: <MePanel dashboard={dashboard} onCheckIn={() => go({ checkin: true })} />,
+        content: (
+          <MePanel
+            dashboard={dashboard}
+            onCheckIn={() => go({ checkin: true })}
+            onCheckOut={() => go({ checkout: true })}
+          />
+        ),
       }}
       middle={{
         label: "My tasks",
@@ -139,11 +157,26 @@ function Dashboard({
         open={search.checkin === true}
         onClose={() => go({ checkin: undefined })}
       />
+      {dashboard.checkin.checkin ? (
+        <CheckoutDialog
+          page={dashboard.checkin}
+          open={search.checkout === true}
+          onClose={() => go({ checkout: undefined })}
+        />
+      ) : null}
     </ThreePanels>
   )
 }
 
-function MePanel({ dashboard, onCheckIn }: { dashboard: MyDashboardData; onCheckIn: () => void }) {
+function MePanel({
+  dashboard,
+  onCheckIn,
+  onCheckOut,
+}: {
+  dashboard: MyDashboardData
+  onCheckIn: () => void
+  onCheckOut: () => void
+}) {
   const { me, checkin } = dashboard
   return (
     <>
@@ -182,13 +215,27 @@ function MePanel({ dashboard, onCheckIn }: { dashboard: MyDashboardData; onCheck
                 {dashboard.record.of === 1 ? "day" : "days"}
               </p>
             ) : null}
-            <div>
+            {checkin.checkout?.at ? (
+              <p className="text-sm text-muted-foreground">
+                You checked out at {clockIn(checkin.checkout.at, checkin.clock.zone)}.
+              </p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
               <Button type="button" variant={checkin.checkin ? "outline" : "default"} onClick={onCheckIn}>
                 <CalendarCheckIcon className="size-4" />
                 {checkin.checkin ? "Change today's picks" : "Check in"}
               </Button>
+              {/* Optional, so it never nags: a plain button once checked in, nothing more. */}
+              {checkin.checkin ? (
+                <Button type="button" variant="outline" onClick={onCheckOut}>
+                  <MoonIcon className="size-4" />
+                  {checkin.checkout?.at ? "Change check-out" : "Check out"}
+                </Button>
+              ) : null}
             </div>
           </section>
+          <Separator />
+          <MyWeekSection reload={dashboard} />
           <Separator />
           <section className="grid gap-3" aria-labelledby="my-time-off-heading">
             <h3 id="my-time-off-heading" className="flex items-center gap-2 text-sm font-medium">
@@ -216,11 +263,21 @@ function MyTasksPanel({
   onFilters: (patch: Partial<TaskFilters>) => void
   onOpenTask: (taskId: string) => void
 }) {
+  const router = useRouter()
+  const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const { tasks, checkin } = dashboard
-  const picked = new Set(checkin.pickedTaskIds)
   // Today's picks can include a carried-over task since handed to someone else,
-  // so they are read from the check-in rather than from my own tasks.
-  const today = checkin.groups.flatMap((group) => group.tasks).filter((task) => picked.has(task.id))
+  // so they are read from the check-in rather than from my own tasks. They come
+  // in my own order; a drag shows at once and goes back if the save fails.
+  const picks = todaysPicks(checkin)
+  const savedOrder = picks.map((task) => task.id).join(",")
+  const [order, setOrder] = React.useState<{ from: string; ids: string[] } | null>(null)
+  const ids = order && order.from === savedOrder ? order.ids : picks.map((task) => task.id)
+  const today = ids.flatMap((id, position) => {
+    const task = picks.find((pick) => pick.id === id)
+    // The list's "order" column reads `position`, so my order rides there.
+    return task ? [{ ...task, position }] : []
+  })
   // My own day, as in the check-in, so "Today" and a snooze's day mean the same in both.
   const myDay = checkin.today.day
   const notDone = tasks.filter((task) => task.status !== "done")
@@ -229,7 +286,35 @@ function MyTasksPanel({
   const snoozed = notDone.length - open.length
   const done = tasks.filter((task) => task.status === "done")
   const [tab, setTab] = React.useState<TaskTab>(today.length ? "today" : "open")
-  const waiting = open.filter((task) => task.waiting).length
+  const waitingTasks = open.filter((task) => task.waiting)
+  const waiting = waitingTasks.length
+  const bulk = { people: checkin.people, projects: [] }
+
+  async function reorder(next: string[]) {
+    setOrder({ from: savedOrder, ids: next })
+    const ok = await run(() => orderMyPicks(next))
+    if (!ok) setOrder(null)
+    else await router.invalidate()
+  }
+
+  /** Each waiting task is accepted on its own; one that changed hands is refused alone. */
+  async function acceptAll() {
+    let result = { accepted: [] as string[], refused: [] as { title: string; reason: string }[] }
+    const ok = await run(async () => {
+      result = await acceptTasks(waitingTasks.map((task) => task.id))
+    })
+    if (!ok) return
+    const accepted = `${result.accepted.length} accepted`
+    if (result.refused.length) {
+      const first = result.refused[0]
+      showErrorToast(
+        `${accepted}, ${result.refused.length} refused. ${first.title ? `"${first.title}": ` : ""}${first.reason}`
+      )
+    } else {
+      toast.success(`${accepted}.`)
+    }
+    await router.invalidate()
+  }
   const rows = filterTasks(tab === "today" ? today : tab === "open" ? open : done, filters)
   const filtered = hasTaskFilters(filters)
 
@@ -250,11 +335,17 @@ function MyTasksPanel({
       </Tabs>
       <TaskFiltersBar filters={filters} onChange={onFilters} labels={dashboard.labels} />
       {tab === "open" && waiting && !filtered ? (
-        <p className="border-b px-4 py-2 text-sm">
-          {waiting === 1
-            ? "1 task is waiting for you to accept it or hand it back."
-            : `${waiting} tasks are waiting for you to accept them or hand them back.`}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
+          <p className="text-sm">
+            {waiting === 1
+              ? "1 task is waiting for you to accept it or hand it back."
+              : `${waiting} tasks are waiting for you to accept them or hand them back.`}
+          </p>
+          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void acceptAll()}>
+            <CheckCheckIcon className="size-4" />
+            Accept all {waiting} {plural(waiting, "task")}
+          </Button>
+        </div>
       ) : null}
       {tab === "open" && snoozed ? (
         <p className="border-b px-4 py-2 text-sm text-muted-foreground">
@@ -264,9 +355,14 @@ function MyTasksPanel({
         </p>
       ) : null}
       <TaskList
+        // Each tab keeps its own sort: Today starts in my order, the others by due date.
+        key={tab}
         tasks={rows}
         readOnly={false}
         showProject
+        bulk={bulk}
+        onReorder={tab === "today" && !filtered ? (next) => void reorder(next) : undefined}
+        orderLabel="my order"
         onOpenTask={(task) => onOpenTask(task.id)}
         groups={tab === "open" ? DUE_GROUPS : undefined}
         groupOf={(task) => dueGroupOf(task, myDay)}

@@ -18,7 +18,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { CircleAlertIcon, FolderIcon, MessageSquareIcon, UndoIcon } from "lucide-react"
+import { CircleAlertIcon, FolderIcon, MessageSquareIcon, TriangleAlertIcon, UndoIcon } from "lucide-react"
 
 import {
   DueDate,
@@ -26,6 +26,7 @@ import {
   PersonAvatar,
   PickedDaysBadge,
   RepeatMark,
+  ReviewBadge,
   SnoozedBadge,
   StepsCount,
   WaitingBadge,
@@ -57,9 +58,12 @@ export function TaskBoard({
   onOpenTask,
   onMove,
   onReorder,
+  doingWarnings = [],
 }: {
   tasks: TaskCard[]
   readOnly: boolean
+  /** "Leo has 4 in Doing (limit 3)", under the Doing column's heading. */
+  doingWarnings?: string[]
   onOpenTask: (taskId: string) => void
   /** The task, its new status, and the new column's tasks in their new order. */
   onMove: (task: TaskCard, status: TaskStatus, taskIds: string[]) => void
@@ -174,6 +178,7 @@ export function TaskBoard({
                   : columns[status].shown
               }
               hidden={columns[status].hidden}
+              warnings={status === "doing" ? doingWarnings : []}
               onShowOlder={() => setShowOlder(true)}
               readOnly={readOnly}
               onOpenTask={onOpenTask}
@@ -207,6 +212,7 @@ function BoardColumn({
   status,
   tasks,
   hidden,
+  warnings,
   onShowOlder,
   readOnly,
   onOpenTask,
@@ -215,6 +221,8 @@ function BoardColumn({
   tasks: TaskCard[]
   /** Done tasks older than 14 days, not shown yet. */
   hidden: number
+  /** People over the project's Doing limit. A warning only: nothing is blocked. */
+  warnings: string[]
   onShowOlder: () => void
   readOnly: boolean
   onOpenTask: (taskId: string) => void
@@ -235,6 +243,16 @@ function BoardColumn({
         {TASK_STATUS_LABEL[status]}
         <span className="text-muted-foreground">{tasks.length + hidden}</span>
       </h3>
+      {warnings.length ? (
+        <ul className="grid gap-1 px-1" aria-label="Over the Doing limit">
+          {warnings.map((warning) => (
+            <li key={warning} className="flex items-start gap-1.5 text-xs text-destructive">
+              <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" aria-hidden />
+              {warning}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {tasks.length === 0 ? (
         <p className="px-1 py-2 text-xs text-muted-foreground">
           {hidden ? "Nothing finished in the last 14 days" : "No tasks"}
@@ -330,6 +348,7 @@ function CardContent({ task }: { task: TaskCard }) {
       ) : null}
       <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
         {task.waiting ? <WaitingBadge /> : null}
+        <ReviewBadge review={task.review} />
         <RepeatMark repeat={task.repeat} />
         <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
         <DueDate dueDate={task.dueDate} status={task.status} />

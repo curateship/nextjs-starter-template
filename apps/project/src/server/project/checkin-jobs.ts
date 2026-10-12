@@ -40,8 +40,9 @@ export async function runCheckinJobs(database: CustomShellDb = db, at = new Date
 
 /**
  * One bell notice per person per work day, once their check-in time has come,
- * and never after they have checked in, nor on their time off. Each reminder is claimed by writing
- * its row first, in the same transaction as the notice.
+ * and never after they have checked in, nor on their time off or a team
+ * holiday. Each reminder is claimed by writing its row first, in the same
+ * transaction as the notice.
  */
 export async function sendCheckinReminders(database: CustomShellDb = db, at = new Date()) {
   const due = await database.execute(sql`
@@ -65,6 +66,10 @@ export async function sendCheckinReminders(database: CustomShellDb = db, at = ne
       AND NOT EXISTS (
         SELECT 1 FROM project_time_off o
         WHERE o.user_id = p.user_id AND l.day BETWEEN o.first_day AND o.last_day
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM project_team_holidays h
+        WHERE h.team_id = p.team_id AND h.day = l.day
       )
     LIMIT ${BATCH}
   `)
@@ -127,10 +132,13 @@ export async function saveFinishedDays(database: CustomShellDb = db, at = new Da
     INSERT INTO project_checkins
       (id, team_id, user_id, day, time_zone, work_day, due_at, checked_in_at, closed_at, created_at)
     SELECT gen_random_uuid()::text, p.team_id, p.user_id, y.day, p.zone,
-      -- Time off makes the day a day off, so it isn't "Didn't check in".
+      -- Time off and team holidays make the day a day off, so it isn't "Didn't check in".
       extract(dow FROM y.day)::int = ANY (p.work_days) AND NOT EXISTS (
         SELECT 1 FROM project_time_off o
         WHERE o.user_id = p.user_id AND y.day BETWEEN o.first_day AND o.last_day
+      ) AND NOT EXISTS (
+        SELECT 1 FROM project_team_holidays h
+        WHERE h.team_id = p.team_id AND h.day = y.day
       ),
       (y.day + p.at_time::time) AT TIME ZONE p.zone,
       NULL, ${at.toISOString()}::timestamptz, ${at.toISOString()}::timestamptz

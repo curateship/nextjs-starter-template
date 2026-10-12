@@ -2,6 +2,11 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 
 import { JoinLinkCard } from "@/components/project/join-link-card"
+import {
+  CheckinQuestionsCard,
+  HolidaysCard,
+  StarterTasksCard,
+} from "@/components/project/team-checkin-settings"
 import { SaveLine } from "@/components/project/save-line"
 import { TimeZoneSelect } from "@/components/project/time-zone-select"
 import { TeamLabelsCard } from "@/components/project/team-labels-card"
@@ -20,7 +25,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { Label as TeamLabel } from "@/lib/api/project/sorting"
-import type { JoinLinkState } from "@/lib/api/project/team-running"
+import type { Holiday, JoinLinkState } from "@/lib/api/project/team-running"
 import { updateProjectTeam, type TeamSummary } from "@/lib/api/project/teams"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { LIMITS, WEEK_DAYS } from "@/lib/project/rules"
@@ -28,20 +33,23 @@ import { useSaveLine } from "@/lib/project/use-save-line"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * The team's name, check-in time, time zone, work days and labels, in a window opened
- * from the Team dashboard. Each field saves when it is left or picked, so the
- * window ends with Done. The owner and admins edit; everyone else reads.
+ * The team's name, check-in time, time zone, work days, check-in boxes,
+ * holidays, starter tasks and labels, in a window opened from the Team
+ * dashboard. Each field saves when it is left or picked, so the window ends
+ * with Done. The owner and admins edit; everyone else reads.
  */
 export function TeamSettingsDialog({
   team,
   labels,
   joinLink,
+  holidays,
   canEdit,
   open,
   onClose,
 }: {
   team: TeamSummary
   labels: TeamLabel[]
+  holidays: Holiday[]
   /** Null for anyone who doesn't run the team. */
   joinLink: JoinLinkState | null
   canEdit: boolean
@@ -70,6 +78,9 @@ export function TeamSettingsDialog({
         </DialogHeader>
         <DialogBody>
           <TeamSettingsFields team={team} canEdit={canEdit} track={track} busy={saveState === "saving"} />
+          <CheckinQuestionsCard team={team} canEdit={canEdit} track={track} />
+          <HolidaysCard holidays={holidays} canEdit={canEdit} />
+          {canEdit ? <StarterTasksCard team={team} track={track} /> : null}
           {joinLink && canEdit ? <JoinLinkCard state={joinLink} /> : null}
           <TeamLabelsCard labels={labels} canEdit={canEdit} />
         </DialogBody>
