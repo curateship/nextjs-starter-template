@@ -4,7 +4,13 @@ import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { loadActivity, type ActivityEntry } from "@/lib/api/project/projects"
+import { ProjectDot } from "@/components/project/task-bits"
+import { loadTeamActivityPage } from "@/lib/api/project/finding"
+import {
+  loadActivity,
+  type ActivityEntry,
+  type ProjectActivity as ProjectActivityPage,
+} from "@/lib/api/project/projects"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { isTaskStatus, TASK_STATUS_LABEL } from "@/lib/project/rules"
@@ -20,6 +26,32 @@ export function ProjectActivity({
   projectId: string
   onOpenTask: (taskId: string) => void
 }) {
+  const load = React.useCallback(
+    (before?: { at: string; id: string }) => loadActivity(projectId, before),
+    [projectId]
+  )
+  return <ActivityFeed load={load} onOpenTask={onOpenTask} />
+}
+
+/**
+ * The Team dashboard's Activity tab: the same lines across every project the
+ * viewer can see, each naming its project. "Just me" tasks and the bin never
+ * show. A line opens its task as a window over the dashboard.
+ */
+export function TeamActivity({ onOpenTask }: { onOpenTask: (taskId: string) => void }) {
+  return <ActivityFeed load={loadTeamActivityPage} onOpenTask={onOpenTask} showProject />
+}
+
+function ActivityFeed({
+  load,
+  onOpenTask,
+  showProject = false,
+}: {
+  load: (before?: { at: string; id: string }) => Promise<ProjectActivityPage>
+  onOpenTask: (taskId: string) => void
+  /** Name each line's project, for a feed across several. */
+  showProject?: boolean
+}) {
   const [entries, setEntries] = React.useState<ActivityEntry[]>([])
   const [more, setMore] = React.useState(false)
   const [state, setState] = React.useState<"loading" | "ready" | "error">("loading")
@@ -29,7 +61,7 @@ export function ProjectActivity({
 
   React.useEffect(() => {
     let live = true
-    loadActivity(projectId, older).then(
+    load(older).then(
       (page) => {
         if (!live) return
         setEntries((current) => (older ? [...current, ...page.entries] : page.entries))
@@ -45,7 +77,7 @@ export function ProjectActivity({
     return () => {
       live = false
     }
-  }, [projectId, older, tries])
+  }, [load, older, tries])
 
   if (state === "error" && entries.length === 0) {
     return <ErrorRow message={error} onRetry={() => setTries((n) => n + 1)} />
@@ -66,15 +98,20 @@ export function ProjectActivity({
           {shown.map((entry) => (
             <li key={entry.id} className="grid gap-0.5 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50 sm:grid-cols-[1fr_auto] sm:gap-3">
               <span className="min-w-0 break-words">
-                <Line entry={entry} onOpenTask={onOpenTask} />
+                <Line entry={entry} onOpenTask={onOpenTask} showProject={showProject} />
               </span>
-              <time
-                dateTime={entry.at}
-                title={formatDateTime(entry.at)}
-                className="text-xs text-muted-foreground sm:text-right"
-              >
-                {formatTimeAgo(entry.at)}
-              </time>
+              <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground sm:justify-end">
+                {showProject ? (
+                  <>
+                    <ProjectDot color={entry.project.color} className="size-2" />
+                    <span className="truncate">{entry.project.name}</span>
+                    <span aria-hidden>·</span>
+                  </>
+                ) : null}
+                <time dateTime={entry.at} title={formatDateTime(entry.at)} className="shrink-0">
+                  {formatTimeAgo(entry.at)}
+                </time>
+              </span>
             </li>
           ))}
         </ol>
@@ -109,7 +146,16 @@ export function ProjectActivity({
   )
 }
 
-function Line({ entry, onOpenTask }: { entry: ActivityEntry; onOpenTask: (taskId: string) => void }) {
+function Line({
+  entry,
+  onOpenTask,
+  showProject,
+}: {
+  entry: ActivityEntry
+  onOpenTask: (taskId: string) => void
+  showProject: boolean
+}) {
+
   const task = entry.task.inBin ? (
     <span className="font-medium">{entry.task.title}</span>
   ) : (
@@ -159,7 +205,12 @@ function Line({ entry, onOpenTask }: { entry: ActivityEntry; onOpenTask: (taskId
     case "became_task":
       return <>{who} made the step "{entry.reason}" in {task} its own task</>
     case "moved":
-      return <>{who} moved {task} here from {entry.fromProjectName ?? "another project"}</>
+      // Across projects "here" would be unclear; the line names its project already.
+      return (
+        <>
+          {who} moved {task} {showProject ? "" : "here "}from {entry.fromProjectName ?? "another project"}
+        </>
+      )
     case "review_confirmed":
       return <>{who} confirmed the review of {task}</>
     case "sent_back":

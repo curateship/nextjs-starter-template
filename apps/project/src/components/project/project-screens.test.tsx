@@ -270,6 +270,7 @@ describe("the project page", () => {
     addable: [{ userId: "leo", name: "Leo", email: "l@example.test", avatarUrl: "" }],
     tasks,
     otherProjects: [],
+    views: [],
   }
 
   it("draws details, tasks and members", () => {

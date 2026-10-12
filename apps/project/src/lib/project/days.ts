@@ -69,6 +69,15 @@ export function addDays(day: string, count: number) {
   return new Date(Date.UTC(year, month - 1, date + count)).toISOString().slice(0, 10)
 }
 
+/** Whole days from one "YYYY-MM-DD" to another: 7 from a Monday to the next. */
+export function daysBetween(from: string, to: string) {
+  const [a, b] = [from, to].map((day) => {
+    const [year, month, date] = day.split("-").map(Number)
+    return Date.UTC(year, month - 1, date)
+  })
+  return Math.round((b - a) / 86_400_000)
+}
+
 export function weekdayOf(day: string) {
   const [year, month, date] = day.split("-").map(Number)
   return new Date(Date.UTC(year, month - 1, date)).getUTCDay()

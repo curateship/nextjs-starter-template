@@ -8,36 +8,55 @@ import { NewTaskDialog } from "@/components/project/new-task-dialog"
 import { ProjectActivity } from "@/components/project/project-activity"
 import { ProjectChat } from "@/components/project/project-chat"
 import { ReasonDialog } from "@/components/project/reason-dialog"
-import { TaskBoard } from "@/components/project/task-board"
+import { SavedViewsControls } from "@/components/project/saved-views"
+import { NOBODY_LANE, TaskBoard, type BoardLane } from "@/components/project/task-board"
+import { TaskCalendar } from "@/components/project/task-calendar"
 import { TaskFiltersBar } from "@/components/project/task-filters-bar"
 import { TaskList } from "@/components/project/task-list"
-import { DashboardCardTabsHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsTrigger } from "@/components/ui/tabs"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ProjectPage } from "@/lib/api/project/projects"
 import { saveTaskOrder } from "@/lib/api/project/sorting"
-import { setStatus, type TaskCard } from "@/lib/api/project/tasks"
+import { assignProjectTask, saveTask, setStatus, type TaskCard } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { rememberProject } from "@/lib/project/new-task-project"
-import { PROJECT_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
+import { BOARD_GROUP_KEY, PROJECT_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
 import type { TaskStatus } from "@/lib/project/rules"
 import { filterTasks, hasTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
 import { overDoingLimit } from "@/lib/project/doing-limit"
 import { placesAfterReorder } from "@/lib/project/task-order"
 import { offeredTypes } from "@/lib/project/task-types"
 import { useFieldColumns } from "@/lib/project/use-field-columns"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
-const VIEWS = ["board", "list", "activity", "chat"] as const
+const VIEWS = ["board", "list", "calendar", "activity", "chat"] as const
 type View = (typeof VIEWS)[number]
 
 const NO_SECTION = "none"
 
+const GROUPS = ["status", "person"] as const
+type Group = (typeof GROUPS)[number]
+
+/** A Board drop in another person's row, waiting for "Hand it over?". */
+type PendingHandOver = {
+  task: TaskCard
+  person: { id: string; name: string } | null
+  status: TaskStatus
+  order: string[]
+}
+
 /**
- * The project's tasks, as a Board (one column per status) or a List grouped
- * under the project's sections, its Activity, and its own Chat. The tab last
+ * The project's tasks, as a Board (one column per status, or a row per person
+ * when grouped), a List grouped under the project's sections or a Calendar of
+ * due dates, its Activity, and its own Chat. The tab last
  * used is remembered in this browser; the search and filters live in the
  * address. A status change or a new order shows at once and is put back if
  * the server refuses it. A "Just me" list has no Chat, since nobody else
@@ -76,6 +95,10 @@ export function ProjectTasksPanel({
   const [stuck, setStuck] = React.useState<{ task: TaskCard; order?: string[] } | null>(null)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const readOnly = page.project.archived
+  // A "Just me" list has one person, so there is nothing to group by.
+  const [chosenGroup, setGroup] = useRememberedChoice<Group>(BOARD_GROUP_KEY, "status", GROUPS)
+  const byPerson = chosenGroup === "person" && !page.project.personal
+  const [handingOver, setHandingOver] = React.useState<PendingHandOver | null>(null)
 
   const filtered = filterTasks(tasks, filters)
   const people = page.members.map((m) => ({ id: m.userId, name: m.name }))
@@ -89,6 +112,17 @@ export function ProjectTasksPanel({
       return field ? [{ field, people: names }] : []
     })
   }, [columnIds, filteredType, page.members])
+  const lanes = React.useMemo<BoardLane[]>(() => {
+    const members = page.members.map((m) => ({ id: m.userId, name: m.name, avatarUrl: m.avatarUrl }))
+    // Someone assigned who has since come off the project still gets a row, so no task goes missing.
+    const others = new Map<string, BoardLane>()
+    for (const task of tasks) {
+      if (task.assignee && !members.some((m) => m.id === task.assignee?.id)) {
+        others.set(task.assignee.id, { id: task.assignee.id, name: task.assignee.name, avatarUrl: task.assignee.avatarUrl })
+      }
+    }
+    return [...members, ...others.values(), { id: NOBODY_LANE, name: "Nobody assigned" }]
+  }, [page.members, tasks])
   const sectionGroups = React.useMemo(
     () => [
       ...page.sections.map((section) => ({ key: section.id, label: section.name })),
@@ -138,6 +172,36 @@ export function ProjectTasksPanel({
     return ok
   }
 
+  /** A day dropped on the Calendar: the same save as picking the date on the task. */
+  async function changeDueDate(task: TaskCard, dueDate: string | null) {
+    const before = tasks
+    setTasks((current) => current.map((t) => (t.id === task.id ? { ...t, dueDate } : t)))
+    const ok = await run(() => saveTask({ taskId: task.id, dueDate }))
+    if (!ok) setTasks(before)
+    await router.invalidate()
+  }
+
+  /**
+   * After "Hand it over?": the same hand-over as the task's person picker,
+   * which tells them and waits for them to accept, then the column it was
+   * dropped in and its place there.
+   */
+  async function handOver({ task, person, status, order }: PendingHandOver) {
+    const ok = await run(
+      async () => {
+        await assignProjectTask({ taskId: task.id, assigneeUserId: person?.id ?? null, note: null })
+        if (status !== task.status) {
+          // Never Stuck here: a drop into another row's Stuck is refused before asking.
+          await setStatus({ taskId: task.id, status, stuckReason: null })
+        }
+        await saveTaskOrder(page.project.id, order)
+      },
+      person ? `Handed to ${person.name}.` : "Nobody is assigned now."
+    )
+    if (ok) setHandingOver(null)
+    await router.invalidate()
+  }
+
   function requestStatus(task: TaskCard, status: TaskStatus, order?: string[]) {
     // Stuck needs its reason first; every other move goes straight through.
     if (status === "stuck") setStuck({ task, order })
@@ -147,33 +211,44 @@ export function ProjectTasksPanel({
   return (
     <>
       <Tabs value={view} onValueChange={(value) => setView(value as View)}>
-        <DashboardCardTabsHeader
-          action={
-            readOnly ? null : (
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Bin"
-                  title="Bin"
-                  onClick={() => setBinOpen(true)}
-                >
-                  <Trash2Icon className="size-4" />
-                </Button>
-                <Button type="button" onClick={() => setCreating(true)}>
-                  <PlusIcon className="size-4" />
-                  New task
-                </Button>
-              </div>
-            )
-          }
-        >
-          <TabsTrigger value="board">Board</TabsTrigger>
-          <TabsTrigger value="list">List</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          {hasChat ? <TabsTrigger value="chat">Chat</TabsTrigger> : null}
-        </DashboardCardTabsHeader>
+        {/* Five tabs and two buttons don't fit a phone or a squeezed panel, so the
+            tabs scroll sideways rather than sliding under the buttons. */}
+        <DashboardCardHeader>
+          <ScrollArea className="min-w-0 flex-1">
+            <TabsList className="justify-start">
+              <TabsTrigger value="board">Board</TabsTrigger>
+              <TabsTrigger value="list">List</TabsTrigger>
+              <TabsTrigger value="calendar">Calendar</TabsTrigger>
+              <TabsTrigger value="activity">Activity</TabsTrigger>
+              {hasChat ? <TabsTrigger value="chat">Chat</TabsTrigger> : null}
+            </TabsList>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+          {readOnly ? null : (
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Bin"
+                title="Bin"
+                onClick={() => setBinOpen(true)}
+              >
+                <Trash2Icon className="size-4" />
+              </Button>
+              {/* Words from 640px up; on a phone the tabs need the room. */}
+              <Button
+                type="button"
+                className="max-sm:size-8 max-sm:px-0"
+                aria-label="New task"
+                onClick={() => setCreating(true)}
+              >
+                <PlusIcon className="size-4" />
+                <span className="max-sm:hidden">New task</span>
+              </Button>
+            </div>
+          )}
+        </DashboardCardHeader>
       </Tabs>
       {view === "activity" || view === "chat" ? null : (
         <TaskFiltersBar
@@ -183,6 +258,24 @@ export function ProjectTasksPanel({
           labels={page.labels}
           types={page.taskTypes}
         >
+          <SavedViewsControls
+            views={page.views}
+            filters={filters}
+            onChange={onFilters}
+            here={{ projectId: page.project.id, people, labels: page.labels, types: page.taskTypes }}
+          />
+          {view === "board" && !page.project.personal ? (
+            <div className="flex items-center gap-2">
+              <Switch
+                id="board-group-by-person"
+                checked={byPerson}
+                onCheckedChange={(on) => setGroup(on ? "person" : "status")}
+              />
+              <Label htmlFor="board-group-by-person" className="text-sm font-normal">
+                Group by person
+              </Label>
+            </div>
+          ) : null}
           {view === "list" && filteredType?.fields.length ? (
             <FieldColumnsMenu
               fields={filteredType.fields}
@@ -201,6 +294,13 @@ export function ProjectTasksPanel({
           No tasks match {filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the
           filters to see every task.
         </p>
+      ) : view === "calendar" ? (
+        <TaskCalendar
+          tasks={filtered}
+          readOnly={readOnly || busy}
+          onOpenTask={onOpenTask}
+          onDueDate={(task, dueDate) => void changeDueDate(task, dueDate)}
+        />
       ) : view === "board" ? (
         <TaskBoard
           tasks={filtered}
@@ -208,6 +308,16 @@ export function ProjectTasksPanel({
           onOpenTask={onOpenTask}
           onMove={requestStatus}
           onReorder={(taskIds) => void reorder(taskIds)}
+          lanes={byPerson ? lanes : undefined}
+          onHandOver={(task, personId, status, order) => {
+            // A move to Stuck in another row still needs its reason, so it is refused here.
+            if (status === "stuck" && task.status !== "stuck") {
+              showErrorToast("Hand it over first, then mark it Stuck from its own row.")
+              return
+            }
+            const person = personId ? (lanes.find((lane) => lane.id === personId) ?? null) : null
+            setHandingOver({ task, person: person && { id: person.id, name: person.name }, status, order })
+          }}
           // Counted from every task, so a filter never hides who is over the limit.
           doingWarnings={overDoingLimit(tasks, page.project.doingLimit)}
         />
@@ -244,6 +354,22 @@ export function ProjectTasksPanel({
         onCreated={rememberProject}
       />
       <BinDialog projectId={page.project.id} open={binOpen} onClose={() => setBinOpen(false)} />
+      <ConfirmDialog
+        open={Boolean(handingOver)}
+        onOpenChange={(open) => (open || busy ? undefined : setHandingOver(null))}
+        destructive={false}
+        title={handingOver?.person ? `Hand this task to ${handingOver.person.name}?` : "Take everyone off this task?"}
+        description={
+          handingOver
+            ? handingOver.person
+              ? `"${handingOver.task.title}" goes to ${handingOver.person.name}, who is told and has to accept it.`
+              : `"${handingOver.task.title}" is left with nobody assigned.`
+            : ""
+        }
+        confirmLabel={handingOver?.person ? "Hand over" : "Unassign"}
+        loading={busy}
+        onConfirm={() => (handingOver ? void handOver(handingOver) : undefined)}
+      />
       <ReasonDialog
         open={Boolean(stuck)}
         title="Why is it stuck?"

@@ -19,3 +19,10 @@ export const NEW_TASK_PROJECT_KEY = "project-new-task-project"
 
 /** The Team dashboard's right-hand tab opened last: Check-ins, Workload or Needs attention. */
 export const TEAM_RIGHT_TAB_KEY = "project-team-right-tab"
+
+/** The Board's "Group by person" switch, remembered in this browser. */
+export const BOARD_GROUP_KEY = "project-board-group"
+
+/** The Team dashboard's middle tab (Calendar or Activity) and the calendar's Month or Week. */
+export const TEAM_MIDDLE_TAB_KEY = "project-team-middle-tab"
+export const TEAM_CALENDAR_VIEW_KEY = "project-team-calendar-view"

@@ -62,6 +62,33 @@ page.
   how it repeats ("Every Monday") and the people's photos. Clicking the row
   opens the video link in a new tab.
 
+## The week view
+
+So a busy week of meetings can be read.
+
+- **Month and Week** is a switch in the row under the calendar's tabs. The
+  choice is remembered in this browser.
+- **Week shows Monday to Sunday** of the chosen day's week. Each day's
+  heading has its date, its holiday, its check-in count ("4 of 6 in") and
+  how many were blocked, the same as a month square.
+- **Meetings sit at their times** on an hour grid that runs 8 AM to 6 PM,
+  widened when a meeting starts earlier or ends later. Meetings at the same
+  time share the width. Each shows its name, and its time when tall enough.
+- **In the viewer's own time zone and on the viewer's own day.** A meeting
+  that runs past the viewer's midnight is drawn to the end of the day it
+  starts on, the same day the month view puts it on.
+- **Clicking a day, or a meeting on it,** picks that day: its check-ins show
+  on the right and its meetings under the calendar, where the row opens the
+  video link and the cog changes the meeting.
+- **The arrows step one week**, Today comes back to this week, and moving
+  into another month loads that month.
+- **On a phone** the seven days stack as a list, each with its meetings and
+  times in order.
+- **Where it lives:** `src/components/project/team-week.tsx`, with the day
+  and slot sums in `src/lib/project/week-view.ts`. The month's counts cover
+  its whole grid, Monday before the 1st to Sunday after the last, so a week
+  that runs into the next month still has its numbers.
+
 ## Time zones
 
 - **A meeting is set in the team's time zone.** The window says so: "Times are

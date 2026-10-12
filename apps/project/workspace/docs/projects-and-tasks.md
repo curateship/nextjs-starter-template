@@ -62,7 +62,9 @@ panels and nothing along the bottom.
   in too.
 - **Middle: tasks.** A Board tab with one column per status, a List tab
   with the same tasks in rows, grouped under the project's sections when it
-  has any, an Activity tab and a Chat tab (both below). A card drags between Board columns to change its status, and up or
+  has any, a Calendar tab of due dates, an Activity tab and a Chat tab (all
+  below). On a phone or a squeezed panel the tabs scroll sideways, and New
+  task shows only its plus. A card drags between Board columns to change its status, and up or
   down to set the project's order. The Board and List change on their own
   when someone else changes a task (see
   [Task chat](task-chat.md#live-updates)). The tab last used is remembered in this
@@ -91,6 +93,51 @@ panels and nothing along the bottom.
   own tab, scroll and lists (`three-panels.tsx`, shared with My dashboard and
   the Team dashboard).
 
+## The Board grouped by person
+
+So whoever runs a project sees who is stuck and who is idle in one view.
+
+- **"Group by person"** is a switch in the Board's filter row. On, the Board
+  has one row per member of the project, then "Nobody assigned", each with
+  the four status columns. The choice is remembered in this browser. A "Just
+  me" list has no switch.
+- **Each row's header** shows the person and "3 open · 1 Doing · 1 Stuck", or
+  "Nothing open", so an idle person stands out. Clicking it folds the row,
+  for a long member list.
+- **Dragging within a row** changes the status and the order, the same as
+  the plain Board.
+- **Dragging to another row hands the task over, after asking first:**
+  "Hand this task to Priya?" with Hand over and Cancel. It's the same
+  hand-over as the task's person picker, so Priya is told and has to accept
+  it. Dropped in "Nobody assigned" it asks "Take everyone off this task?".
+  Dropped in another person's Stuck column it is refused with "Hand it over
+  first, then mark it Stuck from its own row", since Stuck needs a reason.
+- **The Doing limit's warning** sits in that person's own row.
+- **Someone assigned who has left the project** still gets a row, so no task
+  goes missing from the Board.
+
+## The Calendar tab
+
+So a crowded week is obvious at a glance.
+
+- **A month** with each task on its due date, as a chip in its status
+  colour: To do white, Doing blue, Stuck red with its mark, Done greyed and
+  struck through. Each chip also says its status to a screen reader, so
+  colour is never the only sign.
+- **"No date"** lists the tasks with no due date, beside the month once the
+  tasks panel is about 830px wide, and under the month before that, so the
+  day squares stay wide enough to read. At the project page's usual width
+  on a laptop it sits under the month. A chip's title runs to two lines
+  before it is cut with "…".
+- **Dragging a task to another day** saves that day as its due date. It's
+  the same save as picking the date on the task, so a due-date reminder
+  follows the new day. Dropping one on "No date" clears its date.
+- **The filters above apply**, the same as on the Board and List.
+- **Arrows and Today** move between months. The header says how many tasks
+  are due in the month.
+- **It's the Team dashboard's month grid**, shared in
+  `src/components/project/month-grid.tsx`, not a second drawing of one.
+
 ## Activity
 
 The Activity tab, beside Board and List, is the project's own feed: "Priya
@@ -110,6 +157,8 @@ older". Each line says how long ago, with the exact time on hover.
 - **Who sees it:** the same people who can see the project.
 - **The History card stays the task's own story.** It shows the same moments
   for one task, except comments, which are already in its chat.
+- **The Team dashboard has the same feed for every project** (see
+  [Teams and invites](teams-and-invites.md#the-teams-activity)).
 
 ## The project's chat
 
@@ -144,6 +193,27 @@ goes, so it no longer ends up on whatever task was open.
 
 ## Finding tasks
 
+- **Search every project.** "Search tasks…" in the header, beside New task,
+  opens a window that looks through titles and notes in every project the
+  person can see, and their own "Just me" list, every word typed, whatever
+  its capitals. It lists up to 20 matches, a title match first, each with
+  its project's name and status, and "Archived" for an archived project.
+  Clicking one, or Enter for the first, opens it on its project page. A task
+  in a project the person isn't on never shows, and neither does one in the
+  bin, someone else's "Just me" task, or a word that is only in a # link to
+  another task. On a phone it folds into the header's three-dot menu.
+- **Saved views.** With a search or filter on, Save view, beside Clear
+  filters, asks for a name (the filters to start with, such as "Stuck ·
+  Leo") and keeps them. The Views menu lists them, each with what it shows.
+  "Delete views…" at its foot turns the rows into delete buttons until the
+  menu closes. Opening one sets the same filters, and so the same
+  address, as picking them by hand. Views are each person's own, kept per
+  project and on My tasks, and nobody else sees them. A view naming someone
+  no longer on the project, a deleted label or a type that's gone opens
+  without that filter and says so, such as "Leo isn't on this project any
+  more, so "Leo's stuck tasks" opened without that filter." Leaving a
+  project deletes my views on it, and leaving the team deletes them all. At
+  most 30 in one place.
 - **Search and filters.** Above the Board and List, a search box looks
   through each task's title and notes, every word typed, whatever its
   capitals. It doesn't look inside a task type's fields. Beside it, Status,
@@ -435,7 +505,8 @@ So whoever hands out work can check it before it counts as finished.
 - **An optional limit in Project settings**, "Doing per person", from 1 to
   99. Empty means no limit.
 - **Over it, the Board's Doing column says so**: "Leo has 4 in Doing (limit
-  3)" under its heading, with a warning mark. It counts every task on the
+  3)" under its heading, with a warning mark. Grouped by person, the line
+  sits in Leo's own row. It counts every task on the
   project, whatever the filters show.
 - **It only warns.** Nothing is blocked, or it would get in the way of real
   work. No limit, no lines (`src/lib/project/doing-limit.ts`).
@@ -545,6 +616,13 @@ Projects, Team and Task types to the members' menu and to each admin menu.
   Activity tab's kinds in `drizzle/0102_project_projects.sql`, described to
   the code in
   `src/server/project/schema.ts`.
+- **Search and saved views:** `src/server/project/search.ts` and
+  `saved-views.ts`, the table `project_saved_views` and the search's
+  indexes in `drizzle/0110_project_finding_and_seeing.sql`, endpoints in
+  `src/lib/api/project/finding.ts`, screens `task-search-header.tsx` and
+  `saved-views.tsx`. The search's indexes need Postgres's `pg_trgm`; where
+  it can't be loaded (the in-memory test database) the search runs without
+  them and gives the same answers.
 - **Rules:** `src/server/project/projects.ts` and `src/server/project/tasks.ts`,
   with the chat, followers and files in `task-chat.ts`, `task-followers.ts` and
   `task-files.ts` beside them, and pasting, duplicating, moving, bulk changes
@@ -554,7 +632,8 @@ Projects, Team and Task types to the members' menu and to each admin menu.
   `project-activity.ts`.
 - **Endpoints:** `src/lib/api/project/`.
 - **Screens:** `src/components/project/`. A task's window is `task-dialog.tsx`
-  and its place in the middle panel is `task-in-place.tsx`.
+  and its place in the middle panel is `task-in-place.tsx`. The Board is
+  `task-board.tsx` and the Calendar tab `task-calendar.tsx`.
 
 ## Sample data to look at
 

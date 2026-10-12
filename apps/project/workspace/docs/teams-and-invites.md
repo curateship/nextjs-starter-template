@@ -149,11 +149,16 @@ Day. The tab is "Day" so it doesn't sit over the panel's own Check-ins tab.
   and the members with
   their roles. The owner and admins also get an Invite member button. Manage
   opens the Members page.
-- **Middle: the calendar.** The team's announcement pinned at the top when
-  there is one (below), then a month of the team's check-ins and meetings, with
-  New meeting in its header and the chosen day's meetings under it. See
-  [Meetings](meetings.md) and
-  [History](history.md#past-days-on-the-team-dashboard).
+- **Middle: Calendar and Activity tabs.** Tyler put Activity here on 12 Oct
+  2026, because the right panel's three tabs already fill it. Calendar is
+  the team's announcement pinned at the top when there is one (below), then
+  a month, or a week, of the team's check-ins and meetings, with the chosen
+  day's meetings under it. The month's name, the arrows, Today and the
+  Month and Week switch sit in a row under the tabs; the megaphone and New
+  meeting stay in the header. The tab and the Month or Week choice are
+  remembered in this browser. See [Meetings](meetings.md),
+  [History](history.md#past-days-on-the-team-dashboard) and The team's
+  Activity below.
 - **Right: three tabs.** Check-ins: one day's check-ins, today to start with,
   with arrows to step through the days, and "Away" for anyone on time off (see
   [History](history.md#past-days-on-the-team-dashboard)).
@@ -169,6 +174,24 @@ Day. The tab is "Day" so it doesn't sit over the panel's own Check-ins tab.
   everyone, and Needs attention, for the owner and admins (see
   [Needs attention and workload](needs-attention.md)). The tab last used is
   remembered in this browser.
+
+### The team's Activity
+
+What moved today, without opening every project.
+
+- **The same lines as a project's Activity tab** (see
+  [Projects and tasks](projects-and-tasks.md#activity)), across every
+  project the viewer can see, newest first, 50 at a time with "Show older".
+  Each line names its project beside the time.
+- **Only what the viewer can see.** The owner and admins see every shared
+  project; a member sees their own projects. A line from a project the
+  viewer isn't on never shows. "Just me" tasks never show, not even the
+  viewer's own, and neither does a task in the bin.
+- **A line opens its task** as a window over the dashboard, as the rest of
+  the Team dashboard does.
+- **Where it lives:** `loadTeamActivity` in
+  `src/server/project/project-activity.ts`, drawn by `TeamActivity` in
+  `src/components/project/project-activity.tsx`.
 
 ### The team's announcement
 
@@ -227,6 +250,26 @@ Tyler chose what each counts on 11 Oct 2026.
   last 7 days". It counts the saved check-ins the way the calendar's squares
   do: work days only, time off left out, and a late check-in still counts.
   Today is left out because people still have time to check in.
+
+### Trends
+
+"Trends, last 12 weeks", under the four figures, opens a window with two
+small bar charts, week by week, Monday to Sunday, this week so far on the
+right:
+
+- **Check-in rate**, counted the way the figure counts it: work days only,
+  time off left out, a late check-in still counts, and today left out.
+- **Tasks finished**, counted the way Completed counts them: marked Done that
+  week, still Done, in projects the viewer can see, leaving out "Just me"
+  lists and the bin. This week's bar is the Completed figure.
+- **Team totals only, never by person.** Tyler said the check-in isn't for
+  watching people, so there is no breakdown by person anywhere in it.
+- **Hovering a bar** gives the week's dates and its numbers ("86%, 26 of
+  30"). A week with no work days reads "No work days". A screen reader gets
+  the same numbers as a table.
+- **Where it lives:** `loadTeamTrends` in `src/server/project/team-figures.ts`,
+  the window `src/components/project/team-trends-dialog.tsx`, drawn with the
+  shell's shared chart card and chart parts.
 
 ### Check-in notes on the Check-ins tab
 

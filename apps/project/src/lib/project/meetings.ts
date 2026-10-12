@@ -1,6 +1,7 @@
 import type { Meeting, MeetingOccurrence, TeamMeetings } from "@/lib/api/project/meetings"
-import { addDays, clockLabel, localNow, weekdayOf } from "@/lib/project/days"
+import { addDays, clockLabel, daysBetween, localNow, weekdayOf } from "@/lib/project/days"
 import type { MeetingRepeat, ProjectColor } from "@/lib/project/rules"
+import { cn } from "@/lib/utils"
 
 /**
  * Meetings on the Team dashboard's calendar, the parts both the server and the
@@ -17,14 +18,6 @@ export const MEETING_REPEAT_LABEL: Record<MeetingRepeat | "none", string> = {
 
 const STEP_DAYS: Record<MeetingRepeat, number> = { week: 7, two_weeks: 14 }
 
-function daysFrom(first: string, second: string) {
-  const [a, b] = [first, second].map((day) => {
-    const [year, month, date] = day.split("-").map(Number)
-    return Date.UTC(year, month - 1, date)
-  })
-  return Math.round((b - a) / 86_400_000)
-}
-
 /**
  * The days a meeting falls on between `from` and `to`, both included, in the
  * meeting's own calendar. A repeat keeps the first day's weekday.
@@ -36,7 +29,7 @@ export function meetingDaysBetween(
 ): string[] {
   if (!meeting.repeatEvery) return meeting.day >= from && meeting.day <= to ? [meeting.day] : []
   const step = STEP_DAYS[meeting.repeatEvery]
-  const skip = meeting.day >= from ? 0 : Math.ceil(daysFrom(meeting.day, from) / step)
+  const skip = meeting.day >= from ? 0 : Math.ceil(daysBetween(meeting.day, from) / step)
   const days: string[] = []
   for (let day = addDays(meeting.day, skip * step); day <= to; day = addDays(day, step)) {
     days.push(day)
@@ -129,6 +122,14 @@ export function monthGrid(month: string) {
   const daysInMonth = Number(addDays(`${addDays(first, 32).slice(0, 7)}-01`, -1).slice(8))
   const cells = Math.ceil((lead + daysInMonth) / 7) * 7
   return { first, start, end: addDays(start, cells - 1), cells }
+}
+
+/** A day square's frame. Days from the months either side are greyed out. */
+export function dayCellClassName(inMonth: boolean) {
+  return cn(
+    "flex min-h-20 min-w-0 flex-col items-start gap-1 rounded-md border p-1.5 text-left text-xs sm:p-2",
+    !inMonth && "border-transparent bg-muted/60 text-muted-foreground"
+  )
 }
 
 export type DayMeeting = { occurrence: MeetingOccurrence; meeting: Meeting }

@@ -27,6 +27,7 @@ import {
 import {
   projectProjectMembers,
   projectProjectStars,
+  projectSavedViews,
   projectTaskSteps,
   projectProjects,
   projectTasks,
@@ -359,6 +360,9 @@ async function takePersonOffTeam(teamId: string, userId: string, tx: ProjectDb) 
         inArray(projectProjectStars.projectId, teamProjectIds)
       )
     )
+  await tx
+    .delete(projectSavedViews)
+    .where(and(eq(projectSavedViews.teamId, teamId), eq(projectSavedViews.userId, userId)))
   await tx
     .delete(projectProjectMembers)
     .where(

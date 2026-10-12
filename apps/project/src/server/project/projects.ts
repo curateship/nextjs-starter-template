@@ -20,12 +20,14 @@ import { listTeamLabels, type Label } from "@/server/project/labels"
 import { copyFieldValues, listTeamTypes } from "@/server/project/task-types"
 import type { TaskType } from "@/lib/project/task-types"
 import { requireSharedProject } from "@/server/project/personal"
+import { listSavedViews, type SavedView } from "@/server/project/saved-views"
 import { listSections, type Section } from "@/server/project/sections"
 import { listTaskCards, type TaskCard } from "@/server/project/tasks"
 import { clearAssignee, listTeamMembers } from "@/server/project/teams"
 import {
   projectProjectMembers,
   projectProjectStars,
+  projectSavedViews,
   projectProjects,
   projectSections,
   projectTaskLabels,
@@ -181,6 +183,8 @@ export type ProjectPage = {
   tasks: TaskCard[]
   /** My other open projects, for moving ticked tasks. */
   otherProjects: { id: string; name: string; color: ProjectColor }[]
+  /** My own saved views on this project. */
+  views: SavedView[]
 }
 
 export async function loadProjectPage(
@@ -232,6 +236,7 @@ export async function loadProjectPage(
     sections: await listSections(project.id, database),
     taskTypes: await listTeamTypes(membership.teamId, database),
     labels: await listTeamLabels(membership.teamId, database),
+    views: await listSavedViews(userId, membership.teamId, project.id, database),
     myUserId: userId,
     myRole: membership.role,
     members: memberRows.map((row) => ({
@@ -389,6 +394,9 @@ export async function removeProjectMember(
       .where(
         and(eq(projectProjectStars.projectId, projectId), eq(projectProjectStars.userId, userId))
       )
+    await tx
+      .delete(projectSavedViews)
+      .where(and(eq(projectSavedViews.projectId, projectId), eq(projectSavedViews.userId, userId)))
     await tx
       .delete(projectProjectMembers)
       .where(
