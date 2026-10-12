@@ -763,6 +763,18 @@ export const pomodoroGroups = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 60 }).notNull(),
     joinToken: varchar("join_token", { length: 64 }).notNull().unique(),
+    /**
+     * The address of the group's public page, `/team/<handle>` (public
+     * profile task 05). Null until the owner picks one. Stored lowercase with
+     * the profile handle's shape, in its own namespace.
+     */
+    handle: varchar("handle", { length: 30 }),
+    /**
+     * Whether `/team/<handle>` answers at all. Off by default, and only an
+     * owner on Pro can switch it on; a lapsed plan makes the page 404 with the
+     * switch left as it was.
+     */
+    pagePublic: boolean("page_public").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -770,7 +782,16 @@ export const pomodoroGroups = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("pomodoro_groups_owner_idx").on(table.ownerUserId)]
+  (table) => [
+    index("pomodoro_groups_owner_idx").on(table.ownerUserId),
+    uniqueIndex("pomodoro_groups_handle_unique")
+      .on(table.handle)
+      .where(sql`${table.handle} is not null`),
+    check(
+      "pomodoro_groups_handle_shape_check",
+      sql`${table.handle} is null or ${table.handle} ~ '^[a-z0-9_-]{3,30}$'`
+    ),
+  ]
 )
 
 /**

@@ -13,6 +13,7 @@ import {
   SettingsIcon,
   UserIcon,
   Users2Icon,
+  UsersRoundIcon,
   XIcon,
 } from "lucide-react"
 
@@ -89,6 +90,8 @@ const NAV_LINKS = [
   { to: "/backgrounds", label: "Backgrounds", icon: ImageIcon },
   { to: "/sounds", label: "Sounds", icon: Music2Icon },
   { to: "/leaderboard", label: "Leaderboard", icon: BarChart3Icon },
+  // Tyler, 12 Oct 2026: groups have their own dashboard, after Leaderboard.
+  { to: "/groups", label: "Groups", icon: UsersRoundIcon },
   // Beside the leaderboard, because both are about other members. Rooms
   // already holds the two-person icon, so this one takes the single figure.
   { to: "/users", label: "Users", icon: UserIcon },

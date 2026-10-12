@@ -6,6 +6,8 @@
  * refused.
  */
 
+import { PRO_PERKS } from "@/lib/pomodoro/pro"
+
 /**
  * How many groups one person may be in, their own included.
  *
@@ -36,6 +38,7 @@ export function groupInviteLink(origin: string, token: string) {
 
 /**
  * What each refusal from the groups endpoints says to a person.
+ * The team page's settings share it, because they sit beside the group on Groups.
  *
  * The server throws a bare code so no endpoint ever writes a sentence; this
  * turns the code into one. An unknown code gets the general line rather than
@@ -55,5 +58,13 @@ export function groupErrorMessage(cause: unknown) {
     return "Only the person who made the group can do that."
   if (code.includes("GROUP_OWNER_CANNOT_LEAVE"))
     return "You made this group, so you cannot leave it. Delete it instead."
+  if (code.includes("TEAM_HANDLE_SHAPE"))
+    return "A page address is 3 to 30 characters: lowercase letters, digits, hyphens and underscores, and not a word the app keeps for itself."
+  if (code.includes("TEAM_HANDLE_NEEDED"))
+    return "Pick an address for the page before switching it on."
+  if (code.includes("TEAM_HANDLE_TAKEN"))
+    return "Another group already has that address. Pick another one."
+  if (code.includes("UPGRADE_REQUIRED:teamPage"))
+    return PRO_PERKS.teamPage.lockedReason
   return "That did not work. Try again in a moment."
 }

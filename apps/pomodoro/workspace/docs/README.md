@@ -86,9 +86,13 @@ cover this one.
 - [The front page](landing-page.md) — `/` is the timer, for guests and
   accounts alike.
 - [Leaderboard](leaderboard.md) — the opt-in ranking over three windows,
-  Who you focus with and Your groups, and how the page is drawn.
-- [Private focus groups](focus-groups.md) — an invite-only board among people
-  you know, the caps, and why being in a group never lists you publicly.
+  Who you focus with, and how the page is drawn.
+- [Private focus groups](focus-groups.md) — the Groups dashboard at `/groups`,
+  an invite-only board among people you know, the caps, and why being in a
+  group never lists you publicly.
+- [Team pages](team-pages.md) — a group's public page at `/team/<handle>`,
+  switched on by a Pro owner, showing each member only as their own public
+  page already shows them.
 - [Live figures on the public front page](public-live-figures.md) — the hours
   and open-rooms rows a visitor sees, and the floor that hides one on a quiet
   week.
