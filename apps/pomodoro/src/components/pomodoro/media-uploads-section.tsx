@@ -178,6 +178,9 @@ export function MediaUploadsSection({
   // A guest gets a settled answer without a request: uploads need an account.
   const known = library !== null || (auth.known && !auth.authenticated)
   const locked = !library || !library.canUploadMedia
+  // Files made while the plan had Pro stay stored without it (payments task
+  // 05). They are drawn, locked, so the member can see they are kept.
+  const held = library !== null && !library.canUploadMedia
   const full = library !== null && library.usedBytes >= library.limitBytes
   // 10 GB more for a year (task 07), offered from 90% full, the point where
   // the bell warns.
@@ -272,8 +275,10 @@ export function MediaUploadsSection({
         </h3>
         {library ? (
           <span className="font-mono text-xs text-muted-foreground">
-            {formatBytes(library.usedBytes)} of{" "}
-            {formatBytes(library.limitBytes)}
+            {/* Without Pro there is no space to be "of", only what is kept. */}
+            {library.limitBytes > 0
+              ? `${formatBytes(library.usedBytes)} of ${formatBytes(library.limitBytes)}`
+              : `${formatBytes(library.usedBytes)} kept`}
             {library.space.endsAt
               ? `, 10 GB bought until ${formatDay(library.space.endsAt)}`
               : null}
@@ -359,6 +364,11 @@ export function MediaUploadsSection({
         </div>
       ) : null}
 
+      {held && uploads.length > 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Your files are kept. They come back with Pro.
+        </p>
+      ) : null}
       {uploads.length > 0 ? (
         <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
           {uploads.map((upload) => (
@@ -375,7 +385,8 @@ export function MediaUploadsSection({
                 )
               }
               selected={isSelected(upload)}
-              addMenu={renderAddMenu?.(upload) ?? null}
+              held={held}
+              addMenu={held ? null : (renderAddMenu?.(upload) ?? null)}
               onPick={() => onPick?.(upload)}
               playing={isPlaying?.(upload) ?? false}
               onEdit={() => {
@@ -530,6 +541,7 @@ function UploadCard({
   anyChosen,
   onChoose,
   selected,
+  held,
   addMenu,
   onPick,
   playing,
@@ -546,6 +558,8 @@ function UploadCard({
   onChoose: (chosen: boolean) => void
   /** In use in the room you are in. */
   selected: boolean
+  /** Kept while the plan has no Pro: drawn, but not played or added. */
+  held: boolean
   /** The "+" that opens the Add choices. */
   addMenu: React.ReactNode
   onPick: () => void
@@ -559,6 +573,8 @@ function UploadCard({
 }) {
   // A finished file plays, including the old cut while a new trim is made.
   const ready = upload.url !== ""
+  // A held one keeps its picture but does not play until Pro is back.
+  const playable = ready && !held
   const failed = upload.status === "failed"
   const cutting = upload.status === "queued" || upload.status === "processing"
   const KindIcon = KIND_ICONS[upload.kind]
@@ -576,6 +592,7 @@ function UploadCard({
         : (upload.failureReason ?? "It could not be prepared.")
       : null
   const marks = [
+    held ? "Comes back with Pro" : null,
     upload.generated ? "AI" : null,
     // What sharing means for others now: out, waiting for an admin's first
     // check, or taken off by an admin (task 05).
@@ -586,7 +603,8 @@ function UploadCard({
         : upload.shareState === "taken_down"
           ? "Taken off"
           : null,
-    upload.inUse ? "In use" : null,
+    // A held file is not playing anywhere, whatever the room has saved.
+    upload.inUse && !held ? "In use" : null,
   ].filter((mark): mark is string => mark !== null)
   const [hovered, setHovered] = React.useState(false)
   const [tapped, setTapped] = React.useState(false)
@@ -596,15 +614,17 @@ function UploadCard({
       type="button"
       className="group w-full text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid disabled:cursor-not-allowed"
       aria-label={
-        ready
+        held
+          ? `${upload.name}, kept until Pro is back`
+          : ready
           ? `Preview ${upload.name}`
           : failed
             ? `${upload.name} could not be prepared`
             : `${upload.name} is still being prepared`
       }
-      disabled={!ready}
+      disabled={!playable}
       onClick={() => {
-        if (!ready) return
+        if (!playable) return
         if (!sound) setTapped((current) => !current)
         onPick()
       }}
@@ -617,11 +637,14 @@ function UploadCard({
         )}
       >
         {ready ? renderThumbnail(sound ? playing : hovered || tapped) : null}
+        {held ? <span className="absolute inset-0 bg-background/50 grayscale" aria-hidden="true" /> : null}
         {/* At the foot of the picture, because the cog and the bin hold the
             top corner and a narrow card has no room for both. */}
         {selected ? <CurrentlySelectedLabel className="top-auto bottom-2 whitespace-nowrap" /> : null}
         <span className="absolute inset-0 grid place-items-center">
-          {failed && !ready ? (
+          {held ? (
+            <LockIcon className="size-6 text-muted-foreground" aria-hidden="true" />
+          ) : failed && !ready ? (
             <TriangleAlertIcon
               className="size-6 text-destructive"
               aria-hidden="true"
@@ -710,7 +733,7 @@ function UploadCard({
       // so moving onto the "+" keeps it playing. Only a mouse hovers; a
       // finger's tap is the button's click. A sound plays on a click only.
       onPointerEnter={(event) => {
-        if (!ready || sound || event.pointerType !== "mouse") return
+        if (!playable || sound || event.pointerType !== "mouse") return
         setHovered(true)
       }}
       onPointerLeave={(event) => {

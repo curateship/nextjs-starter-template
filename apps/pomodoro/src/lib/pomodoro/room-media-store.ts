@@ -85,6 +85,8 @@ type Snapshot = {
   canUsePremiumMedia: boolean
   /** The member's own tagged files, which their personal room's groups may play. */
   own: OwnPoolMedia
+  /** A saved Pro choice kept but not played without Pro (payments task 05). */
+  held: MediaBootstrap["held"]
 }
 
 const EMPTY_SIDE: Side = {
@@ -101,6 +103,7 @@ let state: Snapshot = {
   room: null,
   canUsePremiumMedia: false,
   own: NO_OWN_POOL_MEDIA,
+  held: { sound: null, background: null },
 }
 const listeners = new Set<() => void>()
 let primed = false
@@ -353,6 +356,7 @@ function snapshotFrom(bootstrap: MediaBootstrap): Snapshot {
     room: bootstrap.room ? hostedRoomFrom(bootstrap.room, context, bootstrap.picks) : null,
     canUsePremiumMedia: context.canUsePremium,
     own: bootstrap.own,
+    held: bootstrap.held,
   }
 }
 
@@ -668,6 +672,8 @@ export function useRoomMedia(seed?: MediaBootstrap | null) {
   return {
     catalog: snapshot.catalog,
     canUsePremiumMedia: snapshot.canUsePremiumMedia,
+    /** A saved Pro choice kept but not played without Pro (payments task 05). */
+    held: snapshot.held,
     room: snapshot.room,
     personalSound: snapshot.personal.sound,
     personalBackground: snapshot.personal.background,

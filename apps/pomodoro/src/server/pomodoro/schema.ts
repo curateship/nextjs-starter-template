@@ -1027,6 +1027,12 @@ export const pomodoroRoomRepeats = pgTable(
      * booking, so a pass reads only the rules due within a day.
      */
     nextStartsAt: timestamp("next_starts_at", { withTimezone: true }),
+    /**
+     * When a day was first skipped because the host no longer has Pro
+     * (payments task 05, migration 0156). Invitees hear once per pause;
+     * cleared the next time a day books.
+     */
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
     /** Set by Cancel the series. Rooms already made keep their own state. */
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     /** Every room this rule books sits first on Browse rooms. */

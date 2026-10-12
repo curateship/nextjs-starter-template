@@ -34,7 +34,11 @@ import {
   pomodoroMediaUploads,
   pomodoroSavedMedia,
 } from "@/server/pomodoro/schema"
-import { customShellMedia } from "@/server/schema"
+import {
+  customShellMedia,
+  customShellPlans,
+  customShellSubscriptions,
+} from "@/server/schema"
 import {
   createTestDatabase,
   insertUser,
@@ -72,6 +76,49 @@ afterEach(async () => {
   await client.close()
 })
 
+/**
+ * Puts the member on Pro, or takes it away again, as a lapsed plan: the row
+ * stays, cancelled. Own files need Pro (payments task 05).
+ */
+async function setMemberPro(on: boolean) {
+  const timestamp = new Date()
+  await db
+    .insert(customShellPlans)
+    .values({
+      id: "pro-test",
+      slug: "pro-test",
+      name: "Pro",
+      priceMonthlyCents: 900,
+      priceYearlyCents: 0,
+      currency: "usd",
+      features: {},
+      isDefault: false,
+      isPublic: true,
+      sortOrder: 1,
+      active: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .onConflictDoNothing()
+  await db
+    .insert(customShellSubscriptions)
+    .values({
+      id: randomUUID(),
+      userId: memberId,
+      planId: "pro-test",
+      status: on ? "active" : "canceled",
+      interval: "monthly",
+      source: "stripe",
+      currentPeriodEnd: new Date("2099-11-14T12:00:00Z"),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .onConflictDoUpdate({
+      target: customShellSubscriptions.userId,
+      set: { status: on ? "active" : "canceled" },
+    })
+}
+
 async function openRoom() {
   const slug = `slug-${Math.random().toString(36).slice(2, 12)}pad`
   const { room } = await createRoomWithHost(hostId, slug, SETTINGS, db)
@@ -103,6 +150,8 @@ describe("the personal room", () => {
 })
 
 describe("deleting an upload that is in the personal room", () => {
+  beforeEach(() => setMemberPro(true))
+
   it("puts that room back to silence and leaves the theme alone", async () => {
     const workspace = await insertWorkspace(db)
     const mediaId = randomUUID()
@@ -138,6 +187,8 @@ describe("deleting an upload that is in the personal room", () => {
 })
 
 describe("the member's own files for shuffle, and the look", () => {
+  beforeEach(() => setMemberPro(true))
+
   async function insertUpload(values: {
     purpose: "sound" | "background"
     kind: "audio" | "image"
@@ -210,6 +261,46 @@ describe("the member's own files for shuffle, and the look", () => {
     await savePersonalBackground(memberId, "tags:desk")
     const bootstrap = await loadMediaBootstrap(memberId)
     expect(bootstrap.picks.background).toBe(`media:${desk}`)
+  })
+
+  describe("when Pro ends (payments task 05)", () => {
+    it("holds a Pro sound and the member's own background, keeps both saved, and gives them back with Pro", async () => {
+      const desk = await insertUpload({ purpose: "background", kind: "image", tags: ["desk"] })
+      await savePersonalSound(memberId, "curated:piano")
+      await savePersonalBackground(memberId, `media:${desk}`)
+
+      await setMemberPro(false)
+      const lapsed = await loadMediaBootstrap(memberId)
+      expect(lapsed.held.sound).not.toBeNull()
+      expect(lapsed.held.background).toBe("background desk")
+      expect(lapsed.personal.sound).not.toBe("curated:piano")
+      expect(lapsed.personal.background).not.toBe(`media:${desk}`)
+      expect(lapsed.personal.backgroundUrl).toBeNull()
+      // Nothing about the saved choice changed.
+      const saved = await loadOrCreatePersonalRoom(memberId, db)
+      expect([saved.sound, saved.background]).toEqual(["curated:piano", `media:${desk}`])
+
+      await setMemberPro(true)
+      const back = await loadMediaBootstrap(memberId)
+      expect(back.held).toEqual({ sound: null, background: null })
+      expect(back.personal.sound).toBe("curated:piano")
+      expect(back.personal.backgroundUrl).toContain(desk)
+    })
+
+    it("takes own files out of every group and refuses to pick one, but keeps someone else's shared file", async () => {
+      await insertUpload({ purpose: "sound", kind: "audio", tags: ["rain"] })
+      const theirs = await insertUpload({ purpose: "sound", kind: "audio", tags: ["rain"], owner: hostId, shared: true })
+      const mine = await insertUpload({ purpose: "sound", kind: "audio", tags: ["rain"] })
+      await db.insert(pomodoroSavedMedia).values({ userId: memberId, mediaId: theirs })
+
+      await setMemberPro(false)
+      expect((await loadMediaBootstrap(memberId)).own.sounds.map((file) => file.mediaId)).toEqual([theirs])
+      await expect(savePersonalSound(memberId, `media:${mine}`)).rejects.toThrow("UPGRADE_REQUIRED:uploadMedia")
+      await savePersonalSound(memberId, `media:${theirs}`)
+      const bootstrap = await loadMediaBootstrap(memberId)
+      expect(bootstrap.held.sound).toBeNull()
+      expect(bootstrap.personal.soundUrl).toContain(theirs)
+    })
   })
 })
 

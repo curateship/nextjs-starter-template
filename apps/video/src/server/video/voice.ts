@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { eq, inArray } from "drizzle-orm"
 
 import {
   alignmentToWords,
@@ -11,7 +12,8 @@ import {
   VOICE_NO_TEXT_MESSAGE,
   VOICE_NO_VOICE_MESSAGE,
   VOICE_NO_VOICES_MESSAGE,
-  VOICE_TEXT_MAX,
+  VOICE_NOT_YOURS_MESSAGE,
+  VOICE_TOO_MANY_PAUSES_MESSAGE,
   voiceoverRequestBody,
   wordsToCaptions,
   type Voice,
@@ -20,12 +22,20 @@ import {
   type VoiceoverResult,
 } from "@/lib/video/voice"
 import { voiceoverName } from "@/lib/video/saved-voiceovers"
+import {
+  readerFor,
+  scriptForReader,
+  spokenScript,
+  voicePausesRefusal,
+} from "@/lib/video/voice-direction"
 import { ELEVENLABS_KEY_MISSING_MESSAGE } from "@/lib/video/ai-providers"
 import { getAiKey } from "@/server/ai/keys"
 import { runAiCall } from "@/server/ai/usage"
 import { now, uuid } from "@/server/auth/security"
+import { db } from "@/server/db"
 import { deleteFromR2, getPublicMediaUrl, uploadToR2 } from "@/server/media/storage"
 import { runFfmpeg } from "@/server/video/ffmpeg"
+import { videoClonedVoices } from "@/server/video/schema"
 import { storeVoiceover } from "@/server/video/voiceovers"
 import { requireOpenAiKey } from "@/server/video/whisper"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
@@ -68,8 +78,13 @@ async function complain(label: string, response: Response) {
  * OpenAI's are a fixed list that needs no asking; ElevenLabs' belong to the
  * account, so they are fetched. Both come back the same shape, each saying
  * which provider it lives on.
+ *
+ * Every voice made in this app sits on the one ElevenLabs account, so each is
+ * shown only to the person whose sample it came from, first and marked as
+ * theirs. A voice made on the ElevenLabs site has no owner here and is shown
+ * to everybody, as before.
  */
-export async function listVoices(): Promise<Voice[]> {
+export async function listVoices(userId: string): Promise<Voice[]> {
   const [voice, openai] = await Promise.all([
     getAiKey("elevenlabs"),
     getAiKey("openai"),
@@ -79,7 +94,35 @@ export async function listVoices(): Promise<Voice[]> {
     if (!voices.length) throw new Error(ELEVENLABS_KEY_MISSING_MESSAGE)
     return voices
   }
-  return [...(await listElevenLabsVoices()), ...voices]
+  const elevenlabs = await listElevenLabsVoices()
+  const owned = await db
+    .select({ voiceId: videoClonedVoices.voiceId, userId: videoClonedVoices.userId })
+    .from(videoClonedVoices)
+    .where(
+      inArray(
+        videoClonedVoices.voiceId,
+        elevenlabs.map((one) => one.id)
+      )
+    )
+  const owners = new Map(owned.map((row) => [row.voiceId, row.userId]))
+  const visible = elevenlabs.flatMap((one) => {
+    const owner = owners.get(one.id)
+    if (!owner) return [one]
+    return owner === userId ? [{ ...one, yours: true }] : []
+  })
+  const yours = visible.filter((one) => one.yours)
+  const others = visible.filter((one) => !one.yours)
+  return [...yours, ...others, ...voices]
+}
+
+/** A voice made from someone else's sample is theirs alone to read with. */
+async function refuseOthersVoice(userId: string, voiceId: string) {
+  const [row] = await db
+    .select({ userId: videoClonedVoices.userId })
+    .from(videoClonedVoices)
+    .where(eq(videoClonedVoices.voiceId, voiceId))
+    .limit(1)
+  if (row && row.userId !== userId) throw new Error(VOICE_NOT_YOURS_MESSAGE)
 }
 
 async function listElevenLabsVoices(): Promise<Voice[]> {
@@ -122,8 +165,12 @@ async function listElevenLabsVoices(): Promise<Voice[]> {
  * Reads the script aloud and puts the sound in the library.
  *
  * The whole thing is one call on the meter, charged by how many characters
- * were read — which is how this provider charges — so a failed reading costs
- * nothing at all.
+ * were sent — which is how this provider charges, tags included — so a failed
+ * reading costs nothing at all.
+ *
+ * The script may hold directions (`[whispering]`, `[pause 1.5s]`). They are
+ * turned into what the chosen model understands just before sending, and the
+ * shelf keeps only the words that were said.
  */
 export async function speak({
   userId,
@@ -147,9 +194,10 @@ export async function speak({
   /** The name the spend is filed under on the AI dashboard. */
   feature?: string
 }): Promise<VoiceoverResult> {
-  const script = text.trim()
+  const script = spokenScript(text)
   if (!script) throw new Error(VOICE_NO_TEXT_MESSAGE)
   if (!voiceId) throw new Error(VOICE_NO_VOICE_MESSAGE)
+  if (voicePausesRefusal(text)) throw new Error(VOICE_TOO_MANY_PAUSES_MESSAGE)
 
   const who =
     speaker ??
@@ -161,13 +209,18 @@ export async function speak({
       userId,
       voiceId,
       voiceName,
-      text: script,
+      text: scriptForReader(text, "plain"),
+      script,
       settings,
       feature,
     })
   }
 
+  await refuseOthersVoice(userId, voiceId)
   const apiKey = await requireElevenLabsKey()
+  // The window caps the script at 5,000 characters. Turning pauses into
+  // <break> adds at most a few hundred, inside every model's own limit.
+  const sent = scriptForReader(text, readerFor("elevenlabs", modelId))
 
   const payload = await runAiCall(
     {
@@ -175,7 +228,7 @@ export async function speak({
       provider: "elevenlabs",
       model: modelId,
       feature,
-      metadata: { characters: script.length },
+      metadata: { characters: sent.length },
     },
     async () => {
       const response = await fetch(
@@ -186,13 +239,7 @@ export async function speak({
             "xi-api-key": apiKey,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(
-            voiceoverRequestBody(
-              script.slice(0, VOICE_TEXT_MAX),
-              modelId,
-              settings
-            )
-          ),
+          body: JSON.stringify(voiceoverRequestBody(sent, modelId, settings)),
           signal: AbortSignal.timeout(120_000),
         }
       )
@@ -205,7 +252,7 @@ export async function speak({
       return {
         result: answer,
         // Charged by the character, which is what this provider counts.
-        usage: { inputTokens: 0, outputTokens: 0, units: script.length },
+        usage: { inputTokens: 0, outputTokens: 0, units: sent.length },
       }
     }
   )
@@ -280,13 +327,17 @@ async function speakWithOpenAi({
   voiceId,
   voiceName,
   text,
+  script,
   settings,
   feature,
 }: {
   userId: string
   voiceId: string
   voiceName: string
+  /** What is sent: the words, with an ellipsis for each pause. */
   text: string
+  /** Only the words said, which the captions are spread across. */
+  script: string
   settings?: VoiceSettings
   feature: string
 }): Promise<VoiceoverResult> {
@@ -327,10 +378,10 @@ async function speakWithOpenAi({
   )
   if (!bytes.byteLength) throw new Error(VOICE_FAILED_MESSAGE)
 
-  const durationMs = await mp3DurationMs(bytes)
-  const captions = spreadCaptionsEvenly(text, durationMs)
+  const durationMs = await soundDurationMs(bytes)
+  const captions = spreadCaptionsEvenly(script, durationMs)
   const stored = await keepInLibrary(userId, bytes, {
-    script: text,
+    script,
     voiceId,
     voiceName,
     durationMs,
@@ -339,15 +390,37 @@ async function speakWithOpenAi({
   return { ...stored, durationMs, captions }
 }
 
-/** How long a piece of sound runs, asked of ffmpeg rather than guessed. */
-async function mp3DurationMs(bytes: Uint8Array): Promise<number> {
+/**
+ * How long a piece of sound runs, asked of ffmpeg rather than guessed. 0 when
+ * ffmpeg found no sound in it at all.
+ *
+ * `stopAfterMs` stops reading there, so a file somebody uploaded that runs for
+ * hours is not read to the end only to be refused. A file that long comes
+ * back as `stopAfterMs`.
+ */
+export async function soundDurationMs(
+  bytes: Uint8Array,
+  stopAfterMs?: number
+): Promise<number> {
   const dir = await mkdtemp(path.join(tmpdir(), "video-voice-"))
   try {
-    const file = path.join(dir, "voice.mp3")
+    // ffmpeg reads what the file is from its contents, not its name.
+    const file = path.join(dir, "voice.sound")
     await writeFile(file, bytes)
-    // ffmpeg prints the length while it reads the file; nothing is written out.
+    // ffmpeg prints the length while it reads the file; nothing is written
+    // out. An uploaded file could be a playlist pointing elsewhere, so only
+    // the file itself may be opened.
     const noise = await runFfmpeg(
-      ["-i", file, "-f", "null", "-"],
+      [
+        "-protocol_whitelist",
+        "file",
+        "-i",
+        file,
+        ...(stopAfterMs ? ["-t", String(stopAfterMs / 1000)] : []),
+        "-f",
+        "null",
+        "-",
+      ],
       VOICE_FAILED_MESSAGE
     )
     const match = noise.match(/time=(\d+):(\d+):(\d+\.\d+)/g)?.at(-1)

@@ -367,7 +367,7 @@ function InUse({
  * goes to. A member of somebody else's room is told the host picked it.
  */
 export function MediaRoomNote({ thing }: { thing: "sound" | "theme" }) {
-  const { room } = useRoomMedia()
+  const { room, held } = useRoomMedia()
   const { authenticated } = useProductAuth()
   // A sound plays on a click; a theme plays while the pointer is over it.
   const how = thing === "sound" ? "Press a sound to hear it" : "Hover over a background to see it play"
@@ -379,5 +379,17 @@ export function MediaRoomNote({ thing }: { thing: "sound" | "theme" }) {
     : authenticated
       ? `${how}. Nothing changes until you press + and add it to your personal room.`
       : `${how}, then press + to use it for this visit. Log in to keep one in a personal room of your own.`
-  return <p className="max-w-xl text-muted-foreground">{text}</p>
+  // A Pro pick the personal room keeps while the plan has no Pro (payments
+  // task 05). It is saved, not lost, so the line says it comes back.
+  const heldName = thing === "sound" ? held.sound : held.background
+  return (
+    <>
+      <p className="max-w-xl text-muted-foreground">{text}</p>
+      {heldName ? (
+        <p className="max-w-xl text-sm text-muted-foreground">
+          Your {thing === "sound" ? "sound" : "background"}, {heldName}, comes back with Pro. Until then your room uses a free one.
+        </p>
+      ) : null}
+    </>
+  )
 }

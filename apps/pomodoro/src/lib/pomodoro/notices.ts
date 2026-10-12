@@ -46,6 +46,7 @@ export const POMODORO_NOTICE_KINDS = [
   "share_weekly",
   "share_removed",
   "share_waiting",
+  "room_not_opening",
 ] as const
 
 export type PomodoroNoticeKind = (typeof POMODORO_NOTICE_KINDS)[number]
@@ -106,6 +107,7 @@ export const NOTICE_KIND_CATEGORY: Record<
   share_weekly: "account",
   share_removed: "account",
   share_waiting: "account",
+  room_not_opening: "rooms",
 }
 
 /**
@@ -483,6 +485,23 @@ export function projectDeletedMessage(projectName: string) {
   return `${PROJECT_DELETED_PREFIX}${projectName}. Its tasks are kept.`
 }
 
+/**
+ * A booked room did not open because its host no longer has Pro (payments
+ * task 05). Invitees are never told why, because that is the host's billing.
+ * The host is told it comes back with Pro.
+ */
+const NOT_OPENING_SUFFIX = " won't open."
+const PAUSED_SUFFIX = " is paused for now."
+const HOST_NOT_OPENING = /^Your (weekly )?room .+ (won't open|is paused)\. Hosting comes back with Pro\.$/
+export function roomNotOpeningMessage(roomName: string, weekly: boolean) {
+  return `${roomName}${weekly ? PAUSED_SUFFIX : NOT_OPENING_SUFFIX}`
+}
+export function hostRoomNotOpeningMessage(roomName: string, weekly: boolean) {
+  return weekly
+    ? `Your weekly room ${roomName} is paused. Hosting comes back with Pro.`
+    : `Your room ${roomName} won't open. Hosting comes back with Pro.`
+}
+
 /** An operator hid your public profile. Never says who, or who reported it. */
 export const PROFILE_HIDDEN_MESSAGE =
   "Your public profile has been hidden. See Settings for what to do."
@@ -547,6 +566,12 @@ export function noticeKindFromWords(notice: {
     return "room_changed"
   if (message === PROFILE_HIDDEN_MESSAGE) return "profile_hidden"
   if (STREAK_REMINDER_PATTERN.test(message)) return "streak_reminder"
+  if (
+    HOST_NOT_OPENING.test(message) ||
+    message.endsWith(NOT_OPENING_SUFFIX) ||
+    message.endsWith(PAUSED_SUFFIX)
+  )
+    return "room_not_opening"
   if (message.startsWith(BADGE_PREFIX)) return "badge"
   if (FAILED_PATTERN.test(message)) return "media_failed"
   if (message.startsWith("Your ") && message.endsWith(READY_SUFFIX))

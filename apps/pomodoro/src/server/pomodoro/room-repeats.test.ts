@@ -7,7 +7,11 @@ import {
   setEmailProviderFactoryForTests,
   type SendEmailParams,
 } from "@/server/email/provider"
-import { customShellEmailSettings } from "@/server/schema"
+import {
+  customShellEmailSettings,
+  customShellNotifications,
+  customShellUsers,
+} from "@/server/schema"
 import { pomodoroRoomRepeats, roomInvites, rooms } from "@/server/pomodoro/schema"
 import {
   bookDueRepeatRooms,
@@ -15,6 +19,7 @@ import {
   createRoomRepeat,
   listMyRoomRepeats,
   openDueRooms,
+  scheduleRoomWithInvites,
   skipNextRoomRepeat,
   type RoomRepeatInput,
 } from "@/server/pomodoro/scheduled-rooms"
@@ -192,5 +197,92 @@ describe("a host who can no longer host", () => {
     const [after] = await db.select().from(pomodoroRoomRepeats).where(eq(pomodoroRoomRepeats.id, rule.id))
     expect(after.cancelledAt).toBeNull()
     expect(after.nextStartsAt?.toISOString()).toBe("2099-10-13T09:00:00.000Z")
+  })
+})
+
+/**
+ * When Pro ends (payments task 05). Tyler's calls of 12 Oct 2026: a weekly
+ * room stops opening and its invitees hear it is paused, once; a one-off
+ * booking is cancelled and its invitees hear it won't open. Neither says why.
+ */
+describe("a host whose Pro ended", () => {
+  const setHostRole = (role: "admin" | "member") =>
+    db.update(customShellUsers).set({ role }).where(eq(customShellUsers.id, hostId))
+  const messagesFor = async (userId: string) =>
+    (
+      await db
+        .select({ message: customShellNotifications.message })
+        .from(customShellNotifications)
+        .where(eq(customShellNotifications.recipientUserId, userId))
+    )
+      .map((row) => row.message)
+      .filter((message) => message && /won't open|paused/.test(message))
+  let inviteeId: string
+
+  beforeEach(async () => {
+    inviteeId = (await insertUser(db, { email: "sam@example.com" })).id
+  })
+
+  it("pauses a weekly room once, tells the host and invitees once, and books again with Pro", async () => {
+    const { rule } = await createRoomRepeat(hostId, RULE, db, MONDAY_8AM)
+    await setHostRole("member")
+    await openDueRooms(db, hoursAfter(MONDAY_8AM, 2))
+    // A second skipped week tells nobody again.
+    await openDueRooms(db, hoursAfter(MONDAY_8AM, 24 * 7 + 2))
+    expect(await roomsOf(rule.id)).toHaveLength(0)
+    expect(await messagesFor(inviteeId)).toEqual(["Tuesday writing is paused for now."])
+    expect(await messagesFor(hostId)).toEqual([
+      "Your weekly room Tuesday writing is paused. Hosting comes back with Pro.",
+    ])
+
+    await setHostRole("admin")
+    await openDueRooms(db, hoursAfter(MONDAY_8AM, 24 * 14 + 2))
+    expect((await roomsOf(rule.id)).map((room) => room.occurrenceDate)).toEqual(["2099-10-20"])
+    const [after] = await db.select().from(pomodoroRoomRepeats).where(eq(pomodoroRoomRepeats.id, rule.id))
+    expect(after.pausedAt).toBeNull()
+  })
+
+  it("closes a weekly day already booked instead of opening it", async () => {
+    const { rule } = await createRoomRepeat(hostId, RULE, db, MONDAY_8AM)
+    await openDueRooms(db, hoursAfter(MONDAY_8AM, 2))
+    expect(await roomsOf(rule.id)).toHaveLength(1)
+
+    await setHostRole("member")
+    await openDueRooms(db, hoursAfter(MONDAY_8AM, 26))
+    const [day] = await roomsOf(rule.id)
+    expect(day.phase).toBe("closed")
+    expect(await messagesFor(inviteeId)).toEqual(["Tuesday writing is paused for now."])
+    // The next week's skip belongs to the same pause.
+    await openDueRooms(db, hoursAfter(MONDAY_8AM, 24 * 7 + 2))
+    expect(await messagesFor(inviteeId)).toHaveLength(1)
+  })
+
+  it("cancels a one-off booking at its start, and its invitees hear it won't open", async () => {
+    const room = await scheduleRoomWithInvites(
+      hostId,
+      "oneoffslugpadpadpad",
+      {
+        name: "Exam cram",
+        visibility: "unlisted",
+        focusMinutes: 25,
+        shortBreakMinutes: 5,
+        longBreakMinutes: 15,
+        autoStart: false,
+        sound: null,
+        background: null,
+        startsAt: hoursAfter(MONDAY_8AM, 4),
+        invites: ["sam@example.com"],
+      },
+      db
+    )
+    await setHostRole("member")
+    await openDueRooms(db, hoursAfter(MONDAY_8AM, 5))
+    await openDueRooms(db, hoursAfter(MONDAY_8AM, 6))
+    const [after] = await db.select().from(rooms).where(eq(rooms.id, room.id))
+    expect(after.phase).toBe("closed")
+    expect(await messagesFor(inviteeId)).toEqual(["Exam cram won't open."])
+    expect(await messagesFor(hostId)).toEqual([
+      "Your room Exam cram won't open. Hosting comes back with Pro.",
+    ])
   })
 })

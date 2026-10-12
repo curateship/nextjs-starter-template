@@ -46,6 +46,12 @@ cover this one.
   more space once.
 - [Switching payments on](switching-payments-on.md) — the order to set Stripe
   up in, what each money path does, and how to prove it.
+- [The Plan tab](plan-tab.md) — Settings → Plan: the plan, Stripe's own
+  figure for the next payment, the month's AI credits, the upload space, and
+  Manage billing.
+- [When Pro ends](when-pro-ends.md) — Tyler's rule: nothing deleted, Pro
+  choices and own files held with "Comes back with Pro", booked rooms paused
+  or cancelled with invitees told, shared files left up for others.
 - [The plans page](plans-page.md) — `/plans`, the product's own pricing
   screen: where the figures come from, what each button does, and why the
   shell's `/pricing` is a different page.

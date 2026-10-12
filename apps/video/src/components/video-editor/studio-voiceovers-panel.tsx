@@ -22,12 +22,16 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
+import { OwnVoices } from "@/components/video-editor/studio-own-voices"
 import { useSavedCaptionLook } from "@/components/video-editor/use-saved-caption-look"
 
 /**
  * The Voiceovers panel: every voiceover already read aloud, searchable by
  * what it says, each one press away from landing at the playhead with its
  * captions. Reusing one costs nothing; only reading new words does.
+ *
+ * Above them sit the voices made from your own recordings, because this is
+ * the panel about voices and the Voice window cannot open another window.
  */
 export function VoiceoversPanel() {
   const { store, dispatch, clock } = useEditorRuntime()
@@ -95,6 +99,8 @@ export function VoiceoversPanel() {
         icon={<MicIcon className="size-4" />}
         title="Voiceovers"
       />
+
+      <OwnVoices />
 
       <div className="border-b p-4">
         <Input

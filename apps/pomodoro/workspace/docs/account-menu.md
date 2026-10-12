@@ -15,6 +15,8 @@ Register in that spot, or only an orange Log in on a phone.
   really opens: you have a handle, the page is switched on, and an operator has
   not hidden it. Any other time the address answers the same 404 a stranger
   gets, so a row leading there would look broken.
+- **Plan and billing** opens Settings → Plan (`/settings?tab=plan`), for
+  everyone signed in. See [The Plan tab](plan-tab.md).
 - **Upgrade to Pro** opens `/plans`, and only Free accounts see it.
 - **Admin** opens `/admin`, and only admins see it. The `/admin` route checks
   the role again, so hiding the row is not the only guard.

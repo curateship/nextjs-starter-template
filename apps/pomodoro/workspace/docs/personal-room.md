@@ -66,6 +66,9 @@ Then it is the pair the host picked, until you leave.
   away is the host's to do.
 - **Pro items play for everyone.** A free member hears and sees the Pro sound
   or background a Pro host picked. The lock still holds for their own room.
+- **A Pro choice is held, not lost, when Pro ends.** The room plays a free
+  one, the saved choice stays, and it plays again when Pro is back. See
+  [When Pro ends](when-pro-ends.md).
 
 ## Guests
 

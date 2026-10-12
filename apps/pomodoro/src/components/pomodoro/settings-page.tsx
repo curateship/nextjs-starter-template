@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 
 import AppearanceSettingsPanel from "@/components/pomodoro/appearance-settings-panel"
 import BlockedAccountsCard from "@/components/pomodoro/blocked-accounts-card"
+import PlanSettingsPanel from "@/components/pomodoro/plan-settings-panel"
 import ProfileSettingsPanel from "@/components/pomodoro/profile-settings-panel"
 import PublicProfileSettingsPanel from "@/components/pomodoro/public-profile-settings-panel"
 import StreakBadgeCard from "@/components/pomodoro/streak-badge-card"
@@ -22,10 +23,10 @@ import { contentColumn } from "@/lib/pomodoro/content-column"
 import { StreakReminderCard } from "@/components/pomodoro/streak-reminder-card"
 
 /**
- * The product's Settings page, like the old app's, in five tabs: the focus
- * rhythm, the look, the profile, the public page, and privacy (blocked people
- * and the streak badge). Account email, password and deletion stay with the
- * platform's own account area.
+ * The product's Settings page, like the old app's, in six tabs: the focus
+ * rhythm, the look, the profile, the public page, privacy (blocked people
+ * and the streak badge), and the plan (payments task 04). Account email,
+ * password and deletion stay with the platform's own account area.
  *
  * A guest gets the first three. Their Profile tab is the card asking them to
  * sign in, because a guest has no profile to edit.
@@ -44,7 +45,7 @@ export function SettingsPage({
     ? tab
     : DEFAULT_SETTINGS_TAB
 
-  // On a phone the five tabs are wider than the screen and the row scrolls
+  // On a phone the six tabs are wider than the screen and the row scrolls
   // sideways. Opening `?tab=privacy` must show the chosen tab, not leave it
   // off the right edge, so the row scrolls to it. Only the row moves; the
   // page itself is never scrolled.
@@ -106,6 +107,9 @@ export function SettingsPage({
             <TabsContent value="privacy" className="flex flex-col gap-4">
               <BlockedAccountsCard />
               <StreakBadgeCard />
+            </TabsContent>
+            <TabsContent value="plan">
+              <PlanSettingsPanel />
             </TabsContent>
           </>
         ) : null}
