@@ -67,6 +67,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   type and its "Check it" button: the five rules, where they came from, why it
   is a checklist and not a prediction, the banned words on Settings → Scripts,
   and what a check costs.
+- [voice-direction.md](voice-direction.md) — directing the voice with
+  [whispering] and pauses, how a pause is sent to each model, steadiness and
+  expressiveness, and a voice made from your own recording: who sees it, what
+  it costs and what deleting it removes.
 - [writing-with-ai.md](writing-with-ai.md) — which AI rewrites words (Gemini,
   GPT or Claude), which tools use the choice, and what happens when a key is
   removed.

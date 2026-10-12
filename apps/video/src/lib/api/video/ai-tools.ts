@@ -38,7 +38,7 @@ import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import {
   SAFE_VOICE_ERRORS,
   VOICE_MODEL_IDS,
-  createDefaultVoiceSettings,
+  rememberedVoiceSettings,
   VOICE_SPEED_MAX,
   VOICE_SPEED_MIN,
   VOICE_TEXT_MAX,
@@ -293,9 +293,7 @@ const speakHookFn = createServerFn({ method: "POST" })
       // other provider works it out from the voice itself.
       modelId: remembered?.modelId ?? "eleven_multilingual_v2",
       text: data.text,
-      settings: remembered
-        ? { ...createDefaultVoiceSettings(), speed: remembered.speed }
-        : undefined,
+      settings: rememberedVoiceSettings(remembered),
     })
   })
 
@@ -354,9 +352,7 @@ const speakTranslationFn = createServerFn({ method: "POST" })
       speaker: "elevenlabs",
       modelId: TRANSLATE_VOICE_MODEL,
       text: data.text,
-      settings: remembered
-        ? { ...createDefaultVoiceSettings(), speed: remembered.speed }
-        : undefined,
+      settings: rememberedVoiceSettings(remembered),
       feature: "translation_voice",
     })
   })
@@ -370,7 +366,7 @@ export function speakTranslation(text: string, voice: Voice) {
 
 const voicesFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async (): Promise<Voice[]> => listVoices())
+  .handler(async ({ context }): Promise<Voice[]> => listVoices(context.user.id))
 
 export function loadVoices() {
   return voicesFn()

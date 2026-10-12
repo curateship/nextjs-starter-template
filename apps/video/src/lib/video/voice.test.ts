@@ -3,9 +3,22 @@ import { describe, expect, it } from "vitest"
 import {
   alignmentToWords,
   createDefaultVoiceSettings,
+  readVoiceDefaults,
+  rememberedVoiceSettings,
   voiceoverRequestBody,
   wordsToCaptions,
 } from "./voice"
+import { scriptForReader } from "./voice-direction"
+
+/** Every character of `text` said one after another, a tenth of a second each. */
+function evenly(text: string) {
+  const characters = [...text]
+  return {
+    characters,
+    character_start_times_seconds: characters.map((_, index) => index / 10),
+    character_end_times_seconds: characters.map((_, index) => (index + 1) / 10),
+  }
+}
 
 /** "Hi there" said over one second, letter by letter. */
 const ALIGNMENT = {
@@ -40,6 +53,32 @@ describe("turning letters with times into words with times", () => {
         character_end_times_seconds: [],
       })
     ).toEqual([])
+  })
+})
+
+describe("directions never reach the captions", () => {
+  const script =
+    "[whispering] I found it. [pause 2s] It changes everything. [excited] Watch."
+
+  it("leaves the tags and the pause out of a v4 read", () => {
+    const words = alignmentToWords(evenly(scriptForReader(script, "directed")))
+    const captions = wordsToCaptions(words).map((line) => line.text).join(" ")
+    expect(captions).toBe("I found it. It changes everything. Watch.")
+    expect(captions).not.toMatch(/\[|\]|\.\.\./)
+  })
+
+  it("leaves the break out of a v2 read", () => {
+    const words = alignmentToWords(evenly(scriptForReader(script, "timed")))
+    expect(words.map((word) => word.text).join(" ")).toBe(
+      "I found it. It changes everything. Watch."
+    )
+  })
+
+  it("keeps writing that only looks like a direction", () => {
+    const words = alignmentToWords(evenly("3 < 5 and [this one is open"))
+    expect(words.map((word) => word.text).join(" ")).toBe(
+      "3 < 5 and [this one is open"
+    )
   })
 })
 
@@ -118,5 +157,50 @@ describe("what gets asked for", () => {
         use_speaker_boost: true,
       },
     })
+  })
+})
+
+describe("a remembered voice's steadiness and expressiveness", () => {
+  it("are read back with the rest of the choice", () => {
+    const remembered = readVoiceDefaults({
+      voiceId: "abc",
+      voiceName: "Me",
+      modelId: "eleven_v4",
+      speed: 1.1,
+      stability: 0.8,
+      styleExaggeration: 0.3,
+    })
+    expect(rememberedVoiceSettings(remembered)).toEqual({
+      ...createDefaultVoiceSettings(),
+      speed: 1.1,
+      stability: 0.8,
+      styleExaggeration: 0.3,
+    })
+  })
+
+  it("start where they always did for a choice saved before they existed", () => {
+    const remembered = readVoiceDefaults({
+      voiceId: "abc",
+      voiceName: "Me",
+      modelId: "eleven_multilingual_v2",
+      speed: 0.9,
+    })
+    expect(rememberedVoiceSettings(remembered)).toEqual({
+      ...createDefaultVoiceSettings(),
+      speed: 0.9,
+    })
+  })
+
+  it("leave the account's own settings alone when nothing is remembered", () => {
+    expect(rememberedVoiceSettings(null)).toBeUndefined()
+  })
+
+  it("are rounded to the three steadiness settings v4 takes", () => {
+    const body = voiceoverRequestBody("hi", "eleven_v4", {
+      ...createDefaultVoiceSettings(),
+      stability: 0.8,
+      styleExaggeration: 0.3,
+    })
+    expect(body.voice_settings).toMatchObject({ stability: 1, style: 0.3 })
   })
 })
