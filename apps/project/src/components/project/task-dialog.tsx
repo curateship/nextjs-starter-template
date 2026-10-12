@@ -64,7 +64,7 @@ function TaskWindow({ parts, onClose }: { parts: TaskParts; onClose: () => void 
         </DialogDescription>
       </DialogHeader>
       <DialogBody>{parts.body}</DialogBody>
-      <DialogFooter ref={footer} className="flex-wrap">
+      <DialogFooter ref={confirmDelete ? footer : undefined} className="flex-wrap">
         {remove && confirmDelete ? (
           <>
             <p className="mr-auto basis-full text-sm sm:basis-auto sm:flex-1">

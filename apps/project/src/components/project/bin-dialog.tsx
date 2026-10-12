@@ -141,7 +141,8 @@ function BinContents({ projectId, onClose }: { projectId: string; onClose: () =>
           </CardContent>
         </Card>
       </DialogBody>
-      <DialogFooter ref={footer} className="flex-wrap">
+      {/* Only the Empty bin question listens for Escape; otherwise Escape closes the window. */}
+      <DialogFooter ref={emptying ? footer : undefined} className="flex-wrap">
         {/* Emptying asks here in the footer, never in a second window on top. */}
         {canEmpty && emptying ? (
           <>

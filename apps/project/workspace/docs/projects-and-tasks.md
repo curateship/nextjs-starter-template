@@ -24,8 +24,8 @@
 
 ## Copying, due dates and progress
 
-- **Copy project**, from the details panel or the copy button on a Projects
-  row, asks for a new name, starting as "Copy of Website launch", selected,
+- **Copy project**, from the copy button on a Projects row (the project
+  page has none, Tyler's choice, 11 Oct 2026), asks for a new name, starting as "Copy of Website launch", selected,
   so typing replaces it and Copy project works at once. It makes a project
   from the old one: its
   description, colour, sections and every task not in the bin, in the same
@@ -33,10 +33,12 @@
   nobody assigned and no due date (Tyler's choice, 10 Oct 2026). People,
   chat, files and history stay behind. The person copying is the new
   project's only member, and the page opens on the copy.
-- **A project's due date** sits on its details panel and saves the moment one
-  is picked. Clear takes it off.
-- **Progress** reads "14 of 20 done" with a bar and "Due Nov 30" under it, on the details
-  panel and in the Projects table's Progress column. Done counts Done tasks;
+- **A project's due date** sits in Project settings (the cog) and saves the
+  moment one is picked (Tyler, 11 Oct 2026: "the due date should be in the
+  settings cog"). Clear takes it off.
+- **Progress** reads "14 of 20 done" with a bar and "Due Nov 30" under it, in
+  the Projects table's Progress column. The project page's details panel has
+  no task counts (Tyler removed them 11 Oct 2026). Done counts Done tasks;
   To do, Doing and Stuck are open; tasks in the bin don't count. Once the date
   passes with tasks still open it reads "Overdue" in red.
 
@@ -47,12 +49,11 @@ dashboard without its bottom panel, so the layout copies the CRM screen
 (`src/components/crm/crm-workspace.tsx`), which already has three resizable
 panels and nothing along the bottom.
 
-- **Left: project details.** The description and how many tasks sit in each
-  status, read only. The star in its header stars the project for me (see
+- **Left: project details.** The description, read only. The star in its header stars the project for me (see
   Stars below). The cog opens Project settings, a window with the name,
-  colour, description, Archive and the project's sections. Tyler, 10 Oct 2026: "add a
+  colour, description, due date, Doing limit, Archive and the project's sections. Tyler, 10 Oct 2026: "add a
   cog icon here and put all the project settings there". Each field saves when
-  it is left, and the colour the moment it is picked, so the window ends with
+  it is left, and the colour and due date the moment they are picked, so the window ends with
   Done. Closing it with Escape or a click outside saves the field being typed
   in too.
 - **Middle: tasks.** A Board tab with one column per status, a List tab
@@ -278,7 +279,8 @@ Each task has a Plan card with three fields that save the moment they change.
   window; in the task's window it's a line in the footer, so a window never
   opens over a window. The buttons read Follow, More, Delete in both. It leaves every list at once, and its history notes who
   deleted it.
-- **The Bin button** on the project's details panel lists what was deleted,
+- **The bin button**, just left of New task on the tasks panel (Tyler, 11 Oct
+  2026), lists what was deleted,
   by whom and when, with Bring back. A task comes back whole: steps, chat,
   files, labels and history.
 - **Who may bring it back:** the same people who may delete it, that is

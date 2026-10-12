@@ -6,6 +6,7 @@ import { ProjectColorSelect } from "@/components/project/project-form-fields"
 import { ProjectSectionsCard } from "@/components/project/project-sections-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Dialog,
   DialogBody,
@@ -22,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { archiveProject, saveProject, type ProjectPage } from "@/lib/api/project/projects"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
+import { dateFromKey, keyFromDate } from "@/lib/project/dates"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS, type ProjectColor } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -29,9 +31,9 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 type Project = ProjectPage["project"]
 
 /**
- * The project's name, colour, description, Doing limit, Archive and sections, in a window
+ * The project's name, colour, description, due date, Doing limit, Archive and sections, in a window
  * opened from the cog on the project page's details panel. Each field saves when it
- * is left or Enter is pressed, and the colour the moment it is picked, so the
+ * is left or Enter is pressed, and the colour and due date the moment they are picked, so the
  * window ends with Done.
  */
 export function ProjectSettingsDialog({
@@ -91,6 +93,7 @@ function ProjectSettingsFields({ project }: { project: Project }) {
     name?: string
     color?: ProjectColor
     description?: string
+    dueDate?: string | null
     doingLimit?: number | null
   }) {
     const ok = await run(() => saveProject({ projectId: project.id, ...fields }), "Saved.")
@@ -179,6 +182,29 @@ function ProjectSettingsFields({ project }: { project: Project }) {
             onChange={(event) => setDescription(event.target.value)}
             onBlur={commitDescription}
           />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="project-due">Due date</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <DatePicker
+              id="project-due"
+              value={dateFromKey(project.dueDate)}
+              placeholder="No due date"
+              disabled={readOnly || busy}
+              onChange={(date) => void save({ dueDate: keyFromDate(date) })}
+            />
+            {project.dueDate && !readOnly ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => void save({ dueDate: null })}
+              >
+                Clear
+              </Button>
+            ) : null}
+          </div>
         </div>
         <div className="grid gap-2">
           <FieldLabel

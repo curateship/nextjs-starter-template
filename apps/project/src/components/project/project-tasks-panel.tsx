@@ -1,7 +1,8 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon, Trash2Icon } from "lucide-react"
 
+import { BinDialog } from "@/components/project/bin-dialog"
 import { NewTaskDialog } from "@/components/project/new-task-dialog"
 import { ProjectActivity } from "@/components/project/project-activity"
 import { ReasonDialog } from "@/components/project/reason-dialog"
@@ -51,6 +52,7 @@ export function ProjectTasksPanel({
   const [view, setView] = useRememberedChoice<View>(PROJECT_TASK_VIEW_KEY, "board", VIEWS)
   const [tasks, setTasks] = useSyncedDraft(page.tasks)
   const [creating, setCreating] = React.useState(false)
+  const [binOpen, setBinOpen] = React.useState(false)
   // The task waiting for its Stuck reason, and where the Board dropped it.
   const [stuck, setStuck] = React.useState<{ task: TaskCard; order?: string[] } | null>(null)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
@@ -119,10 +121,22 @@ export function ProjectTasksPanel({
         <DashboardCardTabsHeader
           action={
             readOnly ? null : (
-              <Button type="button" onClick={() => setCreating(true)}>
-                <PlusIcon className="size-4" />
-                New task
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Bin"
+                  title="Bin"
+                  onClick={() => setBinOpen(true)}
+                >
+                  <Trash2Icon className="size-4" />
+                </Button>
+                <Button type="button" onClick={() => setCreating(true)}>
+                  <PlusIcon className="size-4" />
+                  New task
+                </Button>
+              </div>
             )
           }
         >
@@ -177,6 +191,7 @@ export function ProjectTasksPanel({
         onClose={() => setCreating(false)}
         onCreated={rememberProject}
       />
+      <BinDialog projectId={page.project.id} open={binOpen} onClose={() => setBinOpen(false)} />
       <ReasonDialog
         open={Boolean(stuck)}
         title="Why is it stuck?"
