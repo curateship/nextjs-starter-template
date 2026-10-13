@@ -211,7 +211,8 @@ export async function recentComments(
     .where(
       and(
         eq(promoJobs.userId, userId),
-        eq(promoJobs.kind, "comment"),
+        // An answer to a reply is a comment too, and counts against the pace.
+        inArray(promoJobs.kind, ["comment", "reply"]),
         inArray(promoJobs.status, ["queued", "running"]),
         sql`${promoJobs.payload}->>'accountId' = ${accountId}`
       )

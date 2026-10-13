@@ -261,6 +261,7 @@ export function ProjectsWorkspace({
               linkError: found.linkError,
               thread: found.thread,
               threadReadAt: found.threadReadAt,
+              threadReading: found.threadReading,
               rules: found.rules,
             },
             drafts: found.drafts,
@@ -298,13 +299,21 @@ export function ProjectsWorkspace({
   React.useEffect(() => {
     if (!working) return
     let live = true
+    /** The jobs left at the last ask, so a finished one is noticed. */
+    let lastLeft: number | null = null
     const timer = setInterval(async () => {
       try {
         const next = await loadProject(projectId)
         if (!live) return
         setView(next)
-        // The work has finished, so whatever it wrote is worth reading.
-        if (next.jobs.queued + next.jobs.running === 0) {
+        // A job has finished, so whatever it wrote is worth reading. Not only
+        // when the queue empties: a search is followed by reply reads and
+        // rules reads that take minutes, and its posts, and each post's
+        // replies, should show as they land.
+        const left = next.jobs.queued + next.jobs.running
+        const finished = left === 0 || (lastLeft !== null && left < lastLeft)
+        lastLeft = left
+        if (finished) {
           await refreshKeywords()
           await refreshFinds(selectedKeyword)
           if (selectedFind) await refreshDetail(selectedFind)
@@ -543,6 +552,8 @@ export function ProjectsWorkspace({
         try {
           await readThread(findId)
           await afterQueueing()
+          // The read is queued, so the replies say they are coming.
+          await refreshDetail(findId)
         } catch (error) {
           showErrorToast(getRedditErrorMessage(error))
         }

@@ -13,7 +13,7 @@ import {
 } from "@/server/social/keywords"
 import { queueJob } from "@/server/social/jobs"
 import { queueRulesRead } from "@/server/social/reddit/rules"
-import { setFindStatus } from "@/server/social/reddit/search"
+import { queueThreadRead, setFindStatus } from "@/server/social/reddit/search"
 import {
   FIND_STATUSES,
   NO_READER_MESSAGE,
@@ -150,9 +150,9 @@ export function loadFind(findId: string) {
 const readThreadFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ findId: z.string().min(1) }))
-  .handler(async ({ context, data }): Promise<{ jobId: string }> => ({
-    jobId: await queueJob(context.user.id, "thread", { findId: data.findId }),
-  }))
+  .handler(async ({ context, data }): Promise<void> => {
+    await queueThreadRead(context.user.id, data.findId)
+  })
 
 export function readThread(findId: string) {
   return readThreadFn({ data: { findId } })

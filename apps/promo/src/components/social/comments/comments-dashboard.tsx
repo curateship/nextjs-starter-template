@@ -1,5 +1,11 @@
 import * as React from "react"
-import { ExternalLinkIcon, Loader2Icon, MessagesSquareIcon, RefreshCwIcon } from "lucide-react"
+import {
+  ExternalLinkIcon,
+  Loader2Icon,
+  MessagesSquareIcon,
+  RefreshCwIcon,
+  ReplyIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -29,8 +35,10 @@ import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { MAX_CHECKS_PER_PRESS } from "@/lib/social/options"
-import { commentStateWords, postedDateText } from "@/lib/social/wording"
+import { commentStateWords, postedDateText, toAnswerText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
+
+import { CommentRepliesDialog } from "./comment-replies-dialog"
 
 /** How often to ask again while a check is waiting or running. */
 const POLL_MS = 2_000
@@ -91,6 +99,8 @@ function openOnReddit(url: string) {
  * The Voice example switch is the tick that used to live on Settings →
  * Reddit account: off, the AI stops copying how that comment sounds. The
  * comment itself is never changed.
+ *
+ * The reply arrow opens the comment's replies, each with a box to answer it.
  */
 export function CommentsDashboard({ initial }: { initial: CommentRow[] }) {
   const { config } = useShellRuntime()
@@ -103,6 +113,9 @@ export function CommentsDashboard({ initial }: { initial: CommentRow[] }) {
   const selection = useSelection()
   const [queueing, setQueueing] = React.useState<Set<string>>(new Set())
   const [marking, setMarking] = React.useState<string | null>(null)
+  /** The comment whose Replies window is open. */
+  const [repliesOf, setRepliesOf] = React.useState<string | null>(null)
+  const openRow = repliesOf ? rows.find((row) => row.id === repliesOf) ?? null : null
 
   const refresh = React.useCallback(
     (): Promise<void> =>
@@ -190,193 +203,221 @@ export function CommentsDashboard({ initial }: { initial: CommentRow[] }) {
   }
 
   return (
-    <DashboardTable
-      title="Comments"
-      icon={<MessagesSquareIcon />}
-      count={shown.length}
-      error={error ? { message: error, onRetry: () => void refresh() } : null}
-      selectedCount={selection.selected.size}
-      onClearSelection={selection.clear}
-      controls={
-        <>
-          {selection.selected.size ? (
-            <DashboardToolbarButton
-              type="button"
-              variant="outline"
-              disabled={queueing.size > 0}
-              onClick={() => void check([...selection.selected])}
-            >
-              {queueing.size ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : (
-                <RefreshCwIcon className="size-4" />
-              )}
-              Check ({selection.selected.size})
-            </DashboardToolbarButton>
-          ) : null}
-          <DashboardToolbarSearch
-            name="comment-search"
-            aria-label="Search comments"
-            placeholder="Search comments…"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value)
-              setPage(1)
-            }}
-          />
-        </>
-      }
-      header={
-        <SortableTableHeader
-          columns={COLUMNS}
-          sort={sort}
-          direction={direction}
-          onSort={toggleSort}
-          leading={
-            <SelectAllTableHead
-              noun="comments"
-              checked={selection.selectAllState(visibleIds)}
-              onCheckedChange={() => selection.toggleVisible(visibleIds)}
-            />
-          }
-          trailing={<TableHead column="meta">Actions</TableHead>}
-        />
-      }
-      isEmpty={shown.length === 0}
-      emptyText={
-        rows.length
-          ? "No comments match that."
-          : "Nothing has been sent yet. A comment posted from the Projects dashboard shows up here."
-      }
-      emptyColSpan={COLUMNS.length + 2}
-      footer={{
-        type: "pagination",
-        page: currentPage,
-        pageSize,
-        total: shown.length,
-        totalPages,
-        onPageChange: (next) => setPage(Math.max(1, Math.min(next, totalPages))),
-        onPageSizeChange: (next) => {
-          setPage(1)
-          setPageSize(next)
-        },
-      }}
-    >
-      {visible.map((row) => {
-        const state = commentStateWords(row)
-        const read = row.checkedAt !== null
-        const busy = row.checking || queueing.has(row.id)
-        return (
-          <TableRow key={row.id} className="group" rowAction={() => openOnReddit(row.commentUrl)}>
-            <TableCell column="select">
-              <Checkbox
-                checked={selection.selected.has(row.id)}
-                onCheckedChange={() => selection.toggle(row.id)}
-                aria-label={`Select your comment on ${row.postTitle}`}
-              />
-            </TableCell>
-            <TableCell column="main" className="max-w-0">
-              <button
+    <>
+      <CommentRepliesDialog
+        commentId={repliesOf}
+        checkedAt={openRow?.checkedAt ?? null}
+        checking={Boolean(openRow?.checking) || (repliesOf !== null && queueing.has(repliesOf))}
+        onCheck={(commentId) => check([commentId])}
+        onClose={() => {
+          setRepliesOf(null)
+          // The "to answer" counts move once an answer lands.
+          void refresh()
+        }}
+      />
+      <DashboardTable
+        title="Comments"
+        icon={<MessagesSquareIcon />}
+        count={shown.length}
+        error={error ? { message: error, onRetry: () => void refresh() } : null}
+        selectedCount={selection.selected.size}
+        onClearSelection={selection.clear}
+        controls={
+          <>
+            {selection.selected.size ? (
+              <DashboardToolbarButton
                 type="button"
-                className="block max-w-full truncate text-left text-sm font-medium group-hover:underline"
-                title={row.postTitle}
-                onClick={() => openOnReddit(row.commentUrl)}
+                variant="outline"
+                disabled={queueing.size > 0}
+                onClick={() => void check([...selection.selected])}
               >
-                {row.postTitle || "A post with no title"}
-              </button>
-              <span className="block truncate text-xs text-muted-foreground" title={row.text}>
-                {row.text}
-              </span>
-            </TableCell>
-            <TableCell column="meta" className="hidden max-w-32 md:table-cell">
-              <span className="block truncate text-muted-foreground">r/{row.subreddit}</span>
-            </TableCell>
-            <TableCell column="meta" className="hidden text-muted-foreground md:table-cell">
-              {postedDateText(new Date(row.postedAt))}
-            </TableCell>
-            <TableCell column="meta" className="text-right tabular-nums">
-              {!read ? (
-                <span className="text-muted-foreground" title="Not read yet">—</span>
-              ) : row.upvotes === null ? (
-                <span className="text-muted-foreground" title="Reddit hides this comment's score for now.">
-                  Hidden
-                </span>
-              ) : (
-                row.upvotes
-              )}
-            </TableCell>
-            <TableCell column="meta" className="text-right tabular-nums">
-              {!read || row.replyCount === null ? (
-                <span className="text-muted-foreground" title="Not read yet">—</span>
-              ) : (
-                row.replyCount
-              )}
-            </TableCell>
-            <TableCell column="meta">
-              <span className="block text-sm" title={state.detail}>
-                {state.label}
-              </span>
-              {read ? (
-                <span className="block text-xs text-muted-foreground">
-                  Read {formatTimeAgo(row.checkedAt)}
-                </span>
-              ) : null}
-            </TableCell>
-            <TableCell column="actions">
-              <span
-                className="inline-flex items-center gap-2"
-                title={
-                  row.notExample
-                    ? "Not used as an example of how you write"
-                    : row.inNextDraft
-                      ? "In the next draft, as an example of how you write"
-                      : "Used as an example once newer ones are switched off"
-                }
-              >
-                {marking === row.id ? (
-                  <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-                ) : null}
-                <Switch
-                  checked={!row.notExample}
-                  disabled={marking !== null}
-                  aria-label={`Use your comment on ${row.postTitle} as an example of how you write`}
-                  onCheckedChange={(checked) => void setExample(row, checked)}
-                />
-                {row.inNextDraft ? (
-                  <span className="text-xs text-muted-foreground">Next draft</span>
-                ) : null}
-              </span>
-            </TableCell>
-            <TableCell column="actions">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                disabled={busy}
-                onClick={() => void check([row.id])}
-                title="Read it again on Reddit"
-                aria-label={`Read your comment on ${row.postTitle} again`}
-              >
-                {busy ? (
+                {queueing.size ? (
                   <Loader2Icon className="size-4 animate-spin" />
                 ) : (
                   <RefreshCwIcon className="size-4" />
                 )}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => openOnReddit(row.commentUrl)}
-                title="Open on Reddit"
-                aria-label={`Open your comment on ${row.postTitle} on Reddit`}
-              >
-                <ExternalLinkIcon className="size-4" />
-              </Button>
-            </TableCell>
-          </TableRow>
-        )
-      })}
-    </DashboardTable>
+                Check ({selection.selected.size})
+              </DashboardToolbarButton>
+            ) : null}
+            <DashboardToolbarSearch
+              name="comment-search"
+              aria-label="Search comments"
+              placeholder="Search comments…"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setPage(1)
+              }}
+            />
+          </>
+        }
+        header={
+          <SortableTableHeader
+            columns={COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="comments"
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
+        }
+        isEmpty={shown.length === 0}
+        emptyText={
+          rows.length
+            ? "No comments match that."
+            : "Nothing has been sent yet. A comment posted from the Projects dashboard shows up here."
+        }
+        emptyColSpan={COLUMNS.length + 2}
+        footer={{
+          type: "pagination",
+          page: currentPage,
+          pageSize,
+          total: shown.length,
+          totalPages,
+          onPageChange: (next) => setPage(Math.max(1, Math.min(next, totalPages))),
+          onPageSizeChange: (next) => {
+            setPage(1)
+            setPageSize(next)
+          },
+        }}
+      >
+        {visible.map((row) => {
+          const state = commentStateWords(row)
+          const read = row.checkedAt !== null
+          const busy = row.checking || queueing.has(row.id)
+          return (
+            <TableRow key={row.id} className="group" rowAction={() => openOnReddit(row.commentUrl)}>
+              <TableCell column="select">
+                <Checkbox
+                  checked={selection.selected.has(row.id)}
+                  onCheckedChange={() => selection.toggle(row.id)}
+                  aria-label={`Select your comment on ${row.postTitle}`}
+                />
+              </TableCell>
+              <TableCell column="main" className="max-w-0">
+                <button
+                  type="button"
+                  className="block max-w-full truncate text-left text-sm font-medium group-hover:underline"
+                  title={row.postTitle}
+                  onClick={() => openOnReddit(row.commentUrl)}
+                >
+                  {row.postTitle || "A post with no title"}
+                </button>
+                <span className="block truncate text-xs text-muted-foreground" title={row.text}>
+                  {row.text}
+                </span>
+              </TableCell>
+              <TableCell column="meta" className="hidden max-w-32 md:table-cell">
+                <span className="block truncate text-muted-foreground">r/{row.subreddit}</span>
+              </TableCell>
+              <TableCell column="meta" className="hidden text-muted-foreground md:table-cell">
+                {postedDateText(new Date(row.postedAt))}
+              </TableCell>
+              <TableCell column="meta" className="text-right tabular-nums">
+                {!read ? (
+                  <span className="text-muted-foreground" title="Not read yet">—</span>
+                ) : row.upvotes === null ? (
+                  <span className="text-muted-foreground" title="Reddit hides this comment's score for now.">
+                    Hidden
+                  </span>
+                ) : (
+                  row.upvotes
+                )}
+              </TableCell>
+              <TableCell column="meta" className="text-right tabular-nums">
+                {!read || row.replyCount === null ? (
+                  <span className="text-muted-foreground" title="Not read yet">—</span>
+                ) : (
+                  row.replyCount
+                )}
+                {toAnswerText(row.toAnswer) ? (
+                  <span className="block text-xs whitespace-nowrap text-muted-foreground">
+                    {toAnswerText(row.toAnswer)}
+                  </span>
+                ) : null}
+              </TableCell>
+              <TableCell column="meta">
+                <span className="block text-sm" title={state.detail}>
+                  {state.label}
+                </span>
+                {read ? (
+                  <span className="block text-xs text-muted-foreground">
+                    Read {formatTimeAgo(row.checkedAt)}
+                  </span>
+                ) : null}
+              </TableCell>
+              <TableCell column="actions">
+                <span
+                  className="inline-flex items-center gap-2"
+                  title={
+                    row.notExample
+                      ? "Not used as an example of how you write"
+                      : row.inNextDraft
+                        ? "In the next draft, as an example of how you write"
+                        : "Used as an example once newer ones are switched off"
+                  }
+                >
+                  {marking === row.id ? (
+                    <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                  ) : null}
+                  <Switch
+                    checked={!row.notExample}
+                    disabled={marking !== null}
+                    aria-label={`Use your comment on ${row.postTitle} as an example of how you write`}
+                    onCheckedChange={(checked) => void setExample(row, checked)}
+                  />
+                  {row.inNextDraft ? (
+                    <span className="text-xs text-muted-foreground">Next draft</span>
+                  ) : null}
+                </span>
+              </TableCell>
+              <TableCell column="actions">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setRepliesOf(row.id)}
+                  title="Replies, and answering them"
+                  aria-label={`Replies to your comment on ${row.postTitle}`}
+                >
+                  <ReplyIcon className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  onClick={() => void check([row.id])}
+                  title="Read it again on Reddit"
+                  aria-label={`Read your comment on ${row.postTitle} again`}
+                >
+                  {busy ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <RefreshCwIcon className="size-4" />
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => openOnReddit(row.commentUrl)}
+                  title="Open on Reddit"
+                  aria-label={`Open your comment on ${row.postTitle} on Reddit`}
+                >
+                  <ExternalLinkIcon className="size-4" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </DashboardTable>
+    </>
   )
 }

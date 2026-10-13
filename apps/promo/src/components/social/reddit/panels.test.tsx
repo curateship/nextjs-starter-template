@@ -32,6 +32,7 @@ const find: FindDetail = {
   thread: null,
   rules: { state: "unread", rules: [], readAt: null, error: "", reading: false },
   threadReadAt: null,
+  threadReading: false,
 }
 
 function answerPanel(

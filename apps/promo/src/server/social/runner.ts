@@ -22,6 +22,7 @@ import { profileTimeZone, readBehaviour, readerProfile } from "./behaviour"
 import { accountFigures, recordAccountHealth, recordStrangerCheck } from "./health"
 import { recordCommentCheck } from "./reddit/comment-check"
 import { postComment } from "./reddit/post-comment"
+import { postReply } from "./reddit/post-reply"
 import { readSubredditRules } from "./reddit/rules"
 import {
   JOB_MAX_ATTEMPTS,
@@ -95,8 +96,8 @@ export async function runOneJob(
     // Fails at once, never re-queued, for two reasons. A refusal would only
     // say the same thing again. A comment may already be on Reddit: the app
     // can give up waiting while the browser is still typing, and a retry
-    // would then post it twice.
-    const final = error instanceof Refusal || job.kind === "comment"
+    // would then post it twice. An answer to a reply is a comment too.
+    const final = error instanceof Refusal || job.kind === "comment" || job.kind === "reply"
     const attempts = final ? JOB_MAX_ATTEMPTS : job.attempts
     await failJob(job.id, claimToken, message, attempts, db)
     return { did: "job", kind: job.kind, jobId: job.id, ok: false, error: message }
@@ -164,16 +165,17 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   if (!account.profileId) throw new Refusal(NO_PROFILE_MESSAGE)
   // Retired after the job was queued. A retired account never posts and
   // never warms up; a health reading is only a read and still runs.
-  if (account.retiredAt && (job.kind === "comment" || job.kind === "warm_up")) {
+  const writes = job.kind === "comment" || job.kind === "reply" || job.kind === "warm_up"
+  if (account.retiredAt && writes) {
     throw new Refusal(
       "This account is retired, so it no longer posts or warms up. Bring it back on the Reddit accounts dashboard first."
     )
   }
 
   // An account acts only while it is awake, in its own time zone. A health
-  // reading is only a read, so it may run at any hour; a comment and a
-  // warm-up wait for morning, before a browser is even opened.
-  if (job.kind === "comment" || job.kind === "warm_up") {
+  // reading is only a read, so it may run at any hour; a comment, an answer
+  // to a reply and a warm-up wait for morning, before a browser is even opened.
+  if (writes) {
     const behaviour = await readBehaviour(job.userId, db)
     const wakes = nextWakeAt(
       new Date(),
@@ -197,6 +199,24 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
           userId: job.userId,
           findId,
           accountId: account.id,
+          text,
+          draftId: job.payload.draftId ? String(job.payload.draftId) : null,
+        },
+        session.target,
+        db
+      )
+    } else if (job.kind === "reply") {
+      const commentId = String(job.payload.commentId ?? "")
+      const replyId = String(job.payload.replyId ?? "")
+      const text = String(job.payload.text ?? "")
+      if (!commentId || !replyId || !text) {
+        throw new Error("That reply job is missing its comment, the reply it answers, or its words.")
+      }
+      await postReply(
+        {
+          userId: job.userId,
+          commentId,
+          replyId,
           text,
           draftId: job.payload.draftId ? String(job.payload.draftId) : null,
         },

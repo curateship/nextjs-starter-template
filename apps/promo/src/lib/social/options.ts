@@ -41,7 +41,8 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  * each. `comment_check` reads one sent comment again; it is not `check`,
  * which already means a person's look at a profile's browser.
  * `profile_check` is the stranger's half of a health reading, and
- * `warm_up` is a new account's daily visit to Reddit.
+ * `warm_up` is a new account's daily visit to Reddit. `reply` answers a
+ * reply under a sent comment, from the account that sent the comment.
  *
  * `READER_JOB_KINDS` run in the signed-out reader browser, never in the
  * account's own: the account Reddit sees commenting never searches.
@@ -50,6 +51,7 @@ export type JobKind =
   | "search"
   | "thread"
   | "comment"
+  | "reply"
   | "open"
   | "close"
   | "check"
@@ -243,6 +245,20 @@ export type SubredditRule = { title: string; description: string }
  * posted, or no answer at all.
  */
 export type SubredditRulesStatus = "read" | "none" | "failed"
+
+/**
+ * One reply directly under a sent comment, as a check read it. `url` is
+ * Reddit's own address for it, and `id` its Reddit id without the "t1_".
+ * `postedAt` is an ISO date, since this is stored as JSON.
+ */
+export type IncomingReply = {
+  id: string
+  author: string
+  text: string
+  score: number
+  url: string
+  postedAt: string | null
+}
 
 /** The post and its top replies, as the browser last read them. */
 export type FindThread = {

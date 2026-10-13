@@ -33,8 +33,16 @@ alone.
 - **Still there**: one of the three answers below, with when it was last read.
 - **Voice example**: the switch that decides whether drafts copy how this
   comment sounds. See below.
-- **Actions**: read it again, and open it on Reddit. Pressing anywhere else on
-  the row also opens the comment on Reddit.
+- **Actions**: the replies and answering them, read it again, and open it on
+  Reddit. Pressing anywhere else on the row also opens the comment on Reddit.
+
+Under the reply count, "2 to answer" says how many replies directly under the
+comment have no answer from the app. It shows only once a check has read the
+replies' words. [Answering replies](answering-replies.md) has the window the
+reply arrow opens.
+
+An answer the app sent to a reply is not a row of its own. It shows under the
+reply it answers, in the comment's Replies window.
 
 Only comments that landed are listed. A failed attempt never reached anybody, so
 it has no upvotes or replies to report.
@@ -115,3 +123,7 @@ worked out per account.
 - The readings are five columns on `promo_comments`: `upvotes`, `reply_count`,
   `still_visible`, `checked_as` and `checked_at`, all null until the first
   reading.
+- The same check keeps the words of up to 20 replies directly under the
+  comment in `incoming_replies`, null until read, so they can be answered.
+  An image built before 12 Oct 2026 does not send them, and the last ones read
+  are kept.

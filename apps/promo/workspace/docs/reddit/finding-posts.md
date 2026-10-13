@@ -293,6 +293,40 @@ there, so the column was removed rather than renamed.
 Upvotes are still shown, because they tell you whether a subreddit is alive.
 They just do not move the order.
 
+A small speech-bubble mark at the start of the line under a row's title means
+its replies are already read, so the post can be answered without pressing Read the replies.
+Hovering it says "Replies read, ready to answer". No mark means they have not
+been read, not that there are none. It sits under the title rather than beside
+the reply count because the Projects dashboard's middle panel scrolls the reply
+count out of view at ordinary widths.
+
+## The best posts' replies are read ahead
+
+Post stays off until a post's replies have been read, because a comment that
+repeats the top reply is worse than none ([writing-comments.md](writing-comments.md)).
+Reading them is a browser trip of tens of seconds. So when a search finishes,
+the app reads the replies of its best posts on its own, before anybody opens
+them.
+
+- **Strong fit only, at most 5 a search.** The best first, in the list's own
+  order. Five is about two minutes of the reader browser, which also does
+  every search and every rules read. The number is `MAX_THREADS_PER_SEARCH` in
+  `src/server/social/reddit/search.ts`.
+- **Never twice.** A post whose replies are already stored is left alone, however
+  old the reading, so running a keyword again reads nothing it has. A post
+  already skipped or replied to is left out, and so is one with a read already
+  waiting.
+- **Before the rules.** The reads go on the queue ahead of the subreddit rules
+  reads, because Post waits on the replies and not on the rules.
+- **Possible and Low fit posts keep the button.** Read the replies works
+  exactly as before for them.
+- **"Reading the replies…"** shows in the post's panel while a read is waiting
+  or running, in place of the button, so a post opened early says what is
+  coming. The list and the open post update as each read lands, not only when
+  the whole queue is empty.
+- **A failure never fails the search.** If the reads cannot be queued, the
+  search still counts and the button still works.
+
 ## Where a post can get to
 
 - **To look at** is where every post starts.

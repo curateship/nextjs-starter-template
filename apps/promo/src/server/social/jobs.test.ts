@@ -231,6 +231,27 @@ describe("the browser work queue", () => {
     expect(await claimNextJob(uuid(), db)).toBeNull()
   })
 
+  it("never hands back an answer to a reply whose worker vanished, and gives it a visit's time", async () => {
+    await queueJob(userId, "reply", { commentId: "c1", replyId: "r1", text: "Hello." }, db)
+    const claimed = await claimNextJob(uuid(), db)
+    await db
+      .update(promoJobs)
+      .set({ claimedAt: new Date(Date.now() - 20 * 60_000) })
+      .where(eq(promoJobs.id, claimed!.id))
+    expect(await failExpiredClaims(db)).toBe(0)
+
+    await db
+      .update(promoJobs)
+      .set({ claimedAt: new Date(Date.now() - 30 * 60_000) })
+      .where(eq(promoJobs.id, claimed!.id))
+    await failExpiredClaims(db)
+
+    const [row] = await db.select().from(promoJobs)
+    expect(row.status).toBe("failed")
+    expect(row.lastError).toContain("may already be on Reddit")
+    expect(await claimNextJob(uuid(), db)).toBeNull()
+  })
+
   it("gives up on a job abandoned three times", async () => {
     await queueJob(userId, "search", {}, db)
     const [row] = await db.select().from(promoJobs)

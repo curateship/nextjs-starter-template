@@ -1054,21 +1054,22 @@ def _rules_from_page(page):
     return page.evaluate(script) or []
 
 
-def _comment_address(address):
+def _comment_address(address, routine="comment_check"):
     """The post id and comment id out of a comment's address, or raises."""
     parsed = urllib.parse.urlparse(address or "")
     if parsed.scheme != "https" or parsed.hostname not in ("www.reddit.com", "reddit.com"):
-        raise CommandError("comment_check: that is not a Reddit address")
+        raise CommandError("%s: that is not a Reddit address" % routine)
     parts = [part for part in parsed.path.split("/") if part]
     if "comments" not in parts:
-        raise CommandError("comment_check: that address is not a comment")
+        raise CommandError("%s: that address is not a comment" % routine)
     after = parts[parts.index("comments") + 1:]
-    # /comments/<post>/<slug>/<comment>/ or the newer /comments/<post>/<slug>/comment/<comment>/
+    # /comments/<post>/<slug>/<comment>/, the newer /comments/<post>/comment/<comment>/
+    # and /comments/<post>/<slug>/comment/<comment>/
     if len(after) < 3:
-        raise CommandError("comment_check: that address names a post, not a comment")
+        raise CommandError("%s: that address names a post, not a comment" % routine)
     post_id, comment_id = after[0], after[-1]
     if not re.fullmatch(r"[a-z0-9]{1,16}", post_id) or not re.fullmatch(r"[a-z0-9]{1,16}", comment_id):
-        raise CommandError("comment_check: that address is not a comment")
+        raise CommandError("%s: that address is not a comment" % routine)
     return post_id, comment_id
 
 
@@ -1084,6 +1085,52 @@ def _reply_count(node):
         elif child.get("kind") == "more":
             total += int((child.get("data") or {}).get("count") or 0)
     return total
+
+
+# At most this many replies directly under a comment are handed back by a
+# check, in Reddit's own order. More than this under one comment is a thread,
+# and the app answers people one at a time.
+INCOMING_REPLY_LIMIT = 20
+
+
+def _incoming_replies(node):
+    """The replies directly under a comment, with their words and addresses.
+
+    One level down only: a reply to a reply is somebody else's conversation.
+    Deleted and removed replies are left out, because there is nobody to
+    answer. Replies Reddit folded behind "more" are counted elsewhere but not
+    read here, since reading them is another request each.
+    """
+    replies = (node.get("data") or {}).get("replies")
+    if not isinstance(replies, dict):
+        return []
+    out = []
+    for child in ((replies.get("data") or {}).get("children")) or []:
+        if child.get("kind") != "t1":
+            continue
+        data = child.get("data") or {}
+        text = _text(data.get("body")).strip()
+        author = data.get("author")
+        permalink = data.get("permalink") if isinstance(data.get("permalink"), str) else ""
+        reply_id = data.get("id") if isinstance(data.get("id"), str) else ""
+        if not text or text in ("[removed]", "[deleted]") or author in (None, "[deleted]"):
+            continue
+        if not permalink.startswith("/r/") or not re.fullmatch(r"[a-z0-9]{1,16}", reply_id):
+            continue
+        created = data.get("created_utc")
+        out.append(
+            {
+                "id": reply_id,
+                "author": str(author)[:40],
+                "text": text[:4000],
+                "score": int(data.get("score") or 0),
+                "url": "https://www.reddit.com" + permalink,
+                "postedAtSeconds": int(created) if isinstance(created, (int, float)) else None,
+            }
+        )
+        if len(out) >= INCOMING_REPLY_LIMIT:
+            break
+    return out
 
 
 def _comment_reading(data, comment_id):
@@ -1104,6 +1151,7 @@ def _comment_reading(data, comment_id):
             # not the same as no upvotes.
             "upvotes": None if found.get("score_hidden") or not isinstance(score, (int, float)) else int(score),
             "replies": _reply_count(child),
+            "incoming": _incoming_replies(child),
         }
     return {"missing": True}
 
@@ -1137,13 +1185,184 @@ def reddit_comment_check(page, args):
     reading = {"seenAs": "you" if signed_in else "stranger"}
     if seen.get("missing"):
         # Not in the thread at all: deleted with nothing under it.
-        reading.update({"visible": False, "removedText": "", "upvotes": None, "replies": 0})
+        reading.update({"visible": False, "removedText": "", "upvotes": None, "replies": 0, "incoming": []})
     else:
         reading.update(seen)
     # The account sees its own score even where a stranger's is hidden.
     if reading.get("upvotes") is None and you and not you.get("missing"):
         reading["upvotes"] = you.get("upvotes")
     return reading
+
+
+def _reply_landed(page, handle):
+    """Addresses of comments by `handle` on this page, each with the comment it sits under."""
+    script = """
+    (author) => {
+      const out = []
+      for (const el of document.querySelectorAll("shreddit-comment")) {
+        if ((el.getAttribute("author") || "") !== author) continue
+        const permalink = el.getAttribute("permalink")
+        if (permalink) out.push([permalink, el.getAttribute("parentid") || ""])
+      }
+      return out
+    }
+    """
+    return [
+        ("https://www.reddit.com" + permalink, parent)
+        for permalink, parent in (page.evaluate(script, handle) or [])
+    ]
+
+
+def reddit_reply(page, args):
+    """Answers one reply under a comment the account sent, inside an ordinary visit.
+
+    The same visit as a comment: some feed before, the reply opened by its own
+    address the way a person opens it from their inbox, the answer typed at a
+    person's pace, a little feed after. The answer goes in that reply's own
+    box, never the post's, and the proof it landed is a new comment by this
+    account whose parent is that reply. Every step that can fail names
+    itself. Nothing here decides to answer: the app only calls this after a
+    person pressed Reply, and it is never tried twice.
+    """
+    reply_url = (args.get("replyUrl") or "").strip()
+    text = (args.get("text") or "").strip()
+    _post_id, reply_id = _comment_address(reply_url, "reply")
+    if not text:
+        raise CommandError("reply: no words to post")
+    thing = "t1_" + reply_id
+
+    started = time.monotonic()
+    deadline = started + VISIT_BUDGET_SECONDS
+    reserve = COMMENT_RESERVE_SECONDS + len(text) * TYPING_SECONDS_PER_CHARACTER
+    visit = _new_visit()
+
+    try:
+        _feed(
+            page,
+            random.uniform(*FEED_BEFORE_SECONDS),
+            random.randint(*POSTS_BEFORE),
+            visit,
+            deadline - reserve,
+        )
+    except Exception as error:  # noqa: BLE001 - the reply still goes
+        visit["problems"].append("the feed before: %s" % _short(error))
+    visit["beforeSeconds"] = int(time.monotonic() - started)
+
+    _goto(page, reply_url)
+    visit["reachedBy"] = "address"
+
+    state = reddit_state_quick(page)
+    if not state.get("handle"):
+        raise CommandError("reply: the browser is not signed in to Reddit")
+
+    # The reply being answered, found by Reddit's own id for it. Everything
+    # below is looked for inside it, so the post's own box at the bottom of
+    # the page can never be the one typed into.
+    target = page.locator("shreddit-comment[thingid='%s']" % thing).first
+    try:
+        target.wait_for(state="attached", timeout=15_000)
+    except Exception:  # noqa: BLE001 - say which step
+        raise CommandError("reply: the reply is not on its page any more; it may have been deleted")
+
+    # Measured on 12 Oct 2026: the Reply button sits in the comment's own
+    # action row, which carries the comment's id, inside a tracker named
+    # reply_comment.
+    reply_button = target.locator(
+        "shreddit-comment-action-row[comment-id='%s'] faceplate-tracker[noun='reply_comment'] button" % thing
+    ).first
+    try:
+        reply_button.wait_for(state="visible", timeout=8_000)
+    except Exception:  # noqa: BLE001 - say which step
+        raise CommandError("reply: no Reply button under that reply")
+
+    before = _reply_landed(page, state["handle"])
+
+    body_length = page.evaluate(
+        "(id) => { const el = document.querySelector(`shreddit-comment[thingid='${id}']`); return el ? el.innerText.length : 0 }",
+        thing,
+    )
+    human.read_page(page, min(body_length, 2_000), visit["_sizes"])
+    human.click(reply_button)
+
+    editor = target.locator("div[contenteditable='true']").first
+    try:
+        editor.wait_for(state="visible", timeout=8_000)
+    except Exception:  # noqa: BLE001 - say which step
+        raise CommandError("reply: pressed Reply but no box opened under that reply")
+
+    typing_started = time.monotonic()
+    human.click(editor)
+    gaps = human.type_text(editor, text)
+    human.pause_before_submit(page)
+    print(
+        "reply typed: %d characters in %d seconds; %s"
+        % (len(text), time.monotonic() - typing_started, human.describe_gaps(gaps)),
+        flush=True,
+    )
+
+    # The box's own submit button, inside the reply. Never a button matched by
+    # the word "Reply", which is also the button that opened the box.
+    buttons = [
+        "shreddit-composer button[slot='submit-button']",
+        "shreddit-composer button[type='submit']",
+        "comment-composer-host button[type='submit']",
+    ]
+    pressed = False
+    for selector in buttons:
+        button = target.locator(selector).first
+        try:
+            button.wait_for(state="visible", timeout=5_000)
+        except Exception:  # noqa: BLE001 - try the next shape
+            continue
+        # Pressed once, never again with another shape: a press that raised
+        # may still have sent it.
+        human.click(button)
+        pressed = True
+        break
+    if not pressed:
+        raise CommandError("reply: the words were typed but no button to send them could be pressed")
+
+    landed = None
+    elsewhere = None
+    waiting_until = time.time() + 20
+    while time.time() < waiting_until:
+        page.wait_for_timeout(1_000)
+        fresh = [item for item in _reply_landed(page, state["handle"]) if item not in before]
+        under = [url for url, parent in fresh if parent == thing]
+        if under:
+            landed = under[0]
+            break
+        if fresh:
+            elsewhere = fresh[0][0]
+    if not landed:
+        if elsewhere:
+            raise CommandError(
+                "reply: it was sent but landed somewhere other than under that reply, at %s" % elsewhere
+            )
+        raise CommandError("reply: pressed send but no new reply appeared within 20 seconds")
+
+    after_started = time.monotonic()
+    try:
+        seconds = min(random.uniform(*FEED_AFTER_SECONDS), deadline - after_started)
+        if seconds > 5:
+            _feed(page, seconds, 0, visit, deadline)
+    except Exception as error:  # noqa: BLE001 - the reply is already sent
+        visit["problems"].append("the feed after: %s" % _short(error))
+    visit["afterSeconds"] = int(time.monotonic() - after_started)
+
+    record, scrolls = _finish_visit(visit)
+    print(
+        "reply visit: %d seconds in the feed before, %d after, %d posts opened; %s; %s"
+        % (
+            record["beforeSeconds"],
+            record["afterSeconds"],
+            record["postsOpened"],
+            scrolls,
+            "; ".join(record["problems"]) or "no problems",
+        ),
+        flush=True,
+    )
+    return {"replyUrl": landed, "visit": record}
 
 
 # What this network can be asked to do. The package's __init__ prefixes each
@@ -1156,6 +1375,7 @@ ROUTINES = {
     "search": reddit_search,
     "thread": reddit_thread,
     "comment": reddit_comment,
+    "reply": reddit_reply,
     "health": reddit_health,
     "stranger_profile": reddit_stranger_profile,
     "rules": reddit_rules,

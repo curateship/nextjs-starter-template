@@ -210,9 +210,9 @@ export async function claimNextJob(
  * queued again, because the fourth attempt would fail the same way and the
  * loop would never notice it was stuck.
  *
- * A comment is never handed back. Its worker may have died after Reddit took
- * the comment, and a second go would post it twice, so it is marked failed on
- * the first abandonment and a person checks the post.
+ * A comment, or an answer to a reply, is never handed back. Its worker may
+ * have died after Reddit took it, and a second go would post it twice, so it
+ * is marked failed on the first abandonment and a person checks the post.
  */
 export async function failExpiredClaims(
   db: CustomShellDb = defaultDb
@@ -220,27 +220,27 @@ export async function failExpiredClaims(
   const recovered = await db.execute(sql`
     UPDATE "promo_jobs"
     SET "status" = CASE
-          WHEN "promo_jobs"."kind" = 'comment' THEN 'failed'
+          WHEN "promo_jobs"."kind" IN ('comment', 'reply') THEN 'failed'
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS} THEN 'failed'
           ELSE 'queued'
         END,
         "claim_token" = NULL,
         "claimed_at" = NULL,
         "last_error" = CASE
-          WHEN "promo_jobs"."kind" = 'comment'
+          WHEN "promo_jobs"."kind" IN ('comment', 'reply')
             THEN ${COMMENT_ABANDONED}
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS}
             THEN 'The browser stopped part-way through, three times.'
           ELSE "promo_jobs"."last_error"
         END,
         "finished_at" = CASE
-          WHEN "promo_jobs"."kind" = 'comment' THEN now()
+          WHEN "promo_jobs"."kind" IN ('comment', 'reply') THEN now()
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS} THEN now()
           ELSE NULL
         END
     WHERE "promo_jobs"."status" = 'running'
       AND "promo_jobs"."claimed_at" < now() - CASE
-        WHEN "promo_jobs"."kind" IN ('comment', 'warm_up')
+        WHEN "promo_jobs"."kind" IN ('comment', 'reply', 'warm_up')
           THEN ${sql.raw(`interval '${VISIT_CLAIM_TIMEOUT_MINUTES} minutes'`)}
         ELSE ${sql.raw(`interval '${CLAIM_TIMEOUT_MINUTES} minutes'`)}
       END

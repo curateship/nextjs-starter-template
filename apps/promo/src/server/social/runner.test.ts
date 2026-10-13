@@ -36,6 +36,7 @@ vi.mock("@/server/browser/command", async (importOriginal) => {
 })
 
 vi.mock("./reddit/post-comment", () => ({ postComment: vi.fn() }))
+vi.mock("./reddit/post-reply", () => ({ postReply: vi.fn() }))
 
 vi.mock("./reddit/search", () => ({
   runKeywordSearch: vi.fn(),
@@ -351,6 +352,34 @@ describe("running a browser job", () => {
     expect(ensureSession).not.toHaveBeenCalled()
     // Held back, so the next turn finds nothing to do.
     expect(await runOneJob("worker", db)).toEqual({ did: "nothing" })
+  })
+
+  it("tries an answer to a reply once and never again, in the account's own browser", async () => {
+    const { postReply } = await import("./reddit/post-reply")
+    vi.mocked(postReply).mockRejectedValueOnce(new Error("reply: pressed send but no new reply appeared within 20 seconds"))
+    const id = await queueJob(userId, "reply", { commentId: "c1", replyId: "r1", text: "Hello.", accountId }, db)
+
+    await runOneJob("worker", db)
+
+    expect(vi.mocked(postReply)).toHaveBeenCalledWith(
+      { userId, commentId: "c1", replyId: "r1", text: "Hello.", draftId: null },
+      target,
+      db
+    )
+    const failed = await job(id)
+    expect(failed.status).toBe("failed")
+    expect(failed.attempts).toBe(1)
+    expect(await runOneJob("worker", db)).toEqual({ did: "nothing" })
+  })
+
+  it("puts an answer to a reply taken outside waking hours back to wait", async () => {
+    const { postReply } = await import("./reddit/post-reply")
+    await saveBehaviour(userId, { ...(await readBehaviour(userId, db)), ...hoursAround(new Date(), false) }, db)
+    const id = await queueJob(userId, "reply", { commentId: "c1", replyId: "r1", text: "Hello.", accountId }, db)
+
+    expect(await runOneJob("worker", db)).toMatchObject({ did: "put back", jobId: id })
+    expect(vi.mocked(postReply)).not.toHaveBeenCalled()
+    expect(ensureSession).not.toHaveBeenCalled()
   })
 
   it("fails a refusal at once instead of trying it three times", async () => {

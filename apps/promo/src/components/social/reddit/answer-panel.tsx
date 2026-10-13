@@ -56,6 +56,8 @@ export type FindDetail = {
   linkError: string
   thread: FindThread | null
   threadReadAt: Date | null
+  /** A read of the replies is waiting or running. */
+  threadReading: boolean
   /** The subreddit's own posted rules, shown above the box. */
   rules: RulesView
 }
@@ -510,6 +512,17 @@ function Replies({
 }) {
   // Three separate answers, and they must never be confused: the replies have
   // not been read, they were read and there were none, or here they are.
+  if (!find.thread && find.threadReading) {
+    // Queued by a press or by the read after a search. A second press would
+    // only wait behind the first, so there is no button until it lands.
+    return (
+      <p className="flex items-center gap-2 border-t pt-4 text-sm text-muted-foreground">
+        <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+        Reading the replies…
+      </p>
+    )
+  }
+
   if (!find.thread) {
     return (
       <div className="grid gap-2 border-t pt-4">

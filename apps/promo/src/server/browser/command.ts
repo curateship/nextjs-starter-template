@@ -291,6 +291,23 @@ const commentCheckShape = z.object({
   /** Null when Reddit hides the score for now. */
   upvotes: z.number().nullable(),
   replies: z.number(),
+  /**
+   * The replies directly under the comment, with their words. Empty from an
+   * image built before replies were read, which the check then stores as
+   * "not read" rather than "none".
+   */
+  incoming: z
+    .array(
+      z.object({
+        id: z.string(),
+        author: z.string(),
+        text: z.string(),
+        score: z.number(),
+        url: z.string(),
+        postedAtSeconds: z.number().nullable(),
+      })
+    )
+    .optional(),
 })
 
 export type BrowserCommentCheck = z.infer<typeof commentCheckShape>
@@ -426,6 +443,21 @@ export function redditComment(
   args: { permalink: string; text: string; subreddit: string }
 ) {
   return call(target, "reddit/comment", { ...args }, commentShape, VISIT_TIMEOUT_MS)
+}
+
+/** Where a reply landed, and the visit around it. */
+const replySentShape = z.object({
+  replyUrl: z.string(),
+  visit: visitShape.nullable().default(null),
+})
+
+/**
+ * Answers one reply under a comment the account sent, in that reply's own
+ * box, inside the same visit a comment gets. Only ever called after a person
+ * pressed Reply, which the endpoint that queues it enforces.
+ */
+export function redditReply(target: CommandTarget, args: { replyUrl: string; text: string }) {
+  return call(target, "reddit/reply", { ...args }, replySentShape, VISIT_TIMEOUT_MS)
 }
 
 /**
