@@ -39,6 +39,9 @@ export const appServerOptions: AppServerOptions = {
         tick: async () => {
           const { sweepProxyHealth } = await import("@/server/browser/proxies")
           await sweepProxyHealth()
+          // Once an hour, the bell for a proxy renewing in the next three days.
+          const { ringProxyRenewals } = await import("@/server/social/upkeep")
+          await ringProxyRenewals()
         },
       },
       {
@@ -65,6 +68,18 @@ export const appServerOptions: AppServerOptions = {
         tick: async () => {
           const { queueWarmUps } = await import("@/server/social/upkeep")
           await queueWarmUps()
+        },
+      },
+      {
+        name: "promo-timed-searches",
+        /**
+         * Searches every switched-on keyword again once its last search is
+         * the hours set in Settings → Behaviour old, while the reader browser
+         * is awake. Only writes jobs; the browser program searches.
+         */
+        tick: async () => {
+          const { queueTimedSearches } = await import("@/server/social/upkeep")
+          await queueTimedSearches()
         },
       },
       {

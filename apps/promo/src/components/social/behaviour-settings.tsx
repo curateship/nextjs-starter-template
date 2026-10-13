@@ -173,6 +173,22 @@ function BehaviourSettingsPanel() {
           </Link>
           , and leave it signed out.
         </p>
+        <NumberField
+          id="promo-search-every-hours"
+          label="Search every keyword every this many hours"
+          hint="In the reader, while it is awake. 0 means keywords only search when you press their button."
+          value={settings.searchEveryHours}
+          min={BEHAVIOUR_RANGES.searchEveryHours.min}
+          max={BEHAVIOUR_RANGES.searchEveryHours.max}
+          inputClassName="w-full sm:w-32"
+          onChange={(value) => change({ searchEveryHours: value }, true)}
+          onCommit={() => void save(settings)}
+        />
+        <p className="text-sm text-muted-foreground">
+          {settings.searchEveryHours === 0
+            ? "Off. A keyword searches only when you press its button."
+            : `Every switched-on keyword searches Reddit again ${settings.searchEveryHours === 1 ? "an hour" : `${settings.searchEveryHours} hours`} after its last search, in the reader, while the reader is awake. A keyword's switch on its card turns this off for that keyword alone. Nothing is ever posted by itself.`}
+        </p>
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard

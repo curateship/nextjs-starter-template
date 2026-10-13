@@ -12,27 +12,34 @@ the repo's `docs/`, and is never copied here.
 
 - [The Projects dashboard](projects-dashboard.md): the table of every project,
   and one project's description, accounts, keywords and posts on one screen, which account comments, what the
-  AI is told about what you make, and the order accounts are listed in.
+  AI is told about what you make, the order accounts are listed in, pausing a
+  project, and the Today page of every project's best posts and waiting replies.
 
 ## Reddit
 
 - [The Reddit accounts dashboard](reddit/accounts-dashboard.md): every account
   with its status (Warming up, Ready, Working, Banned), project, profile and
-  proxy, adding one, setting a status by hand, and retiring.
+  proxy, adding one, setting a status by hand, pausing, help-only posts, and
+  retiring.
 - [Finding posts worth answering](reddit/finding-posts.md) — what a keyword is,
   watching a subreddit, why there is no Reddit API, how the order is worked
   out, the Everything list, searching the posts, the best posts' replies read
   ahead, the subreddits you never see,
-  and how old posts are tidied away.
+  how old posts are tidied away, searching again by itself every few hours,
+  ideas for keywords, and each subreddit's self-promotion thread.
 - [Link posts](reddit/link-posts.md) — reading the title and opening of the
   page a post links to, the guard that refuses any address inside the network,
   and how the page is labelled for the AI.
 - [Writing the comment](reddit/writing-comments.md) — what the AI is told, the
   subreddit's own rules, the sent comments it copies the voice of, what comes
-  back, and why Post is sometimes off.
+  back, why Post is sometimes off, checking a comment against the rules,
+  rewriting it, what you said before, and ten seconds to undo.
 - [What happened to your comments](reddit/sent-comments.md) — the Comments
   screen: every sent comment with its upvotes, its replies and whether it is
-  still there, and the switch that keeps it out of the AI's examples.
+  still there, the switch that keeps it out of the AI's examples, removals per
+  subreddit, deleting and editing a comment, and the Failed tab.
+- [Posts of your own](reddit/your-own-posts.md): New post on a project, the
+  subreddit's rules first, the same rules as Post, and the Posts tab.
 - [Answering replies](reddit/answering-replies.md) — the Replies window on the
   Comments screen: the replies under a sent comment, drafting and sending an
   answer from the same account under Post's rules, and how an answer is stored.
@@ -43,8 +50,8 @@ the repo's `docs/`, and is never copied here.
 
 - [Behaving like a person](accounts/behaving-like-a-person.md) — the reader
   browser that searches so accounts never do, the visit around every comment,
-  waking hours, warm-up, the pace limit for young accounts, and clicks and
-  scrolls like a hand. Settings → Behaviour.
+  waking hours, warm-up, the pace limit for young accounts, clicks and
+  scrolls like a hand, and help-only comments that build karma. Settings → Behaviour.
 
 ## The browser
 
@@ -53,6 +60,10 @@ the repo's `docs/`, and is never copied here.
   signing in once, the proxy, the limit on how many run at once, profiles
   working side by side, why only the browser program opens one, and how a dead
   or leftover one is cleared.
+- [The Jobs dashboard](browser/jobs-dashboard.md): last under Projects in the
+  left menu. Whether the browser program is running and how to start it, and
+  every search, read, comment and check it is running, waiting to run,
+  finished or failed, with Cancel and Try again.
 - [Browser profiles](browser/profiles.md) — one isolated browser as a record of
   its own, which an account points at, and how the first accounts were adopted.
 - [The Browser profiles dashboard](browser/profiles-dashboard.md) — the table,
@@ -62,14 +73,20 @@ the repo's `docs/`, and is never copied here.
   server's key and kept in R2, restoring it here or on another machine, and the
   newest five kept.
 - [The Proxies dashboard](browser/proxies-dashboard.md) — the table, pasting in
-  a list, the re-test that reaches every proxy, the dead-proxy notice, and the
-  record of each proxy's outside address.
+  a list, the re-test that reaches every proxy, the dead-proxy notice, the
+  record of each proxy's outside address, and what each costs and when it renews.
 
 ## Writing
 
 - [The Voices dashboard](voices-dashboard.md) — how the AI sounds and the lines
-  it must not cross, as a record any number of accounts share, and how the
-  first account's words moved.
+  it must not cross, as a record any number of accounts share, how the
+  first account's words moved, and trying a voice on a real post.
+
+## Notices
+
+- [Promo's bell notices](notices.md): new replies, removed comments, suspended
+  accounts, failures and proxy renewals, one notice per thing, and where each
+  opens.
 
 ## Shell
 

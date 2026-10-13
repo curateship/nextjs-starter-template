@@ -4,7 +4,8 @@ import { z } from "zod"
 import { AI_TEXT_PROVIDERS } from "@/lib/ai/ai-models"
 import { adminPost } from "@/server/guards"
 import { accountForFind } from "@/server/social/projects"
-import { MAX_COMMENT_CHARS, PICK_AN_ACCOUNT } from "@/lib/social/options"
+import { DRAFT_REWRITES, MAX_COMMENT_CHARS, PICK_AN_ACCOUNT, type DraftRewrite } from "@/lib/social/options"
+import { checkCommentRules, rewriteComment, type RulesCheck } from "@/server/social/ai-tasks"
 import { draftComments, type WrittenDraft } from "@/server/social/drafts"
 import { cancelWaitingComment, queueComment } from "@/server/social/posting"
 
@@ -25,6 +26,8 @@ export const getDraftErrorMessage = createErrorMessage(
     "no longer saved": "That post has been removed. Reload the page.",
     "account is not there any more": "That account is not there any more. Reload the page.",
     "not in this post's project": "That account is not in this post's project. Pick one of the project's accounts on the left.",
+    "another account's everyday subreddits": "That post was found for another account's everyday subreddits, so only that account answers it.",
+    "Write the comment first": "Write the comment first.",
     AI_LIMIT_REACHED: "This month's AI allowance is used up.",
   },
   "The draft could not be written. Please try again."
@@ -41,6 +44,7 @@ const POST_REFUSALS = [
   "how old this account is",
   "already on its way",
   "no longer waiting",
+  "is paused",
 ]
 
 export function getPostErrorMessage(error: unknown): string {
@@ -106,7 +110,7 @@ const postFn = createServerFn({ method: "POST" })
       draftId: z.string().min(1).nullable().optional(),
     })
   )
-  .handler(async ({ context, data }): Promise<{ jobId: string; runAfter: Date | null }> => {
+  .handler(async ({ context, data }): Promise<{ jobId: string; runAfter: Date | null; undoUntil: Date | null }> => {
     if (!data.accountId) throw new Error(PICK_AN_ACCOUNT)
     const account = await accountForFind(context.user.id, data.accountId, data.findId)
     return queueComment(context.user.id, account, {
@@ -123,6 +127,50 @@ export function sendComment(data: {
   draftId?: string | null
 }) {
   return postFn({ data })
+}
+
+export type { RulesCheck }
+
+const checkFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      findId: z.string().min(1),
+      accountId: z.string().min(1).nullable(),
+      text: z.string().trim().min(1, "Write the comment first, then check it.").max(MAX_COMMENT_CHARS * 2),
+    })
+  )
+  .handler(async ({ context, data }): Promise<RulesCheck> => {
+    const account = data.accountId ? await accountForFind(context.user.id, data.accountId, data.findId) : null
+    return checkCommentRules(context.user.id, { ...data, accountId: account?.id ?? null })
+  })
+
+/**
+ * Reads the words in the box against the subreddit's rules and the voice's
+ * own, on a press of Check. It warns; it never turns Post off.
+ */
+export function checkRules(data: { findId: string; accountId: string | null; text: string }) {
+  return checkFn({ data })
+}
+
+const rewriteFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      findId: z.string().min(1),
+      accountId: z.string().min(1).nullable(),
+      text: z.string().trim().min(1, "Write the comment first, then rewrite it.").max(MAX_COMMENT_CHARS * 2),
+      how: z.enum(DRAFT_REWRITES),
+    })
+  )
+  .handler(async ({ context, data }): Promise<{ id: string; text: string }> => {
+    const account = data.accountId ? await accountForFind(context.user.id, data.accountId, data.findId) : null
+    return rewriteComment(context.user.id, { ...data, accountId: account?.id ?? null })
+  })
+
+/** Rewrites the words in the box shorter, plainer, or with no mention of what you make. */
+export function rewriteWords(data: { findId: string; accountId: string | null; text: string; how: DraftRewrite }) {
+  return rewriteFn({ data })
 }
 
 /** Cancels a comment still waiting for the account's waking hours. */

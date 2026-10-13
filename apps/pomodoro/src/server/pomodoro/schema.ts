@@ -775,6 +775,23 @@ export const pomodoroGroups = pgTable(
      * switch left as it was.
      */
     pagePublic: boolean("page_public").notNull().default(false),
+    /** The owner's line about the group, shown under its name (groups task 01). */
+    description: varchar("description", { length: 120 }),
+    /** The invite link lets nobody in while this is on, without changing. */
+    joinsPaused: boolean("joins_paused").notNull().default(false),
+    /** A join becomes a request the owner lets in or turns down. */
+    approveJoins: boolean("approve_joins").notNull().default(false),
+    /** "After 7 days": when the link stops. Null is never. */
+    linkExpiresAt: timestamp("link_expires_at", { withTimezone: true }),
+    /** "After 10 joins": how many more the link lets in. Null is no limit. */
+    linkJoinsLeft: integer("link_joins_left"),
+    /**
+     * The calendar the board counts days in, so every member sees the same
+     * week. Null reads as the owner's own timezone.
+     */
+    timezone: varchar("timezone", { length: 80 }),
+    /** Combined hours the group aims for each week. Null is no goal. */
+    weeklyGoalHours: integer("weekly_goal_hours"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -790,6 +807,14 @@ export const pomodoroGroups = pgTable(
     check(
       "pomodoro_groups_handle_shape_check",
       sql`${table.handle} is null or ${table.handle} ~ '^[a-z0-9_-]{3,30}$'`
+    ),
+    check(
+      "pomodoro_groups_link_joins_left_check",
+      sql`${table.linkJoinsLeft} is null or ${table.linkJoinsLeft} >= 0`
+    ),
+    check(
+      "pomodoro_groups_weekly_goal_check",
+      sql`${table.weeklyGoalHours} is null or ${table.weeklyGoalHours} between 1 and 1000`
     ),
   ]
 )
@@ -820,6 +845,161 @@ export const pomodoroGroupMembers = pgTable(
       table.userId
     ),
     index("pomodoro_group_members_user_idx").on(table.userId),
+  ]
+)
+
+/** People the owner removed and kept out. The invite link refuses them. */
+export const pomodoroGroupBans = pgTable(
+  "pomodoro_group_bans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("pomodoro_group_bans_group_user_unique").on(
+      table.groupId,
+      table.userId
+    ),
+  ]
+)
+
+/** A join waiting for the owner. Counts toward neither cap until let in. */
+export const pomodoroGroupRequests = pgTable(
+  "pomodoro_group_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("pomodoro_group_requests_group_user_unique").on(
+      table.groupId,
+      table.userId
+    ),
+    index("pomodoro_group_requests_user_idx").on(table.userId),
+  ]
+)
+
+/**
+ * An invite sent in the bell to somebody the sender follows. Answering sets
+ * `answeredAt` instead of deleting, because the daily limit counts these rows.
+ */
+export const pomodoroGroupInvites = pgTable(
+  "pomodoro_group_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    inviteeUserId: varchar("invitee_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    inviterUserId: varchar("inviter_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+  },
+  (table) => [
+    unique("pomodoro_group_invites_group_invitee_unique").on(
+      table.groupId,
+      table.inviteeUserId
+    ),
+    index("pomodoro_group_invites_inviter_idx").on(
+      table.inviterUserId,
+      table.createdAt
+    ),
+    index("pomodoro_group_invites_invitee_idx").on(table.inviteeUserId),
+  ]
+)
+
+/**
+ * The owner's Activity panel. `name` is the words the line shows, saved as
+ * they were then, so drawing it needs no user id. The last 50 are kept.
+ */
+export const pomodoroGroupEvents = pgTable(
+  "pomodoro_group_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 30 }).notNull(),
+    name: varchar("name", { length: 120 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_group_events_group_created_idx").on(
+      table.groupId,
+      table.createdAt
+    ),
+  ]
+)
+
+/** Which hour milestones a group has reached, so each is told once. */
+export const pomodoroGroupMilestones = pgTable(
+  "pomodoro_group_milestones",
+  {
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    hours: integer("hours").notNull(),
+    reachedAt: timestamp("reached_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: "pomodoro_group_milestones_pk",
+      columns: [table.groupId, table.hours],
+    }),
+  ]
+)
+
+/**
+ * Which weekly notices went out, the Monday winner and the goal reached. A
+ * record that a notice was sent, never a ranking.
+ */
+export const pomodoroGroupWeekNotices = pgTable(
+  "pomodoro_group_week_notices",
+  {
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: "pomodoro_group_week_notices_pk",
+      columns: [table.groupId, table.weekStart, table.kind],
+    }),
+    check(
+      "pomodoro_group_week_notices_kind_check",
+      sql`${table.kind} in ('winner', 'goal')`
+    ),
   ]
 )
 
@@ -908,6 +1088,13 @@ export const rooms = pgTable(
     }),
     /** Which of the rule's days this room is, on the host's calendar. */
     occurrenceDate: date("occurrence_date", { mode: "string" }),
+    /**
+     * The group this is a group room of (groups task 01). Only that group's
+     * members may join, and it shows on their Group room card.
+     */
+    groupId: uuid("group_id").references(() => pomodoroGroups.id, {
+      onDelete: "set null",
+    }),
     phaseStartedAt: timestamp("phase_started_at", { withTimezone: true }),
     phaseEndsAt: timestamp("phase_ends_at", { withTimezone: true }),
     focusMinutes: integer("focus_minutes").notNull().default(25),
@@ -976,6 +1163,9 @@ export const rooms = pgTable(
       table.createdAt
     ),
     index("rooms_scheduled_idx").on(table.phase, table.startsAt),
+    index("rooms_group_idx")
+      .on(table.groupId)
+      .where(sql`${table.groupId} is not null`),
     // The room clock's read for countdowns that have run out (migration 0132).
     index("rooms_starting_idx")
       .on(table.startingAt)
@@ -1021,6 +1211,13 @@ export const pomodoroRoomRepeats = pgTable(
     background: varchar("background", { length: 200 }),
     /** Lowercased addresses. Copied onto each room's own invites when it is made. */
     invites: jsonb("invites").$type<string[]>().notNull().default([]),
+    /**
+     * A weekly group room: each week's room is a group room, and its invites
+     * are the group's members as they are that week.
+     */
+    groupId: uuid("group_id").references(() => pomodoroGroups.id, {
+      onDelete: "set null",
+    }),
     /**
      * When the next day still to be booked starts. The worker moves it on
      * each time it books a day, and Cancel this week moves it on without
@@ -1247,6 +1444,10 @@ export const roomReports = pgTable(
       () => customShellUsers.id,
       { onDelete: "cascade" }
     ),
+    /** The group a `group` report is about. */
+    groupId: uuid("group_id").references(() => pomodoroGroups.id, {
+      onDelete: "cascade",
+    }),
     /** Whose profile was reported. Null on a message report. */
     profileUserId: varchar("profile_user_id", { length: 36 }).references(
       () => customShellUsers.id,

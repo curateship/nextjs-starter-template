@@ -8,19 +8,23 @@ import {
   deleteProject,
   deleteProjects,
   listProjectRows,
-  listProjects,
   readProjectView,
   removeAccountFromProject,
   updateProject,
   type ProjectAccount,
   type ProjectRow,
-  type ProjectSummary,
   type ProjectView,
 } from "@/server/social/projects"
+import { setProjectPaused } from "@/server/social/pause"
+import {
+  listPromoThreads,
+  queuePromoThreadReads,
+  type PromoThreadRow,
+} from "@/server/social/reddit/promo-threads"
 
 import { createErrorMessage } from "../error-message"
 
-export type { ProjectAccount, ProjectRow, ProjectSummary, ProjectView }
+export type { ProjectAccount, ProjectRow, ProjectView, PromoThreadRow }
 
 /**
  * The Projects dashboards' endpoints: the table of every project, one
@@ -32,9 +36,12 @@ export type { ProjectAccount, ProjectRow, ProjectSummary, ProjectView }
 export const getProjectErrorMessage = createErrorMessage(
   {
     "needs a name": "Give the project a name first.",
+    "not one of your uploaded images": "That picture is not one of your uploaded images. Pick or upload it again.",
     "project does not exist": "That project is not there any more. Reload the page.",
     "account is not there any more": "That account is not there any more. Reload the page.",
     "already in another project": "That account is already in another project. An account belongs to one project only.",
+    "found no posts yet": "This project has found no posts yet, so there are no subreddits to look in. Run a keyword first.",
+    "There is no reader browser": "Pick a reader browser in Settings → Behaviour first. The look runs in it.",
   },
   "That did not work. Please try again."
 )
@@ -46,14 +53,6 @@ export const getProjectErrorMessage = createErrorMessage(
 export function getDeleteProjectErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : ""
   return message.includes("still holds") ? message : getProjectErrorMessage(error)
-}
-
-const listFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .handler(async ({ context }): Promise<ProjectSummary[]> => listProjects(context.user.id))
-
-export function loadProjects() {
-  return listFn()
 }
 
 const rowsFn = createServerFn({ method: "GET" })
@@ -105,14 +104,17 @@ const updateFn = createServerFn({ method: "POST" })
       projectId: z.string().min(1),
       name: z.string().max(120).optional(),
       description: z.string().max(4_000).optional(),
+      // A media address from the shared image field, or "" for none. The
+      // server refuses any address that is not this person's own upload.
+      imageUrl: z.string().trim().max(2_048).optional(),
     })
   )
   .handler(async ({ context, data: { projectId, ...input } }): Promise<void> =>
     updateProject(context.user.id, projectId, input)
   )
 
-/** Saves the name or the description as it is typed. */
-export function saveProject(data: { projectId: string; name?: string; description?: string }) {
+/** Saves the name or the description as it is typed, or the picture when it is picked. */
+export function saveProject(data: { projectId: string; name?: string; description?: string; imageUrl?: string }) {
   return updateFn({ data })
 }
 
@@ -123,6 +125,43 @@ const deleteFn = createServerFn({ method: "POST" })
 
 export function removeProject(projectId: string) {
   return deleteFn({ data: { projectId } })
+}
+
+const pauseFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: z.string().min(1), paused: z.boolean() }))
+  .handler(async ({ context, data }): Promise<void> =>
+    setProjectPaused(context.user.id, data.projectId, data.paused)
+  )
+
+/**
+ * Pauses a whole project, or with `paused` false resumes it. None of its
+ * accounts posts, warms up or takes a health reading while it is paused.
+ */
+export function pauseProject(projectId: string, paused: boolean) {
+  return pauseFn({ data: { projectId, paused } })
+}
+
+const threadsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ projectId: z.string().min(1) }))
+  .handler(async ({ context, data }) => listPromoThreads(context.user.id, data.projectId))
+
+/** The project's subreddits with a self-promotion thread found, and how many looks are on their way. */
+export function loadPromoThreads(projectId: string) {
+  return threadsFn({ data: { projectId } })
+}
+
+const lookFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<{ queued: number }> => ({
+    queued: await queuePromoThreadReads(context.user.id, data.projectId),
+  }))
+
+/** Looks for the self-promotion thread in each of the project's subreddits, in the reader browser. */
+export function lookForPromoThreads(projectId: string) {
+  return lookFn({ data: { projectId } })
 }
 
 const addAccountFn = createServerFn({ method: "POST" })

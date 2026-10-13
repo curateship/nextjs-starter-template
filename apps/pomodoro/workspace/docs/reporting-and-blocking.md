@@ -35,7 +35,11 @@ a signed-out reader is no reporter. A `kind` column says which sort a row is,
 and defaults to `message`, which is what every row written before today is.
 
 The operator page names a message report by its room and a profile report by
-its address, so a row reads the same way whichever it is.
+its address, so a row reads the same way whichever it is. A group report
+(kind `group`, groups task 01) reads "Group: <name>", quotes the group's line,
+names the owner as the person it is about, and links to the group in the
+admin's Groups, where it can be deleted. See "Reporting a group" in
+[Private focus groups](focus-groups.md).
 
 ### Hiding is the only power over a profile
 

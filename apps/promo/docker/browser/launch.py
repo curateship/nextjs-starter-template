@@ -58,7 +58,14 @@ WORK_TIMEOUT_SECONDS = 90
 # (about two minutes for 900 characters), a little more feed. A warm-up is the
 # same visit without the comment. Both plan to finish by 800 seconds. The app
 # waits a little longer than this.
-ROUTINE_TIMEOUT_SECONDS = {"reddit.comment": 900, "reddit.reply": 900, "reddit.warm_up": 900}
+ROUTINE_TIMEOUT_SECONDS = {
+    "reddit.comment": 900,
+    "reddit.reply": 900,
+    "reddit.warm_up": 900,
+    "reddit.submit": 900,
+    # An edit types the new words at a person's pace, which 90 seconds does not cover.
+    "reddit.edit_comment": 600,
+}
 
 work = queue.Queue()
 
@@ -254,9 +261,43 @@ with Camoufox(
     threading.Thread(target=serve, daemon=True).start()
     print("command server listening on %d" % COMMAND_PORT, flush=True)
 
+    # Whether the tab has crashed. A crashed tab is not closed, so
+    # `page.is_closed()` alone misses it. On 13 Oct 2026 a crash ("Target
+    # crashed") left every later search, read and rules check failing on the
+    # dead tab in under a second each, until the whole queue had failed.
+    crashed = {"yes": False}
+
+    def watch(tab):
+        tab.on("crash", lambda *_: crashed.update(yes=True))
+
+    watch(page)
+
+    def dead(error):
+        message = str(error)
+        return "Target crashed" in message or "has been closed" in message
+
     # The driver. Every page action in the whole app happens on this line.
     while True:
         routine, args, answer = work.get()
+        if crashed["yes"] or page.is_closed():
+            # A fresh tab in the same browser keeps the sign-in, which lives in
+            # the profile rather than the tab. If the browser itself is gone,
+            # leaving lets supervisord start the launcher again, and Camoufox
+            # saves the profile on the way out.
+            print("the tab crashed or closed, so a new one is opened", flush=True)
+            try:
+                if not page.is_closed():
+                    page.close()
+            except Exception:  # noqa: BLE001 - the old tab is being thrown away
+                pass
+            try:
+                page = context.new_page()
+            except Exception as error:  # noqa: BLE001 - reported, then restarted
+                traceback.print_exc()
+                answer.put((False, "The browser stopped working and is restarting. Try again in a minute."))
+                raise SystemExit(1) from error
+            crashed["yes"] = False
+            watch(page)
         try:
             result = ROUTINES[routine](page, args)
             answer.put((True, result))
@@ -264,4 +305,6 @@ with Camoufox(
             # The whole traceback goes to the container log; the app gets the
             # one sentence, because that is what ends up in front of a person.
             traceback.print_exc()
+            if dead(error):
+                crashed["yes"] = True
             answer.put((False, str(error) or error.__class__.__name__))

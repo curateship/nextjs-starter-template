@@ -6,7 +6,9 @@ import type { FindRow } from "@/server/social/keywords"
 import type { PostingState } from "@/server/social/posting"
 
 import { AnswerPanel, type FindDetail } from "./answer-panel"
-import { FindsPanel } from "./finds-panel"
+import { paceLineText } from "@/lib/social/wording"
+
+import { FindsPanel, FindsSearch } from "./finds-panel"
 
 /**
  * What the Reddit panels draw, rendered from the real components. The clicks
@@ -33,6 +35,9 @@ const find: FindDetail = {
   rules: { state: "unread", rules: [], readAt: null, error: "", reading: false },
   threadReadAt: null,
   threadReading: false,
+  pastAnswers: [],
+  removals: { removed: 0, checked: 0 },
+  helpAccountId: null,
 }
 
 function answerPanel(
@@ -54,7 +59,10 @@ function answerPanel(
         onRead={nothing}
         onReadRules={nothing}
         onDraft={nothing}
-        onPost={nothing}
+        onCheckRules={async () => null}
+        onRewrite={async () => null}
+        onPost={async () => null}
+        onUndo={async () => false}
         onCancelWaiting={nothing}
         onSkip={nothing}
         onBack={onBack}
@@ -69,7 +77,7 @@ describe("the way back to the list on a phone", () => {
     expect(html).toContain('aria-label="Back to the list"')
     // Skip and the open-on-Reddit button keep their places.
     expect(html).toContain("Skip")
-    expect(html).toContain('title="Open this post on Reddit"')
+    expect(html).toContain('aria-label="Open this post on Reddit"')
   })
 
   it("draws no back arrow on the wide layout", () => {
@@ -130,7 +138,7 @@ describe("the subreddit's rules above the comment box", () => {
 
   it("tells not read yet apart from no rules", () => {
     const html = withRules({})
-    expect(html).toContain("r/SaaS&#x27;s rules have not been read yet.")
+    expect(html).toContain("r/SaaS rules not read yet")
     expect(html).toContain("Read them")
     expect(withRules({ reading: true })).toContain("Reading r/SaaS")
   })
@@ -149,36 +157,30 @@ function row(overrides: Partial<FindRow>): FindRow {
     commentCount: 28,
     postedAt: null,
     fit: "strong",
-    rankReason: "Reddit's best match",
+    place: "match 1",
     status: "new",
     threadRead: false,
     ...overrides,
   }
 }
 
-function findsPanel(
-  finds: FindRow[],
-  tab: "new" | "commented",
-  keyword: { term: string; subreddits: string[] } | null = {
-    term: "reddit marketing tool",
-    subreddits: [],
-  }
-) {
+function findsPanel(finds: FindRow[], tab: "new" | "commented", everything = false) {
   return renderToStaticMarkup(
     <TooltipProvider>
       <FindsPanel
-        keyword={keyword}
+        everything={everything}
         keywordNames={new Map([["k1", "reddit marketing tool"], ["k2", "r/SaaS"]])}
         hasKeywords
         finds={finds}
+        searchText=""
         loading={false}
         error={null}
         selectedId={null}
         tab={tab}
         onTabChange={() => {}}
         onSelect={() => {}}
-        onSkip={nothing}
         onBlock={nothing}
+        onSkip={nothing}
         onRetry={() => {}}
       />
     </TooltipProvider>
@@ -197,35 +199,74 @@ describe("blocking a subreddit from a row", () => {
   })
 })
 
-describe("the search box over the posts", () => {
-  it("sits in the panel's controls, beside the status tabs", () => {
-    const html = findsPanel([row({})], "new")
-    expect(html).toContain('aria-label="Search these posts by title, subreddit or author"')
-    expect(html).toContain("To look at")
+describe("ticking posts to skip several at once", () => {
+  it("gives each post still to look at a tick box", () => {
+    expect(findsPanel([row({})], "new")).toContain('aria-label="Tick A horror story')
+  })
+
+  it("gives none on the Replied tab, whose posts are never skipped", () => {
+    expect(findsPanel([row({ status: "commented" })], "commented")).not.toContain('aria-label="Tick ')
   })
 })
 
-describe("Everything, every keyword's posts in one list", () => {
-  it("names the keyword that found each row", () => {
+describe("the search box over the posts", () => {
+  it("is its own box, drawn in the keywords row rather than beside the tabs", () => {
+    expect(findsPanel([row({})], "new")).not.toContain("Search these posts")
+    expect(renderToStaticMarkup(<FindsSearch value="" onChange={() => {}} />)).toContain(
+      'aria-label="Search these posts by title, subreddit or author"'
+    )
+  })
+
+  it("narrows the list to the posts whose words match", () => {
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <FindsPanel
+          everything={false}
+          keywordNames={new Map()}
+          hasKeywords
+          finds={[row({}), row({ id: "r2", title: "Pricing a tool", subreddit: "SaaS" })]}
+          searchText="pricing"
+          loading={false}
+          error={null}
+          selectedId={null}
+          tab="new"
+          onTabChange={() => {}}
+          onSelect={() => {}}
+          onBlock={nothing}
+          onSkip={nothing}
+          onRetry={() => {}}
+        />
+      </TooltipProvider>
+    )
+    expect(html).toContain("Pricing a tool")
+    expect(html).not.toContain("A horror story")
+  })
+})
+
+describe("every keyword's posts in one list", () => {
+  it("names the keyword that found each row, in the row's line", () => {
     const html = findsPanel(
       [row({}), row({ id: "r2", keywordId: "k2", title: "Pricing a tool" })],
       "new",
-      null
+      true
     )
-    expect(html).toContain(">Everything<")
-    expect(html).toContain(">Keyword<")
-    expect(html).toContain(">reddit marketing tool<")
-    expect(html).toContain(">r/SaaS<")
+    expect(html).toContain("r/nosleep · match 1 · reddit marketing tool")
+    expect(html).toContain("· r/SaaS")
   })
 
-  it("keeps the Keyword column off a single keyword's list, where every row would say the same", () => {
-    expect(findsPanel([row({})], "new")).not.toContain(">Keyword<")
+  it("leaves the keyword off a single keyword's list, where every row would say the same", () => {
+    expect(findsPanel([row({})], "new")).not.toContain("· reddit marketing tool")
+  })
+
+  it("groups rows under their band with a count", () => {
+    expect(findsPanel([row({})], "new")).toContain('aria-label="Strong fit, 1"')
   })
 })
 
 /** The account's pace and a comment held for its morning, as the Post panel shows them. */
 describe("the pace line and a waiting comment", () => {
   const quiet: PostingState = {
+    paused: null,
     timeZone: "UTC",
     awake: true,
     nextWakeAt: null,
@@ -240,9 +281,11 @@ describe("the pace line and a waiting comment", () => {
     waiting: [],
   }
 
-  it("says the counts in plain figures", () => {
+  it("says who it posts as, with the counts in plain figures behind it", () => {
     const html = answerPanel(undefined, find, quiet)
-    expect(html).toContain("3 comments in the last hour, 11 today.")
+    expect(html).toContain("as u/me")
+    // The counts are the line's tooltip, drawn on hover.
+    expect(paceLineText(quiet)).toBe("3 comments in the last hour, 11 today.")
     expect(html).not.toContain("New accounts get banned")
   })
 
@@ -265,5 +308,13 @@ describe("the pace line and a waiting comment", () => {
       waiting: [{ findId: "another", runAfter: new Date(Date.now() + 3_600_000) }],
     })
     expect(html).not.toContain("Cancel comment")
+  })
+})
+
+describe("sorting the posts by a figure", () => {
+  it("offers a sort over the upvotes and over the replies", () => {
+    const html = findsPanel([row({})], "new")
+    expect(html).toContain('aria-label="Sort by upvotes, most first"')
+    expect(html).toContain('aria-label="Sort by replies, most first"')
   })
 })

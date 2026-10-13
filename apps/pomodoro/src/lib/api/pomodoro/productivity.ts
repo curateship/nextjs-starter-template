@@ -18,6 +18,7 @@ import {
 } from "@/server/pomodoro/productivity"
 import { refreshMyRoom } from "@/server/pomodoro/rooms"
 import { tellFollowersOfStreak } from "@/server/pomodoro/following"
+import { checkGroupScoresAfterFocus } from "@/server/pomodoro/group-scores"
 import { loadOrCreateProfile, userToday } from "@/server/pomodoro/profile"
 import {
   listProjects,
@@ -501,6 +502,7 @@ const completeSessionFn = createServerFn({ method: "POST" })
       preferences.dailyGoalSessions
     )
     await tellFollowersOfMilestone(context.user.id, summary)
+    if (completion.session.mode === "focus") await checkGroupScores(context.user.id)
     return {
       ...completion,
       today,
@@ -551,6 +553,19 @@ async function tellFollowersOfMilestone(
     await tellFollowersOfStreak(userId, summary.currentStreak)
   } catch (error) {
     console.error("followers could not be told about a streak", error)
+  }
+}
+
+/**
+ * A finished focus can reach a group's weekly goal or a milestone (groups
+ * task 01, parts 18 and 22). Swallowed like the badges: the session is
+ * already saved, and a group notice is never worth failing it.
+ */
+async function checkGroupScores(userId: string) {
+  try {
+    await checkGroupScoresAfterFocus(userId)
+  } catch (error) {
+    console.error("the groups could not be told about a focus", error)
   }
 }
 

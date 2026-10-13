@@ -348,6 +348,7 @@ describe("the browser work queue", () => {
       running: 1,
       failed: 1,
       searchingKeywordIds: [],
+      programRunning: false,
     })
   })
 

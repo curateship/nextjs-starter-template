@@ -30,7 +30,44 @@ vi.mock("@/components/ui/field-label", () => ({
   }) => <label htmlFor={htmlFor}>{children}</label>,
 }))
 
-import { TeamPageSettingsCard } from "@/components/pomodoro/team-page-settings"
+import type { WindowQuestion } from "@/components/pomodoro/group-window-question"
+import { TeamPageSettingsFields } from "@/components/pomodoro/team-page-settings"
+
+/**
+ * Edit group draws the question in its own window; here it is drawn as
+ * plain text and two buttons, which is all the fields need from it.
+ */
+function WithQuestions() {
+  const [question, setQuestion] = React.useState<WindowQuestion | null>(null)
+  return (
+    <>
+      <TeamPageSettingsFields
+        groupId="g1"
+        onChanged={async () => undefined}
+        ask={setQuestion}
+      />
+      {question ? (
+        <div>
+          <p>{question.title}</p>
+          <p>{question.description}</p>
+          <button
+            onClick={() => {
+              question.onCancel?.()
+              setQuestion(null)
+            }}
+          >
+            {question.cancelLabel}
+          </button>
+          <button
+            onClick={() => void question.onConfirm(false).then(() => setQuestion(null))}
+          >
+            {question.confirmLabel}
+          </button>
+        </div>
+      ) : null}
+    </>
+  )
+}
 
 let root: Root
 const live = { handle: "deep-work", pagePublic: true, canPublish: true }
@@ -38,9 +75,7 @@ const live = { handle: "deep-work", pagePublic: true, canPublish: true }
 async function show(settings: typeof live) {
   api.load.mockResolvedValue(settings)
   await act(async () => {
-    root.render(
-      <TeamPageSettingsCard groupId="g1" onChanged={async () => undefined} />
-    )
+    root.render(<WithQuestions />)
   })
 }
 const box = () => document.querySelector<HTMLInputElement>("input")

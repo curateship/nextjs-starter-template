@@ -9,6 +9,7 @@ import { createProject } from "@/server/social/projects"
 import { localMinutes } from "@/lib/social/waking"
 
 import { readBehaviour, saveBehaviour, type BehaviourSettings } from "./behaviour"
+import { setAccountsPaused, setProjectPaused } from "./pause"
 import { cancelWaitingComment, queueComment, readPostingState } from "./posting"
 import { promoAccounts, promoComments, promoFinds, promoJobs, promoKeywords } from "./schema"
 
@@ -96,18 +97,23 @@ describe("pressing Post", () => {
   })
 
   const post = (findIndex: number) =>
-    queueComment(userId, { id: accountId, profileId, redditCreatedAt: null }, { findId: findIds[findIndex], text: "Hi.", draftId: null }, db, now)
+    queueComment(userId, { id: accountId, profileId, redditCreatedAt: null, pausedAt: null, projectId: null }, { findId: findIds[findIndex], text: "Hi.", draftId: null }, db, now)
 
   const postAs = async (findIndex: number) => {
     const row = await account()
     return queueComment(userId, row, { findId: findIds[findIndex], text: "Hi.", draftId: null }, db, now)
   }
 
-  it("queues at once inside waking hours", async () => {
-    const { runAfter } = await postAs(0)
+  it("queues inside waking hours, held ten seconds so it can be undone", async () => {
+    const { runAfter, undoUntil } = await postAs(0)
     expect(runAfter).toBeNull()
+    expect(undoUntil!.getTime()).toBe(now.getTime() + 10_000)
     const [job] = await db.select().from(promoJobs)
-    expect(job).toMatchObject({ kind: "comment", status: "queued", runAfter: null, lane: profileId })
+    expect(job).toMatchObject({ kind: "comment", status: "queued", runAfter: undoUntil, lane: profileId })
+
+    // Undo inside the ten seconds takes it back, and nothing is sent.
+    await cancelWaitingComment(userId, findIds[0], db)
+    expect(await db.select().from(promoJobs)).toHaveLength(0)
   })
 
   it("holds a comment pressed outside waking hours for the account's morning, and says when", async () => {
@@ -205,5 +211,33 @@ describe("pressing Post", () => {
     })
     const state = await readPostingState(userId, await account(), db, now)
     expect(state.lastHour).toBe(0)
+  })
+
+  it("refuses Post while the account is paused, and again once resumed it goes", async () => {
+    await setAccountsPaused(userId, [accountId], true, db, now)
+    await expect(postAs(0)).rejects.toThrow("This account is paused")
+    expect((await readPostingState(userId, await account(), db, now)).paused).toBe("account")
+
+    await setAccountsPaused(userId, [accountId], false, db, now)
+    const { runAfter } = await postAs(0)
+    expect(runAfter).toBeNull()
+  })
+
+  it("refuses Post for every account in a paused project", async () => {
+    const projectId = await createProject(userId, "Paused one", db)
+    await db.update(promoAccounts).set({ projectId }).where(eq(promoAccounts.id, accountId))
+    await setProjectPaused(userId, projectId, true, db, now)
+    await expect(postAs(0)).rejects.toThrow("project is paused")
+
+    await setProjectPaused(userId, projectId, false, db, now)
+    await expect(postAs(0)).resolves.toMatchObject({ runAfter: null })
+  })
+
+  it("never pauses a retired account, and says it skipped it", async () => {
+    await db.update(promoAccounts).set({ retiredAt: now }).where(eq(promoAccounts.id, accountId))
+    expect(await setAccountsPaused(userId, [accountId], true, db, now)).toEqual({
+      completed: [],
+      skipped: [accountId],
+    })
   })
 })

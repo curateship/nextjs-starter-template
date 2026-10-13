@@ -28,5 +28,7 @@ export function joinRefusalMessage(cause: unknown) {
         ? "You can't join that room."
         : text.includes("ROOM_FULL")
           ? "This room is full."
-          : "This room is not available to join."
+          : text.includes("ROOM_GROUP_ONLY")
+            ? "Only the people in this room's group can join it."
+            : "This room is not available to join."
 }

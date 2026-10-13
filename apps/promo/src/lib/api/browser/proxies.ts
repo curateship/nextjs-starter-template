@@ -35,6 +35,8 @@ export const getProxyErrorMessage = createErrorMessage(
       "That proxy host points back inside the network, so it was refused.",
     "does not exist": "That proxy is not there any more. Refresh the list.",
     "no proxies in that paste": "There are no proxies in that paste.",
+    "monthly cost": "A proxy's monthly cost has to be an amount from 0 to 100000.",
+    "renewal date": "A proxy's renewal date has to be a real day.",
     "at most": "One paste can hold at most 500 proxies.",
     ENCRYPTION_NOT_CONFIGURED:
       "A proxy password cannot be stored until CUSTOM_SHELL_SECRET_ENCRYPTION_KEY is set.",
@@ -51,6 +53,10 @@ const proxyInput = z.object({
   username: z.string().trim().max(255).default(""),
   /** Left out entirely to keep whatever password is stored. */
   password: z.string().max(500).optional(),
+  /** Dollars a month, or null for not said. */
+  monthlyCost: z.number().min(0).max(100_000).nullable().optional(),
+  /** "2026-11-03", or null for not said. */
+  renewsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 })
 
 export type ProxyFormInput = z.input<typeof proxyInput>

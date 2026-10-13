@@ -119,4 +119,4 @@ holds a Reddit account is not offered.
 Every message on the Projects dashboard about the browser names the profile and
 the dashboard to find it on: "The browser is not signed in to Reddit. Open the
 profile Main on the Browser profiles dashboard and sign in once." It shows in
-the tooltip on the greyed-out Post to Reddit button.
+the tooltip on the greyed-out Post comment button.

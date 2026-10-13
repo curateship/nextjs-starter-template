@@ -19,6 +19,7 @@ import {
 import {
   focusSessions,
   pomodoroAuditLogs,
+  pomodoroGroupMembers,
   pomodoroProfiles,
   pomodoroRoomRepeats,
   pomodoroSimulatedAccounts,
@@ -197,6 +198,11 @@ export type RoomSettings = {
    */
   sound: string | null
   background: string | null
+  /**
+   * The group this is a group room of (groups task 01). Only that group's
+   * members may join it.
+   */
+  groupId?: string | null
 }
 
 /**
@@ -269,6 +275,17 @@ export async function joinRoomBySlug(slug: string, userId: string, database: Pom
     if (isScheduledRoom(room.phase)) throw new Error("ROOM_NOT_OPEN_YET")
     if (!canJoinRoom(room.phase)) throw new Error("ROOM_LOCKED")
     await assertNotBanned(room.id, userId, tx)
+    // A group room lets in its group's members and nobody else, whoever holds
+    // the link (Tyler, 13 Oct 2026). Checked inside the lock, so somebody
+    // removed from the group a moment ago cannot slip in.
+    if (room.groupId && room.hostUserId !== userId) {
+      const [inGroup] = await tx
+        .select({ id: pomodoroGroupMembers.id })
+        .from(pomodoroGroupMembers)
+        .where(and(eq(pomodoroGroupMembers.groupId, room.groupId), eq(pomodoroGroupMembers.userId, userId)))
+        .limit(1)
+      if (!inGroup) throw new Error("ROOM_GROUP_ONLY")
+    }
     // Somebody already in this room pressing Join again has not joined it.
     const [already] = await tx.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
     // A full room refuses the next person. Lowering the limit never takes
@@ -733,6 +750,7 @@ export type RoomLookup =
   | { status: "closed"; name: string }
   | { status: "scheduled"; name: string; startsAt: Date; focusMinutes: number } & RoomLookupPair
   | { status: "banned"; name: string }
+  | { status: "group_only"; name: string }
   | { status: "member"; name: string; memberCount: number } & RoomLookupPair
   | { status: "locked"; name: string; memberCount: number } & RoomLookupPair
   | { status: "joinable"; name: string; memberCount: number; phase: string; focusMinutes: number } & RoomLookupPair
@@ -750,6 +768,14 @@ export async function lookupRoomBySlug(slug: string, userId: string | null, data
   if (userId) {
     const banned = await database.select({ id: roomBans.id }).from(roomBans).where(and(eq(roomBans.roomId, room.id), eq(roomBans.userId, userId))).limit(1)
     if (banned.length) return { status: "banned", name: room.name }
+    if (room.groupId && room.hostUserId !== userId) {
+      const [inGroup] = await database
+        .select({ id: pomodoroGroupMembers.id })
+        .from(pomodoroGroupMembers)
+        .where(and(eq(pomodoroGroupMembers.groupId, room.groupId), eq(pomodoroGroupMembers.userId, userId)))
+        .limit(1)
+      if (!inGroup) return { status: "group_only", name: room.name }
+    }
   }
   // An invite email is sent before the room opens, so the link has to be able
   // to say "not yet" and when. Nobody is in the room, so no count is shown.

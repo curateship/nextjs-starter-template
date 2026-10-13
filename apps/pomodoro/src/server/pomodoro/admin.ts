@@ -26,6 +26,7 @@ import {
   dailyFocusStats,
   focusSessions,
   pomodoroAuditLogs,
+  pomodoroGroups,
   roomMemberships,
   roomMessages,
   pomodoroProfiles,
@@ -405,6 +406,9 @@ export async function listAdminReports(
   const reported = alias(users, "report_profile_owner")
   // A shared-file or copyright report names the file (task 05).
   const reportedFile = alias(customShellMedia, "report_file")
+  // A group report names the group (groups task 01, part 24).
+  const reportedGroup = alias(pomodoroGroups, "report_group")
+  const groupOwner = alias(users, "report_group_owner")
 
   const filters: SQL[] = []
   const search = query.search.trim()
@@ -419,6 +423,7 @@ export async function listAdminReports(
       ilike(reported.name, pattern),
       ilike(pomodoroProfiles.handle, pattern),
       ilike(pomodoroMediaUploads.name, pattern),
+      ilike(reportedGroup.name, pattern),
       ilike(roomReports.contactEmail, pattern),
       ilike(roomReports.contactName, pattern)
     )
@@ -436,7 +441,8 @@ export async function listAdminReports(
   const where = filters.length ? and(...filters) : undefined
 
   // Who the report is about: the message's writer, or the profile's owner.
-  const subjectId = sql<string | null>`coalesce(${author.id}, ${roomReports.profileUserId})`
+  // A group report is about the group's owner, who chose its name and line.
+  const subjectId = sql<string | null>`coalesce(${author.id}, ${roomReports.profileUserId}, ${reportedGroup.ownerUserId})`
   // Admin task 05: how often that person was reported before this report,
   // and how this reporter's earlier reports went. Earlier only, so the
   // counts on an old report read as they would have on the day.
@@ -486,7 +492,7 @@ export async function listAdminReports(
         messageRemovedBy: roomMessages.removedBy,
         reporterUserId: roomReports.reporterUserId,
         subjectUserId: subjectId,
-        subjectName: sql<string | null>`coalesce(${author.name}, ${reported.name})`,
+        subjectName: sql<string | null>`coalesce(${author.name}, ${reported.name}, ${groupOwner.name})`,
         subjectPriorReports,
         reporterPastReports: reporterPast(false),
         reporterPastDismissed: reporterPast(true),
@@ -502,6 +508,10 @@ export async function listAdminReports(
         fileWaitingSince: pomodoroMediaUploads.shareWaitingSince,
         fileUnsharedAt: pomodoroMediaUploads.adminUnsharedAt,
         fileFeaturedAt: pomodoroMediaUploads.featuredAt,
+        groupId: reportedGroup.id,
+        groupName: reportedGroup.name,
+        groupDescription: reportedGroup.description,
+        groupHandle: sql<string | null>`case when ${reportedGroup.pagePublic} then ${reportedGroup.handle} end`,
       })
       .from(roomReports)
       // Left joins throughout: a profile report has no room, and a report
@@ -519,6 +529,8 @@ export async function listAdminReports(
       .leftJoin(reviewer, eq(reviewer.id, roomReports.reviewedByUserId))
       .leftJoin(pomodoroMediaUploads, eq(pomodoroMediaUploads.mediaId, roomReports.mediaId))
       .leftJoin(reportedFile, eq(reportedFile.id, roomReports.mediaId))
+      .leftJoin(reportedGroup, eq(reportedGroup.id, roomReports.groupId))
+      .leftJoin(groupOwner, eq(groupOwner.id, reportedGroup.ownerUserId))
       .where(where)
       .orderBy(direction(sortColumn), asc(roomReports.id))
       .limit(limit)
@@ -536,6 +548,7 @@ export async function listAdminReports(
       .leftJoin(roomMessages, eq(roomMessages.id, roomReports.messageId))
       .leftJoin(author, eq(author.id, roomMessages.userId))
       .leftJoin(pomodoroMediaUploads, eq(pomodoroMediaUploads.mediaId, roomReports.mediaId))
+      .leftJoin(reportedGroup, eq(reportedGroup.id, roomReports.groupId))
       .where(where),
   ])
 

@@ -31,11 +31,30 @@ Reddit account tab's "Open Main voice" link leads.
 - **Deleting says who loses it.** The question names the accounts, and they are
   kept with no voice.
 
+## Trying a voice
+
+**Try it**, at the bottom of a voice's window, writes two drafts in that voice
+for a real post already found, so a voice is tuned in a minute: change its
+words, try again, compare. Tyler picked this on 12 Oct 2026.
+
+- **It uses the words in the window,** saved or not, so a change can be tried
+  before it is kept.
+- **The post** is picked from the newest posts found under any keyword. The
+  drafts are told that post's own project's description, the same as Write
+  with AI before an account is clicked.
+- **Nothing is stored or sent.** The drafts never show on the post's own draft
+  tiles.
+- **Two drafts are one AI call,** counted as "reddit-comment" on the AI usage
+  screen with the voice named.
+
+The window part is `TryVoice` in `src/components/social/voices/voice-dialog.tsx`;
+the call is `tryVoice` in `src/server/social/ai-tasks.ts`.
+
 ## An account with no voice
 
 It drafts plainly: neither box is sent. What you make still comes from its
-project's description. The Projects dashboard says "No voice picked, so drafts
-are plain" beside Write with AI, and the Reddit account tab links here. A voice
+project's description. On the Projects dashboard, Write with AI's tooltip says
+"No voice picked for this account, so drafts are plain", and the Reddit account tab links here. A voice
 can be swapped on each row of the Reddit accounts dashboard.
 
 ## The first account's words

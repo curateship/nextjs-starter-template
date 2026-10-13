@@ -29,19 +29,26 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import { Hint } from "@/components/social/hint"
 import {
   getProxyErrorMessage,
   removeProxies,
   runProxyTest,
   type ProxyView,
 } from "@/lib/api/browser/proxies"
-import { PROXY_KIND_LABELS, addressWords, namesList } from "@/lib/browser/wording"
+import {
+  PROXY_KIND_LABELS,
+  addressWords,
+  namesList,
+  proxyCostTotalText,
+  renewalText,
+} from "@/lib/browser/wording"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-type SortColumn = "name" | "endpoint" | "test" | "usedBy" | "address"
+type SortColumn = "name" | "endpoint" | "test" | "usedBy" | "address" | "cost"
 
 const COLUMNS: SortableColumn<SortColumn>[] = [
   { key: "name", label: "Proxy", column: "main" },
@@ -49,6 +56,7 @@ const COLUMNS: SortableColumn<SortColumn>[] = [
   { key: "test", label: "Test", column: "meta" },
   { key: "usedBy", label: "Used by", column: "meta" },
   { key: "address", label: "Outside address", column: "meta" },
+  { key: "cost", label: "Cost", column: "meta", className: "hidden lg:table-cell" },
 ]
 
 function compare(a: ProxyView, b: ProxyView, column: SortColumn): number {
@@ -61,6 +69,10 @@ function compare(a: ProxyView, b: ProxyView, column: SortColumn): number {
       return a.usedBy.length - b.usedBy.length
     case "address":
       return a.addresses.changesToday - b.addresses.changesToday
+    // Soonest renewal first when sorting up, then by cost; unset last.
+    case "cost":
+      return (a.renewsOn ?? "9999").localeCompare(b.renewsOn ?? "9999") ||
+        (a.monthlyCost ?? Number.POSITIVE_INFINITY) - (b.monthlyCost ?? Number.POSITIVE_INFINITY)
     default:
       return (a.label || a.host).localeCompare(b.label || b.host)
   }
@@ -192,6 +204,11 @@ export function ProxiesDashboard({
     }
   }
 
+  const costed = proxies.filter((proxy) => proxy.monthlyCost !== null).length
+  const monthlyTotal = costed
+    ? proxies.reduce((sum, proxy) => sum + (proxy.monthlyCost ?? 0), 0)
+    : null
+
   const selected = proxies.filter((proxy) => selection.selected.has(proxy.id))
   const losing = Array.from(
     new Set(deleteTargets.flatMap((proxy) => proxy.usedBy.map((user) => user.name)))
@@ -217,6 +234,11 @@ export function ProxiesDashboard({
                 <Trash2Icon className="size-4" />
                 Delete ({selection.selected.size})
               </DashboardToolbarButton>
+            ) : null}
+            {monthlyTotal !== null ? (
+              <span className="hidden text-sm whitespace-nowrap text-muted-foreground lg:inline">
+                {proxyCostTotalText(monthlyTotal, costed)}
+              </span>
             ) : null}
             <DashboardToolbarSearch
               name="proxy-search"
@@ -324,38 +346,55 @@ export function ProxiesDashboard({
               <TableCell column="meta" className="text-xs text-muted-foreground">
                 {addressWords(proxy.addresses)}
               </TableCell>
+              <TableCell column="meta" className="hidden text-xs lg:table-cell">
+                <span className="block whitespace-nowrap">
+                  {proxy.monthlyCost === null ? (
+                    <span className="text-muted-foreground">No cost set</span>
+                  ) : (
+                    `$${proxy.monthlyCost.toFixed(2)} a month`
+                  )}
+                </span>
+                {proxy.renewsOn ? (
+                  <span className="block whitespace-nowrap text-muted-foreground">
+                    {renewalText(proxy.renewsOn)}
+                  </span>
+                ) : null}
+              </TableCell>
               <TableCell column="actions">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={testing}
-                  onClick={() => void test(proxy)}
-                  title="Test it"
-                  aria-label={`Test ${name}`}
-                >
-                  {testing ? <Loader2Icon className="size-4 animate-spin" /> : <ActivityIcon className="size-4" />}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setOpen(proxy.id)}
-                  title="Proxy settings"
-                  aria-label={`Edit ${name}`}
-                >
-                  <SettingsIcon className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDeleteTargets([proxy])}
-                  title="Delete proxy"
-                  aria-label={`Delete ${name}`}
-                >
-                  <Trash2Icon className="size-4" />
-                </Button>
+                <Hint label="Test it">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={testing}
+                    onClick={() => void test(proxy)}
+                    aria-label={`Test ${name}`}
+                  >
+                    {testing ? <Loader2Icon className="size-4 animate-spin" /> : <ActivityIcon className="size-4" />}
+                  </Button>
+                </Hint>
+                <Hint label="Proxy settings">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setOpen(proxy.id)}
+                    aria-label={`Edit ${name}`}
+                  >
+                    <SettingsIcon className="size-4" />
+                  </Button>
+                </Hint>
+                <Hint label="Delete proxy">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setDeleteTargets([proxy])}
+                    aria-label={`Delete ${name}`}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                </Hint>
               </TableCell>
             </TableRow>
           )

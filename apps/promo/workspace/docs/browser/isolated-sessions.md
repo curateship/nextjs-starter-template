@@ -116,6 +116,17 @@ accepts named instructions and nothing else. Reddit's are:
 - **warm up** — a warming account's daily visit: the feed, a few posts, a
   subreddit or two joined
 
+**A crashed tab is replaced.** Every instruction runs in one tab. When that
+tab crashes, which the log calls "Target crashed", the next instruction
+opens a fresh tab in the same browser first, so the sign-in, which lives in the
+profile, carries on. If the browser itself is gone, the launcher stops and
+supervisord starts it again. Before 13 Oct 2026 a crashed tab stayed in use,
+and every later search, post read and rules read failed on it in under a
+second each until the queue was empty. That crash came with the reader near its
+1.5GB memory limit. The code is the driver loop at the end of
+`docker/browser/launch.py`, and the image has to be rebuilt for a change there
+to reach a browser (`docker build -t promo-browser:latest docker/browser`).
+
 ## The reader browser
 
 One profile, signed in to nobody and with a proxy of its own, does every read
@@ -295,7 +306,8 @@ background loop fires every fifteen and runs every other job in turn, so a
 browser search sitting on it would hold up everything else.
 
 So the browser has a process of its own, started with `npm run social:browser`,
-and the two talk through a job table. Pressing Search writes a row and returns;
+and the two talk through a job table. The Jobs dashboard shows whether that process is
+running and lists the table ([The Jobs dashboard](jobs-dashboard.md)). Pressing Search writes a row and returns;
 the browser process picks it up. Two copies of that process are safe: a job is
 claimed before any work starts, and a claim that goes stale is handed back after
 ten minutes and given up after three tries. Ten, because opening a cold browser

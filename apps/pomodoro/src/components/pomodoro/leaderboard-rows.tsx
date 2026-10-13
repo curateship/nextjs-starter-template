@@ -1,3 +1,4 @@
+import type * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
@@ -16,6 +17,10 @@ export type BoardLeader = {
   handle?: string | null
   focusSessions: number
   focusSeconds: number
+  /** Days with a finished focus. Only a group board ranked by days shows it. */
+  focusDays?: number
+  /** Their focus timer is running now (a group board only, groups task 01). */
+  focusingNow?: boolean
   isYou: boolean
 }
 
@@ -36,13 +41,19 @@ function leaderName(leader: BoardLeader) {
  * the accent tint and says "You" after the name, so it can be found with the
  * colour ignored, and a screen reader hears it.
  */
-export function LeaderboardRows({
+export function LeaderboardRows<Leader extends BoardLeader>({
   leaders,
   firstPlace = 1,
+  detail = "sessions",
+  action,
 }: {
-  leaders: readonly BoardLeader[]
+  leaders: readonly Leader[]
   /** The place of the first row. Your own row below the list starts at yours. */
   firstPlace?: number
+  /** The small figure after the time: sessions, or days on a board ranked by days. */
+  detail?: "sessions" | "days"
+  /** A control at the end of a row, such as a group board's cheer. */
+  action?: (leader: Leader) => React.ReactNode
 }) {
   return (
     <>
@@ -88,14 +99,28 @@ export function LeaderboardRows({
               You
             </span>
           ) : null}
+          {/* A word as well as the dot, so the state is never colour alone. */}
+          {leader.focusingNow ? (
+            <span className="flex shrink-0 items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              <i
+                aria-hidden="true"
+                className="size-2 rounded-full bg-[var(--p-success)]"
+              />
+              <span className="hidden sm:inline">Focusing</span>
+              <span className="sr-only sm:hidden">Focusing now</span>
+            </span>
+          ) : null}
           <span className="ml-auto flex shrink-0 items-baseline gap-3 sm:gap-5">
             <span className="font-mono text-sm tabular-nums sm:text-base">
               {formatFocusDuration(leader.focusSeconds)}
             </span>
             <small className="hidden w-20 font-mono text-xs text-muted-foreground sm:inline">
-              {leader.focusSessions} {plural(leader.focusSessions, "session")}
+              {detail === "days"
+                ? `${leader.focusDays ?? 0} ${plural(leader.focusDays ?? 0, "day")}`
+                : `${leader.focusSessions} ${plural(leader.focusSessions, "session")}`}
             </small>
           </span>
+          {action ? <span className="shrink-0">{action(leader)}</span> : null}
         </article>
       ))}
     </>

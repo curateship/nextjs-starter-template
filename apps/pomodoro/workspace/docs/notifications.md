@@ -72,6 +72,14 @@ saved with it.
 | cheer | the person cheered | Social | the sender's public page, while it opens |
 | group_join | a group's owner | Social | `/groups?group=<id>`, that group on Groups |
 | group_removed | the person removed | Social | nothing |
+| group_request | a group's owner, when its owner asks first and somebody asks to join; folds like joins | Social | that group on Groups |
+| group_answer | whoever asked: let in, turned down, or stopped by a cap | Social | the group on Groups when let in; nothing otherwise |
+| group_invite | somebody invited by a person they follow; gone from the bell once joined or declined | Social | `/groups`, where Join and Decline are |
+| group_owner | the member a group was handed to | Social | that group on Groups |
+| group_room | every other member when somebody starts a group room, once an hour per group | Rooms | the room |
+| group_winner | every member, on the first pass after Monday in the group's timezone, once a week | Social | that group on Groups |
+| group_goal | every member, the first time a week's hours pass the weekly goal | Social | that group on Groups |
+| group_milestone | every member when the group passes 10, 50, 100, 500 or 1,000 hours, once each | Social | that group on Groups |
 | followed_streak | people who follow the streaker | Social | the streaker's public page, while it opens |
 | badge | the person who earned it | Account | `/history`, where the badges panel is |
 | media_ready | the owner of the file | Account | My uploads, `/uploads?kind=background` or `?kind=sound` |

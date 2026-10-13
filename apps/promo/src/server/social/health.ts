@@ -7,9 +7,12 @@ import {
 } from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
 import type { ProfileCheck } from "@/lib/social/options"
 
 import { queueJob } from "./jobs"
+import { ringBell } from "./notices"
+import { pausedBy } from "./pause"
 import { promoAccounts, promoJobs } from "./schema"
 
 /**
@@ -180,6 +183,13 @@ export async function recordStrangerCheck(
   if (!accountId || !handle) throw new Error("That profile check names no account.")
   const signedIn = signedInShape(payload.signedIn)
   const signedOut = await redditStrangerProfile(target, { handle })
+  const suspended = signedIn.suspended || signedOut.suspended
+
+  const [before] = await db
+    .select({ profileCheck: promoAccounts.profileCheck })
+    .from(promoAccounts)
+    .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
+    .limit(1)
 
   await db
     .update(promoAccounts)
@@ -190,11 +200,28 @@ export async function recordStrangerCheck(
         signedInFound: signedIn.found,
         signedOutStatus: signedOut.status,
         signedOutFound: signedOut.found,
-        suspended: signedIn.suspended || signedOut.suspended,
+        suspended,
         readAt: now.toISOString(),
       },
     })
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
+
+  // Reddit marking the account suspended rings the bell once, when it
+  // happens, not on every daily reading after.
+  if (suspended && !before?.profileCheck?.suspended) {
+    await ringBell(
+      userId,
+      {
+        kind: "suspended",
+        targetId: accountId,
+        message: `${NOTICE_HEADINGS.suspended} u/${handle}`,
+        detail: "Reddit marks the account suspended. Nothing it posts will be seen. It is on the Reddit accounts dashboard.",
+        href: "/admin/reddit-accounts",
+      },
+      db,
+      now
+    )
+  }
 }
 
 /**
@@ -232,7 +259,12 @@ export async function queueDueHealthChecks(
   const since = new Date(now.getTime() - HEALTH_EVERY_HOURS * 3_600_000)
 
   const accounts = await db
-    .select({ id: promoAccounts.id, userId: promoAccounts.userId })
+    .select({
+      id: promoAccounts.id,
+      userId: promoAccounts.userId,
+      pausedAt: promoAccounts.pausedAt,
+      projectId: promoAccounts.projectId,
+    })
     .from(promoAccounts)
     .where(
       and(
@@ -253,6 +285,8 @@ export async function queueDueHealthChecks(
   let queued = 0
   for (const account of accounts) {
     if (asked.has(account.id)) continue
+    // A paused account, or one in a paused project, takes no readings.
+    if (await pausedBy(account.userId, account, db)) continue
     await queueJob(account.userId, "health", { accountId: account.id }, db)
     queued += 1
   }

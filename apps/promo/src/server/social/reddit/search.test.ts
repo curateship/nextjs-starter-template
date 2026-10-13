@@ -10,7 +10,8 @@ import {
 } from "@/server/test-support"
 import { createProject } from "@/server/social/projects"
 import { promoFinds, promoKeywords } from "@/server/social/schema"
-import { setFindStatus } from "@/server/social/reddit/search"
+import { Refusal } from "@/server/browser/refusal"
+import { loadFindThread, runKeywordSearch, setFindStatus } from "@/server/social/reddit/search"
 
 /**
  * The rule this file exists to protect: **a re-run never undoes a decision.**
@@ -169,5 +170,37 @@ describe("moving posts to a status", () => {
       completed: [],
       skipped: [],
     })
+  })
+})
+
+/**
+ * A job outlives what it was for: a search queued for a keyword that is then
+ * removed. It is refused, which fails the job on the first try, because a
+ * second or third go would find the keyword just as gone. On 13 Oct 2026 each
+ * such job was tried three times.
+ */
+describe("a job for something since deleted", () => {
+  let client: PGlite
+  let db: TestDatabase
+  let userId: string
+  const target = { port: 1, token: "unused" }
+
+  beforeEach(async () => {
+    const made = await createTestDatabase()
+    client = made.client
+    db = made.db
+    userId = (await insertUser(db, { role: "admin" })).id
+  })
+
+  afterEach(async () => {
+    await client.close()
+  })
+
+  it("refuses a search whose keyword is gone, before any browser is asked", async () => {
+    await expect(runKeywordSearch(userId, "gone", target, db)).rejects.toBeInstanceOf(Refusal)
+  })
+
+  it("refuses a replies read whose post is gone", async () => {
+    await expect(loadFindThread(userId, "gone", target, db)).rejects.toBeInstanceOf(Refusal)
   })
 })

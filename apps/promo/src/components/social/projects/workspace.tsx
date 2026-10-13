@@ -1,11 +1,13 @@
 import * as React from "react"
-import { useNavigate, useRouter } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
+import { Link } from "@tanstack/react-router"
+import { AlertTriangleIcon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { AnswerPanel, type DraftView, type FindDetail } from "@/components/social/reddit/answer-panel"
-import { FindsPanel, type FindsTab } from "@/components/social/reddit/finds-panel"
-import { KeywordsPanel } from "@/components/social/reddit/keywords-panel"
+import { FindsPanel, FindsSearch, type FindsTab } from "@/components/social/reddit/finds-panel"
+import { KeywordsBar } from "@/components/social/reddit/keywords-panel"
+import { Button } from "@/components/ui/button"
 import {
   PanelReopenTab,
   ResizableHandle,
@@ -16,9 +18,9 @@ import {
 import {
   getProjectErrorMessage,
   loadProject,
+  pauseProject,
   putAccountInProject,
   takeAccountOutOfProject,
-  type ProjectSummary,
   type ProjectView,
 } from "@/lib/api/social/projects"
 import {
@@ -28,8 +30,10 @@ import {
 } from "@/lib/api/social/reddit/blocked"
 import {
   cancelComment,
+  checkRules,
   getDraftErrorMessage,
   getPostErrorMessage,
+  rewriteWords,
   sendComment,
   writeDrafts,
 } from "@/lib/api/social/reddit/drafts"
@@ -44,6 +48,7 @@ import {
   runKeyword,
   saveNewKeyword,
   setFindsStatus,
+  switchKeyword,
 } from "@/lib/api/social/reddit/keywords"
 import {
   useBlankSpaceDoubleClick,
@@ -51,11 +56,7 @@ import {
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
-import {
-  EVERYTHING,
-  PROJECTS_MIDDLE_LAYOUT_KEY,
-  PROJECTS_PANEL_LAYOUT_KEY,
-} from "@/lib/social/reddit/options"
+import { EVERYTHING, PROJECTS_PANEL_LAYOUT_KEY } from "@/lib/social/reddit/options"
 import {
   keywordTitle,
   postingBlockedReason,
@@ -65,8 +66,12 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { FindRow, KeywordRow } from "@/server/social/keywords"
 
+import { loadFailedPost } from "@/lib/api/social/reddit/own-posts"
+
+import { NewPostDialog, type NewPostStart } from "./new-post-dialog"
 import { ProjectDialogs, type ProjectDialog } from "./project-dialogs"
 import { ProjectPanel } from "./project-panel"
+import { PromoThreadsDialog } from "./promo-threads"
 
 /**
  * The Projects dashboard: one project's description and accounts, its
@@ -82,8 +87,8 @@ import { ProjectPanel } from "./project-panel"
  * column's edge to bring them back, double-clicking a side's blank space shuts
  * it, the dividers drag, the arrangement is remembered, and below 1280px the
  * columns stack because three columns on a phone is three unreadable columns.
- * The middle column holds the keywords above the posts, split by a divider of
- * its own that is remembered too.
+ * Since Tyler's design of 13 Oct 2026 the middle column is one card: the
+ * keywords as chips across its top with the column's buttons, then the posts.
  *
  * Keywords belong to the project, so the middle column is the same whichever
  * account is clicked. The account only changes who comments: Post sends from
@@ -107,16 +112,24 @@ const POLL_MS = 2_000
 const FINDS_LIMIT = 500
 
 export function ProjectsWorkspace({
-  projects,
   initialView,
   initialKeywords,
+  openPostId,
+  retry,
+  newPostRetryId,
 }: {
-  projects: ProjectSummary[]
   initialView: ProjectView
   initialKeywords: KeywordRow[]
+  /** A post to open as the page opens, from a link. */
+  openPostId: string | null
+  /**
+   * A failed comment's words, put back in the box for its post, with the
+   * account that tried, from Try again on the Comments screen. Never sent.
+   */
+  retry: { findId: string; text: string; accountId: string | null } | null
+  /** A failed post of your own, whose words New post opens with. */
+  newPostRetryId: string | null
 }) {
-  const router = useRouter()
-  const navigate = useNavigate()
   const desktop = useWideScreen()
   const projectId = initialView.project.id
 
@@ -125,7 +138,6 @@ export function ProjectsWorkspace({
   const projectPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const answerPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const layout = useRememberedPanelLayout(PROJECTS_PANEL_LAYOUT_KEY)
-  const middleLayout = useRememberedPanelLayout(PROJECTS_MIDDLE_LAYOUT_KEY)
 
   const toggleProject = usePanelToggle(projectPanelRef)
   const toggleAnswer = usePanelToggle(answerPanelRef)
@@ -136,13 +148,38 @@ export function ProjectsWorkspace({
   const [keywords, setKeywords] = React.useState(initialKeywords)
   const [keywordsLoading, setKeywordsLoading] = React.useState(false)
   const [dialog, setDialog] = React.useState<ProjectDialog>(null)
+  /** The New post window: shut, or open with what it starts with. */
+  const [newPost, setNewPost] = React.useState<{ start: NewPostStart | null } | null>(null)
+
+  // A failed post's words, for Try again from the Comments screen's Failed
+  // tab: read once, then New post opens with them. Nothing is sent.
+  React.useEffect(() => {
+    if (!newPostRetryId) return
+    let live = true
+    loadFailedPost(newPostRetryId).then(
+      (failed) => {
+        if (!live) return
+        if (!failed) {
+          showErrorToast("That post is not a failed one any more, so there is nothing to try again.")
+          return
+        }
+        setNewPost({ start: failed })
+      },
+      () => {
+        if (live) showErrorToast("That post's words could not be read. Please try again.")
+      }
+    )
+    return () => {
+      live = false
+    }
+  }, [newPostRetryId])
 
   /**
    * The account clicked on the left, whose comment Post sends. Nothing is
    * clicked to begin with, because picking one for the person is the one
    * thing this column must not do.
    */
-  const [rawAccountId, setAccountId] = React.useState<string | null>(null)
+  const [rawAccountId, setAccountId] = React.useState<string | null>(retry?.accountId ?? null)
   const account = view.accounts.find((row) => row.id === rawAccountId) ?? null
 
   /**
@@ -167,7 +204,14 @@ export function ProjectsWorkspace({
   }>({ keywordId: null, rows: [], error: null })
 
   const [tab, setTab] = React.useState<FindsTab>("new")
-  const [selectedFind, setSelectedFind] = React.useState<string | null>(null)
+  /**
+   * The posts' search box, in the keywords row. Kept while the keyword or the
+   * tab changes, since the words are still in the box to see and clear.
+   */
+  const [findSearch, setFindSearch] = React.useState("")
+  /** The Self-promotion threads window, opened from the "⋮" menu in the posts column. */
+  const [threadsOpen, setThreadsOpen] = React.useState(false)
+  const [selectedFind, setSelectedFind] = React.useState<string | null>(openPostId)
   const [detailState, setDetailState] = React.useState<{
     findId: string | null
     detail: FindDetail | null
@@ -263,6 +307,9 @@ export function ProjectsWorkspace({
               threadReadAt: found.threadReadAt,
               threadReading: found.threadReading,
               rules: found.rules,
+              pastAnswers: found.pastAnswers,
+              removals: found.removals,
+              helpAccountId: found.helpAccountId,
             },
             drafts: found.drafts,
           })
@@ -354,22 +401,32 @@ export function ProjectsWorkspace({
     [view.jobs.searchingKeywordIds]
   )
 
-  /** The picker's new name, read again so it says what was typed. */
+  /** The project's words or picture were saved, so its header says the new ones. */
   const afterRename = React.useCallback(() => {
-    void router.invalidate()
-  }, [router])
+    void refreshView()
+  }, [refreshView])
 
   const projectPanel = (
     <ProjectPanel
-      projects={projects}
       view={view}
       selectedAccountId={account?.id ?? null}
-      onSelectProject={(next) =>
-        void navigate({ to: "/admin/projects/$projectId", params: { projectId: next } })
-      }
       onSelectAccount={setAccountId}
       onNewProject={() => setDialog({ kind: "new" })}
       onDeleteProject={() => setDialog({ kind: "delete", project: view.project })}
+      onTogglePause={async () => {
+        const pausing = !view.project.pausedAt
+        try {
+          await pauseProject(projectId, pausing)
+          await refreshView()
+          toast.success(
+            pausing
+              ? `${view.project.name} paused. None of its accounts posts, warms up or takes readings.`
+              : `${view.project.name} resumed.`
+          )
+        } catch (error) {
+          showErrorToast(getProjectErrorMessage(error))
+        }
+      }}
       onAddAccount={async (accountId) => {
         try {
           await putAccountInProject(projectId, accountId)
@@ -392,13 +449,23 @@ export function ProjectsWorkspace({
   )
 
   const keywordsPanel = (
-    <KeywordsPanel
+    <KeywordsBar
+      projectId={projectId}
       keywords={keywords}
       loading={keywordsLoading}
       selectedId={selectedKeyword}
       runningIds={runningKeywords}
+      stalled={!view.jobs.programRunning}
+      search={<FindsSearch value={findSearch} onChange={setFindSearch} />}
+      actions={
+        <Button type="button" onClick={() => setNewPost({ start: null })}>
+          <PlusIcon />
+          Create post
+        </Button>
+      }
+      onThreads={() => setThreadsOpen(true)}
       onSelect={(id) => {
-        setSelectedKeyword(id)
+        setSelectedKeyword(id ?? EVERYTHING)
         setSelectedFind(null)
       }}
       onAdd={async (input) => {
@@ -417,6 +484,29 @@ export function ProjectsWorkspace({
         try {
           await runKeyword(id)
           await afterQueueing()
+        } catch (error) {
+          showErrorToast(getRedditErrorMessage(error))
+        }
+      }}
+      onAddIdea={async (idea) => {
+        try {
+          const { id } = await saveNewKeyword(
+            "term" in idea
+              ? { term: idea.term, subreddits: [], sort: "relevance", timeWindow: "week", projectId }
+              : { term: "", subreddits: [idea.subreddit], sort: "new", timeWindow: "week", projectId }
+          )
+          await refreshKeywords()
+          await runKeyword(id)
+          await afterQueueing()
+        } catch (error) {
+          showErrorToast(getRedditErrorMessage(error))
+          throw error
+        }
+      }}
+      onSwitch={async (id, enabled) => {
+        try {
+          await switchKeyword(id, enabled)
+          await refreshKeywords()
         } catch (error) {
           showErrorToast(getRedditErrorMessage(error))
         }
@@ -443,8 +533,6 @@ export function ProjectsWorkspace({
       }}
     />
   )
-
-  const chosenKeyword = keywords.find((row) => row.id === selectedKeyword)
 
   const keywordNames = React.useMemo(
     () => new Map(keywords.map((row) => [row.id, keywordTitle(row)])),
@@ -495,9 +583,29 @@ export function ProjectsWorkspace({
     }
   }
 
+  /**
+   * Said above the posts while jobs wait and the browser program is not
+   * running, because nothing else on this dashboard can tell a search that
+   * is coming from one that never will. Tyler, 13 Oct 2026.
+   */
+  const stalledNotice =
+    !view.jobs.programRunning && view.jobs.queued > 0 ? (
+      <p className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-sm text-destructive">
+        <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <span>
+          The browser program is not running, so {view.jobs.queued}{" "}
+          {view.jobs.queued === 1 ? "job is" : "jobs are"} waiting and nothing is searched.{" "}
+          <Link to="/admin/jobs" className="font-medium underline underline-offset-2">
+            See the jobs
+          </Link>
+        </span>
+      </p>
+    ) : null
+
   const findsPanel = (
     <FindsPanel
-      keyword={chosenKeyword ?? null}
+      searchText={findSearch}
+      everything={selectedKeyword === EVERYTHING}
       keywordNames={keywordNames}
       hasKeywords={keywords.length > 0}
       tab={tab}
@@ -538,6 +646,7 @@ export function ProjectsWorkspace({
   const answerPanel = (
     <AnswerPanel
       find={detail}
+      prefill={retry}
       handle={handle}
       drafts={drafts}
       loading={detailLoading}
@@ -584,15 +693,51 @@ export function ProjectsWorkspace({
           showErrorToast(getDraftErrorMessage(error))
         }
       }}
+      onCheckRules={async (findId, text) => {
+        try {
+          return await checkRules({ findId, accountId: account?.id ?? null, text })
+        } catch (error) {
+          showErrorToast(getDraftErrorMessage(error))
+          return null
+        }
+      }}
+      onRewrite={async (findId, text, how) => {
+        try {
+          return await rewriteWords({ findId, accountId: account?.id ?? null, text, how })
+        } catch (error) {
+          showErrorToast(getDraftErrorMessage(error))
+          return null
+        }
+      }}
       onPost={async (input) => {
         try {
-          const { runAfter } = await sendComment({ ...input, accountId: account?.id ?? null })
+          const { runAfter, undoUntil } = await sendComment({ ...input, accountId: account?.id ?? null })
           await afterQueueing()
           if (runAfter) toast.success(waitingCommentText(runAfter, handle))
+          // The queue does not count a job that is not due yet, so nothing
+          // would ask again once the ten seconds are up. This asks once
+          // then, and the asking carries on while the comment is sent.
+          if (undoUntil) {
+            setTimeout(() => void afterQueueing(), new Date(undoUntil).getTime() - Date.now() + 1_000)
+          }
+          return { undoUntil }
         } catch (error) {
           showErrorToast(getPostErrorMessage(error))
           // A refusal may come from figures that moved since the last look.
           await afterQueueing()
+          return null
+        }
+      }}
+      onUndo={async (findId) => {
+        try {
+          await cancelComment(findId)
+          toast.success("Taken back. Nothing was sent.")
+          await afterQueueing()
+          return true
+        } catch (error) {
+          showErrorToast(getPostErrorMessage(error))
+          await afterQueueing()
+          return false
         }
       }}
       onCancelWaiting={async (findId: string) => {
@@ -620,7 +765,29 @@ export function ProjectsWorkspace({
     />
   )
 
-  const dialogs = <ProjectDialogs dialog={dialog} onClose={() => setDialog(null)} />
+  const dialogs = (
+    <>
+      <ProjectDialogs dialog={dialog} onClose={() => setDialog(null)} />
+      <PromoThreadsDialog
+        // Keyed by the project, so another project's threads never show.
+        key={`threads-${projectId}`}
+        projectId={projectId}
+        open={threadsOpen}
+        onClose={() => setThreadsOpen(false)}
+        onOpen={setSelectedFind}
+      />
+      <NewPostDialog
+        open={newPost !== null}
+        projectId={projectId}
+        accounts={view.accounts}
+        start={newPost?.start ?? null}
+        onClose={() => {
+          setNewPost(null)
+          void refreshView()
+        }}
+      />
+    </>
+  )
 
   if (!desktop) {
     // Under 1280px the columns are dropped, exactly as the editors do it. The
@@ -634,8 +801,11 @@ export function ProjectsWorkspace({
         ) : (
           <>
             <WorkspacePanel className="flex min-w-0 flex-1 flex-col">{projectPanel}</WorkspacePanel>
-            <WorkspacePanel className="flex min-w-0 flex-1 flex-col">{keywordsPanel}</WorkspacePanel>
-            <WorkspacePanel className="flex min-w-0 flex-[2] flex-col">{findsPanel}</WorkspacePanel>
+            <WorkspacePanel className="flex min-w-0 flex-[2] flex-col">
+              {keywordsPanel}
+              {stalledNotice}
+              {findsPanel}
+            </WorkspacePanel>
           </>
         )}
         {dialogs}
@@ -677,21 +847,11 @@ export function ProjectsWorkspace({
 
         <ResizablePanel id="middle" defaultSize="58%" minSize="30%">
           <div className="relative flex h-full min-h-0 flex-col">
-            <ResizablePanelGroup
-              key={middleLayout.layoutKey}
-              orientation="vertical"
-              className="min-h-0 flex-1"
-              defaultLayout={middleLayout.defaultLayout}
-              onLayoutChanged={middleLayout.onLayoutChanged}
-            >
-              <ResizablePanel id="keywords" defaultSize="38%" minSize="20%" maxSize="70%">
-                <WorkspacePanel className="flex flex-col">{keywordsPanel}</WorkspacePanel>
-              </ResizablePanel>
-              <ResizableHandle gap />
-              <ResizablePanel id="finds" defaultSize="62%" minSize="30%">
-                <WorkspacePanel className="flex flex-col">{findsPanel}</WorkspacePanel>
-              </ResizablePanel>
-            </ResizablePanelGroup>
+            <WorkspacePanel className="flex min-h-0 flex-1 flex-col">
+              {keywordsPanel}
+              {stalledNotice}
+              {findsPanel}
+            </WorkspacePanel>
             {projectCollapsed ? (
               <PanelReopenTab
                 side="left"

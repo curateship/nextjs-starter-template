@@ -57,6 +57,8 @@ type TeamPageMember = {
 
 export type TeamPageView = {
   name: string
+  /** The owner's line under the name (groups task 01, part 5), or null. */
+  description: string | null
   handle: string
   memberCount: number
   /** Members with no public page. Counted so the total adds up, never named. */
@@ -171,6 +173,7 @@ async function buildTeamPage(handle: string, now: Date): Promise<HeldTeam> {
     .select({
       id: pomodoroGroups.id,
       name: pomodoroGroups.name,
+      description: pomodoroGroups.description,
       ownerUserId: pomodoroGroups.ownerUserId,
     })
     .from(pomodoroGroups)
@@ -242,6 +245,7 @@ async function buildTeamPage(handle: string, now: Date): Promise<HeldTeam> {
     userIdByHandle,
     view: {
       name: group.name,
+      description: group.description,
       handle,
       memberCount: roster.length,
       unnamedCount,

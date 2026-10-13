@@ -1,3 +1,4 @@
+import { Hint } from "@/components/social/hint"
 import { Badge } from "@/components/ui/badge"
 import type { ProxyTestResult } from "@/lib/social/options"
 import { proxyTestWords } from "@/lib/browser/wording"
@@ -21,27 +22,26 @@ export function ProxyTestBadge({
   if (!result.ok) {
     if (compact) {
       return (
-        <Badge variant="destructive" className="w-fit" title={result.error}>
-          Failed
-        </Badge>
+        <Hint label={result.error}>
+          <Badge variant="destructive" className="w-fit">
+            Failed
+          </Badge>
+        </Hint>
       )
     }
     return (
       <span className="flex min-w-0 items-center gap-2">
         <Badge variant="destructive">Failed</Badge>
-        <span
-          className="max-w-56 truncate text-xs text-muted-foreground"
-          title={result.error}
-        >
-          {result.error}
-        </span>
+        <Hint label={result.error}>
+          <span className="max-w-56 truncate text-xs text-muted-foreground">{result.error}</span>
+        </Hint>
       </span>
     )
   }
   const detail = [result.ip, result.isp, result.timezone].filter(Boolean).join(" · ")
   return (
-    <Badge variant="outline" title={detail || undefined}>
-      {proxyTestWords(result)}
-    </Badge>
+    <Hint label={detail}>
+      <Badge variant="outline">{proxyTestWords(result)}</Badge>
+    </Hint>
   )
 }

@@ -30,13 +30,18 @@ an app wide feature, not just a reddit feature."
 | `src/components/social/accounts/` | The Reddit accounts dashboard, its Add account window and the status badge. |
 | `src/lib/api/social/voices.ts` | The Voices dashboard's endpoints. |
 | `src/components/social/account-settings.tsx` | The Reddit account tab in Settings: which profile and which voice the account uses. |
-| `src/components/social/voices/` | The Voices dashboard and its window. |
+| `src/components/social/voices/` | The Voices dashboard and its window, with Try it. |
+| `src/server/social/pause.ts` | Pausing an account or a whole project. |
+| `src/server/social/notices.ts`, `src/lib/social/notice-words.ts`, `src/lib/social/notices.ts`, `src/lib/api/social/notices.ts` | Promo's bell notices: writing them, their headings, their icons, and where each opens. |
+| `src/server/social/failures.ts` | What did not reach Reddit, read off its job: the Comments screen's Failed tab, and the notice each failure rings. |
+| `src/server/social/ai-tasks.ts` | The smaller things asked of the AI: the rules check, rewrites, keyword ideas, a post of your own, and trying a voice. All through `askModel` in `drafts.ts`. |
+| `src/server/social/today.ts`, `src/lib/api/social/today.ts`, `src/components/social/today/` | The Today page. |
 
 ## What belongs to Reddit alone
 
 | Folder | What is in it |
 | --- | --- |
-| `src/server/social/reddit/` | Searching Reddit, reading a thread, posting a comment, and the ranking that decides which posts are worth answering. |
+| `src/server/social/reddit/` | Searching Reddit, reading a thread, posting a comment, and the ranking that decides which posts are worth answering. Also searching again by itself (`timed-searches.ts`), posts of your own (`own-posts.ts`), help-only posts (`help-posts.ts`), self-promotion threads (`promo-threads.ts`), what you said before (`past-answers.ts`), and deleting and editing a sent comment (`change-comment.ts`). |
 | `src/lib/social/reddit/options.ts` | Reddit's own sort orders and time windows, and the keys the Projects dashboard remembers its columns under. |
 | `src/lib/api/social/reddit/` | The keyword, post, draft and Post endpoints the Projects dashboard calls. |
 | `src/components/social/reddit/` | The keywords panel, the posts list and the post-and-comment panel, which the Projects dashboard shows. |

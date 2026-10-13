@@ -14,6 +14,7 @@ import {
   type RedditAccountRow,
 } from "@/server/social/account-list"
 import { readBehaviour } from "@/server/social/behaviour"
+import { setAccountsPaused } from "@/server/social/pause"
 import { listVoices } from "@/server/social/voices"
 import { ACCOUNT_STATUSES } from "@/lib/social/account-status"
 
@@ -122,6 +123,21 @@ const retireFn = createServerFn({ method: "POST" })
 /** Retires accounts, or with `retire` false brings them back. */
 export function retireRedditAccounts(accountIds: string[], retire: boolean) {
   return retireFn({ data: { ids: accountIds, retire } })
+}
+
+const pauseFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids, paused: z.boolean() }))
+  .handler(async ({ context, data }): Promise<BulkAnswer> =>
+    setAccountsPaused(context.user.id, data.ids, data.paused)
+  )
+
+/**
+ * Pauses accounts, or with `paused` false resumes them. A paused account does
+ * not post, warm up or take health readings until it is resumed.
+ */
+export function pauseRedditAccounts(accountIds: string[], paused: boolean) {
+  return pauseFn({ data: { ids: accountIds, paused } })
 }
 
 const voiceFn = createServerFn({ method: "POST" })
