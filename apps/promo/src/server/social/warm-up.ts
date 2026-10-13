@@ -13,6 +13,7 @@ import {
   type BehaviourSettings,
 } from "./behaviour"
 import { queueJob } from "./jobs"
+import { pausedBy } from "./pause"
 import { promoAccounts, promoBlockedSubreddits, promoFinds, promoJobs, promoKeywords } from "./schema"
 
 /**
@@ -51,6 +52,8 @@ export async function queueDueWarmUps(
 
   for (const account of accounts) {
     if (!account.profileId) continue
+    // A paused account, or one in a paused project, does not warm up.
+    if (await pausedBy(account.userId, account, db)) continue
     let settings = settingsByUser.get(account.userId)
     if (!settings) {
       settings = await readBehaviour(account.userId, db)

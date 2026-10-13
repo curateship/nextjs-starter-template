@@ -3,7 +3,10 @@ import { Link } from "@tanstack/react-router"
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
+  HandHelpingIcon,
   Loader2Icon,
+  PauseIcon,
+  PlayIcon,
   PlusIcon,
   RefreshCwIcon,
   UsersIcon,
@@ -38,6 +41,7 @@ import {
   checkRedditAccounts,
   getRedditAccountsErrorMessage,
   loadRedditAccounts,
+  pauseRedditAccounts,
   retireRedditAccounts,
   setRedditAccountVoice,
   setRedditAccountsStatus,
@@ -57,8 +61,10 @@ import {
 import { accountAgeText, postedDateText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
+import { Hint } from "../hint"
 import { AccountStatusBadge } from "./account-status-badge"
 import { AddAccountDialog } from "./add-account-dialog"
+import { HelpPostsDialog } from "./help-posts-dialog"
 
 type SortColumn = "account" | "status" | "project" | "profile" | "age" | "karma" | "last"
 
@@ -133,6 +139,8 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
   const [busy, setBusy] = React.useState(false)
   const [rowBusy, setRowBusy] = React.useState<string | null>(null)
   const [adding, setAdding] = React.useState(false)
+  /** The account whose help-only posts are open. */
+  const [helpFor, setHelpFor] = React.useState<string | null>(null)
 
   const refresh = React.useCallback(
     (retired: boolean): Promise<void> =>
@@ -281,6 +289,28 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
                   <RefreshCwIcon className="size-4" />
                   Check now
                 </DashboardToolbarButton>
+                <DashboardToolbarButton
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() =>
+                    void bulk(() => pauseRedditAccounts(selectedIds, true), "paused", "retired")
+                  }
+                >
+                  <PauseIcon className="size-4" />
+                  Pause
+                </DashboardToolbarButton>
+                <DashboardToolbarButton
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() =>
+                    void bulk(() => pauseRedditAccounts(selectedIds, false), "resumed", "retired")
+                  }
+                >
+                  <PlayIcon className="size-4" />
+                  Resume
+                </DashboardToolbarButton>
                 {showRetired ? (
                   <DashboardToolbarButton
                     type="button"
@@ -420,6 +450,16 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
                       "Queued to be checked."
                     )
                   }
+                  onHelp={() => setHelpFor(row.id)}
+                  onPause={(paused) =>
+                    void oneRow(
+                      row.id,
+                      () => pauseRedditAccounts([row.id], paused),
+                      paused
+                        ? "Paused. It does not post, warm up or take readings until you resume it."
+                        : "Resumed."
+                    )
+                  }
                   onRetire={(retire) =>
                     void oneRow(
                       row.id,
@@ -433,6 +473,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
           ))}
         </>
       </DashboardTable>
+      <HelpPostsDialog accountId={helpFor} onClose={() => setHelpFor(null)} />
       <AddAccountDialog
         open={adding}
         profiles={page.freeProfiles}
@@ -455,6 +496,8 @@ function AccountRow({
   onTick,
   onVoice,
   onCheck,
+  onHelp,
+  onPause,
   onRetire,
 }: {
   row: RedditAccountRow
@@ -464,6 +507,9 @@ function AccountRow({
   onTick: () => void
   onVoice: (voiceId: string | null) => void
   onCheck: () => void
+  /** Opens the account's help-only posts. */
+  onHelp: () => void
+  onPause: (paused: boolean) => void
   onRetire: (retire: boolean) => void
 }) {
   const name = row.handle ? `u/${row.handle}` : "Not signed in"
@@ -494,13 +540,18 @@ function AccountRow({
         <span className="grid gap-0.5">
           <AccountStatusBadge view={row.status} />
           {row.status.byHand ? <span className="text-xs text-muted-foreground">Set by hand</span> : null}
-          {row.status.warning ? (
-            <span
-              className="block max-w-48 truncate text-xs text-amber-600 dark:text-amber-400"
-              title={row.status.warning}
-            >
-              {row.status.warning}
+          {row.paused ? (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <PauseIcon className="size-3" aria-hidden="true" />
+              {row.paused === "account" ? "Paused" : "Project paused"}
             </span>
+          ) : null}
+          {row.status.warning ? (
+            <Hint label={row.status.warning}>
+              <span className="block max-w-48 truncate text-xs text-amber-600 dark:text-amber-400">
+                {row.status.warning}
+              </span>
+            </Hint>
           ) : null}
         </span>
       </TableCell>
@@ -535,9 +586,9 @@ function AccountRow({
           <span className="text-muted-foreground">—</span>
         ) : row.proxy ? (
           <span className="flex items-center gap-2">
-            <span className="max-w-32 truncate" title={row.proxy.label}>
-              {row.proxy.label || "A proxy with no name"}
-            </span>
+            <Hint label={row.proxy.label}>
+              <span className="max-w-32 truncate">{row.proxy.label || "A proxy with no name"}</span>
+            </Hint>
             <ProxyTestBadge result={row.proxy.lastTestResult} compact />
           </span>
         ) : (
@@ -550,7 +601,7 @@ function AccountRow({
           disabled={busy}
           onValueChange={(value) => onVoice(value === NO_VOICE ? null : value)}
         >
-          <SelectTrigger aria-label={`Voice for ${name}`} className="w-40">
+          <SelectTrigger aria-label={`Voice for ${name}`} className="w-32">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -567,48 +618,88 @@ function AccountRow({
         {row.redditCreatedAt ? accountAgeText(new Date(row.redditCreatedAt)) : "Not read yet"}
       </TableCell>
       <TableCell column="meta" className="hidden text-right tabular-nums 2xl:table-cell">
-        {row.karma === null ? <span className="text-muted-foreground" title="Not read yet">—</span> : row.karma}
+        {row.karma === null ? (
+          <Hint label="Not read yet">
+            <span className="text-muted-foreground">—</span>
+          </Hint>
+        ) : (
+          row.karma
+        )}
       </TableCell>
       <TableCell column="meta" className="hidden text-muted-foreground 2xl:table-cell">
         {row.lastPostedAt ? postedDateText(new Date(row.lastPostedAt)) : "Never"}
       </TableCell>
       <TableCell column="actions">
         {row.retiredAt ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            disabled={busy}
-            onClick={() => onRetire(false)}
-            title="Bring it back"
-            aria-label={`Bring ${name} back`}
-          >
-            {busy ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveRestoreIcon className="size-4" />}
-          </Button>
+          <Hint label="Bring it back">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={busy}
+              onClick={() => onRetire(false)}
+              aria-label={`Bring ${name} back`}
+            >
+              {busy ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveRestoreIcon className="size-4" />}
+            </Button>
+          </Hint>
         ) : (
           <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={busy}
-              onClick={onCheck}
-              title="Check now: read its karma, age and profile again"
-              aria-label={`Check ${name} now`}
+            <Hint label="Check now: read its karma, age and profile again">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={busy}
+                onClick={onCheck}
+                aria-label={`Check ${name} now`}
+              >
+                {busy ? <Loader2Icon className="size-4 animate-spin" /> : <RefreshCwIcon className="size-4" />}
+              </Button>
+            </Hint>
+            <Hint label="Help-only posts: answer posts in its own subreddits, never mentioning what you make">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={onHelp}
+                aria-label={`Help-only posts for ${name}`}
+              >
+                <HandHelpingIcon className="size-4" />
+              </Button>
+            </Hint>
+            {/* A paused project's accounts are resumed from the project, so
+                the row offers Resume only when the account itself is paused. */}
+            <Hint
+              label={
+                row.paused === "account"
+                  ? "Resume: posts, warms up and takes readings again"
+                  : "Pause: no posting, warm-up or readings until you resume it"
+              }
             >
-              {busy ? <Loader2Icon className="size-4 animate-spin" /> : <RefreshCwIcon className="size-4" />}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={busy}
-              onClick={() => onRetire(true)}
-              title="Retire: out of every list and picker, its comments stay"
-              aria-label={`Retire ${name}`}
-            >
-              <ArchiveIcon className="size-4" />
-            </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={busy}
+                onClick={() => onPause(row.paused !== "account")}
+                aria-label={row.paused === "account" ? `Resume ${name}` : `Pause ${name}`}
+              >
+                {row.paused === "account" ? <PlayIcon className="size-4" /> : <PauseIcon className="size-4" />}
+              </Button>
+            </Hint>
+            <Hint label="Retire: out of every list and picker, its comments stay">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={busy}
+                onClick={() => onRetire(true)}
+                aria-label={`Retire ${name}`}
+              >
+                <ArchiveIcon className="size-4" />
+              </Button>
+            </Hint>
           </>
         )}
       </TableCell>

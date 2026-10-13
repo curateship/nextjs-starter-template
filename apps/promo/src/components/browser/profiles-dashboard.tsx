@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import { Hint } from "@/components/social/hint"
 import {
   changeProfiles,
   copyProfile,
@@ -392,11 +393,11 @@ export function ProfilesDashboard({
                 options={tags.map((tag) => ({ id: tag, name: tag }))}
               />
             ) : null}
+            <Hint label="Folders and labels">
             <DashboardToolbarButton
               type="button"
               variant="outline"
               aria-label="Folders and labels"
-              title="Folders and labels"
               onClick={() => setGroupsOpen(true)}
             >
               <FolderCogIcon className="size-4" />
@@ -404,6 +405,7 @@ export function ProfilesDashboard({
                   the search box keeps its room. */}
               <span className="hidden sm:inline">Folders and labels</span>
             </DashboardToolbarButton>
+            </Hint>
             <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
               <PlusIcon className="size-4" />
               New profile
@@ -526,71 +528,77 @@ export function ProfilesDashboard({
               </TableCell>
               <TableCell column="actions">
                 {profile.browser === "stopped" ? (
+                  <Hint label="Open the browser">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => void openBrowser(profile)}
+                      aria-label={`Open the browser of ${profile.name}`}
+                    >
+                      <MonitorIcon className="size-4" />
+                    </Button>
+                  </Hint>
+                ) : (
+                  <>
+                    <Hint label="Show the browser">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setWindowFor(profile.id)}
+                        aria-label={`Show the browser of ${profile.name}`}
+                      >
+                        <MonitorIcon className="size-4" />
+                      </Button>
+                    </Hint>
+                    <Hint label="Stop the browser">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={profile.closing}
+                        onClick={() => void stopBrowser(profile)}
+                        aria-label={`Stop the browser of ${profile.name}`}
+                      >
+                        <SquareIcon className="size-4" />
+                      </Button>
+                    </Hint>
+                  </>
+                )}
+                <Hint label="Duplicate">
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={() => void openBrowser(profile)}
-                    title="Open the browser"
-                    aria-label={`Open the browser of ${profile.name}`}
+                    onClick={() => void duplicate(profile)}
+                    aria-label={`Duplicate ${profile.name}`}
                   >
-                    <MonitorIcon className="size-4" />
+                    <CopyIcon className="size-4" />
                   </Button>
-                ) : (
-                  <>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setWindowFor(profile.id)}
-                      title="Show the browser"
-                      aria-label={`Show the browser of ${profile.name}`}
-                    >
-                      <MonitorIcon className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled={profile.closing}
-                      onClick={() => void stopBrowser(profile)}
-                      title="Stop the browser"
-                      aria-label={`Stop the browser of ${profile.name}`}
-                    >
-                      <SquareIcon className="size-4" />
-                    </Button>
-                  </>
-                )}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => void duplicate(profile)}
-                  title="Duplicate"
-                  aria-label={`Duplicate ${profile.name}`}
-                >
-                  <CopyIcon className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setOpen(profile.id)}
-                  title="Profile settings"
-                  aria-label={`Edit ${profile.name}`}
-                >
-                  <SettingsIcon className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDeleteTargets([profile])}
-                  title="Delete profile"
-                  aria-label={`Delete ${profile.name}`}
-                >
-                  <Trash2Icon className="size-4" />
-                </Button>
+                </Hint>
+                <Hint label="Profile settings">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setOpen(profile.id)}
+                    aria-label={`Edit ${profile.name}`}
+                  >
+                    <SettingsIcon className="size-4" />
+                  </Button>
+                </Hint>
+                <Hint label="Delete profile">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setDeleteTargets([profile])}
+                    aria-label={`Delete ${profile.name}`}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                </Hint>
               </TableCell>
             </TableRow>
           )

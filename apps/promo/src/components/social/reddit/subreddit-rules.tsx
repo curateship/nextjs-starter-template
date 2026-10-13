@@ -1,7 +1,6 @@
 import * as React from "react"
 import { ChevronDownIcon, Loader2Icon, ScrollTextIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import {
   Collapsible,
   CollapsibleContent,
@@ -64,12 +63,17 @@ export function SubredditRules({
         {icon}
         <span className="min-w-0 flex-1">
           {rules.state === "unread"
-            ? `r/${subreddit}'s rules have not been read yet.`
+            ? `r/${subreddit} rules not read yet`
             : rules.error || `Reddit would not show r/${subreddit}'s rules.`}
         </span>
-        <Button type="button" variant="outline" size="sm" disabled={asking} onClick={() => void read()}>
+        <button
+          type="button"
+          disabled={asking}
+          onClick={() => void read()}
+          className="shrink-0 rounded-sm text-xs font-medium text-foreground underline underline-offset-2 hover:no-underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50"
+        >
           {rules.state === "unread" ? "Read them" : "Try again"}
-        </Button>
+        </button>
       </div>
     )
   }

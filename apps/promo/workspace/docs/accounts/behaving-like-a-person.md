@@ -124,11 +124,40 @@ asked for twice. Reddit draws a joined subreddit's button with a `subscribed`
 mark, and the warm-up presses Join only when that mark is missing, since
 pressing it again would leave.
 
+## Helpful comments that build karma
+
+An account whose comments all point at one product reads as a salesman. Help-only
+posts give it a life beyond the product: the newest posts in the subreddits it
+has joined, answered with help and never a word about what you make. Its
+comments then read like a person's, get removed less, and earn the karma some
+subreddits ask for before anyone may post. Tyler picked this on 12 Oct 2026, and
+said where it lives: on the Reddit accounts dashboard, the hand button on each
+row.
+
+- **Read new posts** reads up to five of the account's joined subreddits
+  (`joined_subreddits`, the ones its warm-up joined), newest first over the
+  past day, in the reader browser. A blocked subreddit is never read. An
+  account that has joined none is told so.
+- **The posts belong to that account alone,** not to a project or a keyword
+  (`promo_finds.help_account_id`), and only it answers them. They never show
+  on a project's dashboard.
+- **A post opens in the same comment box** the Projects dashboard has, inside
+  the window, with an arrow back to the list.
+- **Drafts only help.** They are never told what you make and are told never
+  to mention a product or link to anything. The box says so above the drafts.
+- **Every rule Post has applies:** warm-up, pace, waking hours, pause. A help
+  comment counts against the pace like any other.
+- **Nothing posts without a press.**
+
+The read is `src/server/social/reddit/help-posts.ts`; the window is
+`src/components/social/accounts/help-posts-dialog.tsx`.
+
 ## Pace
 
 The line beside Post always says how many comments went out: "3 comments in the
 last hour, 11 today." A failed attempt never reached Reddit, so it is not
-counted.
+counted. A post of your own counts as one, since it is the account writing on
+Reddit too.
 
 - **Any account:** past 4 comments in an hour (the setting) the line turns amber
   and says "That would be the 5th comment this hour. New accounts get banned for

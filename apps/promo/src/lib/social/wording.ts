@@ -86,6 +86,12 @@ export function postingRefusalText(
   now: Date = new Date(),
   timeZone?: string
 ): string | null {
+  if (state.paused === "account") {
+    return "This account is paused. Resume it on the Reddit accounts dashboard to post from it again."
+  }
+  if (state.paused === "project") {
+    return "This account's project is paused. Resume the project on its dashboard to post from it again."
+  }
   if (state.warmUp.ageUnknown) {
     return "Promo has not read how old this account is, so it cannot tell when the warm-up ends. Tick it on the Reddit accounts dashboard and press Check now, then try again."
   }
@@ -107,23 +113,6 @@ export function postingRefusalText(
 export function paceLineText(state: Pick<PostingState, "lastHour" | "lastDay">): string {
   const hour = `${state.lastHour} ${state.lastHour === 1 ? "comment" : "comments"} in the last hour`
   return `${hour}, ${state.lastDay} today.`
-}
-
-/**
- * An account's pace for today, for its row on the Projects dashboard: "2 of 6
- * comments today" for a young account, which has a limit, or the count alone
- * for an older one. Asleep, it says until when, which is also why the row has
- * moved down the list.
- */
-export function accountPaceText(
-  state: Pick<PostingState, "lastDay" | "young" | "youngPerDay" | "awake" | "nextWakeAt">,
-  now: Date = new Date()
-): string {
-  const comments = state.young
-    ? `${state.lastDay} of ${state.youngPerDay} comments today`
-    : `${state.lastDay} ${state.lastDay === 1 ? "comment" : "comments"} today`
-  if (state.awake || !state.nextWakeAt) return comments
-  return `${comments} · asleep until ${whenText(state.nextWakeAt, now)}`
 }
 
 /**
@@ -261,6 +250,37 @@ export function keywordScopeText(input: {
   return [posts, windows[input.timeWindow] ?? input.timeWindow, where].join(" · ")
 }
 
+
+/**
+ * When a keyword last searched and whether it searches again by itself:
+ * "Searched 2 hours ago", "Not searched yet", and "Timer off" ahead of either
+ * when its switch is off. `lastRunAt` is the last search that worked.
+ */
+export function keywordTimerText(
+  input: { enabled: boolean; lastRunAt: Date | null },
+  now: Date = new Date()
+): string {
+  const searched = input.lastRunAt
+    ? `Searched ${relativeText(input.lastRunAt, now)}`
+    : "Not searched yet"
+  return input.enabled ? searched : `Timer off · ${searched}`
+}
+
+/** When a keyword last searched, short enough for its chip: "6 days ago", or "not searched yet". */
+export function keywordChipTimeText(input: { lastRunAt: Date | null }, now: Date = new Date()): string {
+  return input.lastRunAt ? relativeText(input.lastRunAt, now) : "not searched yet"
+}
+
+/** "just now", "5 minutes ago", "2 hours ago", "3 days ago". */
+function relativeText(at: Date, now: Date): string {
+  const minutes = Math.max(0, Math.floor((now.getTime() - new Date(at).getTime()) / 60_000))
+  if (minutes < 1) return "just now"
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`
+  const days = Math.floor(hours / 24)
+  return `${days} ${days === 1 ? "day" : "days"} ago`
+}
 
 /**
  * What an empty list of posts says, and it is never the same sentence twice.
@@ -478,6 +498,8 @@ export function rulesSummaryText(subreddit: string, rules: SubredditRule[]): str
 
 /** Just enough of a sent comment's reading for the words below. */
 type CommentReading = {
+  /** When Promo deleted it from Reddit on a person's press. */
+  deletedAt?: Date | null
   stillVisible: boolean | null
   checkedAs: "stranger" | "you" | null
   checkedAt: Date | null
@@ -497,6 +519,12 @@ type CommentReading = {
  * show to the person who wrote the comment.
  */
 export function commentStateWords(row: CommentReading): { label: string; detail: string } {
+  if (row.deletedAt) {
+    return {
+      label: "Deleted by you",
+      detail: "You deleted it from Reddit with Promo. It is kept here, and never read again.",
+    }
+  }
   if (row.checking) {
     return { label: "Reading", detail: "The browser is reading this comment on Reddit." }
   }
@@ -521,4 +549,28 @@ export function commentStateWords(row: CommentReading): { label: string; detail:
         detail:
           "Reddit would not answer a signed-out visitor, so this is what your own account sees. A moderator's removal does not show this way.",
       }
+}
+
+/**
+ * How many of the comments read in one subreddit are gone, for that
+ * subreddit on the Comments screen: "2 of 5 removed". Only comments a check
+ * has read count, and the words say what the check saw, never "shadowbanned".
+ * Null with none gone, so a clean subreddit says nothing.
+ */
+export function subredditRemovalText(counts: { removed: number; checked: number }): string | null {
+  if (!counts.removed) return null
+  return `${counts.removed} of ${counts.checked} removed`
+}
+
+/**
+ * The warning in the comment box for a subreddit that removed comments
+ * before: "r/SaaS removed 2 of your last 5 checked comments there." It warns
+ * and never turns Post off. Null when nothing was removed.
+ */
+export function subredditRemovalWarning(
+  subreddit: string,
+  counts: { removed: number; checked: number }
+): string | null {
+  if (!counts.removed) return null
+  return `r/${subreddit} removed ${counts.removed} of your ${counts.checked} checked ${counts.checked === 1 ? "comment" : "comments"} there.`
 }

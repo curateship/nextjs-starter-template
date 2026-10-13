@@ -293,6 +293,7 @@ describe("what a stranger sees of the profile", () => {
 describe("why the account may not comment yet", () => {
   const now = new Date("2026-10-12T12:00:00Z")
   const free: PostingState = {
+    paused: null,
     timeZone: "UTC",
     awake: true,
     nextWakeAt: null,

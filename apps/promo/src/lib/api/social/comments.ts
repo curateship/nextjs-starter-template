@@ -10,9 +10,16 @@ import {
 } from "@/lib/social/options"
 import {
   listSentComments,
+  queueCommentChange,
   queueCommentChecks,
   type CommentRow,
 } from "@/server/social/comments"
+import {
+  dismissFailures,
+  failedWords,
+  listFailures,
+  type FailureRow,
+} from "@/server/social/failures"
 import { draftReplies, type WrittenDraft } from "@/server/social/drafts"
 import { setNotExample } from "@/server/social/examples"
 import {
@@ -25,7 +32,7 @@ import {
 import { createErrorMessage, describeAuthError } from "../error-message"
 import { getPostErrorMessage } from "./reddit/drafts"
 
-export type { CommentRow, CommentReplies }
+export type { CommentRow, CommentReplies, FailureRow }
 
 /**
  * The comments screen's endpoints: every sent comment with what became of
@@ -68,6 +75,70 @@ export function checkComments(commentIds: string[]) {
   return checkFn({ data: { commentIds } })
 }
 
+const failuresFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }): Promise<FailureRow[]> => listFailures(context.user.id))
+
+/** Comments, answers and posts that did not reach Reddit, not yet dismissed. */
+export function loadFailures() {
+  return failuresFn()
+}
+
+const dismissFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids: z.array(z.string().min(1)).min(1).max(200) }))
+  .handler(async ({ context, data }): Promise<{ completed: string[]; skipped: string[] }> =>
+    dismissFailures(context.user.id, data.ids)
+  )
+
+/** Takes failures off the Failed tab. They stay on record. */
+export function dismissFailed(ids: string[]) {
+  return dismissFn({ data: { ids } })
+}
+
+const wordsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ jobId: z.string().min(1) }))
+  .handler(async ({ context, data }) => failedWords(context.user.id, data.jobId))
+
+/** A failed comment's post, words and account, for Try again. Null when it is not one. */
+export function loadFailedWords(jobId: string) {
+  return wordsFn({ data: { jobId } })
+}
+
+const changeFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.discriminatedUnion("kind", [
+      z.object({ commentId: z.string().min(1), kind: z.literal("delete") }),
+      z.object({
+        commentId: z.string().min(1),
+        kind: z.literal("edit"),
+        text: z.string().trim().min(1, "There is nothing to change it to.").max(MAX_COMMENT_CHARS),
+      }),
+    ])
+  )
+  .handler(async ({ context, data }): Promise<void> =>
+    queueCommentChange(
+      context.user.id,
+      data.commentId,
+      data.kind === "delete" ? { kind: "delete" } : { kind: "edit", text: data.text }
+    )
+  )
+
+/**
+ * Deletes a sent comment from Reddit, from the account that sent it. A person
+ * pressed Delete and confirmed it to get here.
+ */
+export function deleteComment(commentId: string) {
+  return changeFn({ data: { commentId, kind: "delete" } })
+}
+
+/** Changes a sent comment's words on Reddit. A person pressed Save changes to get here. */
+export function editComment(commentId: string, text: string) {
+  return changeFn({ data: { commentId, kind: "edit", text } })
+}
+
 const markFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ commentId: z.string().min(1), notExample: z.boolean() }))
@@ -85,6 +156,12 @@ export function markNotExample(commentId: string, notExample: boolean) {
  * through Post's own lookup, which knows the warm-up, the pace and the AI key.
  */
 const REPLY_REFUSALS = [
+  "is paused",
+  "never landed on Reddit",
+  "already deleted",
+  "change to that comment",
+  "words it already has",
+  "nothing to change it to",
   "That comment is no longer saved",
   "already answered",
   "already on its way",

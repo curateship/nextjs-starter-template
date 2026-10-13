@@ -17,6 +17,32 @@ export const PROXY_KIND_LABELS: Record<ProxyKind, string> = {
   datacenter: "Datacenter",
 }
 
+/**
+ * What the proxies with a cost add up to a month, and how many that is:
+ * "$84.00 a month for 7 proxies". A proxy with no cost typed in is left out.
+ */
+export function proxyCostTotalText(total: number, costed: number): string {
+  return `$${total.toFixed(2)} a month for ${costed} ${costed === 1 ? "proxy" : "proxies"}`
+}
+
+/**
+ * When a proxy renews, by the calendar day: "Renews today", "Renews tomorrow",
+ * "Renews in 5 days" up to a fortnight, then "Renews 3 Nov". A day gone by
+ * says "Renewal was 3 Nov".
+ */
+export function renewalText(renewsOn: string, now: Date = new Date()): string {
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  const [year, month, day] = renewsOn.split("-").map(Number)
+  const due = Date.UTC(year, month - 1, day)
+  const days = Math.round((due - today) / 86_400_000)
+  const named = new Date(due).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })
+  if (days < 0) return `Renewal was ${named}`
+  if (days === 0) return "Renews today"
+  if (days === 1) return "Renews tomorrow"
+  if (days <= 14) return `Renews in ${days} days`
+  return `Renews ${named}`
+}
+
 /** A proxy's last test in a few words: "US · 412ms", "Failed", "Untested". */
 export function proxyTestWords(result: ProxyTestResult | null): string {
   if (!result) return "Untested"

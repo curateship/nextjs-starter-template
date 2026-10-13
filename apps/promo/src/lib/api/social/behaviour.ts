@@ -51,6 +51,7 @@ const saveFn = createServerFn({ method: "POST" })
       youngPerHour: whole(BEHAVIOUR_RANGES.youngPerHour),
       youngPerDay: whole(BEHAVIOUR_RANGES.youngPerDay),
       warnPerHour: whole(BEHAVIOUR_RANGES.warnPerHour),
+      searchEveryHours: whole(BEHAVIOUR_RANGES.searchEveryHours),
     })
   )
   .handler(async ({ context, data }): Promise<BehaviourView> => {

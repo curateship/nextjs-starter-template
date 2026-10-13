@@ -28,16 +28,25 @@ promo created, which has no shell version and so can never conflict.
   open browsers and the minutes before an unused one closes.
 - **`notifications.describe`** — a dead-proxy notice in the bell gets a globe
   tile and opens that proxy on the Proxies dashboard. Worked out from the
-  notice's own id and words, so no server is asked.
+  notice's own id and words, so no server is asked. Promo's other notices get
+  their icon and colour the same way, from their headings.
+- **`notifications.detailsFor`**: where a reply, removal, suspension, failure
+  or proxy-renewal notice opens, asked from promo's server once per page of
+  notices, because those notices' ids cannot carry an address.
+  [Promo's bell notices](notices.md) has the rest.
 
 `src/app/server-options.ts`, which the browser never sees:
 
-- **`background.workers`** — six quick jobs on the shell's ticker, listed in
+- **`background.workers`** — seven quick jobs on the shell's ticker, listed in
   `src/app/server-options.ts`:
-  - re-testing the three proxies that have waited longest;
+  - re-testing the three proxies that have waited longest, and once an hour
+    ringing the bell for a proxy renewing in the next three days;
   - asking once a day for each Reddit account's
     [health reading](reddit/account-health.md);
   - picking a time for each warming account's daily visit;
+  - every five minutes, queueing a search for each switched-on keyword whose
+    last search is the hours set in Settings → Behaviour old, while the reader
+    is awake ([searching again by itself](reddit/finding-posts.md#searching-again-by-itself));
   - every ten minutes, [tidying away old posts](reddit/finding-posts.md#old-posts-are-tidied-away),
     one delete and one update each capped at 500 rows;
   - reading the page a few [link posts](reddit/link-posts.md) point to, four a
@@ -51,7 +60,7 @@ promo created, which has no shell version and so can never conflict.
 
 ## The tables it owns
 
-Twenty, all named `promo_*`, in two files of promo's own. The shell's tables
+Twenty-four, all named `promo_*`, in two files of promo's own. The shell's tables
 stay in `src/server/schema.ts`, which promo never opens.
 
 - `src/server/browser/schema.ts`: `promo_proxies`, `promo_proxy_addresses`,
@@ -60,7 +69,9 @@ stay in `src/server/schema.ts`, which promo never opens.
   `promo_profile_backups`. These belong to no network.
 - `src/server/social/schema.ts`: `promo_voices`, `promo_accounts`, `promo_keywords`,
   `promo_blocked_subreddits`, `promo_subreddit_rules`, `promo_reddit_settings`,
-  `promo_searches`, `promo_finds`, `promo_drafts`, `promo_comments`, `promo_jobs`.
+  `promo_searches`, `promo_finds`, `promo_drafts`, `promo_comments`, `promo_jobs`,
+  `promo_projects`, `promo_behaviour_settings`, `promo_posts` (posts of your
+  own) and `promo_notices` (where each bell notice opens).
 
 The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
 `drizzle/0092_promo_reddit_relevance.sql`,
@@ -74,8 +85,11 @@ The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
 `drizzle/0101_promo_comment_examples.sql`,
 `drizzle/0102_promo_subreddit_watches.sql`,
 `drizzle/0103_promo_subreddit_rules.sql`,
-`drizzle/0104_promo_tidy_old_posts.sql` and
-`drizzle/0105_promo_comment_checks.sql`. The runner records each file by its
+`drizzle/0104_promo_tidy_old_posts.sql`,
+`drizzle/0105_promo_comment_checks.sql` and the later files up to
+`drizzle/0110_promo_new_features.sql`, which adds the two tables above and
+the columns for the 12 Oct 2026 features, and the Today link to saved left
+menus. The runner records each file by its
 whole name, so a shell file that happens to share a number does not collide
 with a promo one.
 

@@ -480,3 +480,45 @@ export function redditRules(target: CommandTarget, args: { subreddit: string }) 
 export function redditCommentCheck(target: CommandTarget, args: { commentUrl: string }) {
   return call(target, "reddit/comment_check", { ...args }, commentCheckShape, PAGE_THEN_READ_TIMEOUT_MS)
 }
+
+/** What deleting or editing a comment found when it looked again afterwards. */
+const commentChangeShape = z.object({
+  /** True when the account's own view of the comment shows the change. */
+  done: z.boolean(),
+})
+
+/**
+ * Deletes one comment the account sent, from that account's own browser,
+ * through the comment's own menu. Only ever called after a person pressed
+ * Delete on the Comments screen and confirmed it.
+ */
+export function redditDeleteComment(target: CommandTarget, args: { commentUrl: string }) {
+  return call(target, "reddit/delete_comment", { ...args }, commentChangeShape, PAGE_THEN_READ_TIMEOUT_MS)
+}
+
+/**
+ * Changes the words of one comment the account sent, typed like a person
+ * into the comment's own edit box. Only ever called after a person pressed
+ * Save changes on the Comments screen.
+ */
+export function redditEditComment(target: CommandTarget, args: { commentUrl: string; text: string }) {
+  return call(target, "reddit/edit_comment", { ...args }, commentChangeShape, VISIT_TIMEOUT_MS)
+}
+
+/** Where a post of your own landed, and the visit around it. */
+const submitShape = z.object({
+  postUrl: z.string(),
+  visit: visitShape.nullable().default(null),
+})
+
+/**
+ * Sends a post of your own to a subreddit, inside the same visit a comment
+ * gets: feed before, the subreddit's submit page, title and words typed like
+ * a person, feed after. Only ever called after a person pressed Post.
+ */
+export function redditSubmit(
+  target: CommandTarget,
+  args: { subreddit: string; title: string; body: string }
+) {
+  return call(target, "reddit/submit", { ...args }, submitShape, VISIT_TIMEOUT_MS)
+}

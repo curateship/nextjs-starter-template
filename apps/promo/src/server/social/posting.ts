@@ -14,6 +14,7 @@ import {
   warmUpEndsAt,
 } from "./behaviour"
 import { queueJob } from "./jobs"
+import { pausedBy } from "./pause"
 import { promoAccounts, promoJobs } from "./schema"
 
 /**
@@ -32,6 +33,11 @@ import { promoAccounts, promoJobs } from "./schema"
  */
 
 export type PostingState = {
+  /**
+   * Paused on the Reddit accounts dashboard, or in a paused project, which
+   * refuses Post until it is resumed. Null when it is running.
+   */
+  paused: "account" | "project" | null
   /** The account's own clock, which its waking hours are counted on. */
   timeZone: string
   awake: boolean
@@ -60,7 +66,7 @@ type AccountRow = typeof promoAccounts.$inferSelect
 
 export async function readPostingState(
   userId: string,
-  account: Pick<AccountRow, "id" | "profileId" | "redditCreatedAt">,
+  account: Pick<AccountRow, "id" | "profileId" | "redditCreatedAt" | "pausedAt" | "projectId">,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<PostingState> {
@@ -86,6 +92,7 @@ export async function readPostingState(
     .orderBy(asc(promoJobs.runAfter))
 
   return {
+    paused: await pausedBy(userId, account, db),
     timeZone,
     awake: isAwake(now, timeZone, behaviour.wakeFromMinute, behaviour.wakeUntilMinute),
     nextWakeAt: nextWakeAt(now, timeZone, behaviour.wakeFromMinute, behaviour.wakeUntilMinute),
@@ -113,19 +120,27 @@ export async function readPostingState(
 }
 
 /**
+ * How long a pressed comment waits before the browser may take it, so Undo
+ * can take it back. Tyler picked "ten seconds to undo Post" on 12 Oct 2026.
+ */
+const UNDO_SECONDS = 10
+
+/**
  * Queues a comment a person pressed Post for, or refuses it with why.
  *
- * Outside waking hours it is queued to start at the account's next morning,
- * and the answer says when. A post that already has a comment on its way is
- * refused, so a second press never sends two.
+ * It waits ten seconds before the browser may take it, so a wrong account or
+ * a typo can be undone with Undo (`cancelWaitingComment`). Outside waking
+ * hours it is queued to start at the account's next morning instead, and the
+ * answer says when. A post that already has a comment on its way is refused,
+ * so a second press never sends two.
  */
 export async function queueComment(
   userId: string,
-  account: Pick<AccountRow, "id" | "profileId" | "redditCreatedAt">,
+  account: Pick<AccountRow, "id" | "profileId" | "redditCreatedAt" | "pausedAt" | "projectId">,
   input: { findId: string; text: string; draftId: string | null },
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
-): Promise<{ jobId: string; runAfter: Date | null }> {
+): Promise<{ jobId: string; runAfter: Date | null; undoUntil: Date | null }> {
   const [onItsWay] = await db
     .select({ id: promoJobs.id })
     .from(promoJobs)
@@ -147,14 +162,15 @@ export async function queueComment(
   if (refusal) throw new Refusal(refusal)
 
   const runAfter = state.nextWakeAt
+  const undoUntil = runAfter ? null : new Date(now.getTime() + UNDO_SECONDS * 1000)
   const jobId = await queueJob(
     userId,
     "comment",
     { findId: input.findId, accountId: account.id, text: input.text, draftId: input.draftId },
     db,
-    runAfter
+    runAfter ?? undoUntil
   )
-  return { jobId, runAfter }
+  return { jobId, runAfter, undoUntil }
 }
 
 /**

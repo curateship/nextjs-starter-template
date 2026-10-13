@@ -37,6 +37,8 @@ import { postedDateText, waitingReplyText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
+import { Hint } from "../hint"
+
 /** How often to ask again while an answer is on its way now. */
 const POLL_MS = 2_000
 
@@ -335,16 +337,17 @@ function ReplyCard({
             {posted ? <span>{postedDateText(posted)}</span> : null}
           </span>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          title="Open this reply on Reddit"
-          aria-label={`Open u/${reply.author}'s reply on Reddit`}
-          onClick={() => openOnReddit(reply.url)}
-        >
-          <ExternalLinkIcon className="size-4" />
-        </Button>
+        <Hint label="Open this reply on Reddit">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={`Open u/${reply.author}'s reply on Reddit`}
+            onClick={() => openOnReddit(reply.url)}
+          >
+            <ExternalLinkIcon className="size-4" />
+          </Button>
+        </Hint>
       </CardHeader>
       <CardContent className="grid gap-4">
         <p className="text-sm whitespace-pre-wrap">{reply.text}</p>
@@ -458,18 +461,18 @@ function Composer({
       {reply.drafts.length ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {reply.drafts.map((draft) => (
-            <button
-              key={draft.id}
-              type="button"
-              title={draft.text}
-              onClick={() => onText(draft.text, draft.id)}
-              className={cn(
-                "h-16 overflow-hidden rounded-lg border bg-background p-2 text-left text-xs leading-relaxed",
-                fromDraft === draft.id ? "border-foreground bg-muted" : null
-              )}
-            >
-              {draft.text}
-            </button>
+            <Hint key={draft.id} label={draft.text}>
+              <button
+                type="button"
+                onClick={() => onText(draft.text, draft.id)}
+                className={cn(
+                  "h-16 overflow-hidden rounded-lg border bg-background p-2 text-left text-xs leading-relaxed",
+                  fromDraft === draft.id ? "border-foreground bg-muted" : null
+                )}
+              >
+                {draft.text}
+              </button>
+            </Hint>
           ))}
         </div>
       ) : null}

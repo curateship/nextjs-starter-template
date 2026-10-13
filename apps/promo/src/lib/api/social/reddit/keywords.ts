@@ -8,9 +8,11 @@ import {
   listFinds,
   listKeywords,
   loadFindDetail,
+  setKeywordEnabled,
   type FindRow,
   type KeywordRow,
 } from "@/server/social/keywords"
+import { keywordIdeas, type KeywordIdeas } from "@/server/social/ai-tasks"
 import { queueJob } from "@/server/social/jobs"
 import { queueRulesRead } from "@/server/social/reddit/rules"
 import { queueThreadRead, setFindStatus } from "@/server/social/reddit/search"
@@ -48,6 +50,9 @@ export const getRedditErrorMessage = createErrorMessage(
     "project does not exist": "That project is not there any more. Reload the page.",
     "There is no reader browser": NO_READER_MESSAGE,
     "now holds an account": "The reader browser now holds an account, so nothing is read in it. Pick another reader in Settings → Behaviour.",
+    "description first": "Write what the project makes in its description first. The ideas come from it.",
+    "key saved": "Add an AI provider key in Settings before asking for ideas.",
+    AI_LIMIT_REACHED: "This month's AI allowance is used up.",
   },
   "That did not work. Please try again."
 )
@@ -94,6 +99,30 @@ const deleteKeywordFn = createServerFn({ method: "POST" })
 
 export function removeKeyword(id: string) {
   return deleteKeywordFn({ data: { id } })
+}
+
+export type { KeywordIdeas }
+
+const ideasFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<KeywordIdeas> => keywordIdeas(context.user.id, data.projectId))
+
+/** Keywords and subreddits to watch, suggested from the project's description. Nothing is saved. */
+export function suggestKeywords(projectId: string) {
+  return ideasFn({ data: { projectId } })
+}
+
+/** Switches a keyword's timed searches on or off. Pressing it by hand still works when off. */
+const enableKeywordFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: z.string().min(1), enabled: z.boolean() }))
+  .handler(async ({ context, data }): Promise<void> => {
+    await setKeywordEnabled(context.user.id, data.id, data.enabled)
+  })
+
+export function switchKeyword(id: string, enabled: boolean) {
+  return enableKeywordFn({ data: { id, enabled } })
 }
 
 /**

@@ -22,8 +22,8 @@ export const REDDIT_WINDOWS = [
 export type RedditWindow = (typeof REDDIT_WINDOWS)[number]
 
 /**
- * Where the Projects dashboard's panel arrangement is remembered: the three
- * columns, and inside the middle one the keywords above the posts.
+ * Where the Projects dashboard's panel arrangement is remembered: the widths
+ * of its three columns.
  *
  * Not added to `panelLayoutKey` in `src/lib/layout/panel-layout.ts`, which is
  * the shell's own registry of its own keys and a file an app never edits.
@@ -31,7 +31,6 @@ export type RedditWindow = (typeof REDDIT_WINDOWS)[number]
  * keeps these from colliding with a shell key.
  */
 export const PROJECTS_PANEL_LAYOUT_KEY = "promo-projects-workspace"
-export const PROJECTS_MIDDLE_LAYOUT_KEY = "promo-projects-middle"
 
 /**
  * The Everything row at the top of the keywords panel, chosen in place of a

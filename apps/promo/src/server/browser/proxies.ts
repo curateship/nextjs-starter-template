@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm"
 
 import {
   PROXY_KINDS,
@@ -49,6 +49,10 @@ export type ProxyView = {
   country: string
   lastTestedAt: Date | null
   lastTestResult: ProxyTestResult | null
+  /** What it costs a month, typed in by a person. Null when nobody said. */
+  monthlyCost: number | null
+  /** The day it renews, as "2026-11-03". Null when nobody said. */
+  renewsOn: string | null
   updatedAt: Date
   /** The browser profiles pointing at it, by name. */
   usedBy: Array<{ id: string; name: string }>
@@ -77,6 +81,10 @@ export type ProxyInput = {
    * so saving the form without retyping the password does not wipe it.
    */
   password?: string
+  /** What it costs a month. Null clears it; undefined, as a paste sends, keeps it. */
+  monthlyCost?: number | null
+  /** The day it renews, "2026-11-03". Null clears it; undefined keeps it. */
+  renewsOn?: string | null
 }
 
 /** Every proxy the person has, newest first, with who uses each. */
@@ -146,6 +154,8 @@ function proxyView(row: typeof promoProxies.$inferSelect) {
     country: row.country,
     lastTestedAt: row.lastTestedAt,
     lastTestResult: row.lastTestResult,
+    monthlyCost: row.monthlyCost,
+    renewsOn: row.renewsOn,
     updatedAt: row.updatedAt,
   }
 }
@@ -183,7 +193,53 @@ async function cleanProxyInput(input: ProxyInput) {
     ...(input.password !== undefined
       ? { passwordEncrypted: input.password ? encryptSecret(input.password) : "" }
       : {}),
+    ...(input.monthlyCost !== undefined ? { monthlyCost: cleanCost(input.monthlyCost) } : {}),
+    ...(input.renewsOn !== undefined ? { renewsOn: cleanDay(input.renewsOn) } : {}),
   }
+}
+
+/** A month's cost in dollars and cents, or null. Refused when it is not a sensible amount. */
+function cleanCost(cost: number | null): number | null {
+  if (cost === null) return null
+  if (!Number.isFinite(cost) || cost < 0 || cost > 100_000) {
+    throw new Error("A proxy's monthly cost has to be an amount from 0 to 100000.")
+  }
+  return Math.round(cost * 100) / 100
+}
+
+/** A calendar day as "2026-11-03", or null. Refused when it is not a real day. */
+function cleanDay(day: string | null): string | null {
+  if (!day) return null
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day.trim())
+  const date = match ? new Date(`${match[0]}T00:00:00Z`) : null
+  if (!match || !date || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== match[0]) {
+    throw new Error("A proxy's renewal date has to be a real day.")
+  }
+  return match[0]
+}
+
+/**
+ * Proxies renewing between today and `days` from now, by the calendar day,
+ * for the bell. A date already past is left alone: it either renewed or it
+ * did not, and the dead-proxy notice covers the second.
+ */
+export async function proxiesRenewingSoon(
+  today: string,
+  lastDay: string,
+  db: CustomShellDb = defaultDb
+): Promise<Array<{ id: string; userId: string; label: string; host: string; renewsOn: string; monthlyCost: number | null }>> {
+  const rows = await db
+    .select({
+      id: promoProxies.id,
+      userId: promoProxies.userId,
+      label: promoProxies.label,
+      host: promoProxies.host,
+      renewsOn: promoProxies.renewsOn,
+      monthlyCost: promoProxies.monthlyCost,
+    })
+    .from(promoProxies)
+    .where(and(gte(promoProxies.renewsOn, today), lte(promoProxies.renewsOn, lastDay)))
+  return rows.flatMap((row) => (row.renewsOn ? [{ ...row, renewsOn: row.renewsOn }] : []))
 }
 
 export async function createProxy(

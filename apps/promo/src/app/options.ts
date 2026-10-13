@@ -30,6 +30,24 @@ export const appOptions: AppOptions = {
      * notice opens that proxy on the Proxies dashboard.
      */
     describe: describePromoNotice,
+    /**
+     * Where a reply, a removed comment, a suspended account, a failed comment
+     * or a proxy renewal opens. Their ids are worked out from what they are
+     * about, so the address is remembered on the server and asked for here,
+     * once per page of notices. A failed read only loses the addresses; the
+     * rows are already drawn from their words.
+     */
+    detailsFor: async (notices) => {
+      const { promoNoticeKind, promoNoticeLook } = await import("@/lib/social/notices")
+      const mine = notices.filter((notice) => promoNoticeKind(notice) !== null)
+      if (!mine.length) return {}
+      const { loadPromoNoticeLinks } = await import("@/lib/api/social/notices")
+      const links = await loadPromoNoticeLinks(mine.map((notice) => notice.id)).catch(() => [])
+      const looks = new Map(mine.map((notice) => [notice.id, promoNoticeLook(notice)]))
+      return Object.fromEntries(
+        links.map((link) => [link.id, { ...looks.get(link.id), href: link.href }])
+      )
+    },
   },
   settings: {
     tabs: [

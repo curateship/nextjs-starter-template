@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
+import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import {
   redditSearch,
@@ -74,7 +75,9 @@ export async function runKeywordSearch(
     .from(promoKeywords)
     .where(and(eq(promoKeywords.id, keywordId), eq(promoKeywords.userId, userId)))
     .limit(1)
-  if (!keyword) throw new Error("That keyword is no longer saved.")
+  // A refusal fails the job at once: the keyword will not come back on a
+  // second or third try.
+  if (!keyword) throw new Refusal("That keyword is no longer saved.")
 
   const searchId = uuid()
   await db.insert(promoSearches).values({
@@ -355,7 +358,7 @@ export async function loadFindThread(
     .from(promoFinds)
     .where(and(eq(promoFinds.id, findId), eq(promoFinds.userId, userId)))
     .limit(1)
-  if (!find) throw new Error("That post is no longer saved.")
+  if (!find) throw new Refusal("That post is no longer saved.")
 
   const fresh =
     find.thread &&

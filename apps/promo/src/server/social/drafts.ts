@@ -234,6 +234,12 @@ export function buildDraftPrompt(input: {
    * conversation is between the two of us.
    */
   answering?: Answering | null
+  /**
+   * A post in one of the account's everyday subreddits, answered to help and
+   * nothing else, so the account reads as a person with a life beyond the
+   * product. Never told what I make, and told never to mention anything.
+   */
+  helpOnly?: boolean
   count: number
 }): string {
   const answering = input.answering ?? null
@@ -285,7 +291,9 @@ export function buildDraftPrompt(input: {
       ? "- The poster shared that page; they did not write it. Talk to the poster about what they shared, not to the page's author, and do not summarise the page back to them."
       : "",
     answering ? "" : "- Do not repeat a point one of the replies above already made.",
-    "- Do not mention what I make unless it directly answers what was asked. A comment that reads as an advert gets me banned, which is worse than a comment nobody clicks.",
+    input.helpOnly
+      ? "- This comment is only to help. Do not mention any product, tool, service or business of mine, and do not link to anything."
+      : "- Do not mention what I make unless it directly answers what was asked. A comment that reads as an advert gets me banned, which is worse than a comment nobody clicks.",
     input.subredditRules?.length
       ? `- Break none of r/${input.subreddit}'s own rules above. Where they ban self-promotion or links, do not mention what I make and do not link to anything.`
       : "",
@@ -512,11 +520,14 @@ async function writeDrafts(
   // What you make is the account's project's description, never the voice's.
   // An account in no project is told nothing about a product. Before an
   // account is clicked, the post's own project counts.
-  const product = await projectDescription(
-    userId,
-    account ? account.projectId : await projectOfFind(userId, find.id, db),
-    db
-  )
+  // A help-only post, from an account's everyday subreddits, is never told.
+  const product = find.helpAccountId
+    ? ""
+    : await projectDescription(
+        userId,
+        account ? account.projectId : await projectOfFind(userId, find.id, db),
+        db
+      )
   // The comments this account really sent, as examples of its voice. None
   // before the first one goes out, and the voice box carries it alone.
   const examples = account ? await exampleComments(userId, account.id, db) : []
@@ -533,14 +544,13 @@ async function writeDrafts(
     examples,
     subredditRules,
     answering,
+    helpOnly: Boolean(find.helpAccountId),
     count: DRAFT_COUNT,
   })
 
-  const shape = PROVIDERS[provider]
-
-  const written = await runAiCall<string[]>(
+  const written = await askModel(
     {
-      userId: userId,
+      userId,
       provider,
       model,
       // Answers to replies are their own line on the AI usage screen.
@@ -548,33 +558,15 @@ async function writeDrafts(
       metadata: answering
         ? { findId: find.id, subreddit: find.subreddit, replyId: input.replyToId }
         : { findId: find.id, subreddit: find.subreddit },
+      prompt,
+      key,
     },
-    async () => {
-      const response = await fetch(shape.url(model), {
-        method: "POST",
-        headers: shape.headers(key),
-        body: shape.body(model, prompt),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      })
-
-      if (!response.ok) {
-        // The provider's own body often says exactly what is wrong, and it is
-        // more use than "status 400". Capped, because some are enormous.
-        const detail = (await response.text()).slice(0, 400)
-        throw new Error(
-          `${provider} refused the request with status ${response.status}. ${detail}`.trim()
-        )
-      }
-
-      const payload = (await response.json()) as Record<string, unknown>
-      const answer = shape.text(payload)
+    (answer) => {
       const drafts = splitDrafts(answer, DRAFT_COUNT)
       if (!drafts.length) {
-        throw new Error(
-          `${provider} answered, but nothing in the answer looked like a comment.`
-        )
+        throw new Error(`${provider} answered, but nothing in the answer looked like a comment.`)
       }
-      return { result: drafts, usage: shape.usage(payload) }
+      return drafts
     }
   )
 
@@ -595,6 +587,76 @@ async function writeDrafts(
     provider: row.provider,
     model: row.model,
   }))
+}
+
+export type ModelCall = {
+  userId: string
+  provider: AiTextProvider
+  model: string
+  /** The line it is counted under on the AI usage screen. */
+  feature: string
+  metadata: Record<string, unknown>
+  prompt: string
+  /** The provider's key, already looked up, so a missing one is refused before anything is sent. */
+  key: string
+}
+
+/**
+ * One request to the model, through the shell's meter, so it counts against
+ * the month's AI allowance, shows on the AI usage screen under its feature,
+ * and records a row whether it worked or not. `read` turns the words the
+ * model wrote into the answer, and throws when they make no sense.
+ *
+ * Every feature that asks the AI something goes through here: drafts,
+ * answers to replies, the rules check, rewrites, keyword ideas, help-only
+ * drafts and posts of your own.
+ */
+export async function askModel<T>(call: ModelCall, read: (answer: string) => T): Promise<T> {
+  const shape = PROVIDERS[call.provider]
+  return runAiCall<T>(
+    {
+      userId: call.userId,
+      provider: call.provider,
+      model: call.model,
+      feature: call.feature,
+      metadata: call.metadata,
+    },
+    async () => {
+      const response = await fetch(shape.url(call.model), {
+        method: "POST",
+        headers: shape.headers(call.key),
+        body: shape.body(call.model, call.prompt),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      })
+
+      if (!response.ok) {
+        // The provider's own body often says exactly what is wrong, and it is
+        // more use than "status 400". Capped, because some are enormous.
+        const detail = (await response.text()).slice(0, 400)
+        throw new Error(
+          `${call.provider} refused the request with status ${response.status}. ${detail}`.trim()
+        )
+      }
+
+      const payload = (await response.json()) as Record<string, unknown>
+      return { result: read(shape.text(payload)), usage: shape.usage(payload) }
+    }
+  )
+}
+
+/**
+ * The provider and model to use, and its key, or a refusal naming the screen
+ * to add one on. Claude unless another provider is asked for.
+ */
+export async function pickProvider(
+  asked: { provider?: string; model?: string } = {}
+): Promise<{ provider: AiTextProvider; model: string; key: string }> {
+  const provider = isAiTextProvider(asked.provider) ? asked.provider : "anthropic"
+  const key = await getAiKey(provider)
+  if (!key) {
+    throw new Error(`There is no ${provider} key saved. Add one in Settings, under AI provider keys.`)
+  }
+  return { provider, model: pickModel(provider, asked.model), key }
 }
 
 /**

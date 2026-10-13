@@ -10,7 +10,7 @@ import {
 } from "@/lib/social/options"
 import { knownTimeZone } from "@/lib/social/waking"
 
-import { promoAccounts, promoBehaviourSettings, promoComments, promoJobs } from "./schema"
+import { promoAccounts, promoBehaviourSettings, promoComments, promoJobs, promoPosts } from "./schema"
 
 /**
  * How every account behaves, whatever it runs on. Settings → Behaviour.
@@ -31,6 +31,8 @@ export type BehaviourSettings = {
   youngPerHour: number
   youngPerDay: number
   warnPerHour: number
+  /** Every keyword searches again by itself this many hours after its last search. 0 is never. */
+  searchEveryHours: number
 }
 
 const DAY_MS = 86_400_000
@@ -54,6 +56,7 @@ export async function readBehaviour(
     youngPerHour: row.youngPerHour,
     youngPerDay: row.youngPerDay,
     warnPerHour: row.warnPerHour,
+    searchEveryHours: row.searchEveryHours,
   }
 }
 
@@ -184,7 +187,8 @@ export function isYoung(redditCreatedAt: Date | null, youngDays: number, now: Da
 
 /**
  * The account's comments that reached Reddit in the last day, oldest first,
- * and how many are pressed and waiting to go.
+ * and how many are pressed and waiting to go. A post of your own counts as
+ * one too: it is the account writing on Reddit, and pace is about that.
  */
 export async function recentComments(
   userId: string,
@@ -205,19 +209,32 @@ export async function recentComments(
       )
     )
     .orderBy(asc(promoComments.postedAt))
+  const posts = await db
+    .select({ postedAt: promoPosts.postedAt })
+    .from(promoPosts)
+    .where(
+      and(
+        eq(promoPosts.userId, userId),
+        eq(promoPosts.accountId, accountId),
+        eq(promoPosts.status, "posted"),
+        gte(promoPosts.postedAt, since)
+      )
+    )
   const [pending] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(promoJobs)
     .where(
       and(
         eq(promoJobs.userId, userId),
-        // An answer to a reply is a comment too, and counts against the pace.
-        inArray(promoJobs.kind, ["comment", "reply"]),
+        // An answer to a reply is a comment too, and a post of your own is
+        // writing too, so both count against the pace.
+        inArray(promoJobs.kind, ["comment", "reply", "submit"]),
         inArray(promoJobs.status, ["queued", "running"]),
         sql`${promoJobs.payload}->>'accountId' = ${accountId}`
       )
     )
-  return { posted: rows.map((row) => row.postedAt), waiting: pending?.count ?? 0 }
+  const posted = [...rows, ...posts].map((row) => row.postedAt).sort((a, b) => a.getTime() - b.getTime())
+  return { posted, waiting: pending?.count ?? 0 }
 }
 
 /** Every Reddit account in use with a browser profile, for the tickers. A retired one never warms up. */

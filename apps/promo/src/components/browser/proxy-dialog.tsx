@@ -1,10 +1,12 @@
 import * as React from "react"
+import { format } from "date-fns"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ProxyTestBadge } from "@/components/browser/proxy-test-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   DialogBody,
   DialogContent,
@@ -13,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -40,6 +43,10 @@ type Form = {
   port: string
   username: string
   password: string
+  /** Dollars a month as typed, or "". */
+  monthlyCost: string
+  /** "2026-11-03", or "". */
+  renewsOn: string
 }
 
 function formFrom(proxy: ProxyView | null): Form {
@@ -51,6 +58,8 @@ function formFrom(proxy: ProxyView | null): Form {
     port: proxy ? String(proxy.port) : "",
     username: proxy?.username ?? "",
     password: "",
+    monthlyCost: proxy?.monthlyCost === null || proxy?.monthlyCost === undefined ? "" : proxy.monthlyCost.toFixed(2),
+    renewsOn: proxy?.renewsOn ?? "",
   }
 }
 
@@ -86,8 +95,16 @@ export function ProxyDialog({
   const set = <K extends keyof Form>(key: K, value: Form[K]) =>
     setForm((current) => ({ ...current, [key]: value }))
 
+  const costText = form.monthlyCost.replace(/[$,\s]/g, "")
+  const cost = costText ? Number(costText) : null
+  const costInvalid = cost !== null && (!Number.isFinite(cost) || cost < 0 || cost > 100_000)
+
   async function save() {
     const port = Number.parseInt(form.port, 10)
+    if (costInvalid) {
+      showErrorToast("A proxy's monthly cost has to be an amount from 0 to 100000.")
+      return
+    }
     setSaving(true)
     try {
       const { id } = await saveProxy(proxy?.id ?? null, {
@@ -99,6 +116,8 @@ export function ProxyDialog({
         username: form.username,
         // Left out when nothing was typed, so the stored password stays.
         ...(form.password ? { password: form.password } : {}),
+        monthlyCost: cost,
+        renewsOn: form.renewsOn || null,
       })
       toast.success(proxy ? "Proxy saved." : "Proxy added.")
       await onSaved(id)
@@ -228,6 +247,40 @@ export function ProxyDialog({
                             proxy?.hasPassword ? "Stored. Type only to change it." : ""
                           }
                           onChange={(event) => set("password", event.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>What it costs</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="grid gap-2">
+                        <FieldLabel htmlFor="proxy-cost" hint="In dollars. Leave it empty if you would rather not say.">
+                          A month
+                        </FieldLabel>
+                        <Input
+                          id="proxy-cost"
+                          inputMode="decimal"
+                          value={form.monthlyCost}
+                          placeholder="12.00"
+                          aria-invalid={costInvalid || undefined}
+                          onChange={(event) => set("monthlyCost", event.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <FieldLabel htmlFor="proxy-renews" hint="The bell rings three days before.">
+                          Renews on
+                        </FieldLabel>
+                        <DatePicker
+                          id="proxy-renews"
+                          placeholder="Not set"
+                          value={form.renewsOn ? new Date(`${form.renewsOn}T00:00:00`) : undefined}
+                          onChange={(date) => set("renewsOn", date ? format(date, "yyyy-MM-dd") : "")}
                         />
                       </div>
                     </div>

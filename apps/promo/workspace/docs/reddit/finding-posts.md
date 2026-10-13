@@ -42,6 +42,54 @@ to the project"). Every account in the project sees the same keywords and posts.
 The same words may be saved in two projects; inside one project they are saved
 once. [The Projects dashboard](../projects-dashboard.md) has the rest.
 
+## Searching again by itself
+
+Every keyword and every watch searches Reddit again on its own, a few times a
+day. Tyler picked this on 12 Oct 2026 and set the gap: "4h is fine". The best
+post to answer is a fresh one with few replies, and a keyword pressed once in
+the morning misses everything posted after it.
+
+- **How often:** Settings → Behaviour, "Search every keyword every this many
+  hours", 4 to begin with. 0 means a keyword searches only when its button is
+  pressed. The field saves itself.
+- **Only while the reader is awake,** on the reader browser's own clock, and
+  only with a reader picked. With none, nothing is searched by itself.
+- **The gap counts from the last search job, failed or not,** so a keyword that
+  keeps failing is tried once a gap rather than on every pass.
+- **Spread out.** One pass puts its searches three minutes apart, plus a random
+  part of three, so Reddit never sees every keyword in the same minute.
+- **A keyword with a search already waiting gets no second one.**
+- **The switch is the timer icon on each keyword chip,** beside the search
+  arrow. Pressing it turns the timer off for that keyword alone, and the icon
+  becomes a crossed-out timer. The search arrow still works by hand.
+- **Nothing posts.** A timed search is the same `search` job a press writes,
+  in the reader, signed in to nobody, followed by the same reads of the best
+  posts' replies and the subreddits' rules.
+
+The pass is `queueDueSearches` in `src/server/social/reddit/timed-searches.ts`,
+run every five minutes by the `promo-timed-searches` worker. The switch is
+`promo_keywords.enabled`, which existed before and had no switch.
+
+## Ideas for keywords
+
+**Ideas**, in the "⋮" menu at the top of the posts column, asks the AI for up to ten new
+search phrases and five subreddits to watch. It is told the project's
+description, the keywords already saved, and the subreddits the project's
+posts came from, and asked for the words a person with the problem would
+type, not the words you would.
+
+- **Nothing is saved until Add is pressed.** Add saves the phrase, or the
+  watch, and searches it straight away, the same as typing it into the box.
+- **Already saved phrases, watched subreddits and blocked subreddits never
+  show.**
+- **No description, no ideas:** the window says to write the description
+  first.
+- **It costs one AI call,** counted on the AI usage screen as
+  "reddit-keyword-ideas".
+
+The window is `src/components/social/reddit/keyword-ideas-dialog.tsx`; the
+call is `keywordIdeas` in `src/server/social/ai-tasks.ts`.
+
 ## Watching a subreddit
 
 People describe your problem without using your words. Somebody in r/SaaS
@@ -178,61 +226,53 @@ The keywords and the posts are the middle column of the
 project and its accounts on the left. They were the Reddit dashboard's left and
 middle columns until 12 Oct 2026. Every list below is one project's.
 
-- **Keywords**, at the top of the middle column. Each saved search is a card saying what it searches
-  — "25 posts · Past week · All of Reddit", or "r/SaaS" over "Watching · 25 posts ·
-  Newest first" for a watch — with a button to run it again and
-  one to remove it. The box that adds a keyword is pinned to the bottom of the
-  panel, because a keyword is added once and pressed many times.
-- **Everything**, pinned above the keyword cards, lists every keyword's posts
-  in the project in one ranked order. See "Everything" below.
-- **The posts**, under the keywords, under the keyword's own name in quotes, or
-  "Everything". Three counts across the top say where the work is: To look at,
-  Replied, Skipped. Pressing one shows those posts. A search box sits beside
-  them; see "Finding a post you remember" below.
+- **Keywords**, as chips across the top of the middle column since Tyler's
+  design of 13 Oct 2026. Each chip is the keyword, its post count, when it last
+  searched, a timer switch, an arrow to search again and an X to remove it.
+  What it searches ("Past week · All of Reddit", or "Watching · Newest first")
+  is read out to a screen reader with the name, and shown nowhere else.
+  **Add keyword**, after the chips, opens the box that adds one.
+- **Every keyword's posts together** is what shows when no chip is chosen.
+  Pressing a chip lists its posts alone; pressing it again goes back. See
+  "Every keyword together" below.
+- **The posts**, under the chips. Three tabs across the top say where the work
+  is: To look at, Replied, Skipped. Pressing one shows those posts. A search
+  box sits at the right of the same row; see "Finding a post you remember"
+  below.
 - **The post and your comment**, on the right. One panel, because they are one
   piece of work: the post, its replies and the drafts scroll together and the
   box you send from stays at the bottom where it can always be reached.
 
 There is no bottom panel.
 
-## Everything
+## Every keyword together
 
 The morning question is what to answer, not what one saved search found. The
 ranking already puts every post on one scale, and its freshness part means the
-best post today could be under any keyword, so the Everything row lists the
-project's posts in one order.
+best post today could be under any keyword, so with no chip chosen the list is
+the project's posts in one order.
 
-- **Chosen whenever nothing else is**: when the screen opens, and when the
-  chosen keyword is removed. Adding a keyword still chooses the new one.
-- **The line under it says how many posts are waiting** across every keyword,
-  and how many keywords: "54 waiting · 2 keywords". Waiting means To look at,
-  the same count the keyword cards use.
-- **Not offered before the first keyword**, when there is nothing to gather.
-  The list then says "No keywords yet. Add one on the left and it searches
-  straight away."
+- **Chosen whenever nothing else is**: when the screen opens, when the chosen
+  chip is pressed again, and when the chosen keyword is removed. Adding a
+  keyword still chooses the new one.
 - **No new endpoint.** The screen asks for the posts with no keyword named,
   which the existing endpoint already answered with all of the person's posts.
-  Both lists now read up to 500 posts, the endpoint's own ceiling, rather than
-  its default of 100, which Everything would have outgrown in a few days.
-- **A Keyword column** names the keyword that found each row, because a row
-  with no keyword beside it cannot be acted on when several are mixed. It is
-  the shell's `meta` column, so it shrinks to its content. A single keyword's
-  list leaves it off, since every row would say the same word.
+  Both lists read up to 500 posts, the endpoint's own ceiling, rather than its
+  default of 100, which would be outgrown in a few days.
+- **A row names its keyword** at the end of its line, once the project has more
+  than one keyword, because a row cannot be acted on when several are mixed
+  and nothing says which found it. A single keyword's list leaves it off.
 - **Everything else is the same list**: the three bands, the three status tabs,
-  ticking rows and Skip across keywords, the block button, the chosen row's
-  left edge line.
+  the block button, the chosen row's left edge line.
 - **The same Reddit post found by two keywords is two rows**, one under each,
   because each keyword's copy has its own status. Skipping one leaves the
   other.
-- **Too wide at 1440px.** With both side panels at their narrowest, the list
-  was already wider than its panel and scrolled sideways (894px of table in
-  735px); the Keyword column adds 128px to that. At 1920px it fits.
 
 ## Finding a post you remember
 
 After a few weeks of daily searches there are hundreds of stored posts, and
-finding the one from Tuesday meant scrolling. The box beside the status tabs
-narrows the list as you type.
+finding the one from Tuesday meant scrolling. **Search posts**, in the keywords
+row at the top of the middle column, narrows the list as you type.
 
 - **Title, subreddit and author.** Not the post's own words, which are long
   enough to match almost anything, and not the replies.
@@ -240,21 +280,21 @@ narrows the list as you type.
   "saas pricing" finds "How we set our pricing" in r/SaaS. A leading "r/" or
   "u/" is dropped from a word, because that is how people write them.
 - **Narrowed in the browser**, over the posts already loaded for the chosen
-  keyword or for Everything. No request per keystroke. The text goes through
+  keyword or for every keyword. No request per keystroke. The text goes through
   the shell's `readSearchText` (`src/lib/nav/list-search.ts`), so blank means
   no search and the length is capped like every other dashboard's search. The
   matching is `matchesFindSearch` in `src/lib/social/find-search.ts`; the
   shell has no matcher of its own to reuse, and its dashboards match with the
   same lower-case "contains".
-- **The counts follow the search.** The three tabs, the band headings and the
-  footer all count what the search lets through, so "Skipped 1" shows where a
+- **The counts follow the search.** The three tabs and the band headings
+  count what the search lets through, so "Skipped 1" shows where a
   remembered post went. A band with no matches disappears.
 - **"No post matches those words."** when the tab has posts and the words
   matched none of them. "Nothing found yet" stays the answer for a tab that is
   empty to begin with.
 - **The words stay in the box** when the keyword or the tab changes, where
   they can be seen and cleared. They are not kept between visits.
-- **On a phone the box takes a row of its own**, or it squeezed the tabs past
+- **On a phone the box wraps under the tabs**, rather than squeezing them past
   the screen's edge.
 
 Both side panels shut all the way to nothing, either by dragging their divider
@@ -269,12 +309,16 @@ list is already beside the post.
 
 ## What a row says
 
-Title, the keyword that found it (on Everything only), subreddit, when it went up, upvotes and replies, and at the end the
-button that blocks the row's subreddit. The line under each
-title says why it is where it is in plain words: "Reddit's best match, posted in
-the last few hours, no replies yet". The chosen row carries a line down its left
-edge rather than a filled background, so it reads as chosen without fighting the
-band headings above it.
+The title, then one line of the subreddit, when it went up and where Reddit
+put it ("match 9" in a search, "newest 3" in a watch), and the keyword that
+found it when several are listed together. On the right, the upvotes, the
+replies and the button that blocks the row's subreddit. The bands are the
+order said in words; the row has no tooltip, as Tyler asked on 13 Oct 2026.
+The chosen row has a grey ground and a dark line
+down its left edge. It is a plain list rather than the dashboard table since
+the 13 Oct 2026 design. Posts under To look at have tick boxes, and ticking any
+shows **Skip** for the ticked posts; one post is also skipped from the right
+column.
 
 The date is said the way a person would: Today, Yesterday, 5 days ago, Last
 week. Whole days apart, not hours, or a post from 11pm last night would read as
@@ -367,3 +411,31 @@ shell's ticker takes a pass over them (`tidyOldFinds` in
 A deleted skipped post that a later search returns again comes back as new,
 because nothing remembers it was skipped. Waiting for the post to go unseen for
 the whole period first is what keeps that rare.
+
+## Self-promotion threads
+
+Plenty of subreddits ban self-promotion everywhere except one weekly or
+monthly thread, often called something like "Share your startup". That
+thread is the one place saying what you make is welcome instead of
+bannable, so Promo looks for it.
+
+- **Where:** "Self-promotion threads" in the "⋮" menu at the top of the
+  posts column, which opens a window of them. **Look** searches the subreddits the project's posts come
+  from most, at most eight, one reader job each.
+- **How it searches:** Reddit's own search inside the subreddit, newest first
+  over the past year, for titles with words these threads use (promotion,
+  self promo, share your, showcase, weekly thread, plug). A title must then
+  name both a promotion word and a thread word, so "How do you promote your
+  SaaS?" is not taken for one.
+- **What it shows:** each subreddit's newest thread, when it went up, how
+  often they come (the typical gap between the threads found), and when the
+  next is due. Pressing a row opens the thread in the comment box, where
+  every rule Post has still applies.
+- **Every subreddit names its thread differently, so some are missed.** The
+  empty list says so.
+
+A thread is stored as a found post that belongs to the project rather than to
+a keyword: `promo_finds.thread_project_id`, with `keyword_id` empty. It never
+shows in the posts list, and only the project's accounts answer it. The code
+is `src/server/social/reddit/promo-threads.ts` and
+`src/components/social/projects/promo-threads.tsx`.

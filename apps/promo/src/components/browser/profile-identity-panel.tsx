@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Hint } from "@/components/social/hint"
 import {
   askForNewIdentity,
   getProfileErrorMessage,
@@ -71,8 +72,11 @@ function IdentityCard({ profile, onChanged }: { profile: ProfileRow; onChanged: 
               {identityRows(seen).map((row) => (
                 <React.Fragment key={row.label}>
                   <dt className="text-muted-foreground">{row.label}</dt>
-                  <dd className="min-w-0 truncate" title={row.value}>
-                    {row.value}
+                  <dd className="min-w-0">
+                    {/* The full value on hover, for one cut short. */}
+                    <Hint label={row.value}>
+                      <span className="block truncate">{row.value}</span>
+                    </Hint>
                   </dd>
                 </React.Fragment>
               ))}

@@ -138,7 +138,7 @@ export function rankFind(input: RankInput, now: Date = new Date()): number {
  * two replies, and the low ones are a Tesla story with 135 replies and a horror
  * story with 28.
  */
-const STRONG_FIT_FROM = 1
+export const STRONG_FIT_FROM = 1
 const POSSIBLE_FIT_FROM = 0.3
 
 export type FitBand = "strong" | "possible" | "low"
@@ -157,6 +157,14 @@ export function fitBand(rank: number): FitBand {
   if (rank >= STRONG_FIT_FROM) return "strong"
   if (rank >= POSSIBLE_FIT_FROM) return "possible"
   return "low"
+}
+
+/**
+ * Where Reddit put the post, in two words for the row's line under its title:
+ * "match 9" in a search, "newest 3" in a watch. The long reason is the tooltip.
+ */
+export function placeText(position: number, watch: boolean): string {
+  return `${watch ? "newest" : "match"} ${position + 1}`
 }
 
 /**

@@ -43,6 +43,10 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  * `profile_check` is the stranger's half of a health reading, and
  * `warm_up` is a new account's daily visit to Reddit. `reply` answers a
  * reply under a sent comment, from the account that sent the comment.
+ * `submit` sends a post of your own, and `delete_comment` and `edit_comment`
+ * change a sent comment, each from the account that sent it. `help_read`
+ * reads the newest posts in one account's everyday subreddits, and
+ * `promo_threads` looks for a subreddit's self-promotion thread.
  *
  * `READER_JOB_KINDS` run in the signed-out reader browser, never in the
  * account's own: the account Reddit sees commenting never searches.
@@ -63,6 +67,11 @@ export type JobKind =
   | "comment_check"
   | "profile_check"
   | "warm_up"
+  | "submit"
+  | "delete_comment"
+  | "edit_comment"
+  | "help_read"
+  | "promo_threads"
 
 /** The kinds that run in the reader browser, signed in to nobody. */
 export const READER_JOB_KINDS: readonly JobKind[] = [
@@ -71,6 +80,21 @@ export const READER_JOB_KINDS: readonly JobKind[] = [
   "rules",
   "comment_check",
   "profile_check",
+  "help_read",
+  "promo_threads",
+]
+
+/**
+ * The kinds that write to Reddit from an account's own browser, each because
+ * a person pressed a button. Every one is tried once and never handed back
+ * after its browser stopped part-way, because a second go could post twice.
+ */
+export const WRITE_JOB_KINDS: readonly JobKind[] = [
+  "comment",
+  "reply",
+  "submit",
+  "delete_comment",
+  "edit_comment",
 ]
 
 /**
@@ -140,6 +164,7 @@ export const BEHAVIOUR_DEFAULTS = {
   youngPerHour: 2,
   youngPerDay: 6,
   warnPerHour: 4,
+  searchEveryHours: 4,
 } as const
 
 export const BEHAVIOUR_RANGES = {
@@ -150,6 +175,7 @@ export const BEHAVIOUR_RANGES = {
   youngPerHour: { min: 1, max: 30 },
   youngPerDay: { min: 1, max: 200 },
   warnPerHour: { min: 1, max: 60 },
+  searchEveryHours: { min: 0, max: 48 },
 } as const
 
 export const PROXY_PROTOCOLS = ["http", "https", "socks5"] as const
@@ -222,6 +248,14 @@ export type ProfileEventKind =
   | "restored"
 export type SearchStatus = "running" | "done" | "failed"
 export type DraftStatus = "draft" | "sent" | "discarded"
+
+/**
+ * The three ways the words in the comment box can be rewritten, in the order
+ * their buttons sit. A rewrite is stored as a draft so the record of what the
+ * AI wrote stays honest.
+ */
+export const DRAFT_REWRITES = ["shorter", "plainer", "no_product"] as const
+export type DraftRewrite = (typeof DRAFT_REWRITES)[number]
 export type JobStatus = "queued" | "running" | "done" | "failed"
 
 /** What a proxy test found, or why it failed. */
@@ -285,6 +319,14 @@ export type LinkPage = {
  * endpoint's check, and the character count under the box.
  */
 export const MAX_COMMENT_CHARS = 900
+
+/**
+ * A post of your own: Reddit's own limit on a title, and this app's on the
+ * words, long enough for a real post and short enough to read on a phone. The
+ * New post window and the server check the same two numbers.
+ */
+export const MAX_POST_TITLE_CHARS = 300
+export const MAX_POST_BODY_CHARS = 10_000
 
 /** How many drafts one press asks for. */
 export const DRAFTS_PER_PRESS = 2
