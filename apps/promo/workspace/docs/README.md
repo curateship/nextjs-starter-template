@@ -21,7 +21,8 @@ the repo's `docs/`, and is never copied here.
   proxy, adding one, setting a status by hand, and retiring.
 - [Finding posts worth answering](reddit/finding-posts.md) — what a keyword is,
   watching a subreddit, why there is no Reddit API, how the order is worked
-  out, the Everything list, searching the posts, the subreddits you never see,
+  out, the Everything list, searching the posts, the best posts' replies read
+  ahead, the subreddits you never see,
   and how old posts are tidied away.
 - [Link posts](reddit/link-posts.md) — reading the title and opening of the
   page a post links to, the guard that refuses any address inside the network,
@@ -32,6 +33,9 @@ the repo's `docs/`, and is never copied here.
 - [What happened to your comments](reddit/sent-comments.md) — the Comments
   screen: every sent comment with its upvotes, its replies and whether it is
   still there, and the switch that keeps it out of the AI's examples.
+- [Answering replies](reddit/answering-replies.md) — the Replies window on the
+  Comments screen: the replies under a sent comment, drafting and sending an
+  answer from the same account under Post's rules, and how an answer is stored.
 - [How Reddit sees the account](reddit/account-health.md) — karma, account age,
   and whether a stranger can see the profile, read once a day and on request.
 

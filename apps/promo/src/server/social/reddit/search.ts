@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
@@ -9,14 +9,15 @@ import {
   type CommandTarget,
 } from "@/server/browser/command"
 
+import { queueJob } from "../jobs"
 import { cleanLinkUrl } from "../link-page"
 
 import { blockedNames } from "./blocked"
-import { rankFind } from "./rank"
+import { fitBand, rankFind } from "./rank"
 import { queueRulesFor } from "./rules"
 import type { FindThread } from "@/lib/social/options"
 
-import { promoFinds, promoKeywords, promoSearches } from "../schema"
+import { promoFinds, promoJobs, promoKeywords, promoSearches } from "../schema"
 
 /**
  * Running a saved keyword and writing down what came back.
@@ -30,6 +31,18 @@ import { promoFinds, promoKeywords, promoSearches } from "../schema"
 
 /** How long a post's thread is trusted before it is read again. */
 const THREAD_FRESH_MINUTES = 30
+
+/**
+ * At most this many posts have their replies read after one search, on their
+ * own, before anybody opens them.
+ *
+ * This number is the whole design. Each read is a browser trip of tens of
+ * seconds in the reader, and the reader does every search and every other
+ * read too, so five is about two minutes of its time. Only Strong fit posts
+ * are read, the best first; Possible and Low fit posts keep the Read the
+ * replies button.
+ */
+export const MAX_THREADS_PER_SEARCH = 5
 
 export type SearchOutcome = {
   searchId: string
@@ -121,6 +134,16 @@ export async function runKeywordSearch(
       .update(promoKeywords)
       .set({ lastRunAt: new Date() })
       .where(eq(promoKeywords.id, keyword.id))
+
+    // The replies of the best posts, read ahead so they are there when a
+    // post is opened. Queued before the rules, because Post waits on the
+    // replies and not on the rules. A failure here is logged rather than
+    // failing a search that worked, and the button still reads them.
+    try {
+      await queueStrongThreads(keyword.userId, keyword.id, posts, db)
+    } catch (error) {
+      console.error(`Could not queue reply reads after search ${searchId}`, error)
+    }
 
     // The rules of any subreddit these posts came from that has not been
     // read, queued behind this search in the same browser. A failure here is
@@ -225,6 +248,89 @@ async function storeFinds(
   ).length
 
   return { seen: rows.length, new: fresh }
+}
+
+/**
+ * Queues a `thread` job for the Strong fit posts a search just brought back,
+ * best first, at most `MAX_THREADS_PER_SEARCH` of them.
+ *
+ * Left out: a post whose replies are already stored, however old, so a re-run
+ * never reads a thread again; a post already skipped or commented on, which
+ * nobody will write to; and a post with a read already waiting or running,
+ * from the button or an earlier search.
+ *
+ * Returns how many were queued.
+ */
+export async function queueStrongThreads(
+  userId: string,
+  keywordId: string,
+  posts: BrowserPost[],
+  db: CustomShellDb = defaultDb
+): Promise<number> {
+  const redditIds = [...new Set(posts.map((post) => post.redditId))]
+  if (!redditIds.length) return 0
+
+  const unread = await db
+    .select({ id: promoFinds.id, rank: promoFinds.rank })
+    .from(promoFinds)
+    .where(
+      and(
+        eq(promoFinds.userId, userId),
+        eq(promoFinds.keywordId, keywordId),
+        inArray(promoFinds.redditId, redditIds),
+        isNull(promoFinds.thread),
+        inArray(promoFinds.status, ["new", "shortlisted"])
+      )
+    )
+    .orderBy(desc(promoFinds.rank))
+  const strong = unread.filter((find) => fitBand(find.rank) === "strong")
+  if (!strong.length) return 0
+
+  const waiting = await threadsOnTheirWay(
+    userId,
+    strong.map((find) => find.id),
+    db
+  )
+  const due = strong
+    .filter((find) => !waiting.has(find.id))
+    .slice(0, MAX_THREADS_PER_SEARCH)
+  for (const find of due) await queueJob(userId, "thread", { findId: find.id }, db)
+  return due.length
+}
+
+/** The posts among these with a reply read waiting or running. */
+export async function threadsOnTheirWay(
+  userId: string,
+  findIds: string[],
+  db: CustomShellDb = defaultDb
+): Promise<Set<string>> {
+  if (!findIds.length) return new Set()
+  const rows = await db
+    .select({ findId: sql<string>`${promoJobs.payload}->>'findId'` })
+    .from(promoJobs)
+    .where(
+      and(
+        eq(promoJobs.userId, userId),
+        eq(promoJobs.kind, "thread"),
+        inArray(promoJobs.status, ["queued", "running"]),
+        inArray(sql`${promoJobs.payload}->>'findId'`, findIds)
+      )
+    )
+  return new Set(rows.map((row) => row.findId))
+}
+
+/**
+ * Queues a read of one post's replies because a person pressed Read the
+ * replies, unless one is already on its way from an earlier press or from
+ * the read after a search.
+ */
+export async function queueThreadRead(
+  userId: string,
+  findId: string,
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  if ((await threadsOnTheirWay(userId, [findId], db)).has(findId)) return
+  await queueJob(userId, "thread", { findId }, db)
 }
 
 /**

@@ -6,6 +6,7 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { ownedProject } from "./projects"
 import { fitBand, rankReason, type FitBand } from "./reddit/rank"
 import { rulesForSubreddit } from "./reddit/rules"
+import { threadsOnTheirWay } from "./reddit/search"
 import {
   type FindStatus,
 } from "@/lib/social/options"
@@ -358,13 +359,22 @@ export async function loadFindDetail(
     .limit(1)
   if (!find) return null
 
-  const [drafts, rules] = await Promise.all([
+  const [drafts, rules, reading] = await Promise.all([
     db
       .select()
       .from(promoDrafts)
-      .where(and(eq(promoDrafts.userId, userId), eq(promoDrafts.findId, findId)))
+      // A draft answering a reply under a sent comment is that reply's, not
+      // the post's.
+      .where(
+        and(
+          eq(promoDrafts.userId, userId),
+          eq(promoDrafts.findId, findId),
+          eq(promoDrafts.replyToId, "")
+        )
+      )
       .orderBy(desc(promoDrafts.createdAt)),
     rulesForSubreddit(userId, find.subreddit, db),
+    threadsOnTheirWay(userId, [findId], db),
   ])
 
   return {
@@ -381,6 +391,8 @@ export async function loadFindDetail(
     /** Null means the thread has not been read, not that there are no replies. */
     thread: find.thread,
     threadReadAt: find.threadReadAt,
+    /** A read of the replies is waiting or running, from a press or a search. */
+    threadReading: reading.has(findId),
     body: find.thread?.body || find.body,
     /**
      * What a link post points to, and what the page said. `linkPage` is the

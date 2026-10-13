@@ -142,6 +142,18 @@ export function waitingCommentText(runAfter: Date, handle: string | null, now: D
   return `Your comment is waiting for ${who} waking hours and goes ${whenText(runAfter, now)}.`
 }
 
+/** What an answer to a reply waiting for the account's morning says. */
+export function waitingReplyText(runAfter: Date, handle: string | null, now: Date = new Date()): string {
+  const who = handle ? `u/${handle}'s` : "the account's"
+  return `Your answer is waiting for ${who} waking hours and goes ${whenText(runAfter, now)}.`
+}
+
+/** "2 to answer" under a comment's reply count, or null when there are none. */
+export function toAnswerText(count: number | null): string | null {
+  if (!count) return null
+  return `${count} to answer`
+}
+
 /**
  * "today at 14:20", "tomorrow at 8:00", "on Wed 15 Oct at 8:00": a moment in
  * the words a person uses, on the viewer's clock. Given `timeZone`, on that

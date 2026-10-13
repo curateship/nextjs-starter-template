@@ -1,10 +1,11 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { MAX_CHECKS_PER_PRESS } from "@/lib/social/options"
 
 import { nextExampleIds } from "./examples"
 import { queueJob } from "./jobs"
+import { unansweredCounts } from "./replies"
 import { promoComments, promoFinds, promoJobs } from "./schema"
 
 /**
@@ -31,6 +32,11 @@ export type CommentRow = {
   upvotes: number | null
   /** Null until read. Never 0 as a stand-in. */
   replyCount: number | null
+  /**
+   * Replies directly under it that the app has not answered. Null until a
+   * check has read the replies' words.
+   */
+  toAnswer: number | null
   /** Null until read: not read, still there, and gone are three answers. */
   stillVisible: boolean | null
   /** Whose view said whether it is there. Null until read. */
@@ -66,18 +72,28 @@ export async function listSentComments(
       stillVisible: promoComments.stillVisible,
       checkedAs: promoComments.checkedAs,
       checkedAt: promoComments.checkedAt,
+      incomingReplies: promoComments.incomingReplies,
       postTitle: promoFinds.title,
       permalink: promoFinds.permalink,
       subreddit: promoFinds.subreddit,
     })
     .from(promoComments)
     .innerJoin(promoFinds, eq(promoFinds.id, promoComments.findId))
-    .where(and(eq(promoComments.userId, userId), eq(promoComments.status, "posted")))
+    // An answer to a reply is shown under the reply it answers, in its
+    // comment's Replies window, not as a row of its own.
+    .where(
+      and(
+        eq(promoComments.userId, userId),
+        eq(promoComments.status, "posted"),
+        isNull(promoComments.parentId)
+      )
+    )
     .orderBy(desc(promoComments.postedAt))
 
-  const [examples, checks] = await Promise.all([
+  const [examples, checks, unanswered] = await Promise.all([
     nextExampleIds(userId, db),
     latestChecks(userId, db),
+    unansweredCounts(userId, rows, db),
   ])
 
   return rows.map((row) => {
@@ -98,6 +114,7 @@ export async function listSentComments(
       subreddit: row.subreddit,
       upvotes: row.upvotes,
       replyCount: row.replyCount,
+      toAnswer: unanswered.get(row.id) ?? null,
       stillVisible: row.stillVisible,
       checkedAs: row.checkedAs,
       checkedAt: row.checkedAt,

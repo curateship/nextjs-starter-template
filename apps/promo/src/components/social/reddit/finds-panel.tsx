@@ -1,5 +1,5 @@
 import * as React from "react"
-import { BanIcon, Loader2Icon } from "lucide-react"
+import { BanIcon, Loader2Icon, MessageSquareTextIcon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
@@ -323,11 +323,24 @@ export function FindsPanel({
                   <span className="block truncate font-medium" title={find.title}>
                     {find.title}
                   </span>
-                  <span
-                    className="block truncate text-xs text-muted-foreground"
-                    title={find.rankReason}
-                  >
-                    {find.rankReason}
+                  <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                    {/* A quiet mark that the replies are already read, so the
+                        post can be answered with no Read the replies press.
+                        Strong fit posts are read on their own after a search
+                        (`queueStrongThreads`). Here rather than beside the
+                        reply count, which a narrow panel scrolls out of view. */}
+                    {find.threadRead ? (
+                      <MessageSquareTextIcon
+                        className="size-3.5 shrink-0"
+                        role="img"
+                        aria-label="Replies read"
+                      >
+                        <title>Replies read, ready to answer</title>
+                      </MessageSquareTextIcon>
+                    ) : null}
+                    <span className="truncate" title={find.rankReason}>
+                      {find.rankReason}
+                    </span>
                   </span>
                 </TableCell>
                 {everything ? (

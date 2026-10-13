@@ -20,6 +20,7 @@ import {
 } from "@/lib/social/options"
 
 import { exampleComments } from "./examples"
+import { answerableReply } from "./replies"
 import { projectDescription, projectOfFind } from "./projects"
 import { promptRules } from "./reddit/rules"
 import { promoAccounts, promoDrafts, promoFinds } from "./schema"
@@ -227,8 +228,15 @@ export function buildDraftPrompt(input: {
    * been read or there are none, which leaves the prompt as it was.
    */
   subredditRules?: SubredditRule[]
+  /**
+   * Set when answering somebody who replied to a comment I sent: my comment
+   * and their reply. The post's other replies are then left out, because the
+   * conversation is between the two of us.
+   */
+  answering?: Answering | null
   count: number
 }): string {
+  const answering = input.answering ?? null
   const replies = input.replies.slice(0, REPLY_CONTEXT)
   const repliesBlock = replies.length
     ? replies
@@ -238,15 +246,25 @@ export function buildDraftPrompt(input: {
         )
         .join("\n")
     : "(nobody has replied yet)"
+  const subreddit = input.subreddit || "an unnamed subreddit"
 
   return [
-    `You are writing a comment on a Reddit post in r/${input.subreddit || "an unnamed subreddit"}.`,
+    answering
+      ? `You are writing a reply on Reddit, in r/${subreddit}. I left a comment on a post, somebody answered my comment, and I am answering them.`
+      : `You are writing a comment on a Reddit post in r/${subreddit}.`,
     "",
     `POST TITLE: ${input.title}`,
     postBodyBlock(input.body, input.linkPage ?? null),
     "",
-    "REPLIES ALREADY THERE:",
-    repliesBlock,
+    ...(answering
+      ? [
+          "MY COMMENT ON THE POST:",
+          answering.myComment.slice(0, MAX_COMMENT_CHARS),
+          "",
+          `THEIR REPLY TO MY COMMENT, from ${answering.reply.author || "someone"}. This is what I am answering:`,
+          answering.reply.text.slice(0, 2_000),
+        ]
+      : ["REPLIES ALREADY THERE:", repliesBlock]),
     "",
     input.voice ? `HOW I SOUND:\n${input.voice}` : "",
     examplesBlock(input.examples ?? []),
@@ -254,15 +272,19 @@ export function buildDraftPrompt(input: {
     input.commentRules ? `MY RULES:\n${input.commentRules}` : "",
     subredditRulesBlock(input.subreddit, input.subredditRules ?? []),
     "",
-    "Write " + input.count + " different comments I could post.",
+    answering
+      ? "Write " + input.count + " different replies I could post."
+      : "Write " + input.count + " different comments I could post.",
     "",
     "Hard rules:",
-    `- Each comment is under ${MAX_DRAFT_CHARS} characters.`,
-    "- Answer the post. Do not open by restating the question.",
-    !input.body && input.linkPage
+    `- Each ${answering ? "reply" : "comment"} is under ${MAX_DRAFT_CHARS} characters.`,
+    answering
+      ? "- Answer what they said to me. Do not repeat my comment, and do not open by restating their reply."
+      : "- Answer the post. Do not open by restating the question.",
+    !answering && !input.body && input.linkPage
       ? "- The poster shared that page; they did not write it. Talk to the poster about what they shared, not to the page's author, and do not summarise the page back to them."
       : "",
-    "- Do not repeat a point one of the replies above already made.",
+    answering ? "" : "- Do not repeat a point one of the replies above already made.",
     "- Do not mention what I make unless it directly answers what was asked. A comment that reads as an advert gets me banned, which is worse than a comment nobody clicks.",
     input.subredditRules?.length
       ? `- Break none of r/${input.subreddit}'s own rules above. Where they ban self-promotion or links, do not mention what I make and do not link to anything.`
@@ -270,10 +292,16 @@ export function buildDraftPrompt(input: {
     "- No em dashes. No bullet lists. No sign-off. Write the way a person types into a reply box.",
     "- Do not use the words 'delve', 'leverage', 'navigate', 'landscape' or 'game-changer'.",
     "",
-    "Separate the comments with a line containing only ---",
+    `Separate the ${answering ? "replies" : "comments"} with a line containing only ---`,
   ]
     .filter((line) => line !== "")
     .join("\n")
+}
+
+/** My comment and the reply to it that a draft answers. */
+export type Answering = {
+  myComment: string
+  reply: { author: string; text: string }
 }
 
 /**
@@ -380,6 +408,97 @@ export async function draftComments(
     : null
   if (request.accountId && !account) throw new Error("That account is not there any more.")
 
+  return writeDrafts(
+    {
+      userId: request.userId,
+      find,
+      account,
+      provider,
+      model,
+      answering: null,
+      replyToId: "",
+    },
+    db
+  )
+}
+
+export type ReplyDraftRequest = {
+  userId: string
+  /** The app's own sent comment the reply sits under. */
+  commentId: string
+  /** Reddit's id for the reply being answered, from the comment's last check. */
+  replyId: string
+  provider?: string
+  model?: string
+}
+
+/**
+ * Drafts answers to somebody who replied to a comment the app sent, in the
+ * voice of the account that sent the comment, told the post, the comment and
+ * the reply. Stored against the reply, so they never show among the post's
+ * own drafts.
+ */
+export async function draftReplies(
+  request: ReplyDraftRequest,
+  db: CustomShellDb = defaultDb
+): Promise<WrittenDraft[]> {
+  const provider = isAiTextProvider(request.provider)
+    ? request.provider
+    : "anthropic"
+  const model = pickModel(provider, request.model)
+
+  const { comment, reply } = await answerableReply(
+    request.userId,
+    request.commentId,
+    request.replyId,
+    db
+  )
+  const [find] = await db
+    .select()
+    .from(promoFinds)
+    .where(and(eq(promoFinds.id, comment.findId), eq(promoFinds.userId, request.userId)))
+    .limit(1)
+  if (!find) throw new Error("That post is no longer saved.")
+  const [account] = await db
+    .select()
+    .from(promoAccounts)
+    .where(and(eq(promoAccounts.id, comment.accountId), eq(promoAccounts.userId, request.userId)))
+    .limit(1)
+  if (!account) throw new Error("That account is not there any more.")
+
+  return writeDrafts(
+    {
+      userId: request.userId,
+      find,
+      account,
+      provider,
+      model,
+      answering: { myComment: comment.text, reply },
+      replyToId: reply.id,
+    },
+    db
+  )
+}
+
+/**
+ * Asks the model and stores what it wrote. The same for a comment on a post
+ * and for an answer to a reply, apart from the prompt's `answering` and the
+ * reply id the drafts are filed under.
+ */
+async function writeDrafts(
+  input: {
+    userId: string
+    find: typeof promoFinds.$inferSelect
+    account: typeof promoAccounts.$inferSelect | null
+    provider: AiTextProvider
+    model: string
+    answering: Answering | null
+    replyToId: string
+  },
+  db: CustomShellDb
+): Promise<WrittenDraft[]> {
+  const { userId, find, account, provider, model, answering } = input
+
   const key = await getAiKey(provider)
   if (!key) {
     throw new Error(
@@ -389,20 +508,20 @@ export async function draftComments(
 
   // The account's voice, shared with any other account pointed at it. An
   // account with none, or no account yet, drafts plainly.
-  const words = account ? await wordsForAccount(request.userId, account.id, db) : NO_WORDS
+  const words = account ? await wordsForAccount(userId, account.id, db) : NO_WORDS
   // What you make is the account's project's description, never the voice's.
   // An account in no project is told nothing about a product. Before an
   // account is clicked, the post's own project counts.
   const product = await projectDescription(
-    request.userId,
-    account ? account.projectId : await projectOfFind(request.userId, find.id, db),
+    userId,
+    account ? account.projectId : await projectOfFind(userId, find.id, db),
     db
   )
   // The comments this account really sent, as examples of its voice. None
   // before the first one goes out, and the voice box carries it alone.
-  const examples = account ? await exampleComments(request.userId, account.id, db) : []
+  const examples = account ? await exampleComments(userId, account.id, db) : []
   // The rules the subreddit posted, read when its first post turned up.
-  const subredditRules = await promptRules(request.userId, find.subreddit, db)
+  const subredditRules = await promptRules(userId, find.subreddit, db)
   const prompt = buildDraftPrompt({
     subreddit: find.subreddit,
     title: find.title,
@@ -413,6 +532,7 @@ export async function draftComments(
     product,
     examples,
     subredditRules,
+    answering,
     count: DRAFT_COUNT,
   })
 
@@ -420,11 +540,14 @@ export async function draftComments(
 
   const written = await runAiCall<string[]>(
     {
-      userId: request.userId,
+      userId: userId,
       provider,
       model,
-      feature: "reddit-comment",
-      metadata: { findId: find.id, subreddit: find.subreddit },
+      // Answers to replies are their own line on the AI usage screen.
+      feature: answering ? "reddit-reply" : "reddit-comment",
+      metadata: answering
+        ? { findId: find.id, subreddit: find.subreddit, replyId: input.replyToId }
+        : { findId: find.id, subreddit: find.subreddit },
     },
     async () => {
       const response = await fetch(shape.url(model), {
@@ -457,11 +580,12 @@ export async function draftComments(
 
   const rows = written.map((text) => ({
     id: uuid(),
-    userId: request.userId,
+    userId: userId,
     findId: find.id,
     text,
     provider,
     model,
+    replyToId: input.replyToId,
   }))
   await db.insert(promoDrafts).values(rows)
 

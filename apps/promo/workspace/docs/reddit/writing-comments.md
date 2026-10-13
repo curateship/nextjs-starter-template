@@ -179,6 +179,11 @@ the app: it counts against the month's AI allowance, it shows up on the AI usage
 screen under "reddit-comment", and a failure is recorded there too rather than
 disappearing.
 
+Answers to people who replied to a sent comment are drafted the same way, told
+the post, the comment and the reply instead of the post's other replies, and
+metered under "reddit-reply". [Answering replies](answering-replies.md) has
+the rest.
+
 No key saved means the draft button says so and names the screen to fix it on.
 
 ## Why Post is sometimes off
@@ -186,7 +191,9 @@ No key saved means the draft button says so and names the screen to fix it on.
 It is never off without a reason in its tooltip. The reasons:
 
 - **The replies have not been read.** Read them first, so the comment does not
-  repeat one of them.
+  repeat one of them. The best few posts of every search have theirs read
+  ahead, so this mostly applies to Possible and Low fit posts.
+  [Finding posts](finding-posts.md) has how.
 - **No account is clicked.** "Pick an account on the left." A comment always
   goes out from the account clicked on the Projects dashboard, and every reason
   below is about that account.
@@ -208,4 +215,5 @@ Beside Post, always, after who it posts as: "Posts as u/name. 3 comments in the
 last hour, 11 today." Past the number
 in Settings → Behaviour (4 an hour) it turns amber and says "That would be the
 5th comment this hour. New accounts get banned for less." That warning never
-turns Post off. Failed attempts are not counted.
+turns Post off. Failed attempts are not counted. Answers to replies count, because
+they are comments too.

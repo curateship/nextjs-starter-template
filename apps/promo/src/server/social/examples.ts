@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, desc, eq, isNull, sql } from "drizzle-orm"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
@@ -16,7 +16,9 @@ import { promoComments } from "./schema"
  * first.
  *
  * Only comments that landed count. A failed attempt never reached anybody and
- * may never have been finished.
+ * may never have been finished. An answer to a reply does not count either:
+ * it has no row of its own on the Comments screen, so its Voice example
+ * switch could never be turned off.
  */
 
 /** How many examples a prompt carries. */
@@ -42,7 +44,8 @@ export async function exampleComments(
         eq(promoComments.userId, userId),
         eq(promoComments.accountId, accountId),
         eq(promoComments.status, "posted"),
-        eq(promoComments.notExample, false)
+        eq(promoComments.notExample, false),
+        isNull(promoComments.parentId)
       )
     )
     .orderBy(...exampleOrder)
@@ -66,7 +69,8 @@ export async function nextExampleIds(
       and(
         eq(promoComments.userId, userId),
         eq(promoComments.status, "posted"),
-        eq(promoComments.notExample, false)
+        eq(promoComments.notExample, false),
+        isNull(promoComments.parentId)
       )
     )
     .orderBy(...exampleOrder)

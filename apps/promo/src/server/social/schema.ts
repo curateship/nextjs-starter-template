@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   boolean,
   index,
   integer,
@@ -18,6 +19,7 @@ import {
   type FindStatus,
   type ProfileCheck,
   type FindThread,
+  type IncomingReply,
   type LinkPage,
   type JobKind,
   type JobStatus,
@@ -515,6 +517,12 @@ export const promoDrafts = pgTable(
       .$type<DraftStatus>()
       .notNull()
       .default("draft"),
+    /**
+     * The Reddit id of the reply this draft answers, or "" for a draft of a
+     * comment on the post itself, so neither shows in the other's list.
+     * Added by `drizzle/0109_promo_reply_to_a_reply.sql`.
+     */
+    replyToId: varchar("reply_to_id", { length: 20 }).notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -585,6 +593,22 @@ export const promoComments = pgTable(
      * `drizzle/0106_promo_behaviour.sql`.
      */
     visit: jsonb("visit").$type<VisitRecord | null>(),
+    /**
+     * The replies directly under this comment, as the last check read them.
+     * Null until a check has read them, which is not the same as none.
+     * Added by `drizzle/0109_promo_reply_to_a_reply.sql`.
+     */
+    incomingReplies: jsonb("incoming_replies").$type<IncomingReply[] | null>(),
+    /**
+     * Set on a reply the app sent: the app's own comment it sits under, and
+     * the reply it answers as that reply read when the answer was written.
+     * Both null on a comment on the post itself.
+     */
+    parentId: varchar("parent_id", { length: 36 }).references(
+      (): AnyPgColumn => promoComments.id,
+      { onDelete: "cascade" }
+    ),
+    replyTo: jsonb("reply_to").$type<IncomingReply | null>(),
     postedAt: timestamp("posted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -595,6 +619,7 @@ export const promoComments = pgTable(
       table.accountId,
       table.postedAt.desc()
     ),
+    index("ix_promo_comments_parent").on(table.parentId),
   ]
 )
 

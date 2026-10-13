@@ -58,7 +58,7 @@ WORK_TIMEOUT_SECONDS = 90
 # (about two minutes for 900 characters), a little more feed. A warm-up is the
 # same visit without the comment. Both plan to finish by 800 seconds. The app
 # waits a little longer than this.
-ROUTINE_TIMEOUT_SECONDS = {"reddit.comment": 900, "reddit.warm_up": 900}
+ROUTINE_TIMEOUT_SECONDS = {"reddit.comment": 900, "reddit.reply": 900, "reddit.warm_up": 900}
 
 work = queue.Queue()
 
