@@ -191,6 +191,33 @@ export type HeaderBell = { unseen: number; live: boolean }
 const sidebarRowClass =
   "flex min-h-11 w-full shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap rounded-full px-3.5 text-[14.5px] font-semibold text-muted-foreground transition-colors hover:bg-[rgba(var(--p-fg-rgb),0.07)] hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
 
+/**
+ * Below `lg` (1024px) the left menu is a drawer: off the left edge of the
+ * screen until the menu button opens it. The same line as Tailwind's `max-lg:`
+ * classes on the `<aside>`, so the keyboard rules below switch exactly where
+ * the drawer starts.
+ */
+const DRAWER_QUERY = "(max-width: 1023.98px)"
+
+function subscribeToDrawerWidth(onChange: () => void) {
+  const media = window.matchMedia(DRAWER_QUERY)
+  media.addEventListener("change", onChange)
+  return () => media.removeEventListener("change", onChange)
+}
+
+/**
+ * Whether the window is narrow enough for the drawer. The server has no
+ * window, so it answers "wide": nothing is made unreachable in the first
+ * frame, and the browser corrects it as soon as it hydrates.
+ */
+function useMenuIsDrawer() {
+  return React.useSyncExternalStore(
+    subscribeToDrawerWidth,
+    () => window.matchMedia(DRAWER_QUERY).matches,
+    () => false
+  )
+}
+
 export function PomodoroShell({
   user,
   accountMenu,
@@ -208,6 +235,47 @@ export function PomodoroShell({
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [collapsed, setCollapsed] = React.useState(false)
+  const menuIsDrawer = useMenuIsDrawer()
+  const drawerOpen = menuIsDrawer && menuOpen
+  const menuButtonRef = React.useRef<HTMLButtonElement>(null)
+  const closeButtonRef = React.useRef<HTMLButtonElement>(null)
+
+  const returnFocusRef = React.useRef(false)
+
+  /**
+   * Closes the drawer and puts focus back on the button that opened it. The
+   * focus waits for the next render, because the menu button sits in the page
+   * that is `inert` while the drawer is open and cannot take focus until then.
+   */
+  const closeMenu = React.useCallback(() => {
+    returnFocusRef.current = true
+    setMenuOpen(false)
+  }, [])
+
+  // Opening the drawer moves focus into it, onto its close button, so the next
+  // Tab lands on Dashboard and Escape is one key away. Escape closes it.
+  React.useEffect(() => {
+    if (!drawerOpen) {
+      if (returnFocusRef.current) menuButtonRef.current?.focus()
+      returnFocusRef.current = false
+      return
+    }
+    closeButtonRef.current?.focus()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) closeMenu()
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [drawerOpen, closeMenu])
+
+  // A drawer left open while the window widens past 1024px would come back
+  // open on the next narrowing, so widening closes it. Set while rendering,
+  // React's way of resetting state when something it reads changes.
+  const [wasDrawer, setWasDrawer] = React.useState(menuIsDrawer)
+  if (wasDrawer !== menuIsDrawer) {
+    setWasDrawer(menuIsDrawer)
+    if (!menuIsDrawer) setMenuOpen(false)
+  }
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { background, fallBackToDefault } = useShownBackground({ seed: media })
   // A guest's timer starts where an admin set new accounts to start, read
@@ -263,7 +331,11 @@ export function PomodoroShell({
     // mode and the Sounds and Backgrounds pages start from it too.
     <MediaBootstrapContext.Provider value={media}>
     <div data-pomodoro-screen className="flex min-h-screen bg-background">
+      {/* Closed in a narrow window, the drawer is only moved off screen, so
+          `inert` takes its links out of the Tab order and away from screen
+          readers. Never at desktop width, where the menu is always shown. */}
       <aside
+        inert={menuIsDrawer && !menuOpen}
         className={cn(
           "fixed inset-y-0 left-0 z-40 flex h-screen w-56 shrink-0 flex-col gap-1.5 overflow-hidden border-r bg-[rgba(var(--p-canvas-rgb),0.35)] px-3.5 py-[22px] backdrop-blur-[14px] transition-[width] duration-300 max-lg:-translate-x-full max-lg:bg-[var(--p-canvas)] max-lg:transition-transform",
           collapsed && "lg:w-[76px]",
@@ -284,7 +356,8 @@ export function PomodoroShell({
           variant="ghost"
           size="icon-sm"
           className="absolute right-3.5 top-6 lg:hidden"
-          onClick={() => setMenuOpen(false)}
+          ref={closeButtonRef}
+          onClick={closeMenu}
           aria-label="Close menu"
         >
           <XIcon aria-hidden="true" />
@@ -325,11 +398,15 @@ export function PomodoroShell({
         <button
           className="fixed inset-0 z-30 bg-black/40 lg:hidden"
           aria-label="Close menu"
-          onClick={() => setMenuOpen(false)}
+          tabIndex={-1}
+          onClick={closeMenu}
         />
       ) : null}
 
+      {/* While the drawer is open the page behind the dark overlay is out of
+          reach, so Tab stays inside the menu instead of wandering under it. */}
       <div
+        inert={drawerOpen}
         className={cn(
           "min-h-screen w-full transition-[padding] duration-300 lg:pl-56",
           collapsed && "lg:pl-[76px]"
@@ -376,6 +453,8 @@ export function PomodoroShell({
                 hamburger icon so that it matches with the other buttons". */}
             <button
               type="button"
+              ref={menuButtonRef}
+              aria-expanded={drawerOpen}
               className={cn(
                 "grid size-9 shrink-0 place-items-center text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none lg:hidden",
                 quickPillSurfaceClass,

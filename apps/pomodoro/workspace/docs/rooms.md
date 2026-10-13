@@ -203,6 +203,11 @@ room"".
   each counting down every second; then the faces of up to three people
   inside and "3 in the room"; then "Next: 25 min focus" beside a black Join
   pill. The dot on the host's picture is green or amber to match.
+- **"On break" has its own warning colour, `--p-warning` in `theme.css`.**
+  Light mode uses a dark amber (#b45309), which reads at 4.9 to 1 on the
+  card. Dark mode keeps the old bright amber (#fbbf24), so it looks as it
+  always did. The old fixed bright amber read at 1.6 to 1 on a light card,
+  which was close to invisible.
 - **A head count is always "N in the room".** The card, your room's column on
   `/rooms`, the invite page and the chat's "In the room · N" all use the same
   words. The cards only list rooms that are waiting or on a break, so they never

@@ -146,6 +146,20 @@ fill, blur and hover as the bell and the pills. Tyler, 10 Oct 2026: "add a
 background to the hamburger icon so that it matches with the other buttons on
 the menu". It shows below 1024px, where the left menu becomes a drawer.
 
+**The closed drawer is out of the keyboard's way.** Below 1024px the closed
+left menu only slides off the left edge, so it is also marked `inert`: Tab
+skips its links and screen readers do not read them. At 1024px and up the
+menu is always shown and is never marked, so the desktop is unchanged
+(`useMenuIsDrawer` in `pomodoro-shell.tsx`, the same line as the `max-lg:`
+classes).
+
+**The open drawer holds the keyboard.** Opening it moves focus onto its close
+button, so the next Tab lands on Dashboard. The page behind the dark overlay
+is `inert` while the drawer is open, so Tab cannot wander under it. Escape,
+the close button and a tap on the overlay all close it and put focus back on
+the menu button. Picking a link closes it too and goes to that page. Widening
+the window past 1024px closes it, so it never comes back open on its own.
+
 **The bell's count is solid red with a white number**, red-600 so the white
 reads at 4.8 to 1, in both colour modes. The shell's own badge is a faint red
 tint with red text, which disappeared over a photo. Tyler, 10 Oct 2026: "the

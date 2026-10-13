@@ -362,7 +362,7 @@ export function OpenRoomCard({
             aria-hidden="true"
             className={cn(
               "absolute -right-0.5 -bottom-0.5 size-3.5 rounded-full border-2 border-[var(--p-surface)]",
-              onBreak ? "bg-amber-400" : "bg-[var(--p-success)]"
+              onBreak ? "bg-[var(--p-warning)]" : "bg-[var(--p-success)]"
             )}
           />
         </span>
@@ -379,7 +379,7 @@ export function OpenRoomCard({
         <p
           className={cn(
             "font-mono text-sm",
-            onBreak ? "text-amber-400" : "text-[var(--p-success)]"
+            onBreak ? "text-[var(--p-warning)]" : "text-[var(--p-success)]"
           )}
         >
           {onBreak ? (

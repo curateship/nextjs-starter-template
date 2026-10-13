@@ -54,6 +54,9 @@ html:root:has([data-pomodoro-screen]) {
   --p-accent-2: #cc4225;
   --p-on-accent: #ffffff;
   --p-success: #12a150;
+  /* "On break" on a room card. Amber-700, because amber-400 on this paper
+     reads at 1.6 to 1; this one reads at 4.9 to 1. */
+  --p-warning: #b45309;
   --p-danger: #c23b32;
   --p-track: #d7cfc3;
   /* A sound's waveform card (sound-wave.tsx): red into amber on a panel. */
@@ -197,6 +200,7 @@ html:root.dark:has([data-pomodoro-screen]) {
   --p-accent-2: #ff7a5c;
   --p-on-accent: #ffffff;
   --p-success: #4ade80;
+  --p-warning: #fbbf24;
   --p-danger: #fca5a5;
   --p-track: #303037;
   --p-wave-from: #ff3b3b;
