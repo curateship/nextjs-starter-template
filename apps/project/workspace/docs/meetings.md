@@ -59,8 +59,12 @@ page.
 - **Under the calendar**, the chosen day ("Mon, Oct 12", written the same as
   in the Check-ins tab) and how many
   meetings it has, then one row per meeting: the time, the name, the service,
-  how it repeats ("Every Monday") and the people's photos. Clicking the row
-  opens the video link in a new tab.
+  how many are going ("3 going", left out while nobody is), how it repeats
+  ("Every Monday") and the people's photos.
+- **Clicking the row opens the meeting's window** for that date (see The
+  meeting's window below). **Join** beside it opens the video link in a new
+  tab in one click; on a phone it is the link icon alone. The cog changes the
+  meeting, for those who may. Tyler chose this on 12 Oct 2026.
 
 ## The week view
 
@@ -79,7 +83,7 @@ So a busy week of meetings can be read.
   starts on, the same day the month view puts it on.
 - **Clicking a day, or a meeting on it,** picks that day: its check-ins show
   on the right and its meetings under the calendar, where the row opens the
-  video link and the cog changes the meeting.
+  meeting's window.
 - **The arrows step one week**, Today comes back to this week, and moving
   into another month loads that month.
 - **On a phone** the seven days stack as a list, each with its meetings and
@@ -88,6 +92,76 @@ So a busy week of meetings can be read.
   and slot sums in `src/lib/project/week-view.ts`. The month's counts cover
   its whole grid, Monday before the 1st to Sunday after the last, so a week
   that runs into the next month still has its numbers.
+
+## The meeting's window
+
+Everyone on the team opens it, invited or not. It shows one date of the
+meeting: the date and time in the viewer's own time, and how it repeats.
+Three cards:
+
+- **Joining.** Where the times are set, "Join on Google Meet" when there is a
+  link, and Add to my calendar.
+- **Who's coming.** Each invited person with Going, Not going or "No answer
+  yet", and the count in the card's title.
+- **Notes.** That date's notes.
+
+The footer has **Change meeting** for the maker, the owner and admins, which
+closes this window and opens the one that changes the meeting, and Done.
+
+### Add to my calendar
+
+- **It downloads a calendar file** (`weekly-client-call.ics`), which Google
+  Calendar, Outlook and Apple Calendar all open. It holds the name, the first
+  day, the start and end, the time zone, the repeat and the video link.
+- **The times are written in the meeting's own zone, with that zone's clock
+  changes.** So the calendar shows the meeting in each person's own time, and
+  "Mondays at 10:00" in Toronto stays 10:00 in Toronto after the clocks
+  change, the same as on the Team dashboard.
+- **It's a one-off copy.** A meeting changed later in Project doesn't change
+  in anyone's calendar, and the window says to add it again. The copy has the
+  meeting's own id, so a calendar that knows it may replace the old one.
+- **The file is made in the browser** from what the page already holds; the
+  server isn't asked (`src/lib/project/meeting-calendar-file.ts`).
+
+### Going or Not going
+
+- **Each invited person answers** with the Going and Not going buttons. The
+  one picked is drawn filled and is pressed for a screen reader too.
+- **One answer covers every time the meeting repeats.** Answering one date of
+  a repeating meeting is left out.
+- **Nobody is told about an answer.** Tyler's choice on 12 Oct 2026: the maker
+  reads them here and on the row.
+- **Someone taken off the meeting loses their answer.** Added back, they start
+  with no answer. Someone not invited, or on another team, is refused.
+
+### Notes, and making tasks from them
+
+- **Notes are kept per date.** A weekly meeting has a fresh page each Monday.
+  The date is the one in the meeting's own calendar, so someone in Tokyo
+  reading Tuesday's 8:30 AM sees the same notes as Toronto's Monday.
+- **Everyone on the team reads them. Only the maker, the owner and admins
+  write them**, the same people who can change the meeting. The server
+  refuses anyone else, and a date the meeting doesn't fall on.
+- **The editor is the one task notes use**: select words for bold, a list or
+  a link. Notes save when the editor is left and when Done is pressed. "Last
+  changed by Maya, 2h ago" sits under them.
+- **Each line gets Make a task**, for those who write the notes, once Done is
+  pressed. A line is a paragraph, a heading, each item of a list, or each
+  paragraph of a quote. On a screen with a mouse the button shows on hover or
+  focus; on a phone it is always there.
+- **Make a task closes the meeting and opens New task** with the line as its
+  title, so the person picks the project, the person and the date. Windows
+  never stack. Creating it, or Cancel, opens the meeting again.
+- **The made line becomes a link to the task**, with "Task made" beside it,
+  and keeps its words: meeting notes record what was said, so a renamed task
+  doesn't rewrite them. Someone who can't see the task's project reads the
+  words without the link. A line already made into a task offers no Make a
+  task.
+- **A line changed by someone else meanwhile is never linked.** The server
+  checks the line still has the words the person saw. If it doesn't, the task
+  is still made and the person is told the line wasn't linked.
+- **A task made from notes follows the project's rules**, so it can only go
+  to someone on that project.
 
 ## Time zones
 
@@ -113,20 +187,29 @@ So a busy week of meetings can be read.
 
 ## Not part of this
 
-Syncing with Google Calendar or Outlook, making the video room, recording, and
-notes from the meeting.
+Syncing with Google Calendar or Outlook (Add to my calendar is a one-off
+copy), reminders before a meeting, answering one date of a repeating meeting,
+making the video room and recording.
 
 ## Where it lives
 
 - **Tables:** `project_meetings` and `project_meeting_people` in
-  `drizzle/0105_project_team_dashboard.sql`.
+  `drizzle/0105_project_team_dashboard.sql`; `project_meeting_answers` and
+  `project_meeting_notes` (one row per meeting and date) in
+  `drizzle/0112_project_meetings_and_notices.sql`.
 - **Rules:** `src/server/project/meetings.ts`. The repeat days, service names,
   chip colours and the month grid are in `src/lib/project/meetings.ts`, used
   by the server and the screen alike.
 - **Endpoints:** `src/lib/api/project/meetings.ts`.
-- **Screens:** `src/components/project/meeting-dialog.tsx` and
-  `src/components/project/team-meetings.tsx`, inside the calendar panel of
-  `src/components/project/team-dashboard.tsx`.
+- **Screens:** `src/components/project/meeting-dialog.tsx` (new and
+  change), `src/components/project/meeting-window.tsx` (the meeting's window)
+  and `src/components/project/team-meetings.tsx`, inside the calendar panel of
+  `src/components/project/team-dashboard.tsx`, which also runs Make a task.
+- **Notes as lines:** `src/lib/project/meeting-notes.ts`, used by the server
+  and the window alike.
+- **The calendar file:** `src/lib/project/meeting-calendar-file.ts`, tested in
+  `meeting-calendar-file.test.ts`.
 - **Sample data:** `scripts/project-sample-data.mjs` adds Weekly planning,
   Design review, Sprint retro, a 1:1 and an All-hands.
-- **Tests:** `src/server/project/team-dashboard.test.ts`.
+- **Tests:** `src/server/project/team-dashboard.test.ts` and
+  `src/server/project/meetings-and-notices.test.ts`.

@@ -39,8 +39,16 @@ off doesn't load again.
   day) and a bin button that asks before taking one off. See Time off in
   [The morning check-in](morning-check-in.md#time-off).
 - **My check-in time**: my own time and time zone, saved on change.
-- **Job title** and **My check-in time** each say Saving…, then Saved or Not
-  saved, beside the field. See
+- **My notices**: a switch for each kind of bell notice, grouped under
+  Tasks, Dates and The team. A switch saves the moment it flips, and a
+  refused save flips it back. A kind switched off is never sent to me, and
+  everyone else still gets theirs. "Time to check in", my own reminders and
+  tags always arrive, so they aren't listed. **Only I see or change mine.**
+  The rules are in
+  [Projects and tasks](projects-and-tasks.md#switching-a-kind-off)
+  (`my-notice-switches.tsx`).
+- **Job title**, **My check-in time** and **My notices** each say Saving…,
+  then Saved or Not saved, beside the field. See
   [Fields that save themselves](fields-that-save-themselves.md).
 
 ## Middle: my tasks

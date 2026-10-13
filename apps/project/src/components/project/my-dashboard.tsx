@@ -15,6 +15,7 @@ import { CheckinDialog, StatusLine } from "@/components/project/checkin-dialog"
 import { CheckoutDialog } from "@/components/project/checkout-dialog"
 import { MyWeekSection } from "@/components/project/my-week-card"
 import { MyCheckinTime } from "@/components/project/my-checkin-time"
+import { MyNoticeSwitches } from "@/components/project/my-notice-switches"
 import { SaveLine } from "@/components/project/save-line"
 import { SavedViewsControls } from "@/components/project/saved-views"
 import { PersonAvatar } from "@/components/project/task-bits"
@@ -51,7 +52,7 @@ import { notificationAction } from "@/lib/notification-action"
 import { MY_DASHBOARD_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { clockIn } from "@/lib/project/days"
-import { LIMITS, TEAM_ROLE_LABEL } from "@/lib/project/rules"
+import { LIMITS, TEAM_ROLE_LABEL, runsTheTeam } from "@/lib/project/rules"
 import {
   DUE_GROUPS,
   dueGroupOf,
@@ -247,6 +248,8 @@ function MePanel({
           </section>
           <Separator />
           <MyCheckinTime clock={checkin.clock} />
+          <Separator />
+          <MyNoticeSwitches off={dashboard.noticesOff} runsTheTeam={runsTheTeam(me.role)} />
         </div>
       </ScrollArea>
     </>

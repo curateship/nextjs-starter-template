@@ -2,18 +2,30 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { isRealDay } from "@/lib/project/days"
-import { meetingSchema, updateMeetingSchema } from "@/lib/project/rules"
+import {
+  meetingAnswerSchema,
+  meetingDaySchema,
+  meetingNoteLineSchema,
+  meetingNotesSchema,
+  meetingSchema,
+  updateMeetingSchema,
+} from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
 import { findMembership } from "@/server/project/access"
 import {
+  answerMeeting,
   createMeeting,
   deleteMeeting,
+  linkMeetingNoteLine,
+  loadMeetingNotes,
   loadTeamMeetings,
+  saveMeetingNotes,
   updateMeeting,
 } from "@/server/project/meetings"
 
 export type {
   Meeting,
+  MeetingNotes,
   MeetingOccurrence,
   MeetingPerson,
   TeamMeetings,
@@ -47,6 +59,26 @@ const deleteMeetingFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ meetingId: id }))
   .handler(async ({ data, context }) => deleteMeeting(context.user.id, data.meetingId))
 
+const answerMeetingFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(meetingAnswerSchema)
+  .handler(async ({ data, context }) => answerMeeting(context.user.id, data))
+
+const loadMeetingNotesFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(meetingDaySchema)
+  .handler(async ({ data, context }) => loadMeetingNotes(context.user.id, data))
+
+const saveMeetingNotesFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(meetingNotesSchema)
+  .handler(async ({ data, context }) => saveMeetingNotes(context.user, data))
+
+const linkMeetingNoteLineFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(meetingNoteLineSchema)
+  .handler(async ({ data, context }) => linkMeetingNoteLine(context.user, data))
+
 export function loadMeetings(data: { month?: string; day?: string }) {
   return loadTeamMeetingsFn({ data })
 }
@@ -58,4 +90,16 @@ export function changeMeeting(data: z.input<typeof updateMeetingSchema>) {
 }
 export function removeMeeting(meetingId: string) {
   return deleteMeetingFn({ data: { meetingId } })
+}
+export function answerTheMeeting(data: z.input<typeof meetingAnswerSchema>) {
+  return answerMeetingFn({ data })
+}
+export function loadNotesOfMeeting(data: z.input<typeof meetingDaySchema>) {
+  return loadMeetingNotesFn({ data })
+}
+export function saveNotesOfMeeting(data: z.input<typeof meetingNotesSchema>) {
+  return saveMeetingNotesFn({ data })
+}
+export function linkNoteLineToTask(data: z.input<typeof meetingNoteLineSchema>) {
+  return linkMeetingNoteLineFn({ data })
 }

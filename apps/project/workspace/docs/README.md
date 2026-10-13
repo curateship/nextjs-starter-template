@@ -12,6 +12,6 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [Labels and sections](labels-and-sections.md): the team's labels, a project's own sections, how they differ, and the order everyone on a project shares.
 - [Task types](task-types.md): the team's own kinds of task, their fields, what must be filled before Done or when made, who can change a field, fields shown only when a dropdown says so, starting steps, which types a project offers, and the Type filter with field columns.
 - [Repeating tasks](repeating-tasks.md): tasks that come back every work day, week, 2 weeks, month, 3 months or last work day of the month, and why a copy waits for the last one to be Done.
-- [Meetings](meetings.md): meetings on the Team dashboard's calendar, who can change them, repeats, the bell notice, the week view, and times in each person's own zone.
+- [Meetings](meetings.md): meetings on the Team dashboard's calendar, who can change them, repeats, the bell notice, the week view, times in each person's own zone, and the meeting's window: Add to my calendar, Going or Not going, and notes per date whose lines become tasks.
 - [Needs attention and workload](needs-attention.md): the Team dashboard's tabs listing tasks that need help and each person's open work.
 - [Fields that save themselves](fields-that-save-themselves.md): the one Saving…, Saved or Not saved sign on job titles, check-in times, Team settings and check-in notes.

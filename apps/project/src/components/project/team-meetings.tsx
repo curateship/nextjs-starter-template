@@ -35,14 +35,16 @@ export function MeetingChips({ meetings }: { meetings: DayMeeting[] }) {
 
 /**
  * Under the calendar: the chosen day's meetings, one row each with its time,
- * name, where it happens and who is coming. The row opens the video link in
- * a new tab, and its cog opens the meeting for whoever may change it.
+ * name, where it happens and who is coming. The row opens the meeting's
+ * window for that date, Join opens the video link in a new tab, and the cog
+ * changes the meeting for whoever may (Tyler's choice, 12 Oct 2026).
  */
 export function DayMeetings({
   day,
   holiday,
   meetings,
   viewerZone,
+  onOpen,
   onEdit,
 }: {
   day: string
@@ -50,6 +52,7 @@ export function DayMeetings({
   holiday?: string
   meetings: DayMeeting[]
   viewerZone: string
+  onOpen: (meeting: Meeting, occurrence: MeetingOccurrence) => void
   onEdit: (meeting: Meeting) => void
 }) {
   return (
@@ -73,6 +76,7 @@ export function DayMeetings({
               occurrence={occurrence}
               meeting={meeting}
               viewerZone={viewerZone}
+              onOpen={() => onOpen(meeting, occurrence)}
               onEdit={() => onEdit(meeting)}
             />
           ))}
@@ -86,17 +90,21 @@ function MeetingRow({
   occurrence,
   meeting,
   viewerZone,
+  onOpen,
   onEdit,
 }: {
   occurrence: MeetingOccurrence
   meeting: Meeting
   viewerZone: string
+  onOpen: () => void
   onEdit: () => void
 }) {
   const time = timeRangeLabel(occurrence.startsAt, occurrence.endsAt, viewerZone)
   const otherZone = viewerZone !== meeting.timeZone
+  const going = meeting.people.filter((person) => person.answer === "going").length
   const details = [
     meeting.service ?? "No video link",
+    going ? `${going} going` : null,
     repeatWords(meeting.day, meeting.repeatEvery),
     otherZone ? `your time, ${viewerZone.replaceAll("_", " ")}` : null,
   ].filter(Boolean)
@@ -107,12 +115,7 @@ function MeetingRow({
       <span className="grid min-w-0 flex-1 gap-0.5 sm:flex sm:items-center sm:gap-4">
         <span className="shrink-0 text-sm tabular-nums sm:w-36">{time}</span>
         <span className="grid min-w-0">
-          <span className="flex min-w-0 items-center gap-1.5 font-medium">
-            <span className="truncate">{meeting.title}</span>
-            {meeting.videoUrl ? (
-              <ExternalLinkIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-            ) : null}
-          </span>
+          <span className="truncate font-medium">{meeting.title}</span>
           <span className="truncate text-xs text-muted-foreground">{details.join(" · ")}</span>
         </span>
       </span>
@@ -121,19 +124,28 @@ function MeetingRow({
 
   return (
     <li className="flex items-center gap-2 rounded-lg border pr-2">
+      <button
+        type="button"
+        aria-label={`${meeting.title}, ${time}, ${details.join(", ")}. Open the meeting`}
+        onClick={onOpen}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-l-lg p-3 text-left hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        {body}
+      </button>
       {meeting.videoUrl ? (
-        <a
-          href={meeting.videoUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`${meeting.title}, ${time}. Join on ${meeting.service ?? "the video link"} (opens in a new tab)`}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-l-lg p-3 hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        >
-          {body}
-        </a>
-      ) : (
-        <div className="flex min-w-0 flex-1 items-center gap-3 p-3">{body}</div>
-      )}
+        // Words from 640px up; on a phone the row needs the room.
+        <Button asChild variant="outline" className="max-sm:size-8 max-sm:px-0">
+          <a
+            href={meeting.videoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Join ${meeting.title} on ${meeting.service ?? "the video link"} (opens in a new tab)`}
+          >
+            <ExternalLinkIcon className="size-4" />
+            <span className="max-sm:hidden">Join</span>
+          </a>
+        </Button>
+      ) : null}
       <PeopleStack people={meeting.people} />
       {meeting.canEdit ? (
         <Button type="button" variant="ghost" size="icon" aria-label={`Change ${meeting.title}`} onClick={onEdit}>
@@ -153,7 +165,7 @@ function PeopleStack({ people }: { people: MeetingPerson[] }) {
   return (
     <span
       role="img"
-      aria-label={`Coming: ${people.map((person) => person.name).join(", ")}`}
+      aria-label={`Invited: ${people.map((person) => person.name).join(", ")}`}
       title={people.map((person) => person.name).join(", ")}
       className="flex shrink-0 items-center -space-x-1"
     >

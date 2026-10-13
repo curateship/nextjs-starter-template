@@ -18,6 +18,8 @@ import {
 import { BlockerReplies } from "@/components/project/blocker-replies"
 import { InviteDialog } from "@/components/project/invite-dialog"
 import { MeetingDialog } from "@/components/project/meeting-dialog"
+import { MeetingWindow, type NoteLineToMake } from "@/components/project/meeting-window"
+import { NewTaskDialog } from "@/components/project/new-task-dialog"
 import { DayNumber, MonthGrid } from "@/components/project/month-grid"
 import { TeamActivity } from "@/components/project/project-activity"
 import { AnnouncementCard, AnnouncementDialog } from "@/components/project/team-announcement"
@@ -49,15 +51,20 @@ import type {
   TeamDayTask,
   TeamMonth,
 } from "@/lib/api/project/checkins"
-import type { Meeting, TeamMeetings } from "@/lib/api/project/meetings"
+import { linkNoteLineToTask, type Meeting, type MeetingOccurrence, type TeamMeetings } from "@/lib/api/project/meetings"
+import { loadNewTaskProjects, type NewTaskProject } from "@/lib/api/project/tasks"
 import type {
   InviteForMe,
   TeamDashboard as TeamDashboardData,
   TeamFigures,
 } from "@/lib/api/project/teams"
 import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { addDays, clockIn, clockLabel, dayLabel, longDayLabel, shortDayLabel, zoneCity } from "@/lib/project/days"
+import { getProjectErrorMessage } from "@/lib/project/errors"
 import { dayCellClassName, meetingWords, meetingsByDay, monthGrid, nextMeetingColor } from "@/lib/project/meetings"
+import { lastProject, rememberProject } from "@/lib/project/new-task-project"
+import type { TaskType } from "@/lib/project/task-types"
 import {
   TEAM_CALENDAR_VIEW_KEY,
   TEAM_MIDDLE_TAB_KEY,
@@ -66,6 +73,7 @@ import {
 } from "@/lib/project/panel-keys"
 import { weekDays } from "@/lib/project/week-view"
 import { useRememberedChoice } from "@/lib/remembered-choice"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { TEAM_ROLE_LABEL, WEEK_DAYS, runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
 
@@ -379,6 +387,7 @@ function CalendarPanel({
     setTarget(next === "new" ? null : next)
     setWindowOpen(true)
   }
+  const opened = useOpenedMeeting(meetings)
 
   return (
     <>
@@ -547,6 +556,7 @@ function CalendarPanel({
               holiday={holidayOf.get(selected)}
               meetings={meetingDays.get(selected) ?? []}
               viewerZone={meetings.viewerZone}
+              onOpen={opened.open}
               onEdit={edit}
             />
           </ScrollArea>
@@ -567,8 +577,113 @@ function CalendarPanel({
         teamZone={meetings.teamZone}
         onClose={() => setWindowOpen(false)}
       />
+      {opened.shown ? (
+        <MeetingWindow
+          open={opened.isOpen}
+          meeting={opened.shown.meeting}
+          occurrence={opened.shown.occurrence}
+          viewerZone={meetings.viewerZone}
+          myUserId={data.myUserId}
+          onClose={opened.close}
+          onChange={(meeting) => {
+            opened.close()
+            edit(meeting)
+          }}
+          onMakeTask={opened.makeTask}
+        />
+      ) : null}
+      {opened.making ? (
+        <NewTaskDialog
+          projects={opened.making.projects}
+          types={opened.making.types}
+          initialProjectId={opened.making.initialProjectId}
+          initialTitle={opened.making.line.text}
+          open={opened.making.open}
+          onClose={opened.taskClosed}
+          onCreated={opened.taskMade}
+        />
+      ) : null}
     </>
   )
+}
+
+type Making = {
+  line: NoteLineToMake
+  projects: NewTaskProject[]
+  types: TaskType[]
+  initialProjectId: string
+  open: boolean
+}
+
+/**
+ * The meeting window open over the calendar, and Make a task from its notes.
+ * Windows never stack, so Make a task closes the meeting, opens New task with
+ * the line as its title, links the line to the task once it is made, and
+ * opens the meeting again either way.
+ */
+function useOpenedMeeting(meetings: TeamMeetings) {
+  // Ids, so the window always shows the meeting as last loaded. It stays set
+  // while the window closes, so it doesn't change under its closing animation.
+  const [target, setTarget] = React.useState<{ meetingId: string; startsAt: string } | null>(null)
+  const [isOpen, setIsOpen] = React.useState(false)
+  const [making, setMaking] = React.useState<Making | null>(null)
+  const linking = React.useRef<Promise<unknown> | null>(null)
+  const [run] = useAsyncAction(getProjectErrorMessage)
+
+  const meeting = meetings.meetings.find((m) => m.id === target?.meetingId)
+  const occurrence = meetings.occurrences.find(
+    (o) => o.meetingId === target?.meetingId && o.startsAt === target?.startsAt
+  )
+  const shown = meeting && occurrence ? { meeting, occurrence } : null
+
+  async function makeTask(line: NoteLineToMake) {
+    let loaded: Awaited<ReturnType<typeof loadNewTaskProjects>>
+    try {
+      loaded = await loadNewTaskProjects()
+    } catch (error) {
+      showErrorToast(getProjectErrorMessage(error))
+      return
+    }
+    const { projects, types } = loaded
+    if (projects.length === 0) {
+      showErrorToast("There's no open project to put a task in yet. Make a project first.")
+      return
+    }
+    const remembered = lastProject()
+    setIsOpen(false)
+    setMaking({
+      line,
+      projects,
+      types,
+      initialProjectId: projects.find((p) => p.id === remembered)?.id ?? projects[0].id,
+      open: true,
+    })
+  }
+
+  return {
+    shown,
+    isOpen: isOpen && Boolean(shown),
+    making,
+    open: (next: Meeting, at: MeetingOccurrence) => {
+      setTarget({ meetingId: next.id, startsAt: at.startsAt })
+      setIsOpen(true)
+    },
+    close: () => setIsOpen(false),
+    makeTask: (line: NoteLineToMake) => void makeTask(line),
+    taskMade: (projectId: string, taskId: string | null) => {
+      rememberProject(projectId)
+      if (taskId && making) {
+        linking.current = run(() => linkNoteLineToTask({ ...making.line, taskId }))
+      }
+    },
+    taskClosed: () => {
+      setMaking((current) => (current ? { ...current, open: false } : null))
+      // Back to the meeting once the line is linked, so its notes show the link.
+      const pending = linking.current ?? Promise.resolve()
+      linking.current = null
+      void pending.then(() => setIsOpen(true))
+    },
+  }
 }
 
 const RIGHT_TABS = ["checkins", "workload", "attention"] as const

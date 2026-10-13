@@ -311,6 +311,10 @@ export type RepeatEvery = (typeof REPEAT_EVERY)[number]
 export const MEETING_REPEATS = ["week", "two_weeks"] as const
 export type MeetingRepeat = (typeof MEETING_REPEATS)[number]
 
+/** An invited person's answer to a meeting. It holds for every time the meeting repeats. */
+export const MEETING_ANSWERS = ["going", "not_going"] as const
+export type MeetingAnswer = (typeof MEETING_ANSWERS)[number]
+
 /** A deleted task waits in its project's bin this long before it is gone for good. */
 export const BIN_DAYS = 30
 
@@ -730,6 +734,20 @@ export const meetingSchema = z
   })
 
 export const updateMeetingSchema = z.object({ meetingId: id, meeting: meetingSchema })
+
+export const meetingAnswerSchema = z.object({ meetingId: id, answer: z.enum(MEETING_ANSWERS) })
+
+/** One date a meeting falls on, in the meeting's own calendar. */
+export const meetingDaySchema = z.object({ meetingId: id, day: z.string().refine(isRealDay, "Pick the meeting's day.") })
+
+export const meetingNotesSchema = meetingDaySchema.extend({ notes: notesSchema })
+
+/** A line of a date's notes, where it sits and its words, and the task made from it. */
+export const meetingNoteLineSchema = meetingDaySchema.extend({
+  path: z.array(z.number().int().min(0).max(10_000)).min(1).max(3),
+  text: z.string().max(LIMITS.taskNotes),
+  taskId: id,
+})
 
 /** The team photo's address from the media library, or "" to take it away. */
 export const teamPhotoSchema = z.object({ photoUrl: z.string().trim().max(2048) })

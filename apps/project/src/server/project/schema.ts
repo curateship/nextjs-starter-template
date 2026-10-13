@@ -16,6 +16,7 @@ import type {
   CheckinItemKind,
   CheckinNoteField,
   DueReminderKind,
+  MeetingAnswer,
   MeetingRepeat,
   ProjectColor,
   Reaction,
@@ -742,6 +743,55 @@ export const projectMeetingPeople = pgTable(
       .references(userRef, { onDelete: "cascade" }),
   },
   (table) => [primaryKey({ columns: [table.meetingId, table.userId] })]
+)
+
+/** Going or Not going, one per invited person, for every time the meeting repeats. */
+export const projectMeetingAnswers = pgTable(
+  "project_meeting_answers",
+  {
+    meetingId: varchar("meeting_id", { length: 36 })
+      .notNull()
+      .references(() => projectMeetings.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    answer: varchar("answer", { length: 16 }).$type<MeetingAnswer>().notNull(),
+    answeredAt: timestamp("answered_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.meetingId, table.userId] })]
+)
+
+/**
+ * A meeting's notes for one date it falls on, in the meeting's own calendar
+ * (`drizzle/0112_project_meetings_and_notices.sql`).
+ */
+export const projectMeetingNotes = pgTable(
+  "project_meeting_notes",
+  {
+    meetingId: varchar("meeting_id", { length: 36 })
+      .notNull()
+      .references(() => projectMeetings.id, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    notes: text("notes").notNull(),
+    updatedByUserId: varchar("updated_by_user_id", { length: 36 }).references(userRef, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.meetingId, table.day] })]
+)
+
+/** The bell notices a person has switched off. A kind with no row is on. */
+export const projectNoticesOff = pgTable(
+  "project_notices_off",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 32 }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.kind] })]
 )
 
 /** A one-line reply under someone's blocker on the Team dashboard. */

@@ -98,6 +98,7 @@ export function NewTaskDialog({
   projects,
   types,
   initialProjectId,
+  initialTitle = "",
   open,
   onClose,
   onCreated,
@@ -106,10 +107,15 @@ export function NewTaskDialog({
   /** The team's types; each project says which of them it offers. */
   types: TaskType[]
   initialProjectId: string
+  /** The title the window opens with, such as a line of a meeting's notes. */
+  initialTitle?: string
   open: boolean
   onClose: () => void
-  /** Told which project the task went into, so the header can remember it. */
-  onCreated?: (projectId: string) => void
+  /**
+   * Told which project the task went into, so the header can remember it, and
+   * the new task's id. A pasted list makes several, so it has none.
+   */
+  onCreated?: (projectId: string, taskId: string | null) => void
 }) {
   const router = useRouter()
   const me = authenticatedRoute.useLoaderData().user
@@ -184,7 +190,10 @@ export function NewTaskDialog({
       setAssignee(startingAssignee(target))
     }
     // Each opening starts on the project's default type, with its steps and notes.
-    if (open) applyType(startingType(target), { steps: [], notes: emptyWrittenPageBody() })
+    if (open) {
+      applyType(startingType(target), { steps: [], notes: emptyWrittenPageBody() })
+      setTitle(initialTitle.slice(0, LIMITS.taskTitle))
+    }
   }
 
   function pickProject(id: string) {
@@ -257,6 +266,7 @@ export function NewTaskDialog({
     const name = project.members.find((m) => m.userId === assigneeUserId)?.name
     // The note only goes with a task handed to someone else.
     const note = someoneElse ? handoverNote.trim() || null : null
+    let madeId: string | null = null
     if (pasted) {
       const ok = await run(
         () =>
@@ -299,8 +309,8 @@ export function NewTaskDialog({
         return
       }
       const ok = await run(
-        () =>
-          createProjectTask({
+        async () => {
+          const made = await createProjectTask({
             projectId: project.id,
             title,
             notes,
@@ -310,12 +320,14 @@ export function NewTaskDialog({
             handoverNote: note,
             typeId: type ? type.id : null,
             fieldValues,
-          }),
+          })
+          madeId = made.id
+        },
         someoneElse && name ? `Task handed to ${name}.` : "Task created."
       )
       if (!ok) return
     }
-    onCreated?.(project.id)
+    onCreated?.(project.id, madeId)
     close()
     await router.invalidate()
   }

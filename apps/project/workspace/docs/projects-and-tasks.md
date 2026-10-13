@@ -628,6 +628,28 @@ the project never gets a task's title in their bell. The words live in
 `src/lib/project/notices.ts`, and the shell's bell reads them back to draw each
 row without asking the server. Each notice sits under a Tasks tab in the bell.
 
+### Switching a kind off
+
+Each person picks which kinds reach their bell, in **My notices** on
+[My dashboard](my-dashboard.md#left-me). Tyler's choices on 12 Oct 2026:
+
+- **A kind switched off is never sent to that person.** Everyone else still
+  gets theirs. The app checks the switches as it writes each notice, so the
+  shell's bell, and its site-wide switch for app admins, are untouched.
+- **Three kinds always arrive and aren't listed:** "Time to check in", a
+  person's own "Reminder: …", and tags ("asked you about a task", "tagged you
+  in a project chat", "mentioned you in their check-in").
+- **Every other kind has a switch**, "Due tomorrow" and "Overdue" included.
+  "Gave you a task" also covers "gave you 3 tasks". The morning summary and
+  "joined the team through the link" go only to the owner and admins, so only
+  they see those two switches.
+- **Everything starts on.** Only switched-off kinds are saved, one row each
+  in `project_notices_off`. Reminders a switched-off kind would have sent are
+  still used up, so switching it back on never brings a pile of old ones.
+- **Where it lives:** the list in `src/lib/project/notice-switches.ts`, the
+  check in `withoutSwitchedOff` in `src/server/project/notices.ts`, and the
+  saving in `src/server/project/notice-switches.ts`.
+
 ## My tasks
 
 Every task assigned to me, across every project I can see, is in the middle

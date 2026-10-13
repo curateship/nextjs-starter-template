@@ -46,6 +46,9 @@ import { cn } from "@/lib/utils"
  * On a task (`task`), typing # links another task, a link to a task opens it
  * here, and "Earlier versions" lists the notes as they were before each
  * editing session, with Bring back.
+ *
+ * A meeting's notes use the same field, drawn line by line (`reading`) so
+ * each line can become a task.
  */
 export function TaskNotesField({
   notes,
@@ -54,6 +57,9 @@ export function TaskNotesField({
   label = "Notes",
   labelId = "task-notes-label",
   task,
+  links,
+  placeholder,
+  reading,
 }: {
   notes: string
   readOnly: boolean
@@ -64,6 +70,11 @@ export function TaskNotesField({
   labelId?: string
   /** A task's own notes, rather than a type's starting notes. */
   task?: { id: string; links: Record<string, string>; change: Change }
+  /** Tasks the notes link to that the reader can open, when they aren't a task's notes. */
+  links?: Record<string, string>
+  placeholder?: string
+  /** Draws formatted notes for reading, in place of the plain drawing. */
+  reading?: (body: WrittenPageNode) => React.ReactNode
 }) {
   const navigate = useNavigate()
   const saved = readTaskNotes(notes)
@@ -74,6 +85,7 @@ export function TaskNotesField({
   const [draft, setDraft] = React.useState<WrittenPageNode | null>(null)
   const editorBox = React.useRef<HTMLDivElement>(null)
   const linking = useNotesLinking(Boolean(task))
+  const openable = task?.links ?? links ?? {}
 
   // The editor draws itself a moment after it mounts, so the cursor goes in
   // once its writing area exists.
@@ -165,9 +177,10 @@ export function TaskNotesField({
             onChange={setDraft}
             extensions={linking.extensions}
             placeholder={
-              task
+              placeholder ??
+              (task
                 ? "Anything the person doing it should know. Select words for bold, a list or a link. Type # to link a task."
-                : "Anything the person doing it should know. Select words to make them bold, a list or a link."
+                : "Anything the person doing it should know. Select words to make them bold, a list or a link.")
             }
           />
           {linking.list}
@@ -186,7 +199,7 @@ export function TaskNotesField({
             if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return
             event.preventDefault()
             const taskId = linkedTaskOf(link.getAttribute("href") ?? "")
-            const projectId = taskId ? task?.links[taskId] : undefined
+            const projectId = taskId ? openable[taskId] : undefined
             if (taskId && projectId) {
               void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: taskId } })
             } else if (!taskId) {
@@ -194,7 +207,11 @@ export function TaskNotesField({
             }
           }}
         >
-          <WrittenPageBody body={notesForDisplay(saved.body, task?.links ?? {})} />
+          {reading ? (
+            reading(notesForDisplay(saved.body, openable))
+          ) : (
+            <WrittenPageBody body={notesForDisplay(saved.body, openable)} />
+          )}
         </div>
       )}
       {task ? (

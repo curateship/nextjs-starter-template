@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
+import type { NoticeSwitchId } from "@/lib/project/notice-switches"
 import type { TeamRole } from "@/lib/project/rules"
 import { db } from "@/server/db"
 import { requireMembership } from "@/server/project/access"
@@ -12,6 +13,7 @@ import type { TaskType } from "@/lib/project/task-types"
 import { loadCheckinRecord, type CheckinRecord } from "@/server/project/time-off"
 import { projectTeamMembers, projectTeams } from "@/server/project/schema"
 import { loadMyWork, type TaskCard } from "@/server/project/tasks"
+import { loadNoticesOff } from "@/server/project/notice-switches"
 import { customShellUsers } from "@/server/schema"
 
 /**
@@ -41,6 +43,8 @@ export type MyDashboard = {
   record: CheckinRecord
   /** My own saved views on My tasks. */
   views: SavedView[]
+  /** The bell notices I've switched off. Only I see these. */
+  noticesOff: NoticeSwitchId[]
 }
 
 export async function loadMyDashboard(userId: string, database = db): Promise<MyDashboard> {
@@ -78,5 +82,6 @@ export async function loadMyDashboard(userId: string, database = db): Promise<My
     taskTypes: await listTeamTypes(membership.teamId, database),
     record: await loadCheckinRecord(userId, database),
     views: await listSavedViews(userId, membership.teamId, null, database),
+    noticesOff: await loadNoticesOff(userId, database),
   }
 }

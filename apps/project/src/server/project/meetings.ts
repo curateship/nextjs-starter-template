@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray } from "drizzle-orm"
+import { and, asc, count, eq, inArray, notInArray } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { addDays, clockLabel, localNow, momentOf, shortDayLabel } from "@/lib/project/days"
@@ -8,10 +8,13 @@ import {
   monthGrid,
   videoServiceName,
 } from "@/lib/project/meetings"
-import { meetingInviteHeading } from "@/lib/project/notices"
+import { lineKey, linkLine, noteLines } from "@/lib/project/meeting-notes"
+import { readTaskNotes, storedTaskNotes } from "@/lib/project/notes"
+import { meetingInviteHeading, taskHref } from "@/lib/project/notices"
 import {
   LIMITS,
   runsTheTeam,
+  type MeetingAnswer,
   type MeetingRepeat,
   type ProjectColor,
 } from "@/lib/project/rules"
@@ -21,7 +24,10 @@ import { db } from "@/server/db"
 import { requireMembership, type Membership, type ProjectDb } from "@/server/project/access"
 import { clockOf, loadClock, personDay } from "@/server/project/checkins"
 import { writeAppNotices } from "@/server/project/notices"
+import { notesLinkedTaskIds, openableLinks, resolveTaskLinks } from "@/server/project/task-links"
 import {
+  projectMeetingAnswers,
+  projectMeetingNotes,
   projectMeetingPeople,
   projectMeetings,
   projectTeamMembers,
@@ -39,6 +45,13 @@ import { customShellUsers } from "@/server/schema"
  * - People added to it get one bell notice. There is no reminder before it.
  * - Its times are set in the team's time zone. Each person sees them in their
  *   own time.
+ *
+ * And from More features task 07 (12 Oct 2026):
+ *
+ * - Each invited person answers Going or Not going, once for every repeat.
+ *   Nobody is told about an answer.
+ * - Notes are kept per date. Everyone on the team reads them; the people who
+ *   may change the meeting write them. A line can become a task.
  */
 
 export type MeetingInput = {
@@ -52,7 +65,13 @@ export type MeetingInput = {
   peopleIds: string[]
 }
 
-export type MeetingPerson = { id: string; name: string; avatarUrl: string }
+export type MeetingPerson = {
+  id: string
+  name: string
+  avatarUrl: string
+  /** Going or Not going, for every time the meeting repeats. Null before they answer. */
+  answer: MeetingAnswer | null
+}
 
 export type Meeting = {
   id: string
@@ -185,7 +204,7 @@ export async function loadTeamMeetings(
   }
 }
 
-/** The people invited to each meeting who are still on the team. */
+/** The people invited to each meeting who are still on the team, with their answers. */
 async function peopleOf(teamId: string, meetingIds: string[], database: ProjectDb) {
   const byMeeting = new Map<string, MeetingPerson[]>()
   if (meetingIds.length === 0) return byMeeting
@@ -195,9 +214,17 @@ async function peopleOf(teamId: string, meetingIds: string[], database: ProjectD
       id: customShellUsers.id,
       name: customShellUsers.name,
       avatarUrl: customShellUsers.avatarUrl,
+      answer: projectMeetingAnswers.answer,
     })
     .from(projectMeetingPeople)
     .innerJoin(customShellUsers, eq(customShellUsers.id, projectMeetingPeople.userId))
+    .leftJoin(
+      projectMeetingAnswers,
+      and(
+        eq(projectMeetingAnswers.meetingId, projectMeetingPeople.meetingId),
+        eq(projectMeetingAnswers.userId, projectMeetingPeople.userId)
+      )
+    )
     .innerJoin(
       projectTeamMembers,
       and(
@@ -209,7 +236,7 @@ async function peopleOf(teamId: string, meetingIds: string[], database: ProjectD
     .orderBy(asc(customShellUsers.name))
   for (const row of rows) {
     const list = byMeeting.get(row.meetingId) ?? []
-    list.push({ id: row.id, name: row.name, avatarUrl: row.avatarUrl ?? "" })
+    list.push({ id: row.id, name: row.name, avatarUrl: row.avatarUrl ?? "", answer: row.answer })
     byMeeting.set(row.meetingId, list)
   }
   return byMeeting
@@ -229,15 +256,26 @@ async function requireTeammates(teamId: string, userIds: string[], database: Pro
   if (found.length !== userIds.length) throw new Error(PROJECT_ERRORS.personNotOnTeam)
 }
 
-async function requireMeeting(membership: Membership, meetingId: string, database: ProjectDb) {
+/** A meeting on the person's own team. One on another team reads as gone. */
+async function findMeeting(membership: Membership, meetingId: string, database: ProjectDb) {
   const [meeting] = await database
     .select()
     .from(projectMeetings)
     .where(and(eq(projectMeetings.id, meetingId), eq(projectMeetings.teamId, membership.teamId)))
     .limit(1)
   if (!meeting) throw new Error(PROJECT_ERRORS.meetingNotFound)
+  return meeting
+}
+
+async function requireMeeting(membership: Membership, meetingId: string, database: ProjectDb) {
+  const meeting = await findMeeting(membership, meetingId, database)
   if (!mayChange(membership, meeting)) throw new Error(PROJECT_ERRORS.cantChangeMeeting)
   return meeting
+}
+
+/** `day` must be one the meeting falls on, in its own calendar. */
+function requireMeetingDay(meeting: MeetingRow, day: string) {
+  if (meetingDaysBetween(meeting, day, day).length === 0) throw new Error(PROJECT_ERRORS.meetingNotOnDay)
 }
 
 export async function createMeeting(
@@ -320,6 +358,15 @@ export async function updateMeeting(
     }
     await tx.update(projectMeetings).set(changes).where(eq(projectMeetings.id, meetingId))
     await tx.delete(projectMeetingPeople).where(eq(projectMeetingPeople.meetingId, meetingId))
+    // Someone taken off the meeting loses their answer.
+    await tx
+      .delete(projectMeetingAnswers)
+      .where(
+        and(
+          eq(projectMeetingAnswers.meetingId, meetingId),
+          input.peopleIds.length ? notInArray(projectMeetingAnswers.userId, input.peopleIds) : undefined
+        )
+      )
     if (input.peopleIds.length) {
       await tx
         .insert(projectMeetingPeople)
@@ -394,4 +441,137 @@ function nextDayOf(meeting: MeetingRow, at: Date) {
   const today = localNow(at, meeting.timeZone).day
   const ahead = meetingDaysBetween(meeting, today, addDays(today, 15))
   return ahead.find((day) => momentsOf(meeting, day).endsAt > at) ?? ahead[0] ?? meeting.day
+}
+
+/**
+ * Going or Not going, from someone invited. It holds for every time the
+ * meeting repeats, and nobody is told (Tyler's choice, 12 Oct 2026).
+ */
+export async function answerMeeting(
+  userId: string,
+  input: { meetingId: string; answer: MeetingAnswer },
+  database = db
+) {
+  const membership = await requireMembership(userId, database)
+  const meeting = await findMeeting(membership, input.meetingId, database)
+  const [invited] = await database
+    .select({ userId: projectMeetingPeople.userId })
+    .from(projectMeetingPeople)
+    .where(and(eq(projectMeetingPeople.meetingId, meeting.id), eq(projectMeetingPeople.userId, userId)))
+  if (!invited) throw new Error(PROJECT_ERRORS.notInvitedToMeeting)
+  await database
+    .insert(projectMeetingAnswers)
+    .values({ meetingId: meeting.id, userId, answer: input.answer, answeredAt: now() })
+    .onConflictDoUpdate({
+      target: [projectMeetingAnswers.meetingId, projectMeetingAnswers.userId],
+      set: { answer: input.answer, answeredAt: now() },
+    })
+}
+
+export type MeetingNotes = {
+  /** The day, in the meeting's own calendar, these notes belong to. */
+  day: string
+  /** The editor's document saved as text, "" when nothing is written. */
+  notes: string
+  /** Tasks the notes link to that this reader can open: task id to project id. */
+  links: Record<string, string>
+  canEdit: boolean
+  updatedBy: string | null
+  updatedAt: string | null
+}
+
+/** One date's notes, for anyone on the team. */
+export async function loadMeetingNotes(
+  userId: string,
+  input: { meetingId: string; day: string },
+  database = db
+): Promise<MeetingNotes> {
+  const membership = await requireMembership(userId, database)
+  const meeting = await findMeeting(membership, input.meetingId, database)
+  requireMeetingDay(meeting, input.day)
+  const [row] = await database
+    .select({
+      notes: projectMeetingNotes.notes,
+      updatedAt: projectMeetingNotes.updatedAt,
+      updatedBy: customShellUsers.name,
+    })
+    .from(projectMeetingNotes)
+    .leftJoin(customShellUsers, eq(customShellUsers.id, projectMeetingNotes.updatedByUserId))
+    .where(and(eq(projectMeetingNotes.meetingId, meeting.id), eq(projectMeetingNotes.day, input.day)))
+  const notes = row?.notes ?? ""
+  const targets = await resolveTaskLinks(membership, notesLinkedTaskIds(notes), database)
+  return {
+    day: input.day,
+    notes,
+    links: openableLinks(targets),
+    canEdit: mayChange(membership, meeting),
+    updatedBy: row?.updatedBy ?? null,
+    updatedAt: row?.updatedAt.toISOString() ?? null,
+  }
+}
+
+/** Saves one date's notes. Only the people who may change the meeting write them. */
+export async function saveMeetingNotes(
+  actor: { id: string },
+  input: { meetingId: string; day: string; notes: string },
+  database = db
+) {
+  await database.transaction(async (tx) => {
+    const membership = await requireMembership(actor.id, tx)
+    const meeting = await findMeeting(membership, input.meetingId, tx)
+    if (!mayChange(membership, meeting)) throw new Error(PROJECT_ERRORS.cantChangeMeetingNotes)
+    requireMeetingDay(meeting, input.day)
+    await writeNotes(tx, meeting.id, input.day, input.notes, actor.id)
+  })
+}
+
+async function writeNotes(tx: ProjectDb, meetingId: string, day: string, notes: string, userId: string) {
+  const where = and(eq(projectMeetingNotes.meetingId, meetingId), eq(projectMeetingNotes.day, day))
+  if (!notes) {
+    await tx.delete(projectMeetingNotes).where(where)
+    return
+  }
+  await tx
+    .insert(projectMeetingNotes)
+    .values({ meetingId, day, notes, updatedByUserId: userId, updatedAt: now() })
+    .onConflictDoUpdate({
+      target: [projectMeetingNotes.meetingId, projectMeetingNotes.day],
+      set: { notes, updatedByUserId: userId, updatedAt: now() },
+    })
+}
+
+/**
+ * Links one line of a date's notes to the task just made from it. The line
+ * keeps its words. `text` is the line as the person saw it, so a line moved
+ * or changed by someone else meanwhile is never linked by mistake.
+ */
+export async function linkMeetingNoteLine(
+  actor: { id: string },
+  input: { meetingId: string; day: string; path: number[]; text: string; taskId: string },
+  database = db
+) {
+  await database.transaction(async (tx) => {
+    const membership = await requireMembership(actor.id, tx)
+    const meeting = await findMeeting(membership, input.meetingId, tx)
+    if (!mayChange(membership, meeting)) throw new Error(PROJECT_ERRORS.cantChangeMeetingNotes)
+    requireMeetingDay(meeting, input.day)
+    const target = (await resolveTaskLinks(membership, [input.taskId], tx)).get(input.taskId)
+    if (target?.state !== "open") throw new Error(PROJECT_ERRORS.taskNotFound)
+
+    const [row] = await tx
+      .select({ notes: projectMeetingNotes.notes })
+      .from(projectMeetingNotes)
+      .where(and(eq(projectMeetingNotes.meetingId, meeting.id), eq(projectMeetingNotes.day, input.day)))
+      .for("update")
+    const notes = readTaskNotes(row?.notes ?? "")
+    const line =
+      notes.kind === "doc"
+        ? noteLines(notes.body).find((candidate) => lineKey(candidate.path) === lineKey(input.path))
+        : undefined
+    if (notes.kind !== "doc" || !line || line.text !== input.text) {
+      throw new Error(PROJECT_ERRORS.meetingNotesChanged)
+    }
+    const linked = linkLine(notes.body, input.path, taskHref(target.projectId, input.taskId))
+    await writeNotes(tx, meeting.id, input.day, storedTaskNotes(linked), actor.id)
+  })
 }

@@ -85,6 +85,12 @@ export const PROJECT_ERRORS = {
   tooManyMeetings: "A team can have at most 200 meetings. Delete old ones to make another.",
   photoNotYours: "Pick a photo you uploaded yourself.",
   tooManyMeetingSaves: "That's a lot of meeting changes in an hour. Wait a while, then try again.",
+  notInvitedToMeeting: "Only people invited to the meeting can answer it.",
+  meetingNotOnDay: "The meeting doesn't fall on that day. Pick it again on the calendar.",
+  cantChangeMeetingNotes:
+    "Only the person who made the meeting, the owner or an admin can change its notes.",
+  meetingNotesChanged:
+    "The task was made, but someone changed the notes meanwhile, so that line wasn't linked to it.",
   tagNotOnTeam: "You can only tag people on your team.",
   noBlockerHere: "There's no blocker there to answer.",
   stuckTaskNotYours: "Only people on that task's project can reply about it.",

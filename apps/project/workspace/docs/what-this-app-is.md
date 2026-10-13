@@ -206,6 +206,23 @@ Each was the recommended option.
 - **Remind me** keeps one reminder per person per task. Picking a new day
   replaces the old one.
 
+## Choices for meetings and notices
+
+Tyler answered these on 12 Oct 2026, before More features task 07 was built.
+Each was the recommended option.
+
+- **Not going tells nobody.** The person who made a meeting reads the
+  answers in the meeting's window and "3 going" on its row. No answer rings
+  the bell.
+- **Tags always reach you.** "Asked you about a task", "tagged you in a
+  project chat" and "mentioned you in their check-in" have no switch.
+- **Every other kind of notice gets a switch**, except "Time to check in"
+  and a person's own "Remind me", which they asked for themselves. "Due
+  tomorrow" and "Overdue" do get one, because the app sends them unasked.
+- **Clicking a meeting's row opens its window.** A Join button on the row
+  still opens the video link in one click, and the cog still changes the
+  meeting.
+
 ## The first version
 
 - Teams, email invites, projects and tasks.

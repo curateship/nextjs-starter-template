@@ -1,5 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm"
 
+import { switchOf } from "@/lib/project/notice-switches"
+
 import {
   CHECKIN_HREF,
   CHECKIN_REMINDER_DETAIL,
@@ -14,8 +16,27 @@ import { uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { publishNotificationCreatedMany } from "@/server/notifications/events"
 import type { ProjectDb } from "@/server/project/access"
-import { projectNoticeLinks } from "@/server/project/schema"
+import { projectNoticeLinks, projectNoticesOff } from "@/server/project/schema"
 import { customShellNotifications } from "@/server/schema"
+
+/**
+ * The notices whose person has switched that kind off on My dashboard.
+ * Everyone else still gets theirs. Kinds with no switch always arrive.
+ */
+async function withoutSwitchedOff<T extends { kind: ProjectNoticeKind; recipientUserId: string }>(
+  database: ProjectDb,
+  notices: readonly T[]
+): Promise<readonly T[]> {
+  const switchable = notices.filter((notice) => switchOf(notice.kind))
+  if (switchable.length === 0) return notices
+  const rows = await database
+    .select({ userId: projectNoticesOff.userId, kind: projectNoticesOff.kind })
+    .from(projectNoticesOff)
+    .where(inArray(projectNoticesOff.userId, [...new Set(switchable.map((notice) => notice.recipientUserId))]))
+  if (rows.length === 0) return notices
+  const off = new Set(rows.map((row) => `${row.userId}:${row.kind}`))
+  return notices.filter((notice) => !off.has(`${notice.recipientUserId}:${switchOf(notice.kind)}`))
+}
 
 export type TaskNotice = {
   kind: TaskNoticeKind
@@ -48,7 +69,8 @@ export async function writeTaskNotices(
   notices: readonly TaskNotice[]
 ) {
   const seen = new Set<string>()
-  const rows = notices
+  const wanted = await withoutSwitchedOff(database, notices)
+  const rows = wanted
     .filter((notice) => notice.recipientUserId !== notice.actor.id)
     .filter((notice) => {
       const key = `${notice.kind}:${notice.recipientUserId}`
@@ -105,7 +127,9 @@ export type AppNotice = {
  */
 export async function writeAppNotices(database: ProjectDb, notices: readonly AppNotice[]) {
   if (notices.length === 0) return
-  const rows = notices.map((notice) => ({ ...notice, id: uuid() }))
+  const wanted = await withoutSwitchedOff(database, notices)
+  if (wanted.length === 0) return
+  const rows = wanted.map((notice) => ({ ...notice, id: uuid() }))
   const createdAt = new Date()
   await database.insert(customShellNotifications).values(
     rows.map((row) => ({

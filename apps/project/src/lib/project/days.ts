@@ -99,7 +99,7 @@ export function momentOf(day: string, time: string, timeZone: string): Date {
 }
 
 /** How far the zone's clock is ahead of UTC at that moment, in milliseconds. */
-function offsetAt(at: Date, timeZone: string) {
+export function offsetAt(at: Date, timeZone: string) {
   const p = zonedParts(at, timeZone)
   const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second)
   return asUtc - Math.floor(at.getTime() / 1000) * 1000
