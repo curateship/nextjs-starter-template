@@ -101,8 +101,8 @@ const startSchema = projectIdSchema.extend({
   aspects: z.array(z.enum(ASPECT_RATIOS)).max(ASPECT_RATIOS.length),
   quality: z.enum(["high", "medium", "low"]),
   frameRate: z.union([z.literal(30), z.literal(60)]),
-  // Absent means "whatever the brand kit says"; the modal can override it for
-  // one export without changing the setting.
+  // Absent means evened out (DEFAULT_NORMALIZE_LOUDNESS). The Export window
+  // always sends its own switch.
   normalizeLoudness: z.boolean().optional(),
   // Absent, or nothing but spaces, means the project's own name.
   title: z.string().max(EXPORT_TITLE_MAX).optional(),

@@ -39,9 +39,9 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
 import {
   CAPTION_ANIMATIONS,
-  DEFAULT_CAPTION_ANIMATION,
   resolveCaptionAnimation,
 } from "@/lib/video/caption-animations"
+import { DEFAULT_CAPTION_LOOK, type CaptionLook } from "@/lib/video/caption-look"
 import { SCRIPT_CHECK_NO_TEXT_MESSAGE } from "@/lib/video/script-check"
 import {
   voiceoverClips,
@@ -69,7 +69,6 @@ import {
   voicePausesRefusal,
 } from "@/lib/video/voice-direction"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
-import { useSavedCaptionLook } from "@/components/video-editor/use-saved-caption-look"
 import {
   ScriptCheckList,
   ScriptFigures,
@@ -121,9 +120,14 @@ export function VoiceDialog({
   // fetch the list again, so a voice made in the Voices panel since shows up,
   // without undoing what was picked in this session.
   const rememberedApplied = React.useRef(false)
-  // The captions that come with the voice take the brand kit's look. Only the
+  // The captions that come with the voice take the standard look. Only the
   // entrance is offered here; the rest can be changed per caption afterwards.
-  const [look, setLook] = useSavedCaptionLook(open)
+  const [look, setLook] = React.useState<CaptionLook>(DEFAULT_CAPTION_LOOK)
+  const [wasOpen, setWasOpen] = React.useState(open)
+  if (wasOpen !== open) {
+    setWasOpen(open)
+    if (open) setLook(DEFAULT_CAPTION_LOOK)
+  }
   const [speaking, setSpeaking] = React.useState(false)
   const [voicesRefused, setVoicesRefused] = React.useState(false)
   const [checking, setChecking] = React.useState(false)
@@ -253,7 +257,6 @@ export function VoiceDialog({
       showErrorToast(VOICE_NO_VOICE_MESSAGE)
       return
     }
-    if (!look) return
     setSpeaking(true)
     try {
       const result = await readAloud({
@@ -531,16 +534,12 @@ export function VoiceDialog({
               <div className="grid gap-2">
                 <Label htmlFor="voice-entrance">How the words arrive</Label>
                 <Select
-                  value={look?.animation ?? DEFAULT_CAPTION_ANIMATION}
-                  disabled={!look}
+                  value={look.animation}
                   onValueChange={(next) =>
-                    setLook(
-                      (current) =>
-                        current && {
-                          ...current,
-                          animation: resolveCaptionAnimation(next),
-                        }
-                    )
+                    setLook((current) => ({
+                      ...current,
+                      animation: resolveCaptionAnimation(next),
+                    }))
                   }
                 >
                   <SelectTrigger id="voice-entrance" className="w-full">
@@ -589,10 +588,10 @@ export function VoiceDialog({
             )}
             {checking ? "Checking…" : "Check it"}
           </Button>
-          {/* Waiting on the voices or the caption look is loading, not idle. */}
+          {/* Waiting on the voices is loading, not idle. */}
           <Button
             type="button"
-            disabled={speaking || loadingVoices || !look}
+            disabled={speaking || loadingVoices}
             onClick={() => void speak()}
           >
             {speaking ? (

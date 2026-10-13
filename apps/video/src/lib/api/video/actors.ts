@@ -24,6 +24,7 @@ const payloadSchema = z.object({
   tags: z.string().max(1000),
   referenceMediaId: z.string().min(1).max(36).nullable().optional(),
   referenceMediaUrl: z.string().url().max(2048).nullable().optional(),
+  lookProjectId: z.string().min(1).max(36).nullable().optional(),
 })
 const idSchema = z.object({ actorId: z.string().min(1).max(36) })
 const updateSchema = idSchema.extend(payloadSchema.shape)
@@ -37,6 +38,7 @@ export function getActorErrorMessage(error: unknown) {
   if (
     [
       "Actor not found",
+      "Project not found",
       "Actor name is required",
       "Prompt is required",
       "Reference media must be an image",

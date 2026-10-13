@@ -7,6 +7,7 @@ import {
   normalizeAssetTags,
   type ImageModelId,
 } from "@/lib/video/asset-factories"
+import { withLook } from "@/lib/video/visual-style"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
@@ -15,6 +16,7 @@ import {
   serializeMedia,
 } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
+import { chosenProjectLook } from "@/server/video/project-look"
 import {
   videoActors,
   videoAiGenerations,
@@ -52,6 +54,8 @@ export type ActorPayload = {
   tags: string
   referenceMediaId?: string | null
   referenceMediaUrl?: string | null
+  /** A project whose look the picture is made in. Not kept on the actor. */
+  lookProjectId?: string | null
 }
 
 function tags(value: unknown) {
@@ -156,12 +160,16 @@ export async function createActor(userId: string, payload: ActorPayload) {
     payload.referenceMediaId,
     payload.referenceMediaUrl
   )
+  const look = await chosenProjectLook(userId, payload.lookProjectId)
   const generated = await generateImage({
     userId,
     model: payload.model,
-    prompt: `Create a consistent, reusable on-camera character portrait. ${prompt}`,
     aspectRatio: "9:16",
-    reference,
+    ...withLook(
+      look,
+      `Create a consistent, reusable on-camera character portrait. ${prompt}`,
+      reference ? [reference] : []
+    ),
   })
   const media = await saveGeneratedAsset({
     userId,
@@ -211,12 +219,16 @@ export async function updateActor(
   )
   let generatedMedia: Awaited<ReturnType<typeof saveGeneratedAsset>> | null = null
   if (regenerate) {
+    const look = await chosenProjectLook(userId, payload.lookProjectId)
     const generated = await generateImage({
       userId,
       model: payload.model,
-      prompt: `Re-pose this same character while preserving their identity. ${prompt}`,
       aspectRatio: "9:16",
-      reference: reference ?? currentImage,
+      ...withLook(
+        look,
+        `Re-pose this same character while preserving their identity. ${prompt}`,
+        [reference ?? currentImage]
+      ),
     })
     generatedMedia = await saveGeneratedAsset({
       userId,

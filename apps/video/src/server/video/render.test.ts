@@ -30,11 +30,7 @@ describe("how long the export runs", () => {
     ]
     const end = timelineEndMs(tracks as never)
     expect(end).not.toBe(Math.round(end))
-    expect(Number.isInteger(exportDurationMs(end, 0))).toBe(true)
-  })
-
-  it("counts the end card in", () => {
-    expect(exportDurationMs(4000, 3000)).toBe(7000)
+    expect(Number.isInteger(exportDurationMs(end))).toBe(true)
   })
 
   it("is nothing when there is nothing on the timeline", () => {

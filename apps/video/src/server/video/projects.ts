@@ -26,9 +26,10 @@ import {
   type AspectRatio,
   type ProjectTimeline,
 } from "@/lib/video/timeline-schema"
+import { LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE } from "@/lib/video/visual-style"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { serializeMedia } from "@/server/media/library"
+import { findOwnedImageByUrl, serializeMedia } from "@/server/media/library"
 import { deleteFromR2, getPublicMediaUrl } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
 import { removeExportFiles } from "@/server/video/export-files"
@@ -71,6 +72,11 @@ export type ProjectItem = {
   thumbnail_url: string | null
   /** A picture is waiting to be made, so the list looks again shortly. */
   thumbnail_pending: boolean
+  /**
+   * The project's look, set in Project settings (see visual-style.ts). Null
+   * when it has neither a style line nor a look picture.
+   */
+  look: { style: string | null; picture_url: string | null } | null
   created_at: string
   updated_at: string
 }
@@ -204,8 +210,12 @@ const NOT_LOOKED_AT_YET: ProjectThumbnail = { url: null, pending: true }
 
 function serializeProject(
   row: VideoProjectRow,
-  thumbnail: ProjectThumbnail
+  thumbnail: ProjectThumbnail,
+  lookPictures: Map<string, string>
 ): ProjectItem {
+  const lookPicture = row.styleMediaId
+    ? (lookPictures.get(row.styleMediaId) ?? null)
+    : null
   const { timeline, error } = parseTimelineForReset(row.timeline)
   const stats = summarizeTimeline(timeline)
   return {
@@ -218,6 +228,10 @@ function serializeProject(
     version: row.version,
     thumbnail_url: thumbnail.url,
     thumbnail_pending: thumbnail.pending,
+    look:
+      row.style || lookPicture
+        ? { style: row.style, picture_url: lookPicture }
+        : null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
@@ -260,13 +274,52 @@ async function thumbnailsFor(rows: VideoProjectRow[], database: CustomShellDb) {
   return thumbnails
 }
 
-/** One row, picture included — every single-project answer goes through here. */
+/**
+ * The addresses of the look pictures of a page of projects, in one query. The
+ * column is only ever set to the owner's own picture and is blanked when the
+ * picture is deleted. The owner is checked here as well, so a picture can only
+ * ever be shown to the person it belongs to.
+ */
+async function lookPicturesFor(
+  rows: VideoProjectRow[],
+  database: CustomShellDb
+) {
+  const withPicture = rows.filter((row) => row.styleMediaId)
+  const pictures = new Map<string, string>()
+  if (!withPicture.length) return pictures
+  const media = await database
+    .select()
+    .from(customShellMedia)
+    .where(
+      and(
+        inArray(customShellMedia.id, [
+          ...new Set(withPicture.map((row) => row.styleMediaId!)),
+        ]),
+        inArray(customShellMedia.userId, [
+          ...new Set(withPicture.map((row) => row.userId)),
+        ])
+      )
+    )
+  for (const row of media) {
+    pictures.set(row.id, (await serializeMedia(row)).url)
+  }
+  return pictures
+}
+
+/** One row, pictures included — every single-project answer goes through here. */
 async function serializeOneProject(
   row: VideoProjectRow,
   database: CustomShellDb
 ) {
-  const thumbnails = await thumbnailsFor([row], database)
-  return serializeProject(row, thumbnails.get(row.id) ?? NOT_LOOKED_AT_YET)
+  const [thumbnails, lookPictures] = await Promise.all([
+    thumbnailsFor([row], database),
+    lookPicturesFor([row], database),
+  ])
+  return serializeProject(
+    row,
+    thumbnails.get(row.id) ?? NOT_LOOKED_AT_YET,
+    lookPictures
+  )
 }
 
 export async function listOwnedProjects({
@@ -325,11 +378,18 @@ export async function listOwnedProjects({
     database.select({ total: count() }).from(videoProjects).where(where),
   ])
 
-  const thumbnails = await thumbnailsFor(rows, database)
+  const [thumbnails, lookPictures] = await Promise.all([
+    thumbnailsFor(rows, database),
+    lookPicturesFor(rows, database),
+  ])
   const total = totals?.total ?? 0
   return {
     projects: rows.map((row) =>
-      serializeProject(row, thumbnails.get(row.id) ?? NOT_LOOKED_AT_YET)
+      serializeProject(
+        row,
+        thumbnails.get(row.id) ?? NOT_LOOKED_AT_YET,
+        lookPictures
+      )
     ),
     total,
     page: safePage,
@@ -447,6 +507,10 @@ async function insertProjectCopy(
         name: cleanProjectName(name),
         aspect: content.aspect,
         timeline: content.timeline,
+        // The look goes with the copy, which is how the next video in a
+        // series starts from the same one.
+        style: source.style,
+        styleMediaId: source.styleMediaId,
         // The copy is its own project from version 1; it shares nothing with
         // the original after this moment, and the background worker makes its
         // picture on the next pass, the same as any new project.
@@ -476,6 +540,47 @@ export async function renameOwnedProject(
   const [row] = await database
     .update(videoProjects)
     .set({ name: cleanProjectName(name), updatedAt: now() })
+    .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
+    .returning()
+  if (!row) {
+    throw new Error(PROJECT_NOT_FOUND_MESSAGE)
+  }
+  return serializeOneProject(row, database)
+}
+
+/**
+ * Project settings: the name and the look, saved together. None of them is
+ * part of the timeline, so `version` stays where it is and an editor open on
+ * the project carries on saving. The look picture arrives as the address the
+ * Media picker handed back and is kept by its library id; anything that is not
+ * one of the person's own pictures is refused.
+ */
+export async function saveOwnedProjectSettings(
+  userId: string,
+  projectId: string,
+  settings: { name: string; style: string | null; lookPictureUrl: string | null },
+  database: CustomShellDb = db
+): Promise<ProjectItem> {
+  let styleMediaId: string | null = null
+  if (settings.lookPictureUrl) {
+    const picture = await findOwnedImageByUrl(
+      userId,
+      settings.lookPictureUrl,
+      database
+    )
+    if (picture?.fileType !== "image") {
+      throw new Error(LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE)
+    }
+    styleMediaId = picture.id
+  }
+  const [row] = await database
+    .update(videoProjects)
+    .set({
+      name: cleanProjectName(settings.name),
+      style: settings.style?.trim() || null,
+      styleMediaId,
+      updatedAt: now(),
+    })
     .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
     .returning()
   if (!row) {
@@ -526,11 +631,15 @@ export async function writeProjectTimeline(
 
   if (saved) {
     const { thumbnailPath, ...row } = saved
-    return serializeProject(row, {
-      url: await pictureUrl(thumbnailPath),
-      // Saved this instant, so the worker has not looked at it yet.
-      pending: true,
-    })
+    return serializeProject(
+      row,
+      {
+        url: await pictureUrl(thumbnailPath),
+        // Saved this instant, so the worker has not looked at it yet.
+        pending: true,
+      },
+      await lookPicturesFor([row], database)
+    )
   }
 
   // Nothing was updated: either the project is gone (or never ours), or it has

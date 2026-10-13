@@ -55,33 +55,40 @@ async function generateOpenAiImage(options: {
   model: "gpt-image-2"
   prompt: string
   aspectRatio: AssetAspectRatio
-  reference?: ImageReference | null
+  references: ImageReference[]
 }) {
   const size = openAiImageSize(options.aspectRatio)
   let endpoint = "https://api.openai.com/v1/images/generations"
   let body: BodyInit
   let headers: HeadersInit = { Authorization: `Bearer ${options.apiKey}` }
 
-  if (options.reference) {
-    if (!IMAGE_MIME_TYPES.has(options.reference.mimeType)) {
+  if (options.references.length) {
+    if (
+      options.references.some(
+        (reference) => !IMAGE_MIME_TYPES.has(reference.mimeType)
+      )
+    ) {
       throw new Error("OpenAI reference images must be PNG, JPEG, or WebP")
     }
     endpoint = "https://api.openai.com/v1/images/edits"
-    const bytes = await referenceBytes(options.reference)
     const form = new FormData()
     form.append("model", options.model)
     form.append("prompt", options.prompt)
     form.append("size", size)
     form.append("quality", "medium")
     form.append("output_format", "png")
-    form.append(
-      "image[]",
-      new Blob(
-        [bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer],
-        { type: options.reference.mimeType }
-      ),
-      "reference-image"
-    )
+    // In the order given, which is the order the prompt names them in.
+    for (const [index, reference] of options.references.entries()) {
+      const bytes = await referenceBytes(reference)
+      form.append(
+        "image[]",
+        new Blob(
+          [bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer],
+          { type: reference.mimeType }
+        ),
+        `reference-image-${index + 1}`
+      )
+    }
     body = form
   } else {
     headers = { ...headers, "Content-Type": "application/json" }
@@ -116,7 +123,8 @@ export async function generateImage(options: {
   model: ImageModelId
   prompt: string
   aspectRatio: AssetAspectRatio
-  reference?: ImageReference | null
+  /** Sent in this order. A project's look picture is always the last. */
+  references: ImageReference[]
 }) {
   const provider = imageProvider(options.model)
   const apiKey = await getAiKey(provider)
@@ -129,14 +137,16 @@ export async function generateImage(options: {
   }
 
   const parts: unknown[] = [{ text: options.prompt }]
-  if (options.reference && provider === "gemini") {
-    const bytes = await referenceBytes(options.reference)
-    parts.push({
-      inlineData: {
-        mimeType: options.reference.mimeType,
-        data: Buffer.from(bytes).toString("base64"),
-      },
-    })
+  if (provider === "gemini") {
+    for (const reference of options.references) {
+      const bytes = await referenceBytes(reference)
+      parts.push({
+        inlineData: {
+          mimeType: reference.mimeType,
+          data: Buffer.from(bytes).toString("base64"),
+        },
+      })
+    }
   }
 
   return runAiCall(

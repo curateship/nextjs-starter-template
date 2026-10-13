@@ -65,7 +65,7 @@ export function readSavedCaptions(value: unknown): CaptionLine[] {
 
 /**
  * A voiceover as timeline clips: the sound starting at `atMs` and each
- * caption line moved along with it, styled from the brand kit's look.
+ * caption line moved along with it, styled from the look it is handed.
  */
 export function voiceoverClips(
   voiceover: {

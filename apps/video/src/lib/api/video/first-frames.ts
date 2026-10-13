@@ -26,6 +26,7 @@ const payloadSchema = z.object({
   tags: z.string().max(1000),
   referenceMediaId: z.string().min(1).max(36).nullable().optional(),
   referenceMediaUrl: z.string().url().max(2048).nullable().optional(),
+  lookProjectId: z.string().min(1).max(36).nullable().optional(),
   variants: z.number().int().min(1).max(4),
 })
 const idSchema = z.object({ firstFrameId: z.string().min(1).max(36) })

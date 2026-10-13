@@ -31,7 +31,7 @@ everywhere 30 used to be written in:
 
 - **The file itself.** The `-r` setting on the finished MP4 and the black
   frame everything is laid on.
-- **The end card and the dips to black.** Both are drawn frames of their own.
+- **The dips to black.** They are drawn frames of their own.
 - **Captions.** They are pictures listed for ffmpeg counting in the film's
   frames, so the lit word changes on the same moment at either rate
   (`captionLayerSegments` in `src/server/video/caption-layer.ts`).

@@ -6,14 +6,11 @@ someone picks another. It is off unless someone switches it on.
 
 ## Where it is switched on
 
-- **The brand kit.** Brand panel, then Edit brand kit, then the Captions card
-  has "Light up each word as it is said" and "Spoken word colour". It starts
-  off, so a kit saved before this existed behaves exactly as it did. The small
-  sample colours its middle word to show the look.
-- **The Captions window** in the AI panel. It shows the same switch, starting
-  from the kit, and a change there is for that one run.
-- **The Voice window** has no switch of its own. Its captions take whatever
-  the kit says.
+- **The Captions window** in the AI panel has "Light up each word as it is
+  said" and "Spoken word colour". The switch starts off every time the window
+  opens and is for that one run. The small sample colours its middle word to
+  show the look.
+- **The Voice window** has no switch of its own. Its captions start unlit.
 - **One caption in the inspector.** A caption that knows when its words are
   said shows a "Word by word" card with the switch and the colour. A caption
   typed by hand has no timings, so it shows no card.
@@ -181,9 +178,9 @@ took turns so both saw the same machine.
 
 - **Only the colour changes.** The spoken word does not grow, bounce or get a
   box of its own.
-- **Captions already on a project are never lit by switching the brand kit on.**
-  The kit only shapes captions as they are written, the same as the rest of
-  the look.
+- **Captions already on a project are never lit by the Captions window.** The
+  switch only shapes captions as they are written, the same as the rest of the
+  look.
 - **Captions written before 23 Sep 2026 cannot be lit.** They never kept their
   word times, so they show no Word by word card. Writing the captions again
   gives them times.

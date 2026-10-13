@@ -9,6 +9,7 @@ import {
   type GeminiImageModelId,
 } from "@/lib/video/asset-factories"
 import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
+import { withLook } from "@/lib/video/visual-style"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
@@ -17,6 +18,7 @@ import {
   serializeMedia,
 } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
+import { chosenProjectLook } from "@/server/video/project-look"
 import { writeProjectTimeline } from "@/server/video/projects"
 import {
   videoActors,
@@ -60,6 +62,8 @@ export type FirstFramePayload = {
   referenceMediaId?: string | null
   referenceMediaUrl?: string | null
   variants: number
+  /** A project whose look the frames are made in. Not kept on the frame. */
+  lookProjectId?: string | null
 }
 
 function parseTags(value: unknown) {
@@ -187,6 +191,7 @@ export async function createFirstFrames(
   if (reference.fileType !== "image") {
     throw new Error("Reference media must be an image")
   }
+  const look = await chosenProjectLook(userId, payload.lookProjectId)
 
   const created: FirstFrameItem[] = []
   for (let variant = 1; variant <= payload.variants; variant += 1) {
@@ -195,8 +200,11 @@ export async function createFirstFrames(
         userId,
         model: payload.model,
         aspectRatio: payload.aspectRatio,
-        reference,
-        prompt: `Create a polished opening frame for a short video. Preserve the actor's identity. Actor: ${actor.name}. Actor description: ${actor.prompt}. Direction: ${prompt}. Variant ${variant} of ${payload.variants}.`,
+        ...withLook(
+          look,
+          `Create a polished opening frame for a short video. Preserve the actor's identity. Actor: ${actor.name}. Actor description: ${actor.prompt}. Direction: ${prompt}. Variant ${variant} of ${payload.variants}.`,
+          [reference]
+        ),
       })
       const media = await saveGeneratedAsset({
         userId,

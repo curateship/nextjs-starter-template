@@ -7,7 +7,7 @@ selected.
 
 ## What is remembered
 
-- **The left panel:** Media, Music, Text, Brand, AI or Transcript. A panel
+- **The left panel:** Media, Music, Voices, Text, AI or Transcript. A panel
   that has since been removed from the editor opens Media instead.
 - **The playhead:** the moment of the video you were on, so the picture above
   the timeline shows the same frame. A project that has since got shorter

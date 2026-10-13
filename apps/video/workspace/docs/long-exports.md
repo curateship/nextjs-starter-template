@@ -73,7 +73,8 @@ Until 24 Sep 2026 the ceiling was ten minutes.
 Timed on 24 Sep 2026 on this Mac (an M1 Pro with 8 cores), through the real
 queue: clips downloaded from storage, rendered, the sound evened out, and the
 file uploaded back. The project was one four-minute 1080p test clip laid end
-to end, with its own sound and the brand kit's end card. In the tall, square
+to end, with its own sound and the brand kit's end card (removed from the app
+on 13 Oct 2026, so an export today is a few seconds shorter). In the tall, square
 and 4:3 shapes the clip was set to fill the frame, the way footage shot in
 that shape would. Other work was running on the Mac the whole time, with a
 load between about 6 and 48 on 8 cores, and that moves the numbers.

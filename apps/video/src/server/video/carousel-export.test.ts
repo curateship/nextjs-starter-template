@@ -1,7 +1,6 @@
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { createDefaultBrandKit } from "@/lib/video/brand-kit"
 import type {
   CarouselSlide,
   CarouselTextItem,
@@ -20,7 +19,6 @@ import {
   findSlidePicture,
   renderCarouselSlidePng,
 } from "@/server/video/carousel-export"
-import { saveVideoBrandKit } from "@/server/video/settings"
 
 const textItem: CarouselTextItem = {
   id: "text-1",
@@ -95,12 +93,6 @@ describe("carousel slide export", () => {
 })
 
 describe("pictures a slide may show", () => {
-  const base = "https://video-media.example.test"
-  const hadR2PublicUrl = Object.prototype.hasOwnProperty.call(
-    process.env,
-    "CUSTOM_SHELL_R2_PUBLIC_URL"
-  )
-  const originalR2PublicUrl = process.env.CUSTOM_SHELL_R2_PUBLIC_URL
   let client: PGlite
   let database: CustomShellDb
   let ownerId: string
@@ -108,7 +100,6 @@ describe("pictures a slide may show", () => {
   let workspaceId: string
 
   beforeEach(async () => {
-    process.env.CUSTOM_SHELL_R2_PUBLIC_URL = base
     const testDb = await createTestDatabase()
     client = testDb.client
     database = testDb.db
@@ -119,11 +110,6 @@ describe("pictures a slide may show", () => {
 
   afterEach(async () => {
     await client.close()
-    if (hadR2PublicUrl) {
-      process.env.CUSTOM_SHELL_R2_PUBLIC_URL = originalR2PublicUrl
-    } else {
-      delete process.env.CUSTOM_SHELL_R2_PUBLIC_URL
-    }
   })
 
   async function insertPicture(
@@ -137,8 +123,8 @@ describe("pictures a slide may show", () => {
         id: uuid(),
         workspaceId,
         userId,
-        filename: "logo.png",
-        originalName: "logo.png",
+        filename: "picture.png",
+        originalName: "picture.png",
         fileSize: 100,
         mimeType: "image/png",
         fileType: "image",
@@ -149,13 +135,6 @@ describe("pictures a slide may show", () => {
       })
       .returning()
     return row
-  }
-
-  async function useAsLogo(storagePath: string) {
-    await saveVideoBrandKit(
-      { ...createDefaultBrandKit(), logoUrl: `${base}/${storagePath}` },
-      database
-    )
   }
 
   it("shows a person's own picture", async () => {
@@ -170,36 +149,11 @@ describe("pictures a slide may show", () => {
     expect(await findSlidePicture(ownerId, theirs.id, database)).toBeNull()
   })
 
-  it("shows the brand logo whoever uploaded it, until the kit's logo changes", async () => {
-    const logo = await insertPicture(strangerId)
-    await useAsLogo(logo.storagePath)
-    expect((await findSlidePicture(ownerId, logo.id, database))?.id).toBe(
-      logo.id
-    )
-
-    const newLogo = await insertPicture(strangerId)
-    await useAsLogo(newLogo.storagePath)
-    expect(await findSlidePicture(ownerId, logo.id, database)).toBeNull()
-  })
-
-  it("refuses a video, even one that is the brand logo", async () => {
+  it("refuses a video, even the person's own", async () => {
     const clip = await insertPicture(ownerId, {
       mimeType: "video/mp4",
       fileType: "video",
     })
-    await useAsLogo(clip.storagePath)
     expect(await findSlidePicture(ownerId, clip.id, database)).toBeNull()
-  })
-
-  it("finds no logo picture behind an address outside the library", async () => {
-    const logo = await insertPicture(strangerId)
-    await saveVideoBrandKit(
-      {
-        ...createDefaultBrandKit(),
-        logoUrl: `https://elsewhere.example.test/${logo.storagePath}`,
-      },
-      database
-    )
-    expect(await findSlidePicture(ownerId, logo.id, database)).toBeNull()
   })
 })

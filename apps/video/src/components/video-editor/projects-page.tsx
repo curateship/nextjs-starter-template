@@ -436,8 +436,8 @@ export function ProjectsPage({
                     setEditing(project)
                     setFormOpen(true)
                   }}
-                  aria-label={`Rename ${project.name}`}
-                  title={`Rename ${project.name}`}
+                  aria-label={`Settings for ${project.name}`}
+                  title={`Settings for ${project.name}`}
                 >
                   <SettingsIcon className="size-4" />
                 </Button>

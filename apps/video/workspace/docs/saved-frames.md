@@ -49,8 +49,6 @@ can be downloaded, used in another project, or dropped onto a timeline.
   project (`renderTimelineFrame` in `src/server/video/render.ts`). The saved
   picture is the frame an export would show at that moment. Any edit still
   waiting to save is sent first.
-- **The watermark and end card are left out**, because the preview does not
-  show them either.
 - **Only the clips on screen at that moment are fetched and drawn**, and the
   drawing starts at that moment. A video clip already playing is read from
   where the playhead is, not from its own start, so a frame late in a long

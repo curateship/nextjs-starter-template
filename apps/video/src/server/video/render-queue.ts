@@ -13,6 +13,7 @@ import {
   type RenderQuality,
   type RenderStatus,
 } from "@/lib/video/render"
+import { DEFAULT_NORMALIZE_LOUDNESS } from "@/lib/video/audio-loudness"
 import type { AspectRatio } from "@/lib/video/timeline-schema"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
@@ -25,7 +26,6 @@ import {
   SAFE_RENDER_ERRORS,
 } from "@/server/video/render"
 import { videoProjects, videoRenderJobs } from "@/server/video/schema"
-import { getVideoBrandKit } from "@/server/video/settings"
 import { isUniqueViolation } from "@/server/video/unique-violation"
 
 /**
@@ -276,8 +276,7 @@ export async function enqueueRenderJobs({
   await refuseFullQueue(userId, shapes.length, database)
 
   const timestamp = now()
-  const normalize =
-    normalizeLoudness ?? (await getVideoBrandKit(database)).normalizeLoudness
+  const normalize = normalizeLoudness ?? DEFAULT_NORMALIZE_LOUDNESS
   const name = title?.trim().slice(0, EXPORT_TITLE_MAX) || project.name
   try {
     await database.insert(videoRenderJobs).values(
@@ -560,7 +559,6 @@ async function runJob(job: ClaimedJob) {
       aspect: job.aspect,
       quality: job.quality,
       frameRate: job.frame_rate,
-      brandKit: await getVideoBrandKit(),
       normalizeLoudness: job.normalize_loudness,
       signal: stop.signal,
     })

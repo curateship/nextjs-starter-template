@@ -14,6 +14,7 @@ import {
   type VideoDurationSeconds,
 } from "@/lib/video/asset-factories"
 import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
+import { styledPrompt } from "@/lib/video/visual-style"
 import {
   checkAiAllowance,
   isAiLimitError,
@@ -27,6 +28,7 @@ import { getFromR2 } from "@/server/media/storage"
 import { serializeMedia } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
 import { runFfmpeg } from "@/server/video/ffmpeg"
+import { readProjectStyle } from "@/server/video/project-look"
 import { writeProjectTimeline } from "@/server/video/projects"
 import {
   videoAiGenerations,
@@ -45,6 +47,18 @@ const PROVIDER_REQUEST_TIMEOUT_MS = 90_000
 const VIDEO_DOWNLOAD_TIMEOUT_MS = 4 * 60 * 1000
 
 type ClaimedGeneration = VideoAiGenerationRow & { leaseToken: string }
+
+/**
+ * What Veo is told for one piece: the project's style line first, then the
+ * direction, then the rule about the first frame. The style is read when the
+ * piece starts, so a piece started after the style changed uses the new one.
+ */
+export function veoPrompt(style: string | null, direction: string) {
+  return styledPrompt(
+    { style },
+    `${direction}\n\nUse the supplied image as the exact first frame. Do not add captions or on-screen text.`
+  )
+}
 
 /** A piece after the first is "waiting" until the piece before it is ready. */
 export type PieceStatus = "waiting" | "queued" | "processing" | "ready" | "error"
@@ -473,6 +487,7 @@ async function startJob(job: ClaimedGeneration) {
       )
       .limit(1)
     if (!frame) throw new Error("First frame image is missing")
+    const style = await readProjectStyle(job.userId, job.projectId)
     const object = await getFromR2(frame.media.storagePath)
     const bytes = await object.Body?.transformToByteArray()
     if (!bytes?.byteLength) throw new Error("First frame image could not be read")
@@ -488,7 +503,7 @@ async function startJob(job: ClaimedGeneration) {
         body: JSON.stringify({
           instances: [
             {
-              prompt: `${job.prompt}\n\nUse the supplied image as the exact first frame. Do not add captions or on-screen text.`,
+              prompt: veoPrompt(style, job.prompt),
               image: {
                 inlineData: {
                   mimeType: frame.media.mimeType,

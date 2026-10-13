@@ -17,7 +17,6 @@ import {
   loudnormMeasureFilter,
   parseLoudnormMeasurement,
 } from "@/lib/video/audio-loudness"
-import type { VideoBrandKit } from "@/lib/video/brand-kit"
 import {
   atempoFilters,
   clipSpeed,
@@ -158,8 +157,8 @@ export function renderSize(aspect: AspectRatio, quality: RenderQuality) {
  * the length is written down or read back: the column it is stored in counts
  * whole milliseconds, and refuses anything else.
  */
-export function exportDurationMs(timelineMs: number, endCardMs: number) {
-  return Math.round(timelineMs + endCardMs)
+export function exportDurationMs(timelineMs: number) {
+  return Math.round(timelineMs)
 }
 
 /**
@@ -264,7 +263,6 @@ export async function renderTimeline({
   aspect,
   quality,
   frameRate,
-  brandKit,
   normalizeLoudness,
   signal,
 }: {
@@ -275,7 +273,6 @@ export async function renderTimeline({
   quality: RenderQuality
   /** Frames a second in the file, and the clock everything timed in frames counts on. */
   frameRate: RenderFrameRate
-  brandKit: VideoBrandKit
   normalizeLoudness: boolean
   /** Stops the render partway; the scratch folder still goes. */
   signal?: AbortSignal
@@ -305,11 +302,6 @@ export async function renderTimeline({
       }
     }
 
-    const logoFile =
-      brandKit.watermark.enabled || brandKit.endCard.enabled
-        ? await downloadBrandLogo(dir, brandKit.logoUrl)
-        : null
-
     const command = await buildFfmpegCommand({
       dir,
       size,
@@ -318,21 +310,11 @@ export async function renderTimeline({
       audio,
       sourceFiles,
       audioPresence,
-      watermark:
-        brandKit.watermark.enabled && logoFile
-          ? { ...brandKit.watermark, file: logoFile }
-          : null,
-      endCard: brandKit.endCard.enabled
-        ? { ...brandKit.endCard, logoFile }
-        : null,
       fps: frameRate,
       duckingGain: dbToGain(DEFAULT_DUCK_DB),
     })
 
-    const endCardMs = brandKit.endCard.enabled
-      ? brandKit.endCard.durationSeconds * 1000
-      : 0
-    const exportMs = exportDurationMs(durationMs, endCardMs)
+    const exportMs = exportDurationMs(durationMs)
     const timeoutMs = exportTimeoutMs(exportMs)
 
     const outFile = path.join(dir, "out.mp4")
@@ -350,7 +332,7 @@ export async function renderTimeline({
       "-r",
       String(frameRate),
       "-t",
-      String(command.outputDurationS),
+      String(durationMs / 1000),
       "-movflags",
       "+faststart",
       outFile,
@@ -378,8 +360,7 @@ const PREVIEW_FRAME_RATE: RenderFrameRate = 30
  * The frame on screen at one moment of a timeline, as a full-size JPEG.
  *
  * It is drawn by the export's own graph, so it is the picture an export would
- * show at that moment, less the watermark and end card the preview leaves out
- * too. Only the clips on screen then are fetched and drawn, and the film starts
+ * show at that moment. Only the clips on screen then are fetched and drawn, and the film starts
  * at that moment, so a frame late in a long project costs no more than one
  * early on.
  */
@@ -421,8 +402,6 @@ export async function renderTimelineFrame({
       audio: [],
       sourceFiles,
       audioPresence: new Map(),
-      watermark: null,
-      endCard: null,
       fps: PREVIEW_FRAME_RATE,
       duckingGain: 1,
       fromMs,
@@ -579,40 +558,6 @@ export async function extractCoverFrameFromStorage(
   }
 }
 
-async function downloadBrandLogo(dir: string, logoUrl: string) {
-  if (!logoUrl) return null
-  try {
-    // Only the web. The logo address is typed in by an admin, and this runs on
-    // the server, so anything else would be the server fetching whatever it was
-    // pointed at.
-    const address = new URL(logoUrl)
-    if (address.protocol !== "https:" && address.protocol !== "http:") {
-      return null
-    }
-    const response = await fetch(address)
-    if (!response.ok) return null
-    const bytes = new Uint8Array(await response.arrayBuffer())
-    const isSvg = (response.headers.get("Content-Type") ?? "").includes("svg")
-    const file = path.join(dir, isSvg ? "brand-logo.png" : "brand-logo.img")
-    if (isSvg) {
-      const { Resvg } = loadResvg()
-      await writeFile(
-        file,
-        new Resvg(new TextDecoder().decode(bytes)).render().asPng()
-      )
-    } else {
-      await writeFile(file, bytes)
-    }
-    return file
-  } catch {
-    // A logo that cannot be fetched is not worth failing an export over.
-    return null
-  }
-}
-
-type RenderWatermark = VideoBrandKit["watermark"] & { file: string }
-type RenderEndCard = VideoBrandKit["endCard"] & { logoFile: string | null }
-
 /**
  * Builds the input list and the filter graph. Nothing is padded: a clip that
  * does not fill the frame lets whatever is under it show through, exactly as
@@ -626,8 +571,6 @@ async function buildFfmpegCommand(options: {
   audio: RenderClip[]
   sourceFiles: Map<string, string>
   audioPresence: Map<string, boolean>
-  watermark: RenderWatermark | null
-  endCard: RenderEndCard | null
   fps: RenderFrameRate
   duckingGain: number
   /**
@@ -644,22 +587,19 @@ async function buildFfmpegCommand(options: {
     audio,
     sourceFiles,
     audioPresence,
-    watermark,
-    endCard,
     fps,
     duckingGain,
     fromMs = 0,
   } = options
   const durationS = durationMs / 1000
   const fromS = fromMs / 1000
-  const outputDurationS = durationS + (endCard?.durationSeconds ?? 0)
   const inputs: string[] = []
   // Moved on in whole frames: ffmpeg drops the fraction of a time it is
   // given, and a start a hair under a frame lands on the one before it.
   const filters: string[] = [
     fromS > 0
-      ? `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${outputDurationS - fromS},setpts=PTS+${Math.round(fromS * fps)}[v0]`
-      : `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${outputDurationS}[v0]`,
+      ? `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${durationS - fromS},setpts=PTS+${Math.round(fromS * fps)}[v0]`
+      : `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${durationS}[v0]`,
   ]
   const audioLabels: string[] = []
   let inputIndex = 0
@@ -969,77 +909,6 @@ async function buildFfmpegCommand(options: {
     inputIndex += 1
   }
 
-  if (watermark) {
-    const width = Math.max(
-      1,
-      Math.round(size.width * (watermark.widthPercent / 100))
-    )
-    const opacity = Math.min(Math.max(watermark.opacity / 100, 0), 1)
-    const margin = Math.round(Math.min(size.width, size.height) * 0.04)
-    const x = watermark.position.endsWith("right")
-      ? `W-w-${margin}`
-      : String(margin)
-    const y = watermark.position.startsWith("bottom")
-      ? `H-h-${margin}`
-      : String(margin)
-
-    inputs.push("-loop", "1", "-t", String(durationS), "-i", watermark.file)
-    filters.push(
-      `[${inputIndex}:v]format=rgba,scale=${width}:-1,colorchannelmixer=aa=${opacity.toFixed(3)}[wm]`,
-      `[v${visualStep}][wm]overlay=x=${x}:y=${y}[v${visualStep + 1}]`
-    )
-    inputIndex += 1
-    visualStep += 1
-  }
-
-  if (endCard) {
-    const cardDuration = endCard.durationSeconds
-    const cardEnd = durationS + cardDuration
-    const backgroundColor = endCard.backgroundColor.replace("#", "0x")
-    let cardStep = 0
-    filters.push(
-      `color=c=${backgroundColor}:s=${size.width}x${size.height}:r=${fps}:d=${cardDuration}[ec0]`
-    )
-
-    if (endCard.logoFile) {
-      const logoWidth = Math.round(size.width * 0.32)
-      const logoHeight = Math.round(size.height * 0.24)
-      const logoY = endCard.ctaText.trim() ? "H*0.38-h/2" : "(H-h)/2"
-      inputs.push(
-        "-loop",
-        "1",
-        "-t",
-        String(cardDuration),
-        "-i",
-        endCard.logoFile
-      )
-      filters.push(
-        `[${inputIndex}:v]format=rgba,scale=${logoWidth}:${logoHeight}:force_original_aspect_ratio=decrease[ec-logo]`,
-        `[ec${cardStep}][ec-logo]overlay=x=(W-w)/2:y=${logoY}[ec${cardStep + 1}]`
-      )
-      inputIndex += 1
-      cardStep += 1
-    }
-
-    if (endCard.ctaText.trim()) {
-      const textFile = path.join(dir, "end-card-text.png")
-      await writeFile(textFile, await renderEndCardTextPng(endCard, size))
-      inputs.push("-loop", "1", "-t", String(cardDuration), "-i", textFile)
-      filters.push(
-        `[${inputIndex}:v]format=rgba[ec-text]`,
-        `[ec${cardStep}][ec-text]overlay=x=0:y=0[ec${cardStep + 1}]`
-      )
-      inputIndex += 1
-      cardStep += 1
-    }
-
-    filters.push(
-      `[ec${cardStep}]fade=t=in:st=0:d=0.25,setpts=PTS-STARTPTS+${durationS}/TB[ec]`,
-      `[v${visualStep}][ec]overlay=x=0:y=0:enable='between(t,${durationS},${cardEnd})'[v${visualStep + 1}]`
-    )
-    visualStep += 1
-  }
-
   const finalVideo = `v${visualStep}`
   const hasAudio = audioLabels.length > 0
   if (hasAudio) {
@@ -1065,7 +934,6 @@ async function buildFfmpegCommand(options: {
     sound: hasAudio
       ? ["-map", "[aout]", "-c:a", "aac", "-b:a", AUDIO_BITRATE]
       : [],
-    outputDurationS,
   }
 }
 
@@ -1215,54 +1083,6 @@ function renderTextLayerPng(
     <feDropShadow dx="0" dy="${2 * scale}" stdDeviation="${6 * scale}" flood-color="#000000" flood-opacity="0.45"/>
   </filter>
   ${parts.join("\n  ")}
-</svg>`
-
-  const { Resvg } = loadResvg()
-  return new Resvg(svg, {
-    font: {
-      fontFiles,
-      loadSystemFonts: false,
-      defaultFontFamily: "Inter",
-    },
-  })
-    .render()
-    .asPng()
-}
-
-async function renderEndCardTextPng(
-  endCard: RenderEndCard,
-  size: { width: number; height: number }
-) {
-  const font = requireTextFont("inter")
-  const fontFiles = requireTextFontFiles()
-
-  let fontSize = size.height * 0.06
-  const wrap = () =>
-    wrapTextLines(
-      endCard.ctaText.trim(),
-      fontSize * font.widthRatio,
-      size.width * 0.8
-    )
-  let lines = wrap()
-  // Shrink until the line fits the third of the card it is allowed.
-  while (
-    fontSize > size.height * 0.035 &&
-    lines.length * fontSize * 1.2 > size.height * 0.35
-  ) {
-    fontSize -= 2
-    lines = wrap()
-  }
-
-  const lineHeight = fontSize * 1.2
-  const centerY = endCard.logoFile ? size.height * 0.68 : size.height * 0.5
-  const firstBaseline =
-    centerY - (lines.length * lineHeight) / 2 + lineHeight / 2 + fontSize * 0.36
-  const spans = lines.map(
-    (line, index) =>
-      `<tspan x="${size.width / 2}" y="${(firstBaseline + index * lineHeight).toFixed(1)}">${escapeXml(line) || " "}</tspan>`
-  )
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}">
-  <text text-anchor="middle" font-family="Inter" font-weight="${font.weight}" font-size="${fontSize}" fill="#ffffff">${spans.join("")}</text>
 </svg>`
 
   const { Resvg } = loadResvg()
