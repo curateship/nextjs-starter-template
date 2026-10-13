@@ -9,6 +9,10 @@ import {
 } from "@/lib/video/projects"
 import { FOLDER_NOT_FOUND_MESSAGE } from "@/lib/video/project-folders"
 import {
+  LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE,
+  MAX_STYLE_LENGTH,
+} from "@/lib/video/visual-style"
+import {
   PROJECT_CONFLICT_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
   timelineSchema,
@@ -23,6 +27,7 @@ import {
   keepRefusedTimeline,
   listOwnedProjects,
   renameOwnedProject,
+  saveOwnedProjectSettings,
   writeProjectTimeline,
   type ProjectDetail,
   type ProjectItem,
@@ -43,6 +48,7 @@ const KNOWN_MESSAGES = new Set([
   PROJECT_NAME_REQUIRED_MESSAGE,
   PROJECT_CONFLICT_MESSAGE,
   SAVED_TIMELINE_INVALID_MESSAGE,
+  LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE,
 ])
 
 export function getProjectErrorMessage(error: unknown) {
@@ -152,6 +158,19 @@ const keepRefusedTimelineFn = createServerFn({ method: "POST" })
     return keepRefusedTimeline(context.user.id, data.projectId, data.timeline)
   })
 
+const projectSettingsSchema = projectIdSchema.extend({
+  name: nameSchema.shape.name,
+  style: z.string().max(MAX_STYLE_LENGTH).nullable(),
+  lookPictureUrl: z.string().url().max(2048).nullable(),
+})
+
+const saveProjectSettingsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(projectSettingsSchema)
+  .handler(async ({ data, context }) => {
+    return saveOwnedProjectSettings(context.user.id, data.projectId, data)
+  })
+
 export function listProjects({
   page = 1,
   pageSize = 24,
@@ -201,4 +220,11 @@ export function keepRefusedProjectTimeline(
   timeline: ProjectTimeline
 ) {
   return keepRefusedTimelineFn({ data: { projectId, timeline } })
+}
+
+/** The name and the look, from the project's Settings window. */
+export function saveProjectSettings(
+  settings: z.infer<typeof projectSettingsSchema>
+) {
+  return saveProjectSettingsFn({ data: settings })
 }

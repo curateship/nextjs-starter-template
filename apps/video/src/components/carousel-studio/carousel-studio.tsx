@@ -39,7 +39,6 @@ import {
   DashboardCardTitleHeader,
 } from "@/components/shared/dashboard-card-header"
 import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
-import { BrandKitDialog } from "@/components/video-editor/brand-kit-dialog"
 import {
   InspectorCard,
   SliderField,
@@ -87,12 +86,6 @@ import {
   type MediaItem,
 } from "@/lib/api/media/media"
 import { attachEditorMedia, listVideoMedia } from "@/lib/api/video/media"
-import {
-  getBrandKitErrorMessage,
-  loadBrandLogoMedia,
-  type VideoBrandKit,
-} from "@/lib/api/video/settings"
-import { sixDigitBrandColor, WATERMARK_POSITIONS } from "@/lib/video/brand-kit"
 import type { CarouselShadowDirection } from "@/lib/video/carousel-schema"
 import {
   CAROUSEL_CONFLICT_MESSAGE,
@@ -152,10 +145,7 @@ export type BuilderAction =
   | { type: "UNDO" }
   | { type: "REDO" }
 
-type StudioPanel = "slides" | "text" | "image" | "shadow" | "brand"
-
-/** A brand kit colour as a swatch: its six-digit value and the kit's name. */
-type BrandSwatch = { value: string; name: string }
+type StudioPanel = "slides" | "text" | "image" | "shadow"
 
 const LAYOUT_KEY = "video-carousel-studio-horizontal"
 
@@ -292,10 +282,8 @@ type SaveStatus = "saved" | "saving" | "error"
 
 export function CarouselBuilderPage({
   document,
-  brandKit: savedBrandKit,
 }: {
   document: CarouselDetail
-  brandKit: VideoBrandKit
 }) {
   const [state, dispatch] = React.useReducer(
     builderReducer,
@@ -311,9 +299,6 @@ export function CarouselBuilderPage({
   const [exporting, setExporting] = React.useState(false)
   const [exportError, setExportError] = React.useState<string | null>(null)
   const [polishing, setPolishing] = React.useState(false)
-  // Held here so saving the kit from the Brand panel repaints every swatch.
-  const [brandKit, setBrandKit] = React.useState(savedBrandKit)
-  const [placingLogo, setPlacingLogo] = React.useState(false)
   const horizontalLayout = useRememberedPanelLayout(LAYOUT_KEY)
   const panelRef = React.useRef<PanelImperativeHandle>(null)
   const inspectorRef = React.useRef<PanelImperativeHandle>(null)
@@ -338,10 +323,6 @@ export function CarouselBuilderPage({
       ? "This carousel changed somewhere else, so this window has stopped saving. Reload to use the newer version."
       : statusError,
     hasConflict ? () => window.location.reload() : undefined
-  )
-  const brandSwatches = React.useMemo(
-    () => toBrandSwatches(brandKit),
-    [brandKit]
   )
 
   const snapshot = React.useMemo(
@@ -510,77 +491,6 @@ export function CarouselBuilderPage({
     dispatch({ type: "ADD_ITEM", slideId: selectedSlide.id, item })
   }
 
-  /**
-   * One press, one undo step: the colour goes on whatever the inspector is
-   * showing, which is the slide's background when no layer is selected.
-   */
-  function applyBrandColor(color: string) {
-    if (!selectedSlide) return
-    if (!selectedItem) {
-      dispatch({
-        type: "UPDATE_SLIDE",
-        slideId: selectedSlide.id,
-        patch: { backgroundColor: color },
-      })
-      return
-    }
-    if (
-      selectedItem.type !== "text" &&
-      selectedItem.type !== "gradient-shadow"
-    ) {
-      showErrorToast(BRAND_COLOR_HINTS[selectedItem.type])
-      return
-    }
-    dispatch({
-      type: "UPDATE_ITEM",
-      slideId: selectedSlide.id,
-      itemId: selectedItem.id,
-      patch: { color },
-    })
-  }
-
-  async function placeBrandLogo() {
-    if (!selectedSlide) return
-    setPlacingLogo(true)
-    try {
-      const logo = await loadBrandLogoMedia()
-      if (!logo) {
-        showErrorToast(
-          "The brand logo is not a picture in the media library, so it cannot go on a slide. Pick the logo again in Edit brand kit."
-        )
-        return
-      }
-      const size = await naturalImageSize(logo.url)
-      if (!size) {
-        showErrorToast(
-          "The brand logo could not be loaded, so it was not placed."
-        )
-        return
-      }
-      const item = createImageItem(
-        logo.url,
-        logo.name,
-        logo.id,
-        brandLogoBox(size, state.format, brandKit.watermark)
-      )
-      addItem({
-        ...item,
-        fit: "contain",
-        zIndex: Math.min(
-          999,
-          Math.max(
-            DEFAULT_TEXT_Z_INDEX,
-            ...selectedSlide.items.map((layer) => layer.zIndex)
-          ) + 1
-        ),
-      })
-    } catch (error) {
-      showErrorToast(getBrandKitErrorMessage(error))
-    } finally {
-      setPlacingLogo(false)
-    }
-  }
-
   function addSlide() {
     if (state.slides.length >= 20) {
       showErrorToast("A carousel can have at most 20 slides.")
@@ -669,13 +579,6 @@ export function CarouselBuilderPage({
             dispatch({ type: "DELETE_SLIDE", slideId })
           }
           onAddItem={addItem}
-          brandKit={brandKit}
-          brandSwatches={brandSwatches}
-          brandTarget={selectedItem ? selectedItem.type : "slide"}
-          placingLogo={placingLogo}
-          onApplyBrandColor={applyBrandColor}
-          onPlaceBrandLogo={() => void placeBrandLogo()}
-          onBrandKitSaved={setBrandKit}
         />
       </div>
     </div>
@@ -799,7 +702,6 @@ export function CarouselBuilderPage({
               slide={selectedSlide}
               selectedItem={selectedItem}
               format={state.format}
-              brandSwatches={brandSwatches}
               onUpdateFormat={(format) =>
                 dispatch({ type: "UPDATE_FORMAT", format })
               }
@@ -992,7 +894,6 @@ const RAIL: { id: StudioPanel; label: string; Icon: typeof TypeIcon }[] = [
   { id: "text", label: "Text", Icon: TypeIcon },
   { id: "image", label: "Image", Icon: ImageIcon },
   { id: "shadow", label: "Shadow", Icon: BlendIcon },
-  { id: "brand", label: "Brand", Icon: LayoutGridIcon },
 ]
 
 function IconRail({
@@ -1045,13 +946,6 @@ function CarouselContextPanel({
   onDuplicateSlide,
   onDeleteSlide,
   onAddItem,
-  brandKit,
-  brandSwatches,
-  brandTarget,
-  placingLogo,
-  onApplyBrandColor,
-  onPlaceBrandLogo,
-  onBrandKitSaved,
 }: {
   carouselId: string
   panel: StudioPanel
@@ -1063,13 +957,6 @@ function CarouselContextPanel({
   onDuplicateSlide: (slideId: string) => void
   onDeleteSlide: (slideId: string) => void
   onAddItem: (item: CarouselSlideItem) => void
-  brandKit: VideoBrandKit
-  brandSwatches: BrandSwatch[]
-  brandTarget: BrandColorTarget
-  placingLogo: boolean
-  onApplyBrandColor: (color: string) => void
-  onPlaceBrandLogo: () => void
-  onBrandKitSaved: (brandKit: VideoBrandKit) => void
 }) {
   const [slidesView, setSlidesView] = React.useState<"list" | "grid">("list")
   const currentPanel = RAIL.find((item) => item.id === panel) ?? RAIL[0]
@@ -1109,21 +996,8 @@ function CarouselContextPanel({
               format={format}
               onAddItem={onAddItem}
             />
-          ) : panel === "shadow" ? (
-            <ShadowPanelBody
-              brandSwatches={brandSwatches}
-              onAddItem={onAddItem}
-            />
           ) : (
-            <BrandPanelBody
-              brandKit={brandKit}
-              swatches={brandSwatches}
-              target={brandTarget}
-              placingLogo={placingLogo}
-              onApplyColor={onApplyBrandColor}
-              onPlaceLogo={onPlaceBrandLogo}
-              onSaved={onBrandKitSaved}
-            />
+            <ShadowPanelBody onAddItem={onAddItem} />
           )}
         </div>
       </ScrollArea>
@@ -1832,10 +1706,8 @@ function ImagePanelBody({
 // ------------------------------------------------------- Shadow panel -------
 
 function ShadowPanelBody({
-  brandSwatches,
   onAddItem,
 }: {
-  brandSwatches: BrandSwatch[]
   onAddItem: (item: CarouselSlideItem) => void
 }) {
   const [color, setColor] = React.useState(DEFAULT_GRADIENT_SHADOW_COLOR)
@@ -1897,7 +1769,6 @@ function ShadowPanelBody({
         <ColorField
           value={color}
           onChange={setColor}
-          brand={brandSwatches}
           swatches={SHADOW_SWATCHES}
         />
       </div>
@@ -1943,127 +1814,6 @@ function ShadowPanelBody({
         Scrims darken part of a photo so text stays readable. Pick a direction,
         tint and strength — it drops in as a layer you can resize on the canvas.
       </div>
-    </div>
-  )
-}
-
-// -------------------------------------------------------- Brand panel -------
-
-type BrandColorTarget = CarouselSlideItem["type"] | "slide"
-
-const BRAND_COLOR_HINTS: Record<BrandColorTarget, string> = {
-  slide:
-    "Click one to colour this slide's background. Select a layer to colour it instead.",
-  text: "Click one to colour the selected text.",
-  "gradient-shadow": "Click one to colour the selected shadow.",
-  image:
-    "A picture cannot take a colour. Select text or a shadow, or click an empty part of the slide to colour its background.",
-  video:
-    "A video cannot take a colour. Select text or a shadow, or click an empty part of the slide to colour its background.",
-}
-
-function BrandPanelBody({
-  brandKit,
-  swatches,
-  target,
-  placingLogo,
-  onApplyColor,
-  onPlaceLogo,
-  onSaved,
-}: {
-  brandKit: VideoBrandKit
-  swatches: BrandSwatch[]
-  target: BrandColorTarget
-  placingLogo: boolean
-  onApplyColor: (color: string) => void
-  onPlaceLogo: () => void
-  onSaved: (brandKit: VideoBrandKit) => void
-}) {
-  const [editing, setEditing] = React.useState(false)
-  const corner = WATERMARK_POSITIONS.find(
-    (position) => position.id === brandKit.watermark.position
-  )?.label.toLowerCase()
-
-  return (
-    <div className="grid gap-5">
-      <div className="grid gap-2.5">
-        <StudioLabel style={{ marginBottom: 0 }}>Palette</StudioLabel>
-        {swatches.length ? (
-          <>
-            <div className="flex flex-wrap gap-2">
-              {swatches.map((swatch) => (
-                <button
-                  key={swatch.value}
-                  type="button"
-                  title={`${swatch.name} · ${swatch.value}`}
-                  aria-label={`Use ${swatch.name}`}
-                  onClick={() => onApplyColor(swatch.value)}
-                  className="size-10 rounded-lg border transition-[border-color] hover:border-ring"
-                  style={{ backgroundColor: swatch.value }}
-                />
-              ))}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {BRAND_COLOR_HINTS[target]}
-            </p>
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">No brand colours yet.</p>
-        )}
-      </div>
-
-      <div className="grid gap-2.5">
-        <StudioLabel style={{ marginBottom: 0 }}>Logo</StudioLabel>
-        {brandKit.logoUrl ? (
-          <>
-            <div className="grid place-items-center rounded-lg border bg-muted/40 p-4">
-              <img
-                src={brandKit.logoUrl}
-                alt="Brand logo"
-                className="max-h-16 max-w-full object-contain"
-              />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              disabled={placingLogo}
-              onClick={onPlaceLogo}
-            >
-              {placingLogo ? (
-                <Loader2Icon className="animate-spin" />
-              ) : (
-                <PlusIcon />
-              )}
-              Place logo
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              It lands in the {corner} corner at the watermark's size, the same
-              place videos put it.
-            </p>
-          </>
-        ) : (
-          <p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
-            No logo yet
-          </p>
-        )}
-      </div>
-
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full"
-        onClick={() => setEditing(true)}
-      >
-        Edit brand kit
-      </Button>
-
-      <BrandKitDialog
-        open={editing}
-        onOpenChange={setEditing}
-        brandKit={brandKit}
-        onSaved={onSaved}
-      />
     </div>
   )
 }
@@ -2688,7 +2438,6 @@ function CarouselInspector({
   slide,
   selectedItem,
   format,
-  brandSwatches,
   onUpdateFormat,
   onUpdateSlide,
   onUpdateItem,
@@ -2698,7 +2447,6 @@ function CarouselInspector({
   slide: CarouselSlide
   selectedItem: CarouselSlideItem | null
   format: CarouselFormat
-  brandSwatches: BrandSwatch[]
   onUpdateFormat: (format: CarouselFormat) => void
   onUpdateSlide: (patch: Partial<CarouselSlide>) => void
   onUpdateItem: (itemId: string, patch: Partial<CarouselSlideItem>) => void
@@ -2724,13 +2472,11 @@ function CarouselInspector({
             selectedItem.type === "text" ? (
               <TextInspector
                 item={selectedItem}
-                brandSwatches={brandSwatches}
                 onUpdate={(patch) => onUpdateItem(selectedItem.id, patch)}
               />
             ) : selectedItem.type === "gradient-shadow" ? (
               <GradientShadowInspector
                 item={selectedItem}
-                brandSwatches={brandSwatches}
                 onUpdate={(patch) => onUpdateItem(selectedItem.id, patch)}
               />
             ) : (
@@ -2743,7 +2489,6 @@ function CarouselInspector({
             <SlideInspector
               slide={slide}
               format={format}
-              brandSwatches={brandSwatches}
               onUpdateFormat={onUpdateFormat}
               onUpdateSlide={onUpdateSlide}
             />
@@ -2773,13 +2518,11 @@ function getInspectorTitle(selectedItem: CarouselSlideItem | null) {
 function SlideInspector({
   slide,
   format,
-  brandSwatches,
   onUpdateFormat,
   onUpdateSlide,
 }: {
   slide: CarouselSlide
   format: CarouselFormat
-  brandSwatches: BrandSwatch[]
   onUpdateFormat: (format: CarouselFormat) => void
   onUpdateSlide: (patch: Partial<CarouselSlide>) => void
 }) {
@@ -2817,7 +2560,6 @@ function SlideInspector({
         <ColorField
           value={slide.backgroundColor}
           onChange={(backgroundColor) => onUpdateSlide({ backgroundColor })}
-          brand={brandSwatches}
           swatches={BACKGROUND_SWATCHES}
         />
       </div>
@@ -2827,11 +2569,9 @@ function SlideInspector({
 
 function TextInspector({
   item,
-  brandSwatches,
   onUpdate,
 }: {
   item: CarouselTextItem
-  brandSwatches: BrandSwatch[]
   onUpdate: (patch: Partial<CarouselTextItem>) => void
 }) {
   return (
@@ -2886,7 +2626,6 @@ function TextInspector({
           <ColorField
             value={item.color}
             onChange={(color) => onUpdate({ color })}
-            brand={brandSwatches}
             swatches={TEXT_SWATCHES}
           />
         </div>
@@ -2975,11 +2714,9 @@ function MediaInspector({
 
 function GradientShadowInspector({
   item,
-  brandSwatches,
   onUpdate,
 }: {
   item: CarouselGradientShadowItem
-  brandSwatches: BrandSwatch[]
   onUpdate: (patch: Partial<CarouselGradientShadowItem>) => void
 }) {
   return (
@@ -3003,7 +2740,6 @@ function GradientShadowInspector({
           <ColorField
             value={item.color}
             onChange={(color) => onUpdate({ color })}
-            brand={brandSwatches}
             swatches={SHADOW_SWATCHES}
           />
         </div>
@@ -3190,29 +2926,22 @@ function SegRow<T extends string>({
   )
 }
 
-// The brand kit's colours first, then the preset swatches it does not already
-// hold, then a native colour input for any other hex value (the OS picker).
+// The preset swatches, then a native colour input for any other hex value
+// (the OS picker).
 function ColorField({
   value,
   onChange,
-  brand,
   swatches,
 }: {
   value: string
   onChange: (color: string) => void
-  brand: BrandSwatch[]
   swatches: string[]
 }) {
   const normalized = value.toLowerCase()
-  const options = [
-    ...brand.map((swatch) => ({
-      value: swatch.value,
-      label: `${swatch.name} · ${swatch.value}`,
-    })),
-    ...swatches
-      .filter((swatch) => !brand.some((color) => color.value === swatch))
-      .map((swatch) => ({ value: swatch, label: `Colour ${swatch}` })),
-  ]
+  const options = swatches.map((swatch) => ({
+    value: swatch,
+    label: `Colour ${swatch}`,
+  }))
   const known = options.some((option) => option.value === normalized)
 
   return (
@@ -3917,59 +3646,6 @@ function createImageItem(
     height: placement.height,
     zIndex: DEFAULT_IMAGE_Z_INDEX,
     fit: "cover",
-  }
-}
-
-function toBrandSwatches(brandKit: VideoBrandKit): BrandSwatch[] {
-  const seen = new Set<string>()
-  return brandKit.colors.flatMap((color) => {
-    const value = sixDigitBrandColor(color.value)
-    if (seen.has(value)) return []
-    seen.add(value)
-    return [{ value, name: color.name }]
-  })
-}
-
-/** The picture's own width and height, or null when it will not load. */
-function naturalImageSize(url: string) {
-  return new Promise<{ width: number; height: number } | null>((resolve) => {
-    const image = new Image()
-    image.onload = () =>
-      resolve({ width: image.naturalWidth, height: image.naturalHeight })
-    image.onerror = () => resolve(null)
-    image.src = url
-  })
-}
-
-/**
- * Where a placed logo lands: the watermark's corner and width from the brand
- * kit, with the same gap from the edge the video export leaves (4 out of every
- * 100 pixels of the frame's shorter side, which on a slide is its width). The
- * box keeps the logo's own shape; a wordmark too thin for the smallest layer
- * gets a taller box and is drawn inside it, uncropped. Exported for its test.
- */
-// eslint-disable-next-line react-refresh/only-export-components
-export function brandLogoBox(
-  size: { width: number; height: number },
-  format: CarouselFormat,
-  watermark: VideoBrandKit["watermark"]
-) {
-  const slideRatio = FORMAT_RATIOS[format]
-  const aspect = size.width && size.height ? size.width / size.height : 1
-  const width = Math.max(MIN_ITEM_SIZE, watermark.widthPercent / 100)
-  const height = Math.min(
-    1,
-    Math.max(MIN_ITEM_SIZE, (width * slideRatio) / aspect)
-  )
-  const gapX = 0.04
-  const gapY = 0.04 * slideRatio
-  return {
-    x: watermark.position.endsWith("right") ? 1 - width - gapX : gapX,
-    y: watermark.position.startsWith("bottom")
-      ? Math.max(0, 1 - height - gapY)
-      : gapY,
-    width,
-    height,
   }
 }
 

@@ -16,7 +16,6 @@ import { IMAGE_TYPES } from "@/server/media/library"
 import { getFromR2 } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
 import { getOwnedCarouselDetail } from "@/server/video/carousels"
-import { findBrandLogoMedia } from "@/server/video/settings"
 import { requireTextFontFiles } from "@/server/video/text-font-files"
 
 export const CAROUSEL_SLIDE_NOT_FOUND_MESSAGE = "Carousel slide not found."
@@ -83,10 +82,8 @@ export async function renderOwnedCarouselSlide(
 }
 
 /**
- * A picture a slide may show: one of this person's own, or the brand kit's
- * logo whoever uploaded it, since the kit belongs to the whole install. The
- * logo stops counting the moment the kit's logo changes, so an old logo on
- * somebody else's slide then fails like any missing picture.
+ * A picture a slide may show: one of this person's own. Anything else, a video
+ * or somebody else's upload, fails like any missing picture.
  */
 export async function findSlidePicture(
   userId: string,
@@ -99,9 +96,7 @@ export async function findSlidePicture(
     .where(eq(customShellMedia.id, mediaId))
     .limit(1)
   if (!row || !IMAGE_TYPES.has(row.mimeType)) return null
-  if (row.userId === userId) return row
-  const logo = await findBrandLogoMedia(database)
-  return logo?.id === row.id ? row : null
+  return row.userId === userId ? row : null
 }
 
 export function renderCarouselSlidePng(

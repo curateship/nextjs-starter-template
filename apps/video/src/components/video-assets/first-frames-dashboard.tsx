@@ -3,6 +3,7 @@ import { FilmIcon, Loader2Icon, PinIcon, PlusIcon, SparklesIcon, Trash2Icon } fr
 import { toast } from "sonner"
 
 import { ImageUpload } from "@/components/shared/image-upload"
+import { ProjectLookSelect } from "@/components/video-assets/project-look-select"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
@@ -40,10 +41,12 @@ type FormState = {
   tags: string
   referenceMediaUrl: string
   variants: number
+  /** A project id, or "" for no look. */
+  lookProjectId: string
 }
 
 function emptyForm(actorId = ""): FormState {
-  return { name: "", actorId, prompt: "", model: DEFAULT_IMAGE_MODEL, aspectRatio: "9:16", tags: "", referenceMediaUrl: "", variants: 1 }
+  return { name: "", actorId, prompt: "", model: DEFAULT_IMAGE_MODEL, aspectRatio: "9:16", tags: "", referenceMediaUrl: "", variants: 1, lookProjectId: "" }
 }
 
 export function FirstFramesDashboard({
@@ -87,6 +90,7 @@ export function FirstFramesDashboard({
       const payload: FirstFramePayload = {
         ...form,
         referenceMediaUrl: form.referenceMediaUrl || null,
+        lookProjectId: form.lookProjectId || null,
       }
       const result = await createFirstFrames(payload)
       setFrames((current) => [...result.firstFrames, ...current])
@@ -188,6 +192,7 @@ export function FirstFramesDashboard({
                   <div className="grid gap-2"><Label htmlFor="frame-aspect">Shape</Label><Select value={form.aspectRatio} onValueChange={(aspectRatio) => setForm({ ...form, aspectRatio: aspectRatio as AssetAspectRatio })}><SelectTrigger id="frame-aspect"><SelectValue /></SelectTrigger><SelectContent>{ASSET_ASPECT_RATIOS.map((ratio) => <SelectItem key={ratio} value={ratio}>{ratio}</SelectItem>)}</SelectContent></Select></div>
                   <div className="grid gap-2"><Label htmlFor="frame-variants">Variants</Label><Select value={String(form.variants)} onValueChange={(value) => setForm({ ...form, variants: Number(value) })}><SelectTrigger id="frame-variants"><SelectValue /></SelectTrigger><SelectContent>{[1, 2, 3, 4].map((count) => <SelectItem key={count} value={String(count)}>{count}</SelectItem>)}</SelectContent></Select></div>
                   <div className="grid gap-2"><Label htmlFor="frame-tags">Tags</Label><Input id="frame-tags" value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="launch, kitchen" /></div>
+                  <ProjectLookSelect id="frame-look" projects={projects} value={form.lookProjectId} onChange={(lookProjectId) => setForm({ ...form, lookProjectId })} disabled={busy} />
                 </CardContent>
               </Card>
             </DialogBody>

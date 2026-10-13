@@ -18,6 +18,7 @@ import {
   createGeneration,
   insertGeneration,
   retryGeneration,
+  veoPrompt,
   videoGenerationTick,
 } from "@/server/video/asset-factories/generations"
 import { createOwnedProject } from "@/server/video/projects"
@@ -38,6 +39,9 @@ vi.mock("@/server/media/storage", async (importOriginal) => ({
     uploaded.delete(storagePath)
   },
   getPublicMediaUrl: async (storagePath: string) => `https://media.test/${storagePath}`,
+  getFromR2: async () => ({
+    Body: { transformToByteArray: async () => new Uint8Array([137, 80, 78, 71]) },
+  }),
 }))
 
 const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0
@@ -381,5 +385,54 @@ describe("shots longer than one clip", () => {
     await expect(insertGeneration(user.id, "piece-1", project.id)).rejects.toThrow(
       "Only ready generations can be inserted"
     )
+  })
+})
+
+describe("the project's style in a Veo request", () => {
+  it("puts the style line first, then the direction", () => {
+    const prompt = veoPrompt("Flat illustration, warm palette", "Waves crash")
+    expect(prompt.split("\n\n")).toEqual([
+      "Style: Flat illustration, warm palette",
+      "Waves crash",
+      "Use the supplied image as the exact first frame. Do not add captions or on-screen text.",
+    ])
+  })
+
+  it("sends what it always sent when the project has no style", () => {
+    expect(veoPrompt(null, "Waves crash")).toBe(
+      "Waves crash\n\nUse the supplied image as the exact first frame. Do not add captions or on-screen text."
+    )
+  })
+
+  it("reads the style off the project when the clip starts", async () => {
+    const project = await seedFirstFrame()
+    await database
+      .update(videoProjects)
+      .set({ style: "Flat illustration, warm palette" })
+      .where(eq(videoProjects.id, project.id))
+    await createGeneration(user.id, {
+      projectId: project.id,
+      firstFrameId: "frame-1",
+      prompts: ["Waves crash"],
+      lengthSeconds: 8,
+    })
+    const sent: string[] = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: string | URL, init?: RequestInit) => {
+        sent.push(String(init?.body))
+        return Response.json({ name: "operations/started" })
+      })
+    )
+
+    await videoGenerationTick()
+
+    expect(sent).toHaveLength(1)
+    const body = JSON.parse(sent[0]) as { instances: { prompt: string }[] }
+    expect(body.instances[0].prompt).toBe(
+      veoPrompt("Flat illustration, warm palette", "Waves crash")
+    )
+    const [row] = await pieces()
+    expect(row.operationName).toBe("operations/started")
   })
 })

@@ -11,8 +11,8 @@ Searching needs a YouTube Data API key, free from console.cloud.google.com
 with the YouTube Data API v3 switched on.
 
 - The key is pasted in **Settings → YouTube** (the app's own tab, under "This
-  app"). It is scrambled before it is stored, on the same `video_settings` row
-  as the brand kit, with the same encryption the shell uses for AI keys. Only
+  app"). It is scrambled before it is stored, on the app's own
+  `video_settings` row, with the same encryption the shell uses for AI keys. Only
   its last four characters are ever shown again.
 - A deployment can set `VIDEO_YOUTUBE_API_KEY` instead. A key saved in
   Settings always wins over the env var.

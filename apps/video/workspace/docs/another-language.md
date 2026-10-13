@@ -41,11 +41,10 @@ usual one in the Voice tool.
 ## Captions
 
 Each translated line goes on as one caption, at exactly the time of the line it
-came from, in the caption look saved in the brand kit. They all land on one new
+came from, in the standard caption look. They all land on one new
 lane at the top.
 
-A translated caption never lights up word by word, even when the brand kit
-switches that on. The word times belong to the original words, and a
+A translated caption never lights up word by word. The word times belong to the original words, and a
 translation has a different number of words in a different order.
 
 ## Reading aloud

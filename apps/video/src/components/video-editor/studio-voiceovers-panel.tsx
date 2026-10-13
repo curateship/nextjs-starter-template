@@ -14,6 +14,7 @@ import {
   voiceoverClips,
   voiceoverRefusal,
 } from "@/lib/video/saved-voiceovers"
+import { DEFAULT_CAPTION_LOOK } from "@/lib/video/caption-look"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
@@ -23,7 +24,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import { OwnVoices } from "@/components/video-editor/studio-own-voices"
-import { useSavedCaptionLook } from "@/components/video-editor/use-saved-caption-look"
 
 /**
  * The Voiceovers panel: every voiceover already read aloud, searchable by
@@ -43,8 +43,6 @@ export function VoiceoversPanel() {
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [refresh, setRefresh] = React.useState(0)
   const [playingId, setPlayingId] = React.useState<string | null>(null)
-  // The captions take the brand kit's look, the same as a fresh voiceover's.
-  const [look] = useSavedCaptionLook(true)
 
   React.useEffect(() => {
     const timer = setTimeout(() => setDebounced(search.trim()), 250)
@@ -70,10 +68,6 @@ export function VoiceoversPanel() {
   }, [debounced, refresh])
 
   function layDown(voiceover: SavedVoiceover) {
-    if (!look) {
-      showErrorToast("The caption look is still loading. Try again in a moment.")
-      return
-    }
     const refusal = voiceoverRefusal(
       store.getSnapshot().state.tracks,
       voiceover.captions
@@ -85,7 +79,8 @@ export function VoiceoversPanel() {
     const atMs = clock.getTime()
     dispatch({
       type: "INSERT_VOICEOVER",
-      ...voiceoverClips(voiceover, atMs, look),
+      // The standard look, the same as a fresh voiceover's captions.
+      ...voiceoverClips(voiceover, atMs, DEFAULT_CAPTION_LOOK),
     })
     const count = voiceover.captions.length
     toast.success(

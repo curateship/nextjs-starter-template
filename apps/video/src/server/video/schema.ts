@@ -302,6 +302,16 @@ export const videoProjects = pgTable(
     aspect: varchar("aspect", { length: 8 }).notNull(),
     timeline: jsonb("timeline").notNull(),
     version: integer("version").notNull().default(1),
+    // The project's look (see workspace/docs/visual-style.md): a style line
+    // every AI picture and clip made for it starts from, and a library picture
+    // to copy the look of. Kept beside the timeline rather than in it, so
+    // changing the look from Project settings never moves `version` and never
+    // clashes with an open editor. Deleting the picture blanks the column.
+    style: varchar("style", { length: 500 }),
+    styleMediaId: varchar("style_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -496,16 +506,13 @@ export const videoCarouselMedia = pgTable(
 )
 
 /**
- * The brand kit every project draws with: one row, kept that way by the check
- * on `id`. The kit itself is a JSON document read through a normalizer, the
- * same shape the shell uses for its own styling settings, so a later feature
- * can add a field without a migration or a column that is null everywhere.
+ * The app's own settings: one row, kept that way by the check on `id`. Each
+ * setting is its own column, written the first time somebody saves it.
  */
 export const videoSettings = pgTable(
   "video_settings",
   {
     id: varchar("id", { length: 20 }).primaryKey(),
-    brandKit: jsonb("brand_kit").notNull(),
     // The voice scripts are read in, remembered so it is not picked every time.
     // Empty until somebody saves one.
     voiceDefaults: jsonb("voice_defaults").notNull().default({}),

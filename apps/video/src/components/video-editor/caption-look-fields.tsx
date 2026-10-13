@@ -33,9 +33,8 @@ import { DESIGN_HEIGHT } from "@/lib/video/timeline-utils"
 import { requireTextFont } from "@/lib/video/text-fonts"
 
 /**
- * The caption look's controls with a sample beside them. The brand kit uses it
- * to save the look, and the captions window uses it to start from that look,
- * so the two can never offer different choices or draw a different sample.
+ * The caption look's controls with a sample beside them, as the Captions
+ * window shows them.
  */
 export function CaptionLookFields({
   idPrefix,

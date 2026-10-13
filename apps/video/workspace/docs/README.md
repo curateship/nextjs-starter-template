@@ -46,12 +46,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [text-fonts.md](text-fonts.md) — the four faces video text and carousel
   slides can be drawn in, their licences, how the preview and the export stay
   in step, and what the extra files cost to download.
-- [carousel-brand-kit.md](carousel-brand-kit.md) — what the carousel studio
-  takes from the brand kit: the Brand panel, the kit's colours in every colour
-  picker, placing the logo, and what a slide still sets for itself.
-- [caption-look.md](caption-look.md) — the caption look saved in the brand
-  kit, which captions start from it, and why captions already on a project
-  never change.
+- [caption-look.md](caption-look.md) — the standard look every new caption
+  starts from, which windows let it be changed for one run, and why captions
+  already on a project never change.
 - [word-by-word-captions.md](word-by-word-captions.md) — captions that light
   up each word as it is said: where it is switched on, where the word times
   come from, what happens when the words are edited, and what it costs to
@@ -125,6 +122,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [viral-score.md](viral-score.md) — the 0 to 100 viral score on every Viral
   page result: its five parts and their weights, one worked example, what
   "sure: medium" means, and why the score is worked out on every read.
+- [visual-style.md](visual-style.md) — a project's look: the style line and
+  look picture set in a project's Settings window, which AI tools send them, and
+  why a bad style line spoils every scene at once.
 - [creator-research.md](creator-research.md) — the research dashboard: creators
   in folders, the feed of everything they post, the six-hourly watch timer and
   what it costs, and what Save & break down downloads, spends and writes down.

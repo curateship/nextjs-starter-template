@@ -2,7 +2,6 @@ import * as React from "react"
 import {
   FilmIcon,
   FolderPlusIcon,
-  LayoutGrid,
   Loader2,
   PauseIcon,
   PlayIcon,
@@ -36,7 +35,6 @@ import {
   retryMediaPreparation,
   type VideoMediaItem,
 } from "@/lib/api/video/media"
-import { loadBrandKit, type VideoBrandKit } from "@/lib/api/video/settings"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { announceFilmstripRequeued } from "@/lib/video/filmstrips"
@@ -51,7 +49,6 @@ import {
   waveformDataUrl,
 } from "@/lib/video/timeline-utils"
 import { Card, CardContent } from "@/components/ui/card"
-import { BrandKitDialog } from "@/components/video-editor/brand-kit-dialog"
 import { buildMediaClip } from "@/components/video-editor/media-clip"
 import { StickerShelf } from "@/components/video-editor/studio-stickers"
 import {
@@ -62,9 +59,7 @@ import {
 } from "@/components/video-editor/studio-media-collections"
 import { useMediaCollections } from "@/components/video-editor/use-media-collections"
 import {
-  findClip,
   useEditorRuntime,
-  useEditorSelector,
   useEditorStoreSelector,
 } from "@/components/video-editor/editor-store"
 
@@ -78,7 +73,6 @@ export type StudioPanel =
   | "music"
   | "voiceovers"
   | "text"
-  | "brand"
   | "ai"
   | "transcript"
 
@@ -93,14 +87,13 @@ const PANEL_TITLE: Record<StudioPanel, string> = {
   music: "Music",
   voiceovers: "Voiceovers",
   text: "Text",
-  brand: "Brand kit",
   ai: "AI",
   transcript: "Transcript",
 }
 
 export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   // Media has search and upload buttons to put in its header, so it draws its
-  // own; the other two only need a title.
+  // own; Text only needs a title.
   if (panel === "media") return <MediaPanel />
   if (panel === "music") return <MusicPanel />
   if (panel === "voiceovers") return <VoiceoversPanel />
@@ -111,12 +104,12 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <DashboardCardTitleHeader
-        icon={panel === "text" ? <Type className="size-4" /> : <LayoutGrid className="size-4" />}
+        icon={<Type className="size-4" />}
         title={PANEL_TITLE[panel]}
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="p-4">
-          {panel === "text" ? <TextPanel /> : <BrandPanel />}
+          <TextPanel />
         </div>
       </ScrollArea>
     </div>
@@ -1080,116 +1073,6 @@ function TextPanel() {
 
       <Label>Stickers</Label>
       <StickerShelf />
-    </div>
-  )
-}
-
-// --------------------------------------------------------------- Brand ------
-
-function BrandPanel() {
-  const [brandKit, setBrandKit] = React.useState<VideoBrandKit | null>(null)
-  const [editing, setEditing] = React.useState(false)
-  const { dispatch } = useEditorRuntime()
-  // Only a text clip can take a colour, so the palette knows whether there is
-  // anything to paint before it offers to.
-  const selectedTextClipId = useEditorSelector((state) => {
-    if (!state.selectedClipId) return null
-    const found = findClip(state.tracks, state.selectedClipId)
-    return found?.clip.kind === "text" ? found.clip.id : null
-  })
-
-  React.useEffect(() => {
-    let active = true
-    loadBrandKit()
-      .then((loaded) => {
-        if (active) setBrandKit(loaded)
-      })
-      .catch(() => undefined)
-    return () => {
-      active = false
-    }
-  }, [])
-
-  if (!brandKit) {
-    return (
-      <div className="grid place-items-center py-8" role="status">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  return (
-    <div className="grid gap-5">
-      <div className="grid gap-2.5">
-        <span className="text-[15px] font-medium">Palette</span>
-        {brandKit.colors.length ? (
-          <>
-            <div className="flex flex-wrap gap-2">
-              {/* Keyed by position: two colours in a kit are allowed to have
-                  the same name and the same value, so neither is an id. */}
-              {brandKit.colors.map((color, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  disabled={!selectedTextClipId}
-                  title={`${color.name} · ${color.value}`}
-                  aria-label={`Use ${color.name} on the selected words`}
-                  onClick={() =>
-                    selectedTextClipId &&
-                    dispatch({
-                      type: "UPDATE_CLIP",
-                      clipId: selectedTextClipId,
-                      patch: { color: color.value },
-                    })
-                  }
-                  className="size-10 rounded-lg border border-foreground/10 transition-[border-color] hover:border-foreground/25 disabled:cursor-default disabled:opacity-60"
-                  style={{ backgroundColor: color.value }}
-                />
-              ))}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {selectedTextClipId
-                ? "Click one to colour the words you have selected."
-                : "Select some words on the timeline to use one of these."}
-            </p>
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">No brand colours yet.</p>
-        )}
-      </div>
-
-      <div className="grid gap-2.5">
-        <span className="text-[15px] font-medium">Logo</span>
-        {brandKit.logoUrl ? (
-          <div className="grid place-items-center rounded-lg border border-foreground/10 bg-muted/40 p-4">
-            <img
-              src={brandKit.logoUrl}
-              alt="Brand logo"
-              className="max-h-16 max-w-full object-contain"
-            />
-          </div>
-        ) : (
-          <p className="rounded-lg border border-dashed border-foreground/15 p-5 text-center text-sm text-muted-foreground">
-            No logo yet
-          </p>
-        )}
-      </div>
-
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full"
-        onClick={() => setEditing(true)}
-      >
-        Edit brand kit
-      </Button>
-
-      <BrandKitDialog
-        open={editing}
-        onOpenChange={setEditing}
-        brandKit={brandKit}
-        onSaved={setBrandKit}
-      />
     </div>
   )
 }

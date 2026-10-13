@@ -4,6 +4,7 @@ import { Loader2Icon, PlusIcon, SettingsIcon, SparklesIcon, Trash2Icon } from "l
 import { toast } from "sonner"
 
 import { ImageUpload } from "@/components/shared/image-upload"
+import { ProjectLookSelect } from "@/components/video-assets/project-look-select"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -41,6 +42,7 @@ import {
   type ActorItem,
   type ActorPayload,
 } from "@/lib/api/video/actors"
+import type { ProjectItem } from "@/lib/api/video/projects"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { ImageModelId } from "@/lib/video/asset-factories"
 
@@ -51,6 +53,8 @@ type FormState = {
   status: "active" | "inactive"
   tags: string
   referenceMediaUrl: string
+  /** A project id, or "" for no look. Used only when a picture is made. */
+  lookProjectId: string
 }
 
 const EMPTY_FORM: FormState = {
@@ -60,9 +64,16 @@ const EMPTY_FORM: FormState = {
   status: "active",
   tags: "",
   referenceMediaUrl: "",
+  lookProjectId: "",
 }
 
-export function ActorsDashboard({ initial }: { initial: { actors: ActorItem[] } }) {
+export function ActorsDashboard({
+  initial,
+  projects,
+}: {
+  initial: { actors: ActorItem[] }
+  projects: ProjectItem[]
+}) {
   const [actors, setActors] = React.useState(initial.actors)
   const [search, setSearch] = React.useState("")
   const [editing, setEditing] = React.useState<ActorItem | "new" | null>(null)
@@ -91,6 +102,7 @@ export function ActorsDashboard({ initial }: { initial: { actors: ActorItem[] } 
       status: actor.status,
       tags: actor.tags.join(", "),
       referenceMediaUrl: actor.reference_media_url ?? "",
+      lookProjectId: "",
     })
     setEditing(actor)
   }
@@ -104,6 +116,7 @@ export function ActorsDashboard({ initial }: { initial: { actors: ActorItem[] } 
           status: editing.status,
           tags: editing.tags.join(", "),
           referenceMediaUrl: editing.reference_media_url ?? "",
+          lookProjectId: "",
         }
       : EMPTY_FORM
   const dirty = JSON.stringify(form) !== JSON.stringify(initialForm)
@@ -118,6 +131,7 @@ export function ActorsDashboard({ initial }: { initial: { actors: ActorItem[] } 
       const payload: ActorPayload = {
         ...form,
         referenceMediaUrl: form.referenceMediaUrl || null,
+        lookProjectId: form.lookProjectId || null,
       }
       if (editing === "new") {
         const created = await createActor(payload)
@@ -281,6 +295,13 @@ export function ActorsDashboard({ initial }: { initial: { actors: ActorItem[] } 
                     <Label htmlFor="actor-tags">Tags</Label>
                     <Input id="actor-tags" value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="host, product, casual" />
                   </div>
+                  <ProjectLookSelect
+                    id="actor-look"
+                    projects={projects}
+                    value={form.lookProjectId}
+                    onChange={(lookProjectId) => setForm({ ...form, lookProjectId })}
+                    disabled={busy}
+                  />
                 </CardContent>
               </Card>
             </DialogBody>

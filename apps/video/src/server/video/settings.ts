@@ -6,54 +6,13 @@ import {
   SCRIPT_STARTER_BANNED_WORDS,
 } from "@/lib/video/script-check"
 import { readVoiceDefaults, type VoiceDefaults } from "@/lib/video/voice"
-import {
-  createDefaultBrandKit,
-  normalizeBrandKit,
-  type VideoBrandKit,
-} from "@/lib/video/brand-kit"
 import { now } from "@/server/auth/security"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { db, type CustomShellDb } from "@/server/db"
-import { IMAGE_TYPES, storagePathForUrl } from "@/server/media/library"
-import { customShellMedia } from "@/server/schema"
 import { videoSettings } from "@/server/video/schema"
 
-/**
- * The install's brand kit. One row, id `default`, written the first time
- * somebody saves — until then every reader gets the built-in kit, so the editor
- * has colours and fonts to draw with on a brand new install.
- */
-
+/** The app's own settings, kept on one row whose id is `default`. */
 const SETTINGS_ROW_ID = "default"
-
-export async function getVideoBrandKit(
-  database: CustomShellDb = db
-): Promise<VideoBrandKit> {
-  const [row] = await database
-    .select()
-    .from(videoSettings)
-    .where(eq(videoSettings.id, SETTINGS_ROW_ID))
-    .limit(1)
-  return row ? normalizeBrandKit(row.brandKit) : createDefaultBrandKit()
-}
-
-/**
- * The media library picture behind the brand kit's logo, whoever uploaded it,
- * or null when the kit has no logo or its address is not a picture in this
- * app's library. A carousel slide can only show a library picture, so this is
- * what lets the logo go on one.
- */
-export async function findBrandLogoMedia(database: CustomShellDb = db) {
-  const { logoUrl } = await getVideoBrandKit(database)
-  const storagePath = logoUrl ? await storagePathForUrl(logoUrl) : null
-  if (!storagePath) return null
-  const [row] = await database
-    .select()
-    .from(customShellMedia)
-    .where(eq(customShellMedia.storagePath, storagePath))
-    .limit(1)
-  return row && IMAGE_TYPES.has(row.mimeType) ? row : null
-}
 
 /** The voice this app reads in, or nothing when none has been saved. */
 export async function getVoiceDefaults(
@@ -78,7 +37,6 @@ export async function saveVoiceDefaults(
     .insert(videoSettings)
     .values({
       id: SETTINGS_ROW_ID,
-      brandKit: createDefaultBrandKit(),
       voiceDefaults,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -114,7 +72,6 @@ export async function saveAiDefaults(
     .insert(videoSettings)
     .values({
       id: SETTINGS_ROW_ID,
-      brandKit: createDefaultBrandKit(),
       aiDefaults,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -152,7 +109,6 @@ export async function saveScriptBannedWords(
     .insert(videoSettings)
     .values({
       id: SETTINGS_ROW_ID,
-      brandKit: createDefaultBrandKit(),
       scriptBannedWords: words,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -253,7 +209,6 @@ export async function saveYoutubeApiKey(
     .insert(videoSettings)
     .values({
       id: SETTINGS_ROW_ID,
-      brandKit: createDefaultBrandKit(),
       youtubeApiKey,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -272,25 +227,4 @@ export async function removeYoutubeApiKey(
     .update(videoSettings)
     .set({ youtubeApiKey: null, updatedAt: now() })
     .where(eq(videoSettings.id, SETTINGS_ROW_ID))
-}
-
-export async function saveVideoBrandKit(
-  value: unknown,
-  database: CustomShellDb = db
-): Promise<VideoBrandKit> {
-  const brandKit = normalizeBrandKit(value)
-  const timestamp = now()
-  await database
-    .insert(videoSettings)
-    .values({
-      id: SETTINGS_ROW_ID,
-      brandKit,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-    .onConflictDoUpdate({
-      target: videoSettings.id,
-      set: { brandKit, updatedAt: timestamp },
-    })
-  return brandKit
 }

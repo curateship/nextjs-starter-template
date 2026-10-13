@@ -44,11 +44,13 @@ import {
   useEditorRuntime,
   type EditorClip,
 } from "@/components/video-editor/editor-store"
-import { useSavedCaptionLook } from "@/components/video-editor/use-saved-caption-look"
 import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { ELEVENLABS_KEY_MISSING_MESSAGE } from "@/lib/video/ai-providers"
-import { captionClipStyle, type CaptionLook } from "@/lib/video/caption-look"
+import {
+  captionClipStyle,
+  DEFAULT_CAPTION_LOOK,
+} from "@/lib/video/caption-look"
 import { captionClipWordTimes } from "@/lib/video/caption-words"
 import { captionClipName } from "@/lib/video/captions"
 import { voiceoverRefusal } from "@/lib/video/saved-voiceovers"
@@ -96,7 +98,6 @@ export function TranslateDialog({
   available: AiToolsAvailability | null
 }) {
   const { projectId, store, dispatch, saveNow } = useEditorRuntime()
-  const [look] = useSavedCaptionLook(open)
   const [language, setLanguage] = React.useState<TranslateLanguage>(
     DEFAULT_TRANSLATE_LANGUAGE
   )
@@ -208,11 +209,11 @@ export function TranslateDialog({
   }
 
   function addCaptions() {
-    if (!lines || !look) return
+    if (!lines) return
     const captions = lines
       .filter((line) => line.text.trim())
       .map((line) =>
-        captionClip(look, {
+        captionClip({
           text: line.text.trim(),
           startMs: line.startMs,
           durationMs: line.endMs - line.startMs,
@@ -231,7 +232,7 @@ export function TranslateDialog({
   }
 
   async function speak() {
-    if (!lines || !look || !transcript) return
+    if (!lines || !transcript) return
     if (keyMissing) {
       showErrorToast(ELEVENLABS_KEY_MISSING_MESSAGE)
       return
@@ -280,13 +281,13 @@ export function TranslateDialog({
           sourceDurationMs: said.durationMs,
         },
         captions: said.captions.map((line) => ({
-          ...captionClip(look, {
+          ...captionClip({
             text: line.text,
             startMs: startsAtMs + line.startMs,
             durationMs: line.endMs - line.startMs,
           }),
           wordTimes: captionClipWordTimes(line),
-          activeWordColor: captionClipStyle(look).activeWordColor,
+          activeWordColor: captionClipStyle(DEFAULT_CAPTION_LOOK).activeWordColor,
         })),
         quieten: {
           clipId: transcript.source.clipId,
@@ -458,7 +459,7 @@ export function TranslateDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={busy !== null || !look}
+                  disabled={busy !== null}
                   onClick={addCaptions}
                 >
                   <CaptionsIcon />
@@ -466,7 +467,7 @@ export function TranslateDialog({
                 </Button>
                 <Button
                   type="button"
-                  disabled={busy !== null || !look}
+                  disabled={busy !== null}
                   onClick={() => void speak()}
                 >
                   {busy === "speaking" ? (
@@ -504,11 +505,12 @@ export function TranslateDialog({
   )
 }
 
-/** One caption in the saved look, lit word by word only when told when. */
-function captionClip(
-  look: CaptionLook,
-  line: { text: string; startMs: number; durationMs: number }
-): EditorClip {
+/** One caption in the standard look, lit word by word only when told when. */
+function captionClip(line: {
+  text: string
+  startMs: number
+  durationMs: number
+}): EditorClip {
   return {
     id: editorId(),
     kind: "text",
@@ -517,7 +519,7 @@ function captionClip(
     startMs: line.startMs,
     durationMs: line.durationMs,
     trimStartMs: 0,
-    ...captionClipStyle(look),
+    ...captionClipStyle(DEFAULT_CAPTION_LOOK),
     // A translated line has no word times of its own, so it draws plain.
     activeWordColor: undefined,
   }
