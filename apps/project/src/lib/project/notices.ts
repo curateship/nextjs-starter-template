@@ -1,6 +1,7 @@
 import {
   AlarmClockIcon,
   AtSignIcon,
+  BellRingIcon,
   CalendarCheckIcon,
   CalendarClockIcon,
   CircleAlertIcon,
@@ -58,6 +59,7 @@ const APP_NOTICE_KINDS = [
   "chat_mention",
   "chat_reply",
   "team_announcement",
+  "task_reminder",
 ] as const
 
 const PROJECT_NOTICE_KINDS = [...TASK_NOTICE_KINDS, ...APP_NOTICE_KINDS] as const
@@ -136,6 +138,13 @@ export function chatReplyHeading(name: string) {
 export function announcementHeading(name: string) {
   return `${name}${ANNOUNCEMENT_ENDING}`
 }
+
+const TASK_REMINDER_START = "Reminder: "
+
+/** "Reminder: Write the About page", a person's own "Remind me". */
+export function taskReminderHeading(title: string) {
+  return `${TASK_REMINDER_START}${title}`
+}
 const TASKS_HANDED_WORDS = / gave you \d+ tasks$/
 
 const WEEKDAY_NAMES = [
@@ -186,6 +195,8 @@ export function noticeKindFromWords(
 ): ProjectNoticeKind | null {
   if (notice.type !== "app_activity" || !notice.message) return null
   if (notice.message === CHECKIN_REMINDER_HEADING) return "checkin_reminder"
+  // First, because a task's own title could end like another notice.
+  if (notice.message.startsWith(TASK_REMINDER_START)) return "task_reminder"
   if (DUE_SOON_WORDS.test(notice.message)) return "due_soon"
   if (OVERDUE_WORDS.test(notice.message)) return "overdue"
   if (TEAM_MORNING_WORDS.test(notice.message)) return "team_morning"
@@ -335,6 +346,11 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
     toneClassName: "bg-primary/10 text-primary",
     categoryId: "tasks",
     href: TEAM_HREF,
+  },
+  task_reminder: {
+    icon: BellRingIcon,
+    toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    categoryId: "tasks",
   },
 }
 

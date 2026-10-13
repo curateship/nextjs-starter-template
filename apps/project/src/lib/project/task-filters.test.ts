@@ -12,6 +12,7 @@ const task = (overrides: Partial<Parameters<typeof filterTasks>[0][number]> & { 
   title: "",
   notesText: "",
   status: "todo" as const,
+  priority: "normal" as const,
   assignee: null as { id: string } | null,
   labels: [] as { id: string }[],
   type: null as { id: string } | null,

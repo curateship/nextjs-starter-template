@@ -29,9 +29,11 @@ import {
 
 import {
   DueDate,
+  DueMovesMark,
   LabelChip,
   PersonAvatar,
   PickedDaysBadge,
+  PriorityMark,
   RepeatMark,
   ReviewBadge,
   SnoozedBadge,
@@ -478,9 +480,12 @@ function BoardCard({
 function CardContent({ task }: { task: TaskCard }) {
   return (
     <>
-      <span className="font-medium break-words">{task.title}</span>
-      {task.type ? (
-        <span className="flex">
+      <span className={cn("font-medium break-words", task.priority === "low" && "text-muted-foreground")}>
+        {task.title}
+      </span>
+      {task.type || task.priority !== "normal" ? (
+        <span className="flex flex-wrap items-center gap-1">
+          <PriorityMark priority={task.priority} />
           <TypeChip type={task.type} />
         </span>
       ) : null}
@@ -518,6 +523,7 @@ function CardContent({ task }: { task: TaskCard }) {
         <RepeatMark repeat={task.repeat} />
         <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
         <DueDate dueDate={task.dueDate} status={task.status} />
+        <DueMovesMark moves={task.dueMoves} status={task.status} />
         <StepsCount steps={task.steps} />
         {task.commentCount ? (
           <span className="flex items-center gap-1 text-muted-foreground">

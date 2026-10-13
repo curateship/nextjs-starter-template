@@ -18,9 +18,11 @@ import { CheckIcon, GripVerticalIcon, SettingsIcon } from "lucide-react"
 
 import {
   DueDate,
+  DueMovesMark,
   LabelChip,
   PersonAvatar,
   PickedDaysBadge,
+  PriorityMark,
   ReviewBadge,
   SnoozedBadge,
   StatusBadge,
@@ -47,7 +49,7 @@ import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { reportBulkOutcome } from "@/lib/project/bulk-outcome"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { todayKey } from "@/lib/project/dates"
-import { TASK_STATUSES } from "@/lib/project/rules"
+import { TASK_PRIORITY_LABEL, TASK_STATUSES, priorityRank } from "@/lib/project/rules"
 import { fieldSortValue, fieldValueText, type FieldRule } from "@/lib/project/task-fields"
 import { byPosition } from "@/lib/project/task-order"
 import { cn } from "@/lib/utils"
@@ -61,6 +63,7 @@ export type TaskColumn =
   | "title"
   | "project"
   | "status"
+  | "priority"
   | "assignee"
   | "due"
   | "steps"
@@ -92,6 +95,9 @@ function compare(a: TaskCard, b: TaskCard, column: TaskColumn, fieldColumns: rea
       return a.projectName.localeCompare(b.projectName)
     case "status":
       return STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+    case "priority":
+      // High first when sorted up.
+      return priorityRank(a.priority) - priorityRank(b.priority)
     case "assignee":
       return (a.assignee?.name ?? "~").localeCompare(b.assignee?.name ?? "~")
     case "due":
@@ -162,6 +168,7 @@ export function TaskList({
     { key: "title", label: "Task", column: "main", className: "min-w-32" },
     ...(showProject ? [{ key: "project" as const, label: "Project", column: "preview" as const }] : []),
     { key: "status", label: "Status", column: "preview" },
+    { key: "priority", label: "Priority", column: "preview" },
     ...(showProject ? [] : [{ key: "assignee" as const, label: "Assigned to", column: "preview" as const }]),
     { key: "due", label: "Due", column: "preview" },
     { key: "steps", label: "Steps", column: "preview" },
@@ -372,7 +379,9 @@ function TaskRow({
               <GripVerticalIcon className="size-4" aria-hidden />
             </button>
           ) : null}
-          <span className="truncate font-medium">{task.title}</span>
+          <span className={cn("truncate font-medium", task.priority === "low" && "text-muted-foreground")}>
+            {task.title}
+          </span>
           <TypeChip type={task.type} />
           {task.waiting ? <WaitingBadge /> : null}
           <ReviewBadge review={task.review} />
@@ -388,6 +397,13 @@ function TaskRow({
       <TableCell column="preview">
         <StatusBadge status={task.status} />
       </TableCell>
+      <TableCell column="preview">
+        {task.priority === "high" ? (
+          <PriorityMark priority="high" />
+        ) : (
+          <span className="text-muted-foreground">{TASK_PRIORITY_LABEL[task.priority]}</span>
+        )}
+      </TableCell>
       {showProject ? null : (
         <TableCell column="preview">
           {task.assignee ? (
@@ -401,7 +417,10 @@ function TaskRow({
         </TableCell>
       )}
       <TableCell column="preview">
-        <DueDate dueDate={task.dueDate} status={task.status} />
+        <span className="flex items-center gap-2">
+          <DueDate dueDate={task.dueDate} status={task.status} />
+          <DueMovesMark moves={task.dueMoves} status={task.status} />
+        </span>
       </TableCell>
       <TableCell column="preview">
         {task.steps.total ? `${task.steps.done} of ${task.steps.total}` : null}

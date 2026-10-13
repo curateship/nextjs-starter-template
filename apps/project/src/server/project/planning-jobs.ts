@@ -32,20 +32,22 @@ type DueCopy = { taskId: string; seriesId: string; day: string }
 /**
  * Once a new day starts in the team's time zone, a fresh copy of each
  * repeating task whose rule falls on that day: title, notes, labels, section,
- * type and field values (files stay behind), steps unticked, the same person,
- * To do. The rule moves to the copy,
+ * type and field values (files stay behind), priority, steps unticked, the
+ * same person, To do. The rule moves to the copy,
  * so deleting the newest copy stops the repeat.
  *
  * Tyler's rule: when the newest copy isn't Done, no new one appears. The next
  * copy comes on the first repeat day after it is Done.
  *
  * Each copy is claimed in `project_repeat_runs` for its series and day, in the
- * same transaction that makes it, so two passes make one.
+ * same transaction that makes it, so two passes make one. The job only ever
+ * looks at today, so a server that was down on a repeat day makes no catch-up
+ * copies: the next copy comes on the next repeat day.
  */
 export async function makeRepeatCopies(database: CustomShellDb = db, at = new Date()) {
   const due = await database.execute(sql`
     WITH holders AS MATERIALIZED (
-      SELECT t.id, t.repeat_every, t.repeat_week_days, t.repeat_month_day, t.created_at,
+      SELECT t.id, t.repeat_every, t.repeat_week_days, t.repeat_month_day, t.repeat_from, t.created_at,
         coalesce(t.repeat_series_id, t.id) AS series_id,
         tm.work_days,
         (${at.toISOString()}::timestamptz AT TIME ZONE tm.time_zone)::date AS day,
@@ -68,6 +70,33 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
           h.repeat_month_day,
           extract(day FROM (date_trunc('month', h.day) + interval '1 month - 1 day'))::int
         )
+        -- The ticked days of the week it was set in, then of every other week:
+        -- whole weeks counted from that week's Monday.
+        WHEN 'two_weeks' THEN extract(dow FROM h.day)::int = ANY (h.repeat_week_days)
+          AND h.day >= h.repeat_from
+          AND ((h.day - (h.repeat_from - (extract(isodow FROM h.repeat_from)::int - 1))) / 7) % 2 = 0
+        -- The first date's day, every third month from it; a day past the
+        -- month's end falls on its last day.
+        WHEN 'quarter' THEN h.day >= h.repeat_from
+          AND (
+            (extract(year FROM h.day)::int * 12 + extract(month FROM h.day)::int)
+            - (extract(year FROM h.repeat_from)::int * 12 + extract(month FROM h.repeat_from)::int)
+          ) % 3 = 0
+          AND extract(day FROM h.day)::int = least(
+            extract(day FROM h.repeat_from)::int,
+            extract(day FROM (date_trunc('month', h.day) + interval '1 month - 1 day'))::int
+          )
+        -- A team work day with no other work day after it in the month.
+        WHEN 'last_workday' THEN extract(dow FROM h.day)::int = ANY (h.work_days)
+          AND NOT EXISTS (
+            SELECT 1
+            FROM generate_series(
+              h.day + 1,
+              (date_trunc('month', h.day) + interval '1 month - 1 day')::date,
+              interval '1 day'
+            ) later
+            WHERE extract(dow FROM later)::int = ANY (h.work_days)
+          )
         ELSE false
       END
       AND NOT EXISTS (
@@ -108,13 +137,15 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
         repeatEvery: holder.repeatEvery,
         repeatWeekDays: holder.repeatWeekDays,
         repeatMonthDay: holder.repeatMonthDay,
+        repeatFrom: holder.repeatFrom,
         repeatSeriesId: copy.seriesId,
         typeId: holder.typeId,
+        priority: holder.priority,
       })
       await copyFieldValues(tx, [{ from: holder.id, to: id }], null)
       await tx
         .update(projectTasks)
-        .set({ repeatEvery: null, repeatWeekDays: null, repeatMonthDay: null })
+        .set({ repeatEvery: null, repeatWeekDays: null, repeatMonthDay: null, repeatFrom: null })
         .where(eq(projectTasks.id, holder.id))
       const steps = await tx
         .select({ text: projectTaskSteps.text, position: projectTaskSteps.position })

@@ -3,7 +3,8 @@ import { Link } from "@tanstack/react-router"
 import { StatusBadge } from "@/components/project/task-bits"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { TaskDetail } from "@/lib/api/project/tasks"
-import { shortDayLabel, shortDayTimeLabel } from "@/lib/project/days"
+import { dayLabel, shortDayLabel, shortDayTimeLabel } from "@/lib/project/days"
+import { readDueMove } from "@/lib/project/due-moves"
 import { isTaskStatus } from "@/lib/project/rules"
 
 type Entry = TaskDetail["history"][number]
@@ -141,6 +142,15 @@ function EntryText({ entry }: { entry: Entry }) {
           {entry.targetName ? ` to ${entry.targetName}` : ""}: {entry.reason}
         </span>
       )
+    case "due_moved": {
+      const move = readDueMove(entry.reason)
+      return (
+        <span>
+          {entry.actorName} moved the due date
+          {move ? ` from ${dayLabel(move.from)} to ${dayLabel(move.to)}` : ""}
+        </span>
+      )
+    }
     case "commented":
       return null
   }

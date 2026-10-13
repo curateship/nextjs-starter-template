@@ -16,6 +16,7 @@ import { loadAnnouncement, type Announcement } from "@/server/project/announceme
 import { requireKnownZone } from "@/server/project/checkins"
 import { listHolidays, type Holiday } from "@/server/project/holidays"
 import { listTeamLabels, type Label } from "@/server/project/labels"
+import { listStepLists, type StepList } from "@/server/project/step-lists"
 import { clearPersonValues } from "@/server/project/task-types"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
 import {
@@ -28,6 +29,7 @@ import {
   projectProjectMembers,
   projectProjectStars,
   projectSavedViews,
+  projectTaskReminders,
   projectTaskSteps,
   projectProjects,
   projectTasks,
@@ -81,6 +83,8 @@ export type TeamDashboard = {
   /** Only the owner and admins see pending invites. */
   invites: TeamInviteRow[]
   labels: Label[]
+  /** The team's saved step lists, renamed and deleted in Team settings. */
+  stepLists: StepList[]
   /** The join link's state, for the owner and admins; null for everyone else. */
   joinLink: JoinLinkState | null
   /** The team's holidays from today on. */
@@ -146,6 +150,7 @@ export async function loadTeamDashboard(
     members,
     invites,
     labels: await listTeamLabels(membership.teamId, database),
+    stepLists: await listStepLists(membership.teamId, database),
     joinLink: runsTheTeam(membership.role) ? await joinLinkState(membership.teamId, database) : null,
     holidays: await listHolidays(
       membership.teamId,
@@ -363,6 +368,20 @@ async function takePersonOffTeam(teamId: string, userId: string, tx: ProjectDb) 
   await tx
     .delete(projectSavedViews)
     .where(and(eq(projectSavedViews.teamId, teamId), eq(projectSavedViews.userId, userId)))
+  await tx
+    .delete(projectTaskReminders)
+    .where(
+      and(
+        eq(projectTaskReminders.userId, userId),
+        inArray(
+          projectTaskReminders.taskId,
+          tx
+            .select({ id: projectTasks.id })
+            .from(projectTasks)
+            .where(inArray(projectTasks.projectId, teamProjectIds))
+        )
+      )
+    )
   await tx
     .delete(projectProjectMembers)
     .where(

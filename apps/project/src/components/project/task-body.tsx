@@ -8,12 +8,15 @@ import { TaskFieldsCard, TaskTypeField } from "@/components/project/task-fields-
 import { TaskFilesCard } from "@/components/project/task-files-card"
 import { TaskHistoryCard } from "@/components/project/task-history-card"
 import { TaskNotesField } from "@/components/project/task-notes"
-import { MoveTaskCard, TaskMoreMenu } from "@/components/project/task-more-menu"
+import { MoveTaskCard, ReminderCard, TaskMoreMenu } from "@/components/project/task-more-menu"
+import { StepListActions } from "@/components/project/step-list-actions"
+import { DueDayPicker } from "@/components/project/due-day-picker"
 import { TaskPlanCard } from "@/components/project/task-plan-card"
 import { StepMenu } from "@/components/project/step-menu"
 import { TaskLabelsField, TaskSectionField } from "@/components/project/task-sorting-fields"
 import {
   DueDate,
+  DueMovesMark,
   PersonAvatar,
   PickedDaysBadge,
   ReviewBadge,
@@ -24,7 +27,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { DatePicker } from "@/components/ui/date-picker"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -58,13 +60,15 @@ import {
 } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { dateFromKey, keyFromDate } from "@/lib/project/dates"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import {
   BIN_DAYS,
   LIMITS,
+  TASK_PRIORITIES,
+  TASK_PRIORITY_LABEL,
   TASK_STATUSES,
   TASK_STATUS_LABEL,
+  type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
@@ -217,6 +221,7 @@ function TaskForm({
   const [handingBack, setHandingBack] = React.useState(false)
   const [handBackReason, setHandBackReason] = React.useState("")
   const [moving, setMoving] = React.useState(false)
+  const [reminding, setReminding] = React.useState(false)
   // Handing to someone else asks for an optional note before it goes.
   const [handingTo, setHandingTo] = React.useState<{ id: string; name: string } | null>(null)
   const [handoverNote, setHandoverNote] = React.useState("")
@@ -346,6 +351,9 @@ function TaskForm({
   const body = (
     <>
       {moving && !readOnly ? <MoveTaskCard detail={detail} onDone={() => setMoving(false)} /> : null}
+      {reminding && !readOnly ? (
+        <ReminderCard detail={detail} change={change} onDone={() => setReminding(false)} />
+      ) : null}
       {task.waiting && isMine && !readOnly ? (
         <Card size="sm">
           <CardHeader>
@@ -587,29 +595,53 @@ function TaskForm({
               }}
             />
           ) : null}
-          <div className="grid gap-2">
-            <Label htmlFor="task-due">Due date</Label>
-            <div className="flex flex-wrap items-center gap-2">
-              <DatePicker
-                id="task-due"
-                value={dateFromKey(task.dueDate)}
-                placeholder="No due date"
-                disabled={readOnly || busy}
-                onChange={(date) =>
-                  void change(() => saveTask({ taskId: task.id, dueDate: keyFromDate(date) }))
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid content-start gap-2">
+              <Label htmlFor="task-due">Due date</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <DueDayPicker
+                  id="task-due"
+                  value={task.dueDate}
+                  placeholder="No due date"
+                  disabled={readOnly || busy}
+                  onChange={(dueDate) => {
+                    if (dueDate !== task.dueDate) void change(() => saveTask({ taskId: task.id, dueDate }))
+                  }}
+                />
+                {task.dueDate && !readOnly ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void change(() => saveTask({ taskId: task.id, dueDate: null }))}
+                  >
+                    Clear
+                  </Button>
+                ) : null}
+                <DueMovesMark moves={task.dueMoves} status={task.status} />
+              </div>
+            </div>
+            <div className="grid content-start gap-2">
+              <Label htmlFor="task-priority">Priority</Label>
+              <Select
+                value={task.priority}
+                onValueChange={(value) =>
+                  void change(() => saveTask({ taskId: task.id, priority: value as TaskPriority }))
                 }
-              />
-              {task.dueDate && !readOnly ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => void change(() => saveTask({ taskId: task.id, dueDate: null }))}
-                >
-                  Clear
-                </Button>
-              ) : null}
+                disabled={readOnly || busy}
+              >
+                <SelectTrigger id="task-priority" className="w-full sm:w-fit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TASK_PRIORITIES.map((priority) => (
+                    <SelectItem key={priority} value={priority}>
+                      {TASK_PRIORITY_LABEL[priority]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <TaskTypeField detail={detail} readOnly={readOnly} busy={busy} change={change} />
@@ -704,7 +736,9 @@ function TaskForm({
         {detail.following ? "Following" : "Follow"}
       </Button>
     ),
-    more: readOnly ? null : <TaskMoreMenu detail={detail} onMove={() => setMoving(true)} />,
+    more: readOnly ? null : (
+      <TaskMoreMenu detail={detail} onMove={() => setMoving(true)} onRemind={() => setReminding(true)} />
+    ),
     remove: detail.canDelete && !readOnly ? { busy, run: remove } : null,
   })
 }
@@ -847,6 +881,7 @@ function StepsCard({
             </Button>
           </form>
         )}
+        {readOnly ? null : <StepListActions detail={detail} change={change} busy={busy} />}
       </CardContent>
     </Card>
   )

@@ -7,6 +7,7 @@ import {
   PERSONAL_PROJECT_ID,
   PERSONAL_PROJECT_NAME,
   checkinQuestions,
+  priorityRank,
   type CheckinNotes,
   type CheckinQuestions,
   type ProjectColor,
@@ -256,7 +257,9 @@ export async function loadCheckinPage(
       tasks: [],
     })
   }
-  for (const task of [...mine, ...extra]) {
+  // High first within each project, then the project's own order.
+  const byPriority = [...mine, ...extra].sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority))
+  for (const task of byPriority) {
     if (leftoverIds.has(task.id)) continue
     byProject.get(task.projectId)?.tasks.push(task)
   }

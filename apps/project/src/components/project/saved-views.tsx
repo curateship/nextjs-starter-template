@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label"
 import { deleteProjectView, saveProjectView, type SavedView } from "@/lib/api/project/finding"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { LIMITS, TASK_STATUS_LABEL } from "@/lib/project/rules"
+import { LIMITS, TASK_PRIORITY_LABEL, TASK_STATUS_LABEL } from "@/lib/project/rules"
 import { openView, viewFilters, viewHasFilters } from "@/lib/project/saved-views"
 import { NOBODY_FILTER, type TaskFilters } from "@/lib/project/task-filters"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -70,7 +70,15 @@ export function SavedViewsControls({
 
   function open(view: SavedView) {
     const { filters: next, missing } = openView(view, here, NOBODY_FILTER)
-    onChange({ q: undefined, status: undefined, person: undefined, label: undefined, type: undefined, ...next })
+    onChange({
+      q: undefined,
+      status: undefined,
+      priority: undefined,
+      person: undefined,
+      label: undefined,
+      type: undefined,
+      ...next,
+    })
     if (missing.length) {
       showErrorToast(`${missing.join(". ")}, so "${view.name}" opened without that filter.`)
     }
@@ -163,6 +171,7 @@ function describeView(view: SavedView, here: Here) {
   const parts: string[] = []
   if (filters.q) parts.push(`"${filters.q}"`)
   if (filters.status) parts.push(TASK_STATUS_LABEL[filters.status])
+  if (filters.priority) parts.push(`${TASK_PRIORITY_LABEL[filters.priority]} priority`)
   if (filters.person) {
     parts.push(
       filters.person === NOBODY_FILTER

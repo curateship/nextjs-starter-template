@@ -10,7 +10,6 @@ import {
   bulkChangeSchema,
   createTasksFromLinesSchema,
   setRepeatSchema,
-  setWaitingOnSchema,
   updateStepSchema,
   reasonSchema,
   setTaskStatusSchema,
@@ -34,7 +33,6 @@ import {
   loadProjectBin,
   restoreTask,
   setRepeat,
-  setWaitingOn,
 } from "@/server/project/planning"
 import { followTask, unfollowTask } from "@/server/project/task-followers"
 import { listNoteVersions, restoreNoteVersion } from "@/server/project/task-note-versions"
@@ -57,7 +55,7 @@ import {
 } from "@/server/project/tasks"
 
 export type { NoteVersion } from "@/server/project/task-note-versions"
-export type { BinEntry, ProjectBin, RepeatRule, TaskChoice } from "@/server/project/planning"
+export type { BinEntry, ProjectBin, RepeatInput, RepeatRule, TaskChoice } from "@/server/project/planning"
 export type {
   BulkChange,
   BulkOutcome,
@@ -149,11 +147,6 @@ const setRepeatFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(setRepeatSchema)
   .handler(async ({ data, context }) => setRepeat(context.user, data))
-
-const setWaitingOnFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(setWaitingOnSchema)
-  .handler(async ({ data, context }) => setWaitingOn(context.user, data))
 
 const findTasksFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -273,9 +266,6 @@ export function changeTasks(data: z.input<typeof bulkChangeSchema>) {
 }
 export function setTaskRepeat(data: z.input<typeof setRepeatSchema>) {
   return setRepeatFn({ data })
-}
-export function setTaskWaitingOn(taskId: string, waitingOnTaskId: string | null) {
-  return setWaitingOnFn({ data: { taskId, waitingOnTaskId } })
 }
 export function findTasksToWaitFor(taskId: string, q: string) {
   return findTasksFn({ data: { taskId, q } })

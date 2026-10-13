@@ -4,11 +4,10 @@ import { useRouter } from "@tanstack/react-router"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { ProjectDot, RoomNote } from "@/components/project/task-bits"
 import { DashboardToolbarSelectTrigger } from "@/components/shared/dashboard-toolbar"
-import { DatePicker } from "@/components/ui/date-picker"
+import { DueDayPicker } from "@/components/project/due-day-picker"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { changeTasks, type BulkChange } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { keyFromDate } from "@/lib/project/dates"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import {
   LIMITS,
@@ -202,16 +201,16 @@ function DueDateAction({
   const [mode, setMode] = React.useState<"menu" | "date">("menu")
   if (mode === "date") {
     return (
-      <DatePicker
+      <DueDayPicker
         id="bulk-due"
-        value={undefined}
+        value={null}
         placeholder="Pick the due date"
         disabled={disabled}
         defaultOpen
         onOpenChange={(open) => {
           if (!open) setMode("menu")
         }}
-        onChange={(date) => onPick(keyFromDate(date))}
+        onChange={onPick}
       />
     )
   }

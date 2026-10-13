@@ -53,6 +53,8 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     notesText: "",
     snoozedUntil: null,
     waitingOn: null,
+    priority: "normal",
+    dueMoves: 0,
     repeat: null,
     type: null,
     fieldValues: {},

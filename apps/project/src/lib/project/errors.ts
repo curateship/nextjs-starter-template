@@ -64,6 +64,12 @@ export const PROJECT_ERRORS = {
   personalProject: "That's your own Just me list, which only you can see, so it can't be shared or changed.",
   cantWaitOnItself: "A task can't wait on itself.",
   waitingLoop: "That task is already waiting on this one, so this one can't wait on it.",
+  tooManyWaits: "A task can wait on at most 10 tasks. Take one off to add another.",
+  reminderInThePast: "Pick today or a later day for the reminder.",
+  stepListNotFound: "That step list no longer exists.",
+  stepListNameTaken: "Your team already has a step list with that name.",
+  tooManyStepLists: "A team can have at most 100 step lists. Delete one to save another.",
+  noStepsToSave: "Add some steps first, then save them as a list.",
   timeOffBackwards: "The last day off can't be before the first.",
   timeOffTooLong: "Time off can cover at most a year at once.",
   timeOffNotFound: "That time off no longer exists.",
@@ -136,6 +142,7 @@ export const PROJECT_ERRORS = {
  */
 const NAMED_REFUSALS = [
   /^Fill in .{1,80} first\.$/,
+  /^That list has \d+ steps? and this task has room for \d+ more, since a task can have at most 50\.$/,
   /^Only (the person assigned|whoever handed the task out), the owner or an admin can change .{1,80}\.$/,
 ]
 

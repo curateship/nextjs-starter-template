@@ -1,7 +1,9 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { CopyIcon, FolderInputIcon, Loader2Icon, MoreHorizontalIcon } from "lucide-react"
+import { BellRingIcon, CopyIcon, FolderInputIcon, Loader2Icon, MoreHorizontalIcon } from "lucide-react"
 
+import { DueDayPicker } from "@/components/project/due-day-picker"
+import type { Change } from "@/components/project/task-body"
 import { ProjectDot } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,26 +27,36 @@ import {
   moveProjectTask,
   type TaskDetail,
 } from "@/lib/api/project/tasks"
+import { setReminder } from "@/lib/api/project/planning"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { shortDayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 
 const MOVE_PICKER_ID = "move-task-project"
 
 /**
- * Duplicate and Move to project, behind one button beside Follow. A copy
- * opens straight away. Move opens `MoveTaskCard` inside the task, never a
- * window on top of it.
+ * Duplicate, Move to project and Remind me, behind one button beside Follow.
+ * A copy opens straight away. Move and Remind me open a card inside the task,
+ * never a window on top of it.
  */
-export function TaskMoreMenu({ detail, onMove }: { detail: TaskDetail; onMove: () => void }) {
+export function TaskMoreMenu({
+  detail,
+  onMove,
+  onRemind,
+}: {
+  detail: TaskDetail
+  onMove: () => void
+  onRemind: () => void
+}) {
   const router = useRouter()
   const navigate = useNavigate()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const { task } = detail
   const cantMove = detail.moveTargets.length === 0
-  // Choosing Move hands the keyboard to the Move card, so the menu mustn't
-  // take it back to its own button as it closes.
-  const movePicked = React.useRef(false)
+  // Choosing Move or Remind me hands the keyboard to its card, so the menu
+  // mustn't take it back to its own button as it closes.
+  const picked = React.useRef<"move" | "remind" | null>(null)
 
   async function duplicate() {
     let copyId = ""
@@ -69,10 +81,12 @@ export function TaskMoreMenu({ detail, onMove }: { detail: TaskDetail; onMove: (
       <DropdownMenuContent
         align="end"
         onCloseAutoFocus={(event) => {
-          if (!movePicked.current) return
-          movePicked.current = false
+          const card = picked.current
+          if (!card) return
+          picked.current = null
           event.preventDefault()
-          document.getElementById(MOVE_PICKER_ID)?.focus()
+          // The reminder's calendar is already open and holds the keyboard.
+          if (card === "move") document.getElementById(MOVE_PICKER_ID)?.focus()
         }}
       >
         <DropdownMenuItem onSelect={() => void duplicate()}>
@@ -84,7 +98,7 @@ export function TaskMoreMenu({ detail, onMove }: { detail: TaskDetail; onMove: (
             className="w-full"
             disabled={cantMove}
             onSelect={() => {
-              movePicked.current = true
+              picked.current = "move"
               onMove()
             }}
           >
@@ -92,6 +106,15 @@ export function TaskMoreMenu({ detail, onMove }: { detail: TaskDetail; onMove: (
             Move to project
           </DropdownMenuItem>
         </DisabledReason>
+        <DropdownMenuItem
+          onSelect={() => {
+            picked.current = "remind"
+            onRemind()
+          }}
+        >
+          <BellRingIcon className="size-4" />
+          {detail.myReminder ? "Change my reminder" : "Remind me"}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -180,6 +203,67 @@ export function MoveTaskCard({ detail, onDone }: { detail: TaskDetail; onDone: (
               {chosen.name} doesn't offer {task.type.name}. The task keeps its type and its fields.
             </p>
           ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * "Remind me", inside the task like Move: pick a day, and on it, at my own
+ * check-in time, the bell says "Reminder: <title>". It is mine alone. The
+ * calendar opens at once with the quick days above it.
+ */
+export function ReminderCard({
+  detail,
+  change,
+  onDone,
+}: {
+  detail: TaskDetail
+  change: Change
+  onDone: () => void
+}) {
+  const frame = React.useRef<HTMLDivElement>(null)
+  useEscapeCancels(frame, onDone)
+  React.useEffect(() => {
+    frame.current?.scrollIntoView({ block: "nearest" })
+  }, [])
+
+  async function pick(day: string | null) {
+    if (!day) return
+    const ok = await change(
+      () => setReminder(detail.task.id, day),
+      `You'll get a reminder on ${shortDayLabel(day)}, at your check-in time.`
+    )
+    if (ok) onDone()
+  }
+
+  return (
+    <Card size="sm" ref={frame}>
+      <CardHeader>
+        <CardTitle>Remind me</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <p className="text-sm text-muted-foreground">
+          On the day you pick, at your check-in time, you get a notice in the bell. Only you see it.
+        </p>
+        <div className="grid gap-2">
+          <Label htmlFor="task-reminder-day">Day</Label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <DueDayPicker
+              id="task-reminder-day"
+              value={detail.myReminder}
+              placeholder="Pick a day"
+              defaultOpen
+              className="sm:w-fit"
+              onChange={(day) => void pick(day)}
+            />
+            <div className="flex shrink-0 gap-2">
+              <Button type="button" variant="outline" onClick={onDone}>
+                Cancel
+              </Button>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>

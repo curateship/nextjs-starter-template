@@ -11,7 +11,14 @@ import {
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import type { Label } from "@/lib/api/project/sorting"
 import type { TaskType } from "@/lib/project/task-types"
-import { TASK_STATUSES, TASK_STATUS_LABEL, type TaskStatus } from "@/lib/project/rules"
+import {
+  TASK_PRIORITIES,
+  TASK_PRIORITY_LABEL,
+  TASK_STATUSES,
+  TASK_STATUS_LABEL,
+  type TaskPriority,
+  type TaskStatus,
+} from "@/lib/project/rules"
 import { hasTaskFilters, NOBODY_FILTER, type TaskFilters } from "@/lib/project/task-filters"
 
 const ALL = "all"
@@ -63,6 +70,24 @@ export function TaskFiltersBar({
           {TASK_STATUSES.map((status) => (
             <SelectItem key={status} value={status}>
               {TASK_STATUS_LABEL[status]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        value={filters.priority ?? ALL}
+        onValueChange={(value) =>
+          onChange({ priority: value === ALL ? undefined : (value as TaskPriority) })
+        }
+      >
+        <DashboardToolbarSelectTrigger aria-label="Filter by priority">
+          <SelectValue />
+        </DashboardToolbarSelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>Any priority</SelectItem>
+          {TASK_PRIORITIES.map((priority) => (
+            <SelectItem key={priority} value={priority}>
+              {TASK_PRIORITY_LABEL[priority]}
             </SelectItem>
           ))}
         </SelectContent>
@@ -130,7 +155,14 @@ export function TaskFiltersBar({
           type="button"
           variant="ghost"
           onClick={() =>
-            onChange({ q: undefined, status: undefined, person: undefined, label: undefined, type: undefined })
+            onChange({
+              q: undefined,
+              status: undefined,
+              priority: undefined,
+              person: undefined,
+              label: undefined,
+              type: undefined,
+            })
           }
         >
           <XIcon className="size-4" />
