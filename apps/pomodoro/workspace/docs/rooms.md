@@ -13,7 +13,13 @@ The top of `/rooms` is three columns, drawn to Tyler's design of 7 Oct 2026
   "Only one of this room should be highlighed because I can only be on one
   room at a time."
 - **The room you are in is lit** with an orange border and a "You're here"
-  label. Its Open room button goes to `/`, where the room is drawn.
+  label at the foot of the card (Tyler, 13 Oct 2026,
+  `assets/pasted-image-1791913006622591000.png`), so the small capitals
+  title at the top has the card's width. Its Open room button goes to `/`,
+  where the room is drawn.
+- **The dashed boxes say one short line** (Tyler, 13 Oct 2026, "condense the
+  text"): "Join an open room below.", "Start your own room." and "No room
+  open in Study Buddies."
 - **The personal room always has a card**, because it can never be deleted.
   It reads "<first name>'s room · Always open · just you". While you are in
   another room it is unlit and its button is Go back to it.
@@ -35,6 +41,50 @@ The top of `/rooms` is three columns, drawn to Tyler's design of 7 Oct 2026
   the room leaves the one you were in, on the server. Only a room you already
   host stops it: the header button is then disabled and says "You already
   host <room>. Close it first."
+
+## Group rooms
+
+Groups task 01, parts 11 and 12. Tyler, 13 Oct 2026: "If I joined a group.
+Add another card in rooms." He picked one card with a switch between groups,
+and ruled that only the group's members can join a group room.
+
+- **A fourth card, Group room**, sits after My hosted room for anybody in at
+  least one group (`GroupRoomColumn` in `room-columns.tsx`). Somebody in no
+  group sees the three cards as before. With four cards the row is two
+  across on a tablet and four on a wide screen.
+- **One group at a time.** A small switch at the top picks between your
+  groups, each marked "room open" when it has one. Until you pick, the card
+  shows the group whose room you are in, else one with a room open, else
+  the first.
+- **A group with a room open** shows who hosts it, how many are in it, and
+  Join, which asks first when you are in another room, the same as any join.
+- **A group with none** is a dashed box with Start a group room. It opens
+  Host a room as "Start a room for Study Buddies", with the group picked and
+  the room's name filled in. Hosting is still Pro, the same as any room.
+- **You are in exactly one card.** A group room you are in lights the Group
+  room card, with Open room and Leave room or Close room, and Room I joined
+  or My hosted room stays a dashed box.
+- **Members only.** A group room is unlisted, so it never shows in Open to
+  join, and only the group's members can join it, even somebody else holding
+  its link. The invite page tells them "This is a group's room". The check
+  is made inside the join's lock, so somebody removed from the group a moment
+  ago cannot slip in. Somebody already in the room when they leave the group
+  stays until they leave the room.
+- **One open room per group.** Start a group room while one is open puts you
+  in that one instead of making a second.
+- **The bell:** every other member hears "Sam started a room for Study
+  Buddies.", at most once an hour per group, never across a block with the
+  host.
+- **For a group in Host a room.** With Starts at set to Now, the field lists
+  every group you are in. With Every week it lists only the groups you own,
+  because only the owner books a weekly group room (Tyler, 13 Oct 2026). A
+  set time is never a group room. Picking a group hides Visibility, because
+  a group room is always unlisted.
+- **A weekly group room invites the group as it is each week.** When the
+  worker books a week's room, a day ahead, it adds every member's verified
+  email to the typed ones, each once, through the same invite rows a booking
+  always uses. Somebody who joined since is invited; somebody who left is
+  not.
 
 ## Open to join on the front page
 

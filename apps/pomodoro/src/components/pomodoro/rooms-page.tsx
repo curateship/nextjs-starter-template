@@ -40,8 +40,10 @@ import {
   createRoom,
   joinRoom,
   leaveActiveRoom,
+  listMyGroupRooms,
   listMyRepeats,
   listRooms,
+  type GroupRoomCardRow,
   listRoomsForGuest,
   listUpcoming,
   repeatRoom,
@@ -160,6 +162,12 @@ export function RoomsPage() {
     []
   )
   const [showHostForm, setShowHostForm] = React.useState(false)
+  // The group the Host a room window was opened for, from the Group room card.
+  const [hostForGroup, setHostForGroup] = React.useState<HostableGroup | null>(null)
+  // Your groups and their open rooms, for the Group room card (groups task
+  // 01, part 11). Null until read; a failed read draws no card rather than
+  // telling somebody in a group that they are in none.
+  const [groupRooms, setGroupRooms] = React.useState<GroupRoomCardRow[] | null>(null)
   // The room a Join is in flight for. One join at a time, however many
   // presses: the ref answers at once, the state redraws the button.
   const [joiningSlug, setJoiningSlug] = React.useState("")
@@ -186,6 +194,7 @@ export function RoomsPage() {
       return
     }
     void listRooms().then(showRooms, failed)
+    void listMyGroupRooms().then(setGroupRooms, () => {})
     void listUpcoming()
       .then(setUpcoming)
       .catch(() => showErrorToast("Upcoming rooms could not be loaded."))
@@ -223,6 +232,7 @@ export function RoomsPage() {
       return
     }
     void listRooms().then(showRooms, () => {})
+    void listMyGroupRooms().then(setGroupRooms, () => {})
     void listUpcoming().then(setUpcoming, () => {})
   }, [known, authenticated, showRooms])
   const wasVisibleRef = React.useRef(pageVisible)
@@ -263,6 +273,25 @@ export function RoomsPage() {
     }
     // Asks first when you are in another room, hosting it or not.
     switchRoom.confirmJoin(previewOf(row), () => void performJoin(row.room.slug))
+  }
+
+  const joinGroupRoom = (card: GroupRoomCardRow) => {
+    if (!card.room) return
+    const room = card.room
+    switchRoom.confirmJoin(
+      { slug: room.slug, name: room.name, sound: room.sound, background: room.background },
+      () => void performJoin(room.slug)
+    )
+  }
+
+  const startGroupRoom = (card: GroupRoomCardRow) => {
+    // You host one room at a time, so the window would not open. Say why.
+    if (hostingNow) {
+      showErrorToast(hostNote)
+      return
+    }
+    setHostForGroup({ id: card.groupId, name: card.groupName, isOwner: card.isOwner })
+    setShowHostForm(true)
   }
 
   const cancelBooking = async (room: UpcomingRoomRow) => {
@@ -464,14 +493,25 @@ export function RoomsPage() {
       </header>
       <HostRoomDialog
         open={showHostForm && !hostingNow}
-        onOpenChange={setShowHostForm}
+        onOpenChange={(next) => {
+          setShowHostForm(next)
+          if (!next) setHostForGroup(null)
+        }}
+        groups={(groupRooms ?? []).map((card) => ({
+          id: card.groupId,
+          name: card.groupName,
+          isOwner: card.isOwner,
+        }))}
+        startForGroup={hostForGroup}
         onCreated={(snapshot) => {
           setShowHostForm(false)
+          setHostForGroup(null)
           refreshRooms()
           goToRoom(snapshot)
         }}
         onBooked={(message) => {
           setShowHostForm(false)
+          setHostForGroup(null)
           toast.success(message)
           refreshRooms()
         }}
@@ -538,6 +578,10 @@ export function RoomsPage() {
             }
             onHost={hostFromHere}
             hostNote={hostNote}
+            groupRooms={groupRooms}
+            joiningSlug={joiningSlug}
+            onJoinGroupRoom={joinGroupRoom}
+            onStartGroupRoom={startGroupRoom}
           />
           <OpenRoomsSection
             sectionRef={openRoomsRef}
@@ -588,18 +632,29 @@ type HousePreset = CustomTimerPreset & {
   background: string | null
 }
 
+/** A group the Host a room window can make a room for (groups task 01). */
+export type HostableGroup = { id: string; name: string; isOwner: boolean }
+
 export function HostRoomDialog({
   open,
   onOpenChange,
   onCreated,
   onBooked,
+  groups = [],
+  startForGroup = null,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreated: (snapshot: RoomSnapshotClient) => void
   onBooked: (message: string) => void
+  /** The groups you are in, for "For a group". Empty hides the field. */
+  groups?: readonly HostableGroup[]
+  /** Opened from the Group room card: that group is picked to start with. */
+  startForGroup?: HostableGroup | null
 }) {
   const [roomName, setRoomName] = React.useState("")
+  // "none", or the id of the group this is a group room for.
+  const [groupChoice, setGroupChoice] = React.useState("none")
   const [visibility, setVisibility] = React.useState<"public" | "unlisted">(
     "public"
   )
@@ -754,7 +809,8 @@ export function HostRoomDialog({
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
-      setRoomName("")
+      setRoomName(startForGroup?.name ?? "")
+      setGroupChoice(startForGroup?.id ?? "none")
       setVisibility("public")
       setFocusMinutes(25)
       setShortBreakMinutes(5)
@@ -775,6 +831,17 @@ export function HostRoomDialog({
     }
   }
   const invites = parseInviteEmails(invitesTyped)
+  // A group room is started now by any member, or booked every week by the
+  // group's owner (Tyler, 13 Oct 2026). A one-off booking is never a group
+  // room. Worked out while drawing, so switching "Starts at" never leaves a
+  // group picked that the new choice cannot have.
+  const groupChoices =
+    startMode === "now"
+      ? groups
+      : startMode === "weekly"
+        ? groups.filter((group) => group.isOwner)
+        : []
+  const forGroup = groupChoices.find((group) => group.id === groupChoice) ?? null
   // The dialog checks the same rules the endpoint does, so the problem is
   // named beside the field instead of arriving as a failed save. The server
   // checks them again against its own clock, which is the one that counts.
@@ -812,7 +879,9 @@ export function HostRoomDialog({
     setCreating(true)
     const settings = {
       name: roomName,
-      visibility,
+      // A group room is unlisted: it never shows in Open to join.
+      visibility: forGroup ? ("unlisted" as const) : visibility,
+      ...(forGroup ? { groupId: forGroup.id } : {}),
       focusMinutes,
       shortBreakMinutes,
       longBreakMinutes,
@@ -836,6 +905,8 @@ export function HostRoomDialog({
       }
       if (startMode === "later") {
         const startsAt = startValueAsDate(startValue)
+        // A one-off booking is never a group room: "For a group" is not
+        // offered with a set time, so `settings` carries no group here.
         const booked = await scheduleRoom({
           ...settings,
           startsAt: startsAt!.toISOString(),
@@ -928,7 +999,9 @@ export function HostRoomDialog({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Host a room</DialogTitle>
+              <DialogTitle>
+                {startForGroup ? `Start a room for ${startForGroup.name}` : "Host a room"}
+              </DialogTitle>
               <DialogDescription>
                 Pick the timers, the sound and the background, then start it now, book a
                 time, or book the same time every week. You control the session
@@ -956,27 +1029,63 @@ export function HostRoomDialog({
                     placeholder="Morning deep work"
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="room-visibility">Visibility</Label>
-                  <Select
-                    value={visibility}
-                    onValueChange={(value) =>
-                      setVisibility(value as "public" | "unlisted")
-                    }
-                  >
-                    <SelectTrigger id="room-visibility" aria-label="Visibility">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="public">
-                        Public - listed for everyone
-                      </SelectItem>
-                      <SelectItem value="unlisted">
-                        Unlisted - invite link only
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {groupChoices.length > 0 ? (
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="room-group"
+                      hint={
+                        startMode === "weekly"
+                          ? "Only groups you own can have a weekly room."
+                          : "Any group you are in can have one open room at a time."
+                      }
+                    >
+                      For a group
+                    </FieldLabel>
+                    <Select value={forGroup?.id ?? "none"} onValueChange={setGroupChoice}>
+                      <SelectTrigger id="room-group" aria-label="For a group">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No group</SelectItem>
+                        {groupChoices.map((group) => (
+                          <SelectItem key={group.id} value={group.id}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {forGroup ? (
+                      <p className="text-xs text-muted-foreground">
+                        {startMode === "weekly"
+                          ? `Each week's room invites everybody in ${forGroup.name} as they are that week, by email and in the bell. Only the group's members can join it.`
+                          : `Only the people in ${forGroup.name} can join it, and they hear about it in the bell.`}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+                {forGroup ? null : (
+                  <div className="grid gap-2">
+                    <Label htmlFor="room-visibility">Visibility</Label>
+                    <Select
+                      value={visibility}
+                      onValueChange={(value) =>
+                        setVisibility(value as "public" | "unlisted")
+                      }
+                    >
+                      <SelectTrigger id="room-visibility" aria-label="Visibility">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="public">
+                          Public - listed for everyone
+                        </SelectItem>
+                        <SelectItem value="unlisted">
+                          Unlisted - invite link only
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 {/* A preset fills the three timers and auto-start; the fields stay
                     editable, and any edit that matches no preset reads Custom,
                     the same rule as the timer's own picker. The room keeps plain

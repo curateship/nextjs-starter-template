@@ -24,6 +24,7 @@ import {
 import { requirePomodoroPerk } from "@/server/pomodoro/entitlements"
 import { customShellUsers as users } from "@/server/schema"
 import { blockedUserIdsFor } from "@/server/pomodoro/blocks"
+import { groupMemberEmails } from "@/server/pomodoro/group-rooms"
 import { dropUnreadRoomNotices, writeNotices } from "@/server/pomodoro/notices"
 import {
   phaseUpdate,
@@ -762,11 +763,18 @@ async function bookRepeatDay(
   if (!seen.nextStartsAt) return false
   const day = occurrenceAt(seen, seen.nextStartsAt)
   const bookable = Boolean(day && day.startsAt > timestamp)
+  // A weekly group room invites the group as it is this week (groups task
+  // 01, part 12): somebody who joined since is invited, somebody who left is
+  // not. Their addresses join the typed ones, each once.
+  const invites =
+    bookable && seen.groupId
+      ? [...new Set([...seen.invites, ...(await groupMemberEmails(seen.groupId, seen.hostUserId))])]
+      : seen.invites
   // Read before the transaction, like every other read on the shared handle.
   const [hosting, suspended, recipients] = await Promise.all([
     bookable ? mayHost(seen.hostUserId, database) : false,
     bookable ? findSuspension(seen.hostUserId, database, timestamp) : null,
-    bookable ? bookingRecipients(seen.hostUserId, seen.invites, database) : null,
+    bookable ? bookingRecipients(seen.hostUserId, invites, database) : null,
   ])
   const allowed = hosting && !suspended
   // A day skipped only because the host has no Pro pauses the rule (payments
@@ -806,8 +814,9 @@ async function bookRepeatDay(
           // draw the default scene with no sound, like any older room.
           sound: rule.sound,
           background: rule.background,
+          groupId: rule.groupId,
           startsAt: day.startsAt,
-          invites: rule.invites,
+          invites,
           repeat: { id: rule.id, occurrenceDate: day.date },
         },
         recipients

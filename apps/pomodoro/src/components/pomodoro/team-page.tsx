@@ -1,8 +1,11 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
+import { FlagIcon } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { GroupReportDialog } from "@/components/pomodoro/group-report-dialog"
 import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
 import { LeaderboardRows } from "@/components/pomodoro/leaderboard-rows"
 import { PanelCard } from "@/components/pomodoro/panel-card"
@@ -31,6 +34,7 @@ type TeamPageView = NonNullable<Awaited<ReturnType<typeof readTeamPage>>>
 export function TeamPage({ team }: { team: TeamPageView }) {
   const [boardWindow, setBoardWindow] =
     React.useState<LeaderboardWindow>("week")
+  const [reporting, setReporting] = React.useState(false)
   const board = team.boards[boardWindow]
   // Everybody ranked publishes their hours in every window, so the all-time
   // board is the one list of who publishes.
@@ -54,6 +58,9 @@ export function TeamPage({ team }: { team: TeamPageView }) {
                 /team/{team.handle}
               </span>
             </div>
+            {team.description ? (
+              <p className="break-words">{team.description}</p>
+            ) : null}
             <p className="text-sm text-muted-foreground">
               <strong className="font-semibold text-foreground">
                 {team.memberCount}
@@ -69,7 +76,24 @@ export function TeamPage({ team }: { team: TeamPageView }) {
                 Edit page
               </Link>
             </Button>
-          ) : null}
+          ) : (
+            // Groups task 01, part 24. Anybody can report a team page, signed
+            // in or not, the same as a public profile.
+            <Button
+              variant="ghost"
+              className="self-start"
+              onClick={() => setReporting(true)}
+            >
+              <FlagIcon aria-hidden="true" />
+              Report
+            </Button>
+          )}
+          <GroupReportDialog
+            open={reporting}
+            onOpenChange={setReporting}
+            groupName={team.name}
+            target={{ handle: team.handle }}
+          />
         </div>
         {/* The 1px gap shows the line colour behind the cells, the same
             lines the profile header draws. */}

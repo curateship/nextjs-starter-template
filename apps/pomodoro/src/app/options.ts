@@ -5,6 +5,7 @@ import {
   CalendarXIcon,
   CircleCheckIcon,
   ClockIcon,
+  CrownIcon,
   DoorClosedIcon,
   DoorOpenIcon,
   EyeIcon,
@@ -22,7 +23,9 @@ import {
   Share2Icon,
   ShieldCheckIcon,
   SmilePlusIcon,
+  TargetIcon,
   TriangleAlertIcon,
+  TrophyIcon,
   UserMinusIcon,
   UserPlusIcon,
   UsersIcon,
@@ -122,6 +125,16 @@ const NOTICE_LOOK: Record<PomodoroNoticeKind, AppNoticeDetail> = {
   share_removed: { icon: EyeOffIcon, toneClassName: BAD },
   share_waiting: { icon: ShieldCheckIcon, toneClassName: PLAIN },
   room_not_opening: { icon: CalendarXIcon, toneClassName: PLAIN },
+  // Groups task 01. The detail of a request holds the first asker's name for
+  // folding, the same as a join, so the line under the heading is empty.
+  group_request: { icon: UserPlusIcon, toneClassName: GOOD, body: "" },
+  group_answer: { icon: UsersIcon, toneClassName: PLAIN },
+  group_invite: { icon: UserPlusIcon, toneClassName: GOOD },
+  group_owner: { icon: CrownIcon, toneClassName: GOOD },
+  group_room: { icon: DoorOpenIcon, toneClassName: GOOD },
+  group_winner: { icon: TrophyIcon, toneClassName: GOOD },
+  group_goal: { icon: TargetIcon, toneClassName: GOOD },
+  group_milestone: { icon: PartyPopperIcon, toneClassName: GOOD },
 }
 
 /** A kind's whole look: its tile and the tab it is filed under. */

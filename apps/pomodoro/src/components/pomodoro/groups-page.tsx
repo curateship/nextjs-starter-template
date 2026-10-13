@@ -1,5 +1,11 @@
 import * as React from "react"
-import { CheckIcon, CopyIcon, Trash2Icon } from "lucide-react"
+import {
+  Loader2Icon,
+  PartyPopperIcon,
+  SettingsIcon,
+} from "lucide-react"
+
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -12,41 +18,60 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { GroupEditDialog } from "@/components/pomodoro/group-edit-dialog"
+import { InvitePeopleButton } from "@/components/pomodoro/group-invite-people"
+import { GroupMembersCard } from "@/components/pomodoro/group-members-card"
+import {
+  GroupActivityCard,
+  GroupStanding,
+  PastWeeksCard,
+} from "@/components/pomodoro/group-score-panels"
 import { LeaderboardRows } from "@/components/pomodoro/leaderboard-rows"
 import { PanelCard } from "@/components/pomodoro/panel-card"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
-import {
-  TeamPageNoticeCard,
-  TeamPageSettingsCard,
-} from "@/components/pomodoro/team-page-settings"
+import { TeamPageNoticeCard } from "@/components/pomodoro/team-page-settings"
 import { TextLink } from "@/components/pomodoro/text-link"
 import {
+  acceptFocusGroupInvite,
+  cheerFocusGroupMember,
   createFocusGroup,
-  deleteFocusGroup,
+  declineFocusGroupInvite,
   joinFocusGroup,
   leaveFocusGroup,
   loadFocusGroupBoard,
-  loadFocusGroupMembers,
+  loadMyFocusGroupInvites,
   loadMyGroups,
-  removeFocusGroupMember,
-  resetFocusGroupInvite,
 } from "@/lib/api/pomodoro/groups"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { plural } from "@/lib/format/plural"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { CHEERS, cheerErrorMessage } from "@/lib/pomodoro/cheers"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 import {
+  GROUP_BOARD_ORDERS,
+  GROUP_BOARD_ORDER_LABELS,
   groupErrorMessage,
-  groupInviteLink,
   MAX_GROUPS_PER_PERSON,
   MAX_GROUP_NAME_LENGTH,
   MIN_GROUP_NAME_LENGTH,
+  type GroupBoardOrder,
 } from "@/lib/pomodoro/groups"
 import {
   LEADERBOARD_WINDOWS,
@@ -54,13 +79,12 @@ import {
   type LeaderboardWindow,
 } from "@/lib/pomodoro/leaderboard-windows"
 import { pillTabsList, pillTabsTrigger } from "@/lib/pomodoro/pill-tabs"
-import { browserTimezone } from "@/lib/pomodoro/timer"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 type Group = Awaited<ReturnType<typeof loadMyGroups>>[number]
 type Board = Awaited<ReturnType<typeof loadFocusGroupBoard>>
-type Member = Awaited<ReturnType<typeof loadFocusGroupMembers>>[number]
+type Invite = Awaited<ReturnType<typeof loadMyFocusGroupInvites>>[number]
 
 /**
  * The Groups dashboard, `/groups`: your private focus groups on a page of
@@ -77,18 +101,22 @@ type Member = Awaited<ReturnType<typeof loadFocusGroupMembers>>[number]
 export function GroupsPage({
   groupId,
   boardWindow,
+  boardOrder,
   createRequested,
   onSelectGroup,
   onWindowChange,
+  onOrderChange,
   onCreateRequestClosed,
 }: {
   /** The group in the address. The first group stands in when it is missing. */
   groupId?: string
   boardWindow: LeaderboardWindow
+  boardOrder: GroupBoardOrder
   /** The account menu's Create a group row asked for the window. */
   createRequested: boolean
   onSelectGroup: (groupId: string | undefined) => void
   onWindowChange: (window: LeaderboardWindow) => void
+  onOrderChange: (order: GroupBoardOrder) => void
   onCreateRequestClosed: () => void
 }) {
   const { known, authenticated } = useProductAuth()
@@ -153,6 +181,15 @@ export function GroupsPage({
           global leaderboard to be in a group.
         </p>
       </header>
+
+      {known && authenticated ? (
+        <GroupInvitesPanel
+          onJoined={async (joinedId) => {
+            await refreshGroups()
+            onSelectGroup(joinedId)
+          }}
+        />
+      ) : null}
 
       {!known ? (
         <LoadingRow label="Loading your groups" />
@@ -223,7 +260,9 @@ export function GroupsPage({
             key={selected.id}
             group={selected}
             boardWindow={boardWindow}
+            boardOrder={boardOrder}
             onWindowChange={onWindowChange}
+            onOrderChange={onOrderChange}
             onChanged={refreshGroups}
             onGone={async () => {
               await refreshGroups()
@@ -259,139 +298,147 @@ export function GroupsPage({
 }
 
 /**
- * The right-hand side for one group: its name and the way out, its board,
- * who is in it, the invite link and the public page.
+ * The right-hand side for one group: its card with the name, the line under
+ * it, the streak, the weekly goal and the board; then who is in it, the
+ * invite link, the public page, past weeks and, for the owner, the activity.
  *
- * The owner can replace the link, take people out, set up the public page and
- * delete the group. Everyone else can copy the link and leave. The owner
- * cannot leave, because a group with no owner has nobody who can kill a
- * leaked link.
+ * The owner runs the group: settings, the link's switches, who is in it,
+ * handing it on and deleting it. Everyone else can copy the link, invite
+ * people they follow, cheer from the board and leave.
  */
 function GroupPanels({
   group,
   boardWindow,
+  boardOrder,
   onWindowChange,
+  onOrderChange,
   onChanged,
   onGone,
 }: {
   group: Group
   boardWindow: LeaderboardWindow
+  boardOrder: GroupBoardOrder
   onWindowChange: (window: LeaderboardWindow) => void
+  onOrderChange: (order: GroupBoardOrder) => void
   onChanged: () => Promise<unknown>
   onGone: () => Promise<void>
 }) {
   /**
-   * The board with the window it was read for, so switching windows never
+   * The board with the window and order it was read for, so switching never
    * leaves the old figures under the new tab.
    */
   const [board, setBoard] = React.useState<{
-    window: LeaderboardWindow
+    key: string
     result: Board | null
   } | null>(null)
   const [boardAttempt, setBoardAttempt] = React.useState(0)
-  const [members, setMembers] = React.useState<Member[] | null>(null)
-  const [membersFailed, setMembersFailed] = React.useState(false)
-  const [membersAttempt, setMembersAttempt] = React.useState(0)
-  const [copied, setCopied] = React.useState(false)
-  // Cleared on the way out, so leaving inside the two seconds does not set
-  // state on something that has gone.
-  const copiedTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  React.useEffect(
-    () => () => {
-      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current)
-    },
-    []
-  )
-  const [confirmingDelete, setConfirmingDelete] = React.useState(false)
   const [confirmingLeave, setConfirmingLeave] = React.useState(false)
-  const [confirmingNewLink, setConfirmingNewLink] = React.useState(false)
-  // The member the owner pressed the bin beside, until they confirm or back out.
-  const [removing, setRemoving] = React.useState<Member | null>(null)
+  const [editing, setEditing] = React.useState(false)
+  // Handing the group on makes this account a member, so Edit group closes
+  // and stays closed rather than opening again if it ever comes back.
+  if (editing && !group.isOwner) setEditing(false)
   const [run, busy] = useAsyncAction(groupErrorMessage)
+  const boardKey = `${boardWindow}:${boardOrder}`
 
   React.useEffect(() => {
     let cancelled = false
-    void loadFocusGroupBoard(group.id, boardWindow, browserTimezone())
+    const key = `${boardWindow}:${boardOrder}`
+    void loadFocusGroupBoard(group.id, boardWindow, boardOrder)
       .then((result) => {
-        if (!cancelled) setBoard({ window: boardWindow, result })
+        if (!cancelled) setBoard({ key, result })
       })
       .catch(() => {
-        // `result: null` is the failure, recorded against this window only.
-        if (!cancelled) setBoard({ window: boardWindow, result: null })
+        // `result: null` is the failure, recorded against this choice only.
+        if (!cancelled) setBoard({ key, result: null })
       })
     return () => {
       cancelled = true
     }
-  }, [group.id, boardWindow, boardAttempt])
+  }, [group.id, boardWindow, boardOrder, boardAttempt, group.memberCount])
 
-  const refreshMembers = React.useCallback(async () => {
-    setMembers(await loadFocusGroupMembers(group.id))
-  }, [group.id])
-
-  React.useEffect(() => {
-    let cancelled = false
-    void loadFocusGroupMembers(group.id)
-      .then((loaded) => {
-        if (cancelled) return
-        setMembersFailed(false)
-        setMembers(loaded)
-      })
-      .catch(() => {
-        // A group always holds its owner, so an empty list here could only
-        // ever be a failure pretending to be an answer.
-        if (!cancelled) setMembersFailed(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [group.id, membersAttempt])
-
-  const shown = board?.window === boardWindow ? board : null
-  const link = groupInviteLink(
-    typeof globalThis.location === "undefined" ? "" : globalThis.location.origin,
-    group.joinToken
-  )
+  const shown = board?.key === boardKey ? board : null
+  // The streak, goal and past weeks are read again when the members or the
+  // goal change.
+  const scoreVersion = `${group.memberCount}:${group.weeklyGoalHours}:${group.timezone}`
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      {/* The group's name and the way out sit inside its card, above the
-          board (Tyler's mark-up of 12 Oct 2026,
+      {/* The group's name and its tabs sit inside its card, above the board
+          (Tyler's mark-up of 12 Oct 2026,
           workspace/docs/assets/pasted-image-1791818740774117000.png). */}
       <PanelCard
         label={group.name}
         header={
-          <header className="flex flex-wrap items-center gap-x-4 gap-y-3">
-            <h3 className="min-w-0 break-words text-2xl font-bold tracking-tight">
-              {group.name}
-            </h3>
-            <span className="text-sm text-muted-foreground">
-              {group.memberCount}{" "}
-              {plural(group.memberCount, "person", "people")}
-            </span>
-            {/* Where Delete group was, on Tyler's word of 12 Oct 2026. On a
-                phone the tabs wrap under the name. */}
-            <Tabs
-              value={boardWindow}
-              onValueChange={(value) =>
-                onWindowChange(value as LeaderboardWindow)
-              }
-              className="ml-auto"
-            >
-              <TabsList aria-label="Board window" className={pillTabsList}>
-                {LEADERBOARD_WINDOWS.map((option) => (
-                  <TabsTrigger
-                    key={option}
-                    value={option}
-                    className={pillTabsTrigger}
-                  >
-                    {LEADERBOARD_WINDOW_LABELS[option]}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+          <header className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+              <h3 className="min-w-0 break-words text-2xl font-bold tracking-tight">
+                {group.name}
+              </h3>
+              {/* Tyler, 13 Oct 2026: the cog reads Edit group, and Invite
+                  people beside it opens the invite link card. */}
+              <span className="flex flex-wrap gap-2">
+                {group.isOwner ? (
+                  <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                    <SettingsIcon aria-hidden="true" />
+                    Edit group
+                  </Button>
+                ) : null}
+                <InvitePeopleButton group={group} onChanged={onChanged} />
+              </span>
+              {/* Where Delete group was, on Tyler's word of 12 Oct 2026. On a
+                  phone the tabs wrap under the name. */}
+              <Tabs
+                value={boardWindow}
+                onValueChange={(value) =>
+                  onWindowChange(value as LeaderboardWindow)
+                }
+                className="ml-auto"
+              >
+                <TabsList aria-label="Board window" className={pillTabsList}>
+                  {LEADERBOARD_WINDOWS.map((option) => (
+                    <TabsTrigger
+                      key={option}
+                      value={option}
+                      className={pillTabsTrigger}
+                    >
+                      {LEADERBOARD_WINDOW_LABELS[option]}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+            {group.description ? (
+              <p className="break-words text-muted-foreground">
+                {group.description}
+              </p>
+            ) : null}
           </header>
         }
       >
+        <GroupStanding groupId={group.id} version={scoreVersion} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="text-xs text-muted-foreground">
+            {boardWindow === "week"
+              ? "This week runs from Monday"
+              : boardWindow === "month"
+                ? "This calendar month"
+                : "Every day so far"}
+            , in {group.timezone.replaceAll("_", " ")} time.
+          </span>
+          {/* What orders the board (part 17). Hours is the default. */}
+          <Tabs
+            value={boardOrder}
+            onValueChange={(value) => onOrderChange(value as GroupBoardOrder)}
+          >
+            <TabsList aria-label="Rank by" className={pillTabsList}>
+              {GROUP_BOARD_ORDERS.map((option) => (
+                <TabsTrigger key={option} value={option} className={pillTabsTrigger}>
+                  {GROUP_BOARD_ORDER_LABELS[option]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
         {shown === null ? (
           <LoadingRow label="Loading the board" />
         ) : shown.result === null ? (
@@ -414,206 +461,60 @@ function GroupPanels({
           </p>
         ) : (
           <div className="flex flex-col gap-2">
-            <LeaderboardRows leaders={shown.result.leaders} />
+            <LeaderboardRows
+              leaders={shown.result.leaders}
+              detail={boardOrder === "days" ? "days" : "sessions"}
+              action={(leader) =>
+                leader.isYou || !leader.membershipId ? null : (
+                  <CheerButton
+                    groupId={group.id}
+                    membershipId={leader.membershipId}
+                    name={leader.name ?? "them"}
+                  />
+                )
+              }
+            />
           </div>
         )}
       </PanelCard>
 
-      <div className="grid items-start gap-6 md:grid-cols-2">
-        <PanelCard label="Who is in it">
-          {membersFailed ? (
-            <ErrorRow
-              message="The members could not be loaded."
-              onRetry={() => {
-                dismissErrorToast()
-                setMembersFailed(false)
-                setMembersAttempt((count) => count + 1)
-              }}
-            />
-          ) : members === null ? (
-            <LoadingRow label="Loading the members" />
-          ) : (
-            <div className="flex flex-col gap-1">
-              {members.map((member) => (
-                <div
-                  key={member.membershipId}
-                  className="flex min-h-9 items-center gap-2 text-sm"
-                >
-                  <span className="min-w-0 flex-1 truncate">
-                    {member.name ?? "No display name yet"}
-                    {member.isOwner ? (
-                      <small className="ml-2 text-muted-foreground">owner</small>
-                    ) : null}
-                    {member.isYou && !member.isOwner ? (
-                      <small className="ml-2 text-muted-foreground">you</small>
-                    ) : null}
-                  </span>
-                  {group.isOwner && !member.isOwner ? (
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      disabled={busy}
-                      aria-label={`Remove ${member.name ?? "this person"}`}
-                      onClick={() => setRemoving(member)}
-                    >
-                      <Trash2Icon aria-hidden="true" />
-                    </Button>
-                  ) : null}
-                </div>
-              ))}
-              {members.some((member) => member.name === null) ? (
-                <p className="pt-2 text-xs text-muted-foreground">
-                  Somebody with no display name is in the group but not on its
-                  board. They pick one in Settings.
-                </p>
-              ) : null}
-            </div>
-          )}
-          {/* The way out of the group sits under who is in it. The owner
-              cannot leave, because a group with no owner has nobody who can
-              kill a leaked link, so the owner deletes it instead. */}
-          {group.isOwner ? (
-            <Button
-              variant="destructive"
-              size="sm"
-              className="self-start"
-              disabled={busy}
-              onClick={() => setConfirmingDelete(true)}
-            >
-              Delete group
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="self-start"
-              disabled={busy}
-              onClick={() => setConfirmingLeave(true)}
-            >
-              Leave group
-            </Button>
-          )}
-        </PanelCard>
-
-        <div className="flex min-w-0 flex-col gap-6">
-          <PanelCard label="Invite link">
-            <div className="grid gap-2">
-              <Label htmlFor={`invite-${group.id}`}>Share this address</Label>
-              <div className="flex gap-2">
-                <Input
-                  id={`invite-${group.id}`}
-                  readOnly
-                  value={link}
-                  onFocus={(event) => event.target.select()}
-                />
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    // A browser with no clipboard, or one that refused, must
-                    // not be told the link was copied: the address is
-                    // selectable in the box beside this.
-                    try {
-                      await navigator.clipboard.writeText(link)
-                    } catch {
-                      showErrorToast(
-                        "The link could not be copied. Select it in the box and copy it by hand."
-                      )
-                      return
-                    }
-                    setCopied(true)
-                    if (copiedTimer.current !== null)
-                      clearTimeout(copiedTimer.current)
-                    copiedTimer.current = setTimeout(() => setCopied(false), 2_000)
-                  }}
-                >
-                  {copied ? (
-                    <CheckIcon aria-hidden="true" />
-                  ) : (
-                    <CopyIcon aria-hidden="true" />
-                  )}
-                  {copied ? "Copied" : "Copy"}
-                </Button>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Anybody with this link can join the group and see its board. Only
-              display names show, never real names or email addresses.
-            </p>
-            {group.isOwner ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => setConfirmingNewLink(true)}
-                >
-                  New link
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  Replaces the link, so anybody still holding the old one cannot
-                  join.
-                </span>
-              </div>
-            ) : null}
-          </PanelCard>
-
-          {group.isOwner ? (
-            <TeamPageSettingsCard groupId={group.id} onChanged={onChanged} />
-          ) : group.teamHandle ? (
+      {/* The owner's Who is in it and public page are inside Edit group.
+          A member, who has no Edit group, keeps both on the page. */}
+      {group.isOwner ? null : (
+        <div className="grid items-start gap-6 md:grid-cols-2">
+          <GroupMembersCard
+            group={group}
+            busy={busy}
+            onLeave={() => setConfirmingLeave(true)}
+          />
+          {group.teamHandle ? (
             <TeamPageNoticeCard teamHandle={group.teamHandle} />
           ) : null}
         </div>
+      )}
+
+      <div className="grid items-start gap-6 md:grid-cols-2">
+        <PastWeeksCard groupId={group.id} version={scoreVersion} />
+        {group.isOwner ? (
+          <GroupActivityCard
+            groupId={group.id}
+            version={`${group.memberCount}:${group.name}:${group.joinToken}:${group.joinsPaused}`}
+          />
+        ) : null}
       </div>
 
-      <ConfirmDialog
-        open={confirmingDelete}
-        onOpenChange={setConfirmingDelete}
-        title={`Delete ${group.name}?`}
-        description="The group, its board and its public page go, and its link stops working for everybody. Nobody's own focus history is touched."
-        confirmLabel="Delete group"
-        loading={busy}
-        onConfirm={() =>
-          void run(async () => {
-            await deleteFocusGroup(group.id)
-            setConfirmingDelete(false)
-            await onGone()
-          }, "Group deleted.")
-        }
-      />
-      <ConfirmDialog
-        open={removing !== null}
-        onOpenChange={(next) => {
-          if (!next) setRemoving(null)
-        }}
-        title={`Remove ${removing?.name ?? "this person"} from ${group.name}?`}
-        description="They come off the group's board straight away. They can rejoin with the invite link."
-        confirmLabel={`Remove ${removing?.name ?? "them"}`}
-        loading={busy}
-        onConfirm={() =>
-          void run(async () => {
-            if (!removing) return
-            await removeFocusGroupMember(group.id, removing.membershipId)
-            setRemoving(null)
-            await refreshMembers()
-            await onChanged()
-          }, "Removed from the group.")
-        }
-      />
-      <ConfirmDialog
-        open={confirmingNewLink}
-        onOpenChange={setConfirmingNewLink}
-        title="Replace the invite link?"
-        description="Anyone holding the old link can no longer join with it. People already in the group stay in."
-        confirmLabel="Replace link"
-        loading={busy}
-        onConfirm={() =>
-          void run(async () => {
-            await resetFocusGroupInvite(group.id)
-            setConfirmingNewLink(false)
-            await onChanged()
-          }, "New link made. The old one no longer works.")
-        }
-      />
+      {/* Only the owner has Edit group. Handing the group on makes this
+          account a member, which takes the window away with it. */}
+      {group.isOwner ? (
+        <GroupEditDialog
+          key={`edit-${editing}`}
+          group={group}
+          open={editing}
+          onOpenChange={setEditing}
+          onSaved={onChanged}
+          onGone={onGone}
+        />
+      ) : null}
       <ConfirmDialog
         open={confirmingLeave}
         onOpenChange={setConfirmingLeave}
@@ -630,6 +531,169 @@ function GroupPanels({
         }
       />
     </div>
+  )
+}
+
+/**
+ * A cheer from a row on the board (part 15): the same canned lines and the
+ * same daily limit as a cheer on a public page.
+ */
+function CheerButton({
+  groupId,
+  membershipId,
+  name,
+}: {
+  groupId: string
+  membershipId: string
+  name: string
+}) {
+  const [sending, setSending] = React.useState(false)
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              disabled={sending}
+              aria-label={`Cheer ${name} on`}
+            >
+              {sending ? (
+                <Loader2Icon className="animate-spin" aria-hidden="true" />
+              ) : (
+                <PartyPopperIcon aria-hidden="true" />
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Send {name} a cheer</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end">
+        {CHEERS.map((cheer) => (
+          <DropdownMenuItem
+            key={cheer.id}
+            onSelect={async () => {
+              setSending(true)
+              dismissErrorToast()
+              try {
+                await cheerFocusGroupMember(groupId, membershipId, cheer.id)
+                toast.success(`Cheer sent to ${name}.`)
+              } catch (cause) {
+                showErrorToast(cheerErrorMessage(cause))
+              } finally {
+                setSending(false)
+              }
+            }}
+          >
+            {cheer.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/**
+ * Invites waiting for you (groups task 01, part 7): somebody you follow
+ * asked you into their group from the bell. Join runs the same rules as the
+ * link, so a paused group says so and a group that asks first turns the
+ * Join into a request. Nothing is drawn when nothing is waiting.
+ */
+function GroupInvitesPanel({
+  onJoined,
+}: {
+  onJoined: (groupId: string) => Promise<void>
+}) {
+  const [invites, setInvites] = React.useState<Invite[] | null>(null)
+  const [failed, setFailed] = React.useState(false)
+  const [attempt, setAttempt] = React.useState(0)
+  const [run, busy] = useAsyncAction(groupErrorMessage)
+
+  React.useEffect(() => {
+    let cancelled = false
+    void loadMyFocusGroupInvites()
+      .then((rows) => {
+        if (cancelled) return
+        setFailed(false)
+        setInvites(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [attempt])
+
+  if (failed)
+    return (
+      <PanelCard label="Invites">
+        <ErrorRow
+          message="Your invites could not be loaded."
+          onRetry={() => {
+            dismissErrorToast()
+            setFailed(false)
+            setAttempt((count) => count + 1)
+          }}
+        />
+      </PanelCard>
+    )
+  if (!invites || invites.length === 0) return null
+
+  const reload = () => setAttempt((count) => count + 1)
+  return (
+    <PanelCard label="Invites">
+      <ul className="flex flex-col gap-3">
+        {invites.map((invite) => (
+          <li key={invite.inviteId} className="flex flex-wrap items-center gap-3">
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span className="min-w-0 break-words font-semibold">
+                {invite.groupName}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {invite.inviterName} invited you · {invite.memberCount}{" "}
+                {plural(invite.memberCount, "person", "people")}
+                {invite.description ? ` · ${invite.description}` : ""}
+              </span>
+            </div>
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const result = await acceptFocusGroupInvite(invite.inviteId)
+                  reload()
+                  if (result.status === "requested") {
+                    toast.success(
+                      `${result.name} lets each person in. Your request is waiting for the owner.`
+                    )
+                    return
+                  }
+                  toast.success("You are in the group.")
+                  await onJoined(result.id)
+                })
+              }
+            >
+              Join
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  await declineFocusGroupInvite(invite.inviteId)
+                  reload()
+                }, "Invite declined.")
+              }
+            >
+              Decline
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </PanelCard>
   )
 }
 
@@ -766,9 +830,16 @@ function JoinGroupDialog({
               disabled={busy}
               onClick={async () => {
                 const joined = await run(async () => {
-                  const { id } = await joinFocusGroup(tokenFromLink(link))
-                  await onJoined(id)
-                }, "You are in the group.")
+                  const result = await joinFocusGroup(tokenFromLink(link))
+                  if (result.status === "requested") {
+                    toast.success(
+                      `${result.name} lets each person in. Your request is waiting for the owner.`
+                    )
+                    return
+                  }
+                  toast.success("You are in the group.")
+                  await onJoined(result.id)
+                })
                 if (joined) onOpenChange(false)
               }}
             >

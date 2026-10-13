@@ -47,6 +47,14 @@ export const POMODORO_NOTICE_KINDS = [
   "share_removed",
   "share_waiting",
   "room_not_opening",
+  "group_request",
+  "group_answer",
+  "group_invite",
+  "group_owner",
+  "group_room",
+  "group_winner",
+  "group_goal",
+  "group_milestone",
 ] as const
 
 export type PomodoroNoticeKind = (typeof POMODORO_NOTICE_KINDS)[number]
@@ -108,6 +116,14 @@ export const NOTICE_KIND_CATEGORY: Record<
   share_removed: "account",
   share_waiting: "account",
   room_not_opening: "rooms",
+  group_request: "social",
+  group_answer: "social",
+  group_invite: "social",
+  group_owner: "social",
+  group_room: "rooms",
+  group_winner: "social",
+  group_goal: "social",
+  group_milestone: "social",
 }
 
 /**
@@ -396,10 +412,16 @@ export function shareWaitingMessage(files: number) {
 export const SHARE_WAITING_PAGE = "/admin/pomodoro-uploads?sharing=waiting"
 
 /** What a report in the queue is about, as the admins' notice names it. */
-export type ReportedThing = "profile" | "message" | "shared_file" | "copyright"
+export type ReportedThing =
+  | "profile"
+  | "message"
+  | "shared_file"
+  | "copyright"
+  | "group"
 
 const REPORTED_THING_WORDS: Record<ReportedThing, string> = {
   profile: "a profile",
+  group: "a group",
   message: "a room message",
   shared_file: "a shared file",
   copyright: "a copyright claim",
@@ -458,6 +480,75 @@ export function streakRestoredMessage(day: string) {
 const GROUP_DELETED_PREFIX = "The Pomoder team deleted the group "
 export function groupDeletedMessage(groupName: string) {
   return `${GROUP_DELETED_PREFIX}${groupName}.`
+}
+
+/*
+ * Groups task 01. Every one of these is written with its kind beside it in
+ * `pomodoro_notice_links`, so none needs a shape `noticeKindFromWords` reads.
+ */
+
+/** Somebody asked to join a group whose owner lets each person in. Folds. */
+export function groupRequestMessage(
+  name: string,
+  others: number,
+  groupName: string
+) {
+  return `${nameAndOthers(name, others)} asked to join ${groupName}.`
+}
+
+/** The owner's answer to a request, or a cap that stopped it. */
+export function groupAnswerMessage(
+  groupName: string,
+  answer: "in" | "turned_down" | "full" | "your_limit"
+) {
+  switch (answer) {
+    case "in":
+      return `You are in ${groupName}.`
+    case "turned_down":
+      return `Your request to join ${groupName} wasn't accepted.`
+    case "full":
+      return `${groupName} was full, so you couldn't be let in.`
+    case "your_limit":
+      return `You couldn't be let into ${groupName}, because you are already in as many groups as one account may hold.`
+  }
+}
+
+export function groupInviteMessage(inviterName: string, groupName: string) {
+  return `${inviterName} invited you to the group ${groupName}.`
+}
+
+export function groupOwnerMessage(previousOwnerName: string, groupName: string) {
+  return `${previousOwnerName} handed you the group ${groupName}. You own it now.`
+}
+
+export function groupRoomMessage(hostName: string, groupName: string) {
+  return `${hostName} started a room for ${groupName}.`
+}
+
+/**
+ * Last week's winner, every one tied for first named. `focus` is the
+ * already-worded amount, "14 hours" or "45 minutes".
+ */
+export function groupWinnerMessage(
+  names: readonly string[],
+  groupName: string,
+  focus: string
+) {
+  const who =
+    names.length === 1
+      ? names[0]
+      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+  return names.length === 1
+    ? `${who} topped ${groupName} last week with ${focus}.`
+    : `${who} topped ${groupName} last week with ${focus} each.`
+}
+
+export function groupGoalMessage(groupName: string, hours: number) {
+  return `${groupName} reached its goal of ${hours} ${hours === 1 ? "hour" : "hours"} this week.`
+}
+
+export function groupMilestoneMessage(groupName: string, hours: number) {
+  return `${groupName} passed ${hours.toLocaleString("en-US")} hours together.`
 }
 
 /**

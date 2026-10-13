@@ -197,6 +197,17 @@ export function RoomInvitePage() {
                 )}
               </div>
             </>
+          ) : lookup.status === "group_only" ? (
+            <>
+              <h2 className="text-xl font-bold">{lookup.name}</h2>
+              <p className="text-sm text-muted-foreground">
+                This is a group&apos;s room. Only the people in that group can
+                join it.
+              </p>
+              <Button asChild variant="outline">
+                <Link to="/rooms">Browse rooms</Link>
+              </Button>
+            </>
           ) : lookup.status === "banned" ? (
             <>
               <h2 className="text-xl font-bold">{lookup.name}</h2>

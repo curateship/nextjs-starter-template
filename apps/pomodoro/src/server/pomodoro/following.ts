@@ -16,6 +16,7 @@ import {
   pomodoroAchievements,
   pomodoroCheers,
   pomodoroFollows,
+  pomodoroGroupMembers,
   pomodoroProfiles,
 } from "@/server/pomodoro/schema"
 
@@ -266,7 +267,42 @@ export async function sendCheer({
 
   const following = await isFollowing(fromUserId, handle)
   if (!following) throw new Error("NOT_FOLLOWING")
+  return deliverCheer(fromUserId, toUserId, cheerId)
+}
 
+/**
+ * A cheer from a row on a group board (groups task 01, part 15). Being in
+ * the same group stands in for following, and the person is named by their
+ * membership row, because a member may have no public page to follow.
+ * Everything after that is the same cheer: the same cap, the same silence
+ * about a block, the same notice.
+ */
+export async function sendGroupCheer({
+  fromUserId,
+  groupId,
+  membershipId,
+  cheerId,
+}: {
+  fromUserId: string
+  groupId: string
+  membershipId: string
+  cheerId: string
+}) {
+  if (!findCheer(cheerId)) throw new Error("UNKNOWN_CHEER")
+  const members = await db
+    .select({ id: pomodoroGroupMembers.id, userId: pomodoroGroupMembers.userId })
+    .from(pomodoroGroupMembers)
+    .where(eq(pomodoroGroupMembers.groupId, groupId))
+  if (!members.some((member) => member.userId === fromUserId))
+    throw new Error("GROUP_NOT_MEMBER")
+  const target = members.find((member) => member.id === membershipId)
+  if (!target) throw new Error("GROUP_NOT_MEMBER")
+  if (target.userId === fromUserId) throw new Error("CANNOT_CHEER_SELF")
+  return deliverCheer(fromUserId, target.userId, cheerId)
+}
+
+/** The cap, the delivery and the notice every cheer shares. */
+async function deliverCheer(fromUserId: string, toUserId: string, cheerId: string) {
   // The cap is counted before anything is written, and it is the one refusal
   // the sender is told about.
   const dayAgo = new Date(Date.now() - 24 * 60 * 60_000)

@@ -68,6 +68,7 @@ import {
 import { UploadThumbnail } from "@/components/pomodoro/admin-uploads-dashboard"
 import { deletePomodoroUploads } from "@/lib/api/pomodoro/admin-uploads-tags"
 import { sharedFileReportReasonLabel } from "@/lib/pomodoro/shared-media-reports"
+import { groupReportReasonLabel } from "@/lib/pomodoro/group-reports"
 
 const route = getRouteApi("/_authenticated/admin/pomodoro-reports")
 
@@ -625,6 +626,8 @@ function reportSubject(row: AdminReportRow) {
       ? `/u/${row.reportedHandle}`
       : (row.reportedName ?? "A profile")
   }
+  if (row.kind === "group")
+    return row.groupName ? `Group: ${row.groupName}` : "A deleted group"
   return row.roomName ?? "A room"
 }
 
@@ -632,6 +635,7 @@ function reportSubject(row: AdminReportRow) {
 function reportReason(row: AdminReportRow) {
   if (row.kind === "shared_file") return sharedFileReportReasonLabel(row.reason)
   if (row.kind === "copyright") return "Copyright claim from outside, answered by email"
+  if (row.kind === "group") return groupReportReasonLabel(row.reason)
   return row.reason
 }
 
@@ -641,6 +645,7 @@ function ReportedMessage({ row }: { row: AdminReportRow }) {
   const madeUp = useIsMadeUp(row.subjectUserId)
   if (row.kind === "shared_file" || row.kind === "copyright")
     return <ReportedFile row={row} />
+  if (row.kind === "group") return <ReportedGroup row={row} />
   if (!row.messageBody) {
     return (
       <span className="block text-xs text-muted-foreground">
@@ -852,6 +857,36 @@ function ReportPeople({
       <button type="button" className={linkClass} onClick={() => onSuspend(person)}>
         Suspend
       </button>
+    </span>
+  )
+}
+
+/**
+ * A group report (groups task 01, part 24): the line under the group's name,
+ * its public page when it has one, and the way to it in Groups, where an
+ * admin deletes a group.
+ */
+function ReportedGroup({ row }: { row: AdminReportRow }) {
+  if (!row.groupId) return null
+  return (
+    <span className="block max-w-80 text-xs text-muted-foreground">
+      {row.groupDescription ? (
+        <span className="block truncate" title={row.groupDescription}>
+          &quot;{row.groupDescription}&quot;
+        </span>
+      ) : (
+        <span className="block">No line under the name.</span>
+      )}
+      <span className="flex flex-wrap gap-x-3">
+        {row.groupHandle ? <span>/team/{row.groupHandle}</span> : null}
+        <Link
+          to="/admin/pomodoro-groups"
+          search={{ open: row.groupId }}
+          className="underline-offset-4 hover:text-foreground hover:underline"
+        >
+          Open in Groups
+        </Link>
+      </span>
     </span>
   )
 }

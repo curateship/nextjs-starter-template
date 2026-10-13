@@ -36,7 +36,13 @@ changes them.
 - **An admin's leaderboard hide** (admin task 06) takes a member's hours off
   the team page too. They then show under "Also in the team".
 - **The owner sees exactly the page a stranger sees**, plus an Edit page
-  button (it opens the group on Groups) and the "You" mark on their own row. `teams.test.ts` checks the two
+  button (it opens the group on Groups) in place of Report, and the "You"
+  mark on their own row.
+- **The line under the group's name** (groups task 01) shows under the name
+  when the owner wrote one.
+- **Report**, for everybody but the owner, signed in or not, reports the
+  group's name or line into the admins' queue. See "Reporting a group" in
+  [Private focus groups](focus-groups.md). `teams.test.ts` checks the two
   answers are equal.
 - **A reader who blocked a member, or was blocked by one, does not see that
   member**, the same as on every board.
@@ -46,8 +52,10 @@ changes them.
 
 ## Switching it on
 
-The owner picks the group on the Groups dashboard (`/groups`). Its Public
-page panel has two controls, and each saves itself.
+The owner picks the group on the Groups dashboard (`/groups`) and opens
+Edit group. Its Public page section has two controls, and each saves itself.
+The question about changing a live page's address asks inside Edit group,
+which comes back on "Keep the old address".
 
 - **Page address.** The profile handle's rules: 3 to 30 lowercase letters,
   digits, hyphens and underscores, and none of the words the app keeps for
@@ -66,8 +74,8 @@ page panel has two controls, and each saves itself.
   the two controls. They can still switch an old page off.
 - **An owner whose Pro lapses** keeps the address and the switch, and the
   page answers 404 until they are on Pro again. The card says so.
-- **Every member** sees a Public page panel on Groups with the address and the
-  rule above, so nobody is in a public team without knowing it.
+- **Every other member** sees a Public page panel on Groups with the address
+  and the rule above, so nobody is in a public team without knowing it.
 - **The invite page** says the group has a public page before anybody presses
   Join.
 
@@ -80,7 +88,8 @@ goes with it.
 ## How fresh it is
 
 - **The page is held for 30 seconds** and is the same copy for everybody.
-- **Joining, leaving, being removed, deleting the group, changing the page's
+- **Joining, leaving, being removed, deleting the group, renaming it or
+  changing its line, handing it to a new owner, changing the page's
   settings, and any member saving their own public page** clear every held
   team page, so those show on the next load. Switching your hours off takes
   you off every team page at once.
@@ -99,9 +108,9 @@ A held page costs none, and a signed-in reader adds one for their blocks.
 
 ## Not built
 
-Billing a team, seats, more than one owner, a cap above fifty, a domain, a
-Report button on the team page, streaks per member, and anything that lets an
-owner see more than a stranger. The task file's answers above rule the first
+Billing a team, seats, more than one owner, a cap above fifty, a domain,
+streaks per member, and anything that lets an owner see more than a stranger.
+A Report button came with groups task 01. The task file's answers above rule the first
 four out; the rest were not asked for.
 
 ## Where the code is
@@ -114,7 +123,8 @@ four out; the rest were not asked for.
   endpoints. The open read is listed in `src/app/open-endpoints.ts`.
 - `src/routes/_pomodoro/team.$handle.tsx` and
   `src/components/pomodoro/team-page.tsx` — the page.
-- `src/components/pomodoro/team-page-settings.tsx` — the owner's panel and the
+- `src/components/pomodoro/team-page-settings.tsx` — the owner's section of
+  Edit group and the
   members' notice on the Groups dashboard.
 - `drizzle/0155_pomodoro_team_pages.sql` — `handle` and `page_public` on
   `pomodoro_groups`.

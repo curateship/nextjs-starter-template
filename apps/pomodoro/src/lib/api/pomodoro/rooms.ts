@@ -18,6 +18,13 @@ import { listRoomPresets } from "@/server/pomodoro/admin-rooms"
 import { loadMediaCatalog } from "@/server/pomodoro/catalog"
 import { markRoomNoticesRead } from "@/server/pomodoro/notices"
 import {
+  isGroupMember,
+  isGroupOwner,
+  listMyGroupRooms as listMyGroupRoomsRow,
+  openGroupRoom,
+  tellGroupOfRoom,
+} from "@/server/pomodoro/group-rooms"
+import {
   applyHostRoomAction,
   scheduleCountdownEnd,
   setRoomPeopleLimit,
@@ -124,6 +131,11 @@ const repeatRoomSchema = createRoomSchema.extend({
   timezone: z.string().min(1).max(80),
   invitesTyped: z.string().max(INVITES_TYPED_MAX).default(""),
 })
+/**
+ * A group room (groups task 01, parts 11 and 12). Only a room started now or
+ * booked every week can belong to a group; a one-off booking cannot.
+ */
+const groupRoomField = { groupId: z.string().uuid().optional() }
 const repeatIdSchema = z.object({ repeatId: z.string().uuid() })
 const slugSchema = z.object({ slug: z.string().min(12).max(80) })
 const actionSchema = slugSchema.extend({
@@ -245,18 +257,42 @@ const lookupRoomFn = createServerFn({ method: "GET" })
 
 const createRoomFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(createRoomSchema)
+  .inputValidator(createRoomSchema.extend(groupRoomField))
   .handler(async ({ data, context }) => {
     await requirePomodoroPerk(context.user.id, "hostRooms")
     await assertRoomPair(context.user.id, data)
+    if (data.groupId) {
+      // "Not your group" and "no such group" are one answer.
+      if (!(await isGroupMember(context.user.id, data.groupId)))
+        throw new Error("GROUP_NOT_MEMBER")
+      // A group has one open room at a time. A second member pressing Start
+      // while one is open is put in that one instead.
+      const open = await openGroupRoom(data.groupId)
+      if (open) {
+        const { room, closedRoomIds } = await joinRoomBySlug(open.slug, context.user.id)
+        for (const closedRoomId of closedRoomIds)
+          await notifyRoom(closedRoomId, "phase")
+        await notifyRoom(room.id, "membership")
+        return roomSnapshot(room.id, context.user.id)
+      }
+    }
     const slug = randomBytes(18).toString("base64url")
     const { room, closedRoomIds } = await createRoomWithHost(
       context.user.id,
       slug,
-      data
+      // A group room is unlisted, so it never shows in Open to join.
+      data.groupId ? { ...data, visibility: "unlisted" } : data
     )
     for (const closedRoomId of closedRoomIds)
       await notifyRoom(closedRoomId, "phase")
+    if (data.groupId) {
+      // The room is already open, so a failed notice only logs.
+      try {
+        await tellGroupOfRoom(context.user.id, data.groupId, room)
+      } catch (error) {
+        console.error("the group could not be told about its room", error)
+      }
+    }
     // A made-up member's visit to a real public room, timed to the second
     // (live activity task 04). Not awaited into the answer.
     void timeFirstVisit(room)
@@ -326,10 +362,13 @@ const scheduleRoomFn = createServerFn({ method: "POST" })
  */
 const repeatRoomFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(repeatRoomSchema)
+  .inputValidator(repeatRoomSchema.extend(groupRoomField))
   .handler(async ({ data, context }) => {
     await requirePomodoroPerk(context.user.id, "hostRooms")
     await assertRoomPair(context.user.id, data)
+    // Only the group's owner books its weekly room (Tyler, 13 Oct 2026).
+    if (data.groupId && !(await isGroupOwner(context.user.id, data.groupId)))
+      throw new Error("GROUP_NOT_OWNER")
     await enforceRateLimit(`room-schedule:${context.user.id}`, {
       maxAttempts: 10,
       windowSeconds: 3_600,
@@ -354,6 +393,8 @@ const repeatRoomFn = createServerFn({ method: "POST" })
     try {
       const { rule, next } = await createRoomRepeat(context.user.id, {
         ...settings,
+        // A weekly group room is unlisted like every group room.
+        visibility: settings.groupId ? "unlisted" : settings.visibility,
         invites,
       })
       return { name: rule.name, timezone: rule.timezone, nextStartsAt: next.startsAt }
@@ -367,6 +408,11 @@ const repeatRoomFn = createServerFn({ method: "POST" })
       throw cause
     }
   })
+
+/** The Group room card on Rooms: each of your groups and its open room. */
+const myGroupRoomsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) => listMyGroupRoomsRow(context.user.id))
 
 const myRepeatsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -591,14 +637,18 @@ export const listRooms = () => listRoomsFn()
 export const listRoomsForGuest = () => listGuestRoomsFn()
 export const getCurrentRoom = () => currentRoomFn()
 export const lookupRoom = (slug: string) => lookupRoomFn({ data: { slug } })
-export const createRoom = (data: z.infer<typeof createRoomSchema>) =>
-  createRoomFn({ data })
+export const createRoom = (
+  data: z.infer<typeof createRoomSchema> & { groupId?: string }
+) => createRoomFn({ data })
 export const scheduleRoom = (data: z.infer<typeof scheduleRoomSchema>) =>
   scheduleRoomFn({ data })
 export const listUpcoming = () => upcomingRoomsFn()
-export const repeatRoom = (data: z.infer<typeof repeatRoomSchema>) =>
-  repeatRoomFn({ data })
+export const repeatRoom = (
+  data: z.infer<typeof repeatRoomSchema> & { groupId?: string }
+) => repeatRoomFn({ data })
 export const listMyRepeats = () => myRepeatsFn()
+export const listMyGroupRooms = () => myGroupRoomsFn()
+export type GroupRoomCardRow = Awaited<ReturnType<typeof listMyGroupRooms>>[number]
 export const skipNextRepeat = (repeatId: string) =>
   skipRepeatFn({ data: { repeatId } })
 export const cancelRepeat = (repeatId: string) =>

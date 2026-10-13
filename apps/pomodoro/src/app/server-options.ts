@@ -15,6 +15,7 @@ import {
 } from "@/server/pomodoro/front-page-rows"
 import { listedProfilePaths } from "@/server/pomodoro/public-profile"
 import { runStreakReminderPass } from "@/server/pomodoro/streak-reminder"
+import { runGroupWinnersPass } from "@/server/pomodoro/group-scores"
 import { runSimulatedPass } from "@/server/pomodoro/simulated-accounts"
 import { runSimulatedRoomsPass } from "@/server/pomodoro/simulated-rooms"
 import { runSimulatedChatPass } from "@/server/pomodoro/simulated-chat"
@@ -216,6 +217,14 @@ export const appServerOptions: AppServerOptions = {
         // passes and processes nudge nobody twice.
         name: "pomodoro-streak-reminders",
         tick: runStreakReminderPass,
+      },
+      {
+        // Last week's winner for every group (groups task 01, part 19), on
+        // the first pass after Monday starts in the group's own timezone. At
+        // most one pass every ten minutes; each group's week is claimed
+        // before anything is sent, so overlapping passes tell nobody twice.
+        name: "pomodoro-group-winners",
+        tick: runGroupWinnersPass,
       },
     ],
   },

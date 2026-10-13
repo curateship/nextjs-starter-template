@@ -95,7 +95,9 @@ cover this one.
   Who you focus with, and how the page is drawn.
 - [Private focus groups](focus-groups.md) — the Groups dashboard at `/groups`,
   an invite-only board among people you know, the caps, and why being in a
-  group never lists you publicly.
+  group never lists you publicly; running a group, the invite link's
+  switches, invites from the bell, group rooms, the streak, the weekly goal,
+  the Monday winner, past weeks, milestones and reporting a group.
 - [Team pages](team-pages.md) — a group's public page at `/team/<handle>`,
   switched on by a Pro owner, showing each member only as their own public
   page already shows them.

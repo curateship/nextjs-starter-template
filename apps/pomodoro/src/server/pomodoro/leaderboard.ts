@@ -7,10 +7,12 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lte,
   notInArray,
   sql,
 } from "drizzle-orm"
 
+import type { GroupBoardOrder } from "@/lib/pomodoro/groups"
 import { db } from "@/server/db"
 import { blockedUserIdsFor } from "@/server/pomodoro/blocks"
 import {
@@ -58,29 +60,17 @@ export type LeaderboardRow = {
   handle: string | null
   focusSessions: number
   focusSeconds: number
+  /** Days in the window with at least one finished focus session. */
+  focusDays: number
   /** True on the viewer's own row. The user id it was matched on stays here. */
   isYou: boolean
 }
 
-/**
- * The board from `start` onwards, newest ranking first.
- *
- * `groupId` swaps the global opt-in rule for membership of that group. The
- * caller has already proved the viewer belongs to it; this function does not
- * check, because it is not an endpoint. `teamGroupId` is the public page's
- * rule for the same group, read with no viewer at all.
- *
- * User ids never leave: the viewer's own row is marked here and the id is
- * dropped, the same rule the room snapshots follow.
- */
-export async function readLeaderboardRows({
-  start,
-  viewerUserId,
-  groupId,
-  teamGroupId,
-  followedBy,
-}: {
+/** Options for one board read. See `readLeaderboardRows`. */
+type BoardOptions = {
   start: string
+  /** The last day counted, for a finished week. Today when left out. */
+  end?: string
   /**
    * Null for a page that is the same for everybody, such as a team page: no
    * row is "you" and no blocks apply, so the page can be held and handed to
@@ -99,7 +89,45 @@ export async function readLeaderboardRows({
    * can ever disagree about a figure.
    */
   followedBy?: string
-}): Promise<LeaderboardRow[]> {
+  /**
+   * What orders a group board (groups task 01, part 17). Every other board
+   * is by hours and never passes this.
+   */
+  order?: GroupBoardOrder
+}
+
+/**
+ * The board from `start` onwards, newest ranking first.
+ *
+ * `groupId` swaps the global opt-in rule for membership of that group. The
+ * caller has already proved the viewer belongs to it; this function does not
+ * check, because it is not an endpoint. `teamGroupId` is the public page's
+ * rule for the same group, read with no viewer at all.
+ *
+ * User ids never leave: the viewer's own row is marked here and the id is
+ * dropped, the same rule the room snapshots follow.
+ */
+export async function readLeaderboardRows(
+  options: BoardOptions
+): Promise<LeaderboardRow[]> {
+  const rows = await readRankedRows(options)
+  return rows.map(({ userId: _userId, ...row }) => row)
+}
+
+/**
+ * The same board with each row's user id still on it, for server code that
+ * has to match a row to something else, such as a group board marking who is
+ * focusing now. Never handed to the browser as it is.
+ */
+export async function readRankedRows({
+  start,
+  end,
+  viewerUserId,
+  groupId,
+  teamGroupId,
+  followedBy,
+  order = "hours",
+}: BoardOptions): Promise<(LeaderboardRow & { userId: string })[]> {
   const whoIsListed = teamGroupId
     ? teamPageRule(teamGroupId)
     : groupId
@@ -137,11 +165,15 @@ export async function readLeaderboardRows({
 
   // Equal totals are ordered by account, so the order is the same on every
   // read and `readYourPlace` numbers rows in exactly this order.
-  const rows = await boardTotals(start, whoIsListed)
-    .orderBy(
-      desc(sql`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)`),
-      asc(pomodoroProfiles.userId)
-    )
+  const seconds = sql`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)`
+  const ordering =
+    order === "sessions"
+      ? [desc(sql`coalesce(sum(${dailyFocusStats.focusSessions}), 0)`), desc(seconds)]
+      : order === "days"
+        ? [desc(focusDaysColumn()), desc(seconds)]
+        : [desc(seconds)]
+  const rows = await boardTotals(start, whoIsListed, end)
+    .orderBy(...ordering, asc(pomodoroProfiles.userId))
     .limit(BOARD_LIMIT)
 
   // A blocked account appears on no board either of you reads. Filtered here
@@ -150,10 +182,16 @@ export async function readLeaderboardRows({
   const blocked = await blockedPromise
   return rows
     .filter((row) => !blocked.has(row.userId))
-    .map(({ userId, ...leader }) => ({
+    .map((leader) => ({
       ...leader,
-      isYou: userId === viewerUserId,
+      isYou: leader.userId === viewerUserId,
     }))
+}
+
+/** Days with at least one finished focus session, inside the window. */
+function focusDaysColumn() {
+  return sql<number>`(count(distinct ${dailyFocusStats.localDate}) filter (
+    where ${dailyFocusStats.focusSessions} > 0))::int`
 }
 
 /**
@@ -193,8 +231,12 @@ function teamPageRule(groupId: string) {
   )
 }
 
-/** Each listed account's totals from `start`, before ordering or a limit. */
-function boardTotals(start: string, whoIsListed: ReturnType<typeof and>) {
+/** Each listed account's totals from `start` (to `end`), before ordering or a limit. */
+function boardTotals(
+  start: string,
+  whoIsListed: ReturnType<typeof and>,
+  end?: string
+) {
   return db
     .select({
       userId: pomodoroProfiles.userId,
@@ -212,13 +254,15 @@ function boardTotals(start: string, whoIsListed: ReturnType<typeof and>) {
         sql<number>`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)::int`.as(
           "focus_seconds"
         ),
+      focusDays: focusDaysColumn().as("focus_days"),
     })
     .from(pomodoroProfiles)
     .leftJoin(
       dailyFocusStats,
       and(
         eq(dailyFocusStats.userId, pomodoroProfiles.userId),
-        gte(dailyFocusStats.localDate, start)
+        gte(dailyFocusStats.localDate, start),
+        end ? lte(dailyFocusStats.localDate, end) : undefined
       )
     )
     .where(whoIsListed)
@@ -267,6 +311,7 @@ export async function readYourPlace({
       handle: totals.handle,
       focusSessions: totals.focusSessions,
       focusSeconds: totals.focusSeconds,
+      focusDays: totals.focusDays,
       place: sql<number>`row_number() over (
         order by ${totals.focusSeconds} desc, ${totals.userId} asc)::int`.as(
         "place"
