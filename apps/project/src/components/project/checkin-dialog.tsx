@@ -99,7 +99,8 @@ export function CheckinDialog({
   const [ticked, setTicked] = React.useState<Set<string>>(() => new Set(page.planned))
   const [answers, setAnswers] = React.useState<Record<string, Answer>>({})
   const [missing, setMissing] = React.useState<Set<string>>(() => new Set())
-  // Before checking in, the Yesterday box starts from last evening's "What's left".
+  // Before checking in, the Yesterday box starts from last evening's "What's left",
+  // or with no check-out from the tasks finished since the last check-in.
   const startNotes = textOf(page.notes)
   const [notes, setNotes] = React.useState<NoteText>(startNotes)
   const people = page.people.filter((person) => person.id !== me.id)
@@ -269,7 +270,25 @@ export function CheckinDialog({
                     Change them if your day has changed.
                   </p>
                 ) : null}
-                {page.groups.length === 0 ? (
+                {page.suggested.length ? (
+                  <section className="grid gap-2" aria-label="Suggested for today">
+                    <h3 className="text-sm font-medium">Suggested for today</h3>
+                    <ul className="grid gap-2">
+                      {page.suggested.map((task) => (
+                        <PickRow
+                          key={task.id}
+                          task={task}
+                          showProject
+                          checked={picked.has(task.id)}
+                          busy={busy}
+                          onToggle={(on) => void toggle(task, on)}
+                          onTyping={noteTyping}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+                {page.groups.length === 0 && page.suggested.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Nothing is assigned to you right now. Add a task for yourself below, or check in
                     with nothing picked.
@@ -619,7 +638,7 @@ function TaskMeta({ task, showProject = false }: { task: TaskCard; showProject?:
       <StatusBadge status={task.status} />
       {task.waiting ? <WaitingBadge /> : null}
       <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
-      <DueDate dueDate={task.dueDate} status={task.status} />
+      <DueDate dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} />
       <StepsCount steps={task.steps} />
     </span>
   )
@@ -628,12 +647,15 @@ function TaskMeta({ task, showProject = false }: { task: TaskCard; showProject?:
 /** One task to tick, with a way to mark it Stuck without leaving the page. */
 function PickRow({
   task,
+  showProject = false,
   checked,
   busy,
   onToggle,
   onTyping,
 }: {
   task: TaskCard
+  /** Names the task's project, for a row outside its project's group. */
+  showProject?: boolean
   checked: boolean
   busy: boolean
   onToggle: (on: boolean) => void
@@ -683,7 +705,7 @@ function PickRow({
           <Label htmlFor={boxId} className="font-medium break-words">
             {task.title}
           </Label>
-          <TaskMeta task={task} />
+          <TaskMeta task={task} showProject={showProject} />
           {task.status === "stuck" && task.stuckReason ? (
             <span className="text-xs text-destructive">Stuck: {task.stuckReason}</span>
           ) : null}

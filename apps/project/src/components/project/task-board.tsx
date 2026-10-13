@@ -523,7 +523,7 @@ function CardContent({ task }: { task: TaskCard }) {
         <ReviewBadge review={task.review} />
         <RepeatMark repeat={task.repeat} />
         <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
-        <DueDate dueDate={task.dueDate} status={task.status} />
+        <DueDate dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} />
         <DueMovesMark moves={task.dueMoves} status={task.status} />
         <StepsCount steps={task.steps} />
         <UnreadBadge count={task.unread} />

@@ -1,12 +1,13 @@
-import { and, asc, eq, gt, sql } from "drizzle-orm"
+import { and, asc, eq, gt, inArray, sql } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import {
   INVITE_LIFETIME_DAYS,
+  inviteSchema,
   type TeamInviteRole,
 } from "@/lib/project/rules"
 import { appUrlFor } from "@/server/app-url"
-import { enforceRateLimit } from "@/server/auth/rate-limit"
+import { RateLimitError, enforceRateLimit } from "@/server/auth/rate-limit"
 import { createSecretToken, hashToken, now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { findMembership, requireTeamRunner } from "@/server/project/access"
@@ -103,6 +104,57 @@ export async function createInvite(
     .returning({ id: projectTeamInvites.id })
 
   return sendInvite(actor, membership.teamId, invite.id, email, token, database)
+}
+
+/** What happened to one address of a send with several. */
+export type InviteOutcome =
+  | { email: string; result: "sent"; sent: SentInvite }
+  | { email: string; result: "on_team" | "invited" | "not_an_email" | "too_many" }
+
+/**
+ * Invites several addresses with one role, one at a time through
+ * `createInvite`, so each keeps the same checks, caps and email. An address
+ * with an invite still open is left alone rather than given a new link, since
+ * Resend on the Members page does that on purpose. Hitting a cap stops only
+ * that address; the window lists it to send again later.
+ */
+export async function createInvites(
+  actor: InviteActor,
+  input: { emails: string[]; role: TeamInviteRole },
+  database = db
+): Promise<InviteOutcome[]> {
+  const membership = await requireTeamRunner(actor.id, database)
+  const emails = [...new Set(input.emails.map((email) => email.trim().toLowerCase()))]
+  const open = await database
+    .select({ email: projectTeamInvites.email })
+    .from(projectTeamInvites)
+    .where(
+      and(
+        eq(projectTeamInvites.teamId, membership.teamId),
+        inArray(projectTeamInvites.email, emails),
+        gt(projectTeamInvites.expiresAt, now())
+      )
+    )
+  const invited = new Set(open.map((row) => row.email))
+
+  const outcomes: InviteOutcome[] = []
+  for (const email of emails) {
+    if (!inviteSchema.shape.email.safeParse(email).success) {
+      outcomes.push({ email, result: "not_an_email" })
+    } else if (invited.has(email)) {
+      outcomes.push({ email, result: "invited" })
+    } else {
+      try {
+        outcomes.push({ email, result: "sent", sent: await createInvite(actor, { email, role: input.role }, database) })
+      } catch (error) {
+        if (error instanceof RateLimitError) outcomes.push({ email, result: "too_many" })
+        else if (error instanceof Error && error.message === PROJECT_ERRORS.alreadyOnYourTeam) {
+          outcomes.push({ email, result: "on_team" })
+        } else throw error
+      }
+    }
+  }
+  return outcomes
 }
 
 /** A fresh link and seven more days, sent again. The old link stops working. */

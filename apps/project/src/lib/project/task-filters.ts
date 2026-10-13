@@ -1,3 +1,4 @@
+import { dueDayOf } from "@/lib/project/dates"
 import { addDays } from "@/lib/project/days"
 import {
   DONE_RECENT_DAYS,
@@ -110,13 +111,16 @@ type DueGroup = (typeof DUE_GROUPS)[number]["key"]
  * in the check-in. "This week" is the next seven days after today.
  */
 export function dueGroupOf(
-  task: { waiting: boolean; dueDate: string | null },
-  today: string
+  task: { waiting: boolean; dueDate: string | null; dueAt?: string | null },
+  today: string,
+  now = new Date()
 ): DueGroup {
   if (task.waiting) return "waiting"
-  if (!task.dueDate) return "none"
-  if (task.dueDate < today) return "overdue"
-  if (task.dueDate === today) return "today"
-  if (task.dueDate <= addDays(today, 7)) return "week"
+  const day = dueDayOf(task)
+  if (!day) return "none"
+  // A "Due by" time that has passed is overdue on its own day too.
+  if (day < today || (task.dueAt && new Date(task.dueAt) < now)) return "overdue"
+  if (day === today) return "today"
+  if (day <= addDays(today, 7)) return "week"
   return "later"
 }

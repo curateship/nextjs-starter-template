@@ -24,6 +24,11 @@ import {
  * object still reads as the full shape. Both catch a misspelled option.
  */
 export const appOptions: AppOptions = {
+  /**
+   * The home-screen icon opens My dashboard, where the morning check-in is
+   * one tap away (Features 13 Oct task 06).
+   */
+  homeScreen: { startPath: "/dashboard" },
   header: {
     rightActions: [
       {

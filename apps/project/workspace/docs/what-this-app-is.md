@@ -237,6 +237,25 @@ built. Each was the recommended option.
 - **A teammate's page leaves the check-in record off.** "On time 18 of the
   last 20 work days" stays the person's own, as My dashboard promises.
 
+## Choices for the 13 Oct features
+
+Tyler answered these on 13 Oct 2026, before Features 13 Oct tasks 01 to 06
+were built. Each was the recommended option.
+
+- **Yesterday fills itself** from the tasks finished since the person's last
+  check-in, not only on their last work day, so a Monday covers the weekend.
+  A check-out note still comes first.
+- **Suggested for today** is a group the person ticks themselves. Nothing
+  starts ticked.
+- **One invite send** takes at most 20 addresses.
+- **A task due by a time** shows Overdue from that time. The Overdue bell
+  notice still goes out the next morning, so nobody gets notices midday.
+- **A catch-up move counts** toward "Date moved 3 times", like any other
+  move.
+- **Every app can be added to a phone's home screen**, from the shell, with
+  each app choosing its start page. Project's opens My dashboard. Tyler
+  allowed the shell edit this needed.
+
 ## The first version
 
 - Teams, email invites, projects and tasks.

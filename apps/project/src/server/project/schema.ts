@@ -213,6 +213,11 @@ export const projectTasks = pgTable("project_tasks", {
   }),
   /** One order for the whole project, set by dragging. */
   position: integer("position").notNull().default(0),
+  /**
+   * The moment it is due by, when it has a time as well as a day
+   * (`drizzle/0114_project_due_time.sql`). Null is due all day.
+   */
+  dueAt: timestamp("due_at", { withTimezone: true }),
   /** When it last became Done; cleared when it leaves Done. */
   completedAt: timestamp("completed_at", { withTimezone: true }),
   /** The repeat rule, on the newest copy only (`drizzle/0101_project_planning_ahead.sql`). */

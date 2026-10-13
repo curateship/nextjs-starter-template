@@ -56,6 +56,7 @@ export type AppOptions = {
   settings?: SettingsOptions
   notifications?: NotificationOptions
   signIn?: SignInOptions
+  homeScreen?: HomeScreenOptions
 }
 
 /** What the shell hands an app-owned control in the signed-in header. */
@@ -583,6 +584,25 @@ type AutomationOptions = {
   memberTest?: {
     appliesTo: (nodeKinds: readonly string[]) => boolean
   }
+}
+
+/**
+ * How the app opens once someone adds it to a phone's home screen. Every app
+ * can be added, with the name and logo set in Settings; these only say where
+ * it opens and what the home screen calls it (`src/lib/home-screen.ts`).
+ */
+type HomeScreenOptions = {
+  /**
+   * The page the home-screen icon opens, such as "/dashboard". Unset opens
+   * the front page. A signed-out visitor is sent to sign in from there as
+   * usual, then lands on it.
+   */
+  startPath?: `/${string}`
+  /**
+   * The name under the icon, when the app's name is too long for it. Phones
+   * cut it after about 12 characters. Unset uses the app's name.
+   */
+  shortName?: string
 }
 
 type SignInOptions = {
@@ -1115,4 +1135,12 @@ export function appNoticeCategories(
 /** App-wide branding stays the default unless the app builds distinct sites. */
 export function appUsesSiteBranding(options: AppOptions = appOptions) {
   return options.workspaces?.siteBranding ?? false
+}
+
+/** Where the home-screen icon opens, and the name under it. */
+export function appHomeScreen(options: AppOptions = appOptions) {
+  return {
+    startPath: options.homeScreen?.startPath ?? "/",
+    shortName: options.homeScreen?.shortName?.trim() || null,
+  }
 }

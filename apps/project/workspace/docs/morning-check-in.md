@@ -81,6 +81,8 @@ check in with its own dashboard".
 2. **Pick today's tasks.** Every task assigned to the person that isn't Done,
    grouped by project, with due dates, steps and the "Picked on 4 days" mark.
    Tasks from the last check-in are answered above instead of listed here.
+   Before checking in, up to five of them come first under "Suggested for
+   today", each naming its project. See "Suggested for today" below.
 3. **Stuck.** Each task has a Stuck button that asks why, and tells whoever
    handed the task out and its followers, the same as on the task itself.
 4. **Add a task for yourself.** A title and a project make a task assigned to
@@ -92,6 +94,26 @@ check in with its own dashboard".
    ticks or notes in it asks first, because they would be lost. So does a
    task title or a Stuck reason typed but not yet added, before and after
    checking in. Escape, the X, Cancel and Done all ask the same way.
+
+### Suggested for today
+
+- **Nothing starts ticked** (Tyler's choice, 13 Oct 2026). The group only
+  puts the likely picks first, so picking stays the person's own choice.
+- **The order:** past its due day, then due today, then already in Doing,
+  then High priority. Ties go to the earlier due day, then the project's own
+  order. A task that is none of these isn't suggested.
+- **Never suggested:** a Stuck task, a task waiting on other tasks that
+  aren't Done, and a task handed over but not yet accepted. Snoozed and
+  binned tasks are already out of the check-in.
+- **At most five.** The task asked for the team's Doing limit, but that
+  limit is set per project (`doing_limit` on a project), so there is no one
+  number for a person's day. Five is fixed in `SUGGESTED_PICKS`.
+- **Listed once.** A suggested task leaves its project's group. Tasks the
+  last check-out planned and tasks from the last check-in keep their own
+  places and are never suggested.
+- **Only before checking in.** Once checked in, the window lists every task
+  under its project again (`suggestPicks` in
+  `src/lib/project/suggested-picks.ts`).
 
 ### Notes for the team
 
@@ -112,6 +134,15 @@ check in with its own dashboard".
   out with a "What's left" note, the Yesterday box opens with it, for them to
   change or clear. Leaving it as it is doesn't count as typing, so closing the
   window doesn't ask first.
+- **With no check-out, Yesterday lists what the person finished.** The box
+  opens with the title of each task assigned to them that became Done since
+  their last check-in, one per line, oldest first (Tyler's choice, 13 Oct
+  2026: since the last check-in, so a Monday covers the weekend). A task
+  moved back out of Done, a task in the bin and a task in a project they can
+  no longer see are left out. It names at most ten and ends "and 15 more",
+  and it stops sooner when the next title would take the note past 280
+  characters. A first check-in, and a check-in after nothing was finished,
+  start empty (`finishedSinceLastCheckin` in `checkins.ts`).
 
 ### Tagging someone in a note
 

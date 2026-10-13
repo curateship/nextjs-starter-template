@@ -6,6 +6,7 @@ import {
   TEAM_INVITE_ROLES,
   announcementSchema,
   createTeamSchema,
+  inviteManySchema,
   inviteSchema,
   teamPhotoSchema,
   updateTeamSchema,
@@ -23,6 +24,7 @@ import {
   acceptInvite,
   cancelInvite,
   createInvite,
+  createInvites,
   declineInvite,
   listInvitesForMe,
   loadInviteByToken,
@@ -49,7 +51,7 @@ export type {
   TeamSummary,
 } from "@/server/project/teams"
 export type { Announcement } from "@/server/project/announcements"
-export type { InviteForMe, SentInvite } from "@/server/project/invites"
+export type { InviteForMe, InviteOutcome, SentInvite } from "@/server/project/invites"
 export type { TeamFigures } from "@/server/project/team-figures"
 
 const id = z.string().min(1).max(36)
@@ -115,6 +117,11 @@ const createInviteFn = createServerFn({ method: "POST" })
   .inputValidator(inviteSchema)
   .handler(async ({ data, context }) => createInvite(context.user, data))
 
+const createInvitesFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(inviteManySchema)
+  .handler(async ({ data, context }) => createInvites(context.user, data))
+
 const resendInviteFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ inviteId: id }))
@@ -171,6 +178,9 @@ export function leaveProjectTeam() {
 }
 export function inviteToTeam(data: z.input<typeof inviteSchema>) {
   return createInviteFn({ data })
+}
+export function inviteManyToTeam(data: z.input<typeof inviteManySchema>) {
+  return createInvitesFn({ data })
 }
 export function resendTeamInvite(inviteId: string) {
   return resendInviteFn({ data: { inviteId } })

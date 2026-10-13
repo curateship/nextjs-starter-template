@@ -1,6 +1,7 @@
 import { and, asc, count, countDistinct, eq, inArray, isNull, max, type SQL } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
+import { addDays } from "@/lib/project/days"
 import { dueMoveReason } from "@/lib/project/due-moves"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import type { TaskNoticeKind } from "@/lib/project/notices"
@@ -110,6 +111,8 @@ export type TaskCard = {
   status: TaskStatus
   stuckReason: string | null
   dueDate: string | null
+  /** The moment it is due by, when it has a time; null is due all day. */
+  dueAt: string | null
   /** The optional first day, drawn with the due date on the Timeline. */
   startDate: string | null
   assignee: Person | null
@@ -232,6 +235,7 @@ export async function listTaskCards(
       status: task.status,
       stuckReason: task.stuckReason,
       dueDate: task.dueDate,
+      dueAt: task.dueAt?.toISOString() ?? null,
       startDate: task.startDate,
       assignee:
         task.assigneeUserId && row.assigneeName !== null
@@ -609,6 +613,8 @@ export async function updateTask(
     /** The notes editor's session, which keeps one earlier version however often it saves. */
     notesSession?: string
     dueDate?: string | null
+    /** An ISO moment on the due date; null clears the time. */
+    dueAt?: string | null
     startDate?: string | null
     sectionId?: string | null
     snoozedUntil?: string | null
@@ -616,7 +622,7 @@ export async function updateTask(
   },
   database: ProjectDb = db
 ) {
-  const { taskId, notesSession, ...fields } = patch
+  const { taskId, notesSession, dueAt: dueAtText, ...fields } = patch
   await database.transaction(async (tx) => {
     const { task } = await requireTaskAccess(actor.id, taskId, tx)
     if (fields.sectionId) await requireSectionOf(task.projectId, fields.sectionId, tx)
@@ -625,9 +631,13 @@ export async function updateTask(
     const start = fields.startDate !== undefined ? fields.startDate : task.startDate
     const due = fields.dueDate !== undefined ? fields.dueDate : task.dueDate
     if (start && due && start > due) throw new Error(PROJECT_ERRORS.startAfterDue)
+    // A new day without a time is due all day, from a bulk change, a quick
+    // day or the Calendar alike, so an old time never lands on a new day.
+    const dueAt =
+      dueAtText !== undefined ? dueMoment(due, dueAtText) : fields.dueDate !== undefined ? null : undefined
     await tx
       .update(projectTasks)
-      .set({ ...fields, updatedAt: now() })
+      .set({ ...fields, ...(dueAt !== undefined ? { dueAt } : {}), updatedAt: now() })
       .where(eq(projectTasks.id, taskId))
     // A move is from one day to another. Setting a first date or clearing one
     // isn't, so neither counts toward "Date moved 3 times".
@@ -643,6 +653,20 @@ export async function updateTask(
       await keepNotesVersion(tx, task, fields.notes, actor, notesSession ?? uuid())
     }
   })
+}
+
+/**
+ * The "Due by" moment, which has to fall within a day either side of the due
+ * date: every zone's clock is within 14 hours of UTC, so a time on the date
+ * in any zone lands there, and anything further off is a mistake.
+ */
+function dueMoment(dueDate: string | null, dueAt: string | null) {
+  if (dueAt === null) return null
+  if (!dueDate) throw new Error(PROJECT_ERRORS.dueTimeNeedsDate)
+  const at = new Date(dueAt)
+  const day = at.toISOString().slice(0, 10)
+  if (day < addDays(dueDate, -1) || day > addDays(dueDate, 1)) throw new Error(PROJECT_ERRORS.dueTimeNeedsDate)
+  return at
 }
 
 export async function setTaskStatus(

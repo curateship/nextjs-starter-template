@@ -42,6 +42,23 @@ Project has no workspaces.
   invite with what they find there.
 - **Inviting the same address again** replaces the old invite and its link.
   Resend on the Team dashboard does the same with a fresh link and 7 more days.
+- **Several addresses at once.** The invite window's "Email addresses" box
+  takes one address, or up to 20 on separate lines or with commas,
+  semicolons or spaces between them (Tyler chose 20 on 13 Oct 2026, inside
+  the 30 an hour below). "Ann <ann@x.com>" as copied from an email works.
+  Repeats are dropped and every address is lower-cased. All of them get the
+  one role picked. The button reads "Send 7 invites".
+- **One address behaves as it always has**, including replacing an open
+  invite. With several, each goes through the same checks one at a time
+  (`createInvites` in `src/server/project/invites.ts`), and the window then
+  lists each address: Emailed, not emailed with the reason, already on the
+  team, already invited, not an email address, or not sent because of the
+  sending cap (30 an hour, or 5 a day to one address). An address with an open invite is left alone in a send of
+  several, because a new link would quietly stop the old one; Resend on
+  Members does that on purpose. Each sent invite has a Copy link button.
+- **More than 20** is refused before anything is sent, saying how many were
+  pasted. Hitting the hourly cap partway sends the ones before it and marks
+  the rest to send again later.
 - **Email.** The invite goes through the email key saved in Settings → Email, or
   the `CUSTOM_SHELL_RESEND_API_KEY` setting. When neither is set, nothing is
   sent, and the invite window says so and shows the link to copy. The link is

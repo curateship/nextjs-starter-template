@@ -369,6 +369,28 @@ without leaving the page and without a window over it.
   Next Monday on a Monday is the Monday after. In a week is 7 days on,
   whatever day that is. If the team's days can't be read, the month still
   works without the buttons (`src/lib/project/quick-days.ts`).
+- **A due date can have a time** ("Due by" in the task, beside Due date,
+  shown once the task has a date). It is the moment the task is due by, such
+  as 3:00 PM, saved as `due_at` beside the day (`drizzle/0114_project_due_time.sql`).
+  It saves when the field is left or Enter is pressed, and Clear makes the
+  task due all day again.
+  - **Each person reads it on their own clock.** Board cards, List rows, My
+    tasks, the check-in and a teammate's page show "Mar 2 by 11:00 AM", with
+    the day and time the moment falls on for the reader. Someone far enough
+    away can see the day before or after the stored date.
+  - **Overdue from the time** (Tyler's choice, 13 Oct 2026). The task reads
+    "Overdue" and moves into My tasks' Overdue group once the moment passes.
+    The "Due tomorrow" and "Overdue" bell notices don't change: they still go
+    out in the morning, by day, so nobody gets a notice in the middle of the
+    day. The Team dashboard's Needs attention and Workload, the Calendar and
+    Timeline tabs, and the team's due dates also still go by day.
+  - **A new day without a time is due all day.** Changing the date from the
+    task, a quick day, the bulk bar or by dragging on the Calendar or
+    Timeline clears the time, and so does clearing the date. Duplicate keeps
+    the time. Copy project and repeat copies start without one, as their
+    days are new. A time can't be set on a task with no due date, and has to
+    fall within a day of the date: "Pick a due date first, then the time
+    it's due by." New task has no time field; add the time in the task.
 - **"Date moved 3 times"** shows beside the due date of a task not Done
   whose date has moved from one day to another 3 or more times, on the task,
   Board cards and List rows. Setting a first date or clearing one isn't a

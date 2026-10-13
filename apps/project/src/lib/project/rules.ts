@@ -412,6 +412,33 @@ export const inviteSchema = z.object({
   role: z.enum(TEAM_INVITE_ROLES),
 })
 
+/** How many addresses one send of the invite window takes (Tyler, 13 Oct 2026). */
+export const INVITE_BATCH = 20
+
+/**
+ * Several addresses at once. Each is checked on its own on the server, so one
+ * bad address is reported instead of stopping the rest.
+ */
+export const inviteManySchema = z.object({
+  emails: z
+    .array(z.string().trim().toLowerCase().max(254))
+    .min(1)
+    .max(INVITE_BATCH, `One send takes at most ${INVITE_BATCH} addresses.`),
+  role: z.enum(TEAM_INVITE_ROLES),
+})
+
+/**
+ * The addresses in pasted text, split on new lines, commas, semicolons and
+ * spaces, lower-cased, with repeats dropped. "Ann <ann@x.com>" gives ann@x.com.
+ */
+export function inviteAddresses(text: string) {
+  const words = text
+    .split(/[\s,;]+/)
+    .map((word) => word.replace(/^<|>$/g, "").trim().toLowerCase())
+    .filter(Boolean)
+  return [...new Set(words)]
+}
+
 const projectColorSchema = z.enum(PROJECT_COLORS)
 
 export const createProjectSchema = z.object({
@@ -501,6 +528,11 @@ export const updateTaskSchema = z.object({
   /** One editing session of the notes, so it keeps one earlier version however often it saves. */
   notesSession: z.string().uuid().optional(),
   dueDate: dueDateSchema.optional(),
+  /**
+   * The moment it is due by, from the task's "Due by" time. Null clears the
+   * time. Changing the due date without one clears it too.
+   */
+  dueAt: z.string().datetime({ offset: true }).nullable().optional(),
   /** The first day, drawn with the due date on the Timeline. Never after the due date. */
   startDate: dueDateSchema.optional(),
   sectionId: id.nullable().optional(),

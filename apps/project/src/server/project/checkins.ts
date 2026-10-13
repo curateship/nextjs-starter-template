@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, max, ne, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, max, ne, or, sql } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
+import { suggestPicks } from "@/lib/project/suggested-picks"
 import { localNow, momentOf } from "@/lib/project/days"
 import {
   LIMITS,
@@ -182,7 +183,8 @@ export type CheckinPage = {
   answers: CheckinAnswer[]
   /**
    * Today's three notes. Before checking in, the Yesterday box starts from the
-   * last check-out's "What's left", for the person to change.
+   * last check-out's "What's left", or with no check-out from the tasks
+   * finished since the last check-in, for the person to change.
    */
   notes: CheckinNotes
   /** The words the team's three boxes have now. */
@@ -199,6 +201,12 @@ export type CheckinPage = {
    * are still mine and open, which start ticked. Empty once checked in.
    */
   planned: string[]
+  /**
+   * Before checking in: up to five of my tasks worth picking today, best
+   * first (`src/lib/project/suggested-picks.ts`). None start ticked, and none
+   * are listed again in `groups`. Empty once checked in.
+   */
+  suggested: TaskCard[]
   /** The tasks to pick from: mine and not Done, plus anything already picked today. */
   groups: { project: ProjectRef; tasks: TaskCard[] }[]
   /** Open projects this person can add a task to. */
@@ -258,6 +266,18 @@ export async function loadCheckinPage(
       )
     : []
 
+  // Before checking in, a few of my tasks are offered first as "Suggested for
+  // today". The last check-out's plan and the last check-in's tasks keep their
+  // own places, and a suggested task isn't listed again under its project.
+  const plan = checkedIn ? [] : await lastPlan(userId, today.day, database)
+  const suggested = checkedIn
+    ? []
+    : suggestPicks(
+        mine.filter((task) => !leftoverIds.has(task.id) && !plan.includes(task.id)),
+        today.day
+      )
+  const suggestedIds = new Set(suggested.map((task) => task.id))
+
   const byProject = new Map<string, { project: ProjectRef; tasks: TaskCard[] }>()
   for (const project of projects) {
     byProject.set(project.id, {
@@ -268,7 +288,7 @@ export async function loadCheckinPage(
   // High first within each project, then the project's own order.
   const byPriority = [...mine, ...extra].sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority))
   for (const task of byPriority) {
-    if (leftoverIds.has(task.id)) continue
+    if (leftoverIds.has(task.id) || suggestedIds.has(task.id)) continue
     byProject.get(task.projectId)?.tasks.push(task)
   }
 
@@ -298,7 +318,13 @@ export async function loadCheckinPage(
       })),
     notes: checkedIn
       ? notesOf(row)
-      : { yesterday: await lastNoteLeft(userId, today.day, database), today: null, blocker: null },
+      : {
+          yesterday:
+            (await lastNoteLeft(userId, today.day, database)) ??
+            (await finishedSinceLastCheckin(userId, today.day, visible, database)),
+          today: null,
+          blocker: null,
+        },
     questions: await teamQuestions(membership.teamId, database),
     people: await teamPeople(membership.teamId, database),
     checkout: checkedIn
@@ -310,11 +336,10 @@ export async function loadCheckinPage(
       : null,
     // A planned task finished, handed away or binned since drops off quietly:
     // only what is still on offer here starts ticked.
-    planned: checkedIn
-      ? []
-      : (await lastPlan(userId, today.day, database)).filter((taskId) =>
-          [...byProject.values()].some((group) => group.tasks.some((task) => task.id === taskId))
-        ),
+    planned: plan.filter((taskId) =>
+      [...byProject.values()].some((group) => group.tasks.some((task) => task.id === taskId))
+    ),
+    suggested,
     groups: [...byProject.values()].filter((group) => group.tasks.length > 0),
     projects: [
       ...projects
@@ -391,6 +416,68 @@ async function lastNoteLeft(userId: string, today: string, database: ProjectDb) 
     .orderBy(desc(projectCheckins.day))
     .limit(1)
   return last?.noteLeft ?? null
+}
+
+/** How many finished tasks the Yesterday box lists by name before "and 15 more". */
+export const YESTERDAY_TITLES = 10
+
+/**
+ * With no check-out note, the Yesterday box starts from the tasks assigned to
+ * this person that became Done since their last check-in, one title per line. A
+ * first check-in has no "since", so it starts empty, and so does a check-in
+ * after nothing was finished.
+ */
+async function finishedSinceLastCheckin(
+  userId: string,
+  today: string,
+  visible: Set<string>,
+  database: ProjectDb
+) {
+  const [last] = await database
+    .select({ checkedInAt: projectCheckins.checkedInAt })
+    .from(projectCheckins)
+    .where(
+      and(
+        eq(projectCheckins.userId, userId),
+        lt(projectCheckins.day, today),
+        isNotNull(projectCheckins.checkedInAt)
+      )
+    )
+    .orderBy(desc(projectCheckins.day))
+    .limit(1)
+  if (!last?.checkedInAt || visible.size === 0) return null
+  const rows = await database
+    .select({ title: projectTasks.title })
+    .from(projectTasks)
+    .where(
+      and(
+        inArray(projectTasks.projectId, [...visible]),
+        eq(projectTasks.assigneeUserId, userId),
+        eq(projectTasks.status, "done"),
+        isNull(projectTasks.deletedAt),
+        gt(projectTasks.completedAt, last.checkedInAt)
+      )
+    )
+    .orderBy(asc(projectTasks.completedAt))
+  return finishedNote(rows.map((row) => row.title))
+}
+
+/**
+ * The finished titles as the Yesterday box's text. It names at most ten and
+ * counts the rest, and stops sooner when the next title would take the note
+ * past its 280 characters, which would stop the check-in saving.
+ */
+export function finishedNote(titles: string[]) {
+  if (titles.length === 0) return null
+  const textOf = (shown: number) => {
+    const more = titles.length - shown
+    return [...titles.slice(0, shown), ...(more > 0 ? [`and ${more} more`] : [])].join("\n")
+  }
+  let shown = 0
+  while (shown < Math.min(titles.length, YESTERDAY_TITLES) && textOf(shown + 1).length <= LIMITS.checkinNote) {
+    shown += 1
+  }
+  return textOf(shown)
 }
 
 /**

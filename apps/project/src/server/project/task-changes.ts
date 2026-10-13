@@ -110,6 +110,7 @@ export async function duplicateTask(actor: Actor, taskId: string, database = db)
       notes: task.notes,
       status: "todo",
       dueDate: task.dueDate,
+      dueAt: task.dueAt,
       startDate: task.startDate,
       sectionId: task.sectionId,
       position: await nextTaskPosition(task.projectId, tx),

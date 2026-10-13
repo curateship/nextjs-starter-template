@@ -36,6 +36,7 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     status: "todo",
     stuckReason: null,
     dueDate: null,
+    dueAt: null,
     startDate: null,
     assignee: { id: "ben", name: "Ben Ortiz", avatarUrl: "" },
     assignedBy: { id: "me", name: "Tyler" },

@@ -67,6 +67,16 @@ Three tabs, in the same sortable table as a project's List tab:
   each writes its history line, and the result says "9 accepted", or names one
   that changed hands since with the reason. "Today" is my own day,
   in my time zone, the same day the check-in uses.
+- **Catch up on 9 overdue** sits beside "9 tasks are overdue." on the Open
+  tab, while anything is overdue and no search or filter is on. It opens a
+  window listing those tasks, the same ones as the Overdue group, all
+  ticked. Untick any to keep, then pick one new due date and press "Move 7
+  tasks", or press "Leave with no date". It is the bulk bar's due date
+  change (`changeManyTasks`), so each task is checked on its own, a refused
+  one is named in the error, and every move counts toward "Date moved 3
+  times" (Tyler's choice, 13 Oct 2026, so slipped work stays visible). A
+  moved task loses its "Due by" time, the same as any new date
+  (`src/components/project/catch-up-dialog.tsx`).
 - **Done**: my finished tasks.
 
 A task whose chat has messages I haven't read says "3 new" beside its title,

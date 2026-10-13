@@ -142,6 +142,7 @@ export const PROJECT_ERRORS = {
   noteVersionNotFound: "That version of the notes no longer exists.",
   notAPoll: "That message isn't a poll.",
   startAfterDue: "The start day can't be after the due day. Move the due day first.",
+  dueTimeNeedsDate: "Pick a due date first, then the time it's due by.",
   planNotYours: "You can only plan your own open tasks. Close the window and open it again to see them.",
   pollInTask: "A poll goes in a project's chat, not a task's.",
   pollChoiceGone: "That choice isn't on the poll.",

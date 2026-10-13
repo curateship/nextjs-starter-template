@@ -3,6 +3,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
   BellIcon,
   CalendarCheckIcon,
+  CalendarClockIcon,
   CheckCheckIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { CatchUpDialog } from "@/components/project/catch-up-dialog"
 import { CheckinDialog, StatusLine } from "@/components/project/checkin-dialog"
 import { CheckoutDialog } from "@/components/project/checkout-dialog"
 import { MyWeekSection } from "@/components/project/my-week-card"
@@ -302,6 +304,10 @@ function MyTasksPanel({
   const [tab, setTab] = React.useState<TaskTab>(today.length ? "today" : "open")
   const waitingTasks = open.filter((task) => task.waiting)
   const waiting = waitingTasks.length
+  // The same tasks as the Open tab's Overdue group, by my own day.
+  const overdueTasks = open.filter((task) => dueGroupOf({ ...task, waiting: false }, myDay) === "overdue")
+  const overdue = overdueTasks.length
+  const [catchingUp, setCatchingUp] = React.useState(false)
   const bulk = { people: checkin.people, projects: [] }
 
   async function reorder(next: string[]) {
@@ -373,6 +379,18 @@ function MyTasksPanel({
           </Button>
         </div>
       ) : null}
+      {tab === "open" && overdue && !filtered ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
+          <p className="text-sm">
+            {overdue === 1 ? "1 task is overdue." : `${overdue} tasks are overdue.`}
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={() => setCatchingUp(true)}>
+            <CalendarClockIcon className="size-4" />
+            Catch up on {overdue} overdue
+          </Button>
+        </div>
+      ) : null}
+      <CatchUpDialog open={catchingUp} tasks={overdueTasks} onClose={() => setCatchingUp(false)} />
       {tab === "open" && snoozed ? (
         <p className="border-b px-4 py-2 text-sm text-muted-foreground">
           {snoozed === 1

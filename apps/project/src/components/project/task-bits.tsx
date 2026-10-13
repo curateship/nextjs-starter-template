@@ -17,7 +17,7 @@ import { TypeIconGlyph } from "@/components/project/task-type-icon"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { initialsFor } from "@/lib/crm/inbox-time"
-import { dayLabel } from "@/lib/project/days"
+import { clockLabel, dayLabel } from "@/lib/project/days"
 import {
   DUE_MOVED_MANY,
   PICKED_MANY_DAYS,
@@ -27,7 +27,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
-import { isOverdue } from "@/lib/project/dates"
+import { dueDayOf, isOverdue, localTimeOf } from "@/lib/project/dates"
 import type { TaskTypeChip } from "@/lib/project/task-types"
 import { cn } from "@/lib/utils"
 
@@ -129,21 +129,25 @@ export function RoomNote({ room }: { room: { open: number; awayUntil: string | n
 }
 
 /** "Oct 14, 2026", or "Overdue · Oct 14, 2026" in the destructive colour. */
+/** "Oct 14", or "Oct 14 by 11:00 AM" with a "Due by" time, read on the reader's own clock. */
 export function DueDate({
   dueDate,
+  dueAt = null,
   status,
   className,
 }: {
   dueDate: string | null
+  dueAt?: string | null
   status: TaskStatus
   className?: string
 }) {
   if (!dueDate) return <span className={cn("text-muted-foreground", className)}>No due date</span>
-  const overdue = isOverdue(dueDate, status)
+  const overdue = isOverdue(dueDate, status, dueAt)
   return (
     <span className={cn(overdue ? "text-destructive" : "text-muted-foreground", className)}>
       {overdue ? "Overdue · " : null}
-      {dayLabel(dueDate)}
+      {dayLabel(dueDayOf({ dueDate, dueAt })!)}
+      {dueAt ? ` by ${clockLabel(localTimeOf(dueAt))}` : null}
     </span>
   )
 }

@@ -270,7 +270,7 @@ function TeammateWork({ member, editTimeOff }: { member: TeamMemberRow; editTime
                         <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                           <span className="truncate">{task.projectName}</span>
                           <span aria-hidden>·</span>
-                          <DueDate dueDate={task.dueDate} status={task.status} className="shrink-0" />
+                          <DueDate dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} className="shrink-0" />
                         </span>
                       </span>
                       <StatusBadge status={task.status} />

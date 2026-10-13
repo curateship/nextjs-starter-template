@@ -420,7 +420,7 @@ function TaskRow({
       )}
       <TableCell column="preview">
         <span className="flex items-center gap-2">
-          <DueDate dueDate={task.dueDate} status={task.status} />
+          <DueDate dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} />
           <DueMovesMark moves={task.dueMoves} status={task.status} />
         </span>
       </TableCell>

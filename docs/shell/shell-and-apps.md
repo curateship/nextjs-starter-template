@@ -119,6 +119,10 @@ the guess that one might:
   account dialog's Billing tab. The shell adds the checkout session id to the
   success path, so the app's page there can confirm the purchase through
   `confirmCheckoutSession`. Pomodoro points all three at `/plans`.
+- `homeScreen` — where the icon opens once someone adds the app to a phone's
+  home screen (`startPath`), and the name under it (`shortName`). Unset opens
+  the front page under the app's name. See `home-screen.md`. Project opens
+  `/dashboard`.
 - `landing.page` — replace `/` outright: loader, `<head>` and component together
 - `signIn.frame` — the frame drawn around the shell's ten signed-out pages
   (sign in, register, forgot and reset password, verify email, the sign-in

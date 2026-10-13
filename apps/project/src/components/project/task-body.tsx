@@ -55,11 +55,13 @@ import {
   setTaskNeedsReview,
   thankForProjectTask,
   updateTaskStep,
+  type TaskCard,
   type TaskDetail,
   type TaskStep,
 } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
+import { localTimeOf, momentOnDay } from "@/lib/project/dates"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import {
   BIN_DAYS,
@@ -647,6 +649,13 @@ function TaskForm({
                 <DueMovesMark moves={task.dueMoves} status={task.status} />
               </div>
             </div>
+            {task.dueDate ? (
+              <DueByField
+                task={task}
+                disabled={readOnly || busy}
+                onSave={(dueAt) => void change(() => saveTask({ taskId: task.id, dueAt }))}
+              />
+            ) : null}
             <div className="grid content-start gap-2">
               <Label htmlFor="task-priority">Priority</Label>
               <Select
@@ -977,5 +986,52 @@ function StepRow({
         </p>
       ) : null}
     </li>
+  )
+}
+
+/**
+ * The optional time a task is due by on its due date, on the reader's own
+ * clock. It saves when the field is left or Enter is pressed, the same as the
+ * other fields here, and Clear makes the task due all day again.
+ */
+function DueByField({
+  task,
+  disabled,
+  onSave,
+}: {
+  task: TaskCard
+  disabled: boolean
+  onSave: (dueAt: string | null) => void
+}) {
+  const saved = task.dueAt ? localTimeOf(task.dueAt) : ""
+  const [time, setTime] = useSyncedDraft(saved)
+  function save() {
+    if (time === saved) return
+    onSave(time ? momentOnDay(task.dueDate!, time) : null)
+  }
+
+  return (
+    <div className="grid content-start gap-2">
+      <Label htmlFor="task-due-by">Due by</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          id="task-due-by"
+          type="time"
+          className="w-32"
+          value={time}
+          disabled={disabled}
+          onChange={(event) => setTime(event.target.value)}
+          onBlur={save}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") save()
+          }}
+        />
+        {task.dueAt && !disabled ? (
+          <Button type="button" variant="ghost" size="sm" onClick={() => onSave(null)}>
+            Clear
+          </Button>
+        ) : null}
+      </div>
+    </div>
   )
 }
