@@ -27,6 +27,8 @@ import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { voiceDeleteWords, voiceUsersList } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
+import { Hint } from "../hint"
+
 type SortColumn = "name" | "usedBy" | "changed"
 
 const COLUMNS: SortableColumn<SortColumn>[] = [
@@ -224,9 +226,11 @@ export function VoicesDashboard({ initial, openId }: { initial: VoiceView[]; ope
               >
                 {voice.name}
               </button>
-              <span className="line-clamp-1 whitespace-normal text-xs text-muted-foreground" title={voice.voice}>
-                {voice.voice || "No words yet"}
-              </span>
+              <Hint label={voice.voice}>
+                <span className="line-clamp-1 whitespace-normal text-xs text-muted-foreground">
+                  {voice.voice || "No words yet"}
+                </span>
+              </Hint>
             </TableCell>
             <TableCell column="meta" className="text-sm">
               {voice.usedBy.length ? (
@@ -244,7 +248,6 @@ export function VoicesDashboard({ initial, openId }: { initial: VoiceView[]; ope
                 variant="ghost"
                 size="icon"
                 onClick={() => setOpen(voice.id)}
-                title="Voice settings"
                 aria-label={`Edit ${voice.name}`}
               >
                 <SettingsIcon className="size-4" />
@@ -254,7 +257,6 @@ export function VoicesDashboard({ initial, openId }: { initial: VoiceView[]; ope
                 variant="ghost"
                 size="icon"
                 onClick={() => setDeleteTargets([voice])}
-                title="Delete voice"
                 aria-label={`Delete ${voice.name}`}
               >
                 <Trash2Icon className="size-4" />

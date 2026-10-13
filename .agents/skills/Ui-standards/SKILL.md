@@ -183,6 +183,11 @@ in `src/lib/custom-shell.tsx` and are applied by
   that remove data.
 - Icon-only buttons need an accessible name and, outside repeated table rows, a
   shared tooltip. Use `DisabledReason` for a disabled control's explanation.
+- Every hover hint is the shared shadcn `Tooltip`, never a native `title`
+  attribute. Tyler, 13 Oct 2026: "tooltips should be using shadcn ui". A
+  `title` draws the browser's own grey box, late and in its own font, and never
+  shows on a disabled button. A component prop called `title` (a table, card or
+  dialog heading) and an `<iframe title>` are names, not hovers, and stay.
 - Use `SettingsIcon` for edit, `Trash2Icon` for delete, `PlusIcon` for add, and
   `Loader2Icon` for loading. Do not use a pencil icon for edit.
 - Every field has a visible label linked with `id` and `htmlFor`.

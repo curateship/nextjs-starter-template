@@ -4,7 +4,8 @@ import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import { ownedProject } from "./projects"
-import { fitBand, rankReason, type FitBand } from "./reddit/rank"
+import { pastAnswers, subredditRemovals } from "./reddit/past-answers"
+import { fitBand, placeText, type FitBand } from "./reddit/rank"
 import { rulesForSubreddit } from "./reddit/rules"
 import { threadsOnTheirWay } from "./reddit/search"
 import {
@@ -86,18 +87,13 @@ export type FindRow = {
   postedAt: Date | null
   /**
    * Which of the three bands the list groups under this falls in. The score
-   * behind it is deliberately not sent: see `rankReason` below.
+   * behind it is deliberately not sent. It only ever drove the ORDER BY below,
+   * and a bare 2.0 on no scale told a reader nothing, which is what Tyler said
+   * when he asked what the column meant on 5 Oct 2026.
    */
   fit: FitBand
-  /**
-   * Plain words for why it is this high up, such as "Reddit's best match,
-   * posted today, only 2 replies".
-   *
-   * The score itself is deliberately not sent. It only ever drove the ORDER BY
-   * below, and a bare 2.0 on no scale told a reader nothing — which is what
-   * Tyler said when he asked what the column meant on 5 Oct 2026.
-   */
-  rankReason: string
+  /** The short form of where Reddit put it, "match 9" or "newest 3", for the row's line. */
+  place: string
   status: FindStatus
   /** Whether the thread has been read, which is not the same as having no replies. */
   threadRead: boolean
@@ -131,6 +127,8 @@ export async function listKeywords(
   const newCounts = new Map<string, number>()
   const totals = new Map<string, number>()
   for (const row of waiting) {
+    // Every row here came through `inArray` on the keywords above.
+    if (!row.keywordId) continue
     totals.set(row.keywordId, (totals.get(row.keywordId) ?? 0) + 1)
     if (row.status !== "new") continue
     newCounts.set(row.keywordId, (newCounts.get(row.keywordId) ?? 0) + 1)
@@ -254,6 +252,24 @@ export async function addKeyword(
   return id
 }
 
+/**
+ * Switches a keyword's timed searches on or off. An off keyword is never
+ * searched by the timer and can still be pressed by hand.
+ */
+export async function setKeywordEnabled(
+  userId: string,
+  keywordId: string,
+  enabled: boolean,
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  const updated = await db
+    .update(promoKeywords)
+    .set({ enabled, updatedAt: new Date() })
+    .where(and(eq(promoKeywords.id, keywordId), eq(promoKeywords.userId, userId)))
+    .returning({ id: promoKeywords.id })
+  if (!updated.length) throw new Error("That keyword is no longer saved.")
+}
+
 /** Removes a keyword and every post found under it. */
 export async function deleteKeyword(
   userId: string,
@@ -280,8 +296,7 @@ export type FindsQuery = {
 export async function listFinds(
   userId: string,
   query: FindsQuery,
-  db: CustomShellDb = defaultDb,
-  now: Date = new Date()
+  db: CustomShellDb = defaultDb
 ): Promise<FindRow[]> {
   const filters = [
     eq(promoFinds.userId, userId),
@@ -308,7 +323,9 @@ export async function listFinds(
 
   // A watch's posts are in the subreddit's newest-first order rather than a
   // search's best-match order, and each row's reason says which.
-  const keywordIds = [...new Set(rows.map((row) => row.keywordId))]
+  // Every row here belongs to one of the project's keywords: posts with no
+  // keyword are listed elsewhere (help-only posts, self-promotion threads).
+  const keywordIds = [...new Set(rows.flatMap((row) => (row.keywordId ? [row.keywordId] : [])))]
   const watches = new Set(
     keywordIds.length
       ? (
@@ -322,7 +339,7 @@ export async function listFinds(
 
   return rows.map((row) => ({
     id: row.id,
-    keywordId: row.keywordId,
+    keywordId: row.keywordId ?? "",
     permalink: row.permalink,
     url: `https://www.reddit.com${row.permalink}`,
     subreddit: row.subreddit,
@@ -332,18 +349,27 @@ export async function listFinds(
     commentCount: row.commentCount,
     postedAt: row.postedAt,
     fit: fitBand(row.rank),
-    rankReason: rankReason(
-      {
-        position: row.redditPosition,
-        commentCount: row.commentCount,
-        postedAt: row.postedAt,
-      },
-      now,
-      { watch: watches.has(row.keywordId) }
-    ),
+    place: placeText(row.redditPosition, watches.has(row.keywordId ?? "")),
     status: row.status,
     threadRead: Boolean(row.thread),
   }))
+}
+
+/**
+ * The newest posts found under any keyword, for trying a voice out on: one a
+ * person would really answer, so the draft says something about the voice.
+ */
+export async function recentFinds(
+  userId: string,
+  limit = 20,
+  db: CustomShellDb = defaultDb
+): Promise<Array<{ id: string; title: string; subreddit: string }>> {
+  return db
+    .select({ id: promoFinds.id, title: promoFinds.title, subreddit: promoFinds.subreddit })
+    .from(promoFinds)
+    .where(and(eq(promoFinds.userId, userId), sql`${promoFinds.keywordId} IS NOT NULL`, shownFind(userId)))
+    .orderBy(desc(promoFinds.firstSeenAt), desc(promoFinds.rank))
+    .limit(limit)
 }
 
 /** One post with everything the reading and writing panels need. */
@@ -359,22 +385,25 @@ export async function loadFindDetail(
     .limit(1)
   if (!find) return null
 
-  const [drafts, rules, reading] = await Promise.all([
+  const [drafts, rules, reading, past, removals] = await Promise.all([
     db
       .select()
       .from(promoDrafts)
       // A draft answering a reply under a sent comment is that reply's, not
-      // the post's.
+      // the post's, and a rewrite of the words in the box is never a tile.
       .where(
         and(
           eq(promoDrafts.userId, userId),
           eq(promoDrafts.findId, findId),
-          eq(promoDrafts.replyToId, "")
+          eq(promoDrafts.replyToId, ""),
+          eq(promoDrafts.rewrite, "")
         )
       )
       .orderBy(desc(promoDrafts.createdAt)),
     rulesForSubreddit(userId, find.subreddit, db),
     threadsOnTheirWay(userId, [findId], db),
+    pastAnswers(userId, find, db),
+    subredditRemovals(userId, find.subreddit, db),
   ])
 
   return {
@@ -405,6 +434,12 @@ export async function loadFindDetail(
     linkError: find.linkError,
     /** The subreddit's own posted rules, to read before writing. */
     rules,
+    /** Comments already sent on posts like this one, beside the box. */
+    pastAnswers: past,
+    /** How many of your checked comments in this subreddit are gone. */
+    removals,
+    /** Set on a post found for one account's everyday subreddits, which only that account answers, with help alone. */
+    helpAccountId: find.helpAccountId,
     drafts: drafts.map((draft) => ({
       id: draft.id,
       text: draft.text,

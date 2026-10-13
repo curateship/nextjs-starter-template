@@ -15,6 +15,7 @@ import { sql } from "drizzle-orm"
 
 import type { AccountStatus } from "@/lib/social/account-status"
 import {
+  type DraftRewrite,
   type DraftStatus,
   type FindStatus,
   type ProfileCheck,
@@ -98,6 +99,17 @@ export const promoProjects = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 120 }).notNull(),
     description: text("description").notNull().default(""),
+    /**
+     * The project's picture, a media address, or "" for none. Added by
+     * `drizzle/0111_promo_project_image.sql`.
+     */
+    imageUrl: varchar("image_url", { length: 2048 }).notNull().default(""),
+    /**
+     * When the whole project was paused: none of its accounts posts, warms
+     * up or takes a health reading until it is resumed. Null is running.
+     * Added by `drizzle/0110_promo_new_features.sql`.
+     */
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -188,6 +200,12 @@ export const promoAccounts = pgTable(
     statusOverride: varchar("status_override", { length: 20 }).$type<AccountStatus>(),
     /** When it was retired: out of every list and picker, never posts, never warms up. */
     retiredAt: timestamp("retired_at", { withTimezone: true }),
+    /**
+     * When it was paused: it stays in every list, and does not post, warm up
+     * or take a health reading until it is resumed. Unlike retiring, a pause
+     * is meant to end. Added by `drizzle/0110_promo_new_features.sql`.
+     */
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -373,6 +391,12 @@ export const promoBehaviourSettings = pgTable("promo_behaviour_settings", {
   youngPerDay: integer("young_per_day").notNull().default(6),
   /** Past this many comments in an hour, any account's composer warns. It never refuses. */
   warnPerHour: integer("warn_per_hour").notNull().default(4),
+  /**
+   * Every keyword searches again by itself this many hours after its last
+   * search, inside the reader's waking hours. 0 is never. Added by
+   * `drizzle/0110_promo_new_features.sql`.
+   */
+  searchEveryHours: integer("search_every_hours").notNull().default(4),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -410,7 +434,15 @@ export const promoSearches = pgTable(
   ]
 )
 
-/** A Reddit post worth looking at, and what was decided about it. */
+/**
+ * A Reddit post worth looking at, and what was decided about it.
+ *
+ * Most are found by a keyword. Two kinds belong to no keyword, and each has
+ * exactly one of the two columns after it set: a post in an account's own
+ * everyday subreddits, to answer with help and no product, and a subreddit's
+ * self-promotion thread found for a project. Added by
+ * `drizzle/0110_promo_new_features.sql`.
+ */
 export const promoFinds = pgTable(
   "promo_finds",
   {
@@ -418,9 +450,20 @@ export const promoFinds = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    keywordId: varchar("keyword_id", { length: 36 })
-      .notNull()
-      .references(() => promoKeywords.id, { onDelete: "cascade" }),
+    /** Null for a help-only post or a self-promotion thread. */
+    keywordId: varchar("keyword_id", { length: 36 }).references(() => promoKeywords.id, {
+      onDelete: "cascade",
+    }),
+    /** The account whose everyday subreddits this post came from. Only that account answers it. */
+    helpAccountId: varchar("help_account_id", { length: 36 }).references(
+      (): AnyPgColumn => promoAccounts.id,
+      { onDelete: "cascade" }
+    ),
+    /** The project this self-promotion thread was found for. */
+    threadProjectId: varchar("thread_project_id", { length: 36 }).references(
+      () => promoProjects.id,
+      { onDelete: "cascade" }
+    ),
     /** The run that first saw it. A later run updates the figures, not this. */
     firstSearchId: varchar("first_search_id", { length: 36 }).references(
       () => promoSearches.id,
@@ -489,6 +532,12 @@ export const promoFinds = pgTable(
       table.redditId
     ),
     index("ix_promo_finds_keyword_rank").on(table.keywordId, table.rank.desc()),
+    uniqueIndex("ux_promo_finds_help_post")
+      .on(table.helpAccountId, table.redditId)
+      .where(sql`${table.helpAccountId} IS NOT NULL`),
+    uniqueIndex("ux_promo_finds_thread_post")
+      .on(table.threadProjectId, table.redditId)
+      .where(sql`${table.threadProjectId} IS NOT NULL`),
     index("ix_promo_finds_user_status").on(table.userId, table.status),
     /** What the tidy-up walks, oldest first. */
     index("ix_promo_finds_status_seen").on(table.status, table.lastSeenAt),
@@ -523,6 +572,12 @@ export const promoDrafts = pgTable(
      * Added by `drizzle/0109_promo_reply_to_a_reply.sql`.
      */
     replyToId: varchar("reply_to_id", { length: 20 }).notNull().default(""),
+    /**
+     * How the words in the box were rewritten to make this draft, or "" for
+     * one from Write with AI. A rewrite is never offered as a draft tile.
+     * Added by `drizzle/0110_promo_new_features.sql`.
+     */
+    rewrite: varchar("rewrite", { length: 20 }).$type<DraftRewrite | "">().notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -609,6 +664,14 @@ export const promoComments = pgTable(
       { onDelete: "cascade" }
     ),
     replyTo: jsonb("reply_to").$type<IncomingReply | null>(),
+    /**
+     * When the app deleted the comment from Reddit on a person's press. When
+     * the app edited it, and the words it first went out with, null until
+     * the first edit. All added by `drizzle/0110_promo_new_features.sql`.
+     */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    originalText: text("original_text"),
     postedAt: timestamp("posted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -664,6 +727,12 @@ export const promoJobs = pgTable(
      * `drizzle/0106_promo_behaviour.sql`.
      */
     runAfter: timestamp("run_after", { withTimezone: true }),
+    /**
+     * A failed comment or post a person has dealt with, so it leaves the
+     * Comments screen's Failed tab. Added by
+     * `drizzle/0110_promo_new_features.sql`.
+     */
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -674,3 +743,66 @@ export const promoJobs = pgTable(
     index("ix_promo_jobs_claimable").on(table.status, table.createdAt),
   ]
 )
+
+/**
+ * Each running copy of the browser program, by the claim token it takes jobs
+ * under. It writes `seenAt` every 15 seconds, so a stale one means the
+ * program stopped and the jobs are only piling up. Machine-wide, not a
+ * person's. The SQL is `drizzle/0112_promo_browser_program.sql`.
+ */
+export const promoBrowserProgram = pgTable("promo_browser_program", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+  /** How many jobs it may run side by side right now: the open-browser limit. */
+  lanes: integer("lanes").notNull().default(0),
+})
+
+/**
+ * A post of your own, sent to a subreddit from one account because a person
+ * pressed Post. One row per attempt, like a comment, so a failure leaves a
+ * record. The SQL is `drizzle/0110_promo_new_features.sql`.
+ */
+export const promoPosts = pgTable(
+  "promo_posts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => promoAccounts.id, { onDelete: "cascade" }),
+    /** The project it was written for, when the account was in one. */
+    projectId: varchar("project_id", { length: 36 }).references(() => promoProjects.id, {
+      onDelete: "set null",
+    }),
+    /** Without the r/ prefix. */
+    subreddit: varchar("subreddit", { length: 120 }).notNull(),
+    title: varchar("title", { length: 300 }).notNull(),
+    body: text("body").notNull().default(""),
+    status: varchar("status", { length: 20 }).$type<"posted" | "failed">().notNull().default("posted"),
+    /** Where it landed on Reddit. Empty on a failure. */
+    postUrl: varchar("post_url", { length: 600 }).notNull().default(""),
+    lastError: text("last_error").notNull().default(""),
+    visit: jsonb("visit").$type<VisitRecord | null>(),
+    postedAt: timestamp("posted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("ix_promo_posts_user").on(table.userId, table.postedAt.desc())]
+)
+
+/**
+ * Where each of Promo's bell notices opens. The notice is the shell's own
+ * row; this only remembers its address, because a notice's id is worked out
+ * from what it is about and so cannot carry one. The SQL is
+ * `drizzle/0110_promo_new_features.sql`.
+ */
+export const promoNotices = pgTable("promo_notices", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  userId: varchar("user_id", { length: 36 })
+    .notNull()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  kind: varchar("kind", { length: 30 }).notNull(),
+  href: varchar("href", { length: 600 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+})

@@ -99,6 +99,16 @@ describe("projects", () => {
     await expect(createProject(userId, "   ", db)).rejects.toThrow("needs a name")
   })
 
+  it("refuses a picture that is not the person's own upload, and takes one off with an empty address", async () => {
+    const id = await createProject(userId, "Pictured", db)
+    await expect(
+      updateProject(userId, id, { imageUrl: "https://tracker.example/pixel.png" }, db)
+    ).rejects.toThrow("not one of your uploaded images")
+    await updateProject(userId, id, { imageUrl: "" }, db)
+    const [row] = await db.select().from(promoProjects).where(eq(promoProjects.id, id))
+    expect(row?.imageUrl).toBe("")
+  })
+
   it("refuses to delete a project holding accounts or keywords, saying how many, and deletes nothing", async () => {
     const projectId = await createProject(userId, "Busy", db)
     await account({ projectId })

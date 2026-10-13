@@ -1365,6 +1365,291 @@ def reddit_reply(page, args):
     return {"replyUrl": landed, "visit": record}
 
 
+def _first_visible(scope, selectors, timeout_ms):
+    """The first of these shapes that is on screen, or None. Each is tried in turn."""
+    for selector in selectors:
+        found = scope.locator(selector).first
+        try:
+            found.wait_for(state="visible", timeout=timeout_ms)
+            return found
+        except Exception:  # noqa: BLE001 - try the next shape
+            continue
+    return None
+
+
+def _own_comment(page, comment_url, routine):
+    """Opens a comment the signed-in account wrote and returns it, or raises naming the step."""
+    _post_id, comment_id = _comment_address(comment_url, routine)
+    thing = "t1_" + comment_id
+    _goto(page, comment_url)
+    _past_the_check(page)
+    state = reddit_state_quick(page)
+    if not state.get("handle"):
+        raise CommandError("%s: the browser is not signed in to Reddit" % routine)
+    comment = page.locator("shreddit-comment[thingid='%s']" % thing).first
+    try:
+        comment.wait_for(state="attached", timeout=15_000)
+    except Exception:  # noqa: BLE001 - say which step
+        raise CommandError("%s: the comment is not on its page any more" % routine)
+    author = comment.get_attribute("author") or ""
+    if author.lower() != state["handle"].lower():
+        raise CommandError("%s: that comment is by u/%s, not the signed-in u/%s" % (routine, author, state["handle"]))
+    return comment, thing
+
+
+def _comment_menu_item(page, comment, routine, words):
+    """Opens the comment's own "..." menu and presses the item named `words`."""
+    opener = _first_visible(
+        comment,
+        [
+            "shreddit-overflow-menu button",
+            "button[aria-label*='more options' i]",
+            "button[aria-label*='comment actions' i]",
+        ],
+        8_000,
+    )
+    if opener is None:
+        raise CommandError("%s: no menu button on the comment" % routine)
+    human.click(opener)
+    page.wait_for_timeout(random.randint(400, 900))
+    item = _first_visible(
+        page,
+        [
+            "[role='menuitem']:has-text('%s')" % words,
+            "li:has-text('%s')" % words,
+            "button:has-text('%s')" % words,
+        ],
+        5_000,
+    )
+    if item is None:
+        raise CommandError("%s: the comment's menu has no %s" % (routine, words))
+    human.click(item)
+
+
+def _comment_body_now(page, thing):
+    """The comment's words as Reddit holds them now, read with the page's cookies, or None."""
+    data = _fetch_json(page, "https://www.reddit.com/api/info.json?id=%s" % thing)
+    try:
+        return data["data"]["children"][0]["data"].get("body")
+    except Exception:  # noqa: BLE001 - no answer means unknown
+        return None
+
+
+def reddit_delete_comment(page, args):
+    """Deletes one comment the signed-in account wrote, through the comment's own menu.
+
+    Opened by its own address, the way a person opens it from their profile.
+    The proof is Reddit's own record of the comment reading "[deleted]"
+    afterwards. Nothing here decides to delete: the app only calls this after a
+    person pressed Delete and confirmed it.
+    """
+    comment_url = (args.get("commentUrl") or "").strip()
+    comment, thing = _own_comment(page, comment_url, "delete_comment")
+    human.read_page(page, 400)
+    _comment_menu_item(page, comment, "delete_comment", "Delete")
+
+    confirm = _first_visible(
+        page,
+        [
+            "button:has-text('Yes, delete')",
+            "button:has-text('Delete'):not([aria-haspopup])",
+        ],
+        8_000,
+    )
+    if confirm is None:
+        raise CommandError("delete_comment: pressed Delete but no confirm button appeared")
+    human.pause_before_submit(page)
+    human.click(confirm)
+
+    waiting_until = time.time() + 15
+    while time.time() < waiting_until:
+        page.wait_for_timeout(1_500)
+        if _comment_body_now(page, thing) == "[deleted]":
+            return {"done": True}
+    return {"done": False}
+
+
+def reddit_edit_comment(page, args):
+    """Changes the words of one comment the signed-in account wrote.
+
+    The comment's own menu, Edit, the old words cleared and the new ones typed
+    at a person's pace, then Save. The proof is Reddit's own record of the
+    comment holding the new words afterwards. Nothing here decides to edit:
+    the app only calls this after a person pressed Save changes.
+    """
+    comment_url = (args.get("commentUrl") or "").strip()
+    text = (args.get("text") or "").strip()
+    if not text:
+        raise CommandError("edit_comment: no words to change it to")
+    comment, thing = _own_comment(page, comment_url, "edit_comment")
+    human.read_page(page, 600)
+    _comment_menu_item(page, comment, "edit_comment", "Edit")
+
+    editor = _first_visible(
+        page,
+        [
+            "shreddit-composer div[contenteditable='true']",
+            "div[contenteditable='true'][role='textbox']",
+        ],
+        8_000,
+    )
+    if editor is None:
+        raise CommandError("edit_comment: pressed Edit but no box opened with the words in it")
+    human.click(editor)
+    editor.press("Control+a")
+    page.wait_for_timeout(random.randint(200, 500))
+    editor.press("Backspace")
+    gaps = human.type_text(editor, text)
+    human.pause_before_submit(page)
+    print("edit typed: %d characters; %s" % (len(text), human.describe_gaps(gaps)), flush=True)
+
+    save = _first_visible(
+        page,
+        [
+            "shreddit-composer button[slot='submit-button']",
+            "button:has-text('Save edits')",
+            "button:has-text('Save')",
+        ],
+        5_000,
+    )
+    if save is None:
+        raise CommandError("edit_comment: the new words were typed but no Save button could be pressed")
+    human.click(save)
+
+    wanted = " ".join(text.split())
+    waiting_until = time.time() + 15
+    while time.time() < waiting_until:
+        page.wait_for_timeout(1_500)
+        body = _comment_body_now(page, thing)
+        if body is not None and " ".join(body.split()) == wanted:
+            return {"done": True}
+    return {"done": False}
+
+
+def reddit_submit(page, args):
+    """Sends a post of your own to a subreddit, inside an ordinary visit.
+
+    Some feed before, the subreddit's own page and then its submit page, the
+    title and words typed at a person's pace, Post, a little feed after. The
+    proof is the page moving to the new post's own address. Nothing here
+    decides to post: the app only calls this after a person pressed Post, and
+    it is never tried twice.
+    """
+    subreddit = (args.get("subreddit") or "").strip()
+    title = (args.get("title") or "").strip()
+    body = (args.get("body") or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_]{1,60}", subreddit):
+        raise CommandError("submit: that is not a subreddit name")
+    if not title:
+        raise CommandError("submit: a post needs a title")
+
+    started = time.monotonic()
+    deadline = started + VISIT_BUDGET_SECONDS
+    reserve = COMMENT_RESERVE_SECONDS + (len(title) + len(body)) * TYPING_SECONDS_PER_CHARACTER
+    visit = _new_visit()
+
+    try:
+        _feed(page, random.uniform(*FEED_BEFORE_SECONDS), random.randint(*POSTS_BEFORE), visit, deadline - reserve)
+    except Exception as error:  # noqa: BLE001 - the post still goes
+        visit["problems"].append("the feed before: %s" % _short(error))
+    visit["beforeSeconds"] = int(time.monotonic() - started)
+
+    # The subreddit first, the way a person arrives at its Create post button.
+    try:
+        _goto_listing(page, "https://www.reddit.com/r/%s/" % subreddit)
+        visit["_sizes"].extend(human.browse(page, random.uniform(6, 15), deadline))
+    except Exception as error:  # noqa: BLE001 - the submit page still works
+        visit["problems"].append("the subreddit before: %s" % _short(error))
+    _goto(page, "https://www.reddit.com/r/%s/submit/?type=TEXT" % subreddit)
+    visit["reachedBy"] = "subreddit"
+
+    state = reddit_state_quick(page)
+    if not state.get("handle"):
+        raise CommandError("submit: the browser is not signed in to Reddit")
+
+    title_box = _first_visible(
+        page,
+        [
+            "faceplate-textarea-input[name='title'] textarea",
+            "textarea[name='title']",
+            "input[name='title']",
+        ],
+        15_000,
+    )
+    if title_box is None:
+        raise CommandError("submit: no title box on the subreddit's submit page; it may not take text posts")
+    human.click(title_box)
+    human.type_text(title_box, title)
+
+    if body:
+        body_box = _first_visible(
+            page,
+            [
+                "shreddit-composer div[contenteditable='true']",
+                "div[contenteditable='true'][role='textbox']",
+                "div[name='body'] div[contenteditable='true']",
+            ],
+            8_000,
+        )
+        if body_box is None:
+            raise CommandError("submit: the title was typed but there is no box for the words")
+        human.click(body_box)
+        gaps = human.type_text(body_box, body)
+        print("post typed: %d characters; %s" % (len(title) + len(body), human.describe_gaps(gaps)), flush=True)
+    human.pause_before_submit(page)
+
+    button = _first_visible(
+        page,
+        [
+            "#inner-post-submit-button",
+            "button[type='submit']:has-text('Post')",
+            "r-post-form-submit-button button",
+        ],
+        8_000,
+    )
+    if button is None:
+        raise CommandError("submit: the post was typed but no Post button could be pressed")
+    # Pressed once, never again: a press that raised may still have posted.
+    human.click(button)
+
+    landed = None
+    waiting_until = time.time() + 30
+    while time.time() < waiting_until:
+        page.wait_for_timeout(1_000)
+        address = page.url or ""
+        if "/comments/" in address and "/r/%s/" % subreddit.lower() in address.lower():
+            landed = address.split("?")[0]
+            break
+    if not landed:
+        signs = _page_signs(page)
+        if signs["blocked"]:
+            raise CommandError("submit: pressed Post and %s" % signs["reason"])
+        raise CommandError("submit: pressed Post but the new post's page did not open within 30 seconds")
+
+    after_started = time.monotonic()
+    try:
+        seconds = min(random.uniform(*FEED_AFTER_SECONDS), deadline - after_started)
+        if seconds > 5:
+            _feed(page, seconds, 0, visit, deadline)
+    except Exception as error:  # noqa: BLE001 - the post is already up
+        visit["problems"].append("the feed after: %s" % _short(error))
+    visit["afterSeconds"] = int(time.monotonic() - after_started)
+
+    record, scrolls = _finish_visit(visit)
+    print(
+        "post visit: %d seconds in the feed before, %d after, %d posts opened; %s; %s"
+        % (
+            record["beforeSeconds"],
+            record["afterSeconds"],
+            record["postsOpened"],
+            scrolls,
+            "; ".join(record["problems"]) or "no problems",
+        ),
+        flush=True,
+    )
+    return {"postUrl": landed, "visit": record}
+
+
 # What this network can be asked to do. The package's __init__ prefixes each
 # name with "reddit.", so two networks can both have a "search" without
 # colliding, and a name nobody registered is refused — the port cannot be used
@@ -1381,4 +1666,7 @@ ROUTINES = {
     "rules": reddit_rules,
     "comment_check": reddit_comment_check,
     "warm_up": reddit_warm_up,
+    "delete_comment": reddit_delete_comment,
+    "edit_comment": reddit_edit_comment,
+    "submit": reddit_submit,
 }

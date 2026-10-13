@@ -43,6 +43,11 @@
 import { randomUUID } from "node:crypto"
 
 import { readBrowserSettings } from "@/server/browser/settings"
+import {
+  checkInBrowserProgram,
+  checkOutBrowserProgram,
+  forgetOldBrowserPrograms,
+} from "@/server/social/browser-program"
 import { runOneJob } from "@/server/social/runner"
 
 /**
@@ -123,7 +128,11 @@ async function lane(index: number): Promise<void> {
   lanes.delete(index)
 }
 
-/** Reads the limit and starts any lane it now allows. */
+/**
+ * Reads the limit and starts any lane it now allows. Also checks in, so the
+ * Jobs dashboard can tell the program is running: a check-in older than
+ * two minutes reads as stopped.
+ */
 async function matchLanes(): Promise<void> {
   try {
     wanted = (await readBrowserSettings()).maxOpen
@@ -131,10 +140,18 @@ async function matchLanes(): Promise<void> {
     // Keeps the lanes it has; the next look tries again.
     console.error("Could not read the browser settings", error)
   }
+  try {
+    await checkInBrowserProgram(claimToken, wanted)
+  } catch (error) {
+    // Only the Jobs dashboard's line is wrong while this fails; the work goes on.
+    console.error("Could not check in", error)
+  }
   for (let index = 0; index < wanted && !stopping; index += 1) {
     if (!lanes.has(index)) lanes.set(index, lane(index))
   }
-  if (!stopping) settingsTimer = setTimeout(() => void matchLanes(), SETTINGS_GAP_MS)
+  if (!stopping) settingsTimer = setTimeout(() => void forgetOldBrowserPrograms()
+  .catch((error: unknown) => console.error("Could not clear old check-ins", error))
+  .finally(() => void matchLanes()), SETTINGS_GAP_MS)
 }
 
 /**
@@ -152,6 +169,7 @@ async function shutdown(signal: string): Promise<void> {
   if (settingsTimer) clearTimeout(settingsTimer)
   for (const wake of [...wakers]) wake()
   await Promise.allSettled([...lanes.values()])
+  await checkOutBrowserProgram(claimToken).catch((error: unknown) => console.error("Could not check out", error))
 
   console.log("Social browser stopped")
   process.exit(0)

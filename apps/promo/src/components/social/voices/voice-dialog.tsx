@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, Trash2Icon } from "lucide-react"
+import { Loader2Icon, SparklesIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -15,8 +15,15 @@ import {
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { getVoiceErrorMessage, saveVoice, type VoiceView } from "@/lib/api/social/voices"
+import {
+  getVoiceErrorMessage,
+  loadTryPosts,
+  saveVoice,
+  tryVoiceOn,
+  type VoiceView,
+} from "@/lib/api/social/voices"
 import { voiceUsersWords } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -132,6 +139,7 @@ export function VoiceDialog({
                     </div>
                   </CardContent>
                 </Card>
+                {voice ? <TryVoice voice={voice} words={form} /> : null}
               </div>
             </DialogBody>
             <DialogFooter>
@@ -159,5 +167,104 @@ export function VoiceDialog({
         </DialogContent>
       )}
     </FormDialog>
+  )
+}
+
+/**
+ * Two drafts in this voice for a real post already found, so a voice is tuned
+ * in a minute: change its words above, try again, compare. Uses the words in
+ * the window even before they are saved. Nothing is stored or sent.
+ */
+function TryVoice({ voice, words }: { voice: VoiceView; words: Form }) {
+  const [posts, setPosts] = React.useState<Array<{ id: string; title: string; subreddit: string }> | null>(null)
+  const [postId, setPostId] = React.useState("")
+  const [drafts, setDrafts] = React.useState<string[]>([])
+  const [trying, setTrying] = React.useState(false)
+
+  React.useEffect(() => {
+    let live = true
+    loadTryPosts().then(
+      (rows) => {
+        if (!live) return
+        setPosts(rows)
+        setPostId((current) => current || rows[0]?.id || "")
+      },
+      () => {
+        if (live) setPosts([])
+      }
+    )
+    return () => {
+      live = false
+    }
+  }, [])
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Try it</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {posts === null ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2Icon className="size-4 animate-spin" />
+            Reading the newest posts
+          </p>
+        ) : !posts.length ? (
+          <p className="text-sm text-muted-foreground">
+            No posts found yet. Run a keyword on a project&apos;s dashboard, then try the voice
+            on one of its posts.
+          </p>
+        ) : (
+          <>
+            <div className="grid gap-2">
+              <Label htmlFor="voice-try-post">On this post</Label>
+              <Select value={postId} onValueChange={setPostId}>
+                <SelectTrigger id="voice-try-post" className="w-full sm:w-fit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {posts.map((post) => (
+                    <SelectItem key={post.id} value={post.id}>
+                      r/{post.subreddit} · {post.title.slice(0, 80)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="justify-self-start"
+              disabled={trying}
+              onClick={async () => {
+                setTrying(true)
+                try {
+                  setDrafts(
+                    await tryVoiceOn({
+                      voiceId: voice.id,
+                      findId: postId,
+                      voice: words.voice,
+                      commentRules: words.commentRules,
+                    })
+                  )
+                } catch (error) {
+                  showErrorToast(getVoiceErrorMessage(error))
+                } finally {
+                  setTrying(false)
+                }
+              }}
+            >
+              {trying ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+              {drafts.length ? "Try again" : "Write two drafts"}
+            </Button>
+            {drafts.map((draft, index) => (
+              <p key={index} className="rounded-lg border p-3 text-sm whitespace-pre-wrap">
+                {draft}
+              </p>
+            ))}
+          </>
+        )}
+      </CardContent>
+    </Card>
   )
 }

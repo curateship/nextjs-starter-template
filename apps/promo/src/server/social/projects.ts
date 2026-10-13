@@ -3,6 +3,7 @@ import { and, asc, count, eq, isNull, max, notInArray } from "drizzle-orm"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoProfiles } from "@/server/browser/schema"
+import { isOwnedImageUrl } from "@/server/media/library"
 import { commentReadiness, type AccountStatusView } from "@/lib/social/account-status"
 
 import { accountStatuses } from "./account-list"
@@ -34,20 +35,6 @@ import {
 
 const NAME_MAX = 120
 const DESCRIPTION_MAX = 4_000
-
-export type ProjectSummary = { id: string; name: string }
-
-/** Every project the person has, oldest first, so the first one made leads. */
-export async function listProjects(
-  userId: string,
-  db: CustomShellDb = defaultDb
-): Promise<ProjectSummary[]> {
-  return db
-    .select({ id: promoProjects.id, name: promoProjects.name })
-    .from(promoProjects)
-    .where(eq(promoProjects.userId, userId))
-    .orderBy(asc(promoProjects.createdAt), asc(promoProjects.id))
-}
 
 /** One project as a row on the Projects table dashboard. */
 export type ProjectRow = {
@@ -147,13 +134,22 @@ export async function createProject(
   return id
 }
 
-/** Saves the name, the description, or both. Used as each one is typed. */
+/**
+ * Saves the name, the description or the picture. Used as each one changes.
+ *
+ * The picture is drawn back on the dashboard, so like the shell's own profile
+ * photo it has to be an image this person uploaded, never any address the
+ * browser sent. "" takes it off.
+ */
 export async function updateProject(
   userId: string,
   projectId: string,
-  input: { name?: string; description?: string },
+  input: { name?: string; description?: string; imageUrl?: string },
   db: CustomShellDb = defaultDb
 ): Promise<void> {
+  if (input.imageUrl && !(await isOwnedImageUrl(userId, input.imageUrl, db))) {
+    throw new Error("That picture is not one of your uploaded images.")
+  }
   const updated = await db
     .update(promoProjects)
     .set({
@@ -161,6 +157,7 @@ export async function updateProject(
       ...(input.description === undefined
         ? {}
         : { description: input.description.slice(0, DESCRIPTION_MAX) }),
+      ...(input.imageUrl === undefined ? {} : { imageUrl: input.imageUrl }),
       updatedAt: new Date(),
     })
     .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
@@ -256,10 +253,17 @@ export type ProjectAccount = {
   status: AccountStatusView
   /** Warm-up, pace, waking hours and the comments waiting for its morning. */
   posting: PostingState
+  /** Last karma reading. Null when nothing has read it, which is not the same as 0. */
+  karma: number | null
+  /** When Reddit says the account was made. Null until read. */
+  redditCreatedAt: Date | null
+  /** When its last comment reached Reddit. Null when it has sent none. */
+  lastPostedAt: Date | null
 }
 
 export type ProjectView = {
-  project: { id: string; name: string; description: string }
+  /** `pausedAt` is set while the whole project is paused. */
+  project: { id: string; name: string; description: string; imageUrl: string; pausedAt: Date | null }
   /**
    * The project's accounts, best to comment from first: awake with room left
    * in today's pace, then awake with none, then asleep, then warming up, then
@@ -310,6 +314,9 @@ export async function readProjectView(
       reason: account.blockedReason,
       status,
       posting,
+      karma: account.karma,
+      redditCreatedAt: account.redditCreatedAt,
+      lastPostedAt: account.lastPostedAt,
       rank: commentReadiness(status, posting, now),
     })
   }
@@ -317,7 +324,13 @@ export async function readProjectView(
   accounts.sort((a, b) => a.rank - b.rank)
 
   return {
-    project: { id: project.id, name: project.name, description: project.description },
+    project: {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      imageUrl: project.imageUrl,
+      pausedAt: project.pausedAt,
+    },
     accounts: accounts.map(({ rank: _rank, ...account }) => account),
     freeAccounts: rows
       .filter((row) => row.account.projectId === null)
@@ -367,20 +380,37 @@ export async function removeAccountFromProject(
   if (!updated.length) throw new Error("That account is not there any more.")
 }
 
-/** The project a found post belongs to: its keyword's. */
+/**
+ * Who a found post belongs to: its keyword's project, or the project a
+ * self-promotion thread was found for, or for a post in an account's own
+ * everyday subreddits, that account and no project.
+ */
+async function ownerOfFind(
+  userId: string,
+  findId: string,
+  db: CustomShellDb
+): Promise<{ projectId: string | null; helpAccountId: string | null }> {
+  const [row] = await db
+    .select({
+      keywordProject: promoKeywords.projectId,
+      threadProject: promoFinds.threadProjectId,
+      helpAccountId: promoFinds.helpAccountId,
+    })
+    .from(promoFinds)
+    .leftJoin(promoKeywords, eq(promoKeywords.id, promoFinds.keywordId))
+    .where(and(eq(promoFinds.id, findId), eq(promoFinds.userId, userId)))
+    .limit(1)
+  if (!row) throw new Error("That post is no longer saved.")
+  return { projectId: row.keywordProject ?? row.threadProject, helpAccountId: row.helpAccountId }
+}
+
+/** The project a found post belongs to, or null for a help-only post, which belongs to one account. */
 export async function projectOfFind(
   userId: string,
   findId: string,
   db: CustomShellDb = defaultDb
-): Promise<string> {
-  const [row] = await db
-    .select({ projectId: promoKeywords.projectId })
-    .from(promoFinds)
-    .innerJoin(promoKeywords, eq(promoKeywords.id, promoFinds.keywordId))
-    .where(and(eq(promoFinds.id, findId), eq(promoFinds.userId, userId)))
-    .limit(1)
-  if (!row) throw new Error("That post is no longer saved.")
-  return row.projectId
+): Promise<string | null> {
+  return (await ownerOfFind(userId, findId, db)).projectId
 }
 
 /**
@@ -400,7 +430,15 @@ export async function accountForFind(
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
     .limit(1)
   if (!account || account.retiredAt) throw new Error("That account is not there any more.")
-  if (account.projectId !== (await projectOfFind(userId, findId, db))) {
+  const owner = await ownerOfFind(userId, findId, db)
+  // A help-only post was found for one account, and only that account answers it.
+  if (owner.helpAccountId) {
+    if (owner.helpAccountId !== account.id) {
+      throw new Error("That post was found for another account's everyday subreddits, so only that account answers it.")
+    }
+    return account
+  }
+  if (account.projectId !== owner.projectId) {
     throw new Error("That account is not in this post's project. Pick one of the project's accounts on the left.")
   }
   return account

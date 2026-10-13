@@ -23,10 +23,25 @@ screen, `src/lib/api/browser/proxies.ts` for the endpoints and
 - **Outside address.** What the record of its outside address says: "Same
   address for 12 days", or "Address changed 14 times today". This is how a
   rotating proxy sold as a fixed one gets spotted.
+- **Cost.** What it costs a month and when it renews: "$12.00 a month" over
+  "Renews in 5 days". Shows on a window 1024px or wider.
 - **Actions.** Test, settings, delete.
 
-The toolbar has, in order: Delete when rows are ticked, the search, **Paste in**,
-and **Add proxy**.
+The toolbar has, in order: Delete when rows are ticked, the month's total for
+the proxies with a cost ("$84.00 a month for 7 proxies"), the search,
+**Paste in**, and **Add proxy**.
+
+## What a proxy costs
+
+The proxy's window has **What it costs**: a month's cost in dollars and the
+day it renews, both optional and both typed in by a person. A pasted list
+leaves them empty. Three days before the renewal the bell rings once, "Renews
+soon: US residential 3", saying the day and the cost, and opens the proxy.
+A new renewal date rings again; one already past is left alone. The pass runs
+once an hour beside the proxy re-tests (`ringProxyRenewals` in
+`src/server/social/upkeep.ts`). The columns are `promo_proxies.monthly_cost`
+and `renews_on`, added by `drizzle/0110_promo_new_features.sql`.
+[Promo's bell notices](../notices.md) has the rest.
 
 ## Adding, editing and deleting
 

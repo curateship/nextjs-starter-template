@@ -1,8 +1,10 @@
 import {
   bigint,
+  date,
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -73,6 +75,13 @@ export const promoProxies = pgTable(
     lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
     /** The whole answer from the last test, kept so a screen can show any part. */
     lastTestResult: jsonb("last_test_result").$type<ProxyTestResult | null>(),
+    /**
+     * What the proxy costs a month and the day it renews, both typed in by a
+     * person and both optional. The bell warns a few days before the renewal.
+     * Added by `drizzle/0110_promo_new_features.sql`.
+     */
+    monthlyCost: numeric("monthly_cost", { precision: 10, scale: 2, mode: "number" }),
+    renewsOn: date("renews_on", { mode: "string" }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

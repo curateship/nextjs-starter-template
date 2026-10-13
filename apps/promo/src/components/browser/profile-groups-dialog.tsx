@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Hint } from "@/components/social/hint"
 import {
   changeGroup,
   getProfileErrorMessage,
@@ -164,17 +165,18 @@ function GroupRow({
           if (!(await onRename(name))) setName(item.name)
         }}
       />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        disabled={busy}
-        onClick={() => void onDelete()}
-        title={`Delete ${what}`}
-        aria-label={`Delete the ${what} ${item.name}`}
-      >
-        <Trash2Icon className="size-4" />
-      </Button>
+      <Hint label={`Delete ${what}`}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          disabled={busy}
+          onClick={() => void onDelete()}
+          aria-label={`Delete the ${what} ${item.name}`}
+        >
+          <Trash2Icon className="size-4" />
+        </Button>
+      </Hint>
     </div>
   )
 }

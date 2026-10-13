@@ -3,9 +3,11 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
-import { READER_JOB_KINDS, type JobKind } from "@/lib/social/options"
+import { READER_JOB_KINDS, WRITE_JOB_KINDS, type JobKind } from "@/lib/social/options"
 
 import { readerProfile } from "./behaviour"
+import { readBrowserProgram } from "./browser-program"
+import { ringForFailure } from "./failures"
 import { promoAccounts, promoJobs } from "./schema"
 
 /**
@@ -43,6 +45,13 @@ const VISIT_CLAIM_TIMEOUT_MINUTES = 25
 
 /** Three goes, then the job stays failed and says so on screen. A comment gets one. */
 const MAX_ATTEMPTS = 3
+
+/** The writing kinds as a SQL list, for the statement below. Fixed words, never input. */
+const WRITES = sql.raw(WRITE_JOB_KINDS.map((kind) => `'${kind}'`).join(", "))
+
+/** What an abandoned delete or edit says, since it is never tried again either. */
+const CHANGE_ABANDONED =
+  "The browser stopped part-way through changing the comment. It is not tried again. Open the comment on Reddit to see whether the change went through."
 
 /** What an abandoned comment says, since it is never tried again. */
 const COMMENT_ABANDONED =
@@ -210,9 +219,10 @@ export async function claimNextJob(
  * queued again, because the fourth attempt would fail the same way and the
  * loop would never notice it was stuck.
  *
- * A comment, or an answer to a reply, is never handed back. Its worker may
- * have died after Reddit took it, and a second go would post it twice, so it
- * is marked failed on the first abandonment and a person checks the post.
+ * A job that writes to Reddit (a comment, an answer, a post, an edit or a
+ * delete) is never handed back. Its worker may have died after Reddit took
+ * it, and a second go would post it twice, so it is marked failed on the
+ * first abandonment, the bell rings, and a person checks the post.
  */
 export async function failExpiredClaims(
   db: CustomShellDb = defaultDb
@@ -220,33 +230,49 @@ export async function failExpiredClaims(
   const recovered = await db.execute(sql`
     UPDATE "promo_jobs"
     SET "status" = CASE
-          WHEN "promo_jobs"."kind" IN ('comment', 'reply') THEN 'failed'
+          WHEN "promo_jobs"."kind" IN (${WRITES}) THEN 'failed'
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS} THEN 'failed'
           ELSE 'queued'
         END,
         "claim_token" = NULL,
         "claimed_at" = NULL,
         "last_error" = CASE
-          WHEN "promo_jobs"."kind" IN ('comment', 'reply')
+          WHEN "promo_jobs"."kind" IN ('delete_comment', 'edit_comment')
+            THEN ${CHANGE_ABANDONED}
+          WHEN "promo_jobs"."kind" IN (${WRITES})
             THEN ${COMMENT_ABANDONED}
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS}
             THEN 'The browser stopped part-way through, three times.'
           ELSE "promo_jobs"."last_error"
         END,
         "finished_at" = CASE
-          WHEN "promo_jobs"."kind" IN ('comment', 'reply') THEN now()
+          WHEN "promo_jobs"."kind" IN (${WRITES}) THEN now()
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS} THEN now()
           ELSE NULL
         END
     WHERE "promo_jobs"."status" = 'running'
       AND "promo_jobs"."claimed_at" < now() - CASE
-        WHEN "promo_jobs"."kind" IN ('comment', 'reply', 'warm_up')
+        WHEN "promo_jobs"."kind" IN (${WRITES}, 'warm_up')
           THEN ${sql.raw(`interval '${VISIT_CLAIM_TIMEOUT_MINUTES} minutes'`)}
         ELSE ${sql.raw(`interval '${CLAIM_TIMEOUT_MINUTES} minutes'`)}
       END
-    RETURNING "promo_jobs"."id"
+    RETURNING "promo_jobs"."id", "promo_jobs"."user_id", "promo_jobs"."kind",
+              "promo_jobs"."status", "promo_jobs"."last_error"
   `)
-  return recovered.rows.length
+  const rows = recovered.rows as Array<{
+    id: string
+    user_id: string
+    kind: string
+    status: string
+    last_error: string
+  }>
+  // A comment, an answer or a post whose browser stopped part-way rings the
+  // bell, because it may be on Reddit and only a person can tell.
+  for (const row of rows) {
+    if (row.status !== "failed") continue
+    await ringForFailure({ id: row.id, userId: row.user_id, kind: row.kind }, row.last_error, db)
+  }
+  return rows.length
 }
 
 export async function finishJob(
@@ -322,6 +348,12 @@ export type JobCounts = {
    * deliberately not in here.
    */
   searchingKeywordIds: string[]
+  /**
+   * Whether the browser program checked in within the last two minutes. While
+   * it is not, nothing waiting will start, and the dashboard says so instead of
+   * showing a search spinning forever.
+   */
+  programRunning: boolean
 }
 
 /** What is waiting or running, so the screen can say what is happening. */
@@ -350,6 +382,7 @@ export async function jobCounts(
     running: 0,
     failed: 0,
     searchingKeywordIds: [],
+    programRunning: (await readBrowserProgram(db)).running,
   }
   const searching = new Set<string>()
 

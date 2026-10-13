@@ -29,6 +29,7 @@ import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { postedDateText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
+import { Hint } from "../hint"
 import { NewProjectDialog } from "./project-dialogs"
 
 type SortColumn = "name" | "accounts" | "keywords" | "waiting" | "comments" | "last"
@@ -230,9 +231,11 @@ export function ProjectsTable({ initial }: { initial: ProjectRow[] }) {
               >
                 {project.name}
               </button>
-              <span className="block truncate text-xs text-muted-foreground" title={project.description}>
-                {project.description || "No description yet"}
-              </span>
+              <Hint label={project.description}>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {project.description || "No description yet"}
+                </span>
+              </Hint>
             </TableCell>
             <TableCell column="meta" className="text-right tabular-nums">
               {project.accountCount}
@@ -255,7 +258,6 @@ export function ProjectsTable({ initial }: { initial: ProjectRow[] }) {
                 variant="ghost"
                 size="icon"
                 onClick={() => openProject(project.id)}
-                title="Open the project"
                 aria-label={`Open ${project.name}`}
               >
                 <SettingsIcon className="size-4" />
@@ -265,7 +267,6 @@ export function ProjectsTable({ initial }: { initial: ProjectRow[] }) {
                 variant="ghost"
                 size="icon"
                 onClick={() => setDeleteTargets([project])}
-                title="Delete project"
                 aria-label={`Delete ${project.name}`}
               >
                 <Trash2Icon className="size-4" />

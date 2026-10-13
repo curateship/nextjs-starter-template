@@ -1,11 +1,30 @@
 import * as React from "react"
-import { Loader2Icon, PlusIcon, SearchIcon, XIcon } from "lucide-react"
+import {
+  EllipsisVerticalIcon,
+  Loader2Icon,
+  MegaphoneIcon,
+  PlusIcon,
+  RotateCwIcon,
+  SparklesIcon,
+  TimerIcon,
+  TimerOffIcon,
+  XIcon,
+} from "lucide-react"
 
-import { CardTop } from "@/components/shared/feed-card"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Select,
   SelectContent,
@@ -14,27 +33,32 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  EVERYTHING,
   REDDIT_SORTS,
   REDDIT_WINDOWS,
   type RedditSort,
   type RedditWindow,
 } from "@/lib/social/reddit/options"
-import { everythingLineText, keywordScopeText, keywordTitle } from "@/lib/social/wording"
+import { keywordChipTimeText, keywordScopeText, keywordTimerText, keywordTitle } from "@/lib/social/wording"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import type { KeywordRow } from "@/server/social/keywords"
 
+import { Hint } from "../hint"
+import { KeywordIdeasDialog } from "./keyword-ideas-dialog"
+
 /**
- * The saved keywords, with the box that adds one at the bottom.
+ * The saved keywords as a row of chips across the top of the posts column,
+ * with Add keyword at the end and the column's buttons on the right. Tyler
+ * sent this design on 13 Oct 2026.
  *
- * The form is at the bottom rather than the top because the list is what a
- * person comes here to use: a saved keyword is pressed many times and added
- * once. For the same reason it starts shut, as a dashed Add keyword button,
- * and the list gets the panel.
+ * Pressing a chip lists that keyword's posts alone; pressing it again goes
+ * back to every keyword's posts in one ranked list, which is what shows when
+ * no chip is chosen. Each chip carries its post count, when it last searched
+ * (pressing that switches its timed searches off and on), search again, and
+ * remove.
  *
- * It starts open only when there are no keywords at all, because then the form
- * is the only thing on the screen worth pressing and making somebody press a
- * button to reach it is a wasted click.
+ * Add keyword opens its box in a popover. It opens by itself when nothing is
+ * saved, because then it is the only thing on the screen worth pressing.
  */
 
 /** Plain words for each of Reddit's sorts, with the measured one first. */
@@ -54,23 +78,41 @@ const WINDOW_LABELS: Record<RedditWindow, string> = {
   all: "Any time",
 }
 
-export function KeywordsPanel({
+export function KeywordsBar({
+  projectId,
   keywords,
   loading,
   selectedId,
   runningIds,
+  stalled,
+  search,
+  actions,
+  onThreads,
   onSelect,
   onAdd,
   onRun,
+  onSwitch,
   onDelete,
+  onAddIdea,
 }: {
+  /** The project the keywords belong to, which the ideas are written for. */
+  projectId: string
   keywords: KeywordRow[]
   loading: boolean
-  /** A keyword's id, or `EVERYTHING` for the row above them all. */
+  /** The chosen keyword's id, or anything else for every keyword's posts. */
   selectedId: string | null
   /** Keywords with a search job waiting or running. */
   runningIds: Set<string>
-  onSelect: (id: string) => void
+  /** The browser program is not running, so a waiting search says it waits rather than spinning. */
+  stalled: boolean
+  /** The posts' search box, drawn first in the buttons on the right. */
+  search: React.ReactNode
+  /** Opens the Self-promotion threads window, from the "⋮" menu. */
+  onThreads: () => void
+  /** The column's own buttons, drawn after the search box and before the "⋮" menu. */
+  actions: React.ReactNode
+  /** A keyword's id, or null to go back to every keyword's posts. */
+  onSelect: (id: string | null) => void
   onAdd: (input: {
     term: string
     sort: RedditSort
@@ -78,35 +120,265 @@ export function KeywordsPanel({
     subreddits: string[]
   }) => Promise<void>
   onRun: (id: string) => Promise<void>
+  /** Switches the keyword's timed searches on or off. */
+  onSwitch: (id: string, enabled: boolean) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  /** Saves and searches one idea from the ideas window. Throws with why when refused. */
+  onAddIdea: (idea: { term: string } | { subreddit: string }) => Promise<void>
+}) {
+  const [ideasOpen, setIdeasOpen] = React.useState(false)
+  // Open to begin with only when nothing is saved, worked out once so the box
+  // never shuts itself while somebody is still typing in it.
+  const [addOpen, setAddOpen] = React.useState(() => keywords.length === 0 && !loading)
+
+  return (
+    // The chips keep at least 28rem before the buttons move to a row of
+    // their own.
+    <DashboardCardHeader className="flex-wrap items-start gap-x-3 gap-y-2">
+      <div className="flex min-h-8 min-w-0 grow basis-[28rem] flex-wrap items-center gap-2">
+        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Keywords</span>
+        {loading && !keywords.length ? (
+          <Loader2Icon className="size-4 animate-spin text-muted-foreground" aria-label="Reading your keywords" />
+        ) : null}
+        {keywords.map((keyword) => (
+          <KeywordChip
+            key={keyword.id}
+            keyword={keyword}
+            selected={keyword.id === selectedId}
+            running={runningIds.has(keyword.id)}
+            stalled={stalled}
+            onSelect={() => onSelect(keyword.id === selectedId ? null : keyword.id)}
+            onRun={onRun}
+            onSwitch={onSwitch}
+            onDelete={onDelete}
+          />
+        ))}
+
+        <Popover open={addOpen} onOpenChange={setAddOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="flex h-8 items-center gap-1.5 rounded-full border border-dashed px-3 text-sm whitespace-nowrap text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              <PlusIcon className="size-4" aria-hidden="true" />
+              Add keyword
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-80 p-3">
+            <AddKeywordForm
+              onAdd={async (input) => {
+                await onAdd(input)
+                setAddOpen(false)
+              }}
+              onCancel={() => setAddOpen(false)}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* A row of its own on a phone, where the search box takes what the
+          two buttons leave. */}
+      <div className="ml-auto flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
+        {search}
+        {actions}
+        {/* The column's less used tools, behind one button. Tyler, 13 Oct 2026. */}
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" aria-label="More">
+                  <EllipsisVerticalIcon />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Ideas and self-promotion threads</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onSelect={() => setIdeasOpen(true)}>
+              <SparklesIcon />
+              Ideas
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onThreads}>
+              <MegaphoneIcon />
+              Self-promotion threads
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <KeywordIdeasDialog
+        projectId={projectId}
+        open={ideasOpen}
+        onClose={() => setIdeasOpen(false)}
+        onAdd={onAddIdea}
+      />
+    </DashboardCardHeader>
+  )
+}
+
+/**
+ * One keyword: its name and post count choose it, the time says when it last
+ * searched and switches its timer, and the two icons search again and remove.
+ */
+function KeywordChip({
+  keyword,
+  selected,
+  running,
+  stalled,
+  onSelect,
+  onRun,
+  onSwitch,
+  onDelete,
+}: {
+  keyword: KeywordRow
+  selected: boolean
+  running: boolean
+  /** No browser program is running, so a search waiting here waits rather than runs. */
+  stalled: boolean
+  onSelect: () => void
+  onRun: (id: string) => Promise<void>
+  onSwitch: (id: string, enabled: boolean) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+}) {
+  const [busy, setBusy] = React.useState(false)
+  const name = keywordTitle(keyword)
+  const failed = keyword.lastRun?.status === "failed"
+
+  async function act(work: () => Promise<void>) {
+    setBusy(true)
+    try {
+      await work()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const iconButton =
+    "flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+
+  return (
+    <div
+      className={cn(
+        "flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-full border bg-background pr-1 pl-3 text-sm",
+        selected && "bg-muted"
+      )}
+    >
+      <button
+        type="button"
+        aria-pressed={selected}
+        aria-label={`${name}, ${keywordScopeText(keyword)}`}
+        onClick={onSelect}
+        className="flex min-w-0 items-center gap-1.5 rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <span className="truncate font-medium">{name}</span>
+        <span className="text-muted-foreground tabular-nums">{keyword.postCount}</span>
+      </button>
+      {/* When it last searched, or what it is doing now. A failed search says
+          why on hover, since the chip has no room for the reason. */}
+      <Hint label={failed && !running ? keyword.lastRun?.error || "The last search failed" : null}>
+        <span
+          // "just now" can become "1 minute ago" between the server drawing the
+          // page and the browser taking it over. Not worth a warning.
+          suppressHydrationWarning
+          className={cn(
+            "shrink-0 text-xs whitespace-nowrap",
+            failed && !running ? "text-destructive" : "text-muted-foreground"
+          )}
+        >
+          {running
+            ? stalled
+              ? "· waiting"
+              : keyword.term
+                ? "· searching"
+                : "· reading"
+            : failed
+              ? "· search failed"
+              : `· ${keywordChipTimeText(keyword)}`}
+        </span>
+      </Hint>
+      {/* The timer: whether it searches by itself every few hours. Its own
+          icon beside the arrow since Tyler asked on 13 Oct 2026. */}
+      <Hint
+        label={
+          keyword.enabled
+            ? "Searches by itself every few hours. Press to stop that."
+            : "Only searches when you press it. Press to search by itself every few hours."
+        }
+      >
+        <button
+          type="button"
+          className={iconButton}
+          aria-pressed={keyword.enabled}
+          aria-label={
+            keyword.enabled
+              ? `${keywordTimerText(keyword)}. Searches by itself every few hours. Press to stop that.`
+              : `${keywordTimerText(keyword)}. Press to search by itself every few hours.`
+          }
+          disabled={busy}
+          onClick={() => void act(() => onSwitch(keyword.id, !keyword.enabled))}
+        >
+          {keyword.enabled ? (
+            <TimerIcon className="size-3.5" aria-hidden="true" />
+          ) : (
+            <TimerOffIcon className="size-3.5" aria-hidden="true" />
+          )}
+        </button>
+      </Hint>
+      {/* Off while its search waits or runs, and the reason says which. */}
+      <DisabledReason
+        disabled={running}
+        reason={
+          stalled
+            ? "A search is already waiting for the browser program. The Jobs page says why."
+            : "Searching now"
+        }
+        className="rounded-full"
+      >
+        <Hint label={running ? null : keyword.term ? "Search Reddit for this again" : "Read the newest posts again"}>
+          <button
+            type="button"
+            className={iconButton}
+            aria-label={keyword.term ? `Search Reddit for ${name} again` : `Read ${name}'s newest posts again`}
+            disabled={busy || running}
+            onClick={() => void act(() => onRun(keyword.id))}
+          >
+            {busy || (running && !stalled) ? (
+              <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <RotateCwIcon className="size-3.5" aria-hidden="true" />
+            )}
+          </button>
+        </Hint>
+      </DisabledReason>
+      <Hint label="Remove this keyword and everything it found">
+        <button
+          type="button"
+          className={iconButton}
+          aria-label={`Remove ${name}`}
+          disabled={busy}
+          onClick={() => void act(() => onDelete(keyword.id))}
+        >
+          <XIcon className="size-3.5" aria-hidden="true" />
+        </button>
+      </Hint>
+    </div>
+  )
+}
+
+/** The words, the subreddits, Reddit's order and how far back. */
+function AddKeywordForm({
+  onAdd,
+  onCancel,
+}: {
+  onAdd: (input: { term: string; sort: RedditSort; timeWindow: RedditWindow; subreddits: string[] }) => Promise<void>
+  onCancel: () => void
 }) {
   const [term, setTerm] = React.useState("")
   const [subreddits, setSubreddits] = React.useState("")
   const [sort, setSort] = React.useState<RedditSort>("relevance")
   const [timeWindow, setTimeWindow] = React.useState<RedditWindow>("week")
   const [adding, setAdding] = React.useState(false)
-
-  /**
-   * Whether the form is showing.
-   *
-   * Open to begin with only when nothing is saved. Worked out once, when this
-   * panel first draws, rather than followed for the life of the screen: a form
-   * that shut itself the moment the first keyword was added would take the
-   * fields away while somebody was still looking at them.
-   */
-  const [open, setOpen] = React.useState(() => keywords.length === 0)
-
-  function clear() {
-    setTerm("")
-    setSubreddits("")
-    setSort("relevance")
-    setTimeWindow("week")
-  }
-
-  function cancel() {
-    clear()
-    setOpen(false)
-  }
+  const [tried, setTried] = React.useState(false)
 
   /** The subreddits as typed, split on commas. */
   const listed = subreddits
@@ -115,124 +387,66 @@ export function KeywordsPanel({
     .filter(Boolean)
   /** No words and one subreddit is a watch, which lists that subreddit's new posts. */
   const watch = !term.trim() && listed.length === 1
+  const empty = !term.trim() && !listed.length
 
   async function add(event: React.FormEvent) {
     event.preventDefault()
-    if ((!term.trim() && !listed.length) || adding) return
+    if (adding) return
+    if (empty) {
+      setTried(true)
+      showErrorToast("Type some words, or name one subreddit to watch.")
+      return
+    }
     setAdding(true)
     try {
-      await onAdd({
-        term: term.trim(),
-        sort,
-        timeWindow,
-        subreddits: listed,
-      })
-      clear()
-      // Shut on the way out. The keyword is now a card in the list above, which
-      // is the answer to "did that work".
-      setOpen(false)
+      await onAdd({ term: term.trim(), sort, timeWindow, subreddits: listed })
     } finally {
       setAdding(false)
     }
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <CardTop
-        icon={SearchIcon}
-        title="Keywords"
-        meta={keywords.length ? `${keywords.length} saved` : undefined}
-      />
+    <form onSubmit={add} className="grid gap-4">
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor="promo-keyword-term"
+          hint="Leave it empty and name one subreddit to watch that subreddit's new posts instead."
+        >
+          What to search Reddit for
+        </FieldLabel>
+        <Input
+          id="promo-keyword-term"
+          value={term}
+          autoFocus
+          aria-invalid={(tried && empty) || undefined}
+          onChange={(event) => setTerm(event.target.value)}
+          placeholder="project management tool"
+          maxLength={200}
+        />
+      </div>
 
-      {/* Pinned above the scrolling list, so the way back to every post is
-          never scrolled out of reach. Not offered before the first keyword,
-          when there is nothing for it to gather. */}
-      {keywords.length ? (
-        <div className="px-3 pt-3">
-          <EverythingCard
-            keywords={keywords}
-            selected={selectedId === EVERYTHING}
-            onSelect={() => onSelect(EVERYTHING)}
-          />
-        </div>
-      ) : null}
+      <div className="grid gap-2">
+        <Label htmlFor="promo-keyword-subs">Only these subreddits</Label>
+        <Input
+          id="promo-keyword-subs"
+          value={subreddits}
+          onChange={(event) => setSubreddits(event.target.value)}
+          placeholder="Leave empty to search all of Reddit"
+        />
+      </div>
 
-      <ScrollArea className="min-h-0 flex-1">
-        <div className={cn("grid gap-2 p-3", keywords.length && "pt-2")}>
-          {loading && !keywords.length ? (
-            <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-              <Loader2Icon className="size-4 animate-spin" />
-              Reading your keywords
-            </p>
-          ) : !keywords.length ? (
-            <p className="py-6 text-sm text-muted-foreground">
-              No keywords yet. Fill in the box below and it searches straight
-              away.
-            </p>
-          ) : (
-            keywords.map((keyword) => (
-              <KeywordCard
-                key={keyword.id}
-                keyword={keyword}
-                selected={keyword.id === selectedId}
-                running={runningIds.has(keyword.id)}
-                onSelect={onSelect}
-                onRun={onRun}
-                onDelete={onDelete}
-              />
-            ))
-          )}
-        </div>
-      </ScrollArea>
-
-      {open ? (
-        <form onSubmit={add} className="grid gap-3 border-t p-3">
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="promo-keyword-term"
-            hint="Leave it empty and name one subreddit to watch that subreddit's new posts instead."
-          >
-            What to search Reddit for
-          </FieldLabel>
-          <Input
-            id="promo-keyword-term"
-            value={term}
-            onChange={(event) => setTerm(event.target.value)}
-            placeholder="project management tool"
-            maxLength={200}
-          />
-        </div>
-
-        <div className="grid gap-2">
-          <label className="text-sm font-medium" htmlFor="promo-keyword-subs">
-            Only these subreddits
-          </label>
-          <Input
-            id="promo-keyword-subs"
-            value={subreddits}
-            onChange={(event) => setSubreddits(event.target.value)}
-            placeholder="Leave empty to search all of Reddit"
-          />
-        </div>
-
-        {/* A watch reads the subreddit's newest posts, so Reddit's order
-            and how far back mean nothing to it and are not offered. */}
-        {watch ? (
-          <p className="text-xs text-muted-foreground">
-            No words, one subreddit: this watches{" "}
-            r/{listed[0].replace(/^(https?:\/\/(www\.)?reddit\.com)?\/?r\//i, "")}&apos;s new posts,
-            newest first.
-          </p>
-        ) : (
+      {/* A watch reads the subreddit's newest posts, so Reddit's order and
+          how far back mean nothing to it and are not offered. */}
+      {watch ? (
+        <p className="text-xs text-muted-foreground">
+          No words, one subreddit: this watches r/
+          {listed[0].replace(/^(https?:\/\/(www\.)?reddit\.com)?\/?r\//i, "")}&apos;s new posts, newest first.
+        </p>
+      ) : (
         <div className="grid grid-cols-2 gap-2">
           <div className="grid min-w-0 gap-2">
-            <label className="text-sm font-medium" htmlFor="promo-keyword-sort">
-              Reddit's order
-            </label>
-            <Select
-              value={sort}
-              onValueChange={(value) => setSort(value as RedditSort)}
-            >
+            <Label htmlFor="promo-keyword-sort">Reddit&apos;s order</Label>
+            <Select value={sort} onValueChange={(value) => setSort(value as RedditSort)}>
               <SelectTrigger id="promo-keyword-sort" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -245,15 +459,9 @@ export function KeywordsPanel({
               </SelectContent>
             </Select>
           </div>
-
           <div className="grid min-w-0 gap-2">
-            <label className="text-sm font-medium" htmlFor="promo-keyword-window">
-              How far back
-            </label>
-            <Select
-              value={timeWindow}
-              onValueChange={(value) => setTimeWindow(value as RedditWindow)}
-            >
+            <Label htmlFor="promo-keyword-window">How far back</Label>
+            <Select value={timeWindow} onValueChange={(value) => setTimeWindow(value as RedditWindow)}>
               <SelectTrigger id="promo-keyword-window" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -267,166 +475,17 @@ export function KeywordsPanel({
             </Select>
           </div>
         </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <Button
-            type="submit"
-            className="flex-1"
-            disabled={(!term.trim() && !listed.length) || adding}
-          >
-            {adding ? <Loader2Icon className="animate-spin" /> : null}
-            {watch ? "Watch it" : "Add and search"}
-          </Button>
-          {/*
-            Never disabled. It used to switch off while the fields were empty,
-            on the reasoning that there was nothing to cancel — which read as a
-            broken button, because what a person means by Cancel is "put this
-            away", not "undo my typing".
-          */}
-          <Button type="button" variant="outline" disabled={adding} onClick={cancel}>
-            Cancel
-          </Button>
-        </div>
-        </form>
-      ) : (
-        <div className="border-t p-3">
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="flex h-12 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed text-sm font-medium text-muted-foreground hover:border-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-          >
-            <PlusIcon className="size-4" />
-            Add keyword
-          </button>
-        </div>
       )}
-    </div>
-  )
-}
 
-/**
- * Every saved keyword's posts in one ranked order. The morning question is
- * what to answer, not what one saved search found, and the ranking already
- * puts every post on one scale.
- */
-function EverythingCard({
-  keywords,
-  selected,
-  onSelect,
-}: {
-  keywords: KeywordRow[]
-  selected: boolean
-  onSelect: () => void
-}) {
-  const waiting = keywords.reduce((sum, keyword) => sum + keyword.newCount, 0)
-  const line = everythingLineText(waiting, keywords.length)
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={cn(
-        // The same box as a keyword card, so the two read as one list.
-        "flex w-full min-w-0 flex-col rounded-lg border p-3 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        selected && "bg-muted"
-      )}
-    >
-      <span className="block truncate text-sm font-medium">Everything</span>
-      <span className="block truncate text-xs text-muted-foreground" title={line}>
-        {line}
-      </span>
-    </button>
-  )
-}
-
-function KeywordCard({
-  keyword,
-  selected,
-  running,
-  onSelect,
-  onRun,
-  onDelete,
-}: {
-  keyword: KeywordRow
-  selected: boolean
-  running: boolean
-  onSelect: (id: string) => void
-  onRun: (id: string) => Promise<void>
-  onDelete: (id: string) => Promise<void>
-}) {
-  const [busy, setBusy] = React.useState(false)
-
-  return (
-    <div
-      className={cn(
-        // `min-w-0` lets the card shrink to the panel. A grid item will not go
-        // narrower than its longest unbroken line by default, so at the
-        // panel's narrowest the card ran under the edge instead of the term
-        // and its subline truncating. Found 6 Oct 2026.
-        "flex min-w-0 items-start gap-2 rounded-lg border p-3",
-        selected && "bg-muted"
-      )}
-    >
-      <button
-        type="button"
-        onClick={() => onSelect(keyword.id)}
-        className="min-w-0 flex-1 text-left"
-      >
-        <span className="block truncate text-sm font-medium" title={keywordTitle(keyword)}>
-          {keywordTitle(keyword)}
-        </span>
-        <span className="block truncate text-xs text-muted-foreground" title={keywordScopeText(keyword)}>
-          {running
-            ? keyword.term
-              ? "Searching Reddit"
-              : "Reading the newest posts"
-            : keyword.lastRun?.status === "failed"
-              ? keyword.lastRun.error || "The last search failed"
-              : keywordScopeText(keyword)}
-        </span>
-      </button>
-
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        title={keyword.term ? "Search Reddit for this again" : "Read the newest posts again"}
-        disabled={busy || running}
-        onClick={async () => {
-          setBusy(true)
-          try {
-            await onRun(keyword.id)
-          } finally {
-            setBusy(false)
-          }
-        }}
-      >
-        {busy || running ? (
-          <Loader2Icon className="animate-spin" />
-        ) : (
-          <SearchIcon />
-        )}
-      </Button>
-
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        title="Remove this keyword and everything it found"
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true)
-          try {
-            await onDelete(keyword.id)
-          } finally {
-            setBusy(false)
-          }
-        }}
-      >
-        <XIcon />
-      </Button>
-    </div>
+      <div className="flex items-center justify-end gap-2">
+        <Button type="button" variant="outline" disabled={adding} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={adding}>
+          {adding ? <Loader2Icon className="animate-spin" /> : null}
+          {watch ? "Watch it" : "Add and search"}
+        </Button>
+      </div>
+    </form>
   )
 }

@@ -88,6 +88,8 @@ export type RedditAccountRow = {
   lastPostedAt: Date | null
   /** When it was retired, or null while in use. */
   retiredAt: Date | null
+  /** Paused by itself, or through a paused project, or null when it runs. */
+  paused: "account" | "project" | null
 }
 
 /** The accounts in use, or with `retired` the retired ones too, oldest first. */
@@ -101,6 +103,7 @@ export async function listRedditAccounts(
     .select({
       account: promoAccounts,
       projectName: promoProjects.name,
+      projectPausedAt: promoProjects.pausedAt,
       profileName: promoProfiles.name,
       profileTags: promoProfiles.tags,
       folderId: promoProfileFolders.id,
@@ -156,6 +159,7 @@ export async function listRedditAccounts(
       karma: account.karma,
       lastPostedAt: account.lastPostedAt,
       retiredAt: account.retiredAt,
+      paused: account.pausedAt ? "account" : row.projectPausedAt ? "project" : null,
     }
   })
 }

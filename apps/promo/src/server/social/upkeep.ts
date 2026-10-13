@@ -2,6 +2,10 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import { queueDueHealthChecks } from "./health"
 import { readDueLinkPages } from "./link-page"
+import { queueDueSearches } from "./reddit/timed-searches"
+import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
+import { proxiesRenewingSoon } from "@/server/browser/proxies"
+import { noticeRung, ringBell } from "./notices"
 import { tidyOldFinds } from "./tidy"
 import { queueDueWarmUps } from "./warm-up"
 import {
@@ -97,6 +101,74 @@ export async function queueWarmUps(
   lastWarmUpAt = now.getTime()
   const queued = await queueDueWarmUps(db, now)
   if (queued) console.log(`Picked a time for ${queued} account warm-up visit(s)`)
+}
+
+/**
+ * How often the timed searches look for keywords that are due. A keyword's
+ * gap is hours, so every five minutes is plenty.
+ */
+const TIMED_SEARCH_GAP_MS = 5 * 60_000
+
+let lastTimedSearchAt = 0
+
+/**
+ * Searches every switched-on keyword again once its last search is the set
+ * number of hours old, while the reader is awake. Only writes jobs; the
+ * browser program searches. See `reddit/timed-searches.ts`.
+ */
+export async function queueTimedSearches(
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<void> {
+  if (now.getTime() - lastTimedSearchAt < TIMED_SEARCH_GAP_MS) return
+  lastTimedSearchAt = now.getTime()
+  const queued = await queueDueSearches(db, now)
+  if (queued) console.log(`Queued ${queued} timed keyword search(es)`)
+}
+
+/** How many days ahead a proxy's renewal rings the bell. */
+const RENEWAL_WARNING_DAYS = 3
+
+/** Renewals change by the day, so once an hour is plenty. */
+const RENEWAL_GAP_MS = 60 * 60_000
+
+let lastRenewalAt = 0
+
+/**
+ * Rings the bell once for each proxy renewing in the next three days, so an
+ * expired proxy never takes its accounts offline without warning. Once per
+ * renewal date: a new date is a new notice.
+ */
+export async function ringProxyRenewals(
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<number> {
+  if (now.getTime() - lastRenewalAt < RENEWAL_GAP_MS) return 0
+  lastRenewalAt = now.getTime()
+  const day = (offset: number) =>
+    new Date(now.getTime() + offset * 86_400_000).toISOString().slice(0, 10)
+  const due = await proxiesRenewingSoon(day(0), day(RENEWAL_WARNING_DAYS), db)
+  let rung = 0
+  for (const proxy of due) {
+    const targetId = `${proxy.id}:${proxy.renewsOn}`
+    if (await noticeRung("proxy_renewal", targetId, db)) continue
+    const name = proxy.label || proxy.host
+    const cost = proxy.monthlyCost === null ? "" : ` It costs $${proxy.monthlyCost.toFixed(2)} a month.`
+    await ringBell(
+      proxy.userId,
+      {
+        kind: "proxy_renewal",
+        targetId,
+        message: `${NOTICE_HEADINGS.proxy_renewal} ${name}`,
+        detail: `The proxy ${name} renews on ${proxy.renewsOn}.${cost} Renew it, or move its profiles to another proxy before then.`,
+        href: `/admin/proxies?open=${encodeURIComponent(proxy.id)}`,
+      },
+      db,
+      now
+    )
+    rung += 1
+  }
+  return rung
 }
 
 /**

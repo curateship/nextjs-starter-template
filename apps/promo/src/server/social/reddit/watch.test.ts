@@ -113,11 +113,8 @@ describe("watching a subreddit", () => {
       sort: "new",
       window: "week",
     })
-    const finds = await listFinds(userId, { projectId, keywordId: id, status: "all" }, db, NOW)
-    expect(finds.map((find) => find.rankReason)).toEqual([
-      "The subreddit's newest post, posted in the last few hours, no replies yet",
-      "The subreddit's post 2 by newest, posted in the last few hours, no replies yet",
-    ])
+    const finds = await listFinds(userId, { projectId, keywordId: id, status: "all" }, db)
+    expect(finds.map((find) => find.place)).toEqual(["newest 1", "newest 2"])
     const [card] = await listKeywords(userId, projectId, db)
     expect(card).toMatchObject({ term: "", subreddits: ["SaaS"], postCount: 2 })
   })
@@ -185,7 +182,7 @@ describe("link posts and the Everything list", () => {
     searchReddit.mockResolvedValueOnce(answer([post("t3_c", 1)]))
     await runKeywordSearch(userId, tools, target, db, NOW)
 
-    const everything = await listFinds(userId, { projectId, status: "all" }, db, NOW)
+    const everything = await listFinds(userId, { projectId, status: "all" }, db)
     expect(everything.map((find) => [find.permalink, find.keywordId])).toEqual([
       ["/r/SaaS/comments/t3_a/", saas],
       ["/r/SaaS/comments/t3_c/", tools],
@@ -202,8 +199,8 @@ describe("link posts and the Everything list", () => {
     searchReddit.mockResolvedValueOnce(answer([post("t3_b", 0)]))
     await runKeywordSearch(userId, theirs, target, db, NOW)
 
-    expect((await listFinds(userId, { projectId, status: "all" }, db, NOW)).map((find) => find.keywordId)).toEqual([mine])
-    expect((await listFinds(userId, { projectId: other, status: "all" }, db, NOW)).map((find) => find.keywordId)).toEqual([theirs])
+    expect((await listFinds(userId, { projectId, status: "all" }, db)).map((find) => find.keywordId)).toEqual([mine])
+    expect((await listFinds(userId, { projectId: other, status: "all" }, db)).map((find) => find.keywordId)).toEqual([theirs])
     expect((await listKeywords(userId, other, db)).map((keyword) => keyword.id)).toEqual([theirs])
   })
 })

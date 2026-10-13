@@ -44,6 +44,7 @@ import { Route as AuthenticatedAdminCrmRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
+import { Route as AuthenticatedAdminJobsRouteImport } from './routes/_authenticated/admin/jobs'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_authenticated/admin/membership'
 import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_authenticated/admin/newsletter'
@@ -59,6 +60,7 @@ import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
+import { Route as AuthenticatedAdminTodayRouteImport } from './routes/_authenticated/admin/today'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminVoicesRouteImport } from './routes/_authenticated/admin/voices'
@@ -264,6 +266,11 @@ const AuthenticatedAdminFeedbackRoute =
     path: '/feedback',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminJobsRoute = AuthenticatedAdminJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
   id: '/media',
   path: '/media',
@@ -351,6 +358,11 @@ const AuthenticatedAdminSystemEmailsRoute =
     path: '/system-emails',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminTodayRoute = AuthenticatedAdminTodayRouteImport.update({
+  id: '/today',
+  path: '/today',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminTrafficRoute =
   AuthenticatedAdminTrafficRouteImport.update({
     id: '/traffic',
@@ -510,6 +522,7 @@ export interface FileRoutesByFullPath {
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/admin/jobs': typeof AuthenticatedAdminJobsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -525,6 +538,7 @@ export interface FileRoutesByFullPath {
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
+  '/admin/today': typeof AuthenticatedAdminTodayRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/voices': typeof AuthenticatedAdminVoicesRoute
@@ -581,6 +595,7 @@ export interface FileRoutesByTo {
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/admin/jobs': typeof AuthenticatedAdminJobsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -596,6 +611,7 @@ export interface FileRoutesByTo {
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
+  '/admin/today': typeof AuthenticatedAdminTodayRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/voices': typeof AuthenticatedAdminVoicesRoute
@@ -656,6 +672,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/_authenticated/admin/jobs': typeof AuthenticatedAdminJobsRoute
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/_authenticated/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -671,6 +688,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
+  '/_authenticated/admin/today': typeof AuthenticatedAdminTodayRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/voices': typeof AuthenticatedAdminVoicesRoute
@@ -731,6 +749,7 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/feedback'
+    | '/admin/jobs'
     | '/admin/media'
     | '/admin/membership'
     | '/admin/newsletter'
@@ -746,6 +765,7 @@ export interface FileRouteTypes {
     | '/admin/segments'
     | '/admin/settings'
     | '/admin/system-emails'
+    | '/admin/today'
     | '/admin/traffic'
     | '/admin/users'
     | '/admin/voices'
@@ -802,6 +822,7 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/feedback'
+    | '/admin/jobs'
     | '/admin/media'
     | '/admin/membership'
     | '/admin/newsletter'
@@ -817,6 +838,7 @@ export interface FileRouteTypes {
     | '/admin/segments'
     | '/admin/settings'
     | '/admin/system-emails'
+    | '/admin/today'
     | '/admin/traffic'
     | '/admin/users'
     | '/admin/voices'
@@ -876,6 +898,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/dev-outbox'
     | '/_authenticated/admin/feedback'
+    | '/_authenticated/admin/jobs'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/membership'
     | '/_authenticated/admin/newsletter'
@@ -891,6 +914,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/segments'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/system-emails'
+    | '/_authenticated/admin/today'
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/voices'
@@ -1193,6 +1217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/jobs': {
+      id: '/_authenticated/admin/jobs'
+      path: '/jobs'
+      fullPath: '/admin/jobs'
+      preLoaderRoute: typeof AuthenticatedAdminJobsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/media': {
       id: '/_authenticated/admin/media'
       path: '/media'
@@ -1296,6 +1327,13 @@ declare module '@tanstack/react-router' {
       path: '/system-emails'
       fullPath: '/admin/system-emails'
       preLoaderRoute: typeof AuthenticatedAdminSystemEmailsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/today': {
+      id: '/_authenticated/admin/today'
+      path: '/today'
+      fullPath: '/admin/today'
+      preLoaderRoute: typeof AuthenticatedAdminTodayRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/traffic': {
@@ -1492,6 +1530,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
+  AuthenticatedAdminJobsRoute: typeof AuthenticatedAdminJobsRoute
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminMembershipRoute: typeof AuthenticatedAdminMembershipRoute
   AuthenticatedAdminNewsletterRoute: typeof AuthenticatedAdminNewsletterRoute
@@ -1507,6 +1546,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedAdminSystemEmailsRoute: typeof AuthenticatedAdminSystemEmailsRoute
+  AuthenticatedAdminTodayRoute: typeof AuthenticatedAdminTodayRoute
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminVoicesRoute: typeof AuthenticatedAdminVoicesRoute
@@ -1531,6 +1571,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
+  AuthenticatedAdminJobsRoute: AuthenticatedAdminJobsRoute,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminMembershipRoute: AuthenticatedAdminMembershipRoute,
   AuthenticatedAdminNewsletterRoute: AuthenticatedAdminNewsletterRoute,
@@ -1546,6 +1587,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
   AuthenticatedAdminSystemEmailsRoute: AuthenticatedAdminSystemEmailsRoute,
+  AuthenticatedAdminTodayRoute: AuthenticatedAdminTodayRoute,
   AuthenticatedAdminTrafficRoute: AuthenticatedAdminTrafficRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminVoicesRoute: AuthenticatedAdminVoicesRoute,

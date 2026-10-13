@@ -76,8 +76,31 @@ its buttons went off the edge.
   - Set status, or Let the app decide.
   - Check now: queues the same health reading as Settings → Reddit account, for
     each one. One already being checked, or retired, is skipped and counted.
+  - Pause, and Resume.
   - Retire.
-- **Each row** has Check now and Retire.
+- **Each row** has Help-only posts, Check now, Pause or Resume, and Retire.
+- **The voice menu is 128px wide**, 32px narrower than it was, so a row with
+  four buttons still fits a 1440px window (measured 13 Oct 2026: 1232px of
+  columns against 1232px of room).
+
+## Pausing
+
+A paused account stays in the list and every picker, and does not post, warm
+up or take a health reading until it is resumed. Its Status column says
+**Paused**, or **Project paused** when its whole project is paused, which is
+resumed from the project's own dashboard instead. Post says why it is off.
+A comment pressed before the pause waits and can still be cancelled. Unlike
+retiring, a pause is meant to end. A retired account cannot be paused.
+
+## Help-only posts
+
+The hand button on a row opens that account's help-only posts: the newest
+posts in the subreddits it has joined, to answer with help and never a word
+about what you make. Tyler, 12 Oct 2026: it lives here, on the Reddit accounts
+dashboard. The window shows the subreddits the account has joined with **Read
+new posts**, then the posts to help with. Pressing a post opens it in the
+comment box, and **Done** shuts the window. [Behaving like a
+person](../accounts/behaving-like-a-person.md) has why and how.
 
 ## Retiring
 
@@ -92,7 +115,9 @@ list, with "Retired" and when under the name, and **Bring back** undoes it.
 
 `promo_accounts.status_override` holds a hand-set status and
 `promo_accounts.retired_at` the retirement, both added by
-`drizzle/0108_promo_projects.sql`. The page is
+`drizzle/0108_promo_projects.sql`. `promo_accounts.paused_at` is the pause,
+added by `drizzle/0110_promo_new_features.sql`, with its rules in
+`src/server/social/pause.ts`. The page is
 `src/components/social/accounts/accounts-dashboard.tsx`, the endpoints
 `src/lib/api/social/reddit-accounts.ts`, and the server
 `src/server/social/account-list.ts`.

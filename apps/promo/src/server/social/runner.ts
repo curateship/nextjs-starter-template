@@ -15,12 +15,18 @@ import {
   touchSession,
 } from "@/server/browser/session"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { NO_PROFILE_MESSAGE, READER_JOB_KINDS } from "@/lib/social/options"
+import { NO_PROFILE_MESSAGE, READER_JOB_KINDS, WRITE_JOB_KINDS } from "@/lib/social/options"
 import { nextWakeAt } from "@/lib/social/waking"
 
 import { profileTimeZone, readBehaviour, readerProfile } from "./behaviour"
+import { ringForFailure } from "./failures"
+import { pausedBy } from "./pause"
 import { accountFigures, recordAccountHealth, recordStrangerCheck } from "./health"
+import { deleteSentComment, editSentComment } from "./reddit/change-comment"
 import { recordCommentCheck } from "./reddit/comment-check"
+import { readHelpPosts } from "./reddit/help-posts"
+import { submitOwnPost } from "./reddit/own-posts"
+import { readPromoThreads } from "./reddit/promo-threads"
 import { postComment } from "./reddit/post-comment"
 import { postReply } from "./reddit/post-reply"
 import { readSubredditRules } from "./reddit/rules"
@@ -57,6 +63,9 @@ export type TurnResult =
   | { did: "put back"; kind: string; jobId: string; why: string }
 
 type Account = typeof promoAccounts.$inferSelect
+
+/** How long a comment pressed before a pause waits before it looks again. */
+const PAUSED_RECHECK_MS = 10 * 60_000
 
 /**
  * A job that did nothing and goes back on the queue untried: taken outside
@@ -97,9 +106,11 @@ export async function runOneJob(
     // say the same thing again. A comment may already be on Reddit: the app
     // can give up waiting while the browser is still typing, and a retry
     // would then post it twice. An answer to a reply is a comment too.
-    const final = error instanceof Refusal || job.kind === "comment" || job.kind === "reply"
+    const final = error instanceof Refusal || WRITE_JOB_KINDS.includes(job.kind)
     const attempts = final ? JOB_MAX_ATTEMPTS : job.attempts
     await failJob(job.id, claimToken, message, attempts, db)
+    // A comment, an answer or a post that did not go out rings the bell.
+    await ringForFailure(job, message, db)
     return { did: "job", kind: job.kind, jobId: job.id, ok: false, error: message }
   }
 }
@@ -165,10 +176,25 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   if (!account.profileId) throw new Refusal(NO_PROFILE_MESSAGE)
   // Retired after the job was queued. A retired account never posts and
   // never warms up; a health reading is only a read and still runs.
-  const writes = job.kind === "comment" || job.kind === "reply" || job.kind === "warm_up"
+  const writes = WRITE_JOB_KINDS.includes(job.kind) || job.kind === "warm_up"
   if (account.retiredAt && writes) {
     throw new Refusal(
       "This account is retired, so it no longer posts or warms up. Bring it back on the Reddit accounts dashboard first."
+    )
+  }
+
+  // A paused account, or one in a paused project, does not post, warm up or
+  // take a health reading. A comment or an answer pressed before the pause
+  // waits, and can still be cancelled; a warm-up or a reading is refused.
+  const paused = await pausedBy(job.userId, account, db)
+  if (paused && WRITE_JOB_KINDS.includes(job.kind)) {
+    throw new PutBack({ runAfter: new Date(Date.now() + PAUSED_RECHECK_MS) })
+  }
+  if (paused) {
+    throw new Refusal(
+      paused === "account"
+        ? "This account is paused, so it does not warm up or take health readings. Resume it on the Reddit accounts dashboard."
+        : "This account's project is paused, so it does not warm up or take health readings. Resume the project on its dashboard."
     )
   }
 
@@ -223,6 +249,16 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
         session.target,
         db
       )
+    } else if (job.kind === "submit") {
+      await submitOwnPost(job.userId, account.id, job.payload, session.target, db)
+    } else if (job.kind === "delete_comment" || job.kind === "edit_comment") {
+      const commentId = String(job.payload.commentId ?? "")
+      if (!commentId) throw new Error(`That ${job.kind} job names no comment.`)
+      if (job.kind === "delete_comment") {
+        await deleteSentComment(job.userId, commentId, session.target, db)
+      } else {
+        await editSentComment(job.userId, commentId, String(job.payload.text ?? ""), session.target, db)
+      }
     } else if (job.kind === "health") {
       await recordAccountHealth(job.userId, account.id, session.target, db)
     } else if (job.kind === "warm_up") {
@@ -282,6 +318,10 @@ async function runReaderJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
       await recordCommentCheck(job.userId, commentId, session.target, db)
     } else if (job.kind === "profile_check") {
       await recordStrangerCheck(job.userId, job.payload, session.target, db)
+    } else if (job.kind === "help_read") {
+      await readHelpPosts(job.userId, job.payload, session.target, db)
+    } else if (job.kind === "promo_threads") {
+      await readPromoThreads(job.userId, job.payload, session.target, db)
     } else {
       throw new Error(`There is no job kind called "${job.kind}".`)
     }

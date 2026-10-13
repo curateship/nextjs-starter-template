@@ -1,0 +1,449 @@
+import * as React from "react"
+import { Link, useNavigate } from "@tanstack/react-router"
+import { Loader2Icon, MessageCircleReplyIcon, RefreshCwIcon, SunIcon, XIcon } from "lucide-react"
+import { toast } from "sonner"
+
+import { DashboardTable } from "@/components/shared/dashboard-table"
+import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import {
+  SelectAllTableHead,
+  SortableTableHeader,
+  type TableHeaderColumn,
+} from "@/components/shared/sortable-table-header"
+import { useShellRuntime } from "@/components/shell/shell-layout"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { checkComments, getCommentsErrorMessage } from "@/lib/api/social/comments"
+import { getRedditErrorMessage, setFindsStatus } from "@/lib/api/social/reddit/keywords"
+import { getTodayErrorMessage, loadToday, type TodayView } from "@/lib/api/social/today"
+import { describeBulkResult } from "@/lib/format/bulk-result"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { postedDateText } from "@/lib/social/wording"
+import { showErrorToast } from "@/lib/toast/error-toast"
+
+import { Hint } from "../hint"
+
+export type TodayTab = "posts" | "replies"
+
+type Post = TodayView["posts"][number]
+type Reply = TodayView["replies"][number]
+
+type PostColumn = "post" | "project" | "subreddit" | "posted" | "replies"
+type ReplyColumn = "post" | "project" | "account" | "toAnswer"
+
+const POST_COLUMNS: TableHeaderColumn<PostColumn>[] = [
+  { key: "post", label: "Post", column: "main" },
+  { key: "project", label: "Project", column: "meta" },
+  { key: "subreddit", label: "Subreddit", column: "meta", className: "hidden md:table-cell" },
+  { key: "posted", label: "Posted", column: "meta", className: "hidden md:table-cell" },
+  { key: "replies", label: "Replies", column: "meta", className: "text-right" },
+]
+
+const REPLY_COLUMNS: TableHeaderColumn<ReplyColumn>[] = [
+  { key: "post", label: "Your comment on", column: "main" },
+  { key: "project", label: "Project", column: "meta", className: "hidden md:table-cell" },
+  { key: "account", label: "Account", column: "meta", className: "hidden md:table-cell" },
+  { key: "toAnswer", label: "To answer", column: "meta", className: "text-right" },
+]
+
+const time = (value: Date | null) => (value ? new Date(value).getTime() : 0)
+
+/** The list's own order is the ranking, so "post" sorts by it rather than by title. */
+function comparePosts(a: Post, b: Post, column: PostColumn, order: Map<string, number>): number {
+  switch (column) {
+    case "project":
+      return a.project.name.localeCompare(b.project.name)
+    case "subreddit":
+      return a.subreddit.localeCompare(b.subreddit)
+    case "posted":
+      return time(a.postedAt) - time(b.postedAt)
+    case "replies":
+      return a.commentCount - b.commentCount
+    default:
+      return (order.get(b.id) ?? 0) - (order.get(a.id) ?? 0)
+  }
+}
+
+function compareReplies(a: Reply, b: Reply, column: ReplyColumn): number {
+  switch (column) {
+    case "project":
+      return (a.project?.name ?? "~").localeCompare(b.project?.name ?? "~")
+    case "account":
+      return (a.account.handle || "~").localeCompare(b.account.handle || "~")
+    case "toAnswer":
+      return a.toAnswer - b.toAnswer
+    default:
+      return a.postTitle.localeCompare(b.postTitle)
+  }
+}
+
+/**
+ * Today: every project's Strong fit posts and every reply waiting for an
+ * answer, best first, so the morning round is one list rather than a visit to
+ * each project.
+ *
+ * A post opens on its project's dashboard, where Post sends from one of that
+ * project's accounts. A reply opens its comment's Replies window. Nothing
+ * here sends anything; Skip only moves posts out of the way.
+ */
+export function TodayDashboard({ initial, tab }: { initial: TodayView; tab: TodayTab }) {
+  const navigate = useNavigate()
+  const [view, setView] = React.useState(initial)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const refresh = React.useCallback(
+    (): Promise<void> =>
+      loadToday().then(
+        (next) => {
+          setView(next)
+          setError(null)
+        },
+        (failure: unknown) => setError(getTodayErrorMessage(failure))
+      ),
+    []
+  )
+
+  const tabs = (
+    <Tabs
+      value={tab}
+      onValueChange={(value) =>
+        void navigate({ to: ".", search: value === "replies" ? { tab: "replies" } : {} })
+      }
+    >
+      <TabsList>
+        <TabsTrigger value="posts" aria-label={`Posts to answer, ${view.posts.length}`}>
+          Posts
+          <TabsCount>{view.posts.length}</TabsCount>
+        </TabsTrigger>
+        <TabsTrigger value="replies" aria-label={`Replies to answer, ${view.replies.length}`}>
+          Replies
+          <TabsCount>{view.replies.length}</TabsCount>
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+  )
+
+  return tab === "replies" ? (
+    <RepliesTable tabs={tabs} rows={view.replies} error={error} onRefresh={refresh} />
+  ) : (
+    <PostsTable tabs={tabs} rows={view.posts} error={error} onRefresh={refresh} />
+  )
+}
+
+function usePages<T>(rows: T[]) {
+  const { config } = useShellRuntime()
+  const [page, setPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  return {
+    visible: rows.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    footer: {
+      type: "pagination" as const,
+      page: currentPage,
+      pageSize,
+      total: rows.length,
+      totalPages,
+      onPageChange: (next: number) => setPage(Math.max(1, Math.min(next, totalPages))),
+      onPageSizeChange: (next: number) => {
+        setPage(1)
+        setPageSize(next)
+      },
+    },
+  }
+}
+
+function PostsTable({
+  tabs,
+  rows,
+  error,
+  onRefresh,
+}: {
+  tabs: React.ReactNode
+  rows: Post[]
+  error: string | null
+  onRefresh: () => Promise<void>
+}) {
+  const navigate = useNavigate()
+  const { sort, direction, toggleSort } = useTableSort<PostColumn>("post", "desc")
+  const selection = useSelection()
+  const [skipping, setSkipping] = React.useState(false)
+  const order = React.useMemo(() => new Map(rows.map((row, index) => [row.id, rows.length - index])), [rows])
+  const sorted = React.useMemo(() => {
+    const factor = direction === "asc" ? 1 : -1
+    return [...rows].sort((a, b) => factor * comparePosts(a, b, sort, order))
+  }, [direction, order, rows, sort])
+  const { visible, footer } = usePages(sorted)
+  const visibleIds = visible.map((row) => row.id)
+
+  async function skip(ids: string[]) {
+    setSkipping(true)
+    try {
+      const answer = await setFindsStatus(ids, "skipped")
+      toast.success(
+        describeBulkResult({
+          done: answer.completed.length,
+          kept: answer.skipped.length,
+          one: "post",
+          many: "posts",
+          verb: "skipped",
+          keptReason: "already commented on",
+        })
+      )
+      selection.clear()
+      await onRefresh()
+    } catch (failure) {
+      showErrorToast(getRedditErrorMessage(failure))
+    } finally {
+      setSkipping(false)
+    }
+  }
+
+  return (
+    <DashboardTable
+      title="Today"
+      icon={<SunIcon />}
+      tabs={tabs}
+      count={rows.length}
+      error={error ? { message: error, onRetry: () => void onRefresh() } : null}
+      selectedCount={selection.selected.size}
+      onClearSelection={selection.clear}
+      controls={
+        selection.selected.size ? (
+          <DashboardToolbarButton
+            type="button"
+            variant="outline"
+            disabled={skipping}
+            onClick={() => void skip([...selection.selected])}
+          >
+            {skipping ? <Loader2Icon className="size-4 animate-spin" /> : <XIcon className="size-4" />}
+            Skip ({selection.selected.size})
+          </DashboardToolbarButton>
+        ) : null
+      }
+      header={
+        <SortableTableHeader
+          columns={POST_COLUMNS}
+          sort={sort}
+          direction={direction}
+          onSort={toggleSort}
+          leading={
+            <SelectAllTableHead
+              noun="posts"
+              checked={selection.selectAllState(visibleIds)}
+              onCheckedChange={() => selection.toggleVisible(visibleIds)}
+            />
+          }
+          trailing={<TableHead column="meta">Actions</TableHead>}
+        />
+      }
+      isEmpty={rows.length === 0}
+      emptyText="No Strong fit posts are waiting in any project. Keywords search again by themselves every few hours."
+      emptyColSpan={POST_COLUMNS.length + 2}
+      footer={footer}
+    >
+      {visible.map((row) => (
+        <TableRow
+          key={row.id}
+          className="group"
+          rowAction={() =>
+            void navigate({ to: "/admin/projects/$projectId", params: { projectId: row.project.id }, search: { post: row.id } })
+          }
+        >
+          <TableCell column="select">
+            <Checkbox
+              checked={selection.selected.has(row.id)}
+              onCheckedChange={() => selection.toggle(row.id)}
+              aria-label={`Select ${row.title}`}
+            />
+          </TableCell>
+          <TableCell column="main" className="max-w-0">
+            <Hint label={row.title}>
+              <Link
+                to="/admin/projects/$projectId"
+                params={{ projectId: row.project.id }}
+                search={{ post: row.id }}
+                className="block max-w-full truncate text-sm font-medium group-hover:underline"
+              >
+                {row.title || "A post with no title"}
+              </Link>
+            </Hint>
+            <Hint label={row.reason}>
+              <span className="block truncate text-xs text-muted-foreground">{row.reason}</span>
+            </Hint>
+          </TableCell>
+          <TableCell column="meta" className="max-w-32">
+            <span className="block truncate">{row.project.name}</span>
+          </TableCell>
+          <TableCell column="meta" className="hidden max-w-32 md:table-cell">
+            <span className="block truncate text-muted-foreground">r/{row.subreddit}</span>
+          </TableCell>
+          <TableCell column="meta" className="hidden text-muted-foreground md:table-cell">
+            {postedDateText(row.postedAt ? new Date(row.postedAt) : null)}
+          </TableCell>
+          <TableCell column="meta" className="text-right tabular-nums">
+            {row.commentCount}
+          </TableCell>
+          <TableCell column="actions">
+            <Hint label="Skip this post">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={skipping}
+                onClick={() => void skip([row.id])}
+                aria-label={`Skip ${row.title}`}
+              >
+                <XIcon className="size-4" />
+              </Button>
+            </Hint>
+          </TableCell>
+        </TableRow>
+      ))}
+    </DashboardTable>
+  )
+}
+
+function RepliesTable({
+  tabs,
+  rows,
+  error,
+  onRefresh,
+}: {
+  tabs: React.ReactNode
+  rows: Reply[]
+  error: string | null
+  onRefresh: () => Promise<void>
+}) {
+  const navigate = useNavigate()
+  const { sort, direction, toggleSort } = useTableSort<ReplyColumn>("toAnswer", "desc")
+  const selection = useSelection()
+  const sorted = React.useMemo(() => {
+    const factor = direction === "asc" ? 1 : -1
+    return [...rows].sort((a, b) => factor * compareReplies(a, b, sort))
+  }, [direction, rows, sort])
+  const { visible, footer } = usePages(sorted)
+  const visibleIds = visible.map((row) => row.commentId)
+  const [checking, setChecking] = React.useState(false)
+
+  async function check(ids: string[]) {
+    setChecking(true)
+    try {
+      const answer = await checkComments(ids)
+      toast.success(
+        describeBulkResult({
+          done: answer.completed.length,
+          kept: answer.skipped.length,
+          one: "comment",
+          many: "comments",
+          verb: "queued to be read again",
+          keptReason: "already being read",
+        })
+      )
+      selection.clear()
+    } catch (failure) {
+      showErrorToast(getCommentsErrorMessage(failure))
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  return (
+    <DashboardTable
+      title="Today"
+      icon={<SunIcon />}
+      tabs={tabs}
+      count={rows.length}
+      error={error ? { message: error, onRetry: () => void onRefresh() } : null}
+      selectedCount={selection.selected.size}
+      onClearSelection={selection.clear}
+      controls={
+        selection.selected.size ? (
+          <DashboardToolbarButton
+            type="button"
+            variant="outline"
+            disabled={checking}
+            onClick={() => void check([...selection.selected])}
+          >
+            {checking ? <Loader2Icon className="size-4 animate-spin" /> : <RefreshCwIcon className="size-4" />}
+            Check again ({selection.selected.size})
+          </DashboardToolbarButton>
+        ) : null
+      }
+      header={
+        <SortableTableHeader
+          columns={REPLY_COLUMNS}
+          sort={sort}
+          direction={direction}
+          onSort={toggleSort}
+          leading={
+            <SelectAllTableHead
+              noun="comments"
+              checked={selection.selectAllState(visibleIds)}
+              onCheckedChange={() => selection.toggleVisible(visibleIds)}
+            />
+          }
+          trailing={<TableHead column="meta">Actions</TableHead>}
+        />
+      }
+      isEmpty={rows.length === 0}
+      emptyText="No replies are waiting for an answer. Replies show here once a check on the Comments screen has read them."
+      emptyColSpan={REPLY_COLUMNS.length + 2}
+      footer={footer}
+    >
+      {visible.map((row) => (
+        <TableRow
+          key={row.commentId}
+          className="group"
+          rowAction={() => void navigate({ to: "/admin/comments", search: { replies: row.commentId } })}
+        >
+          <TableCell column="select">
+            <Checkbox
+              checked={selection.selected.has(row.commentId)}
+              onCheckedChange={() => selection.toggle(row.commentId)}
+              aria-label={`Select your comment on ${row.postTitle}`}
+            />
+          </TableCell>
+          <TableCell column="main" className="max-w-0">
+            <Hint label={row.postTitle}>
+              <Link
+                to="/admin/comments"
+                search={{ replies: row.commentId }}
+                className="block max-w-full truncate text-sm font-medium group-hover:underline"
+              >
+                {row.postTitle || "A post with no title"}
+              </Link>
+            </Hint>
+            <Hint label={row.latest.text}>
+              <span className="block truncate text-xs text-muted-foreground">
+                {row.latest.author ? `u/${row.latest.author}: ` : ""}
+                {row.latest.text}
+              </span>
+            </Hint>
+          </TableCell>
+          <TableCell column="meta" className="hidden max-w-32 md:table-cell">
+            <span className="block truncate text-muted-foreground">{row.project?.name ?? "No project"}</span>
+          </TableCell>
+          <TableCell column="meta" className="hidden max-w-32 md:table-cell">
+            <span className="block truncate">{row.account.handle ? `u/${row.account.handle}` : "Not signed in"}</span>
+          </TableCell>
+          <TableCell column="meta" className="text-right tabular-nums">
+            {row.toAnswer}
+          </TableCell>
+          <TableCell column="actions">
+            <Hint label="Open the replies and answer them">
+              <Button type="button" variant="ghost" size="icon" asChild>
+                <Link to="/admin/comments" search={{ replies: row.commentId }} aria-label={`Answer the replies on ${row.postTitle}`}>
+                  <MessageCircleReplyIcon className="size-4" />
+                </Link>
+              </Button>
+            </Hint>
+          </TableCell>
+        </TableRow>
+      ))}
+    </DashboardTable>
+  )
+}
