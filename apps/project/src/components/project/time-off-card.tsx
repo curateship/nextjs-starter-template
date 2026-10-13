@@ -11,15 +11,12 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import { addDaysOff, loadDaysOff, removeDaysOff, type TimeOff } from "@/lib/api/project/checkins"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { keyFromDate } from "@/lib/project/dates"
-import { dayLabel } from "@/lib/project/days"
+import { dayLabel, dayRangeLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /** "Oct 14", or "Oct 14 to Oct 16", with the year only when it isn't this one. */
-const spanLabel = (entry: TimeOff) =>
-  entry.firstDay === entry.lastDay
-    ? dayLabel(entry.firstDay)
-    : `${dayLabel(entry.firstDay)} to ${dayLabel(entry.lastDay)}`
+const spanLabel = (entry: TimeOff) => dayRangeLabel(entry.firstDay, entry.lastDay)
 
 /**
  * Days off for one person: my own on My dashboard, or a teammate's in their

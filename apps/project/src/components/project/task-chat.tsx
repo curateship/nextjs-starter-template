@@ -10,9 +10,11 @@ import {
   SettingsIcon,
   SmilePlusIcon,
   Trash2Icon,
+  VoteIcon,
   XIcon,
 } from "lucide-react"
 
+import { PollChoices, PollDialog } from "@/components/project/chat-poll"
 import type { Change } from "@/components/project/task-body"
 import { SmallPicture } from "@/components/project/task-files-card"
 import { TagTextarea, TaggedWords, type TaskLinking } from "@/components/project/tag-textarea"
@@ -46,7 +48,16 @@ import { plural } from "@/lib/format/plural"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { dayLabel } from "@/lib/project/days"
 import { taskFileHref } from "@/lib/project/files"
-import { messageParts, messageText, taggedUserIds, tagPeople, tokenizeMessage } from "@/lib/project/mentions"
+import {
+  PROJECT_TAG,
+  messageParts,
+  messageText,
+  taggedUserIds,
+  tagPeople,
+  tokenizeMessage,
+} from "@/lib/project/mentions"
+import { namesLine } from "@/lib/project/names-line"
+import { useOpenPerson } from "@/lib/project/person-pages"
 import { LIMITS, REACTIONS, REACTION_LOOK, type ChatPlace, type Reaction } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -293,6 +304,7 @@ function Composer({
   const [links, setLinks] = React.useState<LinkChoice[]>([])
   const [sending, setSending] = React.useState(false)
   const [dragging, setDragging] = React.useState(false)
+  const [polling, setPolling] = React.useState(false)
   // A ref as well as the state: two Enters in one frame both see the old state.
   const inFlight = React.useRef(false)
   const input = React.useRef<HTMLInputElement>(null)
@@ -326,7 +338,7 @@ function Composer({
   async function send() {
     if (inFlight.current) return
     const sent = text
-    const body = tokenizeMessage(sent.trim(), people, links)
+    const body = tokenizeMessage(sent.trim(), [...people, PROJECT_TAG], links)
     if (!body && files.length === 0) {
       showErrorToast("Write the message or add a file first.")
       return
@@ -438,6 +450,24 @@ function Composer({
                 attach(picked)
               }}
             />
+            {"projectId" in chat ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button type="button" variant="ghost" size="icon" aria-label="New poll" onClick={() => setPolling(true)}>
+                      <VoteIcon className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Ask the project a question with choices</TooltipContent>
+                </Tooltip>
+                <PollDialog
+                  projectId={chat.projectId}
+                  open={polling}
+                  onClose={() => setPolling(false)}
+                  change={change}
+                />
+              </>
+            ) : null}
           </>
         }
         after={
@@ -501,6 +531,7 @@ function MessageBox({
           people={people}
           listLabel="People on the project"
           linking={linking}
+          wholeProject
           maxLength={LIMITS.comment}
           autoFocus={autoFocus}
           placeholder="Write a message. Type @ to tag someone, # to link a task."
@@ -567,6 +598,8 @@ function MessageRow({
   const [editLinks, setEditLinks] = React.useState<LinkChoice[]>([])
   const linking = useTaskLinking((task) => setEditLinks((current) => [...current, task]))
   const fileCount = message.files.length
+  // A teammate's page opens from the name, except inside a window.
+  const openPerson = useOpenPerson()
 
   async function work(task: () => Promise<unknown>, successText?: string) {
     if (inFlight.current) return false
@@ -591,7 +624,7 @@ function MessageRow({
   }
 
   async function saveEdit() {
-    const body = tokenizeMessage(draft.trim(), people, editLinks)
+    const body = tokenizeMessage(draft.trim(), [...people, PROJECT_TAG], editLinks)
     if (!body && fileCount === 0) {
       showErrorToast("A message can't be empty. Delete it instead.")
       return
@@ -648,15 +681,38 @@ function MessageRow({
       </DropdownMenu>
     ) : null
 
+  const author = message.author
   return (
     <li
       id={domId}
       className={cn("flex gap-3 rounded-md transition-colors", flash && "bg-accent")}
     >
-      <PersonAvatar name={name} avatarUrl={message.author?.avatarUrl} />
+      {author && openPerson ? (
+        <button
+          type="button"
+          aria-label={`Open ${author.name}'s page`}
+          className="self-start rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          onClick={() => openPerson(author.id)}
+        >
+          <PersonAvatar name={name} avatarUrl={author.avatarUrl} />
+        </button>
+      ) : (
+        <PersonAvatar name={name} avatarUrl={message.author?.avatarUrl} />
+      )}
       <div className="grid min-w-0 flex-1 gap-1">
         <p className="text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">{name}</span> ·{" "}
+          {author && openPerson ? (
+            <button
+              type="button"
+              className="font-medium text-foreground hover:underline focus-visible:underline focus-visible:outline-none"
+              onClick={() => openPerson(author.id)}
+            >
+              {name}
+            </button>
+          ) : (
+            <span className="font-medium text-foreground">{name}</span>
+          )}{" "}
+          ·{" "}
           <time dateTime={message.createdAt} title={formatDateTime(message.createdAt)}>
             {formatTimeAgo(message.createdAt)}
           </time>
@@ -706,6 +762,9 @@ function MessageRow({
           <p className="text-sm break-words whitespace-pre-wrap">
             <TaggedWords body={message.body} people={people} links={message.links} onOpenTask={onOpenTask} />
           </p>
+        ) : null}
+        {message.poll ? (
+          <PollChoices commentId={message.id} poll={message.poll} readOnly={readOnly} change={change} />
         ) : null}
         {fileCount ? <MessageFiles files={message.files} /> : null}
         {!message.deleted ? (
@@ -780,13 +839,6 @@ function MessageFiles({ files }: { files: TaskFile[] }) {
       )}
     </ul>
   )
-}
-
-/** "Ben Tester", "Ben Tester and Leo Hart", "Ben Tester, Leo Hart and 2 more". */
-function namesLine(people: string[]) {
-  if (people.length <= 2) return people.join(" and ")
-  if (people.length === 3) return `${people[0]}, ${people[1]} and ${people[2]}`
-  return `${people[0]}, ${people[1]} and ${people.length - 2} more`
 }
 
 /**

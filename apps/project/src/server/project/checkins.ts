@@ -189,8 +189,16 @@ export type CheckinPage = {
   questions: CheckinQuestions
   /** Everyone on the team, who a note can tag with @. */
   people: { id: string; name: string; avatarUrl: string }[]
-  /** Today's optional check-out, once checked in. Only the person sees it. */
-  checkout: { at: string | null; noteLeft: string | null } | null
+  /**
+   * Today's optional check-out, once checked in, with the tasks ticked for
+   * the next check-in. Only the person sees it.
+   */
+  checkout: { at: string | null; noteLeft: string | null; tomorrowTaskIds: string[] } | null
+  /**
+   * Before checking in: the tasks the last check-out planned for today that
+   * are still mine and open, which start ticked. Empty once checked in.
+   */
+  planned: string[]
   /** The tasks to pick from: mine and not Done, plus anything already picked today. */
   groups: { project: ProjectRef; tasks: TaskCard[] }[]
   /** Open projects this person can add a task to. */
@@ -293,7 +301,20 @@ export async function loadCheckinPage(
       : { yesterday: await lastNoteLeft(userId, today.day, database), today: null, blocker: null },
     questions: await teamQuestions(membership.teamId, database),
     people: await teamPeople(membership.teamId, database),
-    checkout: checkedIn ? { at: row!.checkedOutAt?.toISOString() ?? null, noteLeft: row!.noteLeft } : null,
+    checkout: checkedIn
+      ? {
+          at: row!.checkedOutAt?.toISOString() ?? null,
+          noteLeft: row!.noteLeft,
+          tomorrowTaskIds: row!.tomorrowTaskIds ?? [],
+        }
+      : null,
+    // A planned task finished, handed away or binned since drops off quietly:
+    // only what is still on offer here starts ticked.
+    planned: checkedIn
+      ? []
+      : (await lastPlan(userId, today.day, database)).filter((taskId) =>
+          [...byProject.values()].some((group) => group.tasks.some((task) => task.id === taskId))
+        ),
     groups: [...byProject.values()].filter((group) => group.tasks.length > 0),
     projects: [
       ...projects
@@ -370,6 +391,27 @@ async function lastNoteLeft(userId: string, today: string, database: ProjectDb) 
     .orderBy(desc(projectCheckins.day))
     .limit(1)
   return last?.noteLeft ?? null
+}
+
+/**
+ * The tasks the last check-out ticked for the next check-in. A check-out on
+ * Friday plans whichever day the person checks in next, so a weekend or time
+ * off in between changes nothing.
+ */
+async function lastPlan(userId: string, today: string, database: ProjectDb) {
+  const [last] = await database
+    .select({ tomorrowTaskIds: projectCheckins.tomorrowTaskIds })
+    .from(projectCheckins)
+    .where(
+      and(
+        eq(projectCheckins.userId, userId),
+        lt(projectCheckins.day, today),
+        isNotNull(projectCheckins.checkedInAt)
+      )
+    )
+    .orderBy(desc(projectCheckins.day))
+    .limit(1)
+  return last?.tomorrowTaskIds ?? []
 }
 
 async function findDay(userId: string, day: string, database: ProjectDb) {
@@ -700,13 +742,33 @@ export async function orderTodaysPicks(
  */
 export async function checkOut(
   actor: Actor,
-  input: { doneTaskIds: string[]; noteLeft: string | null },
+  input: { doneTaskIds: string[]; noteLeft: string | null; tomorrowTaskIds?: string[] },
   database = db,
   at = new Date()
 ) {
   // All or nothing: a pick that can't be marked Done leaves the rest as they were.
   await database.transaction(async (tx) => {
     const checkin = await requireCheckedInToday(actor.id, tx, at)
+    // Ticking one for tomorrow and Done for today is a plan already finished.
+    const tomorrow = [...new Set(input.tomorrowTaskIds ?? [])].filter((id) => !input.doneTaskIds.includes(id))
+    if (tomorrow.length) {
+      const { membership } = await loadClock(actor.id, tx)
+      const visible = await visibleProjectIds(membership, tx)
+      const mine = await tx
+        .select({ projectId: projectTasks.projectId })
+        .from(projectTasks)
+        .where(
+          and(
+            inArray(projectTasks.id, tomorrow),
+            eq(projectTasks.assigneeUserId, actor.id),
+            isNull(projectTasks.deletedAt),
+            ne(projectTasks.status, "done")
+          )
+        )
+      if (mine.filter((task) => visible.has(task.projectId)).length !== tomorrow.length) {
+        throw new Error(PROJECT_ERRORS.planNotYours)
+      }
+    }
     const picks = await tx
       .select({ taskId: projectCheckinItems.taskId, status: projectTasks.status })
       .from(projectCheckinItems)
@@ -720,7 +782,11 @@ export async function checkOut(
     }
     await tx
       .update(projectCheckins)
-      .set({ checkedOutAt: at, noteLeft: input.noteLeft })
+      .set({
+        checkedOutAt: at,
+        noteLeft: input.noteLeft,
+        tomorrowTaskIds: tomorrow.length ? tomorrow : null,
+      })
       .where(eq(projectCheckins.id, checkin.id))
   })
 }

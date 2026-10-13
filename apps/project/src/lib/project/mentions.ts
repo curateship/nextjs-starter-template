@@ -48,9 +48,21 @@ function tokenIds(body: string, sign: "@" | "#") {
   ]
 }
 
-/** Everyone a message tags, each once. */
+/**
+ * `@project` in a chat tags everyone on the project (Tyler, 13 Oct 2026:
+ * anyone may use it). It is saved as a tag like any other, `@[project](project)`,
+ * with this id in place of a person's.
+ */
+export const PROJECT_TAG = { id: "project", name: "project" } as const
+
+/** Everyone a message tags by name, each once. `@project` is read by `tagsWholeProject`. */
 export function taggedUserIds(body: string): string[] {
-  return tokenIds(body, "@")
+  return tokenIds(body, "@").filter((id) => id !== PROJECT_TAG.id)
+}
+
+/** The message tags the whole project with `@project`. */
+export function tagsWholeProject(body: string): boolean {
+  return tokenIds(body, "@").includes(PROJECT_TAG.id)
 }
 
 /** Every task a message links, each once. */

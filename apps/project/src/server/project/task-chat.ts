@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gt, gte, inArray, lt, or } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
-import { linkedTaskIds, messageText, renameLinks, taggedUserIds } from "@/lib/project/mentions"
+import { linkedTaskIds, messageText, renameLinks, taggedUserIds, tagsWholeProject } from "@/lib/project/mentions"
 import {
   chatMentionHeading,
   chatReplyHeading,
@@ -33,6 +33,8 @@ import {
 import {
   projectCommentMentions,
   projectCommentReactions,
+  projectPolls,
+  projectPollVotes,
   projectProjectMembers,
   projectTaskComments,
   projectTaskFiles,
@@ -48,6 +50,7 @@ import {
   type FileStorage,
   type TaskFile,
 } from "@/server/project/task-files"
+import { markProjectChatRead, unreadInProjectChat } from "@/server/project/chat-reads"
 import { followerIds } from "@/server/project/task-followers"
 import { recordTaskEvent } from "@/server/project/task-history"
 import { linkName, openableLinks, requireLinkable, resolveTaskLinks } from "@/server/project/task-links"
@@ -111,6 +114,14 @@ export type ChatMessage = {
   files: TaskFile[]
   /** Linked tasks this reader can open: task id to project id. */
   links: Record<string, string>
+  /** A poll's choices, each with who picked it, earliest first. The words are its question. */
+  poll: ChatPoll | null
+}
+
+export type ChatPoll = {
+  choices: { text: string; people: string[]; mine: boolean }[]
+  /** How many people have voted. */
+  voters: number
 }
 
 /** One page of a project's chat, oldest first. */
@@ -234,11 +245,20 @@ export async function loadProjectChat(
     earlier = Boolean(older)
   }
   const archived = Boolean(project.archivedAt)
+  // The newest messages are on screen now, so the Chat tab's "new" mark clears.
+  // Earlier pages say nothing about what is new.
+  if (!input.before) await markProjectChatRead(userId, project.id, database)
   return {
     messages: await toMessages(membership, shown.reverse(), archived, database),
     earlier,
     archived,
   }
+}
+
+/** The project chat's "3 new" for the Chat tab, read again as messages arrive. */
+export async function loadChatUnread(userId: string, projectId: string, database = db) {
+  const { membership } = await requireProjectAccess(userId, projectId, database)
+  return unreadInProjectChat(membership, projectId, database)
 }
 
 const QUOTE_LENGTH = 140
@@ -285,6 +305,7 @@ async function toMessages(
     .orderBy(asc(projectCommentReactions.createdAt))
 
   const files = await listFiles(viewer, inArray(projectTaskFiles.commentId, ids), archived, database)
+  const polls = await pollsFor(viewer.userId, ids, database)
 
   const links = await resolveTaskLinks(
     viewer,
@@ -332,8 +353,76 @@ async function toMessages(
       }),
       files: messageFiles,
       links: body ? openableLinks(new Map(linkedTaskIds(body).map((id) => [id, links.get(id)!]))) : {},
+      poll: comment.deletedAt ? null : (polls.get(comment.id) ?? null),
     }
   })
+}
+
+/** Each poll among these messages, with every vote by name. */
+async function pollsFor(viewerId: string, commentIds: string[], database: ProjectDb) {
+  const polls = await database
+    .select()
+    .from(projectPolls)
+    .where(inArray(projectPolls.commentId, commentIds))
+  if (polls.length === 0) return new Map<string, ChatPoll>()
+  const votes = await database
+    .select({
+      commentId: projectPollVotes.commentId,
+      userId: projectPollVotes.userId,
+      choice: projectPollVotes.choice,
+      name: customShellUsers.name,
+    })
+    .from(projectPollVotes)
+    .innerJoin(customShellUsers, eq(customShellUsers.id, projectPollVotes.userId))
+    .where(inArray(projectPollVotes.commentId, polls.map((poll) => poll.commentId)))
+    .orderBy(asc(projectPollVotes.votedAt))
+  return new Map(
+    polls.map((poll) => {
+      const onThis = votes.filter((vote) => vote.commentId === poll.commentId)
+      return [
+        poll.commentId,
+        {
+          choices: poll.choices.map((text, index) => {
+            const by = onThis.filter((vote) => vote.choice === index)
+            return { text, people: by.map((vote) => vote.name), mine: by.some((vote) => vote.userId === viewerId) }
+          }),
+          voters: onThis.length,
+        },
+      ]
+    })
+  )
+}
+
+/**
+ * Picks a choice on a poll, changes it, or with `null` takes the vote back.
+ * Anyone who can write in the chat votes, once. A vote tells nobody.
+ */
+export async function voteOnPoll(
+  actor: Actor,
+  input: { commentId: string; choice: number | null },
+  database = db
+) {
+  const { comment } = await requireLiveComment(actor.id, input.commentId, database)
+  const [poll] = await database
+    .select()
+    .from(projectPolls)
+    .where(eq(projectPolls.commentId, comment.id))
+    .limit(1)
+  if (!poll) throw new Error(PROJECT_ERRORS.notAPoll)
+  const mine = and(eq(projectPollVotes.commentId, comment.id), eq(projectPollVotes.userId, actor.id))
+  if (input.choice === null) {
+    await database.delete(projectPollVotes).where(mine)
+    return
+  }
+  if (input.choice >= poll.choices.length) throw new Error(PROJECT_ERRORS.pollChoiceGone)
+  const at = now()
+  await database
+    .insert(projectPollVotes)
+    .values({ commentId: comment.id, userId: actor.id, choice: input.choice, votedAt: at })
+    .onConflictDoUpdate({
+      target: [projectPollVotes.commentId, projectPollVotes.userId],
+      set: { choice: input.choice, votedAt: at },
+    })
 }
 
 /**
@@ -343,10 +432,18 @@ async function toMessages(
  */
 export async function sendMessage(
   actor: Actor,
-  input: { chat: ChatPlace; body: string; replyToId: string | null; files?: NewFile[] },
+  input: {
+    chat: ChatPlace
+    body: string
+    replyToId: string | null
+    files?: NewFile[]
+    /** A poll's choices, which make the words its question. A project's chat only. */
+    poll?: string[]
+  },
   database = db,
   storage: FileStorage = bucket
 ): Promise<{ id: string }> {
+  if (input.poll && "taskId" in input.chat) throw new Error(PROJECT_ERRORS.pollInTask)
   const files = input.files ?? []
   if (!input.body && files.length === 0) throw new Error(PROJECT_ERRORS.messageEmpty)
   if (files.length > LIMITS.filesPerMessage) throw new Error(PROJECT_ERRORS.tooManyMessageFiles)
@@ -413,6 +510,7 @@ export async function sendMessage(
         )
       }
       await saveTags(id, tagged, tx)
+      if (input.poll) await tx.insert(projectPolls).values({ commentId: id, choices: input.poll })
 
       const line = await noticeLine(access, input.body, stored.length, tx)
       const repliedTo = replyTo?.authorUserId ?? null
@@ -464,7 +562,7 @@ async function checkMessage(
   input: { chat: ChatPlace; body: string; replyToId: string | null },
   database: ProjectDb
 ) {
-  const tagged = await requireTaggable(access.project.id, input.body, database)
+  const tagged = await requireTaggable(access.project.id, input.body, access.membership.userId, database)
   await requireLinkable(access.membership, input.body, database)
   let replyTo: CommentRow | null = null
   if (input.replyToId) {
@@ -490,7 +588,7 @@ export async function editComment(
     if (comment.authorUserId !== actor.id) throw new Error(PROJECT_ERRORS.notYourMessage)
     if (comment.body === input.body) return
     if (!input.body && !(await hasFiles(comment.id, tx))) throw new Error(PROJECT_ERRORS.messageEmpty)
-    const tagged = await requireTaggable(project.id, input.body, tx)
+    const tagged = await requireTaggable(project.id, input.body, actor.id, tx)
     await requireLinkable(access.membership, input.body, tx)
     const before = await tx
       .select({ userId: projectCommentMentions.userId })
@@ -552,6 +650,8 @@ export async function deleteComment(
       .where(eq(projectTaskComments.id, comment.id))
     await tx.delete(projectCommentMentions).where(eq(projectCommentMentions.commentId, comment.id))
     await tx.delete(projectCommentReactions).where(eq(projectCommentReactions.commentId, comment.id))
+    // A deleted poll goes with its votes.
+    await tx.delete(projectPolls).where(eq(projectPolls.commentId, comment.id))
   })
 }
 
@@ -607,18 +707,31 @@ async function hasFiles(commentId: string, database: ProjectDb) {
   return Boolean(file)
 }
 
-/** Everyone the words tag, refusing the lot if one of them isn't on the project. */
-async function requireTaggable(projectId: string, body: string, database: ProjectDb) {
+/**
+ * Everyone the words tag, refusing the lot if one of them isn't on the
+ * project. `@project` tags every member, so each is told once however many
+ * ways the message names them. The writer is never among them.
+ */
+async function requireTaggable(projectId: string, body: string, writerId: string, database: ProjectDb) {
   const ids = taggedUserIds(body)
-  if (ids.length === 0) return []
-  const members = await database
-    .select({ userId: projectProjectMembers.userId })
-    .from(projectProjectMembers)
-    .where(
-      and(eq(projectProjectMembers.projectId, projectId), inArray(projectProjectMembers.userId, ids))
-    )
-  if (members.length !== ids.length) throw new Error(PROJECT_ERRORS.tagNotOnProject)
-  return ids
+  if (ids.length) {
+    const members = await database
+      .select({ userId: projectProjectMembers.userId })
+      .from(projectProjectMembers)
+      .where(
+        and(eq(projectProjectMembers.projectId, projectId), inArray(projectProjectMembers.userId, ids))
+      )
+    if (members.length !== ids.length) throw new Error(PROJECT_ERRORS.tagNotOnProject)
+  }
+  const everyone = tagsWholeProject(body)
+    ? (
+        await database
+          .select({ userId: projectProjectMembers.userId })
+          .from(projectProjectMembers)
+          .where(eq(projectProjectMembers.projectId, projectId))
+      ).map((row) => row.userId)
+    : []
+  return [...new Set([...ids, ...everyone])].filter((userId) => userId !== writerId)
 }
 
 async function saveTags(commentId: string, userIds: string[], database: ProjectDb) {

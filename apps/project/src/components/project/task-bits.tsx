@@ -6,6 +6,7 @@ import {
   ClipboardCheckIcon,
   ClockIcon,
   HourglassIcon,
+  MessageSquareDotIcon,
   MoonIcon,
   PlayIcon,
   Repeat2Icon,
@@ -83,6 +84,18 @@ export function WaitingBadge() {
     <Badge variant="outline">
       <ClockIcon aria-hidden />
       Waiting
+    </Badge>
+  )
+}
+
+/** "3 new": messages in a task's chat, or a project's, that I haven't read. */
+export function UnreadBadge({ count, className }: { count: number; className?: string }) {
+  if (count <= 0) return null
+  return (
+    <Badge className={className}>
+      <MessageSquareDotIcon aria-hidden />
+      {count} new
+      <span className="sr-only"> {count === 1 ? "message" : "messages"}</span>
     </Badge>
   )
 }

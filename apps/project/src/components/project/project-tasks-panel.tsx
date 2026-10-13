@@ -7,19 +7,23 @@ import { FieldColumnsMenu } from "@/components/project/field-columns-menu"
 import { NewTaskDialog } from "@/components/project/new-task-dialog"
 import { ProjectActivity } from "@/components/project/project-activity"
 import { ProjectChat } from "@/components/project/project-chat"
+import { ProjectFiles } from "@/components/project/project-files"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { SavedViewsControls } from "@/components/project/saved-views"
 import { NOBODY_LANE, TaskBoard, type BoardLane } from "@/components/project/task-board"
 import { TaskCalendar } from "@/components/project/task-calendar"
 import { TaskFiltersBar } from "@/components/project/task-filters-bar"
 import { TaskList } from "@/components/project/task-list"
+import { TaskTimeline } from "@/components/project/task-timeline"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { loadProjectChatUnread } from "@/lib/api/project/chat"
 import type { ProjectPage } from "@/lib/api/project/projects"
 import { saveTaskOrder } from "@/lib/api/project/sorting"
 import { assignProjectTask, saveTask, setStatus, type TaskCard } from "@/lib/api/project/tasks"
@@ -35,9 +39,10 @@ import { overDoingLimit } from "@/lib/project/doing-limit"
 import { placesAfterReorder } from "@/lib/project/task-order"
 import { offeredTypes } from "@/lib/project/task-types"
 import { useFieldColumns } from "@/lib/project/use-field-columns"
+import { useProjectLive } from "@/lib/project/use-project-live"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-const VIEWS = ["board", "list", "calendar", "activity", "chat"] as const
+const VIEWS = ["board", "list", "calendar", "timeline", "activity", "files", "chat"] as const
 type View = (typeof VIEWS)[number]
 
 const NO_SECTION = "none"
@@ -55,12 +60,12 @@ type PendingHandOver = {
 
 /**
  * The project's tasks, as a Board (one column per status, or a row per person
- * when grouped), a List grouped under the project's sections or a Calendar of
- * due dates, its Activity, and its own Chat. The tab last
+ * when grouped), a List grouped under the project's sections, a Calendar of
+ * due dates or a Timeline of start and due dates, its Activity, every file in it, and its own Chat. The tab last
  * used is remembered in this browser; the search and filters live in the
  * address. A status change or a new order shows at once and is put back if
- * the server refuses it. A "Just me" list has no Chat, since nobody else
- * can read it.
+ * the server refuses it. A "Just me" list has no Files or Chat, since
+ * nobody else can read it.
  */
 export function ProjectTasksPanel({
   page,
@@ -80,8 +85,9 @@ export function ProjectTasksPanel({
 }) {
   const router = useRouter()
   const [chosenView, setView] = useRememberedChoice<View>(PROJECT_TASK_VIEW_KEY, "board", VIEWS)
+  // A "Just me" list has no Chat and no Files tab, since nobody else shares it.
   const hasChat = !page.project.personal
-  const view = chosenView === "chat" && !hasChat ? "board" : chosenView
+  const view = (chosenView === "chat" || chosenView === "files") && !hasChat ? "board" : chosenView
 
   React.useEffect(() => {
     if (!openChat) return
@@ -89,6 +95,17 @@ export function ProjectTasksPanel({
     onChatOpened()
   }, [openChat, hasChat, setView, onChatOpened])
   const [tasks, setTasks] = useSyncedDraft(page.tasks)
+  // "3 new" on the Chat tab. Opening the chat reads it, so nothing shows there
+  // and nothing is left once I move on; elsewhere it follows new messages.
+  const [chatUnread, setChatUnread] = useSyncedDraft(page.chatUnread)
+  useProjectLive(
+    hasChat ? page.project.id : undefined,
+    (change) => change === "chat",
+    () => {
+      if (view === "chat") return
+      loadProjectChatUnread(page.project.id).then(setChatUnread, () => undefined)
+    }
+  )
   const [creating, setCreating] = React.useState(false)
   const [binOpen, setBinOpen] = React.useState(false)
   // The task waiting for its Stuck reason, and where the Board dropped it.
@@ -181,6 +198,15 @@ export function ProjectTasksPanel({
     await router.invalidate()
   }
 
+  /** A bar moved or stretched on the Timeline: the same save as picking the dates on the task. */
+  async function changeDates(task: TaskCard, dates: { startDate?: string | null; dueDate?: string | null }) {
+    const before = tasks
+    setTasks((current) => current.map((t) => (t.id === task.id ? { ...t, ...dates } : t)))
+    const ok = await run(() => saveTask({ taskId: task.id, ...dates }))
+    if (!ok) setTasks(before)
+    await router.invalidate()
+  }
+
   /**
    * After "Hand it over?": the same hand-over as the task's person picker,
    * which tells them and waits for them to accept, then the column it was
@@ -210,7 +236,13 @@ export function ProjectTasksPanel({
 
   return (
     <>
-      <Tabs value={view} onValueChange={(value) => setView(value as View)}>
+      <Tabs
+        value={view}
+        onValueChange={(value) => {
+          if (view === "chat") setChatUnread(0)
+          setView(value as View)
+        }}
+      >
         {/* Five tabs and two buttons don't fit a phone or a squeezed panel, so the
             tabs scroll sideways rather than sliding under the buttons. */}
         <DashboardCardHeader>
@@ -219,8 +251,19 @@ export function ProjectTasksPanel({
               <TabsTrigger value="board">Board</TabsTrigger>
               <TabsTrigger value="list">List</TabsTrigger>
               <TabsTrigger value="calendar">Calendar</TabsTrigger>
+              <TabsTrigger value="timeline">Timeline</TabsTrigger>
               <TabsTrigger value="activity">Activity</TabsTrigger>
-              {hasChat ? <TabsTrigger value="chat">Chat</TabsTrigger> : null}
+              {hasChat ? <TabsTrigger value="files">Files</TabsTrigger> : null}
+              {hasChat ? (
+                <TabsTrigger value="chat">
+                  Chat
+                  {view !== "chat" && chatUnread > 0 ? (
+                    <Badge className="h-4 px-1.5">
+                      {chatUnread} new<span className="sr-only"> {chatUnread === 1 ? "message" : "messages"}</span>
+                    </Badge>
+                  ) : null}
+                </TabsTrigger>
+              ) : null}
             </TabsList>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
@@ -250,7 +293,7 @@ export function ProjectTasksPanel({
           )}
         </DashboardCardHeader>
       </Tabs>
-      {view === "activity" || view === "chat" ? null : (
+      {view === "activity" || view === "files" || view === "chat" ? null : (
         <TaskFiltersBar
           filters={filters}
           onChange={onFilters}
@@ -289,6 +332,8 @@ export function ProjectTasksPanel({
         <ProjectChat page={page} />
       ) : view === "activity" ? (
         <ProjectActivity projectId={page.project.id} onOpenTask={onOpenTask} />
+      ) : view === "files" ? (
+        <ProjectFiles projectId={page.project.id} onOpenTask={onOpenTask} onOpenChat={() => setView("chat")} />
       ) : hasTaskFilters(filters) && filtered.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">
           No tasks match {filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the
@@ -300,6 +345,15 @@ export function ProjectTasksPanel({
           readOnly={readOnly || busy}
           onOpenTask={onOpenTask}
           onDueDate={(task, dueDate) => void changeDueDate(task, dueDate)}
+        />
+      ) : view === "timeline" ? (
+        <TaskTimeline
+          tasks={filtered}
+          groups={page.sections.length ? sectionGroups : undefined}
+          groupOf={(task) => task.section?.id ?? NO_SECTION}
+          readOnly={readOnly || busy}
+          onOpenTask={onOpenTask}
+          onDates={(task, dates) => void changeDates(task, dates)}
         />
       ) : view === "board" ? (
         <TaskBoard

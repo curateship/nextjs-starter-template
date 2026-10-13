@@ -260,6 +260,11 @@ export const LIMITS = {
   filesPerMessage: 5,
   /** The team's pinned announcement: one message, never a chat. */
   announcement: 500,
+  /** A poll in a project's chat: its question, and 2 to 6 short choices. */
+  pollQuestion: 200,
+  pollChoice: 80,
+  pollChoicesMin: 2,
+  pollChoicesMax: 6,
   /** Earlier versions of a task's notes kept behind the current one. */
   noteVersions: 20,
   /** Project chat messages loaded at a time; older ones wait behind "Show earlier messages". */
@@ -496,6 +501,8 @@ export const updateTaskSchema = z.object({
   /** One editing session of the notes, so it keeps one earlier version however often it saves. */
   notesSession: z.string().uuid().optional(),
   dueDate: dueDateSchema.optional(),
+  /** The first day, drawn with the due date on the Timeline. Never after the due date. */
+  startDate: dueDateSchema.optional(),
   sectionId: id.nullable().optional(),
   snoozedUntil: dueDateSchema.optional(),
   priority: z.enum(TASK_PRIORITIES).optional(),
@@ -621,6 +628,29 @@ export const sendMessageSchema = z.object({
   replyToId: id.nullable(),
 })
 
+/**
+ * A poll, sent in a project's own chat only: a task's chat can sit inside a
+ * window, and a window never opens on top of another.
+ */
+export const pollSchema = z.object({
+  projectId: id,
+  question: trimmed(LIMITS.pollQuestion, "The question"),
+  choices: z
+    .array(trimmed(LIMITS.pollChoice, "A choice"))
+    .min(LIMITS.pollChoicesMin, `A poll needs at least ${LIMITS.pollChoicesMin} choices.`)
+    .max(LIMITS.pollChoicesMax, `A poll can have at most ${LIMITS.pollChoicesMax} choices.`)
+    .refine(
+      (choices) => new Set(choices.map((choice) => choice.toLowerCase())).size === choices.length,
+      "Each choice has to be different."
+    ),
+})
+
+/** My vote on a poll: a choice by its place in the list, or null to take it back. */
+export const voteSchema = z.object({
+  commentId: id,
+  choice: z.number().int().min(0).max(LIMITS.pollChoicesMax - 1).nullable(),
+})
+
 export const editCommentSchema = z.object({
   commentId: id,
   body: messageSchema,
@@ -672,6 +702,8 @@ export const blockerReplySchema = z.object({
 export const checkOutSchema = z.object({
   doneTaskIds: z.array(id).max(LIMITS.picksPerDay),
   noteLeft: noteSchema,
+  /** My open tasks ticked for the next check-in, which opens with them already picked. */
+  tomorrowTaskIds: z.array(id).max(LIMITS.picksPerDay),
 })
 
 /** Today's picks in my own order. */

@@ -4,8 +4,10 @@ import { z } from "zod"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { LIMITS } from "@/lib/project/rules"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
-import { userPost } from "@/server/guards"
-import { addTaskFile, deleteTaskFile } from "@/server/project/task-files"
+import { userGet, userPost } from "@/server/guards"
+import { addTaskFile, deleteTaskFile, listProjectFiles } from "@/server/project/task-files"
+
+export type { ProjectFile } from "@/server/project/task-files"
 
 const id = z.string().min(1).max(36)
 
@@ -47,6 +49,11 @@ const addFileFn = createServerFn({ method: "POST" })
     })
   })
 
+const listProjectFilesFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ projectId: z.string().min(1).max(36) }))
+  .handler(async ({ data, context }) => listProjectFiles(context.user.id, data.projectId))
+
 const deleteFileFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ fileId: id }))
@@ -63,4 +70,8 @@ export function addFileToTask(taskId: string, file: File, fieldId?: string) {
 
 export function deleteFileFromTask(fileId: string) {
   return deleteFileFn({ data: { fileId } })
+}
+/** Every file in a project, for its Files tab, newest first. */
+export function loadProjectFiles(projectId: string) {
+  return listProjectFilesFn({ data: { projectId } })
 }

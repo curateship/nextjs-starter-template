@@ -6,8 +6,10 @@ import {
   LIMITS,
   deleteCommentSchema,
   editCommentSchema,
+  pollSchema,
   reactSchema,
   sendMessageSchema,
+  voteSchema,
   type ChatPlace,
 } from "@/lib/project/rules"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
@@ -15,13 +17,15 @@ import { userGet, userPost } from "@/server/guards"
 import {
   deleteComment,
   editComment,
+  loadChatUnread,
   loadProjectChat,
   reactToMessage,
   sendMessage,
+  voteOnPoll,
 } from "@/server/project/task-chat"
 import { findTasksToLink } from "@/server/project/task-links"
 
-export type { ChatMessage, ChatQuote, ChatReaction, ProjectChat } from "@/server/project/task-chat"
+export type { ChatMessage, ChatPoll, ChatQuote, ChatReaction, ProjectChat } from "@/server/project/task-chat"
 export type { LinkChoice } from "@/server/project/task-links"
 
 const id = z.string().min(1).max(36)
@@ -92,6 +96,23 @@ const reactFn = createServerFn({ method: "POST" })
   .inputValidator(reactSchema)
   .handler(async ({ data, context }) => reactToMessage(context.user, data))
 
+const sendPollFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(pollSchema)
+  .handler(async ({ data, context }) =>
+    sendMessage(context.user, {
+      chat: { projectId: data.projectId },
+      body: data.question,
+      replyToId: null,
+      poll: data.choices,
+    })
+  )
+
+const voteFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(voteSchema)
+  .handler(async ({ data, context }) => voteOnPoll(context.user, data))
+
 const loadProjectChatFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(
@@ -102,6 +123,11 @@ const loadProjectChatFn = createServerFn({ method: "GET" })
     })
   )
   .handler(async ({ data, context }) => loadProjectChat(context.user.id, data))
+
+const loadChatUnreadFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ projectId: id }))
+  .handler(async ({ data, context }) => loadChatUnread(context.user.id, data.projectId))
 
 const findTasksToLinkFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -131,12 +157,22 @@ export function deleteChatMessage(data: z.input<typeof deleteCommentSchema>) {
 export function reactToChatMessage(data: z.input<typeof reactSchema>) {
   return reactFn({ data })
 }
+export function sendChatPoll(data: z.input<typeof pollSchema>) {
+  return sendPollFn({ data })
+}
+export function voteOnChatPoll(data: z.input<typeof voteSchema>) {
+  return voteFn({ data })
+}
 /** The newest page, the page before `before`, or every message from `from` on. */
 export function loadProjectChatPage(
   projectId: string,
   page: { before?: { at: string; id: string }; from?: { at: string; id: string } } = {}
 ) {
   return loadProjectChatFn({ data: { projectId, ...page } })
+}
+/** How many messages in a project's own chat are new to me. */
+export function loadProjectChatUnread(projectId: string) {
+  return loadChatUnreadFn({ data: { projectId } })
 }
 export function findLinkableTasks(q: string) {
   return findTasksToLinkFn({ data: { q } })

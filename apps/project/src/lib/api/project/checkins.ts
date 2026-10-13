@@ -27,6 +27,7 @@ import { loadMyWeek } from "@/server/project/my-week"
 import { listInvitesForMe } from "@/server/project/invites"
 import { loadMyDashboard } from "@/server/project/my-dashboard"
 import { loadTeamDay, loadTeamMonth } from "@/server/project/team-days"
+import { setCalendarDueDates } from "@/server/project/team-due-dates"
 import { addTimeOff, listTimeOffFor, removeTimeOff } from "@/server/project/time-off"
 
 export type { CheckinAnswer, CheckinClock, CheckinPage } from "@/server/project/checkins"
@@ -42,6 +43,7 @@ export type {
   TeamMonth,
   TeamMonthDay,
 } from "@/server/project/team-days"
+export type { TeamDueDates, TeamDueTask } from "@/server/project/team-due-dates"
 
 const id = z.string().min(1).max(36)
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Pick a month like 2026-10.")
@@ -173,4 +175,14 @@ export function orderMyPicks(taskIds: string[]) {
 }
 export function loadWeek(monday?: string) {
   return loadMyWeekFn({ data: { monday } })
+}
+
+const setCalendarDueDatesFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ on: z.boolean() }))
+  .handler(async ({ data, context }) => setCalendarDueDates(context.user.id, data.on))
+
+/** My own "Due dates" switch on the Team calendar. */
+export function showDueDatesOnCalendar(on: boolean) {
+  return setCalendarDueDatesFn({ data: { on } })
 }

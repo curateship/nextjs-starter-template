@@ -62,8 +62,11 @@ panels and nothing along the bottom.
   in too.
 - **Middle: tasks.** A Board tab with one column per status, a List tab
   with the same tasks in rows, grouped under the project's sections when it
-  has any, a Calendar tab of due dates, an Activity tab and a Chat tab (all
-  below). On a phone or a squeezed panel the tabs scroll sideways, and New
+  has any, a Calendar tab of due dates, a Timeline tab of start days and
+  due dates, an Activity tab, a Files tab and a Chat tab (all below). A
+  task with messages I haven't read says "3 new" on its card and row, and
+  the Chat tab says the same for the project's chat (see
+  [Task chat](task-chat.md#new-messages)). On a phone or a squeezed panel the tabs scroll sideways, and New
   task shows only its plus. A card drags between Board columns to change its status, and up or
   down to set the project's order. The Board and List change on their own
   when someone else changes a task (see
@@ -138,6 +141,38 @@ So a crowded week is obvious at a glance.
 - **It's the Team dashboard's month grid**, shared in
   `src/components/project/month-grid.tsx`, not a second drawing of one.
 
+## The Timeline tab
+
+So an owner sees how a project's work overlaps over the coming weeks.
+
+- **A start day on any task.** Inside the task, "Start day" sits beside
+  "Due date", with its own Clear. It can be left empty, and it can never be
+  after the due date: setting either end the wrong way round, from the task,
+  the Calendar, the Timeline or a bulk change, is refused with "The start
+  day can't be after the due day. Move the due day first." A bulk change
+  refuses only the tasks it would break.
+- **Six weeks at a time**, from the Monday a week before today. The arrows
+  move two weeks, and Today comes back. Weekends are shaded and today is
+  marked.
+- **Only a task with both dates is a bar**, from its start day to its due
+  date, under the project's sections like the List. A task missing either
+  one stays off the Timeline (Tyler, 13 Oct 2026). The bar is in its status colour and says its status and who has
+  it; a one-day bar is too short for words, so its label carries them. A
+  task outside the six weeks shows its dates at the edge with an arrow.
+- **Dragging changes the dates:** the bar's left end moves the start day,
+  its right end the due date, and its middle both. Each is the same save as
+  picking the date on the task, so a moved due date writes the same history
+  line. Clicking a bar, or the task's name on the left, opens the task.
+- **Waiting tasks carry a mark**, the hourglass, beside their name. There
+  are no arrows between bars (Tyler, 13 Oct 2026).
+- **Tasks without both dates** are counted in the header ("2 tasks without
+  both dates"), not drawn. The filters above apply.
+- **On a phone** the timeline scrolls sideways inside its panel; the page
+  itself never does.
+- **Duplicate keeps the start day.** A repeating task's next copy gets its
+  own due date but no start day, and a copied project's tasks start with no
+  dates at all, the same as their due dates.
+
 ## Activity
 
 The Activity tab, beside Board and List, is the project's own feed: "Priya
@@ -160,9 +195,28 @@ older". Each line says how long ago, with the exact time on hover.
 - **The Team dashboard has the same feed for every project** (see
   [Teams and invites](teams-and-invites.md#the-teams-activity)).
 
+## The Files tab
+
+"Where was that logo file?" has one place to look.
+
+- **Every file in the project, newest first:** on its tasks' Files cards, in
+  their File fields, sent in their chats, and sent in the project's own
+  chat. Files on tasks in the bin, and on project-chat messages that were
+  deleted, are left out. Up to the newest 500 show.
+- **Each row** has a small picture or a file icon, the name (which
+  downloads it), its size, who added it and when, and where it lives: the
+  task's name, which opens the task, or "In the project's chat", which
+  opens the Chat tab.
+- **Each file downloads under its own rules**, through the same address as
+  everywhere else, so someone who can't see a task can't fetch its files.
+- **It follows changes live**, the same as the Board.
+- **A "Just me" list has no Files tab**, the same as it has no Chat tab.
+- **Where it lives:** `listProjectFiles` in `src/server/project/task-files.ts`
+  and `src/components/project/project-files.tsx`.
+
 ## The project's chat
 
-The Chat tab, after Activity, is where talk about the project as a whole
+The Chat tab, after Files, is where talk about the project as a whole
 goes, so it no longer ends up on whatever task was open.
 
 - **The same chat as a task's**: @ tags, # links, reactions, replies, files,
@@ -185,6 +239,10 @@ goes, so it no longer ends up on whatever task was open.
 - **50 messages at a time**, newest at the bottom, with "Show earlier
   messages" at the top.
 - **A "Just me" list has no Chat tab**, since nobody else can read it.
+- **"3 new" on the Chat tab** while it holds messages I haven't read.
+  Opening it reads them.
+- **Polls and `@project`** work here: a question with 2 to 6 choices, and a
+  tag for everyone on the project (see [Task chat](task-chat.md#polls)).
 - **Talk, not an announcement.** The project chat is talk among the people
   on one project. The team's announcement is one pinned message to the
   whole team (see [Teams and invites](teams-and-invites.md#the-teams-announcement)).
@@ -688,7 +746,8 @@ Projects, Team and Task types to the members' menu and to each admin menu.
   the newer repeats, `project_task_waits`, the due-date move kind,
   `project_task_reminders` and `project_step_lists` in
   `drizzle/0111_project_planning_tasks.sql`, described to the code in
-  `src/server/project/schema.ts`. The old single `waiting_on_task_id`
+  `src/server/project/schema.ts`. A task's `start_date` is in
+  `drizzle/0113_project_nine_features.sql`. The old single `waiting_on_task_id`
   column is still in the database, unread, until the move to
   `project_task_waits` is proven on the live database; a later migration
   drops it.
@@ -711,7 +770,8 @@ Projects, Team and Task types to the members' menu and to each admin menu.
 - **Endpoints:** `src/lib/api/project/`.
 - **Screens:** `src/components/project/`. A task's window is `task-dialog.tsx`
   and its place in the middle panel is `task-in-place.tsx`. The Board is
-  `task-board.tsx` and the Calendar tab `task-calendar.tsx`.
+  `task-board.tsx`, the Calendar tab `task-calendar.tsx`, the Timeline tab
+  `task-timeline.tsx` and the Files tab `project-files.tsx`.
 
 ## Sample data to look at
 

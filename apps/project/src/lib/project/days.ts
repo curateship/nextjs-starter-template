@@ -151,6 +151,11 @@ export function dayLabel(day: string, thisYear = new Date().getFullYear()) {
   return Number(day.slice(0, 4)) === thisYear ? SHORT_DATE.format(date) : SHORT_DATE_YEAR.format(date)
 }
 
+/** "Oct 14", or "Oct 14 to Oct 16": a stretch of days such as time off. */
+export function dayRangeLabel(first: string, last: string) {
+  return first === last ? dayLabel(first) : `${dayLabel(first)} to ${dayLabel(last)}`
+}
+
 /** "Fri, Oct 10, 3:04 PM", in the reader's own clock: History's one style for a moment. */
 export function shortDayTimeLabel(at: string | Date) {
   return SHORT_DAY_TIME.format(new Date(at))

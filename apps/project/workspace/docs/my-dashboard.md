@@ -69,6 +69,9 @@ Three tabs, in the same sortable table as a project's List tab:
   in my time zone, the same day the check-in uses.
 - **Done**: my finished tasks.
 
+A task whose chat has messages I haven't read says "3 new" beside its title,
+and opening it reads them (see [Task chat](task-chat.md#new-messages)).
+
 A search box and Status, Priority and Label filters sit above all three tabs, and live
 in the address like the project page's. There is no Person filter here, since
 every task is mine.

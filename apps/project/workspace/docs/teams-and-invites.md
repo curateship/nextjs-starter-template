@@ -104,7 +104,8 @@ One link to paste in a message, instead of inviting people one by one.
   "Copywriter": on the Team dashboard's member list, the Members page, each
   project's members, the Workload tab and the hand-to picker in a task.
 - **Each person sets their own** on My dashboard's left panel. **The owner and
-  admins can change anyone's** from that person's window on the Members page.
+  admins can change anyone's** from that person's page, opened from the
+  Members page or the Team dashboard.
   Both say Saving…, then Saved or Not saved, beside the field.
 
 ## Removing people
@@ -212,9 +213,18 @@ Friday", pinned at the top of the Team dashboard's middle panel.
   a project goes in that project's chat (see
   [Projects and tasks](projects-and-tasks.md#the-projects-chat)).
 - **20 an hour at most per person**, since each one rings everyone's bell.
+- **"Read by 4 of 6"** sits under it for the owner and admins only. Pressing
+  it lists who has seen it and who hasn't yet, with their photos. Everyone on
+  the team now counts, whenever they joined. Seeing it on the Team dashboard
+  counts once, hiding it counts, and whoever posted it has read it. The
+  person looking always counts as having seen it. A new announcement starts
+  again at nobody. Members never see the names, so nobody is watched by
+  their peers.
 - **Where it is saved:** on `project_teams` (`announcement_id`, `_text`,
   `_by_user_id`, `_at`), and who hid which one on `project_team_members`
   (`hidden_announcement_id`), in `drizzle/0109_project_chat_and_talking.sql`.
+  Who has seen each one is `project_announcement_views`, one row per person
+  per announcement, in `drizzle/0113_project_nine_features.sql`.
   Rules in `src/server/project/announcements.ts`, the card and window in
   `src/components/project/team-announcement.tsx`.
 
@@ -345,12 +355,42 @@ everyone else sees the same window to read. Tyler first asked for these in
 Settings → App settings, then chose the window, because Settings only opens
 for app admins and a customer who owns a team is not one.
 
+### A teammate's page
+
+Clicking anyone on the Team dashboard's member list, their row on the
+Members page, or the name or photo on their chat message opens their page as
+a window. Tyler asked for the chat on 13 Oct 2026. In a chat inside a task's
+window (opened from the Team dashboard) the name stays plain, since a window
+never opens on top of another. It answers "what's Ben on this
+week?" in one click.
+
+- **Open tasks:** theirs that aren't Done, soonest due first and undated
+  last, each with its project, due date and status. Only shared projects I
+  can see count: a task in a project I'm not on, a "Just me" task and an
+  archived project never show. Each opens on its project page.
+- **Time off** that hasn't ended yet. The owner and admins can add and
+  remove it here; everyone else reads the dates.
+- **Job title and role.** The owner and admins change the role and the job
+  title here, and the owner can hand the team over. "Hand over all their
+  tasks" closes the window and opens the hand-over (see
+  [Handing over all of someone's tasks](#handing-over-all-of-someones-tasks));
+  it doesn't show on my own page.
+- **Never a way to watch someone** (Tyler, 13 Oct 2026). It shows only what
+  the app already shows elsewhere. Their check-in record ("On time 18 of the
+  last 20 work days") stays theirs alone, as
+  [My dashboard](my-dashboard.md) promises.
+- **Where it lives:** `loadTeammate` and `loadTeamMember` in
+  `src/server/project/teammate.ts`, the chat's way in through
+  `src/components/project/person-pages.tsx`,
+  and the window in `src/components/project/member-dialog.tsx`, which used
+  to hold only the role.
+
 ### The Members page
 
 `/team/members`, opened from Manage:
 
 - **Members.** Everyone on the team with their job title, role and the date
-  they joined.
+  they joined. Clicking a row opens that person's page (above).
   The owner and admins change roles from the Settings button and remove people
   from the Delete button, one at a time or several at once. Searching clears
   the ticks, so Remove never acts on someone the search has hidden. An empty

@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { Loader2Icon, MegaphoneIcon, Trash2Icon, XIcon } from "lucide-react"
+import { EyeIcon, Loader2Icon, MegaphoneIcon, Trash2Icon, XIcon } from "lucide-react"
 
 import { PersonAvatar } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
@@ -15,10 +15,13 @@ import {
 } from "@/components/ui/dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   hideTeamAnnouncement,
+  markTeamAnnouncementSeen,
   postTeamAnnouncement,
   takeDownTeamAnnouncement,
   type Announcement,
@@ -49,6 +52,11 @@ export function AnnouncementCard({
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [confirmTakeDown, setConfirmTakeDown] = React.useState(false)
   const by = announcement.by?.name ?? "A former member"
+
+  // Showing it here is seeing it, for the owner's "Read by" count.
+  React.useEffect(() => {
+    markTeamAnnouncementSeen(announcement.id).catch(() => undefined)
+  }, [announcement.id])
 
   async function act(work: () => Promise<unknown>, successText: string) {
     const ok = await run(work, successText)
@@ -90,6 +98,7 @@ export function AnnouncementCard({
             {formatTimeAgo(announcement.postedAt)}
           </time>
         </span>
+        {announcement.readers ? <ReadBy readers={announcement.readers} /> : null}
         {canRun ? (
           confirmTakeDown ? (
             <span className="ml-auto flex flex-wrap items-center gap-2">
@@ -125,6 +134,53 @@ export function AnnouncementCard({
           )
         ) : null}
       </div>
+    </section>
+  )
+}
+
+type Readers = NonNullable<Announcement["readers"]>
+
+/** "Read by 4 of 6", opening the names of who has seen it and who hasn't. Owner and admins only. */
+function ReadBy({ readers }: { readers: Readers }) {
+  const total = readers.seen.length + readers.notYet.length
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="ghost" size="xs">
+          <EyeIcon />
+          Read by {readers.seen.length} of {total}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-0">
+        <ScrollArea viewportClassName="max-h-72">
+          <div className="grid gap-3 p-3">
+            <ReaderList title="Seen it" people={readers.seen} empty="Nobody yet." />
+            <ReaderList title="Not yet" people={readers.notYet} empty="Everyone on the team has seen it." />
+          </div>
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function ReaderList({ title, people, empty }: { title: string; people: Readers["seen"]; empty: string }) {
+  return (
+    <section className="grid gap-1.5" aria-label={title}>
+      <h3 className="text-xs font-medium text-muted-foreground">
+        {title} ({people.length})
+      </h3>
+      {people.length ? (
+        <ul className="grid gap-1.5">
+          {people.map((person) => (
+            <li key={person.id} className="flex items-center gap-2 text-sm">
+              <PersonAvatar name={person.name} avatarUrl={person.avatarUrl} />
+              <span className="truncate">{person.name}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">{empty}</p>
+      )}
     </section>
   )
 }

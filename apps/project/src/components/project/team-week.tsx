@@ -1,7 +1,8 @@
-import { CircleAlertIcon, PartyPopperIcon } from "lucide-react"
+import { CircleAlertIcon, ListTodoIcon, PartyPopperIcon } from "lucide-react"
 
-import type { TeamMonth } from "@/lib/api/project/checkins"
+import type { TeamDueTask, TeamMonth } from "@/lib/api/project/checkins"
 import { clockLabel, longDayLabel, weekdayOf } from "@/lib/project/days"
+import { dueWords } from "@/lib/project/due-days"
 import { MEETING_CHIP, meetingWords, timeRangeLabel, type DayMeeting } from "@/lib/project/meetings"
 import { dayBlocks, weekDays, weekHours, type WeekBlock } from "@/lib/project/week-view"
 import { cn } from "@/lib/utils"
@@ -11,7 +12,8 @@ const HOUR_PX = 48
 
 /**
  * The Team calendar's Week view: Monday to Sunday of the chosen day's week,
- * each day's check-in count at the top and its meetings at their times, in
+ * each day's check-in count at the top (and its due tasks' count while
+ * "Due dates" is on) and its meetings at their times, in
  * the viewer's own time zone and on the viewer's own day. Clicking a day, or
  * a meeting on it, picks that day, so its check-ins show on the right and its
  * meetings under the calendar. On a phone the days stack as a list instead.
@@ -21,6 +23,7 @@ export function TeamWeek({
   month,
   meetingDays,
   holidays,
+  dueDays,
   viewerZone,
   onSelect,
 }: {
@@ -28,6 +31,8 @@ export function TeamWeek({
   month: TeamMonth
   meetingDays: Map<string, DayMeeting[]>
   holidays: Map<string, string>
+  /** Each day's due tasks; empty while "Due dates" is off. */
+  dueDays: Map<string, TeamDueTask[]>
   viewerZone: string
   onSelect: (day: string) => void
 }) {
@@ -47,7 +52,9 @@ export function TeamWeek({
         ? `${square.checkedIn} of ${square.expected} checked in${square.blocked ? `, ${square.blocked} blocked` : ""}`
         : null,
       meetingWords(dayMeetings, viewerZone),
+      dueWords(dueDays.get(day) ?? []),
     ].filter(Boolean)
+    const due = dueDays.get(day)?.length ?? 0
     return {
       label: `${longDayLabel(day)}${words.length ? `: ${words.join(". ")}` : ""}`,
       content: (
@@ -78,6 +85,12 @@ export function TeamWeek({
             <span className="flex max-w-full items-center gap-0.5 rounded bg-destructive/10 px-1 py-0.5 text-destructive">
               <CircleAlertIcon className="size-3 shrink-0" aria-hidden />
               {square.blocked} blocked
+            </span>
+          ) : null}
+          {due ? (
+            <span className="flex max-w-full items-center gap-0.5 rounded border px-1 py-0.5 text-muted-foreground">
+              <ListTodoIcon className="size-3 shrink-0" aria-hidden />
+              {due} due
             </span>
           ) : null}
         </>

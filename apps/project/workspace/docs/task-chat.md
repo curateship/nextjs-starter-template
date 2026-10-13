@@ -19,6 +19,9 @@ It works the same as a task's chat, except for who it tells (see
   under them.
 - **Enter sends, Shift+Enter starts a new line.** A message goes once however
   fast Enter is pressed, and anything typed while it sends stays in the box.
+- **A writer's name and photo open their page** (see
+  [Teams and invites](teams-and-invites.md#a-teammates-page)) on the project
+  page and My dashboard. Inside a task's window they stay plain.
 - **Who sees it:** everyone who can open the task, which is the project's
   members plus the team's owner and admins. An archived project's chat can be
   read but not written in.
@@ -82,6 +85,53 @@ It works the same as a task's chat, except for who it tells (see
   deleted. Anything else is refused with "The message you're replying to
   isn't in this chat any more."
 
+## New messages
+
+A task's row says "3 new" while its chat holds messages I haven't read, so I
+can see where the talk moved without opening every task.
+
+- **Only messages count** (Tyler, 13 Oct 2026). A status move or a
+  hand-over already shows in the task's History and the project's Activity.
+  My own messages never count, nor a deleted one.
+- **Where it shows:** on the task's card on the Board, beside its title on
+  the List, and in My tasks on My dashboard. A project's own chat shows "3
+  new" on its Chat tab, which follows new messages live while I'm on
+  another tab.
+- **Opening reads it.** Loading a task, in the middle panel or a window,
+  reads its chat up to that moment, and opening the Chat tab reads the
+  project's. The "3 new" goes when I come Back to the list.
+- **Nothing old counts as new.** Without a "read up to" time of my own yet,
+  the day I was added to the project counts, or the day I joined the team
+  for an owner or admin who isn't on it. Every message written before 13 Oct
+  2026 counted as read for everyone on the team when the marks arrived.
+- **Saved as** one row per person per task chat in `project_task_reads`,
+  and per project chat in `project_chat_reads`, each holding the time they
+  last read it. The counts are worked out in one query per screen
+  (`src/server/project/chat-reads.ts`).
+
+## Polls
+
+A project's chat can ask a question with choices, so "which day suits for
+the launch?" is settled without twelve messages.
+
+- **New poll** is the button beside the paperclip in a project's chat. It
+  opens a window with the question and 2 to 6 choices: two to start, Add a
+  choice for more, and an X to take one out. Each choice must be different.
+- **Project chats only.** A task's chat can sit inside a window, and a
+  window never opens on top of another, so its box has no poll button. The
+  server refuses a poll there too.
+- **One vote each.** Pressing a choice votes for it; pressing another moves
+  the vote; pressing mine again takes it back. Counts change live.
+- **Names show** (Tyler, 13 Oct 2026). Each choice shows its count, and
+  hovering it says who picked it, the same as reactions. "3 people voted"
+  sits under the choices.
+- **A vote tells nobody.** Sending the poll tells only the people it tags,
+  the same as any project-chat message.
+- **Deleting the poll's message deletes its votes.** Someone taken off the
+  project keeps their earlier vote and can't vote again.
+- **Saved as** the message's words for the question, `project_polls` for its
+  choices and `project_poll_votes` for one vote per person.
+
 ## Tagging someone with @
 
 - **Typing @ lists the project's members**, narrowing as more of a name is
@@ -92,6 +142,16 @@ It works the same as a task's chat, except for who it tells (see
 - **Only people on the project can be tagged.** Tagging anyone else refuses
   the whole message with "You can only tag people who are on this project."
 - **Tagging yourself sends nothing.**
+- **`@project` tags everyone on the project.** It is the first line of the @
+  list in a task's chat and a project's chat, read "Everyone on the
+  project". Anyone on the project can use it (Tyler, 13 Oct 2026). Each
+  member gets the same "asked you about a task" or "tagged you in a project
+  chat" notice as a tag by name, once, however many ways the message names
+  them, and never the writer. People taken off the project aren't told.
+  Editing a message to add `@project` tells only the people not told
+  before. It is saved as `@[project](project)`, and each member it reached
+  as a row in `project_comment_mentions`, so an edit compares against them.
+  The check-in's notes don't offer it: their tags reach the whole team.
 - **Tagging someone away says so.** While a tagged person is on time off,
   "Leo is away until Dec 4." shows under the box before the message is sent,
   and goes when the tag is taken out. The message still sends. Only the dates
@@ -261,10 +321,14 @@ It works the same as a task's chat, except for who it tells (see
   `project_task_comments` (a message has a task or a project, never both),
   `project_comment_reactions`, `comment_id` on `project_task_files`,
   `project_task_note_versions`, and the live-update triggers.
+  `drizzle/0113_project_nine_features.sql`: `project_task_reads`,
+  `project_chat_reads`, `project_polls` and `project_poll_votes`, with a
+  live-update trigger on the votes.
 - **Rules:** `src/server/project/task-chat.ts` (both chats), `task-links.ts`,
   `task-note-versions.ts`, `task-followers.ts`, `task-files.ts` and `live.ts`.
-  Tests in `src/server/project/task-chat.test.ts` and
-  `chat-and-talking.test.ts`.
+  New messages are in `chat-reads.ts`. Tests in
+  `src/server/project/task-chat.test.ts`, `chat-and-talking.test.ts` and
+  `nine-features.test.ts`.
 - **Tags, links and notes shared by the server and the screens:**
   `src/lib/project/mentions.ts` and `src/lib/project/notes.ts`.
 - **Endpoints:** `src/lib/api/project/chat.ts`, `tasks.ts` and
@@ -272,6 +336,7 @@ It works the same as a task's chat, except for who it tells (see
   `src/routes/api/project/task-files.$fileId.ts`, and the live stream in
   `src/routes/api/project/live.$projectId.ts`.
 - **Screens:** `src/components/project/task-chat.tsx` (the chat both places
-  use), `tag-textarea.tsx` (the @ and # lists), `task-notes.tsx` with
+  use), `chat-poll.tsx` (a poll and its window), `tag-textarea.tsx` (the @
+  and # lists), `task-notes.tsx` with
   `task-link-extension.ts`, and `task-files-card.tsx`. The browser's side of
   live updates is `src/lib/project/use-project-live.ts`.

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link, useNavigate } from "@tanstack/react-router"
+import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import {
   ChartColumnIcon,
   ChevronLeftIcon,
@@ -16,8 +16,10 @@ import {
 } from "lucide-react"
 
 import { BlockerReplies } from "@/components/project/blocker-replies"
+import { HandOverDialog } from "@/components/project/hand-over-dialog"
 import { InviteDialog } from "@/components/project/invite-dialog"
 import { MeetingDialog } from "@/components/project/meeting-dialog"
+import { MemberDialog } from "@/components/project/member-dialog"
 import { MeetingWindow, type NoteLineToMake } from "@/components/project/meeting-window"
 import { NewTaskDialog } from "@/components/project/new-task-dialog"
 import { DayNumber, MonthGrid } from "@/components/project/month-grid"
@@ -27,6 +29,7 @@ import { TaggedWords } from "@/components/project/tag-textarea"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskDialog } from "@/components/project/task-dialog"
 import { TeamFiguresGrid, TeamPhoto } from "@/components/project/team-figures"
+import { DayDueTasks, DueChips } from "@/components/project/team-due-dates"
 import { DayMeetings, MeetingChips } from "@/components/project/team-meetings"
 import { AttentionPanel, WorkloadPanel } from "@/components/project/team-work-panels"
 import { TeamSettingsDialog } from "@/components/project/team-settings-dialog"
@@ -40,16 +43,19 @@ import {
 } from "@/components/shared/dashboard-card-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 import { Meter } from "@/components/ui/meter"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import type {
-  TeamDay,
-  TeamDayPerson,
-  TeamDayTask,
-  TeamMonth,
+import {
+  showDueDatesOnCalendar,
+  type TeamDay,
+  type TeamDayPerson,
+  type TeamDayTask,
+  type TeamMonth,
 } from "@/lib/api/project/checkins"
 import { linkNoteLineToTask, type Meeting, type MeetingOccurrence, type TeamMeetings } from "@/lib/api/project/meetings"
 import { loadNewTaskProjects, type NewTaskProject } from "@/lib/api/project/tasks"
@@ -57,11 +63,14 @@ import type {
   InviteForMe,
   TeamDashboard as TeamDashboardData,
   TeamFigures,
+  TeamMemberRow,
 } from "@/lib/api/project/teams"
 import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { addDays, clockIn, clockLabel, dayLabel, longDayLabel, shortDayLabel, zoneCity } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { dueByDay, dueWords } from "@/lib/project/due-days"
 import { dayCellClassName, meetingWords, meetingsByDay, monthGrid, nextMeetingColor } from "@/lib/project/meetings"
 import { lastProject, rememberProject } from "@/lib/project/new-task-project"
 import type { TaskType } from "@/lib/project/task-types"
@@ -219,6 +228,9 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [inviting, setInviting] = React.useState(false)
   const [trendsOpen, setTrendsOpen] = React.useState(false)
+  // A teammate's page, and handing over all of someone's tasks from it.
+  const [viewing, setViewing] = React.useState<TeamMemberRow | null>(null)
+  const [handingOver, setHandingOver] = React.useState<TeamMemberRow | null>(null)
   const days = WEEK_DAYS.map(({ day, short }) => ({ day, short, on: team.workDays.includes(day) }))
   const workDayNames = days.filter((d) => d.on).map((d) => d.short).join(", ")
 
@@ -300,24 +312,38 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
             ) : null}
             <ul className="grid gap-2">
               {data.members.map((member) => (
-                <li key={member.userId} className="flex items-center gap-3 text-sm">
-                  <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} size="default" />
-                  <span className="grid min-w-0 flex-1">
-                    <span className="truncate">
-                      {member.name}
-                      {member.userId === data.myUserId ? " (you)" : ""}
+                <li key={member.userId}>
+                  <button
+                    type="button"
+                    onClick={() => setViewing(member)}
+                    className="flex w-full items-center gap-3 rounded-md text-left text-sm hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  >
+                    <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} size="default" />
+                    <span className="grid min-w-0 flex-1">
+                      <span className="truncate">
+                        {member.name}
+                        {member.userId === data.myUserId ? " (you)" : ""}
+                      </span>
+                      {member.title ? (
+                        <span className="truncate text-xs text-muted-foreground">{member.title}</span>
+                      ) : null}
                     </span>
-                    {member.title ? (
-                      <span className="truncate text-xs text-muted-foreground">{member.title}</span>
-                    ) : null}
-                  </span>
-                  <span className="shrink-0 text-muted-foreground">{TEAM_ROLE_LABEL[member.role]}</span>
+                    <span className="shrink-0 text-muted-foreground">{TEAM_ROLE_LABEL[member.role]}</span>
+                  </button>
                 </li>
               ))}
             </ul>
           </section>
         </div>
       </ScrollArea>
+      <MemberDialog
+        member={viewing}
+        myRole={data.myRole}
+        myUserId={data.myUserId}
+        onClose={() => setViewing(null)}
+        onHandOver={setHandingOver}
+      />
+      <HandOverDialog from={handingOver} members={data.members} onClose={() => setHandingOver(null)} />
       <TeamSettingsDialog
         team={team}
         labels={data.labels}
@@ -382,6 +408,18 @@ function CalendarPanel({
   const [announcing, setAnnouncing] = React.useState(false)
   const canRun = runsTheTeam(data.myRole)
   const week = weekDays(selected)
+  const router = useRouter()
+  const [run, savingSwitch] = useAsyncAction(getProjectErrorMessage)
+  // The switch moves at once, and goes back if the save is refused.
+  const [showDue, setShowDue] = useSyncedDraft(month.dueDates.on)
+  const dueDays = React.useMemo(() => dueByDay(month.dueDates.tasks), [month.dueDates.tasks])
+
+  async function switchDueDates(on: boolean) {
+    setShowDue(on)
+    const ok = await run(() => showDueDatesOnCalendar(on))
+    if (ok) await router.invalidate()
+    else setShowDue(!on)
+  }
 
   function edit(next: Meeting | "new") {
     setTarget(next === "new" ? null : next)
@@ -471,6 +509,17 @@ function CalendarPanel({
                 <TabsTrigger value="week">Week</TabsTrigger>
               </TabsList>
             </Tabs>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="team-calendar-due-dates"
+                checked={showDue}
+                disabled={savingSwitch}
+                onCheckedChange={(on) => void switchDueDates(on)}
+              />
+              <Label htmlFor="team-calendar-due-dates" className="text-sm font-normal">
+                Due dates
+              </Label>
+            </div>
           </div>
           <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
             {data.announcement ? (
@@ -488,6 +537,7 @@ function CalendarPanel({
                 month={month}
                 meetingDays={meetingDays}
                 holidays={holidayOf}
+                dueDays={dueDays}
                 viewerZone={meetings.viewerZone}
                 onSelect={onSelect}
               />
@@ -500,10 +550,12 @@ function CalendarPanel({
                     ? `${counts.checkedIn} of ${counts.expected} checked in${counts.blocked ? `, ${counts.blocked} blocked` : ""}`
                     : null
                   const holiday = inMonth ? holidayOf.get(date) : undefined
+                  const dayDue = inMonth ? (dueDays.get(date) ?? []) : []
                   const words = [
                     holiday ? `${holiday}, a team holiday` : null,
                     checkinWords,
                     meetingWords(dayMeetings, meetings.viewerZone),
+                    dueWords(dayDue),
                   ].filter(Boolean)
                   return (
                     <button
@@ -546,6 +598,7 @@ function CalendarPanel({
                         </span>
                       ) : null}
                       <MeetingChips meetings={dayMeetings} />
+                      <DueChips tasks={dayDue} />
                     </button>
                   )
                 }}
@@ -559,6 +612,7 @@ function CalendarPanel({
               onOpen={opened.open}
               onEdit={edit}
             />
+            {month.dueDates.on ? <DayDueTasks tasks={dueDays.get(selected) ?? []} onOpenTask={onOpenTask} /> : null}
           </ScrollArea>
         </>
       )}

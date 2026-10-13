@@ -16,13 +16,14 @@ import {
   visibleProjectsWhere,
   type ProjectDb,
 } from "@/server/project/access"
+import { unreadInProjectChat } from "@/server/project/chat-reads"
 import { listTeamLabels, type Label } from "@/server/project/labels"
 import { copyFieldValues, listTeamTypes } from "@/server/project/task-types"
 import type { TaskType } from "@/lib/project/task-types"
 import { requireSharedProject } from "@/server/project/personal"
 import { listSavedViews, type SavedView } from "@/server/project/saved-views"
 import { listSections, type Section } from "@/server/project/sections"
-import { listTaskCards, type TaskCard } from "@/server/project/tasks"
+import { listTaskCards, withUnread, type TaskCard } from "@/server/project/tasks"
 import { clearAssignee, listTeamMembers } from "@/server/project/teams"
 import {
   projectProjectMembers,
@@ -181,6 +182,8 @@ export type ProjectPage = {
   /** Team members who aren't on the project yet, for Add member. */
   addable: { userId: string; name: string; email: string; avatarUrl: string }[]
   tasks: TaskCard[]
+  /** Messages in the project's own chat that are new to me. */
+  chatUnread: number
   /** My other open projects, for moving ticked tasks. */
   otherProjects: { id: string; name: string; color: ProjectColor }[]
   /** My own saved views on this project. */
@@ -215,7 +218,11 @@ export async function loadProjectPage(
     .where(eq(projectProjectMembers.projectId, projectId))
     .orderBy(asc(customShellUsers.name))
 
-  const tasks = await listTaskCards(eq(projectTasks.projectId, projectId), database)
+  const tasks = await withUnread(
+    membership,
+    await listTaskCards(eq(projectTasks.projectId, projectId), database),
+    database
+  )
   const memberIds = new Set(memberRows.map((row) => row.userId))
   const teamMembers = await listTeamMembers(membership.teamId, database)
 
@@ -255,6 +262,7 @@ export async function loadProjectPage(
         avatarUrl,
       })),
     tasks,
+    chatUnread: project.personalUserId ? 0 : await unreadInProjectChat(membership, project.id, database),
     otherProjects: (
       await database
         .select({

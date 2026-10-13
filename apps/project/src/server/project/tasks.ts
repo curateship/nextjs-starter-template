@@ -17,9 +17,11 @@ import {
   requireTaskAccess,
   visibleProjectIds,
   whoCanStillSee,
+  type Membership,
   type ProjectDb,
   type TaskRow,
 } from "@/server/project/access"
+import { markTaskRead, unreadByTask } from "@/server/project/chat-reads"
 import { taskRef, writeTaskNotices, type TaskNotice } from "@/server/project/notices"
 import { labelsForTasks, listTeamLabels, type Label } from "@/server/project/labels"
 import {
@@ -108,6 +110,8 @@ export type TaskCard = {
   status: TaskStatus
   stuckReason: string | null
   dueDate: string | null
+  /** The optional first day, drawn with the due date on the Timeline. */
+  startDate: string | null
   assignee: Person | null
   assignedBy: { id: string; name: string } | null
   /** Handed to someone who hasn't accepted it yet. */
@@ -123,6 +127,11 @@ export type TaskCard = {
   handedBack: { byName: string; reason: string } | null
   steps: { done: number; total: number }
   commentCount: number
+  /**
+   * Messages in its chat that are new to the person looking, filled in by the
+   * screens that show it (`src/server/project/chat-reads.ts`); 0 elsewhere.
+   */
+  unread: number
   /** How many days anyone picked this task on a check-in. */
   pickedDays: number
   labels: Label[]
@@ -223,6 +232,7 @@ export async function listTaskCards(
       status: task.status,
       stuckReason: task.stuckReason,
       dueDate: task.dueDate,
+      startDate: task.startDate,
       assignee:
         task.assigneeUserId && row.assigneeName !== null
           ? {
@@ -255,6 +265,7 @@ export async function listTaskCards(
         total: steps.reduce((sum, step) => sum + step.total, 0),
       },
       commentCount: commentRows.find((c) => c.taskId === task.id)?.total ?? 0,
+      unread: 0,
       pickedDays: pickedRows.find((p) => p.taskId === task.id)?.days ?? 0,
       labels: labels.get(task.id) ?? [],
       section:
@@ -273,6 +284,16 @@ export async function listTaskCards(
       fieldValues: fieldValues.get(task.id) ?? {},
     }
   })
+}
+
+/** The cards with how many messages in each chat are new to this person. */
+export async function withUnread(viewer: Membership, cards: TaskCard[], database: ProjectDb) {
+  const unread = await unreadByTask(
+    viewer,
+    cards.map((card) => card.id),
+    database
+  )
+  return cards.map((card) => ({ ...card, unread: unread.get(card.id) ?? 0 }))
 }
 
 function waitingOnOf(projectId: string, waits: WaitRow[]) {
@@ -404,6 +425,8 @@ export async function loadTaskDetail(
   }))
   const archived = Boolean(project.archivedAt)
   const viewer = { userId, role: membership.role }
+  // Loading the task is reading its chat, so its "new" mark clears.
+  await markTaskRead(userId, taskId, database)
   const visible = await visibleProjectIds(membership, database)
   const [follow] = await database
     .select({ userId: projectTaskFollowers.userId })
@@ -465,10 +488,14 @@ export async function loadTaskDetail(
 export async function loadMyWork(userId: string, database = db): Promise<TaskCard[]> {
   const membership = await findMembership(userId, database)
   if (!membership) return []
-  const cards = await listTaskCards(
-    and(
-      eq(projectTasks.assigneeUserId, userId),
-      eq(projectProjects.teamId, membership.teamId)
+  const cards = await withUnread(
+    membership,
+    await listTaskCards(
+      and(
+        eq(projectTasks.assigneeUserId, userId),
+        eq(projectProjects.teamId, membership.teamId)
+      ),
+      database
     ),
     database
   )
@@ -582,6 +609,7 @@ export async function updateTask(
     /** The notes editor's session, which keeps one earlier version however often it saves. */
     notesSession?: string
     dueDate?: string | null
+    startDate?: string | null
     sectionId?: string | null
     snoozedUntil?: string | null
     priority?: TaskPriority
@@ -592,6 +620,11 @@ export async function updateTask(
   await database.transaction(async (tx) => {
     const { task } = await requireTaskAccess(actor.id, taskId, tx)
     if (fields.sectionId) await requireSectionOf(task.projectId, fields.sectionId, tx)
+    // Either end may move, from the task, the Calendar, the Timeline or a bulk
+    // change, and none may leave the start after the due day.
+    const start = fields.startDate !== undefined ? fields.startDate : task.startDate
+    const due = fields.dueDate !== undefined ? fields.dueDate : task.dueDate
+    if (start && due && start > due) throw new Error(PROJECT_ERRORS.startAfterDue)
     await tx
       .update(projectTasks)
       .set({ ...fields, updatedAt: now() })

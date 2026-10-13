@@ -41,6 +41,7 @@ import {
   WaitingBadge,
   WaitingOnBadge,
   TypeChip,
+  UnreadBadge,
 } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -525,6 +526,7 @@ function CardContent({ task }: { task: TaskCard }) {
         <DueDate dueDate={task.dueDate} status={task.status} />
         <DueMovesMark moves={task.dueMoves} status={task.status} />
         <StepsCount steps={task.steps} />
+        <UnreadBadge count={task.unread} />
         {task.commentCount ? (
           <span className="flex items-center gap-1 text-muted-foreground">
             <MessageSquareIcon className="size-3" aria-hidden />

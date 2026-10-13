@@ -27,6 +27,7 @@ import {
   SnoozedBadge,
   StatusBadge,
   TypeChip,
+  UnreadBadge,
   WaitingBadge,
   WaitingOnBadge,
 } from "@/components/project/task-bits"
@@ -382,6 +383,7 @@ function TaskRow({
           <span className={cn("truncate font-medium", task.priority === "low" && "text-muted-foreground")}>
             {task.title}
           </span>
+          <UnreadBadge count={task.unread} />
           <TypeChip type={task.type} />
           {task.waiting ? <WaitingBadge /> : null}
           <ReviewBadge review={task.review} />

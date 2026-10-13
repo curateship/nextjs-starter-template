@@ -237,7 +237,7 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
             <TableRow
               key={member.userId}
               className="group"
-              rowAction={canEdit || (data.myRole === "owner" && !isMe) ? () => setEditing(member) : undefined}
+              rowAction={() => setEditing(member)}
             >
               <TableCell column="select">
                 <Checkbox
@@ -304,7 +304,13 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
         })}
       </DashboardTable>
       <InviteDialog open={inviting} onClose={() => setInviting(false)} />
-      <MemberDialog member={editing} myRole={data.myRole} onClose={() => setEditing(null)} />
+      <MemberDialog
+        member={editing}
+        myRole={data.myRole}
+        myUserId={data.myUserId}
+        onClose={() => setEditing(null)}
+        onHandOver={setHandingOver}
+      />
       <HandOverDialog from={handingOver} members={data.members} onClose={() => setHandingOver(null)} />
       <ConfirmDialog
         open={Boolean(removing)}

@@ -223,6 +223,20 @@ Each was the recommended option.
   still opens the video link in one click, and the cog still changes the
   meeting.
 
+## Choices for the nine features
+
+Tyler answered these on 13 Oct 2026, before Features 12 Oct task 01 was
+built. Each was the recommended option.
+
+- **"3 new" counts messages only.** A status move or a hand-over already
+  shows in History and Activity.
+- **The Timeline draws no arrows** between tasks that wait on each other. A
+  waiting task carries the same Waiting mark as on the List.
+- **Anyone on a project can tag `@project`**, the same as any tag.
+- **A poll shows who picked what**, the same as reactions do.
+- **A teammate's page leaves the check-in record off.** "On time 18 of the
+  last 20 work days" stays the person's own, as My dashboard promises.
+
 ## The first version
 
 - Teams, email invites, projects and tasks.

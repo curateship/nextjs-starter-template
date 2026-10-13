@@ -80,7 +80,7 @@ export async function listTimeOffFor(actorId: string, userId: string | undefined
 }
 
 /** A person's time off that hasn't ended yet, from their own today. */
-async function upcomingTimeOff(
+export async function upcomingTimeOff(
   userId: string,
   today: string,
   database: ProjectDb = db

@@ -166,6 +166,14 @@ Optional, and private to the person. Tyler's rule in
   because it went in the bin since the morning, the check-out says why and
   saves nothing, so no task is left half finished (`checkOut` in
   `src/server/project/checkins.ts`).
+- **Plan your next check-in.** Every open task of mine is listed to tick.
+  The next check-in opens with them already ticked, and I can still change
+  them there; a line says how many came from my check-out. A task ticked
+  Done for today can't also be planned.
+- **The plan waits for my next check-in, whenever it is.** A check-out on
+  Friday plans Monday, and a day off or a weekend in between changes
+  nothing. A planned task finished, handed to someone else or put in the bin
+  meanwhile drops off quietly. Only my own open tasks can be planned.
 - **"What's left"**: one note, up to 280 characters, which starts the next
   check-in's Yesterday box.
 - **It can be changed until the day ends.** The button then reads "Change
@@ -262,7 +270,9 @@ again from today's tasks.
   `note_blocker`, from `drizzle/0105_project_team_dashboard.sql`). From
   `drizzle/0106_project_checkin_and_handing_out.sql` it also keeps the words
   the boxes had that day (`question_labels`), and the private check-out
-  (`checked_out_at`, `note_left`).
+  (`checked_out_at`, `note_left`). The tasks the check-out planned for the
+  next check-in are `tomorrow_task_ids`, from
+  `drizzle/0113_project_nine_features.sql`; null when nothing was planned.
 - **`project_checkin_items`**: each task picked that day (and whether it was
   carried over), and each task dropped from the last check-in with the reason.
   The task's title and project are copied onto the row, so a deleted task

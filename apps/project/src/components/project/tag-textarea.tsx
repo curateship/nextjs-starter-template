@@ -1,10 +1,10 @@
 import * as React from "react"
-import { ListTodoIcon } from "lucide-react"
+import { ListTodoIcon, UsersIcon } from "lucide-react"
 
 import { PersonAvatar } from "@/components/project/task-bits"
 import { Textarea } from "@/components/ui/textarea"
 import type { LinkChoice } from "@/lib/api/project/chat"
-import { linkQueryBefore, messageParts, tagQueryBefore } from "@/lib/project/mentions"
+import { PROJECT_TAG, linkQueryBefore, messageParts, tagQueryBefore } from "@/lib/project/mentions"
 import { cn } from "@/lib/utils"
 
 export type Taggable = { id: string; name: string; avatarUrl: string }
@@ -24,6 +24,7 @@ function matchesName(name: string, typed: string) {
 type Typing = { sign: "@" | "#"; typed: string; start: number }
 type Choice =
   | { kind: "person"; id: string; label: string; person: Taggable }
+  | { kind: "everyone"; id: string; label: string }
   | { kind: "task"; id: string; label: string; task: LinkChoice }
 
 /** How long typing after # pauses before the tasks are looked up. */
@@ -32,7 +33,8 @@ const FIND_DELAY_MS = 200
 /**
  * A box to write in where typing @ lists people to tag (the chat and the
  * check-in's notes), and, with `linking`, typing # lists tasks to link (the
- * chat). The list sits above the box and follows the arrow keys; Enter or
+ * chat). With `wholeProject`, the @ list starts with "@project", which tags
+ * everyone on the project. The list sits above the box and follows the arrow keys; Enter or
  * Tab picks, Escape closes it. Every other key goes to `onKeyDown`. A pick
  * puts "@Name" or "#Title" in the words; `tokenizeMessage` turns it into a
  * tag or a link on save.
@@ -43,6 +45,7 @@ export function TagTextarea({
   people,
   listLabel,
   linking,
+  wholeProject = false,
   onKeyDown,
   className,
   ref,
@@ -55,6 +58,8 @@ export function TagTextarea({
   /** What the list is, for a screen reader: "People on the project". */
   listLabel: string
   linking?: TaskLinking
+  /** Offer "@project" to tag everyone on the project (a chat, not the check-in). */
+  wholeProject?: boolean
   /** The box itself, so a Reply can put the cursor in it. */
   ref?: React.RefObject<HTMLTextAreaElement | null>
 }) {
@@ -85,10 +90,15 @@ export function TagTextarea({
   const choices: Choice[] = !typing
     ? []
     : typing.sign === "@"
-      ? people
-          .filter((person) => matchesName(person.name, typing.typed))
-          .slice(0, 8)
-          .map((person) => ({ kind: "person", id: person.id, label: person.name, person }))
+      ? [
+          ...(wholeProject && matchesName(PROJECT_TAG.name, typing.typed)
+            ? [{ kind: "everyone" as const, id: PROJECT_TAG.id, label: PROJECT_TAG.name }]
+            : []),
+          ...people
+            .filter((person) => matchesName(person.name, typing.typed))
+            .slice(0, 8)
+            .map((person) => ({ kind: "person" as const, id: person.id, label: person.name, person })),
+        ]
       : found?.typed === typing.typed
         ? found.tasks.map((task) => ({ kind: "task", id: task.id, label: task.title, task }))
         : []
@@ -112,7 +122,12 @@ export function TagTextarea({
   function pick(choice: Choice) {
     const area = box.current
     if (!area || !typing) return
-    const inserted = choice.kind === "person" ? `@${choice.person.name} ` : `#${choice.task.title} `
+    const inserted =
+      choice.kind === "person"
+        ? `@${choice.person.name} `
+        : choice.kind === "everyone"
+          ? `@${PROJECT_TAG.name} `
+          : `#${choice.task.title} `
     if (choice.kind === "task") linking?.onPick(choice.task)
     onChange(value.slice(0, typing.start) + inserted + value.slice(area.selectionStart))
     const cursor = typing.start + inserted.length
@@ -152,6 +167,14 @@ export function TagTextarea({
                 <>
                   <PersonAvatar name={choice.person.name} avatarUrl={choice.person.avatarUrl} />
                   <span className="truncate">{choice.label}</span>
+                </>
+              ) : choice.kind === "everyone" ? (
+                <>
+                  <UsersIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="grid min-w-0">
+                    <span className="truncate">@{choice.label}</span>
+                    <span className="truncate text-xs text-muted-foreground">Everyone on the project</span>
+                  </span>
                 </>
               ) : (
                 <>
@@ -234,7 +257,10 @@ export function TaggedWords({
     if (part.kind === "tag") {
       return (
         <span key={index} className="font-medium text-primary">
-          @{people.find((person) => person.id === part.userId)?.name ?? part.name}
+          @
+          {part.userId === PROJECT_TAG.id
+            ? PROJECT_TAG.name
+            : (people.find((person) => person.id === part.userId)?.name ?? part.name)}
         </span>
       )
     }

@@ -93,6 +93,28 @@ So a busy week of meetings can be read.
   its whole grid, Monday before the 1st to Sunday after the last, so a week
   that runs into the next month still has its numbers.
 
+## Due dates on the calendar
+
+So an owner sees a crowded week coming.
+
+- **"Due dates" is a switch** at the end of the row under the calendar's
+  tabs. It is each person's own, off to begin with, and kept on the server,
+  so it follows them to another browser.
+- **On, each square names its due tasks:** the first two by title with
+  their project's colour, then "+4 more". A phone's square has room for a
+  count and a list icon only. The Week view adds "3 due" to each day's
+  heading.
+- **Under the calendar, "Due this day"** lists the chosen day's due tasks
+  with their project, who has them and their status. Each row opens the
+  task's window.
+- **What counts:** tasks not Done, with a due date, in the shared projects I
+  can see. The bin, archived projects and "Just me" lists are left out.
+- **Where it lives:** `src/server/project/team-due-dates.ts` (read with the
+  month by `loadTeamMonth`, the switch saved in
+  `project_team_members.calendar_due_dates` from
+  `drizzle/0113_project_nine_features.sql`), and the squares and list in
+  `src/components/project/team-due-dates.tsx`.
+
 ## The meeting's window
 
 Everyone on the team opens it, invited or not. It shows one date of the

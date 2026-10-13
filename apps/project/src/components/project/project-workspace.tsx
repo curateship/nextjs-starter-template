@@ -2,6 +2,7 @@ import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 
 import { ProjectDetailsPanel } from "@/components/project/project-details-panel"
+import { PersonPages } from "@/components/project/person-pages"
 import { ProjectMembersPanel } from "@/components/project/project-members-panel"
 import { ProjectTasksPanel } from "@/components/project/project-tasks-panel"
 import { TaskInPlace } from "@/components/project/task-in-place"
@@ -11,6 +12,7 @@ import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { PROJECT_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
 import type { TaskFilters } from "@/lib/project/task-filters"
 import { useProjectLive } from "@/lib/project/use-project-live"
+import { useReloadAfterReading } from "@/lib/project/use-reload-after-reading"
 
 const PROJECT_ROUTE_ID = "/_authenticated/projects/$projectId"
 
@@ -62,6 +64,7 @@ export function ProjectWorkspace({
     boardStale.current = false
     reloadBoard()
   }, [openTaskId, reloadBoard])
+  useReloadAfterReading(openTaskId, page.tasks, reloadBoard)
 
   const chatOpened = React.useCallback(
     () =>
@@ -87,42 +90,44 @@ export function ProjectWorkspace({
   )
 
   return (
-    <ThreePanels
-      layoutKey={PROJECT_PANEL_LAYOUT_KEY}
-      showMiddleFor={openTaskId}
-      left={{
-        label: "Details",
-        showLabel: "Show the project details",
-        content: <ProjectDetailsPanel page={page} />,
-      }}
-      middle={{
-        label: "Tasks",
-        content: (
-          <TaskInPlace taskId={openTaskId} onBack={taskAddress.back}>
-            <ProjectTasksPanel
+    <PersonPages>
+      <ThreePanels
+        layoutKey={PROJECT_PANEL_LAYOUT_KEY}
+        showMiddleFor={openTaskId}
+        left={{
+          label: "Details",
+          showLabel: "Show the project details",
+          content: <ProjectDetailsPanel page={page} />,
+        }}
+        middle={{
+          label: "Tasks",
+          content: (
+            <TaskInPlace taskId={openTaskId} onBack={taskAddress.back}>
+              <ProjectTasksPanel
+                page={page}
+                filters={filters}
+                onFilters={setFilters}
+                onOpenTask={taskAddress.open}
+                openChat={openChat}
+                onChatOpened={chatOpened}
+              />
+            </TaskInPlace>
+          ),
+        }}
+        right={{
+          label: "Members",
+          showLabel: "Show the members",
+          content: (
+            <ProjectMembersPanel
               page={page}
-              filters={filters}
-              onFilters={setFilters}
-              onOpenTask={taskAddress.open}
-              openChat={openChat}
-              onChatOpened={chatOpened}
+              selectedUserId={filters.person ?? null}
+              onSelect={(userId) =>
+                setFilters({ person: filters.person === userId ? undefined : userId })
+              }
             />
-          </TaskInPlace>
-        ),
-      }}
-      right={{
-        label: "Members",
-        showLabel: "Show the members",
-        content: (
-          <ProjectMembersPanel
-            page={page}
-            selectedUserId={filters.person ?? null}
-            onSelect={(userId) =>
-              setFilters({ person: filters.person === userId ? undefined : userId })
-            }
-          />
-        ),
-      }}
-    />
+          ),
+        }}
+      />
+    </PersonPages>
   )
 }

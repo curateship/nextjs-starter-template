@@ -14,6 +14,7 @@ import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { userGet, userPost } from "@/server/guards"
 import {
   hideAnnouncement,
+  markAnnouncementSeen,
   postAnnouncement,
   takeDownAnnouncement,
 } from "@/server/project/announcements"
@@ -215,11 +216,20 @@ const hideAnnouncementFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ announcementId: id }))
   .handler(async ({ data, context }) => hideAnnouncement(context.user.id, data.announcementId))
 
+const markAnnouncementSeenFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ announcementId: id }))
+  .handler(async ({ data, context }) => markAnnouncementSeen(context.user.id, data.announcementId))
+
 export function postTeamAnnouncement(text: string) {
   return postAnnouncementFn({ data: { text } })
 }
 export function takeDownTeamAnnouncement() {
   return takeDownAnnouncementFn()
+}
+/** The announcement showed on my Team dashboard. */
+export function markTeamAnnouncementSeen(announcementId: string) {
+  return markAnnouncementSeenFn({ data: { announcementId } })
 }
 export function hideTeamAnnouncement(announcementId: string) {
   return hideAnnouncementFn({ data: { announcementId } })

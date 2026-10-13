@@ -15,8 +15,10 @@ import {
   setMemberTitle,
   turnOffJoinLink,
 } from "@/server/project/team-running"
+import { loadTeamMember, loadTeammate } from "@/server/project/teammate"
 
 export type { Holiday } from "@/server/project/holidays"
+export type { Teammate } from "@/server/project/teammate"
 export type {
   PersonRoom,
   AttentionKind,
@@ -31,6 +33,16 @@ export type {
 /** Needs attention, workload, handing over all of someone's tasks, the join link and job titles. */
 
 const token = z.string().min(1).max(128)
+
+const loadTeamMemberFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ userId: z.string().min(1).max(36) }))
+  .handler(async ({ data, context }) => loadTeamMember(context.user.id, data.userId))
+
+const loadTeammateFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ userId: z.string().min(1).max(36) }))
+  .handler(async ({ data, context }) => loadTeammate(context.user.id, data.userId))
 
 const loadNeedsAttentionFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -116,4 +128,12 @@ export function addTeamHoliday(data: z.input<typeof holidaySchema>) {
 }
 export function removeTeamHoliday(holidayId: string) {
   return removeHolidayFn({ data: { holidayId } })
+}
+/** A teammate's page: their open tasks in projects I can see, and their time off. */
+export function loadTeammatePage(userId: string) {
+  return loadTeammateFn({ data: { userId } })
+}
+/** One teammate's row and my role, to open their page from their name in a chat. */
+export function loadTeamMemberRow(userId: string) {
+  return loadTeamMemberFn({ data: { userId } })
 }

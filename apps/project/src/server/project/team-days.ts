@@ -14,6 +14,7 @@ import { repliesFor, type BlockerReply } from "@/server/project/blocker-replies"
 import { clockOf, isLate, loadClock, notesOf, personDay } from "@/server/project/checkins"
 import { holidayOn, holidaysBetween, type Holiday } from "@/server/project/holidays"
 import { thanksBetween, type ThanksLine } from "@/server/project/task-thanks"
+import { loadTeamDueDates, type TeamDueDates } from "@/server/project/team-due-dates"
 import { awayOn } from "@/server/project/time-off"
 import {
   projectCheckinItems,
@@ -48,6 +49,8 @@ export type TeamMonth = {
   days: TeamMonthDay[]
   /** The team's holidays in the month's grid, past and to come, which the squares name. */
   holidays: Holiday[]
+  /** My "Due dates" switch, and the due tasks across the month's grid while it is on. */
+  dueDates: TeamDueDates
 }
 
 export async function loadTeamMonth(
@@ -110,7 +113,13 @@ export async function loadTeamMonth(
       )
     }
   }
-  return { month: shown, today, days, holidays }
+  return {
+    month: shown,
+    today,
+    days,
+    holidays,
+    dueDates: await loadTeamDueDates(membership, first, last, database),
+  }
 }
 
 type DayRow = {

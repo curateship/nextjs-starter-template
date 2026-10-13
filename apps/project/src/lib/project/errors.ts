@@ -140,6 +140,11 @@ export const PROJECT_ERRORS = {
   noAnnouncement: "There's no announcement up right now.",
   tooManyAnnouncements: "That's a lot of announcements in an hour. Wait a while, then post again.",
   noteVersionNotFound: "That version of the notes no longer exists.",
+  notAPoll: "That message isn't a poll.",
+  startAfterDue: "The start day can't be after the due day. Move the due day first.",
+  planNotYours: "You can only plan your own open tasks. Close the window and open it again to see them.",
+  pollInTask: "A poll goes in a project's chat, not a task's.",
+  pollChoiceGone: "That choice isn't on the poll.",
 } as const
 
 /**

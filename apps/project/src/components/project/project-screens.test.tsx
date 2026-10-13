@@ -36,6 +36,7 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     status: "todo",
     stuckReason: null,
     dueDate: null,
+    startDate: null,
     assignee: { id: "ben", name: "Ben Ortiz", avatarUrl: "" },
     assignedBy: { id: "me", name: "Tyler" },
     waiting: false,
@@ -45,6 +46,7 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     handedBack: null,
     steps: { done: 0, total: 0 },
     commentCount: 0,
+    unread: 0,
     pickedDays: 0,
     labels: [],
     section: null,
@@ -265,6 +267,7 @@ describe("the project page", () => {
     labels: [{ id: "l1", name: "Client", color: "pink" }],
     myUserId: "me",
     myRole: "owner",
+    chatUnread: 0,
     members: [
       { userId: "me", name: "Tyler", email: "t@example.test", avatarUrl: "", role: "owner", title: null, openTasks: 1 },
       { userId: "ben", name: "Ben Ortiz", email: "b@example.test", avatarUrl: "", role: "member", title: "Designer", openTasks: 3 },

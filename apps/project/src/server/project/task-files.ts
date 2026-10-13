@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNotNull, isNull, sql, sum, type SQL } from "drizzle-orm"
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, or, sql, sum, type SQL } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { isShownPicture } from "@/lib/project/files"
@@ -20,7 +20,7 @@ import {
   type ProjectDb,
   type TaskRow,
 } from "@/server/project/access"
-import { projectTaskComments, projectTaskFiles, projectTaskTypeFields } from "@/server/project/schema"
+import { projectTaskComments, projectTaskFiles, projectTasks, projectTaskTypeFields } from "@/server/project/schema"
 import type { Actor } from "@/server/project/tasks"
 import { customShellUsers } from "@/server/schema"
 
@@ -132,6 +132,58 @@ export async function listFiles(
     fieldId: file.fieldId,
     commentId: file.commentId,
   }))
+}
+
+/** A file on the project's Files tab, with where it lives. */
+export type ProjectFile = TaskFile & {
+  /** The task it is on, or null for one sent in the project's own chat. */
+  task: { id: string; title: string } | null
+}
+
+/** Newest files the Files tab lists; a small team's project stays well under it. */
+const PROJECT_FILES_SHOWN = 500
+
+/**
+ * The project's Files tab: every file on its tasks, in their File fields and
+ * in their chats, and every one sent in the project's own chat, newest first.
+ * Files on tasks in the bin and on deleted project-chat messages are left out.
+ * Each downloads under its own rules, the same address as everywhere else.
+ */
+export async function listProjectFiles(userId: string, projectId: string, database = db): Promise<ProjectFile[]> {
+  const { membership, project } = await requireProjectAccess(userId, projectId, database)
+  const rows = await database
+    .select({ id: projectTaskFiles.id, taskId: projectTasks.id, title: projectTasks.title })
+    .from(projectTaskFiles)
+    .leftJoin(projectTasks, eq(projectTasks.id, projectTaskFiles.taskId))
+    .leftJoin(projectTaskComments, eq(projectTaskComments.id, projectTaskFiles.commentId))
+    .where(
+      or(
+        and(eq(projectTasks.projectId, project.id), isNull(projectTasks.deletedAt)),
+        and(
+          isNull(projectTaskFiles.taskId),
+          eq(projectTaskComments.projectId, project.id),
+          isNull(projectTaskComments.deletedAt)
+        )
+      )
+    )
+    .orderBy(desc(projectTaskFiles.createdAt))
+    .limit(PROJECT_FILES_SHOWN)
+  if (rows.length === 0) return []
+  const files = await listFiles(
+    { userId, role: membership.role },
+    inArray(
+      projectTaskFiles.id,
+      rows.map((row) => row.id)
+    ),
+    Boolean(project.archivedAt),
+    database
+  )
+  const byId = new Map(files.map((file) => [file.id, file]))
+  return rows.flatMap((row) => {
+    const file = byId.get(row.id)
+    if (!file) return []
+    return [{ ...file, task: row.taskId && row.title !== null ? { id: row.taskId, title: row.title } : null }]
+  })
 }
 
 /**

@@ -41,6 +41,7 @@ import {
   type CheckinPage,
 } from "@/lib/api/project/checkins"
 import { createProjectTask, setStatus, type TaskCard } from "@/lib/api/project/tasks"
+import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { clockIn, clockLabel, longDayLabel, shortDayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -94,7 +95,8 @@ export function CheckinDialog({
   const me = authenticatedRoute.useLoaderData().user
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const checkedIn = Boolean(page.checkin)
-  const [ticked, setTicked] = React.useState<Set<string>>(() => new Set())
+  // Before checking in, last evening's plan starts ticked.
+  const [ticked, setTicked] = React.useState<Set<string>>(() => new Set(page.planned))
   const [answers, setAnswers] = React.useState<Record<string, Answer>>({})
   const [missing, setMissing] = React.useState<Set<string>>(() => new Set())
   // Before checking in, the Yesterday box starts from last evening's "What's left".
@@ -119,7 +121,7 @@ export function CheckinDialog({
   if (wasOpen !== open) {
     setWasOpen(open)
     if (open) {
-      setTicked(new Set())
+      setTicked(new Set(page.planned))
       setAnswers({})
       setMissing(new Set())
       setNotes(startNotes)
@@ -131,8 +133,9 @@ export function CheckinDialog({
   // Before checking in the ticks are this window's own; after, they are the saved picks.
   const picked = checkedIn ? new Set(page.pickedTaskIds) : ticked
   const wroteNotes = CHECKIN_NOTE_FIELDS.some((field) => notes[field] !== startNotes[field])
+  const changedTicks = ticked.size !== page.planned.length || page.planned.some((id) => !ticked.has(id))
   const dirty =
-    typed.size > 0 || (!checkedIn && (ticked.size > 0 || Object.keys(answers).length > 0 || wroteNotes))
+    typed.size > 0 || (!checkedIn && (changedTicks || Object.keys(answers).length > 0 || wroteNotes))
 
   async function toggle(task: TaskCard, on: boolean) {
     if (!checkedIn) {
@@ -260,6 +263,12 @@ export function CheckinDialog({
                 </CardTitle>
               </CardHeader>
               <CardContent className="grid gap-5">
+                {!checkedIn && page.planned.length ? (
+                  <p className="text-sm text-muted-foreground">
+                    {page.planned.length} {plural(page.planned.length, "task")} ticked from your last check-out.
+                    Change them if your day has changed.
+                  </p>
+                ) : null}
                 {page.groups.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Nothing is assigned to you right now. Add a task for yourself below, or check in

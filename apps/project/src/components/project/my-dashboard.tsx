@@ -18,6 +18,7 @@ import { MyCheckinTime } from "@/components/project/my-checkin-time"
 import { MyNoticeSwitches } from "@/components/project/my-notice-switches"
 import { SaveLine } from "@/components/project/save-line"
 import { SavedViewsControls } from "@/components/project/saved-views"
+import { PersonPages } from "@/components/project/person-pages"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskFiltersBar } from "@/components/project/task-filters-bar"
 import { TaskInPlace } from "@/components/project/task-in-place"
@@ -61,6 +62,7 @@ import {
   type TaskFilters,
 } from "@/lib/project/task-filters"
 import { todaysPicks } from "@/lib/project/todays-picks"
+import { useReloadAfterReading } from "@/lib/project/use-reload-after-reading"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -105,7 +107,13 @@ function Dashboard({
   search: MyDashboardSearch
 }) {
   const navigate = useNavigate()
+  const router = useRouter()
   const taskAddress = useTaskAddress()
+  useReloadAfterReading(
+    search.task,
+    dashboard.tasks,
+    React.useCallback(() => void router.invalidate(), [router])
+  )
   const go = React.useCallback(
     (patch: Partial<MyDashboardSearch>, options: { replace?: boolean } = {}) =>
       void navigate({
@@ -121,52 +129,54 @@ function Dashboard({
   )
 
   return (
-    <ThreePanels
-      layoutKey={MY_DASHBOARD_PANEL_LAYOUT_KEY}
-      showMiddleFor={search.task}
-      left={{
-        label: "Me",
-        showLabel: "Show my details",
-        content: (
-          <MePanel
-            dashboard={dashboard}
-            onCheckIn={() => go({ checkin: true })}
-            onCheckOut={() => go({ checkout: true })}
-          />
-        ),
-      }}
-      middle={{
-        label: "My tasks",
-        content: (
-          <TaskInPlace taskId={search.task} onBack={taskAddress.back}>
-            <MyTasksPanel
+    <PersonPages>
+      <ThreePanels
+        layoutKey={MY_DASHBOARD_PANEL_LAYOUT_KEY}
+        showMiddleFor={search.task}
+        left={{
+          label: "Me",
+          showLabel: "Show my details",
+          content: (
+            <MePanel
               dashboard={dashboard}
-              filters={{ q: search.q, status: search.status, label: search.label, type: search.type }}
-              onFilters={(patch) => go(patch, { replace: true })}
-              onOpenTask={taskAddress.open}
+              onCheckIn={() => go({ checkin: true })}
+              onCheckOut={() => go({ checkout: true })}
             />
-          </TaskInPlace>
-        ),
-      }}
-      right={{
-        label: "Inbox",
-        showLabel: "Show my inbox",
-        content: <InboxPanel notifications={notifications} />,
-      }}
-    >
-      <CheckinDialog
-        page={dashboard.checkin}
-        open={search.checkin === true}
-        onClose={() => go({ checkin: undefined })}
-      />
-      {dashboard.checkin.checkin ? (
-        <CheckoutDialog
+          ),
+        }}
+        middle={{
+          label: "My tasks",
+          content: (
+            <TaskInPlace taskId={search.task} onBack={taskAddress.back}>
+              <MyTasksPanel
+                dashboard={dashboard}
+                filters={{ q: search.q, status: search.status, label: search.label, type: search.type }}
+                onFilters={(patch) => go(patch, { replace: true })}
+                onOpenTask={taskAddress.open}
+              />
+            </TaskInPlace>
+          ),
+        }}
+        right={{
+          label: "Inbox",
+          showLabel: "Show my inbox",
+          content: <InboxPanel notifications={notifications} />,
+        }}
+      >
+        <CheckinDialog
           page={dashboard.checkin}
-          open={search.checkout === true}
-          onClose={() => go({ checkout: undefined })}
+          open={search.checkin === true}
+          onClose={() => go({ checkin: undefined })}
         />
-      ) : null}
-    </ThreePanels>
+        {dashboard.checkin.checkin ? (
+          <CheckoutDialog
+            page={dashboard.checkin}
+            open={search.checkout === true}
+            onClose={() => go({ checkout: undefined })}
+          />
+        ) : null}
+      </ThreePanels>
+    </PersonPages>
   )
 }
 

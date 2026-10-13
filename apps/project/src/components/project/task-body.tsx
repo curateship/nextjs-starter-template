@@ -597,6 +597,31 @@ function TaskForm({
           ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid content-start gap-2">
+              <Label htmlFor="task-start">Start day</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <DueDayPicker
+                  id="task-start"
+                  value={task.startDate}
+                  placeholder="No start day"
+                  disabled={readOnly || busy}
+                  onChange={(startDate) => {
+                    if (startDate !== task.startDate) void change(() => saveTask({ taskId: task.id, startDate }))
+                  }}
+                />
+                {task.startDate && !readOnly ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void change(() => saveTask({ taskId: task.id, startDate: null }))}
+                  >
+                    Clear
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            <div className="grid content-start gap-2">
               <Label htmlFor="task-due">Due date</Label>
               <div className="flex flex-wrap items-center gap-2">
                 <DueDayPicker

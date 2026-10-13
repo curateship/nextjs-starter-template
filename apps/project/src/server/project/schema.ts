@@ -108,6 +108,8 @@ export const projectTeamMembers = pgTable(
     title: varchar("title", { length: 40 }),
     /** The announcement this person hid; a newer one shows again. */
     hiddenAnnouncementId: varchar("hidden_announcement_id", { length: 36 }),
+    /** The Team calendar's "Due dates" switch, each person's own (`drizzle/0113_project_nine_features.sql`). */
+    calendarDueDates: boolean("calendar_due_dates").notNull().default(false),
   },
   (table) => [primaryKey({ columns: [table.teamId, table.userId] })]
 )
@@ -251,6 +253,8 @@ export const projectTasks = pgTable("project_tasks", {
   }),
   /** High, Normal or Low (`drizzle/0111_project_planning_tasks.sql`). */
   priority: varchar("priority", { length: 8 }).$type<TaskPriority>().notNull().default("normal"),
+  /** An optional first day, drawn with the due date on the Timeline (`drizzle/0113_project_nine_features.sql`). */
+  startDate: date("start_date", { mode: "string" }),
 })
 
 /**
@@ -599,6 +603,8 @@ export const projectCheckins = pgTable("project_checkins", {
   noteLeft: text("note_left"),
   /** The words the three boxes had that day: Yesterday, Today, Blocker or the team's own. */
   questionLabels: text("question_labels").array(),
+  /** The tasks ticked at check-out for the next check-in; null when none were planned. */
+  tomorrowTaskIds: text("tomorrow_task_ids").array(),
 })
 
 /** Each task picked on a check-in, and each one dropped from the last one. */
@@ -881,3 +887,76 @@ export const projectSavedViews = pgTable("project_saved_views", {
   names: jsonb("names").$type<SavedViewNames>().notNull().default({}),
   createdAt: createdAt(),
 })
+
+/**
+ * How far each person has read a task's chat (`drizzle/0113_project_nine_features.sql`).
+ * Newer messages from someone else are new to them.
+ */
+export const projectTaskReads = pgTable(
+  "project_task_reads",
+  {
+    taskId: varchar("task_id", { length: 36 })
+      .notNull()
+      .references(() => projectTasks.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    readAt: timestamp("read_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.userId] })]
+)
+
+/** The same for each project's own chat. */
+export const projectChatReads = pgTable(
+  "project_chat_reads",
+  {
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => projectProjects.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    readAt: timestamp("read_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.projectId, table.userId] })]
+)
+
+/** A chat message that is a poll: its words are the question, and these its choices. */
+export const projectPolls = pgTable("project_polls", {
+  commentId: varchar("comment_id", { length: 36 })
+    .primaryKey()
+    .references(() => projectTaskComments.id, { onDelete: "cascade" }),
+  choices: text("choices").array().notNull(),
+})
+
+/** One vote per person per poll, by the choice's place in the list. */
+export const projectPollVotes = pgTable(
+  "project_poll_votes",
+  {
+    commentId: varchar("comment_id", { length: 36 })
+      .notNull()
+      .references(() => projectPolls.commentId, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    choice: smallint("choice").notNull(),
+    votedAt: timestamp("voted_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.commentId, table.userId] })]
+)
+
+/** Who has seen each team announcement, once each. */
+export const projectAnnouncementViews = pgTable(
+  "project_announcement_views",
+  {
+    teamId: varchar("team_id", { length: 36 })
+      .notNull()
+      .references(() => projectTeams.id, { onDelete: "cascade" }),
+    announcementId: varchar("announcement_id", { length: 36 }).notNull(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    seenAt: timestamp("seen_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.announcementId, table.userId] })]
+)
