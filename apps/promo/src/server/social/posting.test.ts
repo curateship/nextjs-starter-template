@@ -97,7 +97,7 @@ describe("pressing Post", () => {
   })
 
   const post = (findIndex: number) =>
-    queueComment(userId, { id: accountId, profileId, phoneId: null, redditCreatedAt: null, pausedAt: null, projectId: null }, { findId: findIds[findIndex], text: "Hi.", draftId: null }, db, now)
+    queueComment(userId, { id: accountId, handle: "", importance: "throwaway", movingToPhoneId: null, profileId, phoneId: null, redditCreatedAt: null, pausedAt: null, projectId: null }, { findId: findIds[findIndex], text: "Hi.", draftId: null }, db, now)
 
   const postAs = async (findIndex: number) => {
     const row = await account()

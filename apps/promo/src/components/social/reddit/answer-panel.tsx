@@ -110,6 +110,7 @@ export function AnswerPanel({
   find,
   prefill = null,
   handle,
+  postWords = "Post comment",
   drafts,
   loading,
   working,
@@ -140,6 +141,11 @@ export function AnswerPanel({
    * never seen signed in.
    */
   handle: string | null
+  /**
+   * The Post button's words, naming the device the comment goes from:
+   * "Post from phone · slot 4" or "Post from browser" (`postButtonWords`).
+   */
+  postWords?: string
   drafts: DraftView[]
   loading: boolean
   /** A browser job is waiting or running. */
@@ -739,7 +745,7 @@ export function AnswerPanel({
                   }}
                 >
                   {posting ? <Loader2Icon className="animate-spin" /> : null}
-                  Post comment
+                  {postWords}
                 </Button>
               </DisabledReason>
             </div>

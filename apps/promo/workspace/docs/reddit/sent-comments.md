@@ -62,6 +62,12 @@ reply arrow opens.
 An answer the app sent to a reply is not a row of its own. It shows under the
 reply it answers, in the comment's Replies window.
 
+A comment a phone posted has no link at first, because the Reddit app does
+not show one. The reader browser finds it in the post's newest replies a
+minute or so later; until then the row has no link to open, and reading it
+again, editing it or answering its replies waits for the link
+([Reddit on phones](reddit-on-phones.md)).
+
 Only comments that landed are listed on Sent. A failed attempt never reached
 anybody, so it has no upvotes or replies to report; it is on the Failed tab.
 

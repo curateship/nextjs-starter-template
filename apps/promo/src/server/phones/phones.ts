@@ -7,11 +7,13 @@ import {
   type PhoneStatus,
   type TrackedApp,
 } from "@/lib/phones/options"
+import type { SetupCheck } from "@/lib/phones/setup-check"
 import { uuid } from "@/server/auth/security"
 import { cleanTags } from "@/server/browser/profiles"
 import { Refusal } from "@/server/browser/refusal"
 import { promoProfileFolders, promoProfileLabels, promoProxies } from "@/server/browser/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { refuseSharedProxy } from "@/server/social/apart"
 import { promoAccounts } from "@/server/social/schema"
 
 import { clearProblem } from "./notices"
@@ -102,9 +104,11 @@ export async function createPhone(
   db: CustomShellDb = defaultDb
 ): Promise<string> {
   await assertOwned(userId, input, db)
+  const clean = cleanInput(input)
+  await refuseSharedProxy(userId, clean.proxyId, "phone", db)
   const id = uuid()
   try {
-    await db.insert(promoPhones).values({ id, userId, ...cleanInput(input) })
+    await db.insert(promoPhones).values({ id, userId, ...clean })
   } catch (error) {
     throw serialTaken(error)
   }
@@ -118,11 +122,13 @@ export async function updatePhone(
   db: CustomShellDb = defaultDb
 ): Promise<void> {
   await assertOwned(userId, input, db)
+  const clean = cleanInput(input)
+  await refuseSharedProxy(userId, clean.proxyId, "phone", db)
   let updated: Array<{ id: string }>
   try {
     updated = await db
       .update(promoPhones)
-      .set({ ...cleanInput(input), updatedAt: new Date() })
+      .set({ ...clean, updatedAt: new Date() })
       .where(and(eq(promoPhones.id, phoneId), eq(promoPhones.userId, userId)))
       .returning({ id: promoPhones.id })
   } catch (error) {
@@ -133,7 +139,7 @@ export async function updatePhone(
 
 export type BulkResult = { done: string[]; skipped: string[] }
 
-const PHONE_NOTICE_KINDS = ["phone_offline", "phone_hot", "phone_signal", "phone_storage"] as const
+const PHONE_NOTICE_KINDS = ["phone_offline", "phone_hot", "phone_signal", "phone_storage", "phone_address"] as const
 
 /**
  * Deletes phone records. The accounts on them are left with nowhere to run,
@@ -326,6 +332,18 @@ export type PhoneRecord = {
   }
   /** Each tracked app's version on it. */
   apps: Partial<Record<TrackedApp, string>>
+  /** The last setup check, line by line, or null before the first (part 23). */
+  setupCheck: SetupCheck | null
+  /** When an account left it, so it needs wiping, or null (part 26). */
+  needsWipeAt: Date | null
+  /** When the rack last wiped it, or null. */
+  wipedAt: Date | null
+  /** When an important account was first on it since its last wipe, or null (part 22). */
+  heldImportantAt: Date | null
+  /** Stopped for showing the wrong address, with what was seen, or null (part 28). */
+  addressStop: { at: Date; words: string } | null
+  /** A setup check is waiting for the rack or running. */
+  setupChecking: boolean
   createdAt: Date
 }
 
@@ -359,6 +377,20 @@ export async function listPhones(
     ).map((row) => row.phoneId)
   )
   const accounts = await accountsByPhone(userId, ids, db)
+  const checking = new Set(
+    (
+      await db
+        .select({ phoneId: promoPhoneActions.phoneId })
+        .from(promoPhoneActions)
+        .where(
+          and(
+            inArray(promoPhoneActions.phoneId, ids),
+            eq(promoPhoneActions.action, "phone/setup-check"),
+            inArray(promoPhoneActions.status, ["queued", "running"])
+          )
+        )
+    ).map((row) => row.phoneId)
+  )
 
   return rows.map(({ phone, proxyLabel, proxyHost, rackDisconnectedAt }) => {
     const rackLive = Boolean(phone.rackId) && !rackDisconnectedAt
@@ -393,6 +425,12 @@ export async function listPhones(
         at: phone.vitalsAt,
       },
       apps: phone.apps,
+      setupCheck: phone.setupCheck,
+      needsWipeAt: phone.needsWipeAt,
+      wipedAt: phone.wipedAt,
+      heldImportantAt: phone.heldImportantAt,
+      addressStop: phone.addressStopAt ? { at: phone.addressStopAt, words: phone.addressStopWords } : null,
+      setupChecking: checking.has(phone.id),
       createdAt: phone.createdAt,
     }
   })
@@ -444,14 +482,27 @@ export async function ownsPhone(
  * Reddit account on it, by name, except the self-test phone, which carries
  * only its test account. `accountId` is the account asking, whose own phone
  * stays on the list.
+ *
+ * A phone that needs wiping, or was wiped and has not passed its setup check
+ * since, is listed with a note saying so, and picking it is refused with how
+ * to get it ready (`wipe.ts`); the note is empty for a ready phone. So is a
+ * phone that held an important account, which only an important one may take.
  */
 export async function phonesFreeForReddit(
   userId: string,
   accountId: string | null,
   db: CustomShellDb = defaultDb
-): Promise<Array<{ id: string; name: string }>> {
+): Promise<Array<{ id: string; name: string; note: string }>> {
   const phones = await db
-    .select({ id: promoPhones.id, name: promoPhones.name })
+    .select({
+      id: promoPhones.id,
+      name: promoPhones.name,
+      needsWipeAt: promoPhones.needsWipeAt,
+      wipedAt: promoPhones.wipedAt,
+      heldImportantAt: promoPhones.heldImportantAt,
+      setupPassed: sql<boolean>`coalesce((${promoPhones.setupCheck}->>'passed')::boolean, false)`,
+      setupCheckedAt: promoPhones.setupCheckedAt,
+    })
     .from(promoPhones)
     .where(eq(promoPhones.userId, userId))
     .orderBy(asc(promoPhones.name), asc(promoPhones.id))
@@ -461,11 +512,26 @@ export async function phonesFreeForReddit(
     .from(promoPhoneSettings)
     .where(eq(promoPhoneSettings.id, "default"))
     .limit(1)
-  return phones.filter(
-    (phone) =>
-      phone.id !== settings?.testPhoneId &&
-      (holders.get(phone.id) ?? []).every((other) => other.platform !== "reddit" || other.id === accountId)
-  )
+  return phones
+    .filter(
+      (phone) =>
+        phone.id !== settings?.testPhoneId &&
+        (holders.get(phone.id) ?? []).every((other) => other.platform !== "reddit" || other.id === accountId)
+    )
+    .map((phone) => {
+      const own = (holders.get(phone.id) ?? []).some((other) => other.id === accountId)
+      const setUpSince = phone.wipedAt && phone.setupPassed && phone.setupCheckedAt && phone.setupCheckedAt > phone.wipedAt
+      const note = own
+        ? ""
+        : phone.needsWipeAt
+          ? "needs wiping"
+          : phone.wipedAt && !setUpSince
+            ? "wiped, set it up again"
+            : phone.heldImportantAt
+              ? "held an important account"
+              : ""
+      return { id: phone.id, name: phone.name, note }
+    })
 }
 
 /**
@@ -505,5 +571,52 @@ export async function phoneForJob(
     ready: true,
     target: { phone: { id: phone.id, userId, rackId: phone.rackId, name: phone.name } },
     timeZone: phone.timeZone,
+  }
+}
+
+/**
+ * What the Post button needs to say about the phone an account comments
+ * from (part 30 of the phone farm): its shelf slot, whether it is offline or
+ * held and why, and a stop for showing the wrong address. Null when there is
+ * no such phone.
+ */
+export type PostPhone = {
+  id: string
+  name: string
+  shelfSlot: string
+  status: PhoneStatus
+  /** Why it is offline, or empty. */
+  offlineReason: string
+  /** Held because a person controls it from its screen window. */
+  inUse: boolean
+  /** Why every job on it is refused, or empty. */
+  addressStop: string
+}
+
+export async function postPhone(
+  userId: string,
+  phoneId: string | null,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<PostPhone | null> {
+  if (!phoneId) return null
+  const [row] = await db
+    .select({ phone: promoPhones, rackDisconnectedAt: promoRacks.disconnectedAt })
+    .from(promoPhones)
+    .leftJoin(promoRacks, eq(promoRacks.id, promoPhones.rackId))
+    .where(and(eq(promoPhones.id, phoneId), eq(promoPhones.userId, userId)))
+    .limit(1)
+  if (!row) return null
+  const { phone } = row
+  const rackLive = Boolean(phone.rackId) && !row.rackDisconnectedAt
+  const status = phoneStatus(phone, rackLive, false, now)
+  return {
+    id: phone.id,
+    name: phone.name,
+    shelfSlot: phone.shelfSlot,
+    status,
+    offlineReason: status === "offline" ? offlineReason(phone, rackLive) : "",
+    inUse: inUse(phone, now),
+    addressStop: phone.addressStopAt ? phone.addressStopWords : "",
   }
 }

@@ -91,6 +91,12 @@ function phone(patch: Partial<PhoneRecord>): PhoneRecord {
     accounts: [],
     vitals: { batteryPercent: 82, temperatureC: 31, storageUsedPercent: 60, signal: "in_service", at: new Date() },
     apps: { reddit: "2025.40.0" },
+    setupCheck: null,
+    needsWipeAt: null,
+    wipedAt: null,
+    heldImportantAt: null,
+    addressStop: null,
+    setupChecking: false,
     createdAt: new Date(),
     ...patch,
   }
@@ -321,7 +327,7 @@ describe("Phones dashboard", () => {
     await render(PAGE)
     expect(text()).toContain("Reddit 2025.40.0")
     await click("Self-test")
-    expect(text()).toContain("reddit/comment: broken")
+    expect(text()).toContain("Post a Reddit comment: broken")
     expect(text()).toContain("A newer version is out. The test phone has 2025.40.0.")
     const others = Array.from(document.querySelectorAll("button")).filter((button) => button.textContent === "Update the other phones")
     expect(others[0].disabled).toBe(false)

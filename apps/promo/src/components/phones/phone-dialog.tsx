@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { PhoneActionsPanel } from "@/components/phones/phone-actions-panel"
 import { PhoneHealthPanel } from "@/components/phones/phone-health-panel"
 import { PhoneHistoryPanel } from "@/components/phones/phone-history-panel"
+import { PhoneSetupPanel } from "@/components/phones/phone-setup-panel"
 import { PhoneStatusText } from "@/components/phones/phone-status"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -69,10 +70,11 @@ function formFrom(phone: PhoneRecord | null): Form {
 
 const orNull = (value: string) => (value === NONE ? null : value)
 
-type Tab = "settings" | "health" | "actions" | "history"
+type Tab = "settings" | "setup" | "health" | "actions" | "history"
 
 /**
- * One phone, as a window over the list: its settings, its health (battery,
+ * One phone, as a window over the list: its settings, its setup (the setup
+ * check, what the platform sees, and wiping), its health (battery,
  * heat, storage, signal, the four-week chart and its app versions), its
  * actions with a picture of each step, and its history. A new phone has only
  * the settings: the rest need the rack to have seen it.
@@ -160,6 +162,7 @@ export function PhoneDialog({
                 {phone ? (
                   <TabsList>
                     <TabsTrigger value="settings">Settings</TabsTrigger>
+                    <TabsTrigger value="setup">Setup</TabsTrigger>
                     <TabsTrigger value="health">Health</TabsTrigger>
                     <TabsTrigger value="actions">Actions</TabsTrigger>
                     <TabsTrigger value="history">History</TabsTrigger>
@@ -387,6 +390,9 @@ export function PhoneDialog({
                 </TabsContent>
                 {phone ? (
                   <>
+                    <TabsContent value="setup" className="min-w-0">
+                      {tab === "setup" ? <PhoneSetupPanel phone={phone} onChanged={onChanged} /> : null}
+                    </TabsContent>
                     <TabsContent value="health" className="min-w-0">
                       {tab === "health" ? <PhoneHealthPanel phone={phone} /> : null}
                     </TabsContent>

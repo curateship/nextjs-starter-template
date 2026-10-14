@@ -40,6 +40,7 @@ import {
 } from "@/server/social/jobs"
 import { listBackups, type BackupView } from "@/server/browser/backups"
 import type { ProxyTestResult } from "@/lib/social/options"
+import { passReaderWritten } from "@/lib/social/refusal-words"
 
 import { createErrorMessage } from "../error-message"
 
@@ -54,7 +55,7 @@ export type { BackupView, BulkResult, DeleteResult, FolderView, HistoryEntry, La
  * dashboard follows the rows it writes.
  */
 
-export const getProfileErrorMessage = createErrorMessage(
+export const getProfileErrorMessage = passReaderWritten(createErrorMessage(
   {
     "does not exist": "That is not there any more. Refresh the list.",
     "already a folder": "There is already a folder with that name.",
@@ -63,7 +64,7 @@ export const getProfileErrorMessage = createErrorMessage(
     "needs a word": "A tag needs a word in it.",
   },
   "That did not work. Please try again."
-)
+))
 
 /** A profile row on the dashboard: the record and the accounts signed in inside it. */
 export type ProfileRow = ProfileRecord & {

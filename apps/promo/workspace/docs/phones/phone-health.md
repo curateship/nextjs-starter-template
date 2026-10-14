@@ -88,6 +88,8 @@ profile's history. One line per event:
   reads its Reddit account signed in after it was not.
 - **Ran hot,** with the heat it reached, and **Notice raised** and **Notice
   cleared** for the other problems above.
+- **Wiped,** and each **Setup check** with the lines that did not pass
+  ([making each phone look like one person's](looking-like-a-real-person.md)).
 
 ## Where it is
 

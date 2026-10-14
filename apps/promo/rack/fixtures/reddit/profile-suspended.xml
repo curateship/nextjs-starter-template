@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="" class="android.widget.FrameLayout" package="com.reddit.frontpage" content-desc="" bounds="[0,0][1080,2400]">
+    <node index="0" text="u/quiet_maple_42" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[40,500][1040,560]" />
+    <node index="1" text="This account has been suspended" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[40,700][1040,760]" />
+  </node>
+</hierarchy>

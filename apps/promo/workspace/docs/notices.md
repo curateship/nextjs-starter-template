@@ -32,6 +32,10 @@ acts on a bad reading". Tyler picked this the same day.
 - **The self-test finding an action broken**, "Self-test failed:", and **an app
   update in the Play Store**, "App update out:".
   [The self-test and app updates](phones/self-test-and-app-updates.md).
+- **A Wi-Fi phone showing the wrong address**: "Wrong address showing: Pixel
+  8a in slot 4", with the address apps saw. Every job on it is refused until
+  a check finds its proxy's address, and the notice goes then. Opens the phone.
+  [Making each phone look like one person's](phones/looking-like-a-real-person.md).
 
 ## The limit to know
 

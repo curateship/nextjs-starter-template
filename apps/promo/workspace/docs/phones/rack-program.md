@@ -65,11 +65,27 @@ on both lists is refused by whichever side does not know it: Promo's list is
 The last three are Promo's own, never a button on a phone's window. [The
 self-test and app updates](self-test-and-app-updates.md) has them.
 
+- **`phone/setup-check`:** Wi-Fi, location permissions, the clock, the
+  language, the SIM, the battery, the Play Store's auto-update setting, and the
+  address apps see beside the house's own. Each part is read on its own, so
+  one that fails leaves the rest.
+- **`phone/outside-address`:** only the two addresses, before every job on a
+  Wi-Fi phone.
+- **`phone/wipe`:** a factory reset through Settings. The erase is pressed
+  through the last-button guard, so a rehearsal never presses it, and it is
+  never rehearsed.
+  [Making each phone look like one person's](looking-like-a-real-person.md)
+  has all three.
+- **`reddit/state`, `reddit/quick_state`, `reddit/health` and
+  `reddit/comment`:** the Reddit app's own steps, answering in the browser's
+  shapes. [Reddit on phones](../reddit/reddit-on-phones.md).
+
 Every action that touches the screen walks it as named steps through the
 `Walk` class, which keeps a picture of each, stops pressing anything once the
-action is given up on, and in a self-test only finds the last button. The
-network actions (`reddit/search` and the rest) join the list in the later
-phone farm files, built on the same steps.
+action is given up on, and in a self-test only finds the last button. A
+button an app update may rename is looked for in each of its known shapes
+(`find_first`), and a press lands a little off the button's middle
+(`tap_point`), like a thumb.
 
 ## Pairing
 
@@ -161,8 +177,10 @@ The computer never needs a terminal after the first command.
 - `python3 -m unittest discover -s rack -p "test_*.py"`, from `apps/promo`,
   covers the program: the device list, reading the Settings screen, the shared
   signing example, both kinds of rollback, the readings, the self-test never
-  pressing Post, every saved ban screen, and reopening a frozen app or
-  restarting a frozen phone.
+  pressing Post, every saved ban screen, reopening a frozen app or
+  restarting a frozen phone, the setup check's readings, the wipe, the Reddit
+  app's screens, and taps, swipes and typing like a person. pytest is not
+  needed.
 - `python3 rack/promo_rack.py phones` prints what adb sees, for checking a
   phone by hand.
 

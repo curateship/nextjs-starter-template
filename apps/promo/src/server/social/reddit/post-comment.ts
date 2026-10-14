@@ -5,6 +5,7 @@ import { redditComment, type CommandTarget } from "@/server/browser/command"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import { MAX_COMMENT_CHARS } from "@/lib/social/options"
+import { queueJob } from "../jobs"
 import { promoAccounts, promoComments, promoDrafts, promoFinds } from "../schema"
 
 /**
@@ -113,6 +114,18 @@ export async function postComment(
       .update(promoAccounts)
       .set({ lastPostedAt: new Date() })
       .where(eq(promoAccounts.id, account.id))
+
+    // A comment from a phone comes back without its address, because the
+    // Reddit app does not show one. The signed-out reader finds it in the
+    // thread (`comment-link.ts`). Nothing here may fail the comment, which
+    // is already on Reddit: with no reader picked, the link stays empty.
+    if (!commentUrl) {
+      try {
+        await queueJob(request.userId, "comment_link", { commentId, accountId: account.id }, db)
+      } catch (error) {
+        console.error(`Could not ask the reader for the link of comment ${commentId}`, error)
+      }
+    }
 
     return { commentId, commentUrl }
   } catch (error) {

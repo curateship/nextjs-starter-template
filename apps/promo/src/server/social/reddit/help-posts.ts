@@ -4,7 +4,7 @@ import { uuid } from "@/server/auth/security"
 import { redditSearch, type CommandTarget } from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { promoPhones } from "@/server/phones/schema"
+import { postPhone, type PostPhone } from "@/server/phones/phones"
 import { promoProfiles } from "@/server/browser/schema"
 
 import { queueJob } from "../jobs"
@@ -147,8 +147,8 @@ export type HelpPage = {
     blocked: boolean
     reason: string
     profile: { id: string; name: string } | null
-    /** The phone it runs on instead of a browser profile, or null. */
-    phone: { id: string; name: string } | null
+    /** The phone it runs on instead of a browser profile, or null, with what Post says about it. */
+    phone: PostPhone | null
     voice: { id: string; name: string } | null
     posting: PostingState
     joinedSubreddits: string[]
@@ -172,12 +172,10 @@ export async function readHelpPage(
     .select({
       account: promoAccounts,
       profileName: promoProfiles.name,
-      phoneName: promoPhones.name,
       voiceName: promoVoices.name,
     })
     .from(promoAccounts)
     .leftJoin(promoProfiles, eq(promoProfiles.id, promoAccounts.profileId))
-    .leftJoin(promoPhones, eq(promoPhones.id, promoAccounts.phoneId))
     .leftJoin(promoVoices, eq(promoVoices.id, promoAccounts.voiceId))
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
     .limit(1)
@@ -224,7 +222,7 @@ export async function readHelpPage(
       blocked: account.blocked,
       reason: account.blockedReason,
       profile: account.profileId && row.profileName !== null ? { id: account.profileId, name: row.profileName } : null,
-      phone: account.phoneId && row.phoneName !== null ? { id: account.phoneId, name: row.phoneName } : null,
+      phone: await postPhone(userId, account.phoneId, db, now),
       voice: account.voiceId && row.voiceName !== null ? { id: account.voiceId, name: row.voiceName } : null,
       posting: await readPostingState(userId, account, db, now),
       joinedSubreddits: account.joinedSubreddits,

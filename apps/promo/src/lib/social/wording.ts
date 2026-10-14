@@ -1,4 +1,5 @@
 import { daysBetween } from "@/lib/format/format-time"
+import { slotWords } from "@/lib/phones/options"
 import {
   NO_PROFILE_MESSAGE,
   PICK_AN_ACCOUNT,
@@ -7,6 +8,7 @@ import {
   type SubredditRule,
 } from "@/lib/social/options"
 import { clockText, knownTimeZone, localDateKey, localMinutes } from "@/lib/social/waking"
+import type { PostPhone } from "@/server/phones/phones"
 import type { PostingState } from "@/server/social/posting"
 
 /**
@@ -35,9 +37,23 @@ type PostingAccount = {
   blocked: boolean
   reason: string
   profile: { id: string; name: string } | null
-  /** The phone it runs on instead of a profile, or null. */
-  phone: { id: string; name: string } | null
+  /** The phone it runs on instead of a profile, or null, with what Post says about it. */
+  phone: PostPhone | null
   posting: PostingState | null
+}
+
+/**
+ * Which device a comment goes from, on the Post button itself (part 30 of
+ * the phone farm): "Post from phone · slot 4", "Post from browser", or with
+ * no account picked, "Post comment".
+ */
+export function postButtonWords(account: Pick<PostingAccount, "profile" | "phone"> | null): string {
+  if (account?.phone) {
+    const slot = slotWords(account.phone.shelfSlot)
+    return slot ? `Post from phone · ${slot}` : "Post from phone"
+  }
+  if (account?.profile) return "Post from browser"
+  return "Post comment"
 }
 
 /**
@@ -66,6 +82,22 @@ export function postingBlockedReason(
       ? { kind: "phone", where: `the screen of ${status.phone.name} on the Phones dashboard` }
       : null
   if (!device) return { text: NO_PROFILE_MESSAGE }
+  // A phone that cannot take the comment now says why, with where to fix it.
+  const phone = status.phone
+  if (phone) {
+    const named = `${phone.name}${phone.shelfSlot ? ` in ${slotWords(phone.shelfSlot)}` : ""}`
+    if (phone.addressStop) return { text: `${named} was stopped for showing the wrong address: ${phone.addressStop}` }
+    if (phone.status === "offline") {
+      return { text: `${named} is offline: ${phone.offlineReason || "not seen by the rack"}. Check it on the Phones dashboard.` }
+    }
+    if (phone.status === "held") {
+      return {
+        text: phone.inUse
+          ? `${named} is held while someone uses its screen window. Close the window, or wait for it to let go, then post.`
+          : `${named} is held. Release it on the Phones dashboard, then post.`,
+      }
+    }
+  }
   if (status.blocked) {
     return {
       text: status.reason

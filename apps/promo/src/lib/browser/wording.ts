@@ -130,6 +130,7 @@ export const EVENT_WORDS: Record<string, string> = {
   proxy_refused: "Open refused, the proxy was dead",
   backed_up: "Backed up",
   restored: "Restored from a backup",
+  sign_in_deleted: "Sign-in deleted",
 }
 
 /**

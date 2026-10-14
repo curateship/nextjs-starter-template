@@ -8,6 +8,7 @@ import {
 import { Refusal } from "@/server/browser/refusal"
 import { promoProfiles } from "@/server/browser/schema"
 import { backupProfile, restoreProfile } from "@/server/browser/backups"
+import { deleteProfileSignIn } from "@/server/browser/profiles"
 import { runSiteCheck } from "@/server/browser/site-check"
 import {
   ensureSession,
@@ -20,6 +21,7 @@ import { nextWakeAt } from "@/lib/social/waking"
 import { PHONE_LANE_PREFIX, phoneLane } from "@/lib/phones/options"
 import { recordPhoneEvent } from "@/server/phones/history"
 import { phoneForJob } from "@/server/phones/phones"
+import { guardPhoneAddress } from "@/server/phones/setup"
 
 import { accountTimeZone, readBehaviour, readerProfile } from "./behaviour"
 import { ringForFailure } from "./failures"
@@ -27,6 +29,7 @@ import { pausedBy } from "./pause"
 import { accountFigures, recordAccountHealth, recordStrangerCheck } from "./health"
 import { deleteSentComment, editSentComment } from "./reddit/change-comment"
 import { recordCommentCheck } from "./reddit/comment-check"
+import { findCommentLink } from "./reddit/comment-link"
 import { readHelpPosts } from "./reddit/help-posts"
 import { submitOwnPost } from "./reddit/own-posts"
 import { readPromoThreads } from "./reddit/promo-threads"
@@ -35,6 +38,7 @@ import { postReply } from "./reddit/post-reply"
 import { readSubredditRules } from "./reddit/rules"
 import {
   JOB_MAX_ATTEMPTS,
+  TryAgainLater,
   claimNextJob,
   failJob,
   finishJob,
@@ -118,7 +122,8 @@ export async function runOneJob(
     // would only be refused.
     const final = error instanceof Refusal || WRITE_JOB_KINDS.includes(job.kind) || (await stoppedByBanScreen(job, db))
     const attempts = final ? JOB_MAX_ATTEMPTS : job.attempts
-    await failJob(job.id, claimToken, message, attempts, db)
+    const later = error instanceof TryAgainLater ? new Date(Date.now() + error.waitMs) : null
+    await failJob(job.id, claimToken, message, attempts, db, later)
     // A comment, an answer or a post that did not go out rings the bell.
     await ringForFailure(job, message, db)
     return { did: "job", kind: job.kind, jobId: job.id, ok: false, error: message }
@@ -148,6 +153,23 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
         db
       )
     }
+    return
+  }
+
+  // After an account moved to a phone, its old profile's browser is closed
+  // and its saved sign-in deleted (part 31 of the phone farm). The profile
+  // itself stays.
+  if (job.kind === "forget") {
+    const profileId = String(job.payload.profileId ?? "")
+    if (!profileId) throw new Refusal("That job names no browser profile.")
+    const [owned] = await db
+      .select({ id: promoProfiles.id })
+      .from(promoProfiles)
+      .where(and(eq(promoProfiles.id, profileId), eq(promoProfiles.userId, job.userId)))
+      .limit(1)
+    if (!owned) throw new Refusal("That browser profile does not exist.")
+    await stopSession(profileId, db)
+    await deleteProfileSignIn(job.userId, profileId, db)
     return
   }
 
@@ -248,6 +270,8 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   if (account.phoneId) {
     const phone = await phoneForJob(job.userId, account.phoneId, db)
     if (!phone.ready) throw new PutBack({ runAfter: new Date(Date.now() + HELD_RECHECK_MS) })
+    // A Wi-Fi phone shows its proxy's address or nothing goes out (part 28).
+    await guardPhoneAddress(job.userId, account.phoneId, phone.target, db)
     await runAccountJob(job, account, phone.target, db)
     return
   }
@@ -382,6 +406,8 @@ async function runReaderJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
       await readHelpPosts(job.userId, job.payload, session.target, db)
     } else if (job.kind === "promo_threads") {
       await readPromoThreads(job.userId, job.payload, session.target, db)
+    } else if (job.kind === "comment_link") {
+      await findCommentLink(job.userId, job.payload, session.target, db)
     } else {
       throw new Error(`There is no job kind called "${job.kind}".`)
     }

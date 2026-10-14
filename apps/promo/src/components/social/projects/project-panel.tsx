@@ -40,6 +40,8 @@ import {
   type ProjectView,
 } from "@/lib/api/social/projects"
 import { accountStatusText } from "@/lib/social/account-status"
+import { ACCOUNT_IMPORTANCE, IMPORTANCE_WORDS } from "@/lib/social/importance"
+import { slotWords } from "@/lib/phones/options"
 import { accountAgeText, whenText } from "@/lib/social/wording"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -457,16 +459,28 @@ function ProjectAccounts({
       </div>
 
       {view.accounts.length ? (
-        <div className="grid gap-2">
-          {view.accounts.map((account) => (
-            <AccountCard
-              key={account.id}
-              account={account}
-              selected={account.id === selectedAccountId}
-              onSelect={() => onSelectAccount(account.id)}
-              onRemove={() => onRemoveAccount(account.id)}
-            />
-          ))}
+        // Under Important and Throwaway (part 30 of the phone farm). A
+        // project holds one kind only, so this is usually one heading that
+        // says which kind it is; the order within is still best first.
+        <div className="grid gap-3">
+          {ACCOUNT_IMPORTANCE.map((importance) => {
+            const group = view.accounts.filter((account) => account.importance === importance)
+            if (!group.length) return null
+            return (
+              <div key={importance} className="grid gap-2">
+                <h4 className="text-xs text-muted-foreground">{IMPORTANCE_WORDS[importance]}</h4>
+                {group.map((account) => (
+                  <AccountCard
+                    key={account.id}
+                    account={account}
+                    selected={account.id === selectedAccountId}
+                    onSelect={() => onSelectAccount(account.id)}
+                    onRemove={() => onRemoveAccount(account.id)}
+                  />
+                ))}
+              </div>
+            )
+          })}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -614,7 +628,16 @@ function accountFacts(account: ProjectAccount): Array<{ label: string; value: st
     posting.awake || !posting.nextWakeAt
       ? { label: "Awake", value: "Now" }
       : { label: "Asleep until", value: capitalise(whenText(new Date(posting.nextWakeAt))) }
+  const slot = account.phone ? slotWords(account.phone.shelfSlot) : ""
   return [
+    {
+      label: "Comments from",
+      value: account.phone
+        ? `${account.phone.name}${slot ? `, ${slot}` : ""}`
+        : account.profile
+          ? `The browser ${account.profile.name}`
+          : "Nowhere yet",
+    },
     {
       label: "Daily limit",
       value: posting.young ? `${posting.youngPerDay} comments` : "No limit",

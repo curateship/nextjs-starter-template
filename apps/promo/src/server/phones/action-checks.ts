@@ -13,7 +13,14 @@ import { promoPhoneActionChecks } from "./schema"
  * light and free of loops.
  */
 
-/** Refuses a job's step when the self-test last found its action broken. */
+/**
+ * Actions that never run on a phone until the self-test has walked them and
+ * passed at least once: the comment goes live only once the self-test covers
+ * it (phone farm file 05).
+ */
+const NEEDS_A_PASS = new Set(["reddit/comment"])
+
+/** Refuses a job's step when the self-test last found its action broken, or has never passed it where that is required. */
 export async function refuseBrokenAction(
   userId: string,
   action: string,
@@ -24,6 +31,11 @@ export async function refuseBrokenAction(
     .from(promoPhoneActionChecks)
     .where(and(eq(promoPhoneActionChecks.userId, userId), eq(promoPhoneActionChecks.action, action)))
     .limit(1)
+  if (!check && NEEDS_A_PASS.has(action)) {
+    throw new Refusal(
+      `The daily self-test has not walked ${actionWords(action)} on the test phone yet, and it never goes out from a phone before it has. Pick a self-test phone in Settings → Phones and press Run it now in the Self-test window on the Phones dashboard. Nothing was sent.`
+    )
+  }
   if (!check || check.passed) return
   const day = check.checkedAt.toISOString().slice(0, 10)
   throw new Refusal(

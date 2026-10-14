@@ -126,11 +126,12 @@ describe("why posting is off", () => {
   })
 
   it("sends a person to the phone's screen for an account on a phone", () => {
-    const reason = postingBlockedReason({ ...ready, profile: null, phone: { id: "f1", name: "Pixel 8a" }, handle: null }, read)
+    const phone = { id: "f1", name: "Pixel 8a", shelfSlot: "", status: "connected" as const, offlineReason: "", inUse: false, addressStop: "" }
+    const reason = postingBlockedReason({ ...ready, profile: null, phone, handle: null }, read)
     expect(reason?.text).toBe(
       "The phone is not signed in to Reddit. Open the screen of Pixel 8a on the Phones dashboard and sign in once."
     )
-    expect(postingBlockedReason({ ...ready, profile: null, phone: { id: "f1", name: "Pixel 8a" } }, read)).toBeNull()
+    expect(postingBlockedReason({ ...ready, profile: null, phone }, read)).toBeNull()
   })
 
   it("says to pick an account on the left before one is clicked", () => {

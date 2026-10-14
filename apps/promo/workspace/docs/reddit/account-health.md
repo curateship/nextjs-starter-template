@@ -28,6 +28,14 @@ see it is to look at the profile signed out, which is what this reading does.
   closes afterwards, so a page a person is using is never moved. The card says
   it is checking until both are done.
 
+- **On a phone** the account's half is read in the Reddit app: the account
+  menu's "u/name", karma and "Reddit age", and the account opening its own
+  profile. The app shows the age rounded ("2y", "5d"), so the day the account
+  was made is counted down from it, and a more exact day a browser read before
+  is kept for the same account. Another account signed in there takes its own
+  day, so a young account never inherits an old one's age. The stranger's half still runs in the reader browser, never on
+  another phone ([Reddit on phones](reddit-on-phones.md)).
+
 Until 12 Oct 2026 the stranger's half was asked from inside the account's own
 browser with the cookies left off. That sent no cookies, but it still came from
 the account's browser and proxy, so it moved to the reader. With no reader
@@ -65,12 +73,13 @@ one it was.
   account, or one row's, in one request, and says how many were queued. One
   already being checked, or retired, is skipped and counted.
 - **Once a day on its own.** The ticker job `promo-account-health` asks for a
-  reading of each Reddit account that has a browser profile, was signed in
-  when last seen, and is not retired. It counts a day from when the last check was asked for, so a
+  reading of each Reddit account that runs on a browser profile or, since 14
+  Oct 2026, a phone, was signed in when last seen, and is not retired. It counts a day from when the last check was asked for, so a
   check that keeps failing is tried once a day and not every fifteen seconds.
   If the profile's browser is closed, the check opens it, the same as any job.
-- **Signed out, it is refused** with "The browser is not signed in to Reddit",
-  shown on the card, and the last reading is kept.
+- **Signed out, it is refused** with "The browser is not signed in to Reddit"
+  (on a phone, "The Reddit app on the phone is not signed in"), shown on the
+  card, and the last reading is kept.
 
 Nothing acts on a bad reading. There is no pause, no warning sent and no
 automatic change. The card says what it saw and the decision stays with a

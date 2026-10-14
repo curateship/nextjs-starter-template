@@ -24,6 +24,7 @@ import { formatDateTime } from "@/lib/format/format-time"
 import { readRunsOn, runsOnValue } from "@/lib/social/runs-on"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
+import { ImportanceCard } from "./importance-card"
 import { RunsOnSelect } from "./runs-on-select"
 import { TwoFactorCard } from "./two-factor-card"
 
@@ -40,6 +41,9 @@ import { TwoFactorCard } from "./two-factor-card"
  * A ban screen: when a phone found the app suspended, locked or asking to
  * confirm it's you, the account is stopped and the screen's words show here,
  * with the button that lets it run again once it is sorted.
+ *
+ * Important or throwaway: marking a phone account important, or moving a
+ * throwaway from its browser profile to a phone (`importance-card.tsx`).
  */
 export function AccountSettingsDialog({
   account,
@@ -53,7 +57,7 @@ export function AccountSettingsDialog({
   account: RedditAccountRow | null
   /** Profiles and phones with no Reddit account on them. */
   profiles: Array<{ id: string; name: string }>
-  phones: Array<{ id: string; name: string }>
+  phones: Array<{ id: string; name: string; note?: string }>
   onClose: () => void
   onSaved: () => Promise<void>
   /** The row changed without the window closing: a secret saved or removed. */
@@ -117,7 +121,7 @@ export function AccountSettingsDialog({
           <DialogHeader>
             <DialogTitle>Settings for {name}</DialogTitle>
             <DialogDescription>
-              Where it runs, a browser profile or a phone, never both, and its two-factor code.
+              Important or throwaway, where it runs (a browser profile or a phone, never both), and its two-factor code.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -151,6 +155,7 @@ export function AccountSettingsDialog({
                   </CardContent>
                 </Card>
               ) : null}
+              {account ? <ImportanceCard account={account} phones={phones} onChanged={onChanged} /> : null}
               <Card size="sm">
                 <CardHeader>
                   <CardTitle>Runs on</CardTitle>
@@ -165,13 +170,15 @@ export function AccountSettingsDialog({
                         setValue(next)
                         setInvalid(false)
                       }}
-                      profiles={allProfiles}
+                      // An important account runs on a phone only.
+                      profiles={account?.importance === "important" ? [] : allProfiles}
                       phones={allPhones}
                       invalid={invalid}
                     />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Sign-ins do not move with it, so sign in to Reddit again in the new place.
+                    Sign-ins do not move with it, so sign in to Reddit again in the new place. A phone it
+                    leaves needs wiping before another account goes on.
                   </p>
                 </CardContent>
               </Card>

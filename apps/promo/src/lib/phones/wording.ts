@@ -59,6 +59,26 @@ export function resultWords(action: string, result: Record<string, unknown>): st
     const app = APP_WORDS[String(result.app ?? "") as keyof typeof APP_WORDS] ?? String(result.app ?? "The app")
     return `${app} went from ${String(result.from ?? "")} to ${String(result.to ?? "")}.`
   }
+  if (action === "phone/setup-check") return "Read the phone's setup and the address apps see. Each line is on the Setup tab."
+  if (action === "phone/outside-address") {
+    const seen = (result.phone ?? {}) as { ip?: unknown }
+    const home = (result.home ?? {}) as { ip?: unknown }
+    return seen.ip
+      ? `Apps see ${String(seen.ip)}${home.ip ? `; the house's own address is ${String(home.ip)}` : ""}.`
+      : "The address apps see could not be read."
+  }
+  if (action === "phone/wipe") {
+    return result.wiped === true ? "Erased. The phone restarts into its setup screens." : "Found the erase button and pressed nothing."
+  }
+  if (action === "reddit/state" || action === "reddit/quick_state") {
+    if (result.checked === false) return "The Reddit app could not be read."
+    return result.handle ? `Reddit is signed in as u/${String(result.handle)}.` : "Reddit is signed in to nobody."
+  }
+  if (action === "reddit/health") {
+    if (!result.handle) return "Reddit is signed in to nobody, so there was nothing to read."
+    return `u/${String(result.handle)}${typeof result.karma === "number" ? `, ${result.karma} karma` : ""}.`
+  }
+  if (action === "reddit/comment") return "Posted. The reader browser finds its link in the thread."
   if (action === "phone/list" && Array.isArray(result.phones)) {
     return `The rack sees ${result.phones.length} ${result.phones.length === 1 ? "phone" : "phones"}.`
   }

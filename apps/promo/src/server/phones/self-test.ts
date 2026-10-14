@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm"
+import { and, asc, desc, eq, gte, isNull } from "drizzle-orm"
 
 import {
   APP_WORDS,
@@ -11,7 +11,7 @@ import {
 } from "@/lib/phones/options"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { ringBell } from "@/server/social/notices"
-import { promoAccounts } from "@/server/social/schema"
+import { promoAccounts, promoFinds } from "@/server/social/schema"
 
 import { phoneWords } from "./health"
 import { clearProblem } from "./notices"
@@ -37,6 +37,25 @@ import { promoAppRollouts, promoPhoneActionChecks, promoPhones, promoPhoneSettin
  */
 
 const UPDATE_SECONDS = 600
+
+/** The self-test walks a comment on a post found in the last week, so it rehearses on a live thread. */
+const REHEARSAL_POST_DAYS = 7
+
+/**
+ * What the rehearsals walk: the comment rehearsal opens a post found in the
+ * last week, up to its Post button, which it never presses. With no post
+ * found lately, the rack opens the first post of the test account's feed.
+ */
+async function rehearsalArgs(userId: string, db: CustomShellDb, now: Date): Promise<Record<string, unknown>> {
+  const [find] = await db
+    .select({ permalink: promoFinds.permalink, subreddit: promoFinds.subreddit })
+    .from(promoFinds)
+    .where(and(eq(promoFinds.userId, userId), gte(promoFinds.firstSeenAt, new Date(now.getTime() - REHEARSAL_POST_DAYS * 86_400_000))))
+    .orderBy(desc(promoFinds.firstSeenAt))
+    .limit(1)
+  if (!find) return {}
+  return { rehearsals: { "reddit/comment": { permalink: find.permalink, subreddit: find.subreddit, text: "" } } }
+}
 
 async function settingsRow(db: CustomShellDb) {
   const [row] = await db
@@ -72,6 +91,16 @@ export async function setTestPhone(
       .select({ handle: promoAccounts.handle, platform: promoAccounts.platform })
       .from(promoAccounts)
       .where(and(eq(promoAccounts.userId, userId), eq(promoAccounts.phoneId, phoneId)))
+    const [incoming] = await db
+      .select({ handle: promoAccounts.handle })
+      .from(promoAccounts)
+      .where(and(eq(promoAccounts.userId, userId), eq(promoAccounts.movingToPhoneId, phoneId), isNull(promoAccounts.retiredAt)))
+      .limit(1)
+    if (incoming) {
+      throw new Error(
+        `u/${incoming.handle} is being moved onto that phone. The self-test phone must be a spare one with only its test account; cancel the move first.`
+      )
+    }
     if (accounts.length) {
       const names = accounts.map((account) => (account.platform === "reddit" ? `u/${account.handle}` : account.handle))
       throw new Error(
@@ -108,7 +137,10 @@ export async function queueDailySelfTest(db: CustomShellDb = defaultDb, now: Dat
   if (!row || row.rackGone || row.phone.held || row.phone.adbState !== "device") return false
   const fresh = (at: Date | null) => at !== null && now.getTime() - at.getTime() < PHONE_STALE_MS
   if (!fresh(row.rackSeenAt) || !fresh(row.phone.lastSeenAt)) return false
-  await queuePhoneAction(row.phone.userId, row.phone.id, "phone/self-test", db, now, { timeoutSeconds: 900 })
+  await queuePhoneAction(row.phone.userId, row.phone.id, "phone/self-test", db, now, {
+    timeoutSeconds: 900,
+    args: await rehearsalArgs(row.phone.userId, db, now),
+  })
   await queuePhoneAction(row.phone.userId, row.phone.id, "phone/check-updates", db, now, { timeoutSeconds: 300 })
   await db.update(promoPhoneSettings).set({ selfTestAt: now }).where(eq(promoPhoneSettings.id, "default"))
   return true
@@ -118,7 +150,10 @@ export async function queueDailySelfTest(db: CustomShellDb = defaultDb, now: Dat
 export async function runSelfTestNow(userId: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
   const { testPhoneId } = await settingsRow(db)
   if (!testPhoneId) throw new Error("Pick a self-test phone in Settings → Phones first.")
-  await queuePhoneAction(userId, testPhoneId, "phone/self-test", db, now, { timeoutSeconds: 900 })
+  await queuePhoneAction(userId, testPhoneId, "phone/self-test", db, now, {
+    timeoutSeconds: 900,
+    args: await rehearsalArgs(userId, db, now),
+  })
   // The day's Play Store look goes with it, since this run counts as the day's.
   await queuePhoneAction(userId, testPhoneId, "phone/check-updates", db, now, { timeoutSeconds: 300 })
   await db.update(promoPhoneSettings).set({ selfTestAt: now }).where(eq(promoPhoneSettings.id, "default"))
@@ -329,7 +364,10 @@ export async function recordAppUpdate(
   }
   await setRollout(userId, app, "testing", { toVersion }, db, now)
   try {
-    await queuePhoneAction(userId, phoneId, "phone/self-test", db, now, { timeoutSeconds: 900 })
+    await queuePhoneAction(userId, phoneId, "phone/self-test", db, now, {
+      timeoutSeconds: 900,
+      args: await rehearsalArgs(userId, db, now),
+    })
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
     await setRollout(userId, app, "failed", { note: `The self-test could not start: ${reason}` }, db, now)

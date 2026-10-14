@@ -14,6 +14,7 @@ import {
   type SelfTestPage,
 } from "@/server/phones/self-test"
 import { clearStepPictures, stepPictures, type StepPicture } from "@/server/phones/trail"
+import { passReaderWritten } from "@/lib/social/refusal-words"
 
 import { createErrorMessage } from "../error-message"
 
@@ -25,7 +26,7 @@ export type { PhoneEventView, PhoneReading, SelfTestPage, StepPicture }
  * Admin-only, scoped to the signed-in person.
  */
 
-export const getPhoneHealthErrorMessage = createErrorMessage(
+export const getPhoneHealthErrorMessage = passReaderWritten(createErrorMessage(
   {
     "does not exist": "That is not there any more. Refresh the list.",
     "Pick a self-test phone": "Pick a self-test phone in Settings → Phones first.",
@@ -38,7 +39,7 @@ export const getPhoneHealthErrorMessage = createErrorMessage(
     "not on a connected rack": "The test phone is not on a connected rack.",
   },
   "That did not work. Please try again."
-)
+))
 
 const historyFn = createServerFn({ method: "GET" })
   .middleware([adminGet])

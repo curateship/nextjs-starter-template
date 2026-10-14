@@ -8,6 +8,7 @@ import { DRAFT_REWRITES, MAX_COMMENT_CHARS, PICK_AN_ACCOUNT, type DraftRewrite }
 import { checkCommentRules, rewriteComment, type RulesCheck } from "@/server/social/ai-tasks"
 import { draftComments, type WrittenDraft } from "@/server/social/drafts"
 import { cancelWaitingComment, queueComment } from "@/server/social/posting"
+import { readerWrittenRefusal } from "@/lib/social/refusal-words"
 
 import { createErrorMessage, describeAuthError } from "../../error-message"
 
@@ -48,6 +49,8 @@ const POST_REFUSALS = [
 ]
 
 export function getPostErrorMessage(error: unknown): string {
+  const written = readerWrittenRefusal(error)
+  if (written) return written
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : ""
   if (POST_REFUSALS.some((words) => message.includes(words))) {
     return describeAuthError(message) ?? message

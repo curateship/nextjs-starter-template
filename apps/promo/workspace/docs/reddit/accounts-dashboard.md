@@ -25,6 +25,12 @@ then signed in to Reddit there, and starts in no project.
 An account runs on a profile or a phone, never both. An account on a phone has
 its jobs run on the phone ([Jobs on phones](../phones/phone-jobs.md)).
 
+Every account is important or a throwaway, and starts as a throwaway
+([important and throwaway accounts](../accounts/important-and-throwaway.md)).
+A phone that is not ready for an account is listed with why, such as "needs
+wiping", and picking it is refused with what to do
+([making each phone look like one person's](../phones/looking-like-a-real-person.md)).
+
 Settings → Reddit account still edits one account: the oldest one in use.
 Which account a comment goes out from is picked per comment on the
 [Projects dashboard](../projects-dashboard.md).
@@ -72,8 +78,8 @@ last comment. Under 1536px wide the age, karma and last comment fold into a line
 under the name, because the row was otherwise wider than a 1440px window and
 its buttons went off the edge.
 
-- **Filter** by status (All, Warming up, Ready, Working, Banned) and by the
-  profile's or phone's tags. **Rows group** under their profile's or phone's
+- **Filter** by status (All, Warming up, Ready, Working, Banned), by
+  important or throwaway, and by the profile's or phone's tags. **Rows group** under their profile's or phone's
   folder, the folders both dashboards share, with "No folder" last; with no folders anywhere there are
   no headings. Nothing new is stored for either.
 - **Tick many, then act.** Each is one request, and the message says how many
@@ -89,6 +95,14 @@ its buttons went off the edge.
   secret so its two-factor code shows there and beside its phone's screen
   ([the screen window](../phones/screen-window.md)). The test phone of the
   daily self-test is never on its list.
+- **Important** shows under an important account's status, and **Moving to**
+  a phone's name while a move from its browser profile is waiting on the phone.
+- **The settings window** says whether the account is important or a
+  throwaway. A throwaway on a phone has **Mark important**, after a
+  confirmation and for good. A throwaway on a browser profile has **Move to a
+  phone**, then **Check sign-in** and **Cancel move** while it waits
+  ([Reddit on phones](reddit-on-phones.md)). An important account is offered
+  phones only under Runs on.
 - **Stopped by a ban screen** shows under an account's status when a phone
   found Reddit's suspended, locked or "confirm it's you" screen, with the
   screen's words on hover. Its jobs are refused until **Let it run again** in

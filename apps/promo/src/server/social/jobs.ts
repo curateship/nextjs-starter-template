@@ -343,6 +343,20 @@ export async function putJobBack(
 }
 
 /**
+ * A read that found nothing yet and is worth another go a little later, such
+ * as Reddit not showing a just-posted comment for a minute. It counts as a
+ * try, and the next one waits `waitMs`.
+ */
+export class TryAgainLater extends Error {
+  readonly waitMs: number
+  constructor(message: string, waitMs: number) {
+    super(message)
+    this.name = "TryAgainLater"
+    this.waitMs = waitMs
+  }
+}
+
+/**
  * Marks a job failed, or puts it back for another go.
  *
  * The claim token is in the WHERE clause on purpose: a worker that lost its
@@ -354,13 +368,15 @@ export async function failJob(
   claimToken: string,
   message: string,
   attempts: number,
-  db: CustomShellDb = defaultDb
+  db: CustomShellDb = defaultDb,
+  runAfter: Date | null = null
 ): Promise<void> {
   const giveUp = attempts >= MAX_ATTEMPTS
   await db
     .update(promoJobs)
     .set({
       status: giveUp ? "failed" : "queued",
+      ...(runAfter && !giveUp ? { runAfter } : {}),
       lastError: message.slice(0, 2_000),
       claimToken: null,
       claimedAt: null,

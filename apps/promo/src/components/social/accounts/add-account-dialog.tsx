@@ -46,7 +46,7 @@ export function AddAccountDialog({
 }: {
   open: boolean
   profiles: Array<{ id: string; name: string }>
-  phones: Array<{ id: string; name: string }>
+  phones: Array<{ id: string; name: string; note?: string }>
   voices: Array<{ id: string; name: string }>
   onClose: () => void
   onAdded: () => Promise<void>

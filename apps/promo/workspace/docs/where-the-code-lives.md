@@ -45,7 +45,26 @@ an app wide feature, not just a reddit feature."
 | `src/lib/social/reddit/options.ts` | Reddit's own sort orders and time windows, and the keys the Projects dashboard remembers its columns under. |
 | `src/lib/api/social/reddit/` | The keyword, post, draft and Post endpoints the Projects dashboard calls. |
 | `src/components/social/reddit/` | The keywords panel, the posts list and the post-and-comment panel, which the Projects dashboard shows. |
-| `docker/browser/routines/reddit.py` | The only file that knows how a Reddit page is put together. |
+| `docker/browser/routines/reddit.py` | The only file that knows how a Reddit page is put together. Its Reddit app twin is `rack/promo_rack.py`. |
+
+## Phones
+
+Real Android phones are app-wide, like the browser: a device an account runs
+on, belonging to no network.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/phones/` | The phones as records, the rack's side (pairing, signed messages, check-ins, the action queue), sending a job's step to a phone (`dispatch.ts`), health and the bell, the self-test, step pictures, the setup check and the Wi-Fi address guard (`setup.ts`), and wiping (`wipe.ts`). |
+| `src/lib/phones/` | The phone farm's fixed lists and words, the setup check's lines (`setup-check.ts`) and the rack mix (`rack-mix.ts`). |
+| `src/lib/api/phones/` | The Phones dashboard's endpoints. None of them talks to a phone; each writes an action the rack picks up. |
+| `src/components/phones/` | The Phones dashboard, a phone's window and its tabs, the screen window, and the Rack, Self-test and Mix windows. |
+| `rack/` | The program on the computer at home that drives the phones over adb: `promo_rack.py`, with every action, the Reddit app's steps, and the hands that tap, swipe and type like a person. The second file, beside `docker/browser/routines/reddit.py`, that knows how Reddit is put together: this one for the Reddit app. |
+
+What ties an account to a phone, and the rules for important and throwaway
+accounts, are about accounts, so they sit in `src/server/social/`:
+`apart.ts` (the two groups kept apart) and `move-to-phone.ts` (a throwaway
+moved from its browser profile to a phone). A comment a phone posted gets its
+link from `src/server/social/reddit/comment-link.ts`.
 
 ## The browser container
 

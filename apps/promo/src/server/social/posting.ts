@@ -13,9 +13,10 @@ import {
   recentComments,
   warmUpEndsAt,
 } from "./behaviour"
+import { refuseInteraction } from "./apart"
 import { queueJob } from "./jobs"
 import { pausedBy } from "./pause"
-import { promoAccounts, promoJobs } from "./schema"
+import { promoAccounts, promoFinds, promoJobs } from "./schema"
 
 /**
  * Whether an account may comment now, and if not, when.
@@ -136,7 +137,18 @@ const UNDO_SECONDS = 10
  */
 export async function queueComment(
   userId: string,
-  account: Pick<AccountRow, "id" | "profileId" | "phoneId" | "redditCreatedAt" | "pausedAt" | "projectId">,
+  account: Pick<
+    AccountRow,
+    | "id"
+    | "handle"
+    | "importance"
+    | "movingToPhoneId"
+    | "profileId"
+    | "phoneId"
+    | "redditCreatedAt"
+    | "pausedAt"
+    | "projectId"
+  >,
   input: { findId: string; text: string; draftId: string | null },
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
@@ -160,6 +172,21 @@ export async function queueComment(
   const state = await readPostingState(userId, account, db, now)
   const refusal = postingRefusalText(state, now, state.timeZone)
   if (refusal) throw new Refusal(refusal)
+
+  // Important and throwaway accounts are kept apart: the post's author, the
+  // words, and who else commented under it (part 22 of the phone farm).
+  const [find] = await db
+    .select({ author: promoFinds.author, redditId: promoFinds.redditId })
+    .from(promoFinds)
+    .where(and(eq(promoFinds.id, input.findId), eq(promoFinds.userId, userId)))
+    .limit(1)
+  if (!find) throw new Error("That post is no longer saved.")
+  await refuseInteraction(
+    userId,
+    account,
+    { postAuthor: find.author, redditPostId: find.redditId, words: [input.text] },
+    db
+  )
 
   const runAfter = state.nextWakeAt
   const undoUntil = runAfter ? null : new Date(now.getTime() + UNDO_SECONDS * 1000)

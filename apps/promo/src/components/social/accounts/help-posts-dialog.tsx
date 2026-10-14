@@ -36,7 +36,7 @@ import {
   readThread,
   setFindsStatus,
 } from "@/lib/api/social/reddit/keywords"
-import { postedDateText, postingBlockedReason, waitingCommentText } from "@/lib/social/wording"
+import { postButtonWords, postedDateText, postingBlockedReason, waitingCommentText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { Hint } from "../hint"
@@ -169,6 +169,7 @@ function HelpWindow({ accountId, onClose }: { accountId: string; onClose: () => 
           <AnswerPanel
             find={open?.find ?? null}
             handle={account?.handle || null}
+            postWords={postButtonWords(account)}
             drafts={open?.drafts ?? []}
             loading={!open}
             working={busy}

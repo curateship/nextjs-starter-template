@@ -1,9 +1,11 @@
-import { and, asc, eq, inArray, isNotNull, isNull, max, sql } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNotNull, isNull, max, sql } from "drizzle-orm"
+import { alias } from "drizzle-orm/pg-core"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoProfileFolders, promoProfiles, promoProxies } from "@/server/browser/schema"
-import { promoPhones } from "@/server/phones/schema"
+import { promoPhoneActions, promoPhones } from "@/server/phones/schema"
 import type { PhoneConnection } from "@/lib/phones/options"
+import type { AccountImportance } from "@/lib/social/importance"
 import {
   accountStatus,
   ACCOUNT_STATUS_LABELS,
@@ -12,6 +14,8 @@ import {
 } from "@/lib/social/account-status"
 import type { ProxyTestResult } from "@/lib/social/options"
 
+import { refuseMixedProject, refuseMixedVoice } from "./apart"
+import { moveHeldBack } from "./move-to-phone"
 import { readBehaviour, warmUpEndsAt } from "./behaviour"
 import { queueHealthCheck } from "./health"
 import { promoAccounts, promoComments, promoProjects, promoVoices } from "./schema"
@@ -27,6 +31,9 @@ import { promoAccounts, promoComments, promoProjects, promoVoices } from "./sche
  */
 
 type AccountRow = typeof promoAccounts.$inferSelect
+
+/** The phone an account is being moved to, beside the one it runs on. */
+const movingPhone = alias(promoPhones, "moving_phone")
 
 /**
  * Each account's status, worked out now. The warm-up is the same
@@ -108,6 +115,18 @@ export type RedditAccountRow = {
   twoFactor: boolean
   /** When a phone found a ban screen and stopped it, with the screen's words, or null. */
   banScreen: { at: Date; words: string } | null
+  /** Important or throwaway (part 22 of the phone farm). */
+  importance: AccountImportance
+  /**
+   * A move from its browser profile to a phone that has not finished
+   * (part 31), with the phone's last answer to "who is signed in", or null.
+   */
+  move: {
+    phone: { id: string; name: string }
+    lastRead: { at: Date; status: string; handle: string | null; error: string } | null
+    /** Why the move cannot finish now, even once the phone reads the account, or empty. */
+    heldBack: string
+  } | null
 }
 
 /** The accounts in use, or with `retired` the retired ones too, oldest first. */
@@ -128,6 +147,7 @@ export async function listRedditAccounts(
       phoneTags: promoPhones.tags,
       phoneConnection: promoPhones.connection,
       phoneCarrier: promoPhones.simCarrier,
+      movingPhoneName: movingPhone.name,
       folderId: promoProfileFolders.id,
       folderName: promoProfileFolders.name,
       proxyId: promoProxies.id,
@@ -140,6 +160,7 @@ export async function listRedditAccounts(
     .leftJoin(promoProjects, eq(promoProjects.id, promoAccounts.projectId))
     .leftJoin(promoProfiles, eq(promoProfiles.id, promoAccounts.profileId))
     .leftJoin(promoPhones, eq(promoPhones.id, promoAccounts.phoneId))
+    .leftJoin(movingPhone, eq(movingPhone.id, promoAccounts.movingToPhoneId))
     // An account is on a profile or a phone, never both, so whichever is set
     // gives the folder and the proxy.
     .leftJoin(
@@ -158,6 +179,18 @@ export async function listRedditAccounts(
     .orderBy(asc(promoAccounts.createdAt), asc(promoAccounts.id))
 
   const statuses = await accountStatuses(userId, rows.map((row) => row.account), db, now)
+  const reads = await lastSignInReads(
+    userId,
+    rows.flatMap((row) => (row.account.movingToPhoneId ? [row.account.movingToPhoneId] : [])),
+    db
+  )
+
+  const heldBack = new Map<string, string>()
+  for (const { account } of rows) {
+    if (account.movingToPhoneId && !account.retiredAt) {
+      heldBack.set(account.id, (await moveHeldBack(userId, account, account.movingToPhoneId, db)) ?? "")
+    }
+  }
 
   return rows.map((row) => {
     const { account } = row
@@ -201,8 +234,49 @@ export async function listRedditAccounts(
       paused: account.pausedAt ? "account" : row.projectPausedAt ? "project" : null,
       twoFactor: Boolean(account.totpSecretEncrypted),
       banScreen: account.banScreenAt ? { at: account.banScreenAt, words: account.blockedReason } : null,
+      importance: account.importance,
+      move:
+        account.movingToPhoneId && row.movingPhoneName !== null
+          ? {
+              phone: { id: account.movingToPhoneId, name: row.movingPhoneName },
+              lastRead: reads.get(account.movingToPhoneId) ?? null,
+              heldBack: heldBack.get(account.id) ?? "",
+            }
+          : null,
     }
   })
+}
+
+/** The newest "who is signed in" each phone was asked, for a move that is waiting on it. */
+async function lastSignInReads(
+  userId: string,
+  phoneIds: string[],
+  db: CustomShellDb
+): Promise<Map<string, { at: Date; status: string; handle: string | null; error: string }>> {
+  const out = new Map<string, { at: Date; status: string; handle: string | null; error: string }>()
+  if (!phoneIds.length) return out
+  const rows = await db
+    .selectDistinctOn([promoPhoneActions.phoneId], {
+      phoneId: promoPhoneActions.phoneId,
+      at: promoPhoneActions.createdAt,
+      status: promoPhoneActions.status,
+      result: promoPhoneActions.result,
+      error: promoPhoneActions.error,
+    })
+    .from(promoPhoneActions)
+    .where(
+      and(
+        eq(promoPhoneActions.userId, userId),
+        eq(promoPhoneActions.action, "reddit/state"),
+        inArray(promoPhoneActions.phoneId, phoneIds)
+      )
+    )
+    .orderBy(promoPhoneActions.phoneId, desc(promoPhoneActions.createdAt))
+  for (const row of rows) {
+    const handle = typeof row.result?.handle === "string" && row.result.handle ? row.result.handle : null
+    out.set(row.phoneId, { at: row.at, status: row.status, handle, error: row.error })
+  }
+  return out
 }
 
 export type BulkAnswer = { completed: string[]; skipped: string[] }
@@ -251,9 +325,22 @@ export async function retireAccounts(
   db: CustomShellDb = defaultDb
 ): Promise<BulkAnswer> {
   if (!ids.length) return { completed: [], skipped: [] }
+  if (!retire) {
+    // Coming back must not mix the groups: the project or voice may have
+    // taken an account of the other group while this one was retired.
+    const returning = await db
+      .select()
+      .from(promoAccounts)
+      .where(and(eq(promoAccounts.userId, userId), inArray(promoAccounts.id, ids), isNotNull(promoAccounts.retiredAt)))
+    for (const account of returning) {
+      await refuseMixedProject(userId, account, account.projectId, db)
+      await refuseMixedVoice(userId, account, account.voiceId, db)
+    }
+  }
   const changed = await db
     .update(promoAccounts)
-    .set({ retiredAt: retire ? new Date() : null, updatedAt: new Date() })
+    // A retired account's waiting move to a phone ends, so the phone is free again.
+    .set({ retiredAt: retire ? new Date() : null, ...(retire ? { movingToPhoneId: null } : {}), updatedAt: new Date() })
     .where(
       and(
         eq(promoAccounts.userId, userId),
@@ -308,6 +395,18 @@ export async function setAccountVoice(
       .where(and(eq(promoVoices.id, voiceId), eq(promoVoices.userId, userId)))
       .limit(1)
     if (!voice) throw new Error("That voice does not exist.")
+    const [account] = await db
+      .select({
+        id: promoAccounts.id,
+        handle: promoAccounts.handle,
+        importance: promoAccounts.importance,
+        movingToPhoneId: promoAccounts.movingToPhoneId,
+      })
+      .from(promoAccounts)
+      .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
+      .limit(1)
+    if (!account) throw new Error("That account is not there any more.")
+    await refuseMixedVoice(userId, account, voiceId, db)
   }
   const updated = await db
     .update(promoAccounts)

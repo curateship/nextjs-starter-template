@@ -45,6 +45,10 @@ the repo's `docs/`, and is never copied here.
   answer from the same account under Post's rules, and how an answer is stored.
 - [How Reddit sees the account](reddit/account-health.md) — karma, account age,
   and whether a stranger can see the profile, read once a day and on request.
+- [Reddit on phones](reddit/reddit-on-phones.md): who is signed in, the health
+  reading and the comment done in the real Reddit app, finding a phone
+  comment's link, the Post button naming its device, and moving an account
+  from a browser profile to a phone.
 
 ## Accounts
 
@@ -52,6 +56,9 @@ the repo's `docs/`, and is never copied here.
   browser that searches so accounts never do, the visit around every comment,
   waking hours, warm-up, the pace limit for young accounts, clicks and
   scrolls like a hand, and help-only comments that build karma. Settings → Behaviour.
+- [Important and throwaway accounts](accounts/important-and-throwaway.md): the
+  two groups, marking one important for good, and everything Promo refuses
+  that would link them.
 
 ## The browser
 
@@ -80,8 +87,8 @@ the repo's `docs/`, and is never copied here.
 
 - [The Phones dashboard](phones/phones-dashboard.md): every Android phone on
   the rack as a record, its status (Connected, Offline, Busy, Held), the shelf
-  slot, the four tabs of its window, app versions on each row, and an account
-  that runs on a phone instead of a browser profile.
+  slot, the five tabs of its window, app versions on each row, the Mix window,
+  and an account that runs on a phone instead of a browser profile.
 - [The rack program](phones/rack-program.md): the program at home that drives
   the phones, how it reaches Promo without opening a port, the named actions,
   pairing with a one-time code, signed messages, Disconnect, the one install
@@ -103,6 +110,9 @@ the repo's `docs/`, and is never copied here.
 - [A picture of every step](phones/step-pictures.md): each action's named
   steps with a screenshot, kept encrypted in R2, how long they are kept, and
   clearing a failed one's.
+- [Making each phone look like one person's](phones/looking-like-a-real-person.md):
+  the setup check, what the platform sees, wiping a phone between accounts,
+  the rack mix warning, and Wi-Fi phones that must show their proxy's address.
 - [The daily self-test and app updates](phones/self-test-and-app-updates.md):
   the spare test phone, walking each action to its last button without
   pressing it, broken actions refused, and app updates on the test phone
@@ -117,8 +127,8 @@ the repo's `docs/`, and is never copied here.
 ## Notices
 
 - [Promo's bell notices](notices.md): new replies, removed comments, suspended
-  accounts, failures and proxy renewals, one notice per thing, and where each
-  opens.
+  accounts, failures, proxy renewals and phone problems, one notice per thing,
+  and where each opens.
 
 ## Shell
 

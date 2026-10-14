@@ -18,9 +18,12 @@ dashboard, never something tucked into one network's settings.
 - **What a phone holds:** a name, model, Android version, serial number, SIM
   carrier and number, how it goes online, notes, a folder, a label, tags, a
   shelf slot and a USB port.
-- **How it goes online:** its own SIM, or the house Wi-Fi. On Wi-Fi it can go
-  out through one of the proxies on the Proxies dashboard. A SIM phone never
-  keeps a proxy, because it goes out over its own line.
+- **How it goes online:** its own SIM, or the house Wi-Fi. On Wi-Fi it goes
+  out through one of the proxies on the Proxies dashboard, and before every job
+  the rack checks the address apps see is that proxy's
+  ([making each phone look like one person's](looking-like-a-real-person.md)).
+  A SIM phone never keeps a proxy, because it goes out over its own line. A
+  proxy a browser profile uses is refused.
 - **Folders, labels and tags are the browser profiles' own.** One folder can
   hold profiles and phones together, and Folders and labels on the Browser
   profiles dashboard edits both.
@@ -83,18 +86,21 @@ account per phone is a unique index, the same rule as profiles.
   not move with it.
 - **Settings → Reddit account** has the same list, with Nowhere.
 - **Its jobs run on the phone.** [Jobs on phones](phone-jobs.md) explains the
-  queue, the limit and the waking hours. Until the Reddit app actions are
-  built (phone farm file 05), the phone answers every Reddit step with "This
-  rack does not know the action reddit/health", and the job fails with those
-  words.
+  queue, the limit and the waking hours, and [Reddit on phones](../reddit/reddit-on-phones.md)
+  what the Reddit app does there.
+- **A phone an account left needs wiping** before another account goes on, and
+  a phone that held an important account takes no throwaway until it is wiped.
+  The pickers list such a phone with why.
 
 ## The window
 
 A phone opens as a window over the list and keeps `?open=<id>` in the address,
 which is where its bell notice leads. The screen button on a row opens the
-phone's live screen ([the screen window](screen-window.md)). It has four tabs:
+phone's live screen ([the screen window](screen-window.md)). It has five tabs:
 
 - **Settings:** the fields above.
+- **Setup:** the setup check, what the platform sees, and wiping the phone.
+  [Making each phone look like one person's](looking-like-a-real-person.md).
 - **Health:** the last reading (battery, heat, storage, signal), the battery
   and heat chart for four weeks, and each app's version.
   [A phone's health](phone-health.md).
@@ -110,6 +116,11 @@ phone's live screen ([the screen window](screen-window.md)). It has four tabs:
 
 - **Each row lists the phone's app versions** under its name, such as
   "Reddit 2025.40.0", and "Self-test phone" on the test phone.
+- **An amber line under the name** says the most urgent setup problem: stopped
+  for showing the wrong address, needs wiping, wiped and not set up again, or
+  how many setup check lines fail.
+- **Mix** in the toolbar counts the phones on each model, carrier and Android
+  version, and turns amber when more than half of four or more share one.
 - **Self-test** in the toolbar opens the daily self-test's answers and app
   updates: [the self-test and app updates](self-test-and-app-updates.md).
 
@@ -120,9 +131,10 @@ plugged in comes back as a new record on the next check-in.
 ## Where it is
 
 - The page: `src/components/phones/phones-dashboard.tsx`, the window
-  `phone-dialog.tsx` with `phone-health-panel.tsx`, `phone-actions-panel.tsx`
-  and `phone-history-panel.tsx`, the Rack window `rack-dialog.tsx`, the
-  Self-test window `self-test-dialog.tsx`.
+  `phone-dialog.tsx` with `phone-setup-panel.tsx`, `phone-health-panel.tsx`,
+  `phone-actions-panel.tsx` and `phone-history-panel.tsx`, the Rack window
+  `rack-dialog.tsx`, the Self-test window `self-test-dialog.tsx` and the Mix
+  window `rack-mix-dialog.tsx`.
 - The endpoints: `src/lib/api/phones/phones.ts` and `health.ts`. The server:
   `src/server/phones/phones.ts`, with the bell in `src/server/phones/health.ts`.
 - The tables: `promo_phones` and `promo_accounts.phone_id`, in

@@ -314,7 +314,7 @@ describe("phone health", () => {
         result: { actions: [{ action: "reddit/comment", passed: false, step: "Open the reply box", error: 'Could not find "Reply" on the screen.' }] },
       })
       const [notice] = await notices()
-      expect(notice.message).toBe("Self-test failed: reddit/comment")
+      expect(notice.message).toBe("Self-test failed: Post a Reddit comment")
       expect(notice.detail).toContain('It stopped at "Open the reply box": Could not find "Reply" on the screen.')
       await expect(refuseBrokenAction(userId, "reddit/comment", db)).rejects.toThrow('broken on 2099-01-01, at "Open the reply box"')
       await expect(refuseBrokenAction(userId, "reddit/search", db)).resolves.toBeUndefined()
@@ -382,7 +382,7 @@ describe("phone health", () => {
     await db.update(promoAccounts).set({ handle: "promo_tester" }).where(eq(promoAccounts.id, accountId))
     const { setAccountRunsOn } = await import("@/server/social/accounts")
     await setAccountRunsOn(userId, accountId, { profileId: null, phoneId: await phoneId("B2") }, db)
-    expect((await phoneHistory(userId, await phoneId("A1"), db)).map((line) => line.detail)).toContain("u/promo_tester moved off it.")
+    expect((await phoneHistory(userId, await phoneId("A1"), db)).map((line) => line.detail)).toContain("u/promo_tester moved off it. It needs wiping before another account goes on.")
     expect((await phoneHistory(userId, await phoneId("B2"), db)).map((line) => line.detail)).toContain("u/promo_tester moved onto it.")
   })
 })

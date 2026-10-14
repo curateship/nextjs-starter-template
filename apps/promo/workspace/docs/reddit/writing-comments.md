@@ -262,10 +262,18 @@ the rest.
 
 No key saved means the draft button says so and names the screen to fix it on.
 
+## Which device it goes from
+
+The button names the device the comment goes from: **Post from browser** for
+an account on a browser profile, **Post from phone · slot 4** for one on a
+phone in shelf slot 4, and **Post comment** with no account clicked. Clicking
+another account changes it. [Reddit on phones](reddit-on-phones.md) has how a
+phone posts.
+
 ## Why Post is sometimes off
 
 It is never off without a reason in its tooltip. An empty box is not one of
-them: Post comment stays pressable and, pressed, says to write the comment
+them: Post stays pressable and, pressed, says to write the comment
 first. The reasons:
 
 - **The replies have not been read.** Read them first, so the comment does not
@@ -275,8 +283,10 @@ first. The reasons:
 - **No account is clicked.** "Pick an account on the left." A comment always
   goes out from the account clicked on the Projects dashboard, and every reason
   below is about that account.
+- **The account's phone is offline, held, or stopped** for showing the wrong
+  address. The tooltip names the phone and its shelf slot and says why.
 - **The browser is not signed in to Reddit.** Open it in Settings and sign in
-  once.
+  once. On a phone, sign in through its screen window on the Phones dashboard.
 - **Reddit is showing a challenge or a captcha.** Open the browser window and
   clear it by hand.
 - **The account is still warming up.** The tooltip says when its first comment
@@ -289,9 +299,14 @@ first. The reasons:
 - **The account, or its whole project, is paused.** Resume it on the Reddit
   accounts dashboard, or the project on its own dashboard.
 
+Pressed, the server can still refuse a comment that would link an important
+account and a throwaway: one on a post by the other group, one naming it, or
+one under a post the other group commented on
+([important and throwaway accounts](../accounts/important-and-throwaway.md)).
+
 ## The pace line
 
-Beside Post comment, inside the box, it says who it posts as: "as u/name",
+Beside Post, inside the box, it says who it posts as: "as u/name",
 with "3 comments in the last hour, 11 today." in its tooltip. The account's
 comments today are also on its card in the left column. Past the number in
 Settings → Behaviour (4 an hour) an amber line shows above the box and says "That would be the

@@ -17,6 +17,7 @@ import {
 } from "@/server/social/health"
 import { readBehaviour } from "@/server/social/behaviour"
 import { listVoices } from "@/server/social/voices"
+import { passReaderWritten } from "@/lib/social/refusal-words"
 
 import { createErrorMessage } from "../error-message"
 
@@ -31,7 +32,7 @@ export type { AccountHealth, AccountView }
  * the Voices dashboard. Nothing here starts, stops or drives a browser.
  */
 
-export const getAccountErrorMessage = createErrorMessage(
+export const getAccountErrorMessage = passReaderWritten(createErrorMessage(
   {
     "already has a Reddit account in it": "That profile already has a Reddit account in it. Pick another, or make a new profile.",
     "already has a Reddit account on it": "That phone already has a Reddit account on it. Pick another.",
@@ -43,7 +44,7 @@ export const getAccountErrorMessage = createErrorMessage(
     "is the reader browser": "That profile is the reader browser, which stays signed in to nobody. Pick another, or change the reader in Settings → Behaviour.",
   },
   "That did not work. Please try again."
-)
+))
 
 export type AccountSettings = {
   account: AccountView | null
@@ -54,7 +55,7 @@ export type AccountSettings = {
    */
   profiles: Array<{ id: string; name: string }>
   /** The phones it could run on instead: every phone with no other Reddit account. */
-  phones: Array<{ id: string; name: string }>
+  phones: Array<{ id: string; name: string; note: string }>
   /** Every voice, since any number of accounts may share one. */
   voices: Array<{ id: string; name: string }>
 }

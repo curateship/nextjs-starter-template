@@ -8,11 +8,14 @@ that an action works on a phone; these prove the parts around it.
 
 import json
 import os
+import random
+import re
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -176,7 +179,12 @@ class FakeElement(object):
 
     @property
     def label(self):
-        return self.selector.get("text", "")
+        if "text" in self.selector:
+            return self.selector["text"]
+        pattern = self.selector.get("textMatches") or self.selector.get("descriptionMatches")
+        if pattern:
+            return next((text for text in sorted(self.device.texts) if re.match(pattern, text)), "")
+        return ""
 
     def wait(self, timeout=0):
         return self.label in self.device.texts
@@ -204,11 +212,14 @@ class FakeDevice(object):
     def dump_hierarchy(self):
         return self.hierarchy
 
+    def screen_on(self):
+        pass
+
 
 def comment_walk(serial, args, walk):
     """A comment's steps, the shape the Reddit app actions take in file 05."""
     walk.tap("Open the post", text="Open")
-    walk.tap("Open the reply box", text="Reply")
+    walk.tap("Open the reply box", text="Add a reply")
     walk.final("Press Post", text="Post")
     return {}
 
@@ -230,27 +241,27 @@ class SelfTestTest(unittest.TestCase):
         return result, device, walk
 
     def test_a_working_action_passes_and_post_is_found_but_never_pressed(self):
-        result, device, walk = self.run_self_test(["Open", "Reply", "Post"])
+        result, device, walk = self.run_self_test(["Open", "Add a reply", "Post"])
         self.assertEqual(result, {"actions": [{"action": "test/comment", "passed": True, "step": "", "error": ""}]})
-        self.assertEqual(device.pressed, ["Open", "Reply"])
+        self.assertEqual(device.pressed, ["Open", "Add a reply"])
         self.assertEqual([step for step, _ in walk.steps], ["test/comment: Press Post (found, not pressed)"])
 
     def test_a_moved_button_fails_its_step_with_a_picture_of_where_it_stopped(self):
-        # The app renamed Reply to Respond, the way an update moves a button.
+        # The app renamed "Add a reply" to "Respond", the way an update moves a button.
         result, device, walk = self.run_self_test(["Open", "Respond", "Post"])
         line = result["actions"][0]
         self.assertFalse(line["passed"])
         self.assertEqual(line["step"], "Open the reply box")
-        self.assertIn('"Reply"', line["error"])
+        self.assertIn('"Add a reply"', line["error"])
         self.assertEqual(device.pressed, ["Open"])
         self.assertNotIn("Post", device.pressed)
         self.assertEqual(walk.steps[-1][0], "test/comment: Open the reply box")
 
     def test_a_real_run_presses_post_once(self):
-        device = FakeDevice(["Open", "Reply", "Post"])
+        device = FakeDevice(["Open", "Add a reply", "Post"])
         walk = promo_rack.Walk("A1", connect=lambda serial: device)
         comment_walk("A1", {}, walk)
-        self.assertEqual(device.pressed, ["Open", "Reply", "Post"])
+        self.assertEqual(device.pressed, ["Open", "Add a reply", "Post"])
 
     def test_a_rehearsal_that_taps_post_is_stopped_before_the_press(self):
         device = FakeDevice(["Open", "Post"])
@@ -266,7 +277,7 @@ class SelfTestTest(unittest.TestCase):
         self.assertEqual(kept[-1][0], "step 39")
 
     def test_a_cancelled_walk_presses_nothing_more(self):
-        device = FakeDevice(["Open", "Reply", "Post"])
+        device = FakeDevice(["Open", "Add a reply", "Post"])
         walk = promo_rack.Walk("A1", connect=lambda serial: device)
         walk.cancelled.set()
         with self.assertRaises(promo_rack.Cancelled):
@@ -462,6 +473,377 @@ class ReadingsTest(unittest.TestCase):
         promo_rack.keep_reading("A1", {"upSeconds": 130, "restartWhy": "", "apps": None})
         promo_rack.put_back_reading("A1", taken)
         self.assertEqual(promo_rack.take_reading("A1"), {"upSeconds": 130, "restartWhy": "It froze.", "apps": None})
+
+
+REDDIT_FIXTURES = os.path.join(HERE, "fixtures", "reddit")
+SETUP_FIXTURES = os.path.join(HERE, "fixtures", "setup")
+
+
+def fixture(folder, name):
+    with open(os.path.join(folder, name), "r", encoding="utf-8") as handle:
+        return handle.read()
+
+
+class HandsTest(unittest.TestCase):
+    """Behave-like-a-person part 6 on a phone: taps, swipes and typing."""
+
+    def test_a_hundred_taps_land_at_many_points_all_inside_the_button(self):
+        rng = random.Random(7)
+        bounds = (100, 900, 500, 1000)
+        points = [promo_rack.tap_point(bounds, rng) for _ in range(100)]
+        for x, y in points:
+            self.assertTrue(100 <= x < 500 and 900 <= y < 1000, (x, y))
+            # Never in the outer fifth on either side.
+            self.assertTrue(180 <= x <= 420 and 920 <= y <= 980, (x, y))
+        self.assertGreater(len(set(points)), 60)
+        self.assertTrue(all(points.count(point) <= 5 for point in points))
+
+    def test_swipes_bend_and_differ_run_to_run(self):
+        first = promo_rack.swipe_path(540, 1800, 540, 900, random.Random(1))
+        second = promo_rack.swipe_path(540, 1800, 540, 900, random.Random(2))
+        self.assertEqual(first[0], (540, 1800))
+        self.assertEqual(first[-1], (540, 900))
+        # A straight swipe would keep x at 540 all the way.
+        self.assertTrue(any(abs(x - 540) >= 3 for x, _ in first[1:-1]))
+        self.assertNotEqual(first, second)
+        # Points bunch at the ends: the first step is shorter than the middle one.
+        steps = [abs(b[1] - a[1]) for a, b in zip(first, first[1:])]
+        self.assertLess(steps[0], max(steps))
+
+    def test_typing_gaps_vary_and_sentence_ends_wait_longer(self):
+        plan = promo_rack.typing_plan("Yes it works. We use it daily.", random.Random(3))
+        self.assertEqual("".join(character for character, _ in plan), "Yes it works. We use it daily.")
+        gaps = [gap for _, gap in plan[:-1]]
+        self.assertEqual(plan[-1][1], 0.0)
+        self.assertGreater(len(set(round(gap, 3) for gap in gaps)), 10)
+        after_full_stop = plan[12][1]
+        self.assertEqual(plan[12][0], ".")
+        self.assertGreaterEqual(after_full_stop, promo_rack.KEY_GAP_SECONDS[0] + promo_rack.SENTENCE_PAUSE_SECONDS[0])
+        ordinary = [gap for character, gap in plan[:-1] if character not in ". "]
+        self.assertTrue(all(gap <= promo_rack.KEY_GAP_SECONDS[1] for gap in ordinary))
+
+    def test_each_kind_of_character_is_typed_its_own_way(self):
+        sent, keys = [], []
+
+        class Keys(object):
+            def send_keys(self, text, clear=True):
+                keys.append((text, clear))
+
+        with mock.patch.object(promo_rack, "shell", lambda serial, command, timeout=30: sent.append(command) or ""):
+            for character in ("a", " ", "'", "\n", "é", "🙂"):
+                promo_rack.type_key("A1", Keys(), character)
+        self.assertEqual(sent, ["input text 'a'", "input text '%s'", "input text ''\\'''", "input keyevent KEYCODE_ENTER"])
+        self.assertEqual(keys, [("é", False), ("🙂", False)])
+
+
+class LastButtonGuardTest(unittest.TestCase):
+    def test_patterns_that_could_find_post_send_or_share_are_caught(self):
+        self.assertTrue(promo_rack.could_be_last_button({"textMatches": "(?i)^(post|reply|comment)$"}))
+        self.assertTrue(promo_rack.could_be_last_button({"descriptionMatches": "^Send$"}))
+        self.assertFalse(promo_rack.could_be_last_button({"textMatches": "(?i)^(add a comment|join the conversation)$"}))
+        self.assertFalse(promo_rack.could_be_last_button({"textMatches": "(?i)^(erase all data|reset)$"}))
+
+    def test_a_rehearsal_cannot_tap_post_through_a_pattern(self):
+        device = FakeDevice(["Post"])
+        walk = promo_rack.Walk("A1", rehearse=True, connect=lambda serial: device)
+        with self.assertRaises(RuntimeError):
+            walk.tap_first("Press Post", selectors=promo_rack.REDDIT_POST_BUTTON)
+        self.assertFalse(walk.final_first("Press Post", selectors=promo_rack.REDDIT_POST_BUTTON))
+        self.assertEqual(device.pressed, [])
+
+    def test_a_real_run_presses_the_first_shape_found_once(self):
+        device = FakeDevice(["Reply"])
+        walk = promo_rack.Walk("A1", connect=lambda serial: device)
+        with mock.patch("time.sleep"):
+            self.assertTrue(walk.final_first("Press Post", selectors=promo_rack.REDDIT_POST_BUTTON))
+        self.assertEqual(device.pressed, ["Reply"])
+
+    def test_a_missing_button_names_every_shape_tried(self):
+        device = FakeDevice([])
+        walk = promo_rack.Walk("A1", connect=lambda serial: device)
+        with mock.patch("time.sleep"), self.assertRaises(promo_rack.StepFailed) as raised:
+            walk.find_first("Open the comment box", timeout=0, selectors=promo_rack.REDDIT_COMMENT_BOX)
+        self.assertIn("add a comment", str(raised.exception))
+        self.assertEqual(raised.exception.step, "Open the comment box")
+
+
+class SetupCheckTest(unittest.TestCase):
+    """Part 23: what the setup check reads off a phone."""
+
+    def test_location_is_read_from_runtime_permissions(self):
+        dump = fixture(SETUP_FIXTURES, "dumpsys-package-reddit.txt")
+        self.assertTrue(promo_rack.location_granted(dump))
+        self.assertFalse(promo_rack.location_granted(dump.replace("COARSE_LOCATION: granted=true", "COARSE_LOCATION: granted=false")))
+        # Asked for in the app's list is not the same as allowed.
+        self.assertFalse(promo_rack.location_granted("requested permissions:\n  android.permission.ACCESS_FINE_LOCATION\n"))
+
+    def test_a_time_zone_is_placed_in_its_country(self):
+        with tempfile.TemporaryDirectory() as folder:
+            old = os.path.join(folder, "zone.tab")
+            new = os.path.join(folder, "zone1970.tab")
+            with open(old, "w") as handle:
+                handle.write("# comment\nCA\t+4339-07923\tAmerica/Toronto\tEastern - ON\n")
+            with open(new, "w") as handle:
+                handle.write("CH,DE,LI\t+4723+00832\tEurope/Zurich\n")
+            self.assertEqual(promo_rack.zone_country("America/Toronto", (old, new)), "CA")
+            self.assertEqual(promo_rack.zone_country("Europe/Zurich", (old, new)), "CH")
+            self.assertEqual(promo_rack.zone_country("Etc/UTC", (old, new)), "")
+            self.assertEqual(promo_rack.zone_country("", (old, new)), "")
+        if os.path.exists("/usr/share/zoneinfo/zone.tab"):
+            self.assertEqual(promo_rack.zone_country("America/Toronto"), "CA")
+
+    def test_language_sim_and_wifi_fall_back_sensibly(self):
+        self.assertEqual(promo_rack.pick_locale("", "en-CA,fr-CA", "en_US"), "en-CA")
+        self.assertEqual(promo_rack.pick_locale("", "", "en_US"), "en-US")
+        self.assertEqual(promo_rack.pick_locale("fr-FR", "en-CA", ""), "fr-FR")
+        self.assertEqual(promo_rack.first_listed(",ca"), "ca")
+        self.assertEqual(promo_rack.first_listed(""), "")
+        self.assertEqual([promo_rack.wifi_on(value) for value in ("0", "1", "2", "3", "")], [False, True, True, False, None])
+
+    def test_ipinfo_answer_is_read_off_the_browser_screen(self):
+        self.assertEqual(promo_rack.outside_from_screen(fixture(SETUP_FIXTURES, "browser-ipinfo.xml")), {
+            "ip": "172.56.21.9",
+            "country": "CA",
+            "timezone": "America/Toronto",
+            "org": "AS812 Rogers Communications Canada Inc.",
+        })
+        self.assertEqual(promo_rack.ipinfo_from_text("This site can't be reached")["ip"], "")
+
+    def test_the_ticked_auto_update_choice_is_read(self):
+        dump = fixture(SETUP_FIXTURES, "play-auto-update.xml")
+        self.assertEqual(promo_rack.checked_radio(dump), "Don't auto-update apps")
+        self.assertEqual(promo_rack.auto_update_word("Don’t auto-update apps"), "off")
+        self.assertEqual(promo_rack.auto_update_word("Over Wi-Fi only"), "wifi")
+        self.assertEqual(promo_rack.auto_update_word("Over any network"), "any")
+        moved = dump.replace('checked="true"', 'checked="false"').replace(
+            'checked="false" content-desc="" bounds="[100,1050]', 'checked="true" content-desc="" bounds="[100,1050]')
+        self.assertEqual(promo_rack.checked_radio(moved), "Over Wi-Fi only")
+
+    def test_the_house_address_is_read_and_a_failure_says_why(self):
+        found = promo_rack.read_home_address(fetch=lambda url: '{"ip": "203.0.113.4", "country": "CA", "timezone": "America/Toronto", "org": "AS1 Home"}')
+        self.assertEqual(found, {"ip": "203.0.113.4", "country": "CA", "timezone": "America/Toronto", "org": "AS1 Home", "error": ""})
+
+        def down(url):
+            raise OSError("no route")
+
+        failed = promo_rack.read_home_address(fetch=down)
+        self.assertEqual(failed["ip"], "")
+        self.assertIn("no route", failed["error"])
+
+    def test_the_check_reads_every_part_and_one_failing_leaves_the_rest(self):
+        answers = {
+            "settings get global wifi_on": "1",
+            "getprop persist.sys.timezone": "America/Toronto",
+            "getprop persist.sys.locale": "",
+            "settings get system system_locales": "en-CA",
+            "getprop gsm.sim.operator.iso-country": "ca",
+            "getprop gsm.sim.operator.alpha": "Rogers",
+            "getprop gsm.operator.alpha": "Rogers",
+            "dumpsys battery": "  status: 2\n  level: 79\n",
+            "dumpsys package com.reddit.frontpage": fixture(SETUP_FIXTURES, "dumpsys-package-reddit.txt"),
+        }
+
+        def shell(serial, command, timeout=30):
+            if command == promo_rack.APPS_COMMAND:
+                return "com.instagram.android \ncom.reddit.frontpage     versionName=2025.40.0\n"
+            if command == "getprop ro.product.locale":
+                raise RuntimeError("device offline")
+            return answers.get(command, "")
+
+        outside = {"ip": "", "country": "", "timezone": "", "org": "", "error": "The phone's browser did not show ipinfo.io's answer within 15 seconds."}
+        with mock.patch.object(promo_rack, "shell", shell), \
+                mock.patch.object(promo_rack, "read_auto_update", lambda serial, walk: ("off", "")), \
+                mock.patch.object(promo_rack, "read_outside_on_phone", lambda serial, walk: dict(outside)), \
+                mock.patch.object(promo_rack, "read_home_address", lambda: {"ip": "203.0.113.4", "country": "CA", "timezone": "America/Toronto", "org": "", "error": ""}), \
+                mock.patch.object(promo_rack, "zone_country", lambda zone: "CA"):
+            result = promo_rack.action_setup_check("A1", {}, promo_rack.Walk("A1", connect=lambda serial: FakeDevice([])))
+        self.assertEqual(result, {
+            "wifiOn": True,
+            "locationApps": {"reddit": True},
+            "timezone": "America/Toronto",
+            "timezoneCountry": "CA",
+            "locale": "en-CA",
+            "sim": {"country": "CA", "carrier": "Rogers"},
+            "network": {"carrier": "Rogers"},
+            "autoUpdate": "off",
+            "autoUpdateError": "",
+            "battery": {"percent": 79, "charging": True},
+            "outside": outside,
+            "home": {"ip": "203.0.113.4", "country": "CA", "timezone": "America/Toronto", "org": "", "error": ""},
+        })
+
+
+class WipeTest(unittest.TestCase):
+    """Part 26: the erase is pressed once in a real run and never in a rehearsal."""
+
+    def run_wipe(self, rehearse):
+        device = FakeDevice(["Erase all data"])
+        sent = []
+        walk = promo_rack.Walk("A1", rehearse=rehearse, connect=lambda serial: device)
+        with mock.patch.object(promo_rack, "shell", lambda serial, command, timeout=30: sent.append(command) or "Starting: Intent"), \
+                mock.patch("time.sleep"):
+            result = promo_rack.action_wipe("A1", {}, walk)
+        return result, device, sent
+
+    def test_a_real_wipe_presses_erase_then_confirms_once(self):
+        result, device, sent = self.run_wipe(False)
+        self.assertEqual(result, {"wiped": True})
+        self.assertEqual(device.pressed, ["Erase all data", "Erase all data"])
+        self.assertIn("FactoryResetActivity", sent[0])
+
+    def test_a_rehearsed_wipe_never_confirms(self):
+        result, device, _ = self.run_wipe(True)
+        self.assertEqual(result, {"wiped": False})
+        self.assertEqual(device.pressed, ["Erase all data"])
+
+    def test_the_wipe_is_never_rehearsed(self):
+        self.assertNotIn("phone/wipe", promo_rack.REHEARSALS)
+
+
+class RedditScreensTest(unittest.TestCase):
+    """Part 29: what the Reddit app's own screens say about the account."""
+
+    NOW = 1_800_000_000
+
+    def test_the_account_menu_gives_handle_karma_and_age_counted_down(self):
+        reading = promo_rack.account_from_screen(fixture(REDDIT_FIXTURES, "account-menu.xml"), self.NOW)
+        self.assertEqual(reading, {"handle": "quiet_maple_42", "karma": 1234, "createdSeconds": float(self.NOW - 730 * 86400)})
+
+    def test_figures_on_one_line_are_read_too(self):
+        reading = promo_rack.account_from_screen(fixture(REDDIT_FIXTURES, "account-menu-one-line.xml"), self.NOW)
+        self.assertEqual(reading, {"handle": "new_fern_7", "karma": 1200, "createdSeconds": float(self.NOW - 5 * 86400)})
+
+    def test_a_menu_offering_log_in_is_signed_out(self):
+        self.assertEqual(
+            promo_rack.account_from_screen(fixture(REDDIT_FIXTURES, "account-menu-signed-out.xml"), self.NOW),
+            {"handle": None, "karma": None, "createdSeconds": None},
+        )
+
+    def test_karma_and_age_words(self):
+        self.assertEqual([promo_rack.parse_karma(text) for text in ("1,234", "1.2k", "3M", "17", "lots")], [1234, 1200, 3000000, 17, None])
+        self.assertEqual(
+            [promo_rack.parse_age_days(text) for text in ("2y", "3mo", "1y 2mo", "5d", "6h", "4m", "soon")],
+            [730, 90, 425, 5, 0, 0, None],
+        )
+
+    def test_the_own_profile_reads_found_or_suspended(self):
+        self.assertEqual(
+            promo_rack.profile_from_screen(fixture(REDDIT_FIXTURES, "profile.xml"), "quiet_maple_42"),
+            {"status": 200, "found": True, "suspended": False},
+        )
+        self.assertEqual(
+            promo_rack.profile_from_screen(fixture(REDDIT_FIXTURES, "profile-suspended.xml"), "quiet_maple_42"),
+            {"status": 200, "found": True, "suspended": True},
+        )
+        self.assertEqual(
+            promo_rack.profile_from_screen(fixture(REDDIT_FIXTURES, "account-menu-signed-out.xml"), "quiet_maple_42"),
+            {"status": 0, "found": False, "suspended": False},
+        )
+
+    def test_a_new_comment_by_the_account_counts_as_landed(self):
+        after = fixture(REDDIT_FIXTURES, "thread-after-post.xml")
+        before = after.replace("u/quiet_maple_42 · now", "u/third_person · 1h")
+        self.assertEqual(promo_rack.handle_count(before, "quiet_maple_42"), 0)
+        self.assertTrue(promo_rack.comment_landed(after, "quiet_maple_42", 0))
+        self.assertFalse(promo_rack.comment_landed(after, "quiet_maple_42", 1))
+        self.assertTrue(promo_rack.comment_landed(before.replace("u/third_person · 1h", "Comment posted"), "quiet_maple_42", 0))
+
+    def test_feed_titles_skip_promoted_posts_and_the_screen_edges(self):
+        titles = promo_rack.feed_post_titles(fixture(REDDIT_FIXTURES, "feed.xml"), 2400)
+        self.assertEqual(titles, [(40, 700, 1040, 820)])
+
+
+class ScriptedRedditPhone(FakeDevice):
+    """The Reddit app on a fake screen: the account menu after the avatar, the
+    thread with the new comment after Post (or not, when it never landed)."""
+
+    def __init__(self, lands=True):
+        FakeDevice.__init__(self, ["Avatar", "Add a comment", "Post"])
+        self.lands = lands
+        self.menu_reads = 0
+        self.thread = fixture(REDDIT_FIXTURES, "thread-after-post.xml")
+
+    def dump_hierarchy(self):
+        # The menu is read once after the avatar; Back then closes it.
+        if self.pressed and self.pressed[-1] == "Avatar" and self.menu_reads < self.pressed.count("Avatar"):
+            self.menu_reads += 1
+            return fixture(REDDIT_FIXTURES, "account-menu.xml")
+        if "Post" in self.pressed and self.lands:
+            return self.thread
+        return self.thread.replace("u/quiet_maple_42 · now", "u/third_person · 1h")
+
+
+class RedditCommentTest(unittest.TestCase):
+    """Part 29's comment: Post is pressed once in a real run, never in a rehearsal."""
+
+    def run_comment(self, device, args, rehearse=False):
+        sent = []
+        walk = promo_rack.Walk("A1", rehearse=rehearse, connect=lambda serial: device)
+        with mock.patch.object(promo_rack, "shell", lambda serial, command, timeout=30: sent.append(command) or ""), \
+                mock.patch.object(promo_rack, "FEED_BEFORE_SECONDS", (0, 0)), \
+                mock.patch.object(promo_rack, "FEED_AFTER_SECONDS", (0, 0)), \
+                mock.patch.object(promo_rack, "READ_SECONDS", (0, 0)), \
+                mock.patch.object(promo_rack, "POST_LANDED_SECONDS", 0.05), \
+                mock.patch.object(promo_rack, "go_home", lambda serial: None), \
+                mock.patch("time.sleep"):
+            try:
+                return promo_rack.action_reddit_comment("A1", args, walk), sent
+            except Exception as failure:  # Handed back with what was sent.
+                return failure, sent
+
+    def test_a_real_comment_types_the_words_and_presses_post_once(self):
+        device = ScriptedRedditPhone()
+        result, sent = self.run_comment(device, {"permalink": "/r/smallbusiness/comments/abc/how/", "text": "Hi. Ok", "subreddit": "smallbusiness"})
+        self.assertEqual(result["commentUrl"], "")
+        self.assertEqual(sorted(result["visit"]), ["afterSeconds", "beforeSeconds", "postsOpened", "problems", "reachedBy", "scrolls"])
+        self.assertEqual(device.pressed.count("Post"), 1)
+        self.assertEqual(device.pressed[-2:], ["Add a comment", "Post"])
+        self.assertTrue(any("-d 'https://www.reddit.com/r/smallbusiness/comments/abc/how/' -p com.reddit.frontpage" in command for command in sent))
+        typed = [command for command in sent if command.startswith("input text")]
+        self.assertEqual(len(typed), len("Hi. Ok"))
+
+    def test_a_comment_that_never_shows_is_failed_without_a_second_press(self):
+        device = ScriptedRedditPhone(lands=False)
+        failure, _ = self.run_comment(device, {"permalink": "/r/x/comments/abc/t/", "text": "Hi", "subreddit": "x"})
+        self.assertIn("no new comment by u/quiet_maple_42", str(failure))
+        self.assertEqual(device.pressed.count("Post"), 1)
+
+    def test_a_signed_out_app_never_opens_the_comment_box(self):
+        device = ScriptedRedditPhone()
+        device.dump_hierarchy = lambda: fixture(REDDIT_FIXTURES, "account-menu-signed-out.xml")
+        failure, _ = self.run_comment(device, {"permalink": "/r/x/comments/abc/t/", "text": "Hi", "subreddit": "x"})
+        self.assertIn("not signed in", str(failure))
+        self.assertNotIn("Add a comment", device.pressed)
+
+    def test_a_rehearsal_types_nothing_and_finds_post_without_pressing_it(self):
+        device = ScriptedRedditPhone()
+        result, sent = self.run_comment(device, {"permalink": "/r/x/comments/abc/t/", "text": "", "subreddit": ""}, rehearse=True)
+        self.assertEqual(result, {"commentUrl": "", "visit": promo_rack.new_visit()})
+        self.assertEqual(device.pressed, ["Add a comment"])
+        self.assertFalse([command for command in sent if command.startswith("input text")])
+        self.assertIn("input keyevent KEYCODE_BACK", sent)
+
+    def test_the_self_test_rehearses_on_the_post_promo_sends(self):
+        seen = {}
+        promo_rack.ACTIONS["test/comment"] = lambda serial, args, walk: seen.update(args) or {}
+        try:
+            with mock.patch.object(promo_rack, "go_home", lambda serial: None):
+                walk = promo_rack.Walk("A1", connect=lambda serial: FakeDevice([]))
+                promo_rack.action_self_test(
+                    "A1",
+                    {"rehearsals": {"test/comment": {"permalink": "/r/x/comments/abc/t/"}, "test/unknown": {}}},
+                    walk,
+                    rehearsals={"test/comment": {"permalink": "", "text": ""}},
+                )
+        finally:
+            del promo_rack.ACTIONS["test/comment"]
+        self.assertEqual(seen, {"permalink": "/r/x/comments/abc/t/", "text": ""})
+
+    def test_reddit_actions_are_rehearsed(self):
+        for name in ("reddit/state", "reddit/health", "reddit/comment"):
+            self.assertIn(name, promo_rack.REHEARSALS)
+            self.assertIn(name, promo_rack.ACTIONS)
+        self.assertIn("reddit/quick_state", promo_rack.ACTIONS)
 
 
 class LauncherRollbackTest(unittest.TestCase):

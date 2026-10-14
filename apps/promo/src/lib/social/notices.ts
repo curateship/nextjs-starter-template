@@ -5,6 +5,7 @@ import {
   DownloadIcon,
   EyeOffIcon,
   FlaskConicalIcon,
+  GlobeLockIcon,
   HardDriveIcon,
   MessageCircleReplyIcon,
   ServerOffIcon,
@@ -42,6 +43,7 @@ const LOOKS: Record<PromoNoticeKind, Pick<AppNoticeDetail, "icon" | "toneClassNa
   ban_screen: { icon: BanIcon, toneClassName: "bg-destructive/10 text-destructive" },
   action_broken: { icon: FlaskConicalIcon, toneClassName: "bg-destructive/10 text-destructive" },
   app_update: { icon: DownloadIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  phone_address: { icon: GlobeLockIcon, toneClassName: "bg-destructive/10 text-destructive" },
 }
 
 /** Which of Promo's kinds a notice is, read off its heading, or null. */

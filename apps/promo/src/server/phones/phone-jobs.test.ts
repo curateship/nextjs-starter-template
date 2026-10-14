@@ -368,6 +368,8 @@ describe("jobs on phones", () => {
       const { A1 } = await plugIn("A1")
       const accountId = await accountOn(A1)
       const findId = await insertFind()
+      // A phone comment goes out only once the self-test has walked it.
+      await db.insert(promoPhoneActionChecks).values({ userId, action: "reddit/comment", passed: true })
       const jobId = await queueJob(userId, "comment", { accountId, findId, text: "We keep it all in one board." }, db)
       const fake = fakeRack((action) =>
         action.action === "reddit/comment"
@@ -399,7 +401,7 @@ describe("jobs on phones", () => {
       const result = await runOneJob("phone-lane", db, "phone")
       await fake.stop()
       expect(result).toMatchObject({ ok: false })
-      expect(String((result as { error?: string }).error)).toContain('found reddit/health broken on')
+      expect(String((result as { error?: string }).error)).toContain('found Reddit health reading broken on')
       expect((await db.select().from(promoPhoneActions)).filter((row) => row.action === "reddit/health")).toHaveLength(0)
       // A refusal is final; it is not tried again.
       expect((await db.select().from(promoJobs))[0].status).toBe("failed")
