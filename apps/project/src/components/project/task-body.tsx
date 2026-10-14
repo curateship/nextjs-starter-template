@@ -128,7 +128,10 @@ export type TaskSide = {
   }
   /** `meta` is "0 of 2 done", or null with no steps. */
   steps: { meta: string | null; content: React.ReactNode }
+  /** The chat; with no messages yet it is written in a dropdown from the header, as notes are. */
   chat: { count: number; content: React.ReactNode }
+  /** Follow or stop following, at the right of the cog dropdown's tabs. */
+  followButton: React.ReactNode
   files: { count: number; content: React.ReactNode }
   /** The fields of the cog's Details tab: title, person, dates, priority, type, section, labels and review. */
   details: React.ReactNode
@@ -909,7 +912,8 @@ function TaskForm({
       content: steps,
     },
     chat: {
-      count: detail.comments.length,
+      // A deleted message isn't one to count, so a chat holding only those is still empty.
+      count: detail.comments.filter((message) => !message.deleted).length,
       content: (
         <ChatThread
           chat={{ taskId: task.id }}
@@ -960,6 +964,24 @@ function TaskForm({
     typeFields: detail.fields.type?.fields.length ? fieldsCard : null,
     plan: planCard,
     history: historyCard,
+    followButton: (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-pressed={detail.following}
+        disabled={busy}
+        onClick={() =>
+          void change(
+            () => followProjectTask(task.id, !detail.following),
+            detail.following ? "You stopped following this task." : "You're following this task."
+          )
+        }
+      >
+        {detail.following ? <CheckIcon className="size-4" /> : <BellIcon className="size-4" />}
+        {detail.following ? "Following" : "Follow"}
+      </Button>
+    ),
     detail,
     readOnly,
     move: () => setMoving(true),
@@ -999,8 +1021,7 @@ function TaskForm({
         }
       >
         {detail.following ? <CheckIcon className="size-4" /> : <BellIcon className="size-4" />}
-        {/* The project page's narrow task panel keeps the bell and drops the word. */}
-        <span className="@max-lg/task-head:sr-only">{detail.following ? "Following" : "Follow"}</span>
+        {detail.following ? "Following" : "Follow"}
       </Button>
     ),
     more: readOnly ? null : (

@@ -333,12 +333,13 @@ Neither puts a window over the page.
 
 - **The task panel.** Along the top: the status as a pill with
   its dot, "Add note" (only while the task has no notes), the paperclip with
-  the number of files, Follow, the cog, and a cross at the far right that
-  closes the task. In a narrow panel Add note and Follow keep their icons and
-  drop their words. Down the panel: anything that needs an answer (a
+  the number of files, the chat icon (only while the chat has no messages),
+  the cog, and a cross at the far right that closes the task. In a narrow
+  panel Add note keeps its pencil and drops its words. Follow is in the
+  cog's dropdown (Tyler, 14 Oct 2026). Down the panel: anything that needs an answer (a
   hand-over to accept, a review, the Stuck reason row, the Move and Remind
   me cards), then Notes once the task has some, Steps ("Steps · 0 of 2
-  done") and Chat ("Chat · 4"), each a card that folds shut and stays shut
+  done") and Chat ("Chat · 4") once it has a message, each a card that folds shut and stays shut
   in this browser. The task's title isn't in the panel, as in Tyler's
   drawing; the open card is outlined on the Board.
 - **A card's arrow and cog show only while it is pointed at**, folded or
@@ -361,10 +362,18 @@ Neither puts a window over the page.
   Done sits at the right of the Notes card's footer whatever the cog says,
   under the notes, so the formatting bar over the first line never covers
   it.
-- **The paperclip** opens a Files window with the task's files and the place
-  to drop more, ending with Done.
+- **The paperclip** opens a dropdown under it (Tyler, 14 Oct 2026; it was a
+  window) with "1 file", the limit, the task's files and the place to drop
+  more.
+- **The chat icon** works like Add note (Tyler, 14 Oct 2026): while the chat
+  has no messages, it opens a dropdown with the box to write the first one,
+  and once one is sent the Chat card appears and the icon goes. A deleted
+  message doesn't count, so a chat holding only "Message deleted" still has
+  the icon, shows the deleted line in the dropdown, and counts 0.
 - **The cog** opens a dropdown, as Tyler drew it on 13 Oct 2026
-  (`assets/pasted-image-1791937217887403000.png`). Its Details tab holds
+  (`assets/pasted-image-1791937217887403000.png`). Follow (or Following) sits
+  at the right of its Details and History tabs (Tyler, 14 Oct 2026,
+  `assets/pasted-image-1791997051267604000.png`). Its Details tab holds
   Title; Assigned to and Start day; Due date and Priority (Due by appears once
   there's a due date); Type and Section; Labels; Needs review. Then the task
   type's own fields, then Plan (repeat, snooze, waiting on, my reminder),
