@@ -190,6 +190,12 @@ const replyShape = z.object({
   author: z.string(),
   text: z.string(),
   score: z.number(),
+  /**
+   * The reply's own address on Reddit, from Reddit's data, or "". Read to
+   * find the link of a comment a phone posted (`comment-link.ts`); "" from
+   * the page fallback and from an image built before it was read.
+   */
+  permalink: z.string().default(""),
 })
 
 const threadShape = z.object({
@@ -450,9 +456,10 @@ export function redditSearch(
   return call(target, "reddit/search", { ...args }, searchShape)
 }
 
+/** A post and its replies. `sort` "new" puts the newest replies first, as a just-posted comment is. */
 export function redditThread(
   target: CommandTarget,
-  args: { permalink: string; replyLimit?: number }
+  args: { permalink: string; replyLimit?: number; sort?: "new" }
 ) {
   return call(target, "reddit/thread", { ...args }, threadShape)
 }

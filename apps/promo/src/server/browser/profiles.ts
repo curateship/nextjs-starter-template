@@ -9,6 +9,7 @@ import type {
 } from "@/lib/social/options"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { refuseSharedProxy } from "@/server/social/apart"
 
 import { deleteAllBackups } from "./backups"
 import { DockerRequestError, dockerConnection, dockerRequest, publicDockerError } from "./docker"
@@ -116,6 +117,7 @@ export async function createProfile(
     ...input,
   }
   await assertOwned(userId, full, db)
+  await refuseSharedProxy(userId, full.proxyId, "profile", db)
   const id = uuid()
   await db.insert(promoProfiles).values({
     id,
@@ -142,6 +144,7 @@ export async function updateProfile(
   db: CustomShellDb = defaultDb
 ): Promise<void> {
   await assertOwned(userId, input, db)
+  await refuseSharedProxy(userId, input.proxyId, "profile", db)
   const [before] = await db
     .select({ proxyId: promoProfiles.proxyId })
     .from(promoProfiles)
@@ -253,6 +256,43 @@ export async function deleteProfiles(
     result.deleted.push(row.id)
   }
   return result
+}
+
+/**
+ * Deletes a profile's saved sign-in and keeps the profile: its cookie volume
+ * and every backup of it, which hold the same cookies. Used once its account
+ * moved to a phone (part 31 of the phone farm), so the browser can never be
+ * signed in as that account again. The browser has to be closed first,
+ * which the job doing this sees to; an open one is refused, because
+ * removing a volume a browser is writing to would corrupt it.
+ */
+export async function deleteProfileSignIn(
+  userId: string,
+  profileId: string,
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  const [row] = await db
+    .select({ id: promoProfiles.id, name: promoProfiles.name, volumeName: promoProfiles.volumeName })
+    .from(promoProfiles)
+    .where(and(eq(promoProfiles.id, profileId), eq(promoProfiles.userId, userId)))
+    .limit(1)
+  if (!row) throw new Error("That browser profile does not exist.")
+  const runs = await db
+    .select({ status: promoBrowserSessions.status })
+    .from(promoBrowserSessions)
+    .where(eq(promoBrowserSessions.profileId, profileId))
+  if (runs.some((run) => run.status === "starting" || run.status === "running")) {
+    throw new Error(`${row.name}'s browser is open. Close it first: an open browser is still writing its cookies.`)
+  }
+  await deleteAllBackups(userId, profileId, db)
+  if (runs.length) {
+    try {
+      await removeVolume(row.volumeName)
+    } catch (error) {
+      throw publicDockerError(error, "remove its cookies")
+    }
+  }
+  await recordProfileEvent(userId, profileId, "sign_in_deleted", "Its account moved to a phone, so its cookies and backups were deleted.", db)
 }
 
 async function removeVolume(name: string): Promise<void> {

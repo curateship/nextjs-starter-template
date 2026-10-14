@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
+  ArrowRightLeftIcon,
   BanIcon,
   HandHelpingIcon,
   Loader2Icon,
@@ -11,6 +12,7 @@ import {
   PlusIcon,
   RefreshCwIcon,
   SettingsIcon,
+  ShieldCheckIcon,
   UsersIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -60,6 +62,7 @@ import {
   ACCOUNT_STATUS_LABELS,
   type AccountStatus,
 } from "@/lib/social/account-status"
+import { ACCOUNT_IMPORTANCE, IMPORTANCE_WORDS } from "@/lib/social/importance"
 import { accountAgeText, postedDateText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -138,6 +141,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
   const [search, setSearch] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState<string>(ALL)
   const [tagFilter, setTagFilter] = React.useState(ALL)
+  const [kindFilter, setKindFilter] = React.useState<string>(ALL)
   const { sort, direction, toggleSort } = useTableSort<SortColumn>("account")
   const selection = useSelection()
   const [busy, setBusy] = React.useState(false)
@@ -175,6 +179,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
     return accounts
       .filter((row) => {
         if (statusFilter !== ALL && row.status.status !== statusFilter) return false
+        if (kindFilter !== ALL && row.importance !== kindFilter) return false
         if (tagFilter !== ALL && !(row.profile?.tags ?? row.phone?.tags ?? []).includes(tagFilter)) return false
         if (!query) return true
         return [row.handle, row.project?.name, row.profile?.name, row.phone?.name, row.voice?.name]
@@ -182,7 +187,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
           .some((value) => String(value).toLowerCase().includes(query))
       })
       .sort((a, b) => factor * compare(a, b, sort))
-  }, [accounts, direction, search, sort, statusFilter, tagFilter])
+  }, [accounts, direction, kindFilter, search, sort, statusFilter, tagFilter])
 
   /**
    * The rows under their profile's or phone's folder, folders by name and "No folder"
@@ -359,6 +364,19 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
                 {ACCOUNT_STATUSES.map((status) => (
                   <SelectItem key={status} value={status}>
                     {ACCOUNT_STATUS_LABELS[status]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={kindFilter} onValueChange={setKindFilter}>
+              <DashboardToolbarSelectTrigger aria-label="Filter by important or throwaway" className="hidden sm:flex">
+                <SelectValue />
+              </DashboardToolbarSelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Important and throwaway</SelectItem>
+                {ACCOUNT_IMPORTANCE.map((importance) => (
+                  <SelectItem key={importance} value={importance}>
+                    {IMPORTANCE_WORDS[importance]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -569,6 +587,18 @@ function AccountRow({
               {row.paused === "account" ? "Paused" : "Project paused"}
             </span>
           ) : null}
+          {row.importance === "important" ? (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <ShieldCheckIcon className="size-3" aria-hidden="true" />
+              Important
+            </span>
+          ) : null}
+          {row.move ? (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <ArrowRightLeftIcon className="size-3" aria-hidden="true" />
+              Moving to {row.move.phone.name}
+            </span>
+          ) : null}
           {row.banScreen ? (
             <Hint label={row.banScreen.words}>
               <span className="flex items-center gap-1 text-xs text-destructive">
@@ -729,7 +759,7 @@ function AccountRow({
                 {row.paused === "account" ? <PlayIcon className="size-4" /> : <PauseIcon className="size-4" />}
               </Button>
             </Hint>
-            <Hint label="Settings: where it runs and its two-factor code">
+            <Hint label="Settings: important or throwaway, where it runs, and its two-factor code">
               <Button
                 type="button"
                 variant="ghost"

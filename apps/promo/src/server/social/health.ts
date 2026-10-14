@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm"
+import { and, desc, eq, gte, inArray, isNotNull, isNull, ne, or, sql, type SQL } from "drizzle-orm"
 
 import {
   redditHealth,
@@ -135,10 +135,13 @@ export async function recordAccountHealth(
   const reading = await redditHealth(target)
 
   if (!reading.handle || !reading.profile) {
+    const onPhone = "phone" in target
     throw new Refusal(
       reading.blocked
-        ? `Reddit put something in front of the browser (${reading.reason}), so nothing could be read. Clear it on the Browser profiles dashboard.`
-        : "The browser is not signed in to Reddit, so there is no profile to look at. Sign in on the Browser profiles dashboard."
+        ? `Reddit put something in front of the ${onPhone ? "phone" : "browser"} (${reading.reason}), so nothing could be read. Clear it ${onPhone ? "through the phone's screen on the Phones dashboard" : "on the Browser profiles dashboard"}.`
+        : onPhone
+          ? "The Reddit app on the phone is not signed in, so there is no profile to look at. Sign in through the phone's screen on the Phones dashboard."
+          : "The browser is not signed in to Reddit, so there is no profile to look at. Sign in on the Browser profiles dashboard."
     )
   }
 
@@ -233,12 +236,23 @@ export async function recordStrangerCheck(
 export function accountFigures(
   reading: { handle: string | null; karma: number | null; createdSeconds: number | null },
   now: Date = new Date()
-): { karma: number; redditCreatedAt: Date | null; karmaReadAt: Date } | Record<string, never> {
+): { karma: number; redditCreatedAt: Date | SQL | null; karmaReadAt: Date } | Record<string, never> {
   if (!reading.handle || reading.karma === null) return {}
+  const created = reading.createdSeconds === null ? null : new Date(reading.createdSeconds * 1000)
   return {
     karma: reading.karma,
+    // For the same account, the earlier of the stored date and this one. A
+    // phone reads the age off the Reddit app as "2y" or "5d" and counts it
+    // down, so its date is never earlier than the real one; an exact date a
+    // browser read before is then kept rather than replaced by a rougher
+    // one. Another account signed in there takes its own date, or a young
+    // account would inherit an old one's age and escape its pace limits.
     redditCreatedAt:
-      reading.createdSeconds === null ? null : new Date(reading.createdSeconds * 1000),
+      created === null
+        ? null
+        : sql`CASE WHEN lower(${promoAccounts.handle}) = lower(${reading.handle})
+            THEN least(coalesce(${promoAccounts.redditCreatedAt}, ${created.toISOString()}::timestamptz), ${created.toISOString()}::timestamptz)
+            ELSE ${created.toISOString()}::timestamptz END`,
     karmaReadAt: now,
   }
 }
@@ -246,7 +260,7 @@ export function accountFigures(
 /**
  * Queues a reading for every Reddit account whose last one is a day old.
  *
- * Only accounts with a browser profile that were signed in when last seen,
+ * Only accounts on a browser profile or a phone that were signed in when last seen,
  * since anything else would be refused, and never a retired account, which
  * Promo no longer drives. One health job per account per day
  * at most, counted from when the job was made, so a check that keeps failing
@@ -269,7 +283,9 @@ export async function queueDueHealthChecks(
     .where(
       and(
         eq(promoAccounts.platform, "reddit"),
-        isNotNull(promoAccounts.profileId),
+        // On a browser profile, or since phone farm file 05 on a phone,
+        // where the Reddit app reads it.
+        or(isNotNull(promoAccounts.profileId), isNotNull(promoAccounts.phoneId)),
         ne(promoAccounts.handle, ""),
         isNull(promoAccounts.retiredAt)
       )

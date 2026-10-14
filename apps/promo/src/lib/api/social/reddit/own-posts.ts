@@ -12,6 +12,7 @@ import {
 } from "@/server/social/reddit/own-posts"
 import { queueRulesRead, rulesForSubreddit, type RulesView } from "@/server/social/reddit/rules"
 import { MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS, NO_READER_MESSAGE } from "@/lib/social/options"
+import { readerWrittenRefusal } from "@/lib/social/refusal-words"
 
 import { createErrorMessage, describeAuthError } from "../../error-message"
 
@@ -41,6 +42,8 @@ const REFUSALS = [
 ]
 
 export function getOwnPostErrorMessage(error: unknown): string {
+  const written = readerWrittenRefusal(error)
+  if (written) return written
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : ""
   if (REFUSALS.some((words) => message.includes(words))) return describeAuthError(message) ?? message
   return fallback(error)

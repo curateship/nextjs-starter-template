@@ -47,6 +47,9 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  * change a sent comment, each from the account that sent it. `help_read`
  * reads the newest posts in one account's everyday subreddits, and
  * `promo_threads` looks for a subreddit's self-promotion thread.
+ * `forget` closes a browser profile and deletes its saved sign-in, after its
+ * account moved to a phone, and `comment_link` finds the address of a
+ * comment a phone posted, which the Reddit app does not show.
  *
  * `READER_JOB_KINDS` run in the signed-out reader browser, never in the
  * account's own: the account Reddit sees commenting never searches.
@@ -72,6 +75,8 @@ export type JobKind =
   | "edit_comment"
   | "help_read"
   | "promo_threads"
+  | "forget"
+  | "comment_link"
 
 /** The kinds that run in the reader browser, signed in to nobody. */
 export const READER_JOB_KINDS: readonly JobKind[] = [
@@ -82,6 +87,7 @@ export const READER_JOB_KINDS: readonly JobKind[] = [
   "profile_check",
   "help_read",
   "promo_threads",
+  "comment_link",
 ]
 
 /**
@@ -246,6 +252,7 @@ export type ProfileEventKind =
   | "proxy_refused"
   | "backed_up"
   | "restored"
+  | "sign_in_deleted"
 export type SearchStatus = "running" | "done" | "failed"
 export type DraftStatus = "draft" | "sent" | "discarded"
 

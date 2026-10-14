@@ -21,6 +21,14 @@ restarted; the action itself is never run again here, because Promo decides
 what is tried twice and a comment never is. After any app action the screen
 is checked for the app's suspended, locked and "confirm it's you" screens.
 
+Reddit runs through the Reddit app itself: who is signed in, the account's
+health and the comment, answering in the browser's own shapes. Taps land a
+little off the middle of a button, swipes bend, and typing keeps a person's
+rhythm. The setup check reads what a platform could notice about a phone
+(Wi-Fi beside a SIM, location allowed, a clock or language from another
+country, apps updating themselves, the address the internet sees), and the
+wipe erases a phone through its own Settings before it gets a new account.
+
 Commands:
   promo_rack.py pair --url https://promo.example --code ABCD-EFGH [--name "Rack"]
   promo_rack.py run
@@ -42,8 +50,10 @@ import hashlib
 import hmac
 import io
 import json
+import math
 import os
 import platform
+import random
 import re
 import secrets
 import shutil
@@ -55,7 +65,7 @@ import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ElementTree
 
-VERSION = "2026.10.14.2"
+VERSION = "2026.10.14.3"
 
 # The launcher restarts the program when it exits with this code: a new
 # version was written, or someone switched versions on disk.
@@ -325,14 +335,40 @@ def screenshot_jpeg(device):
 
 
 # The buttons that send something. A rehearsal may find them, never press them.
-LAST_BUTTONS = ("post", "send", "share")
+# Reddit's comment box sends with Post, Reply or Comment, depending on the version.
+LAST_BUTTONS = ("post", "send", "share", "reply", "comment")
 
 
 def selector_words(selector):
-    for key in ("text", "textMatches", "description", "resourceId"):
+    for key in ("text", "textMatches", "description", "descriptionMatches", "resourceId", "resourceIdMatches"):
         if key in selector:
             return '"%s"' % selector[key]
     return "the button"
+
+
+def could_be_last_button(selector):
+    """True when a selector could find Post, Send or Share, by its words or a pattern."""
+    for key in ("text", "description"):
+        if plain(str(selector.get(key, ""))) in LAST_BUTTONS:
+            return True
+    for key in ("textMatches", "descriptionMatches"):
+        pattern = selector.get(key)
+        if pattern:
+            try:
+                if any(re.match(pattern, word) or re.match(pattern, word.title()) for word in LAST_BUTTONS):
+                    return True
+            except re.error:
+                return True
+    return False
+
+
+def element_bounds(element):
+    """An element's place on screen as (left, top, right, bottom), or None when it cannot say."""
+    try:
+        bounds = element.info["bounds"]
+        return (int(bounds["left"]), int(bounds["top"]), int(bounds["right"]), int(bounds["bottom"]))
+    except Exception:  # A fake screen, or an element that went away; pressed the plain way.
+        return None
 
 
 class Walk(object):
@@ -391,9 +427,65 @@ class Walk(object):
             raise RuntimeError("A rehearsal tried to tap %s; the last button is only ever found, with final()." % selector["text"])
         element = self.find(step, timeout, **selector)
         self.check()
-        element.click()
+        self.press(element)
         time.sleep(1)
         self.shot(step)
+
+    def press(self, element):
+        """Presses a found element a little off its middle, the way a thumb
+        lands, after a short look. An element that cannot say where it is
+        (a test's fake screen) is pressed the plain way."""
+        bounds = element_bounds(element)
+        device = self.screen()
+        if bounds and hasattr(device, "click"):
+            time.sleep(random.uniform(*LOOK_BEFORE_TAP_SECONDS))
+            self.check()
+            x, y = tap_point(bounds)
+            device.click(x, y)
+        else:
+            element.click()
+
+    def find_first(self, step, timeout=10, selectors=()):
+        """The first of several shapes of one button to show within the time.
+        An app update often renames or moves a button, so each known shape is
+        tried, and the failure names them all."""
+        self.check()
+        self.current = step
+        device = self.screen()
+        deadline = time.time() + timeout
+        while True:
+            for selector in selectors:
+                element = device(**selector)
+                if element.exists:
+                    return element
+            if time.time() >= deadline:
+                break
+            time.sleep(0.5)
+            self.check()
+        self.shot(step)
+        raise StepFailed(step, "Could not find %s on the screen." % " or ".join(selector_words(one) for one in selectors))
+
+    def tap_first(self, step, timeout=10, selectors=()):
+        if self.rehearse and any(could_be_last_button(one) for one in selectors):
+            raise RuntimeError("A rehearsal tried to tap %s; the last button is only ever found, with final()." % selector_words(selectors[0]))
+        element = self.find_first(step, timeout, selectors)
+        self.check()
+        self.press(element)
+        time.sleep(1)
+        self.shot(step)
+
+    def final_first(self, step, timeout=10, selectors=()):
+        """final() for a button with several known shapes. Only one press ever
+        happens: a press that raised may still have sent it."""
+        element = self.find_first(step, timeout, selectors)
+        if self.rehearse:
+            self.shot("%s (found, not pressed)" % step)
+            return False
+        self.check()
+        self.press(element)
+        time.sleep(1)
+        self.shot(step)
+        return True
 
     def final(self, step, timeout=10, **selector):
         """The last button, such as Post. Pressed once in a real run; in the
@@ -403,7 +495,7 @@ class Walk(object):
             self.shot("%s (found, not pressed)" % step)
             return False
         self.check()
-        element.click()
+        self.press(element)
         time.sleep(1)
         self.shot(step)
         return True
@@ -414,6 +506,185 @@ def go_home(serial):
         shell(serial, "input keyevent KEYCODE_HOME", timeout=10)
     except (RuntimeError, subprocess.TimeoutExpired):
         pass
+
+
+def go_back(serial):
+    try:
+        shell(serial, "input keyevent KEYCODE_BACK", timeout=10)
+    except (RuntimeError, subprocess.TimeoutExpired):
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Hands. A thumb never lands on the exact middle of a button twice, a swipe
+# bends and changes speed on the way, and typing has an uneven rhythm with a
+# stop at the end of each sentence. The numbers are the browser's own, from
+# docker/browser/human.py, so an account behaves the same on a phone as in a
+# browser. Every timing is drawn from a range, never picked from a list.
+
+# Between two keys; after the end of a sentence; now and then, mid-sentence.
+KEY_GAP_SECONDS = (0.06, 0.17)
+SENTENCE_PAUSE_SECONDS = (0.35, 1.1)
+THINKING_CHANCE = 0.02
+THINKING_PAUSE_SECONDS = (0.5, 1.8)
+
+# Reading the post before replying, longer for a longer post, within a floor and a ceiling.
+READ_SECONDS_PER_CHARACTER = 0.012
+READ_SECONDS = (4.0, 25.0)
+
+# Between the last key and pressing Post, and a look at a button before tapping it.
+BEFORE_SUBMIT_SECONDS = (0.8, 2.6)
+LOOK_BEFORE_TAP_SECONDS = (0.3, 1.2)
+
+# Where a tap lands, as a share of the button's width and height away from
+# its middle: mostly near the middle, never in the outer fifth on either side.
+TAP_SPREAD = 0.15
+TAP_INNER = 0.3
+
+# A swipe: a few points on a line that bows sideways, sent over a time drawn
+# from a range, with the points bunched at the start and end so the thumb
+# speeds up and slows down.
+SWIPE_POINTS = (4, 7)
+SWIPE_BEND = 0.12
+SWIPE_MIN_BEND = 0.03
+SWIPE_SECONDS = (0.25, 0.7)
+
+# One scroll moves a share of the screen's height; uneven gaps between
+# scrolls, now and then a stop to read, now and then a little way back up.
+SCROLL_SHARE = (0.2, 0.5)
+SCROLL_GAP_SECONDS = (0.4, 2.4)
+READING_CHANCE = 0.15
+READING_SECONDS = (2.5, 8.0)
+SCROLL_BACK_CHANCE = 0.12
+
+
+def tap_point(bounds, rng=random):
+    """Where on a button with these bounds a tap lands: a little off its middle,
+    different every time, always inside the button's inner part."""
+    left, top, right, bottom = bounds
+
+    def axis(low, high):
+        size = high - low
+        offset = rng.gauss(0, TAP_SPREAD) * size
+        limit = TAP_INNER * size
+        point = int(round(low + size / 2 + max(-limit, min(limit, offset))))
+        return max(low, min(high - 1, point)) if size >= 2 else low
+
+    return axis(left, right), axis(top, bottom)
+
+
+def swipe_path(x1, y1, x2, y2, rng=random):
+    """The points of one swipe from (x1, y1) to (x2, y2): a line bowed to one
+    side, never straight, its points closer together at both ends so the
+    thumb speeds up and slows down."""
+    count = rng.randint(*SWIPE_POINTS)
+    length = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5 or 1.0
+    bend = rng.gauss(0, SWIPE_BEND)
+    if abs(bend) < SWIPE_MIN_BEND:
+        bend = SWIPE_MIN_BEND if bend >= 0 else -SWIPE_MIN_BEND
+    bend *= length
+    # The unit step at right angles to the swipe.
+    across_x, across_y = -(y2 - y1) / length, (x2 - x1) / length
+    points = []
+    for index in range(count):
+        share = index / (count - 1)
+        along = 0.5 - 0.5 * math.cos(math.pi * share)
+        bow = bend * math.sin(math.pi * along)
+        points.append((
+            int(round(x1 + (x2 - x1) * along + across_x * bow)),
+            int(round(y1 + (y2 - y1) * along + across_y * bow)),
+        ))
+    return points
+
+
+def typing_plan(text, rng=random):
+    """Each character to type and the wait after it. A sentence's end waits
+    longer, and now and then a space is a stop to think. The last key has
+    no wait."""
+    plan = []
+    for index, character in enumerate(text):
+        if index == len(text) - 1:
+            plan.append((character, 0.0))
+            break
+        gap = rng.uniform(*KEY_GAP_SECONDS)
+        if character in ".!?" and text[index + 1:index + 2] in (" ", "\n"):
+            gap += rng.uniform(*SENTENCE_PAUSE_SECONDS)
+        elif character == " " and rng.random() < THINKING_CHANCE:
+            gap += rng.uniform(*THINKING_PAUSE_SECONDS)
+        plan.append((character, gap))
+    return plan
+
+
+def type_key(serial, device, character):
+    """One character into the box in focus: a plain one as a key press, a
+    new line as Enter, anything else (an accent, an emoji) through
+    uiautomator2, which Android's own `input text` cannot type."""
+    if character == "\n":
+        shell(serial, "input keyevent KEYCODE_ENTER", timeout=10)
+    elif 32 <= ord(character) < 127:
+        shell(serial, "input text %s" % typed_text(character), timeout=10)
+    else:
+        device.send_keys(character, clear=False)
+
+
+def type_like_a_person(serial, device, text, check=lambda: None):
+    """Types `text` one key at a time with a person's rhythm. Returns the gaps."""
+    gaps = []
+    for character, gap in typing_plan(text):
+        check()
+        type_key(serial, device, character)
+        if gap:
+            gaps.append(gap)
+            time.sleep(gap)
+    return gaps
+
+
+def screen_size(device):
+    try:
+        width, height = device.window_size()
+        return int(width), int(height)
+    except Exception:  # A fake screen; a common phone's size.
+        return 1080, 2400
+
+
+def tap_at(serial, device, x, y):
+    if hasattr(device, "click"):
+        device.click(x, y)
+    else:
+        shell(serial, "input tap %d %d" % (x, y), timeout=10)
+
+
+def swipe_like_a_person(serial, device, x1, y1, x2, y2):
+    points = swipe_path(x1, y1, x2, y2)
+    seconds = random.uniform(*SWIPE_SECONDS)
+    if hasattr(device, "swipe_points"):
+        device.swipe_points(points, seconds)
+    else:
+        shell(serial, "input swipe %d %d %d %d %d" % (x1, y1, x2, y2, int(seconds * 1000)), timeout=10)
+
+
+def scroll_once(serial, device, direction=1):
+    """One scroll as a thumb makes it: a bent swipe of uneven length, up the
+    screen to go down the page. Returns how far it moved, in pixels."""
+    width, height = screen_size(device)
+    distance = int(height * random.uniform(*SCROLL_SHARE))
+    x = int(width * random.uniform(0.35, 0.65))
+    start = int(height * random.uniform(0.62, 0.78))
+    end = start - distance
+    if direction > 0:
+        swipe_like_a_person(serial, device, x, start, x + random.randint(-30, 30), end)
+    else:
+        swipe_like_a_person(serial, device, x, end, x + random.randint(-30, 30), start)
+    return distance
+
+
+def scroll_pause(until=None):
+    pause = random.uniform(*SCROLL_GAP_SECONDS)
+    if random.random() < READING_CHANCE:
+        pause += random.uniform(*READING_SECONDS)
+    if until is not None:
+        pause = max(0.0, min(pause, until - time.monotonic()))
+    time.sleep(pause)
 
 
 # ---------------------------------------------------------------------------
@@ -454,28 +725,46 @@ def action_health(serial, args, walk):
 VERSION_TEXT = re.compile(r"^\d+(\.\d+)*$")
 
 
-def version_beside_label(hierarchy_xml):
-    """The version printed beside "Android version" in a Settings screen dump.
+def node_words(node):
+    """A node's own words: its text, or its description when it has no text."""
+    return " ".join((node.get("text") or node.get("content-desc") or "").split())
 
-    The label and its value are two text views under one row, so the value is
-    the version-looking text closest to the label inside the label's parent,
-    or the parent's parent on screens that nest one level deeper.
+
+def value_beside_label(hierarchy_xml, label, pattern):
+    """The text matching `pattern` printed beside `label` in a screen dump.
+
+    A label and its value are two text views under one row or one column, so
+    the value is looked for inside the label's parent first, then the
+    parent's parent on screens that nest deeper. Within one holder the match
+    nearest the label wins, so a row of two figures (karma, then the
+    account's age) gives each label its own.
     """
     root = ElementTree.fromstring(hierarchy_xml)
     parents = {child: parent for parent in root.iter() for child in parent}
+    wanted = plain(label)
     for node in root.iter("node"):
-        if (node.get("text") or "").strip().lower() != "android version":
+        if plain(node_words(node)) != wanted:
             continue
         holder = parents.get(node)
         for _ in range(3):
             if holder is None:
                 break
-            for other in holder.iter("node"):
-                text = (other.get("text") or "").strip()
-                if other is not node and VERSION_TEXT.match(text):
-                    return text
+            nodes = list(holder.iter("node"))
+            here = nodes.index(node) if node in nodes else 0
+            matches = [
+                (abs(index - here), node_words(other))
+                for index, other in enumerate(nodes)
+                if other is not node and pattern.match(node_words(other))
+            ]
+            if matches:
+                return min(matches, key=lambda match: match[0])[1]
             holder = parents.get(holder)
     return None
+
+
+def version_beside_label(hierarchy_xml):
+    """The version printed beside "Android version" in a Settings screen dump."""
+    return value_beside_label(hierarchy_xml, "Android version", VERSION_TEXT)
 
 
 def action_android_version(serial, args, walk):
@@ -608,11 +897,768 @@ def action_update_app(serial, args, walk):
     raise RuntimeError("%s did not finish updating within eight minutes. It may still finish by itself." % name)
 
 
+# ---------------------------------------------------------------------------
+# The setup check (phone farm part 23). What a platform could notice about a
+# phone before any account is used on it: Wi-Fi left on beside a SIM, apps
+# allowed the phone's location, a clock or language from another country,
+# apps that update themselves, and the address the internet sees. Each part
+# is read on its own, so one that cannot be read leaves a blank and a reason
+# rather than failing the rest. Promo judges each line; the rack only reads.
+
+# The rack computer's own table of which country each time zone is in.
+ZONE_TABLES = ("/usr/share/zoneinfo/zone.tab", "/usr/share/zoneinfo/zone1970.tab")
+
+# What the internet sees, asked over plain http so a phone with no
+# certificate quirks still loads it. The same service Promo's own proxy test uses.
+IPINFO_URL = "http://ipinfo.io/json"
+HOME_IPINFO_URL = "https://ipinfo.io/json"
+
+# A freshly wiped phone's browser asks these first. Pressing them only gets
+# past the browser's welcome screen.
+BROWSER_FIRST_RUN = ("Accept & continue", "Use without an account", "No thanks", "No, thanks", "Got it")
+
+PLAY_ACCOUNT_BUTTON = [
+    {"descriptionMatches": "(?is)^(signed in as|account and settings|google account).*", "packageName": PLAY_STORE},
+    {"descriptionMatches": "(?is).*account.*", "packageName": PLAY_STORE},
+]
+PLAY_SETTINGS = [{"textMatches": "(?i)^settings$", "packageName": PLAY_STORE}]
+PLAY_NETWORK = [{"textMatches": "(?i)^network preferences$", "packageName": PLAY_STORE}]
+PLAY_AUTO_UPDATE = [{"textMatches": "(?i)^auto-update apps$", "packageName": PLAY_STORE}]
+
+LOCATION_GRANTED = re.compile(r"android\.permission\.ACCESS_(?:FINE|COARSE)_LOCATION: granted=true")
+
+
+def location_granted(dumpsys_package):
+    """True when `dumpsys package` shows the app allowed the phone's location, fine or rough."""
+    return bool(LOCATION_GRANTED.search(dumpsys_package or ""))
+
+
+def zone_country(timezone, tables=ZONE_TABLES):
+    """The two-letter country a time zone is in, from the computer's zone
+    table, or empty for a zone in no country (UTC) or no table."""
+    zone = (timezone or "").strip()
+    if not zone:
+        return ""
+    for path in tables:
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                for line in handle:
+                    if line.startswith("#"):
+                        continue
+                    parts = line.rstrip("\n").split("\t")
+                    if len(parts) >= 3 and parts[2].strip() == zone:
+                        return parts[0].split(",")[0].strip().upper()
+        except OSError:
+            continue
+    return ""
+
+
+def first_listed(value):
+    """The first non-empty item of Android's comma lists, such as one per SIM slot."""
+    for part in (value or "").split(","):
+        if part.strip() and part.strip() != "null":
+            return part.strip()
+    return ""
+
+
+def pick_locale(persisted, system_locales, product):
+    """The phone's language as en-CA: the one chosen, else the first of the
+    list, else the one it was sold with."""
+    for value in (persisted, first_listed(system_locales), product):
+        value = (value or "").strip().replace("_", "-")
+        if value and value != "null":
+            return value
+    return ""
+
+
+def wifi_on(value):
+    """`settings get global wifi_on`: 0 off, 1 on, 2 on in airplane mode, 3 off in airplane mode."""
+    return {"0": False, "1": True, "2": True, "3": False}.get((value or "").strip())
+
+
+def ipinfo_from_text(text):
+    """ipinfo.io's answer read out of whatever text holds it: a JSON page as
+    a browser shows it, split over any number of lines."""
+    found = {}
+    for key in ("ip", "country", "timezone", "org"):
+        match = re.search(r'"%s"\s*:\s*"([^"]*)"' % key, text or "")
+        found[key] = match.group(1).strip() if match else ""
+    return found
+
+
+def outside_from_screen(hierarchy_xml):
+    return ipinfo_from_text(" ".join(screen_lines(hierarchy_xml)))
+
+
+def checked_radio(hierarchy_xml):
+    """The words of the ticked choice in a dialog of choices, or empty.
+    A radio button often has no words of its own; its row's do."""
+    root = ElementTree.fromstring(hierarchy_xml)
+    parents = {child: parent for parent in root.iter() for child in parent}
+    for node in root.iter("node"):
+        if node.get("checked") != "true":
+            continue
+        if node.get("checkable") != "true" and "Radio" not in (node.get("class") or ""):
+            continue
+        words = node_words(node)
+        holder = parents.get(node)
+        while not words and holder is not None:
+            words = next((node_words(other) for other in holder.iter("node") if other is not node and node_words(other)), "")
+            holder = parents.get(holder)
+        if words:
+            return words
+    return ""
+
+
+def auto_update_word(label):
+    """The Play Store's auto-update choice as off, wifi or any."""
+    words = plain(label)
+    if "don't" in words or "do not" in words or "never" in words:
+        return "off"
+    if "wi-fi" in words or "wifi" in words:
+        return "wifi"
+    if "any network" in words:
+        return "any"
+    return ""
+
+
+def battery_now(dumpsys_battery):
+    level = re.search(r"^\s*level:\s*(\d+)", dumpsys_battery or "", re.M)
+    status = re.search(r"^\s*status:\s*(\d+)", dumpsys_battery or "", re.M)
+    # 2 is charging and 5 is full, in Android's BatteryManager.
+    return {"percent": int(level.group(1)) if level else None, "charging": bool(status and status.group(1) in ("2", "5"))}
+
+
+def blank_address():
+    return {"ip": "", "country": "", "timezone": "", "org": "", "error": ""}
+
+
+def quietly(serial, command, timeout=15):
+    """A shell command whose failure is an empty answer, for readings that may each fail alone."""
+    try:
+        return shell(serial, command, timeout=timeout)
+    except (RuntimeError, subprocess.TimeoutExpired):
+        return ""
+
+
+def read_home_address(fetch=None):
+    """This computer's own outside address, which is the house's: the one a
+    phone on Wi-Fi must never show."""
+    found = blank_address()
+    try:
+        if fetch is None:
+            request = urllib.request.Request(HOME_IPINFO_URL, headers={"accept": "application/json"})
+            with urllib.request.urlopen(request, timeout=15) as response:
+                text = response.read().decode("utf-8")
+        else:
+            text = fetch(HOME_IPINFO_URL)
+        data = json.loads(text)
+        for key in ("ip", "country", "timezone", "org"):
+            found[key] = str(data.get(key) or "")
+    except (urllib.error.URLError, OSError, ValueError, AttributeError) as failure:
+        found["error"] = "This computer's own address could not be read: %s" % failure
+    return found
+
+
+def read_outside_on_phone(serial, walk):
+    """The address, country and clock the internet sees from the phone, read
+    in the phone's own browser, the way any app's traffic leaves it."""
+    found = blank_address()
+    try:
+        device = walk.screen()
+        walk.check()
+        shell(serial, "am start -a android.intent.action.VIEW -d '%s'" % IPINFO_URL)
+        for _ in range(6):
+            time.sleep(2.5)
+            walk.check()
+            seen = outside_from_screen(device.dump_hierarchy())
+            if seen["ip"]:
+                found.update(seen)
+                break
+            for label in BROWSER_FIRST_RUN:
+                button = device(text=label)
+                if button.exists:
+                    walk.press(button)
+                    walk.shot("Pressed %s in the browser" % label)
+                    break
+        walk.shot("Read the outside address in the browser")
+        if not found["ip"]:
+            found["error"] = "The phone's browser did not show ipinfo.io's answer within 15 seconds."
+    except Cancelled:
+        raise
+    except Exception as failure:  # One reading failing leaves the rest of the check.
+        found["error"] = "The phone's outside address could not be read: %s" % (str(failure) or failure.__class__.__name__)
+    finally:
+        walk.home()
+    return found
+
+
+def read_auto_update(serial, walk):
+    """The Play Store's auto-update choice, read off its own settings: (off,
+    wifi, any or empty; why when empty). Nothing is changed: the choices
+    are only looked at, and the box is closed with Back."""
+    try:
+        walk.check()
+        shell(serial, "monkey -p %s -c android.intent.category.LAUNCHER 1" % PLAY_STORE)
+        time.sleep(4)
+        walk.shot("Opened the Play Store")
+        walk.tap_first("Open the account menu", selectors=PLAY_ACCOUNT_BUTTON)
+        walk.tap_first("Open Settings", selectors=PLAY_SETTINGS)
+        walk.tap_first("Open Network preferences", selectors=PLAY_NETWORK)
+        walk.tap_first("Open Auto-update apps", selectors=PLAY_AUTO_UPDATE)
+        label = checked_radio(walk.screen().dump_hierarchy())
+        walk.shot("Read auto-update: %s" % (label or "nothing ticked"))
+        go_back(serial)
+        word = auto_update_word(label)
+        return word, "" if word else "No auto-update choice was ticked on the Play Store's screen."
+    except Cancelled:
+        raise
+    except Exception as failure:  # One reading failing leaves the rest of the check.
+        return "", "The Play Store's auto-update choice could not be read: %s" % (str(failure) or failure.__class__.__name__)
+    finally:
+        walk.home()
+
+
+def action_setup_check(serial, args, walk):
+    """Everything the setup check reads off one phone (part 23)."""
+    versions = parse_app_versions(quietly(serial, APPS_COMMAND, timeout=30))
+    location = {}
+    for app in sorted(versions):
+        location[app] = location_granted(quietly(serial, "dumpsys package %s" % APP_PACKAGES[app], timeout=30))
+    timezone = quietly(serial, "getprop persist.sys.timezone")
+    auto_update, auto_update_error = read_auto_update(serial, walk)
+    return {
+        "wifiOn": wifi_on(quietly(serial, "settings get global wifi_on")),
+        "locationApps": location,
+        "timezone": timezone,
+        "timezoneCountry": zone_country(timezone),
+        "locale": pick_locale(
+            quietly(serial, "getprop persist.sys.locale"),
+            quietly(serial, "settings get system system_locales"),
+            quietly(serial, "getprop ro.product.locale"),
+        ),
+        "sim": {
+            "country": first_listed(quietly(serial, "getprop gsm.sim.operator.iso-country")).upper(),
+            "carrier": first_listed(quietly(serial, "getprop gsm.sim.operator.alpha")),
+        },
+        "network": {"carrier": first_listed(quietly(serial, "getprop gsm.operator.alpha"))},
+        "autoUpdate": auto_update,
+        "autoUpdateError": auto_update_error,
+        "battery": battery_now(quietly(serial, "dumpsys battery")),
+        "outside": read_outside_on_phone(serial, walk),
+        "home": read_home_address(),
+    }
+
+
+def action_outside_address(serial, args, walk):
+    """The phone's outside address beside the house's, read before a job on a
+    phone that goes out through a proxy over Wi-Fi (part 28)."""
+    return {"phone": read_outside_on_phone(serial, walk), "home": read_home_address()}
+
+
+# ---------------------------------------------------------------------------
+# The wipe (part 26). A factory reset through the phone's own Settings, so a
+# new account never inherits an old one's device history. The press that
+# erases goes through Walk.final, so a rehearsal can never wipe a phone, and
+# the wipe is not rehearsed at all. USB debugging goes with the wipe, so the
+# phone is set up again by hand afterwards.
+
+SETTINGS = "com.android.settings"
+FACTORY_RESET_ACTIVITY = "com.android.settings/.Settings$FactoryResetActivity"
+
+WIPE_SYSTEM = [
+    {"textMatches": "(?i)^system$", "packageName": SETTINGS},
+    {"textMatches": "(?i)^general management$"},
+]
+WIPE_RESET_MENU = [
+    {"textMatches": "(?i)^reset options$", "packageName": SETTINGS},
+    {"textMatches": "(?i)^reset$"},
+]
+WIPE_ENTRY = [
+    {"textMatches": "(?i)^erase all data \\(factory reset\\)$"},
+    {"textMatches": "(?i)^factory data reset$"},
+]
+WIPE_ERASE = [{"textMatches": "(?i)^(erase all data|reset|reset device)$"}]
+WIPE_CONFIRM = [{"textMatches": "(?i)^(erase all data|delete all|reset)$"}]
+
+
+def scroll_to_first(walk, step, selectors, scrolls=5):
+    """Finds one of the shapes, scrolling the screen down between looks."""
+    device = walk.screen()
+    for _ in range(scrolls):
+        walk.check()
+        for selector in selectors:
+            if device(**selector).exists:
+                return
+        scroller = device(scrollable=True)
+        if not scroller.exists:
+            return
+        scroller.scroll.forward()
+        time.sleep(1)
+
+
+def action_wipe(serial, args, walk):
+    """Erases everything on the phone. Returns as soon as the erase is pressed;
+    the phone restarts into its setup screens."""
+    device = walk.screen()
+    device.screen_on()
+    walk.check()
+    opened = quietly(serial, "am start -n '%s'" % FACTORY_RESET_ACTIVITY)
+    time.sleep(2)
+    if not opened or "Error" in opened or "Exception" in opened:
+        shell(serial, "am start -a android.settings.SETTINGS")
+        time.sleep(2)
+        walk.shot("Opened Settings")
+        scroll_to_first(walk, "Find System", WIPE_SYSTEM)
+        walk.tap_first("Open System", selectors=WIPE_SYSTEM)
+        scroll_to_first(walk, "Find Reset options", WIPE_RESET_MENU)
+        walk.tap_first("Open Reset options", selectors=WIPE_RESET_MENU)
+        walk.tap_first("Open Erase all data", selectors=WIPE_ENTRY)
+    else:
+        walk.shot("Opened Erase all data")
+    scroll_to_first(walk, "Find the erase button", WIPE_ERASE)
+    walk.tap_first("Press Erase all data", selectors=WIPE_ERASE)
+    time.sleep(1.5)
+    pressed = walk.final_first("Confirm the erase", selectors=WIPE_CONFIRM)
+    return {"wiped": bool(pressed)}
+
+
+# ---------------------------------------------------------------------------
+# Reddit through the Reddit app (phone farm part 29). The same names and the
+# same answers as the browser's routines, so nothing above the rack knows
+# whether a phone or a browser did the work. Searches and thread reads stay
+# with the signed-out reader browser (Tyler, 14 Oct 2026); a phone signs in,
+# reads its own account and comments.
+#
+# Who is signed in is read off the app's account menu: "u/name", the karma
+# and the "Reddit age". The app shows the age rounded ("2y", "5d"), so the
+# day the account was made is worked out counting the age down, and an
+# approximate age never makes an account look older than it is.
+
+REDDIT = APP_PACKAGES["reddit"]
+
+REDDIT_AVATAR = [
+    {
+        "descriptionMatches": "(?i)^(open profile|profile|account|user account|user profile|your profile|navigate to profile|open account menu|.*avatar.*)$",
+        "packageName": REDDIT,
+    },
+    {"resourceIdMatches": "(?i).*(avatar|user_icon|nav_icon_profile).*", "packageName": REDDIT},
+]
+REDDIT_PROFILE_ENTRY = [{"textMatches": "(?i)^(profile|my profile|view profile)$", "packageName": REDDIT}]
+REDDIT_COMMENT_BOX = [
+    {"textMatches": "(?i)^(add a comment|join the conversation|add a reply)( ?(…|\\.\\.\\.))?$", "packageName": REDDIT},
+    {"descriptionMatches": "(?i)^(add a comment|join the conversation|add a reply)( ?(…|\\.\\.\\.))?$", "packageName": REDDIT},
+]
+REDDIT_POST_BUTTON = [
+    {"textMatches": "(?i)^(post|reply|comment)$", "packageName": REDDIT},
+    {"descriptionMatches": "(?i)^(post|reply|comment)$", "packageName": REDDIT},
+]
+REDDIT_DISCARD = [{"textMatches": "(?i)^(discard|discard comment|leave)$"}]
+
+HANDLE_LINE = re.compile(r"^u/([A-Za-z0-9_-]{3,20})$")
+KARMA_TEXT = re.compile(r"^\d[\d,]*(\.\d+)?\s*[kKmM]?$")
+AGE_TEXT = re.compile(r"^(\d+\s*(y|yr|yrs|year|years|mo|mos|month|months|w|wk|wks|week|weeks|d|day|days|h|hr|hrs|m|min|mins|s)\s*)+$", re.I)
+KARMA_LINE = re.compile(r"^(\d[\d,]*(?:\.\d+)?\s*[kKmM]?)\s+karma$", re.I)
+AGE_LINE = re.compile(r"^(.+?)\s+reddit age$", re.I)
+PROFILE_SUSPENDED = ("this account has been suspended", "account suspended", "has been suspended")
+POSTED_WORDS = ("comment posted", "your comment was posted", "reply posted", "comment sent")
+
+AGE_UNIT_DAYS = {
+    "y": 365, "yr": 365, "yrs": 365, "year": 365, "years": 365,
+    "mo": 30, "mos": 30, "month": 30, "months": 30,
+    "w": 7, "wk": 7, "wks": 7, "week": 7, "weeks": 7,
+    "d": 1, "day": 1, "days": 1,
+    # Under a day, and "m" read as minutes rather than months: counted down.
+    "h": 0, "hr": 0, "hrs": 0, "m": 0, "min": 0, "mins": 0, "s": 0,
+}
+
+# The comment's visit, as the browser's: feed before, the post, the comment, feed after.
+FEED_BEFORE_SECONDS = (60, 150)
+POSTS_BEFORE = (0, 2)
+FEED_AFTER_SECONDS = (20, 60)
+FEED_POST_SECONDS = (4, 12)
+POST_LANDED_SECONDS = 20
+# The visit plans to finish well inside Promo's 930 seconds (less the
+# rack's own minute), keeping room to type the comment.
+VISIT_BUDGET_SECONDS = 780
+COMMENT_RESERVE_SECONDS = 120
+TYPING_SECONDS_PER_CHARACTER = 0.25
+
+
+def parse_karma(text):
+    """1,234 or 1.2k as a number, or None."""
+    found = re.match(r"^(\d+(?:\.\d+)?)\s*([km]?)$", (text or "").strip().lower().replace(",", ""))
+    if not found:
+        return None
+    return int(round(float(found.group(1)) * {"": 1, "k": 1000, "m": 1000000}[found.group(2)]))
+
+
+def parse_age_days(text):
+    """"2y" as 730 days, "3mo" as 90, "1y 2mo" as 425, counted down; None when unreadable."""
+    parts = re.findall(r"(\d+)\s*([a-z]+)", (text or "").strip().lower())
+    if not parts or any(unit not in AGE_UNIT_DAYS for _, unit in parts):
+        return None
+    return sum(int(number) * AGE_UNIT_DAYS[unit] for number, unit in parts)
+
+
+def account_from_screen(hierarchy_xml, now=None):
+    """Who the app's account menu says is signed in: handle, karma and the
+    day it was made. A menu with no u/ line is signed out."""
+    now = now if now is not None else time.time()
+    lines = screen_lines(hierarchy_xml, REDDIT)
+    handle = next((HANDLE_LINE.match(line).group(1) for line in lines if HANDLE_LINE.match(line)), None)
+    if not handle:
+        return {"handle": None, "karma": None, "createdSeconds": None}
+    karma_text = value_beside_label(hierarchy_xml, "Karma", KARMA_TEXT)
+    age_text = value_beside_label(hierarchy_xml, "Reddit age", AGE_TEXT)
+    for line in lines:
+        if karma_text is None and KARMA_LINE.match(line):
+            karma_text = KARMA_LINE.match(line).group(1)
+        if age_text is None and AGE_LINE.match(line):
+            age_text = AGE_LINE.match(line).group(1)
+    days = parse_age_days(age_text) if age_text else None
+    return {
+        "handle": handle,
+        "karma": parse_karma(karma_text) if karma_text else None,
+        "createdSeconds": float(now - days * 86400) if days is not None else None,
+    }
+
+
+def profile_from_screen(hierarchy_xml, handle):
+    """The account's own profile as the app shows it: loaded, found, suspended."""
+    names = [plain(line) for line in screen_lines(hierarchy_xml, REDDIT)]
+    found = ("u/%s" % handle).lower() in names or handle.lower() in names
+    suspended = any(any(words in name for words in PROFILE_SUSPENDED) for name in names)
+    return {"status": 200 if (found or suspended) else 0, "found": found, "suspended": suspended}
+
+
+def handle_count(hierarchy_xml, handle):
+    """How many lines on screen name the account: its comments in a thread."""
+    if not handle:
+        return 0
+    wanted = (handle.lower(), "u/%s" % handle.lower())
+    return sum(1 for line in screen_lines(hierarchy_xml, REDDIT) if plain(line).split(" ")[0] in wanted)
+
+
+def comment_landed(hierarchy_xml, handle, before):
+    names = [plain(line) for line in screen_lines(hierarchy_xml, REDDIT)]
+    if any(any(words in name for words in POSTED_WORDS) for name in names):
+        return True
+    return handle_count(hierarchy_xml, handle) > before
+
+
+def parse_bounds(text):
+    found = re.match(r"^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$", text or "")
+    return tuple(int(part) for part in found.groups()) if found else None
+
+
+def feed_post_titles(hierarchy_xml, height):
+    """Post titles a thumb could open in the feed: long lines of the app's own
+    text in the middle of the screen, never a promoted post's."""
+    root = ElementTree.fromstring(hierarchy_xml)
+    parents = {child: parent for parent in root.iter() for child in parent}
+    titles = []
+    for node in root.iter("node"):
+        if node.get("package") not in (None, "", REDDIT):
+            continue
+        words = (node.get("text") or "").strip()
+        bounds = parse_bounds(node.get("bounds"))
+        if len(words) < 25 or not bounds:
+            continue
+        middle = (bounds[1] + bounds[3]) / 2
+        if not (height * 0.2 <= middle <= height * 0.8):
+            continue
+        card = parents.get(parents.get(node)) if parents.get(node) is not None else None
+        nearby = [plain(node_words(other)) for other in (card.iter("node") if card is not None else [])]
+        if any(word in ("promoted", "sponsored", "ad") for word in nearby):
+            continue
+        titles.append(bounds)
+    return titles
+
+
+def new_visit():
+    return {"beforeSeconds": 0, "afterSeconds": 0, "postsOpened": 0, "reachedBy": "address", "scrolls": 0, "problems": []}
+
+
+def short_words(failure):
+    return (str(failure) or failure.__class__.__name__).splitlines()[0][:200]
+
+
+def open_reddit(serial):
+    shell(serial, "monkey -p %s -c android.intent.category.LAUNCHER 1" % REDDIT)
+    time.sleep(4)
+
+
+POST_LINK = re.compile(r"^/r/[A-Za-z0-9_]+/comments/[A-Za-z0-9]+(/[A-Za-z0-9_%\-]*)*/?$")
+
+
+def open_post_link(serial, permalink):
+    shell(serial, "am start -a android.intent.action.VIEW -d 'https://www.reddit.com%s' -p %s" % (permalink.replace("'", ""), REDDIT))
+    time.sleep(4)
+
+
+def open_feed_post(serial, walk):
+    """Opens one post from the feed by its title. False when none was on screen."""
+    device = walk.screen()
+    _, height = screen_size(device)
+    titles = feed_post_titles(device.dump_hierarchy(), height)
+    if not titles:
+        return False
+    walk.check()
+    x, y = tap_point(random.choice(titles))
+    tap_at(serial, device, x, y)
+    time.sleep(2)
+    walk.shot("Opened a post in the feed")
+    return True
+
+
+def browse_feed(serial, walk, seconds, posts, visit, deadline):
+    """Scrolls the home feed for about `seconds`, opening up to `posts` posts on the way."""
+    device = walk.screen()
+    until = min(time.monotonic() + seconds, deadline)
+    opened = 0
+    while time.monotonic() < until:
+        walk.check()
+        up = visit["scrolls"] and random.random() < SCROLL_BACK_CHANCE
+        scroll_once(serial, device, -1 if up else 1)
+        visit["scrolls"] += 1
+        if opened < posts and random.random() < 0.3 and open_feed_post(serial, walk):
+            opened += 1
+            visit["postsOpened"] += 1
+            time.sleep(random.uniform(*FEED_POST_SECONDS))
+            if random.random() < 0.5:
+                scroll_once(serial, device, 1)
+                visit["scrolls"] += 1
+            go_back(serial)
+            time.sleep(1.5)
+        scroll_pause(until)
+
+
+def read_post(serial, walk, length, visit):
+    """Reads the post for longer the longer it is, a few scrolls down and the same back up."""
+    device = walk.screen()
+    seconds = min(max(length * READ_SECONDS_PER_CHARACTER, READ_SECONDS[0]), READ_SECONDS[1])
+    until = time.monotonic() + seconds * random.uniform(0.8, 1.2)
+    down = 0
+    while time.monotonic() < until:
+        walk.check()
+        if down < 4 and random.random() < 0.6:
+            scroll_once(serial, device, 1)
+            down += 1
+            visit["scrolls"] += 1
+        time.sleep(random.uniform(0.7, 2.2))
+    for _ in range(down):
+        walk.check()
+        scroll_once(serial, device, -1)
+        visit["scrolls"] += 1
+        time.sleep(random.uniform(0.15, 0.6))
+
+
+def read_account(serial, walk):
+    """Opens the app's account menu and reads it. Leaves the menu open."""
+    open_reddit(serial)
+    walk.shot("Opened Reddit")
+    walk.tap_first("Open the account menu", selectors=REDDIT_AVATAR)
+    time.sleep(1)
+    reading = account_from_screen(walk.screen().dump_hierarchy())
+    walk.shot("Read the account menu")
+    return reading
+
+
+def action_reddit_state(serial, args, walk):
+    """Who the app is signed in as, with the karma and the age."""
+    walk.screen().screen_on()
+    reading = read_account(serial, walk)
+    go_back(serial)
+    walk.home()
+    return dict(reading, blocked=False, reason="", url="")
+
+
+def action_reddit_quick_state(serial, args, walk):
+    """The same look, asked after every job. An app that cannot be read says
+    "not checked", so a failed look is never written down as signed out."""
+    try:
+        reading = action_reddit_state(serial, args, walk)
+    except Cancelled:
+        raise
+    except Exception as failure:  # Not checked rather than signed out.
+        log("Could not read who is signed in on %s: %s" % (serial, failure))
+        return {"checked": False, "handle": None, "karma": None, "createdSeconds": None, "blocked": False, "reason": ""}
+    return {
+        "checked": True,
+        "handle": reading["handle"],
+        "karma": reading["karma"],
+        "createdSeconds": reading["createdSeconds"],
+        "blocked": False,
+        "reason": "",
+    }
+
+
+def action_reddit_health(serial, args, walk):
+    """The account's half of a health reading: who it is, its karma and age,
+    and its own profile as the app shows it. The stranger's half is the
+    reader browser's, never a phone's."""
+    walk.screen().screen_on()
+    reading = read_account(serial, walk)
+    profile = None
+    if reading["handle"]:
+        signed_in = {"status": 0, "found": False, "suspended": False}
+        try:
+            walk.tap_first("Open your profile", selectors=REDDIT_PROFILE_ENTRY)
+            time.sleep(2)
+            signed_in = profile_from_screen(walk.screen().dump_hierarchy(), reading["handle"])
+            walk.shot("Read your profile")
+        except StepFailed:
+            # A rehearsal that cannot reach the profile is broken; a real
+            # reading says the profile did not load, which is status 0.
+            if walk.rehearse:
+                raise
+        profile = {"signedIn": signed_in}
+    walk.home()
+    return dict(reading, blocked=False, reason="", profile=profile)
+
+
+def leave_composer(serial, walk):
+    """Out of the comment box without sending anything: Back, and Discard if asked."""
+    go_back(serial)
+    time.sleep(1)
+    device = walk.screen()
+    for selector in REDDIT_DISCARD:
+        button = device(**selector)
+        if button.exists:
+            walk.press(button)
+            walk.shot("Left the comment box without sending")
+            break
+
+
+def action_reddit_comment(serial, args, walk):
+    """Writes one comment under a post, inside an ordinary visit to the app.
+
+    Before: the home feed for a minute or two, sometimes opening a post.
+    Then who is signed in, the post by its link, the post read, the words
+    typed with a person's rhythm, a pause, and Post pressed once. After: a
+    little more feed. Nothing before the comment stops it except not being
+    signed in, and nothing after the press can fail it: it is on Reddit by
+    then and never sent twice. The comment's link is "" here; Promo reads it
+    afterwards from the signed-out reader browser.
+
+    In a rehearsal there is no feed and nothing is typed: the post opens,
+    the comment box opens, Post is found and not pressed, and the box is left.
+    """
+    permalink = str(args.get("permalink") or "").strip()
+    text = str(args.get("text") or "").strip()
+    # Only a post's own address is opened, in a real run or a rehearsal.
+    if permalink and not POST_LINK.match(permalink):
+        raise RuntimeError("comment: permalink is not a Reddit post's address")
+    if not walk.rehearse:
+        if not permalink.startswith("/"):
+            raise RuntimeError("comment: permalink must start with /")
+        if not text:
+            raise RuntimeError("comment: no words to post")
+    device = walk.screen()
+    device.screen_on()
+    started = time.monotonic()
+    deadline = started + VISIT_BUDGET_SECONDS
+    reserve = COMMENT_RESERVE_SECONDS + len(text) * TYPING_SECONDS_PER_CHARACTER
+    visit = new_visit()
+    handle = None
+
+    if not walk.rehearse:
+        try:
+            open_reddit(serial)
+            walk.shot("Opened Reddit")
+            browse_feed(serial, walk, random.uniform(*FEED_BEFORE_SECONDS), random.randint(*POSTS_BEFORE), visit, deadline - reserve)
+        except Cancelled:
+            raise
+        except Exception as failure:  # The comment still goes.
+            visit["problems"].append("the feed before: %s" % short_words(failure))
+        visit["beforeSeconds"] = int(time.monotonic() - started)
+        handle = read_account(serial, walk)["handle"]
+        go_back(serial)
+        if not handle:
+            raise RuntimeError("comment: the app is not signed in to Reddit")
+
+    if permalink:
+        walk.check()
+        open_post_link(serial, permalink)
+        walk.shot("Opened the post")
+    else:
+        open_reddit(serial)
+        if not open_feed_post(serial, walk):
+            raise StepFailed("Open a post", "No post was on the app's home feed to open.")
+
+    thread = device.dump_hierarchy()
+    if not walk.rehearse:
+        read_post(serial, walk, len(" ".join(screen_lines(thread, REDDIT))), visit)
+        thread = device.dump_hierarchy()
+    before = handle_count(thread, handle)
+
+    walk.tap_first("Open the comment box", selectors=REDDIT_COMMENT_BOX)
+    if not walk.rehearse:
+        gaps = type_like_a_person(serial, device, text, walk.check)
+        walk.shot("Typed the comment")
+        log("comment typed: %d characters, gaps %.2f to %.2f seconds" % (len(text), min(gaps or [0]), max(gaps or [0])))
+        time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
+
+    pressed = walk.final_first("Press Post", selectors=REDDIT_POST_BUTTON)
+    if not pressed:
+        leave_composer(serial, walk)
+        walk.home()
+        return {"commentUrl": "", "visit": visit}
+
+    landed = False
+    waiting_until = time.time() + POST_LANDED_SECONDS
+    while time.time() < waiting_until:
+        time.sleep(1)
+        try:
+            if comment_landed(device.dump_hierarchy(), handle, before):
+                landed = True
+                break
+        except Exception:  # A screen caught mid-change; look again.
+            continue
+    walk.shot("Looked for the comment")
+    if not landed:
+        raise RuntimeError("comment: pressed Post but no new comment by u/%s appeared within %d seconds" % (handle, POST_LANDED_SECONDS))
+
+    # After: nothing here may fail the comment, which is already on Reddit.
+    after_started = time.monotonic()
+    try:
+        seconds = min(random.uniform(*FEED_AFTER_SECONDS), deadline - after_started)
+        if seconds > 5:
+            go_back(serial)
+            time.sleep(1.5)
+            browse_feed(serial, walk, seconds, 0, visit, deadline)
+    except Exception as failure:  # Includes a cancel: the comment is out either way.
+        visit["problems"].append("the feed after: %s" % short_words(failure))
+    visit["afterSeconds"] = int(time.monotonic() - after_started)
+    walk.home()
+    log("comment visit: %d seconds before, %d after, %d posts opened, %d scrolls; %s" % (
+        visit["beforeSeconds"], visit["afterSeconds"], visit["postsOpened"], visit["scrolls"],
+        "; ".join(visit["problems"]) or "no problems",
+    ))
+    return {"commentUrl": "", "visit": visit}
+
+
 # The actions the daily self-test walks, with the arguments a rehearsal uses.
-# The app actions join this list as they are written (phone farm file 05).
+# The app actions join this list as they are written. The wipe never does:
+# a rehearsal cannot press its last button, but nothing about a wipe is
+# worth the risk. The comment's post is sent by Promo, a recent one found.
 REHEARSALS = {
     "phone/android-version": {},
+    "reddit/state": {},
+    "reddit/health": {},
+    "reddit/comment": {"permalink": "", "text": "", "subreddit": ""},
 }
+
+
+def rehearsal_args(rehearsals, overrides):
+    """Each rehearsal's arguments, with Promo's own for the ones it names.
+    An action Promo names that is not rehearsed is left out."""
+    merged = dict((name, dict(args)) for name, args in rehearsals.items())
+    for name, args in (overrides or {}).items():
+        if name in merged and isinstance(args, dict):
+            merged[name].update(args)
+    return merged
 
 
 def action_self_test(serial, args, walk, rehearsals=None):
@@ -620,15 +1666,17 @@ def action_self_test(serial, args, walk, rehearsals=None):
 
     A rehearsal that cannot find a step is that action broken. The pictures
     of a broken one are all kept, so the step it stopped at can be seen;
-    a passed one keeps only its last.
+    a passed one keeps only its last. Promo may send arguments for some, as
+    {"rehearsals": {name: args}}, such as a post to rehearse a comment on.
     """
+    rehearsals = rehearsal_args(rehearsals or REHEARSALS, (args or {}).get("rehearsals"))
     lines = []
-    for name in sorted(rehearsals or REHEARSALS):
+    for name in sorted(rehearsals):
         walk.check()
         rehearsal = Walk(serial, rehearse=True, cancelled=walk.cancelled, connect=walk.connect)
         rehearsal.device = walk.device
         try:
-            ACTIONS[name](serial, dict((rehearsals or REHEARSALS)[name]), rehearsal)
+            ACTIONS[name](serial, dict(rehearsals[name]), rehearsal)
             lines.append({"action": name, "passed": True, "step": "", "error": ""})
             kept = rehearsal.steps[-1:]
         except Cancelled:
@@ -652,6 +1700,13 @@ ACTIONS = {
     "phone/self-test": action_self_test,
     "phone/check-updates": action_check_updates,
     "phone/update-app": action_update_app,
+    "phone/setup-check": action_setup_check,
+    "phone/outside-address": action_outside_address,
+    "phone/wipe": action_wipe,
+    "reddit/state": action_reddit_state,
+    "reddit/quick_state": action_reddit_quick_state,
+    "reddit/health": action_reddit_health,
+    "reddit/comment": action_reddit_comment,
 }
 
 
@@ -759,6 +1814,8 @@ SCREEN_PACKAGES = {
     "phone/android-version": "com.android.settings",
     "phone/check-updates": PLAY_STORE,
     "phone/update-app": PLAY_STORE,
+    "phone/setup-check": PLAY_STORE,
+    "phone/wipe": "com.android.settings",
 }
 
 _RESTARTED_AT = {}

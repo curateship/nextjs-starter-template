@@ -1,8 +1,8 @@
 # Jobs on phones
 
-A Reddit account on a phone has its searches, comments, answers, posts and
-health readings run on that phone, through the same job list browser
-accounts use. The rules that keep Promo safe live in that list, so they hold
+A Reddit account on a phone has its comments and health readings run on that
+phone, through the same job list browser accounts use. Its searches and
+thread reads run in the signed-out reader browser, as every account's do. The rules that keep Promo safe live in that list, so they hold
 for phones without being written twice: nothing posts without a person
 pressing Post, and a comment is never tried twice.
 
@@ -19,13 +19,14 @@ pressing Post, and a comment is never tried twice.
   written as actions for the phone's rack and waited on. The answers are
   checked against the same shapes as a browser's, so nothing above that layer
   knows which one it was.
-- **Not built yet: the Reddit actions themselves.** They come in phone farm
-  file 05. Until then the rack answers each Reddit step with "This rack does
-  not know the action reddit/health", and the job fails with those words. A
-  comment pressed for a phone account fails the same way, once, and the bell
-  rings, as for any comment that did not go out.
-- **The daily health reading and the warm-up skip phone accounts** until file
-  05, so they do not fail every day.
+- **What the Reddit app does:** who is signed in, the health reading and the
+  comment, since phone farm file 05 ([Reddit on phones](../reddit/reddit-on-phones.md)).
+  Any other Reddit step on a phone account, such as answering a reply or a
+  post of your own, is refused when its button is pressed, with words such as
+  "u/name's phone cannot do answering a reply yet", and again before anything
+  reaches the phone.
+- **The daily health reading includes phone accounts.** The daily warm-up still
+  skips them: it reads a browser profile's clock and label.
 
 ## One at a time per phone, side by side across phones
 
@@ -56,7 +57,11 @@ pressing Post, and a comment is never tried twice.
   reads on every check-in.
 - **Time limits.** Each action carries its own: five minutes for a check, the
   browser's own limits for a Reddit step (fifteen minutes for a comment
-  visit). Past it, Promo fails the action and stops waiting.
+  visit), counted from when the rack starts it. An action still waiting its
+  turn behind the phone's other actions (a setup check someone asked for) is
+  called off after five minutes, before anything touched the phone. Once
+  started it is never called off early, so a comment is never recorded as
+  failed while the rack is still typing it.
 - **A freeze.** The rack reopens a frozen app or restarts a phone that stopped
   answering, and fails the step. A reading is put back for another go; a
   comment, an answer or a post is never sent again.
@@ -66,7 +71,12 @@ pressing Post, and a comment is never tried twice.
   refused until a person lets it run again.
 - **A broken action is refused.** A step the daily self-test found broken is
   refused before anything reaches the phone, and the job is not tried again.
+  A comment is refused too until the self-test has passed it at least once.
   [The self-test and app updates](self-test-and-app-updates.md).
+- **A Wi-Fi phone shows its proxy's address or nothing goes out.** Before every
+  job the rack reads the address apps see; the house's address, or one that is
+  not the proxy's, refuses the job and stops the phone until a check finds the
+  proxy's again ([making each phone look like one person's](looking-like-a-real-person.md)).
 
 ## Settings → Phones
 

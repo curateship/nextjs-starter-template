@@ -19,6 +19,7 @@ export type PromoNoticeKind =
   | "ban_screen"
   | "action_broken"
   | "app_update"
+  | "phone_address"
 
 /** Each heading starts with words no other kind's does, because the bell tells them apart by these. */
 export const NOTICE_HEADINGS: Record<PromoNoticeKind, string> = {
@@ -35,4 +36,5 @@ export const NOTICE_HEADINGS: Record<PromoNoticeKind, string> = {
   ban_screen: "Ban screen:",
   action_broken: "Self-test failed:",
   app_update: "App update out:",
+  phone_address: "Wrong address showing:",
 }

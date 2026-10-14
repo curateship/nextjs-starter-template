@@ -14,6 +14,7 @@ import {
 import { sql } from "drizzle-orm"
 
 import type { AccountStatus } from "@/lib/social/account-status"
+import type { AccountImportance } from "@/lib/social/importance"
 import {
   type DraftRewrite,
   type DraftStatus,
@@ -169,6 +170,21 @@ export const promoAccounts = pgTable(
      * `drizzle/0115_promo_phone_jobs.sql`.
      */
     totpSecretEncrypted: text("totp_secret_encrypted").notNull().default(""),
+    /**
+     * 'important' or 'throwaway'. Every account starts as throwaway until a
+     * person marks it, and important is one way: an important account only
+     * ever runs on a phone, and is never marked throwaway again (Tyler, 14
+     * Oct 2026). Promo keeps the two groups apart (`apart.ts`). Added by
+     * `drizzle/0117_promo_phone_identity.sql`, as is the column below.
+     */
+    importance: varchar("importance", { length: 12 }).$type<AccountImportance>().notNull().default("throwaway"),
+    /**
+     * The phone a throwaway is being moved to from its browser profile. The
+     * move finishes when that phone reads the account signed in.
+     */
+    movingToPhoneId: varchar("moving_to_phone_id", { length: 36 }).references(() => promoPhones.id, {
+      onDelete: "set null",
+    }),
     /** True when the site was last seen asking the browser something only a person can answer. */
     blocked: boolean("blocked").notNull().default(false),
     /** What it was asking, in the browser's words. Empty when not blocked. */

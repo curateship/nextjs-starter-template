@@ -35,6 +35,13 @@ export const PHONE_ACTIONS = [
   "phone/self-test",
   "phone/check-updates",
   "phone/update-app",
+  "phone/setup-check",
+  "phone/outside-address",
+  "phone/wipe",
+  // Who the Reddit app is signed in as, asked directly while an account is
+  // being moved onto the phone (part 31). A job's own Reddit steps are
+  // written by `dispatch.ts`, not from here.
+  "reddit/state",
 ] as const
 
 export type PhoneAction = (typeof PHONE_ACTIONS)[number]
@@ -49,11 +56,46 @@ const PHONE_ACTION_WORDS: Record<PhoneAction, string> = {
   "phone/self-test": "Daily self-test",
   "phone/check-updates": "Look for app updates in the Play Store",
   "phone/update-app": "Update an app",
+  "phone/setup-check": "Setup check",
+  "phone/outside-address": "Read the address apps see",
+  "phone/wipe": "Wipe the phone",
+  "reddit/state": "Read who Reddit is signed in as",
+}
+
+/** A job's Reddit steps, which the rack does in the Reddit app, in words. */
+const REDDIT_STEP_WORDS: Record<string, string> = {
+  "reddit/quick_state": "Read who Reddit is signed in as",
+  "reddit/health": "Reddit health reading",
+  "reddit/comment": "Post a Reddit comment",
+  "reddit/reply": "answering a reply",
+  "reddit/submit": "a post of your own",
+  "reddit/edit_comment": "editing a sent comment",
+  "reddit/delete_comment": "deleting a sent comment",
+  "reddit/warm_up": "the warm-up visit",
 }
 
 /** An action's name in words, for any action the rack ran, including a job's steps. */
 export function actionWords(action: string): string {
-  return PHONE_ACTION_WORDS[action as PhoneAction] ?? action
+  return PHONE_ACTION_WORDS[action as PhoneAction] ?? REDDIT_STEP_WORDS[action] ?? action
+}
+
+/**
+ * The Reddit steps the rack can do in the Reddit app (phone farm file 05).
+ * Searches and thread reads are not here: they run in the signed-out reader
+ * browser for every account, so an account's own history never shows a
+ * search (Tyler, 14 Oct 2026). Any other Reddit step on a phone account is
+ * refused before anything reaches the phone.
+ */
+export const PHONE_REDDIT_ROUTINES = ["reddit/state", "reddit/quick_state", "reddit/health", "reddit/comment"] as const
+
+/**
+ * Why a phone cannot do a Reddit step, in words, or null when it can. Said
+ * when the button is pressed for a phone account, and again where the step
+ * would reach the phone, so nothing is ever queued only to fail.
+ */
+export function phoneStepRefusal(routine: string, phoneName: string): string | null {
+  if (!routine.startsWith("reddit/") || (PHONE_REDDIT_ROUTINES as readonly string[]).includes(routine)) return null
+  return `${phoneName} cannot do ${actionWords(routine)} yet: on a phone, the Reddit app reads who is signed in, takes the health reading and posts comments. Nothing was sent.`
 }
 
 /**
@@ -128,6 +170,8 @@ export type PhoneEventKind =
   | "ran_hot"
   | "notice_raised"
   | "notice_cleared"
+  | "wiped"
+  | "setup_checked"
 
 export const PHONE_EVENT_WORDS: Record<PhoneEventKind, string> = {
   plugged_in: "Plugged in",
@@ -139,6 +183,8 @@ export const PHONE_EVENT_WORDS: Record<PhoneEventKind, string> = {
   ran_hot: "Ran hot",
   notice_raised: "Notice raised",
   notice_cleared: "Notice cleared",
+  wiped: "Wiped",
+  setup_checked: "Setup check",
 }
 
 /**
@@ -165,3 +211,11 @@ export const READING_KEEP_DAYS = 28
 
 /** The self-test and the Play Store look run once a day. */
 export const SELF_TEST_GAP_MS = 24 * 60 * 60_000
+
+/**
+ * The rack mix warning (part 27): more than half the phones sharing one
+ * model, carrier or Android version, once the rack has four phones or more
+ * (Tyler, 14 Oct 2026). A rack of two or three never warns.
+ */
+export const MIX_WARN_SHARE = 0.5
+export const MIX_MIN_PHONES = 4

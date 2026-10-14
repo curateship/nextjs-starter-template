@@ -14,6 +14,7 @@ import {
 import { sql } from "drizzle-orm"
 
 import type { PhoneActionStatus, PhoneConnection, PhoneEventKind, RolloutStatus, TrackedApp } from "@/lib/phones/options"
+import type { SetupCheck } from "@/lib/phones/setup-check"
 import { promoProfileFolders, promoProfileLabels, promoProxies } from "@/server/browser/schema"
 import { customShellUsers } from "@/server/schema"
 
@@ -156,6 +157,26 @@ export const promoPhones = pgTable(
     vitalsAt: timestamp("vitals_at", { withTimezone: true }),
     /** Each tracked app's version, such as `{ "reddit": "2025.40.0" }`. An app not installed is left out. */
     apps: jsonb("apps").$type<Partial<Record<TrackedApp, string>>>().notNull().default({}),
+    /**
+     * When an account last left it. A phone that needs wiping takes no
+     * account until it is wiped. The columns from here to `addressStopWords`
+     * are from `drizzle/0117_promo_phone_identity.sql`.
+     */
+    needsWipeAt: timestamp("needs_wipe_at", { withTimezone: true }),
+    /** When an important account was first on it since its last wipe. A throwaway is refused here until it is wiped. */
+    heldImportantAt: timestamp("held_important_at", { withTimezone: true }),
+    /** When the rack last wiped it. It then takes an account only after a setup check newer than this passed. */
+    wipedAt: timestamp("wiped_at", { withTimezone: true }),
+    /** The last setup check, line by line, with what the platform sees. */
+    setupCheck: jsonb("setup_check").$type<SetupCheck | null>(),
+    setupCheckedAt: timestamp("setup_checked_at", { withTimezone: true }),
+    /**
+     * When a Wi-Fi phone showed the house's address, or one that is not its
+     * proxy's. Every job on it is refused until a check finds the proxy's
+     * address again; the words say what was seen.
+     */
+    addressStopAt: timestamp("address_stop_at", { withTimezone: true }),
+    addressStopWords: text("address_stop_words").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

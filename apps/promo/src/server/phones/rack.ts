@@ -12,6 +12,7 @@ import { resultWords } from "@/lib/phones/wording"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { finishMoveFromPhone } from "@/server/social/move-to-phone"
 
 import { recordVitals, stopForBanScreen, type BanScreen, type ReportedVitals } from "./health"
 import { recordPhoneEvent } from "./history"
@@ -19,8 +20,10 @@ import { clearProblem } from "./notices"
 import { RACK_VERSION } from "./release"
 import { promoPhoneActions, promoPhones, promoPhoneScreenshots, promoRackCodes, promoRackNonces, promoRacks } from "./schema"
 import { recordAppUpdate, recordSelfTest, recordStoreCheck } from "./self-test"
+import { recordSetupCheck } from "./setup"
 import { replySignature, requestSignature, sameSignature, sha256Hex } from "./signing"
 import { dropStepPictures, keepStepPictures, type StepShot } from "./trail"
+import { recordWipe } from "./wipe"
 
 /**
  * The rack program's side of Promo: pairing, checking every signed message,
@@ -497,6 +500,12 @@ export async function finishAction(
     await recordStoreCheck(rack.userId, input.result, db, now)
   } else if (done.action === "phone/update-app") {
     await recordAppUpdate(rack.userId, done.phoneId, done.args, input, db, now)
+  } else if (done.action === "phone/setup-check" && input.ok) {
+    await recordSetupCheck(rack.userId, done.phoneId, input.result, db, now)
+  } else if (done.action === "phone/wipe" && input.ok && input.result?.wiped === true) {
+    await recordWipe(rack.userId, done.phoneId, db, now)
+  } else if (done.action === "reddit/state" && input.ok) {
+    await finishMoveFromPhone(rack.userId, done.phoneId, input.result, db, now)
   }
   return true
 }

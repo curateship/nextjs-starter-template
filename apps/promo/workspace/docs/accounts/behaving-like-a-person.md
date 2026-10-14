@@ -16,8 +16,10 @@ asked Reddit for the results as raw data, opened each post by its address and
 posted, with nothing before or after.
 
 These rules belong to every account, on a browser profile or on a phone, so they
-live here and not in the phone farm's task files. Phones are not built yet, so
-today they apply to browser profiles only.
+live here and not in the phone farm's task files. On a phone, since 14 Oct
+2026, the comment's visit, its typing and its taps follow them
+([Reddit on phones](../reddit/reddit-on-phones.md)); the daily warm-up still
+runs on browser profiles only.
 
 ## Tyler's answers, 12 Oct 2026
 
@@ -183,6 +185,20 @@ its message gives the time on the account's clock and names it ("tomorrow at
   uneven gaps between scrolls, now and then a stop to read, and now and then a
   little way back up.
 - **Typing** already had a person's rhythm (`docker/browser/human.py`).
+
+On a phone the rack does the same with the same numbers (`rack/promo_rack.py`):
+
+- **Taps** land a little off the middle of a button, never in its outer fifth,
+  after a short look (`tap_point`).
+- **Swipes** bow to one side and speed up and slow down, sent as several points
+  on a bent line (`swipe_path`), in uneven lengths with uneven gaps.
+- **Typing** is one key at a time with the browser's gaps, a stop after each
+  sentence, and the occasional pause to think (`typing_plan`). Accents and
+  emoji go through uiautomator2, which Android's own key typing cannot do.
+
+The rack's tests check 100 taps on one button land at many points, all inside
+it, and that two swipes are never the same line. Nothing has been measured on a
+real phone yet.
 
 Measured on 12 Oct 2026 in the real browser: 100 clicks on one 160 by 40 button
 all landed inside it at 97 different points, across 32 to 128 of its width and

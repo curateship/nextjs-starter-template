@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
+  AlertTriangleIcon,
   FlaskConicalIcon,
   MonitorSmartphoneIcon,
   PauseIcon,
@@ -8,6 +9,7 @@ import {
   PlusIcon,
   ServerIcon,
   SettingsIcon,
+  ShapesIcon,
   SmartphoneIcon,
   TagIcon,
   Trash2Icon,
@@ -16,11 +18,13 @@ import { toast } from "sonner"
 
 import { FilterSelect } from "@/components/browser/sorting-filters"
 import { ALL, LABEL_DOT, NONE } from "@/lib/browser/sorting"
+import { rackMix } from "@/lib/phones/rack-mix"
 import { PhoneDialog } from "@/components/phones/phone-dialog"
 import { PhoneScreenDialog } from "@/components/phones/phone-screen-dialog"
 import { PhoneStatusText } from "@/components/phones/phone-status"
 import { RackDialog } from "@/components/phones/rack-dialog"
 import { ResumeRackDialog } from "@/components/phones/resume-rack-dialog"
+import { RackMixDialog } from "@/components/phones/rack-mix-dialog"
 import { SelfTestDialog } from "@/components/phones/self-test-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -116,6 +120,20 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
   const navigate = useNavigate()
   const page = initial
   const phones = page.phones
+  const mix = React.useMemo(
+    () =>
+      rackMix(
+        phones.map((phone) => ({
+          model: phone.model,
+          androidVersion: phone.androidVersion,
+          connection: phone.connection,
+          // What the SIM itself says beats what was typed.
+          carrier: phone.setupCheck?.figures.simCarrier || phone.simCarrier,
+          proxyName: phone.proxy ? phone.proxy.label || phone.proxy.host : "",
+        }))
+      ),
+    [phones]
+  )
 
   const [search, setSearch] = React.useState("")
   const [folderFilter, setFolderFilter] = React.useState(ALL)
@@ -132,6 +150,7 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
   const [disconnecting, setDisconnecting] = React.useState<RackView | null>(null)
   const [resuming, setResuming] = React.useState(false)
   const [selfTestOpen, setSelfTestOpen] = React.useState(false)
+  const [mixOpen, setMixOpen] = React.useState(false)
   const [screenFor, setScreenFor] = React.useState<string | null>(null)
   const [tagging, setTagging] = React.useState(false)
   const [tagText, setTagText] = React.useState("")
@@ -380,6 +399,21 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
                 {page.pausedAt ? "Rack paused" : "Pause the rack"}
               </Label>
             </span>
+            <Hint label={mix.warnings.length ? mix.warnings[0].text : "Rack mix: models, carriers and Android versions"}>
+              <DashboardToolbarButton
+                type="button"
+                variant="outline"
+                aria-label={mix.warnings.length ? `Rack mix: ${mix.warnings.length} ${mix.warnings.length === 1 ? "warning" : "warnings"}` : "Rack mix"}
+                onClick={() => setMixOpen(true)}
+              >
+                {mix.warnings.length ? (
+                  <AlertTriangleIcon className="size-4 text-amber-600 dark:text-amber-400" />
+                ) : (
+                  <ShapesIcon className="size-4" />
+                )}
+                <span className="hidden sm:inline">Mix</span>
+              </DashboardToolbarButton>
+            </Hint>
             <Hint label="Self-test and app updates">
               <DashboardToolbarButton
                 type="button"
@@ -492,6 +526,9 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
                   {phone.id === page.testPhoneId ? "Self-test phone · " : ""}
                   {appVersionWords(phone)}
                 </span>
+                {setupWarning(phone) ? (
+                  <span className="line-clamp-1 text-xs text-amber-600 dark:text-amber-400">{setupWarning(phone)}</span>
+                ) : null}
               </TableCell>
               <TableCell column="meta" className="hidden text-sm xl:table-cell">
                 {phone.accounts.length ? (
@@ -605,6 +642,7 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
         onChanged={refresh}
       />
 
+      <RackMixDialog open={mixOpen} mix={mix} onClose={() => setMixOpen(false)} />
       <SelfTestDialog
         open={selfTestOpen}
         phones={phones}
@@ -678,4 +716,23 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
       />
     </>
   )
+}
+
+/**
+ * The one thing about a phone's setup worth a line on its row, most urgent
+ * first: the wrong address showing, a wipe owed, a wiped phone not set up
+ * again, or a setup check with lines that do not pass. Its Setup tab has the rest.
+ */
+function setupWarning(phone: PhoneRecord): string {
+  if (phone.addressStop) return "Stopped: the wrong address showed"
+  if (phone.needsWipeAt) return "Needs wiping before another account"
+  const check = phone.setupCheck
+  if (phone.wipedAt && !(check?.passed && new Date(check.checkedAt) > new Date(phone.wipedAt))) {
+    return "Wiped: set it up again and run its setup check"
+  }
+  if (check && !check.passed) {
+    const failing = check.lines.filter((line) => line.verdict === "fails").length
+    return failing ? `Setup check: ${failing} of ${check.lines.length} lines fail` : ""
+  }
+  return ""
 }

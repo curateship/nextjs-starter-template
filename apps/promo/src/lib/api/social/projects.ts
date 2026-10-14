@@ -21,6 +21,7 @@ import {
   queuePromoThreadReads,
   type PromoThreadRow,
 } from "@/server/social/reddit/promo-threads"
+import { passReaderWritten } from "@/lib/social/refusal-words"
 
 import { createErrorMessage } from "../error-message"
 
@@ -33,7 +34,7 @@ export type { ProjectAccount, ProjectRow, ProjectView, PromoThreadRow }
  * Admin only, like every Reddit endpoint.
  */
 
-export const getProjectErrorMessage = createErrorMessage(
+export const getProjectErrorMessage = passReaderWritten(createErrorMessage(
   {
     "needs a name": "Give the project a name first.",
     "not one of your uploaded images": "That picture is not one of your uploaded images. Pick or upload it again.",
@@ -44,7 +45,7 @@ export const getProjectErrorMessage = createErrorMessage(
     "There is no reader browser": "Pick a reader browser in Settings → Behaviour first. The look runs in it.",
   },
   "That did not work. Please try again."
-)
+))
 
 /**
  * The refusal to delete a project names the project and how many accounts and

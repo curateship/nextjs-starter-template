@@ -27,6 +27,8 @@ import {
   type RackView,
 } from "@/server/phones/rack"
 import { queuePhoneAction } from "@/server/phones/queue"
+import { queueSetupCheck } from "@/server/phones/setup"
+import { queueWipe } from "@/server/phones/wipe"
 import { RACK_VERSION, rackServerAddress } from "@/server/phones/release"
 import {
   readPhoneSettings,
@@ -35,6 +37,7 @@ import {
   type WaitingPhoneJob,
 } from "@/server/phones/settings"
 import { cancelJobs } from "@/server/social/job-list"
+import { passReaderWritten } from "@/lib/social/refusal-words"
 
 import { createErrorMessage } from "../error-message"
 
@@ -46,7 +49,7 @@ export type { BulkResult, FolderView, LabelView, PhoneActionView, PhoneRecord, R
  * the rack program picks up, and the dashboard follows the rows.
  */
 
-export const getPhoneErrorMessage = createErrorMessage(
+export const getPhoneErrorMessage = passReaderWritten(createErrorMessage(
   {
     "does not exist": "That is not there any more. Refresh the list.",
     "serial number": "Another phone already has that serial number.",
@@ -59,7 +62,7 @@ export const getPhoneErrorMessage = createErrorMessage(
     ENCRYPTION_NOT_CONFIGURED: "This server has no encryption key set, so a rack's key cannot be kept.",
   },
   "That did not work. Please try again."
-)
+))
 
 export type PhonesPage = {
   phones: PhoneRecord[]
@@ -256,4 +259,31 @@ const resumeFn = createServerFn({ method: "POST" })
 /** Drops the ticked waiting jobs, then resumes the rack. */
 export function resumeRack(drop: string[]) {
   return resumeFn({ data: { drop } })
+}
+
+const setupFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<void> => {
+    await queueSetupCheck(context.user.id, data.id)
+  })
+
+/** Asks the rack to read the phone's setup and what the platform sees. */
+export function runSetupCheck(id: string) {
+  return setupFn({ data: { id } })
+}
+
+const wipeFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<void> => {
+    await queueWipe(context.user.id, data.id)
+  })
+
+/**
+ * Asks the rack to factory-reset the phone, after the person confirmed it.
+ * Refused while an account is on it or on its way to it.
+ */
+export function wipePhone(id: string) {
+  return wipeFn({ data: { id } })
 }

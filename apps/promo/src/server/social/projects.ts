@@ -2,12 +2,14 @@ import { and, asc, count, eq, isNull, max, notInArray } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { promoPhones } from "@/server/phones/schema"
+import type { AccountImportance } from "@/lib/social/importance"
+import { postPhone, type PostPhone } from "@/server/phones/phones"
 import { promoProfiles } from "@/server/browser/schema"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { commentReadiness, type AccountStatusView } from "@/lib/social/account-status"
 
 import { accountStatuses } from "./account-list"
+import { refuseMixedProject } from "./apart"
 import { jobCounts, type JobCounts } from "./jobs"
 import { shownFind } from "./keywords"
 import { readPostingState, type PostingState } from "./posting"
@@ -247,8 +249,13 @@ export type ProjectAccount = {
   /** Empty when the browser was never seen signed in. */
   handle: string
   profile: { id: string; name: string } | null
-  /** The phone it runs on instead of a browser profile, or null. */
-  phone: { id: string; name: string } | null
+  /**
+   * The phone it runs on instead of a browser profile, or null, with what
+   * Post needs to say about it (`postPhone`).
+   */
+  phone: PostPhone | null
+  /** Important or throwaway (part 22 of the phone farm). */
+  importance: AccountImportance
   voice: { id: string; name: string } | null
   /** Reddit is asking the browser something only a person can answer. */
   blocked: boolean
@@ -291,12 +298,10 @@ export async function readProjectView(
     .select({
       account: promoAccounts,
       profileName: promoProfiles.name,
-      phoneName: promoPhones.name,
       voiceName: promoVoices.name,
     })
     .from(promoAccounts)
     .leftJoin(promoProfiles, eq(promoProfiles.id, promoAccounts.profileId))
-    .leftJoin(promoPhones, eq(promoPhones.id, promoAccounts.phoneId))
     .leftJoin(promoVoices, eq(promoVoices.id, promoAccounts.voiceId))
     .where(
       and(
@@ -311,14 +316,15 @@ export async function readProjectView(
   const statuses = await accountStatuses(userId, mine.map((row) => row.account), db, now)
 
   const accounts: Array<ProjectAccount & { rank: number }> = []
-  for (const { account, profileName, phoneName, voiceName } of mine) {
+  for (const { account, profileName, voiceName } of mine) {
     const posting = await readPostingState(userId, account, db, now)
     const status = statuses.get(account.id) ?? { status: null, byHand: false, warning: null }
     accounts.push({
       id: account.id,
       handle: account.handle,
       profile: account.profileId && profileName !== null ? { id: account.profileId, name: profileName } : null,
-      phone: account.phoneId && phoneName !== null ? { id: account.phoneId, name: phoneName } : null,
+      phone: await postPhone(userId, account.phoneId, db, now),
+      importance: account.importance,
       voice: account.voiceId && voiceName !== null ? { id: account.voiceId, name: voiceName } : null,
       blocked: account.blocked,
       reason: account.blockedReason,
@@ -361,7 +367,14 @@ export async function addAccountToProject(
 ): Promise<void> {
   await ownedProject(userId, projectId, db)
   const [account] = await db
-    .select({ projectId: promoAccounts.projectId, retiredAt: promoAccounts.retiredAt })
+    .select({
+      id: promoAccounts.id,
+      handle: promoAccounts.handle,
+      importance: promoAccounts.importance,
+      movingToPhoneId: promoAccounts.movingToPhoneId,
+      projectId: promoAccounts.projectId,
+      retiredAt: promoAccounts.retiredAt,
+    })
     .from(promoAccounts)
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
     .limit(1)
@@ -370,6 +383,7 @@ export async function addAccountToProject(
   if (account.projectId) {
     throw new Error("That account is already in another project. An account belongs to one project only.")
   }
+  await refuseMixedProject(userId, account, projectId, db)
   await db
     .update(promoAccounts)
     .set({ projectId, updatedAt: new Date() })

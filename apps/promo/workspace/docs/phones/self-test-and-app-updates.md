@@ -28,7 +28,7 @@ adds odd activity to an account that matters.
 - **It waits** while the rack is paused, the test phone is held or offline, or
   the rack is not checking in, and goes on a later tick.
 - **A step that cannot find its button** marks that action broken. The bell
-  rings, such as "Self-test failed: reddit/comment", with the step it stopped
+  rings, such as "Self-test failed: Post a Reddit comment", with the step it stopped
   at, and the picture of where it stopped is on the test phone's Actions tab.
 - **Jobs that need a broken action are refused** before anything reaches a
   phone, with the day and the step: "The daily self-test found reddit/comment
@@ -38,10 +38,16 @@ adds odd activity to an account that matters.
   notice goes.
 - **Run it now** in the Self-test window asks for it straight away, with the
   day's Play Store look, and counts as that day's run.
-- **What it walks today** is reading the Android version off Settings, the
-  only action that walks a screen so far. Each Reddit, Instagram and TikTok
-  action joins it as it is written (phone farm files 05 and 06), and the
-  Reddit comment only goes live once the self-test covers it.
+- **What it walks:** reading the Android version off Settings, and in the
+  Reddit app who is signed in, the health reading and the comment (phone farm
+  file 05). Instagram and TikTok join as they are written (file 06). The wipe
+  is never rehearsed.
+- **The comment rehearsal** opens a post found in the last week, taps the
+  comment box, types nothing, finds Post without pressing it, and backs out.
+  With no post found lately it opens the first post in the test account's feed.
+- **The comment only goes out from a phone once the self-test has passed it**
+  at least once. Before that, Post on a phone account is refused with how to
+  run the self-test.
 
 ## App updates, one phone first
 
@@ -63,8 +69,8 @@ adds odd activity to an account that matters.
 - **Update the other phones stays pressable** before then, and says the test
   phone has to pass first.
 - **Automatic updates must be off** in the Play Store on every phone, or a new
-  version arrives without this. Switching them off and checking it is part 23
-  (phone farm file 04).
+  version arrives without this. Each phone's setup check reads the setting
+  ([making each phone look like one person's](looking-like-a-real-person.md)).
 
 ## Where it is
 

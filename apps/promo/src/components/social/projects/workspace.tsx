@@ -59,6 +59,7 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
 import { EVERYTHING, PROJECTS_PANEL_LAYOUT_KEY } from "@/lib/social/reddit/options"
 import {
   keywordTitle,
+  postButtonWords,
   postingBlockedReason,
   postsWord,
   waitingCommentText,
@@ -648,6 +649,7 @@ export function ProjectsWorkspace({
       find={detail}
       prefill={retry}
       handle={handle}
+      postWords={postButtonWords(account)}
       drafts={drafts}
       loading={detailLoading}
       working={working}

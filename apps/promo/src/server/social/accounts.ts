@@ -1,12 +1,20 @@
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 
+import type { AccountImportance } from "@/lib/social/importance"
 import { uuid } from "@/server/auth/security"
 import { promoProfiles } from "@/server/browser/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { recordPhoneEvent } from "@/server/phones/history"
 import { promoPhones } from "@/server/phones/schema"
 import { isTestPhone } from "@/server/phones/self-test"
+import { noteAccountLeftPhone, refusePhoneNotReady } from "@/server/phones/wipe"
 
+import {
+  noteImportantOnPhone,
+  refuseImportantOnProfile,
+  refuseMixedVoice,
+  refuseThrowawayOnImportantPhone,
+} from "./apart"
 import { readBehaviour } from "./behaviour"
 import { promoAccounts, promoJobs, promoVoices } from "./schema"
 
@@ -38,6 +46,7 @@ export type AccountView = {
   phone: { id: string; name: string } | null
   /** The voice it drafts with. Null when none was picked, or it was deleted. */
   voice: { id: string; name: string } | null
+  importance: AccountImportance
 }
 
 /** The oldest account in use, the one Settings → Reddit account edits, or null when there is none. */
@@ -56,6 +65,7 @@ export async function readAccount(
     profile: account.profile,
     phone: account.phone,
     voice: account.voiceRef,
+    importance: account.importance,
   }
 }
 
@@ -80,7 +90,8 @@ export async function saveAccount(
   const existing = await readAccount(userId, db)
   await checkPicks(userId, input, existing?.id ?? null, db)
 
-  const fields = { profileId: input.profileId, phoneId: input.phoneId, voiceId: input.voiceId }
+  // Set by hand, so a move to a phone that was waiting is off.
+  const fields = { profileId: input.profileId, phoneId: input.phoneId, voiceId: input.voiceId, movingToPhoneId: null }
 
   if (existing) {
     await db
@@ -90,7 +101,13 @@ export async function saveAccount(
   } else {
     await db.insert(promoAccounts).values({ id: uuid(), userId, platform: "reddit", ...fields })
   }
-  await notePhoneMove(userId, existing?.handle ?? "", existing?.phone?.id ?? null, input.phoneId, db)
+  await notePhoneMove(
+    userId,
+    { handle: existing?.handle ?? "", importance: existing?.importance ?? "throwaway" },
+    existing?.phone?.id ?? null,
+    input.phoneId,
+    db
+  )
 
   const saved = await readAccount(userId, db)
   if (!saved) throw new Error("The account could not be read back after saving.")
@@ -120,7 +137,7 @@ export async function addAccount(
     phoneId: input.phoneId,
     voiceId: input.voiceId,
   })
-  await notePhoneMove(userId, "", null, input.phoneId, db)
+  await notePhoneMove(userId, { handle: "", importance: "throwaway" }, null, input.phoneId, db)
   return id
 }
 
@@ -140,30 +157,42 @@ export async function setAccountRunsOn(
   }
   await checkPicks(userId, { ...input, voiceId: null }, accountId, db)
   const [before] = await db
-    .select({ handle: promoAccounts.handle, phoneId: promoAccounts.phoneId })
+    .select({ handle: promoAccounts.handle, phoneId: promoAccounts.phoneId, importance: promoAccounts.importance })
     .from(promoAccounts)
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
     .limit(1)
   if (!before) throw new Error("That account is not there any more.")
   await db
     .update(promoAccounts)
-    .set({ profileId: input.profileId, phoneId: input.phoneId, updatedAt: new Date() })
+    // Set by hand, so a move to a phone that was waiting is off.
+    .set({ profileId: input.profileId, phoneId: input.phoneId, movingToPhoneId: null, updatedAt: new Date() })
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
-  await notePhoneMove(userId, before.handle, before.phoneId, input.phoneId, db)
+  await notePhoneMove(userId, before, before.phoneId, input.phoneId, db)
 }
 
-/** A line in each phone's history when a Reddit account moves onto it or off it. */
+/**
+ * A line in each phone's history when a Reddit account moves onto it or off
+ * it. The phone it left needs wiping before another account goes on
+ * (part 26 of the phone farm), and a phone an important account went onto
+ * is marked as having held one (part 22).
+ */
 async function notePhoneMove(
   userId: string,
-  handle: string,
+  account: { handle: string; importance: string },
   from: string | null,
   to: string | null,
   db: CustomShellDb
 ): Promise<void> {
   if (from === to) return
-  const name = handle ? `u/${handle}` : "A Reddit account"
-  if (from) await recordPhoneEvent(userId, from, "account_moved", `${name} moved off it.`, db)
-  if (to) await recordPhoneEvent(userId, to, "account_moved", `${name} moved onto it.`, db)
+  const name = account.handle ? `u/${account.handle}` : "A Reddit account"
+  if (from) {
+    await recordPhoneEvent(userId, from, "account_moved", `${name} moved off it. It needs wiping before another account goes on.`, db)
+    await noteAccountLeftPhone(userId, from, db)
+  }
+  if (to) {
+    await recordPhoneEvent(userId, to, "account_moved", `${name} moved onto it.`, db)
+    if (account.importance === "important") await noteImportantOnPhone(userId, to, db)
+  }
 }
 
 /**
@@ -182,6 +211,20 @@ async function checkPicks(
   if (input.profileId && input.phoneId) {
     throw new Error("An account runs on a browser profile or a phone, never both.")
   }
+
+  // Important and throwaway accounts are kept apart (part 22 of the phone
+  // farm); a new account is a throwaway until it is marked.
+  const [self] = accountId
+    ? await db
+        .select({ handle: promoAccounts.handle, importance: promoAccounts.importance, movingToPhoneId: promoAccounts.movingToPhoneId })
+        .from(promoAccounts)
+        .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
+        .limit(1)
+    : []
+  const group = self ?? { handle: "", importance: "throwaway" as const, movingToPhoneId: null }
+  refuseImportantOnProfile(group, input)
+  await refuseThrowawayOnImportantPhone(userId, group, input.phoneId, db)
+  await refusePhoneNotReady(userId, input.phoneId, accountId, db)
 
   if (input.phoneId) {
     const [phone] = await db
@@ -209,6 +252,23 @@ async function checkPicks(
     if (taken) {
       throw new Error(
         `The phone ${phone.name} already has a Reddit account on it. One Reddit account per phone, or they sign in over each other.`
+      )
+    }
+    const [incoming] = await db
+      .select({ handle: promoAccounts.handle })
+      .from(promoAccounts)
+      .where(
+        and(
+          eq(promoAccounts.movingToPhoneId, input.phoneId),
+          eq(promoAccounts.userId, userId),
+          isNull(promoAccounts.retiredAt),
+          ...(accountId ? [ne(promoAccounts.id, accountId)] : [])
+        )
+      )
+      .limit(1)
+    if (incoming) {
+      throw new Error(
+        `The phone ${phone.name} already has a Reddit account on it, or one on its way. One Reddit account per phone: u/${incoming.handle} is being moved onto it.`
       )
     }
   }
@@ -251,6 +311,7 @@ async function checkPicks(
       .where(and(eq(promoVoices.id, input.voiceId), eq(promoVoices.userId, userId)))
       .limit(1)
     if (!voice) throw new Error("That voice does not exist.")
+    await refuseMixedVoice(userId, { id: accountId, ...group }, input.voiceId, db)
   }
 }
 
