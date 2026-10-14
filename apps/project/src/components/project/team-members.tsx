@@ -522,20 +522,7 @@ function InvitesTable({ invites }: { invites: TeamInviteRow[] }) {
           if (cancelling) await cancel(cancelling)
         }}
       />
-      <Dialog open={Boolean(resent)} onOpenChange={(open) => (open ? null : setResent(null))}>
-        <DialogContent variant="admin" className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Invite sent again</DialogTitle>
-            <DialogDescription>The old link no longer works. This one lasts seven days.</DialogDescription>
-          </DialogHeader>
-          <DialogBody>{resent ? <SentInviteCard sent={resent.sent} email={resent.email} /> : null}</DialogBody>
-          <DialogFooter>
-            <Button type="button" onClick={() => setResent(null)}>
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <InviteResentDialog resent={resent} onClose={() => setResent(null)} />
     </>
   )
 }
@@ -576,5 +563,34 @@ function LeaveTeamCard({ teamName }: { teamName: string }) {
         }}
       />
     </FeedCard>
+  )
+}
+
+/**
+ * After Resend: the fresh link to copy, and whether the email went. Here and
+ * on the Team dashboard's Members card, which resends the same way.
+ */
+export function InviteResentDialog({
+  resent,
+  onClose,
+}: {
+  resent: { sent: SentInvite; email: string } | null
+  onClose: () => void
+}) {
+  return (
+    <Dialog open={Boolean(resent)} onOpenChange={(open) => (open ? null : onClose())}>
+      <DialogContent variant="admin" className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Invite sent again</DialogTitle>
+          <DialogDescription>The old link no longer works. This one lasts seven days.</DialogDescription>
+        </DialogHeader>
+        <DialogBody>{resent ? <SentInviteCard sent={resent.sent} email={resent.email} /> : null}</DialogBody>
+        <DialogFooter>
+          <Button type="button" onClick={onClose}>
+            Done
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

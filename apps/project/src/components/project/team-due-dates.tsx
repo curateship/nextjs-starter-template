@@ -1,6 +1,7 @@
 import { ListTodoIcon } from "lucide-react"
 
 import { StatusBadge } from "@/components/project/task-bits"
+import { TeamSideCard } from "@/components/project/team-side-card"
 import type { TeamDueTask } from "@/lib/api/project/checkins"
 import { plural } from "@/lib/format/plural"
 import { PROJECT_COLOR_DOT } from "@/lib/project/rules"
@@ -39,8 +40,8 @@ export function DueChips({ tasks }: { tasks: readonly TeamDueTask[] }) {
 }
 
 /**
- * Under the calendar while "Due dates" is on: the chosen day's due tasks,
- * each opening its task window.
+ * While "Due dates" is on: the chosen day's due tasks, as a card in the right
+ * panel under its meetings, each opening its task window.
  */
 export function DayDueTasks({
   tasks,
@@ -50,15 +51,10 @@ export function DayDueTasks({
   onOpenTask: (taskId: string) => void
 }) {
   return (
-    <section className="grid gap-3 border-t p-4" aria-labelledby="day-due-heading">
-      <div className="flex items-baseline justify-between gap-2">
-        <h3 id="day-due-heading" className="font-medium">
-          Due this day
-        </h3>
-        <span className="shrink-0 text-sm text-muted-foreground">
-          {tasks.length ? `${tasks.length} ${plural(tasks.length, "task")}` : "Nothing due"}
-        </span>
-      </div>
+    <TeamSideCard
+      title="Due this day"
+      aside={tasks.length ? `${tasks.length} ${plural(tasks.length, "task")}` : null}
+    >
       {tasks.length ? (
         <ul className="grid gap-2">
           {tasks.map((task) => (
@@ -66,7 +62,7 @@ export function DayDueTasks({
               <button
                 type="button"
                 onClick={() => onOpenTask(task.id)}
-                className="flex w-full min-w-0 items-center gap-3 rounded-lg border p-3 text-left hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="flex w-full min-w-0 items-center gap-3 rounded-lg border bg-background p-3 text-left hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               >
                 <span aria-hidden className={cn("h-9 w-1 shrink-0 rounded-full", PROJECT_COLOR_DOT[task.projectColor])} />
                 <span className="grid min-w-0 flex-1">
@@ -80,7 +76,9 @@ export function DayDueTasks({
             </li>
           ))}
         </ul>
-      ) : null}
-    </section>
+      ) : (
+        <p className="text-sm text-muted-foreground">Nothing due.</p>
+      )}
+    </TeamSideCard>
   )
 }

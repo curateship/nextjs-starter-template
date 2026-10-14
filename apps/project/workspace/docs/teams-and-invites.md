@@ -156,30 +156,49 @@ For when someone leaves or goes away, so their work isn't left with nobody.
 ## The Team dashboard
 
 `/team` is three panels, from Tyler's mockup of 10 Oct 2026
-(`assets/pasted-image-1791659665679304000.png`). The panels resize and
+(`assets/pasted-image-1791659665679304000.png`), redrawn by him on 14 Oct
+2026 (`assets/pasted-image-1792017230135278000.png`, the announcement's menu
+in `...7250513263000.png` and the Attention tab in `...7275530947000.png`). The panels resize and
 collapse like the project page's, and below 1280px wide one shows at a time,
 under Calendar, Team and Day tabs. Picking a day on the calendar switches to
 Day. The tab is "Day" so it doesn't sit over the panel's own Check-ins tab.
 
-- **Left: the team.** The team photo, its name, the day it was created and its
-  time zone, the four figures, the check-in schedule ("Daily at 9:00 AM,
-  Toronto time" and the work days, M T W T F S S, the work days filled in),
-  and the members with
-  their roles. The owner and admins also get an Invite member button. Manage
-  opens the Members page.
+- **Left: the team.** The team logo, its name, the day it was created and its
+  city, then two cards that fold, each remembered open or shut in this
+  browser. **This week** holds the four figures and Trends. **Members · 3**
+  lists each member with their job title and role (a click opens their page),
+  then, for the owner and admins, each pending invite's email with Resend,
+  which sends a fresh link and shows it, as on the Members page. Under them,
+  Invite member (owner and admins) and Manage, which opens the Members page;
+  in a narrow panel Manage drops under Invite member. The check-in schedule
+  left this panel on 14 Oct 2026; it is set and read in Team settings (the
+  cog).
 - **Middle: Calendar and Activity tabs.** Tyler put Activity here on 12 Oct
-  2026, because the right panel's three tabs already fill it. Calendar is
-  the team's announcement pinned at the top when there is one (below), then
-  a month, or a week, of the team's check-ins and meetings, with the chosen
-  day's meetings under it. The month's name, the arrows, Today and the
-  Month and Week switch sit in a row under the tabs; the megaphone and New
-  meeting stay in the header. The tab and the Month or Week choice are
-  remembered in this browser. See [Meetings](meetings.md),
+  2026, because the right panel's three tabs already fill it. The header is
+  one row: Calendar and Activity, then the month's name between its arrows
+  and Today, then a dropdown with a filter mark reading "Month" (Month or
+  Week, and the Due dates switch), the megaphone while no announcement is up,
+  and New meeting. On a phone the month and its arrows take a second row.
+  The team's announcement is a thin bar under the header (below), then a
+  month, or a week, of the team's check-ins and meetings, with the weekday
+  names in small capitals. The chosen day's meetings are on the right panel.
+  The tab and the Month or Week choice are remembered in this browser. See [Meetings](meetings.md),
   [History](history.md#past-days-on-the-team-dashboard) and The team's
   Activity below.
-- **Right: three tabs.** Check-ins: one day's check-ins, today to start with,
-  with arrows to step through the days, and "Away" for anyone on time off (see
-  [History](history.md#past-days-on-the-team-dashboard)).
+- **Right: the chosen day.** Its header is the day ("Wednesday, October 14")
+  with arrows to step through the days. Under it, Check-ins, Workload and,
+  for the owner and admins, Attention, as underlined tabs like the project
+  page's; Attention carries the count of tasks needing it in red. Each tab
+  is a grey card, and under it sit the day's **Meetings** ("+ Add" opens New
+  meeting on that day; each row opens the meeting, Join opens its video link,
+  the cog changes it) and, with Due dates on, **Due this day**. Check-ins:
+  one day's check-ins, today to start with, "1 of 2 checked in" with its bar,
+  each person with when they checked in and a Late or Blocked badge, and
+  "Away" for anyone on time off (see
+  [History](history.md#past-days-on-the-team-dashboard)). Attention is one
+  card with a line per kind, "1 task overdue" or "2 tasks blocked" by a
+  tinted mark, and each task under it with whose it is and how long, which
+  opens it. Stuck reads "blocked" there, as on the calendar.
   - **Times read in your own clock.** "Checked in 4:02 AM" for a London
     teammate's 9:02 check-in, read in Toronto, the way meetings already read.
     Only the time moves: late is still judged on the teammate's own clock and
@@ -216,16 +235,20 @@ What moved today, without opening every project.
 Something for the whole team reaches everyone in one place: "Office closed
 Friday", pinned at the top of the Team dashboard's middle panel.
 
+- **It is a thin bar under the calendar's header**, as Tyler drew it on 14
+  Oct 2026: the megaphone, the words, who posted it and when, "Read by 4 of
+  6" for the owner and admins, then "..." and the X.
 - **The owner and admins post it.** The megaphone in the calendar's header
   opens a window with one box, up to 500 characters, and Post announcement.
-  While one is up, "Post a new one" on it opens the same window.
+  While one is up, "Post a new one" in its "..." menu opens the same window.
 - **Everyone else on the team gets "Maya posted an announcement"** in the
   bell, with the start of it under the heading. It opens the Team dashboard.
 - **One at a time.** A new one replaces the old one and rings the bell again.
-  Take down removes it for everyone, after "Take it down for everyone?".
+  Take down, in the "..." menu, removes it for everyone after a window asks
+  "Take the announcement down?".
 - **Each person can hide it for themselves** with the X. It stays hidden for
   them until the next one is posted, which shows again.
-- **It shows who posted it and when**, with the exact time on hover.
+- **It shows who posted it and when** ("2 days ago").
 - **It is one message, never a team chat.** Nobody replies to it. Talk about
   a project goes in that project's chat (see
   [Projects and tasks](projects-and-tasks.md#the-projects-chat)).
@@ -245,8 +268,11 @@ Friday", pinned at the top of the Team dashboard's middle panel.
   Rules in `src/server/project/announcements.ts`, the card and window in
   `src/components/project/team-announcement.tsx`.
 
-### The team photo
+### The team logo
 
+- **A short box, 3 wide to 1 high**, reading "Drop your team logo or browse
+  files", and a logo shows whole rather than cropped (Tyler, 14 Oct 2026).
+  It is saved as the team's photo, as before.
 - **The owner and admins add it** by clicking the box at the top of the left
   panel, which opens the shared media library to upload or pick a picture
   (Tyler's choice, 11 Oct 2026). The red X on its corner takes it away.

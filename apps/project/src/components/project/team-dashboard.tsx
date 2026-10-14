@@ -2,16 +2,16 @@ import * as React from "react"
 import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import {
   ChartColumnIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleAlertIcon,
-  ClockIcon,
   HeartIcon,
+  ListFilterIcon,
   MegaphoneIcon,
   PartyPopperIcon,
   PlusIcon,
   SettingsIcon,
-  UserPlusIcon,
   UsersIcon,
 } from "lucide-react"
 
@@ -30,23 +30,24 @@ import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskDialog } from "@/components/project/task-dialog"
 import { TeamFiguresGrid, TeamPhoto } from "@/components/project/team-figures"
 import { DayDueTasks, DueChips } from "@/components/project/team-due-dates"
-import { DayMeetings, MeetingChips } from "@/components/project/team-meetings"
-import { AttentionPanel, WorkloadPanel } from "@/components/project/team-work-panels"
+import { MeetingChips, MeetingsCard } from "@/components/project/team-meetings"
+import { InviteResentDialog } from "@/components/project/team-members"
+import { PanelCard } from "@/components/project/panel-card"
+import { UnderlineTabs } from "@/components/project/task-header-controls"
+import { TeamSideCard } from "@/components/project/team-side-card"
+import { AttentionPanel, WorkloadPanel, useAttention } from "@/components/project/team-work-panels"
 import { TeamSettingsDialog } from "@/components/project/team-settings-dialog"
 import { TeamStart } from "@/components/project/team-start"
 import { TeamTrendsDialog } from "@/components/project/team-trends-dialog"
 import { TeamWeek } from "@/components/project/team-week"
 import { ThreePanels } from "@/components/project/three-panels"
-import {
-  DashboardCardTabsHeader,
-  DashboardCardTitleHeader,
-} from "@/components/shared/dashboard-card-header"
+import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Meter } from "@/components/ui/meter"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -55,23 +56,34 @@ import {
   type TeamDay,
   type TeamDayPerson,
   type TeamDayTask,
+  type TeamDueTask,
   type TeamMonth,
 } from "@/lib/api/project/checkins"
 import { linkNoteLineToTask, type Meeting, type MeetingOccurrence, type TeamMeetings } from "@/lib/api/project/meetings"
 import { loadNewTaskProjects, type NewTaskProject } from "@/lib/api/project/tasks"
-import type {
-  InviteForMe,
-  TeamDashboard as TeamDashboardData,
-  TeamFigures,
-  TeamMemberRow,
+import {
+  resendTeamInvite,
+  type InviteForMe,
+  type SentInvite,
+  type TeamDashboard as TeamDashboardData,
+  type TeamFigures,
+  type TeamInviteRow,
+  type TeamMemberRow,
 } from "@/lib/api/project/teams"
 import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { addDays, clockIn, clockLabel, dayLabel, longDayLabel, shortDayLabel, zoneCity } from "@/lib/project/days"
+import { addDays, clockIn, dayLabel, longDayLabel, shortDayLabel, zoneCity } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { dueByDay, dueWords } from "@/lib/project/due-days"
-import { dayCellClassName, meetingWords, meetingsByDay, monthGrid, nextMeetingColor } from "@/lib/project/meetings"
+import {
+  dayCellClassName,
+  meetingWords,
+  meetingsByDay,
+  monthGrid,
+  nextMeetingColor,
+  type DayMeeting,
+} from "@/lib/project/meetings"
 import { lastProject, rememberProject } from "@/lib/project/new-task-project"
 import type { TaskType } from "@/lib/project/task-types"
 import {
@@ -83,7 +95,7 @@ import {
 import { weekDays } from "@/lib/project/week-view"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { TEAM_ROLE_LABEL, WEEK_DAYS, runsTheTeam } from "@/lib/project/rules"
+import { TEAM_ROLE_LABEL, runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
 
 export type TeamSearch = {
@@ -99,10 +111,13 @@ export type TeamSearch = {
 }
 
 /**
- * The Team dashboard, from Tyler's mockup: the team, its figures and its
- * people on the left, a month calendar of check-ins and meetings in the
- * middle with the chosen day's meetings under it, and one day's check-ins on
- * the right. Clicking a day in the calendar shows that day in both.
+ * The Team dashboard, as Tyler redrew it on 14 Oct 2026
+ * (`workspace/docs/assets/pasted-image-1792017230135278000.png`): the team,
+ * its week and its members on the left; the calendar of check-ins and
+ * meetings in the middle with the announcement as a bar under its header; and
+ * on the right the chosen day, with Check-ins, Workload and Attention as tabs
+ * over that day's Meetings. Clicking a day in the calendar shows that day on
+ * the right.
  */
 export function TeamDashboardScreen({
   data,
@@ -162,6 +177,12 @@ function Dashboard({
   )
   // On a phone, picking a day on the calendar shows that day's panel.
   const [dayPicks, setDayPicks] = React.useState(0)
+  const selected = search.day ?? month.today
+  const meetingDays = React.useMemo(() => meetingsByDay(meetings), [meetings])
+  const dueDays = React.useMemo(() => dueByDay(month.dueDates.tasks), [month.dueDates.tasks])
+  const holidayOf = React.useMemo(() => new Map(month.holidays.map((h) => [h.day, h.name])), [month.holidays])
+  // The calendar's New meeting and the right panel's "+ Add" open the same windows.
+  const meetingWindows = useMeetingWindows({ meetings, data, day: selected < month.today ? month.today : selected })
 
   return (
     <ThreePanels
@@ -177,8 +198,11 @@ function Dashboard({
         content: (
           <CalendarPanel
             month={month}
-            selected={search.day ?? month.today}
-            meetings={meetings}
+            selected={selected}
+            meetingDays={meetingDays}
+            dueDays={dueDays}
+            holidayOf={holidayOf}
+            viewerZone={meetings.viewerZone}
             data={data}
             // A new month starts on its 1st, or on today in today's month, so
             // the calendar, its meetings and the check-ins name one day.
@@ -192,6 +216,7 @@ function Dashboard({
               setDayPicks((n) => n + 1)
             }}
             onOpenTask={(taskId) => go({ task: taskId })}
+            onNewMeeting={meetingWindows.newMeeting}
           />
         ),
       }}
@@ -202,14 +227,30 @@ function Dashboard({
         content: (
           <RightPanel
             canRun={runsTheTeam(data.myRole)}
+            day={day}
+            onDay={(next) => go({ day: next, month: next.slice(0, 7) })}
             checkins={
-              <CheckinsPanel
+              <CheckinsCard
                 day={day}
                 requested={search.day}
                 myUserId={data.myUserId}
                 members={data.members}
-                onDay={(next) => go({ day: next, month: next.slice(0, 7) })}
               />
+            }
+            meetings={
+              <MeetingsCard
+                holiday={holidayOf.get(day.day)}
+                meetings={meetingDays.get(day.day) ?? []}
+                viewerZone={meetings.viewerZone}
+                onOpen={meetingWindows.open}
+                onEdit={meetingWindows.edit}
+                onAdd={meetingWindows.newMeeting}
+              />
+            }
+            due={
+              month.dueDates.on ? (
+                <DayDueTasks tasks={dueDays.get(day.day) ?? []} onOpenTask={(taskId) => go({ task: taskId })} />
+              ) : null
             }
             openTask={search.task}
             onOpenTask={(taskId) => go({ task: taskId })}
@@ -218,21 +259,98 @@ function Dashboard({
       }}
     >
       <TaskDialog taskId={search.task ?? null} onClose={() => go({ task: undefined })} />
+      {meetingWindows.windows}
     </ThreePanels>
   )
+}
+
+/**
+ * New meeting, changing one, a meeting's own window, and Make a task from its
+ * notes, for the whole page: the calendar and the right panel's Meetings card
+ * both open them.
+ */
+function useMeetingWindows({ meetings, data, day }: { meetings: TeamMeetings; data: TeamDashboardData; day: string }) {
+  // The meeting the window shows, null for a new one. It stays set while the
+  // window closes, so the window doesn't change under its closing animation.
+  const [windowOpen, setWindowOpen] = React.useState(false)
+  const [target, setTarget] = React.useState<Meeting | null>(null)
+  const opened = useOpenedMeeting(meetings)
+
+  function edit(next: Meeting | "new") {
+    setTarget(next === "new" ? null : next)
+    setWindowOpen(true)
+  }
+
+  return {
+    newMeeting: () => edit("new"),
+    edit: (meeting: Meeting) => edit(meeting),
+    open: opened.open,
+    windows: (
+      <>
+        <MeetingDialog
+          open={windowOpen}
+          meeting={target}
+          day={day}
+          color={nextMeetingColor(meetings.meetings)}
+          members={data.members}
+          myUserId={data.myUserId}
+          teamZone={meetings.teamZone}
+          onClose={() => setWindowOpen(false)}
+        />
+        {opened.shown ? (
+          <MeetingWindow
+            open={opened.isOpen}
+            meeting={opened.shown.meeting}
+            occurrence={opened.shown.occurrence}
+            viewerZone={meetings.viewerZone}
+            myUserId={data.myUserId}
+            onClose={opened.close}
+            onChange={(meeting) => {
+              opened.close()
+              edit(meeting)
+            }}
+            onMakeTask={opened.makeTask}
+          />
+        ) : null}
+        {opened.making ? (
+          <NewTaskDialog
+            projects={opened.making.projects}
+            types={opened.making.types}
+            initialProjectId={opened.making.initialProjectId}
+            initialTitle={opened.making.line.text}
+            open={opened.making.open}
+            onClose={opened.taskClosed}
+            onCreated={opened.taskMade}
+          />
+        ) : null}
+      </>
+    ),
+  }
 }
 
 function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFigures }) {
   const { team } = data
   const canRun = runsTheTeam(data.myRole)
+  const router = useRouter()
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [inviting, setInviting] = React.useState(false)
   const [trendsOpen, setTrendsOpen] = React.useState(false)
   // A teammate's page, and handing over all of someone's tasks from it.
   const [viewing, setViewing] = React.useState<TeamMemberRow | null>(null)
   const [handingOver, setHandingOver] = React.useState<TeamMemberRow | null>(null)
-  const days = WEEK_DAYS.map(({ day, short }) => ({ day, short, on: team.workDays.includes(day) }))
-  const workDayNames = days.filter((d) => d.on).map((d) => d.short).join(", ")
+  const [resent, setResent] = React.useState<{ sent: SentInvite; email: string } | null>(null)
+  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+
+  /** The same resend as the Members page: a fresh link, the old one stops working. */
+  async function resend(invite: TeamInviteRow) {
+    let sent: SentInvite | null = null
+    const ok = await run(async () => {
+      sent = await resendTeamInvite(invite.id)
+    })
+    if (!ok || !sent) return
+    setResent({ sent, email: invite.email })
+    await router.invalidate()
+  }
 
   return (
     <>
@@ -252,75 +370,35 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
         }
       />
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <div className="grid gap-5 p-4">
+        {/* The check-in schedule is in Team settings (the cog), so it isn't repeated here (Tyler, 14 Oct 2026). */}
+        <div className="grid gap-3 p-3">
           <TeamPhoto teamName={team.name} photoUrl={team.photoUrl} canEdit={canRun} />
-          <div className="grid gap-1">
-            <h3 className="text-xl font-semibold break-words">{team.name}</h3>
+          <div className="grid gap-0.5 px-1 pb-1">
+            <h3 className="text-lg font-semibold break-words">{team.name}</h3>
             <p className="text-sm text-muted-foreground">
-              Created {formatDate(team.createdAt)} · {team.timeZone.replaceAll("_", " ")}
+              Created {formatDate(team.createdAt)} · {zoneCity(team.timeZone)}
             </p>
           </div>
-          <div className="grid gap-2">
+          <PanelCard storageId="project-team-this-week" title="This week">
             <TeamFiguresGrid figures={figures} />
-            <Button type="button" variant="outline" onClick={() => setTrendsOpen(true)}>
+            <Button type="button" variant="outline" size="sm" className="bg-background" onClick={() => setTrendsOpen(true)}>
               <ChartColumnIcon className="size-4" />
               Trends, last 12 weeks
             </Button>
-          </div>
-          <Separator />
-          <section className="grid gap-3" aria-labelledby="team-schedule-heading">
-            <h3 id="team-schedule-heading" className="text-sm font-medium">
-              Check-in schedule
-            </h3>
-            <p className="flex items-center gap-2 text-sm">
-              <ClockIcon className="size-4 text-muted-foreground" aria-hidden />
-              Daily at {clockLabel(team.checkinTime)}, {zoneCity(team.timeZone)} time
-            </p>
-            <ul className="grid grid-cols-7 gap-1.5" aria-label={`Work days: ${workDayNames}`}>
-              {days.map(({ day, short, on }) => (
-                <li
-                  key={day}
-                  aria-hidden
-                  className={cn(
-                    "flex h-8 items-center justify-center rounded-md text-xs font-medium",
-                    on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {short.charAt(0)}
-                </li>
-              ))}
-            </ul>
-          </section>
-          <Separator />
-          <section className="grid gap-3" aria-labelledby="team-members-heading">
-            <div className="flex items-center justify-between gap-2">
-              <h3 id="team-members-heading" className="text-sm font-medium">
-                Members
-              </h3>
-              <Link
-                to="/team/members"
-                className="text-sm text-muted-foreground hover:text-foreground hover:underline"
-              >
-                Manage
-              </Link>
-            </div>
-            {canRun ? (
-              <Button type="button" className="w-full" onClick={() => setInviting(true)}>
-                <UserPlusIcon className="size-4" />
-                Invite member
-              </Button>
-            ) : null}
-            <ul className="grid gap-2">
+          </PanelCard>
+          <PanelCard storageId="project-team-members" title="Members" meta={data.members.length}>
+            {/* min-w-0: in a narrow panel the names shorten rather than pushing Owner and Resend out of the card. */}
+            <ul className="grid min-w-0 gap-1">
               {data.members.map((member) => (
                 <li key={member.userId}>
                   <button
                     type="button"
                     onClick={() => setViewing(member)}
-                    className="flex w-full items-center gap-3 rounded-md text-left text-sm hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    className="flex w-full items-center gap-3 rounded-md py-1 text-left text-sm hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   >
                     <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} size="default" />
                     <span className="grid min-w-0 flex-1">
-                      <span className="truncate">
+                      <span className="truncate font-medium">
                         {member.name}
                         {member.userId === data.myUserId ? " (you)" : ""}
                       </span>
@@ -328,12 +406,37 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
                         <span className="truncate text-xs text-muted-foreground">{member.title}</span>
                       ) : null}
                     </span>
-                    <span className="shrink-0 text-muted-foreground">{TEAM_ROLE_LABEL[member.role]}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{TEAM_ROLE_LABEL[member.role]}</span>
                   </button>
                 </li>
               ))}
+              {/* Only the owner and admins are sent the pending invites. */}
+              {data.invites.map((invite) => (
+                <li key={invite.id} className="flex items-center gap-3 py-1 text-sm">
+                  <span aria-hidden className="size-8 shrink-0 rounded-full border border-dashed" />
+                  <span className="grid min-w-0 flex-1">
+                    <span className="truncate text-muted-foreground">{invite.email}</span>
+                    <span className="text-xs text-muted-foreground">{invite.expired ? "Invite ran out" : "Pending invite"}</span>
+                  </span>
+                  <Button type="button" variant="ghost" size="sm" className="-mr-2" disabled={busy} onClick={() => void resend(invite)}>
+                    Resend
+                  </Button>
+                </li>
+              ))}
             </ul>
-          </section>
+            {/* Side by side where they fit; Manage drops under Invite member in a narrow panel. */}
+            <div className="flex min-w-0 flex-wrap gap-2">
+              {canRun ? (
+                <Button type="button" size="sm" className="flex-1" onClick={() => setInviting(true)}>
+                  <PlusIcon className="size-4" />
+                  Invite member
+                </Button>
+              ) : null}
+              <Button asChild variant="outline" size="sm" className="flex-1 bg-background">
+                <Link to="/team/members">Manage</Link>
+              </Button>
+            </div>
+          </PanelCard>
         </div>
       </ScrollArea>
       <MemberDialog
@@ -355,6 +458,7 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
         onClose={() => setSettingsOpen(false)}
       />
       <InviteDialog open={inviting} onClose={() => setInviting(false)} />
+      <InviteResentDialog resent={resent} onClose={() => setResent(null)} />
       <TeamTrendsDialog open={trendsOpen} onClose={() => setTrendsOpen(false)} />
     </>
   )
@@ -367,25 +471,33 @@ type CalendarView = (typeof CALENDAR_VIEWS)[number]
 
 /**
  * The middle panel: the Calendar, or the team's Activity across every
- * project the viewer can see (Tyler's choice, 12 Oct 2026: a tab beside
- * Calendar, since the right panel's three tabs already fill it). The
- * calendar shows a month or the chosen day's week, with the day's meetings
- * under it.
+ * project the viewer can see (Tyler's choice, 12 Oct 2026). Its header, as
+ * Tyler drew it on 14 Oct 2026: Calendar and Activity, the month with its
+ * arrows and Today, then a view dropdown (Month or Week, and the Due dates
+ * switch) and New meeting. The announcement is a bar under it. The chosen
+ * day's meetings are on the right panel now.
  */
 function CalendarPanel({
   month,
   selected,
-  meetings,
+  meetingDays,
+  dueDays,
+  holidayOf,
+  viewerZone,
   data,
   onMonth,
   onWeek,
   onToday,
   onSelect,
   onOpenTask,
+  onNewMeeting,
 }: {
   month: TeamMonth
   selected: string
-  meetings: TeamMeetings
+  meetingDays: Map<string, DayMeeting[]>
+  dueDays: Map<string, TeamDueTask[]>
+  holidayOf: Map<string, string>
+  viewerZone: string
   data: TeamDashboardData
   onMonth: (month: string) => void
   /** A week's arrow: the same weekday in the week before or after. */
@@ -393,18 +505,13 @@ function CalendarPanel({
   onToday: () => void
   onSelect: (day: string) => void
   onOpenTask: (taskId: string) => void
+  onNewMeeting: () => void
 }) {
   const [tab, setTab] = useRememberedChoice<MiddleTab>(TEAM_MIDDLE_TAB_KEY, "calendar", MIDDLE_TABS)
   const [view, setView] = useRememberedChoice<CalendarView>(TEAM_CALENDAR_VIEW_KEY, "month", CALENDAR_VIEWS)
   const [year, monthNumber] = month.month.split("-").map(Number)
   const grid = monthGrid(month.month)
   const byDay = new Map(month.days.map((d) => [d.day, d]))
-  const holidayOf = new Map(month.holidays.map((holiday) => [holiday.day, holiday.name]))
-  const meetingDays = React.useMemo(() => meetingsByDay(meetings), [meetings])
-  // The meeting the window shows, null for a new one. It stays set while the
-  // window closes, so the window doesn't change under its closing animation.
-  const [windowOpen, setWindowOpen] = React.useState(false)
-  const [target, setTarget] = React.useState<Meeting | null>(null)
   const [announcing, setAnnouncing] = React.useState(false)
   const canRun = runsTheTeam(data.myRole)
   const week = weekDays(selected)
@@ -412,7 +519,6 @@ function CalendarPanel({
   const [run, savingSwitch] = useAsyncAction(getProjectErrorMessage)
   // The switch moves at once, and goes back if the save is refused.
   const [showDue, setShowDue] = useSyncedDraft(month.dueDates.on)
-  const dueDays = React.useMemo(() => dueByDay(month.dueDates.tasks), [month.dueDates.tasks])
 
   async function switchDueDates(on: boolean) {
     setShowDue(on)
@@ -421,66 +527,23 @@ function CalendarPanel({
     else setShowDue(!on)
   }
 
-  function edit(next: Meeting | "new") {
-    setTarget(next === "new" ? null : next)
-    setWindowOpen(true)
-  }
-  const opened = useOpenedMeeting(meetings)
+  const calendar = tab === "calendar"
 
   return (
     <>
-      <Tabs value={tab} onValueChange={(value) => setTab(value as MiddleTab)}>
-        <DashboardCardTabsHeader
-          action={
-            <>
-              {canRun && !data.announcement ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      aria-label="Post an announcement"
-                      onClick={() => setAnnouncing(true)}
-                    >
-                      <MegaphoneIcon className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Post an announcement</TooltipContent>
-                </Tooltip>
-              ) : null}
-              {/* Words from 640px up; on a phone the tabs need the room. */}
-              <Button
-                type="button"
-                variant="outline"
-                className="max-sm:size-8 max-sm:px-0"
-                aria-label="New meeting"
-                onClick={() => edit("new")}
-              >
-                <PlusIcon className="size-4" />
-                <span className="max-sm:hidden">New meeting</span>
-              </Button>
-            </>
-          }
-        >
-          <TabsTrigger value="calendar">Calendar</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-        </DashboardCardTabsHeader>
-      </Tabs>
-      {tab === "activity" ? (
-        <TeamActivity onOpenTask={onOpenTask} />
-      ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-            {/* Its own line on a phone, so the buttons don't squeeze it to nothing. */}
-            <h2 className="min-w-0 flex-1 truncate text-sm font-medium max-sm:basis-full">
-              {view === "week"
-                ? `${dayLabel(week[0])} to ${dayLabel(week[6])}`
-                : formatMonthAndYear(year, monthNumber)}
-            </h2>
+      {/* On a phone the month and its arrows take a second row, so the name never squeezes to nothing. */}
+      <DashboardCardHeader className="@container flex-wrap">
+        <Tabs value={tab} onValueChange={(value) => setTab(value as MiddleTab)}>
+          <TabsList>
+            <TabsTrigger value="calendar">Calendar</TabsTrigger>
+            <TabsTrigger value="activity">Activity</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {calendar ? (
+          <div className="flex min-w-0 flex-1 items-center gap-1 pl-2 @max-lg:order-last @max-lg:basis-full @max-lg:pl-0">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="icon"
               aria-label={view === "week" ? "Previous week" : "Previous month"}
               onClick={() =>
@@ -489,9 +552,14 @@ function CalendarPanel({
             >
               <ChevronLeftIcon className="size-4" />
             </Button>
+            <h2 className="min-w-0 truncate text-sm font-semibold">
+              {view === "week"
+                ? `${dayLabel(week[0])} to ${dayLabel(week[6])}`
+                : formatMonthAndYear(year, monthNumber)}
+            </h2>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="icon"
               aria-label={view === "week" ? "Next week" : "Next month"}
               onClick={() =>
@@ -500,164 +568,197 @@ function CalendarPanel({
             >
               <ChevronRightIcon className="size-4" />
             </Button>
-            <Button type="button" variant="outline" onClick={onToday}>
+            <Button type="button" variant="secondary" onClick={onToday}>
               Today
             </Button>
-            <Tabs value={view} onValueChange={(value) => setView(value as CalendarView)}>
-              <TabsList aria-label="Calendar view">
-                <TabsTrigger value="month">Month</TabsTrigger>
-                <TabsTrigger value="week">Week</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <div className="flex items-center gap-2">
-              <Switch
-                id="team-calendar-due-dates"
-                checked={showDue}
-                disabled={savingSwitch}
-                onCheckedChange={(on) => void switchDueDates(on)}
-              />
-              <Label htmlFor="team-calendar-due-dates" className="text-sm font-normal">
-                Due dates
-              </Label>
-            </div>
           </div>
-          <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-            {data.announcement ? (
-              <div className="px-3 pt-3">
-                <AnnouncementCard
-                  announcement={data.announcement}
-                  canRun={canRun}
-                  onReplace={() => setAnnouncing(true)}
-                />
-              </div>
-            ) : null}
-            {view === "week" ? (
-              <TeamWeek
-                selected={selected}
-                month={month}
-                meetingDays={meetingDays}
-                holidays={holidayOf}
-                dueDays={dueDays}
-                viewerZone={meetings.viewerZone}
-                onSelect={onSelect}
-              />
-            ) : (
-              <MonthGrid month={month.month}>
-                {({ date, inMonth }) => {
-                  const counts = inMonth ? byDay.get(date) : undefined
-                  const dayMeetings = inMonth ? (meetingDays.get(date) ?? []) : []
-                  const checkinWords = counts?.expected
-                    ? `${counts.checkedIn} of ${counts.expected} checked in${counts.blocked ? `, ${counts.blocked} blocked` : ""}`
-                    : null
-                  const holiday = inMonth ? holidayOf.get(date) : undefined
-                  const dayDue = inMonth ? (dueDays.get(date) ?? []) : []
-                  const words = [
-                    holiday ? `${holiday}, a team holiday` : null,
-                    checkinWords,
-                    meetingWords(dayMeetings, meetings.viewerZone),
-                    dueWords(dayDue),
-                  ].filter(Boolean)
-                  return (
-                    <button
-                      key={date}
-                      type="button"
-                      disabled={!inMonth}
-                      aria-pressed={date === selected}
-                      aria-current={date === month.today ? "date" : undefined}
-                      aria-label={`${longDayLabel(date)}${words.length ? `: ${words.join(". ")}` : ""}`}
-                      onClick={() => onSelect(date)}
-                      className={cn(
-                        dayCellClassName(inMonth),
-                        "hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none",
-                        date === selected && "ring-2 ring-ring"
-                      )}
-                    >
-                      <DayNumber date={date} today={month.today} />
-                      {/* A phone's squares are too narrow for words: "4/6" and a mark with the number. */}
-                      {holiday ? (
-                        <span className="flex max-w-full items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-muted-foreground sm:px-1.5">
-                          <PartyPopperIcon className="size-3 shrink-0" aria-hidden />
-                          <span className="truncate max-sm:hidden">{holiday}</span>
-                        </span>
-                      ) : null}
-                      {counts && counts.expected ? (
-                        <span className="max-w-full rounded bg-muted px-1 py-0.5 sm:px-1.5">
-                          <span className="sm:hidden">
-                            {counts.checkedIn}/{counts.expected}
-                          </span>
-                          <span className="max-sm:hidden">
-                            {counts.checkedIn} of {counts.expected} in
-                          </span>
-                        </span>
-                      ) : null}
-                      {counts?.blocked ? (
-                        <span className="flex max-w-full items-center gap-0.5 rounded bg-destructive/10 px-1 py-0.5 text-destructive sm:px-1.5">
-                          <CircleAlertIcon className="size-3 shrink-0 sm:hidden" aria-hidden />
-                          {counts.blocked}
-                          <span className="max-sm:hidden">&nbsp;blocked</span>
-                        </span>
-                      ) : null}
-                      <MeetingChips meetings={dayMeetings} />
-                      <DueChips tasks={dayDue} />
-                    </button>
-                  )
-                }}
-              </MonthGrid>
-            )}
-            <DayMeetings
-              day={selected}
-              holiday={holidayOf.get(selected)}
-              meetings={meetingDays.get(selected) ?? []}
-              viewerZone={meetings.viewerZone}
-              onOpen={opened.open}
-              onEdit={edit}
+        ) : (
+          <span className="flex-1" />
+        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {calendar ? (
+            <CalendarViewMenu
+              view={view}
+              onView={setView}
+              showDue={showDue}
+              savingDue={savingSwitch}
+              onShowDue={(on) => void switchDueDates(on)}
             />
-            {month.dueDates.on ? <DayDueTasks tasks={dueDays.get(selected) ?? []} onOpenTask={onOpenTask} /> : null}
-          </ScrollArea>
-        </>
+          ) : null}
+          {canRun && !data.announcement ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Post an announcement"
+                  onClick={() => setAnnouncing(true)}
+                >
+                  <MegaphoneIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Post an announcement</TooltipContent>
+            </Tooltip>
+          ) : null}
+          {/* Words where there is room; an icon with its name in a narrow panel. */}
+          <Button
+            type="button"
+            className="@max-3xl:size-8 @max-3xl:px-0"
+            aria-label="New meeting"
+            onClick={onNewMeeting}
+          >
+            <PlusIcon className="size-4" />
+            <span className="@max-3xl:hidden">New meeting</span>
+          </Button>
+        </div>
+      </DashboardCardHeader>
+      {data.announcement ? (
+        <AnnouncementCard
+          announcement={data.announcement}
+          canRun={canRun}
+          onReplace={() => setAnnouncing(true)}
+        />
+      ) : null}
+      {!calendar ? (
+        <TeamActivity onOpenTask={onOpenTask} />
+      ) : (
+        <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
+          {view === "week" ? (
+            <TeamWeek
+              selected={selected}
+              month={month}
+              meetingDays={meetingDays}
+              holidays={holidayOf}
+              dueDays={dueDays}
+              viewerZone={viewerZone}
+              onSelect={onSelect}
+            />
+          ) : (
+            <MonthGrid month={month.month}>
+              {({ date, inMonth }) => {
+                const counts = inMonth ? byDay.get(date) : undefined
+                const dayMeetings = inMonth ? (meetingDays.get(date) ?? []) : []
+                const checkinWords = counts?.expected
+                  ? `${counts.checkedIn} of ${counts.expected} checked in${counts.blocked ? `, ${counts.blocked} blocked` : ""}`
+                  : null
+                const holiday = inMonth ? holidayOf.get(date) : undefined
+                const dayDue = inMonth ? (dueDays.get(date) ?? []) : []
+                const words = [
+                  holiday ? `${holiday}, a team holiday` : null,
+                  checkinWords,
+                  meetingWords(dayMeetings, viewerZone),
+                  dueWords(dayDue),
+                ].filter(Boolean)
+                return (
+                  <button
+                    key={date}
+                    type="button"
+                    disabled={!inMonth}
+                    aria-pressed={date === selected}
+                    aria-current={date === month.today ? "date" : undefined}
+                    aria-label={`${longDayLabel(date)}${words.length ? `: ${words.join(". ")}` : ""}`}
+                    onClick={() => onSelect(date)}
+                    className={cn(
+                      dayCellClassName(inMonth),
+                      "hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none",
+                      date === selected && "ring-2 ring-foreground"
+                    )}
+                  >
+                    <DayNumber date={date} today={month.today} />
+                    {/* A phone's squares are too narrow for words: "4/6" and a mark with the number. */}
+                    {holiday ? (
+                      <span className="flex max-w-full items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-muted-foreground sm:px-1.5">
+                        <PartyPopperIcon className="size-3 shrink-0" aria-hidden />
+                        <span className="truncate max-sm:hidden">{holiday}</span>
+                      </span>
+                    ) : null}
+                    {counts && counts.expected ? (
+                      <span className="w-full rounded bg-muted px-1 py-0.5 sm:px-1.5">
+                        <span className="sm:hidden">
+                          {counts.checkedIn}/{counts.expected}
+                        </span>
+                        <span className="max-sm:hidden">
+                          {counts.checkedIn} of {counts.expected} in
+                        </span>
+                      </span>
+                    ) : null}
+                    {counts?.blocked ? (
+                      <span className="flex w-full items-center gap-0.5 rounded bg-destructive/10 px-1 py-0.5 text-destructive sm:px-1.5">
+                        <CircleAlertIcon className="size-3 shrink-0 sm:hidden" aria-hidden />
+                        {counts.blocked}
+                        <span className="max-sm:hidden">&nbsp;blocked</span>
+                      </span>
+                    ) : null}
+                    <MeetingChips meetings={dayMeetings} />
+                    <DueChips tasks={dayDue} />
+                  </button>
+                )
+              }}
+            </MonthGrid>
+          )}
+        </ScrollArea>
       )}
       <AnnouncementDialog
         open={announcing}
         replacing={Boolean(data.announcement)}
         onClose={() => setAnnouncing(false)}
       />
-      <MeetingDialog
-        open={windowOpen}
-        meeting={target}
-        day={selected < month.today ? month.today : selected}
-        color={nextMeetingColor(meetings.meetings)}
-        members={data.members}
-        myUserId={data.myUserId}
-        teamZone={meetings.teamZone}
-        onClose={() => setWindowOpen(false)}
-      />
-      {opened.shown ? (
-        <MeetingWindow
-          open={opened.isOpen}
-          meeting={opened.shown.meeting}
-          occurrence={opened.shown.occurrence}
-          viewerZone={meetings.viewerZone}
-          myUserId={data.myUserId}
-          onClose={opened.close}
-          onChange={(meeting) => {
-            opened.close()
-            edit(meeting)
-          }}
-          onMakeTask={opened.makeTask}
-        />
-      ) : null}
-      {opened.making ? (
-        <NewTaskDialog
-          projects={opened.making.projects}
-          types={opened.making.types}
-          initialProjectId={opened.making.initialProjectId}
-          initialTitle={opened.making.line.text}
-          open={opened.making.open}
-          onClose={opened.taskClosed}
-          onCreated={opened.taskMade}
-        />
-      ) : null}
     </>
+  )
+}
+
+/**
+ * "Month" with a filter mark, as Tyler drew it: Month or Week, and the Due
+ * dates switch that puts the team's due dates on the calendar (each person's
+ * own choice).
+ */
+function CalendarViewMenu({
+  view,
+  onView,
+  showDue,
+  savingDue,
+  onShowDue,
+}: {
+  view: CalendarView
+  onView: (view: CalendarView) => void
+  showDue: boolean
+  savingDue: boolean
+  onShowDue: (on: boolean) => void
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="secondary" aria-label={`Calendar view: ${view === "week" ? "Week" : "Month"}`}>
+          <ListFilterIcon className="size-4" />
+          <span className="@max-xl:hidden">{view === "week" ? "Week" : "Month"}</span>
+          <ChevronDownIcon className="size-4 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="grid w-56 gap-3 p-3">
+        <Tabs value={view} onValueChange={(value) => onView(value as CalendarView)}>
+          <TabsList aria-label="Calendar view" className="w-full">
+            <TabsTrigger value="month" className="flex-1">
+              Month
+            </TabsTrigger>
+            <TabsTrigger value="week" className="flex-1">
+              Week
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="team-calendar-due-dates" className="font-normal">
+            Due dates
+          </Label>
+          <Switch
+            id="team-calendar-due-dates"
+            checked={showDue}
+            disabled={savingDue}
+            onCheckedChange={onShowDue}
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -744,80 +845,45 @@ const RIGHT_TABS = ["checkins", "workload", "attention"] as const
 type RightTab = (typeof RIGHT_TABS)[number]
 
 /**
- * The right panel's three tabs: one day's check-ins, everyone's workload, and,
- * for the owner and admins, the tasks that need attention (Tyler's choice: a
- * tab here rather than a page of its own).
+ * The right panel, as Tyler drew it on 14 Oct 2026: the chosen day with its
+ * arrows on top, then Check-ins, Workload and, for the owner and admins,
+ * Attention with its count, as underlined tabs. Under the tab's card sit the
+ * day's Meetings and, with Due dates on, what is due that day.
  */
 function RightPanel({
   canRun,
+  day,
+  onDay,
   checkins,
+  meetings,
+  due,
   openTask,
   onOpenTask,
 }: {
   canRun: boolean
+  day: TeamDay
+  onDay: (day: string) => void
   checkins: React.ReactNode
+  meetings: React.ReactNode
+  due: React.ReactNode
   /** The task whose window is open: the lists load again when it closes, so a fixed task leaves them. */
   openTask: string | undefined
   onOpenTask: (taskId: string) => void
 }) {
   const [chosen, setTab] = useRememberedChoice<RightTab>(TEAM_RIGHT_TAB_KEY, "checkins", RIGHT_TABS)
   const tab = chosen === "attention" && !canRun ? "checkins" : chosen
+  const attention = useAttention(canRun, openTask)
+  const attentionCount = attention.loaded.state === "ready" ? attention.loaded.value.length : 0
   return (
     <>
-      <Tabs value={tab} onValueChange={(value) => setTab(value as RightTab)}>
-        <DashboardCardTabsHeader>
-          <TabsTrigger value="checkins">Check-ins</TabsTrigger>
-          <TabsTrigger value="workload">Workload</TabsTrigger>
-          {/* "Attention" rather than "Needs attention", so three tabs fit the panel. */}
-          {canRun ? <TabsTrigger value="attention">Attention</TabsTrigger> : null}
-        </DashboardCardTabsHeader>
-      </Tabs>
-      {tab === "checkins" ? (
-        checkins
-      ) : tab === "workload" ? (
-        <WorkloadPanel reload={openTask} onOpenTask={onOpenTask} />
-      ) : (
-        <AttentionPanel reload={openTask} onOpenTask={onOpenTask} />
-      )}
-    </>
-  )
-}
-
-function CheckinsPanel({
-  day,
-  requested,
-  myUserId,
-  members,
-  onDay,
-}: {
-  day: TeamDay
-  /** The day picked on the calendar; a day still to come shows today instead. */
-  requested: string | undefined
-  myUserId: string
-  /** The team, so a tag in a note reads as the person's current name. */
-  members: TeamDashboardData["members"]
-  onDay: (day: string) => void
-}) {
-  const people = React.useMemo(
-    () => members.map((member) => ({ id: member.userId, name: member.name })),
-    [members]
-  )
-  return (
-    <>
-      <div className="flex items-center gap-2 border-b px-3 py-2">
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{shortDayLabel(day.day)}</span>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label="The day before"
-          onClick={() => onDay(addDays(day.day, -1))}
-        >
+      <DashboardCardHeader>
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{longDayLabel(day.day)}</h2>
+        <Button type="button" variant="ghost" size="icon" aria-label="The day before" onClick={() => onDay(addDays(day.day, -1))}>
           <ChevronLeftIcon className="size-4" />
         </Button>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="icon"
           aria-label="The day after"
           disabled={day.day >= day.today}
@@ -825,53 +891,120 @@ function CheckinsPanel({
         >
           <ChevronRightIcon className="size-4" />
         </Button>
-      </div>
-      <div className="grid gap-2 border-b px-4 py-3">
-        {requested && requested > day.today ? (
-          <p className="text-sm">{shortDayLabel(requested)} hasn't happened yet. Showing today.</p>
-        ) : null}
-        {day.expected === 0 ? (
-          // A day with no saved rows at all (before the team began, or a day
-          // the end-of-day job never ran) isn't a day off; it's a day unknown.
-          <p className="text-sm text-muted-foreground">
-            {day.holiday
-              ? `${day.holiday}, a team holiday.`
-              : day.people.every((row) => row.state === "no_record")
-                ? "Nothing was saved for this day."
-                : "A day off for the team."}
-          </p>
-        ) : (
-          <>
-            <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-              <span>
-                {day.checkedIn} of {day.expected} checked in
-              </span>
-              {day.blocked ? <span>{day.blocked} blocked</span> : null}
-            </div>
-            <Meter
-              value={day.checkedIn}
-              max={day.expected}
-              label="People checked in"
-              valueText={`${day.checkedIn} of ${day.expected}`}
-              size="sm"
-            />
-          </>
-        )}
+      </DashboardCardHeader>
+      <div className="flex h-11 shrink-0 border-b px-4">
+        <UnderlineTabs
+          value={tab}
+          onValueChange={(value) => setTab(value as RightTab)}
+          className="my-0 self-stretch"
+          tabs={[
+            { value: "checkins", label: "Check-ins" },
+            { value: "workload", label: "Workload" },
+            // "Attention" rather than "Needs attention", so three tabs fit the panel.
+            ...(canRun
+              ? [
+                  {
+                    value: "attention",
+                    label: (
+                      <>
+                        Attention
+                        {attentionCount ? (
+                          <span className="rounded-full bg-destructive/10 px-1.5 text-xs text-destructive tabular-nums">
+                            {attentionCount}
+                          </span>
+                        ) : null}
+                      </>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
       </div>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <ul className="divide-y">
-          {day.people.map((row) => (
-            <PersonCheckin
-              key={row.person.id}
-              row={row}
-              viewerZone={day.viewerZone}
-              isMe={row.person.id === myUserId}
-              people={people}
-            />
-          ))}
-        </ul>
+        <div className="grid gap-3 p-3">
+          {tab === "checkins" ? (
+            checkins
+          ) : tab === "workload" ? (
+            <WorkloadPanel reload={openTask} onOpenTask={onOpenTask} />
+          ) : (
+            <AttentionPanel attention={attention} onOpenTask={onOpenTask} />
+          )}
+          {meetings}
+          {due}
+        </div>
       </ScrollArea>
     </>
+  )
+}
+
+/**
+ * The day's check-ins as a card: "1 of 1 checked in" with its bar, then each
+ * person with when they checked in, Late or Blocked, and their notes.
+ */
+function CheckinsCard({
+  day,
+  requested,
+  myUserId,
+  members,
+}: {
+  day: TeamDay
+  /** The day picked on the calendar; a day still to come shows today instead. */
+  requested: string | undefined
+  myUserId: string
+  /** The team, so a tag in a note reads as the person's current name. */
+  members: TeamDashboardData["members"]
+}) {
+  const people = React.useMemo(
+    () => members.map((member) => ({ id: member.userId, name: member.name })),
+    [members]
+  )
+  return (
+    <TeamSideCard
+      title="Check-ins"
+      aside={
+        day.expected ? (
+          <>
+            {day.checkedIn} of {day.expected} checked in
+            {day.blocked ? ` · ${day.blocked} blocked` : ""}
+          </>
+        ) : null
+      }
+    >
+      {requested && requested > day.today ? (
+        <p className="text-sm">{shortDayLabel(requested)} hasn't happened yet. Showing today.</p>
+      ) : null}
+      {day.expected === 0 ? (
+        // A day with no saved rows at all (before the team began, or a day
+        // the end-of-day job never ran) isn't a day off; it's a day unknown.
+        <p className="text-sm text-muted-foreground">
+          {day.holiday
+            ? `${day.holiday}, a team holiday.`
+            : day.people.every((row) => row.state === "no_record")
+              ? "Nothing was saved for this day."
+              : "A day off for the team."}
+        </p>
+      ) : (
+        <Meter
+          value={day.checkedIn}
+          max={day.expected}
+          label="People checked in"
+          valueText={`${day.checkedIn} of ${day.expected}`}
+          size="sm"
+        />
+      )}
+      <ul className="grid gap-3">
+        {day.people.map((row) => (
+          <PersonCheckin
+            key={row.person.id}
+            row={row}
+            viewerZone={day.viewerZone}
+            isMe={row.person.id === myUserId}
+            people={people}
+          />
+        ))}
+      </ul>
+    </TeamSideCard>
   )
 }
 
@@ -882,7 +1015,8 @@ function CheckinsPanel({
 function stateLine(row: TeamDayPerson, viewerZone: string) {
   switch (row.state) {
     case "checked_in":
-      return `Checked in ${row.checkedInAt ? clockIn(row.checkedInAt, viewerZone) : ""}${row.late ? " · late" : ""}`
+      // Late is a badge at the row's end, as Tyler drew it.
+      return `Checked in ${row.checkedInAt ? clockIn(row.checkedInAt, viewerZone) : ""}`
     case "not_yet":
       return "No check-in yet"
     case "missed":
@@ -914,7 +1048,7 @@ function PersonCheckin({
 }) {
   const { questions } = row
   return (
-    <li className="flex gap-3 px-4 py-4">
+    <li className="flex gap-3">
       <PersonAvatar name={row.person.name} avatarUrl={row.person.avatarUrl} size="default" />
       <div className="grid min-w-0 flex-1 gap-2">
         <div className="flex items-start justify-between gap-2">
@@ -925,7 +1059,14 @@ function PersonCheckin({
             </span>
             <span className="text-xs text-muted-foreground">{stateLine(row, viewerZone)}</span>
           </div>
-          {row.blocked ? <Badge variant="destructive">Blocked</Badge> : null}
+          <span className="flex shrink-0 gap-1">
+            {row.state === "checked_in" && row.late ? (
+              <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                Late
+              </span>
+            ) : null}
+            {row.blocked ? <Badge variant="destructive">Blocked</Badge> : null}
+          </span>
         </div>
         <NoteLine label={questions.yesterday} note={row.notes?.yesterday ?? null} tasks={row.before} people={people} />
         <NoteLine label={questions.today} note={row.notes?.today ?? null} tasks={row.picked} people={people} />

@@ -30,19 +30,22 @@ export function UnderlineTabs({
   onValueChange,
   tabs,
   after,
+  className,
 }: {
   value: string
   onValueChange: (value: string) => void
   tabs: { value: string; label: React.ReactNode }[]
   /** More, drawn as one of the tabs. */
   after?: React.ReactNode
+  /** In a row of its own rather than a header, `my-0` drops the pull to the header's edges. */
+  className?: string
 }) {
   return (
     <TabsPrimitive.Root
       value={value}
       onValueChange={onValueChange}
       // Out to the header's top and bottom edges, so the line sits on its divider.
-      className="-my-3 flex min-w-0 flex-1 self-stretch"
+      className={cn("-my-3 flex min-w-0 flex-1 self-stretch", className)}
     >
       <ScrollArea className="h-full min-w-0" viewportClassName="[&>div]:h-full">
         <div className="flex h-full w-max items-stretch gap-5 px-1">
