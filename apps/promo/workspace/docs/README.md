@@ -76,6 +76,17 @@ the repo's `docs/`, and is never copied here.
   a list, the re-test that reaches every proxy, the dead-proxy notice, the
   record of each proxy's outside address, and what each costs and when it renews.
 
+## Phones
+
+- [The Phones dashboard](phones/phones-dashboard.md): every Android phone on
+  the rack as a record, its status (Connected, Offline, Busy, Held), the shelf
+  slot, the bell when a phone needs a hand, and an account that runs on a
+  phone instead of a browser profile.
+- [The rack program](phones/rack-program.md): the program at home that drives
+  the phones, how it reaches Promo without opening a port, the named actions,
+  pairing with a one-time code, signed messages, Disconnect, the one install
+  command, and updating itself with a rollback.
+
 ## Writing
 
 - [The Voices dashboard](voices-dashboard.md) — how the AI sounds and the lines

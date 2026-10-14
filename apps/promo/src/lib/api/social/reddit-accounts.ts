@@ -3,7 +3,8 @@ import { z } from "zod"
 
 import { adminGet, adminPost } from "@/server/guards"
 import { listProfiles } from "@/server/browser/profiles"
-import { accountsByProfile, addAccount } from "@/server/social/accounts"
+import { phonesFreeForReddit } from "@/server/phones/phones"
+import { accountsByProfile, addAccount, setAccountRunsOn } from "@/server/social/accounts"
 import {
   checkAccountsNow,
   listRedditAccounts,
@@ -31,7 +32,11 @@ export type { BulkAnswer, RedditAccountRow }
 
 export const getRedditAccountsErrorMessage = createErrorMessage(
   {
-    "already has a Reddit account": "That profile already has a Reddit account in it. Pick another, or make a new profile.",
+    "already has a Reddit account in it": "That profile already has a Reddit account in it. Pick another, or make a new profile.",
+    "already has a Reddit account on it": "That phone already has a Reddit account on it. Pick another.",
+    "phone does not exist": "That phone is not there any more. Pick another.",
+    "never both": "An account runs on a browser profile or a phone, never both.",
+    "Pick the browser profile or the phone": "Pick the browser profile or the phone the account runs on.",
     "browser profile does not exist": "That browser profile is not there any more. Pick another.",
     "voice does not exist": "That voice is not there any more. Pick another.",
     "is the reader browser": "That profile is the reader browser, which stays signed in to nobody. Pick another, or change the reader in Settings → Behaviour.",
@@ -47,6 +52,8 @@ export type RedditAccountsPage = {
   voices: Array<{ id: string; name: string }>
   /** Profiles that could hold a new account: no Reddit account in them, and not the reader. */
   freeProfiles: Array<{ id: string; name: string }>
+  /** Phones that could hold a new account: no Reddit account on them. */
+  freePhones: Array<{ id: string; name: string }>
 }
 
 const loadFn = createServerFn({ method: "GET" })
@@ -68,6 +75,7 @@ const loadFn = createServerFn({ method: "GET" })
         .filter((profile) => profile.id !== behaviour.readerProfileId)
         .filter((profile) => !(holders.get(profile.id) ?? []).some((other) => other.platform === "reddit"))
         .map(({ id, name }) => ({ id, name })),
+      freePhones: await phonesFreeForReddit(userId, null),
     }
   })
 
@@ -76,15 +84,33 @@ export function loadRedditAccounts(retired: boolean) {
   return loadFn({ data: { retired } })
 }
 
+/** Where an account runs: one browser profile or one phone, never both. */
+const runsOn = {
+  profileId: z.string().min(1).nullable(),
+  phoneId: z.string().min(1).nullable(),
+}
+
 const addFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(z.object({ profileId: z.string().min(1), voiceId: z.string().min(1).nullable() }))
+  .inputValidator(z.object({ ...runsOn, voiceId: z.string().min(1).nullable() }))
   .handler(async ({ context, data }): Promise<{ id: string }> => ({
     id: await addAccount(context.user.id, data),
   }))
 
-export function addRedditAccount(data: { profileId: string; voiceId: string | null }) {
+export function addRedditAccount(data: { profileId: string | null; phoneId: string | null; voiceId: string | null }) {
   return addFn({ data })
+}
+
+const runsOnFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ accountId: z.string().min(1), ...runsOn }))
+  .handler(async ({ context, data }): Promise<void> =>
+    setAccountRunsOn(context.user.id, data.accountId, { profileId: data.profileId, phoneId: data.phoneId })
+  )
+
+/** Moves an account to another browser profile or phone. */
+export function setRedditAccountRunsOn(accountId: string, runsOnPick: { profileId: string | null; phoneId: string | null }) {
+  return runsOnFn({ data: { accountId, ...runsOnPick } })
 }
 
 const ids = z.array(z.string().min(1)).min(1).max(200)

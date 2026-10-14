@@ -13,9 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { NO_DEVICE, readRunsOn, runsOnValue } from "@/lib/social/runs-on"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 import { AccountHealthCard } from "./account-health-card"
+import { RunsOnSelect } from "./accounts/runs-on-select"
 import { BlockedSubredditsCard } from "./blocked-subreddits-card"
 import { TidyOldPostsCard } from "./tidy-old-posts-card"
 import {
@@ -26,8 +28,8 @@ import {
 } from "@/lib/api/social/account"
 
 /**
- * Settings for the one Reddit account: which browser profile it signs in
- * inside, and which voice it drafts with. Below those, how Reddit sees the
+ * Settings for the one Reddit account: which browser profile or phone it runs
+ * on, and which voice it drafts with. Below those, how Reddit sees the
  * account, the subreddits never shown, and how long old posts are kept. The
  * sent comments drafts copy the voice of are ticked on the Comments screen.
  *
@@ -49,12 +51,15 @@ function RedditAccountSettings() {
   // button.
   const setSaveStatus = useReportedSaveStatus()
 
-  const [profileId, setProfileId] = React.useState(NONE)
+  const [runsOn, setRunsOn] = React.useState(NO_DEVICE)
   const [voiceId, setVoiceId] = React.useState(NONE)
 
   const fill = React.useCallback((next: AccountSettings) => {
     setData(next)
-    setProfileId(next.account?.profile?.id ?? NONE)
+    setRunsOn(
+      runsOnValue({ profileId: next.account?.profile?.id ?? null, phoneId: next.account?.phone?.id ?? null }) ||
+        NO_DEVICE
+    )
     setVoiceId(next.account?.voice?.id ?? NONE)
   }, [])
 
@@ -81,15 +86,15 @@ function RedditAccountSettings() {
   // answer in either order. Only the newest one's answer is put on screen, so
   // an older answer arriving last never undoes the newer pick.
   const latestSave = React.useRef(0)
-  async function save(next: { profileId: string; voiceId: string }) {
+  async function save(next: { runsOn: string; voiceId: string }) {
     const turn = ++latestSave.current
-    setProfileId(next.profileId)
+    setRunsOn(next.runsOn)
     setVoiceId(next.voiceId)
     setSaveStatus("saving")
     dismissErrorToast()
     try {
       await saveRedditAccount({
-        profileId: next.profileId === NONE ? null : next.profileId,
+        ...readRunsOn(next.runsOn),
         voiceId: next.voiceId === NONE ? null : next.voiceId,
       })
       const saved = await loadRedditAccount()
@@ -114,7 +119,10 @@ function RedditAccountSettings() {
   }
 
   const profiles = data?.profiles ?? []
-  const chosen = profiles.find((profile) => profile.id === profileId) ?? null
+  const phones = data?.phones ?? []
+  const picked = readRunsOn(runsOn)
+  const chosen = profiles.find((profile) => profile.id === picked.profileId) ?? null
+  const chosenPhone = phones.find((phone) => phone.id === picked.phoneId) ?? null
   const voices = data?.voices ?? []
   const chosenVoice = voices.find((voice) => voice.id === voiceId) ?? null
 
@@ -125,31 +133,35 @@ function RedditAccountSettings() {
     <CardGroup>
       <CollapsibleSettingsCard
         storageId="promo-reddit-profile"
-        title="The browser it signs in inside"
-        description="Searches and comments run in this profile's browser, through its proxy."
+        title="Where it runs"
+        description="Searches and comments run in this profile's browser, through its proxy, or on this phone."
         contentClassName="grid gap-4"
       >
           <div className="grid gap-2">
-            <Label htmlFor="promo-profile">Browser profile</Label>
-            <Select
-              value={profileId}
-              onValueChange={(value) => void save({ profileId: value, voiceId })}
-            >
-              <SelectTrigger id="promo-profile" className="w-full sm:w-fit sm:min-w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>No profile</SelectItem>
-                {profiles.map((profile) => (
-                  <SelectItem key={profile.id} value={profile.id}>
-                    {profile.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="promo-profile">Runs on</Label>
+            <RunsOnSelect
+              id="promo-profile"
+              value={runsOn}
+              onChange={(value) => void save({ runsOn: value, voiceId })}
+              profiles={profiles}
+              phones={phones}
+              noneLabel="Nowhere"
+            />
           </div>
           <p className="text-sm text-muted-foreground">
-            {chosen ? (
+            {chosenPhone ? (
+              <>
+                <Link
+                  to="/admin/phones"
+                  search={{ open: chosenPhone.id }}
+                  className="font-medium text-foreground underline underline-offset-2"
+                >
+                  Open {chosenPhone.name}
+                </Link>{" "}
+                on the Phones dashboard. Phones take Reddit&apos;s jobs from a later step, so
+                until then nothing is searched or posted from it.
+              </>
+            ) : chosen ? (
               <>
                 <Link
                   to="/admin/profiles"
@@ -188,7 +200,7 @@ function RedditAccountSettings() {
             <Label htmlFor="promo-voice">Voice</Label>
             <Select
               value={voiceId}
-              onValueChange={(value) => void save({ profileId, voiceId: value })}
+              onValueChange={(value) => void save({ runsOn, voiceId: value })}
             >
               <SelectTrigger id="promo-voice" className="w-full sm:w-fit sm:min-w-64">
                 <SelectValue />

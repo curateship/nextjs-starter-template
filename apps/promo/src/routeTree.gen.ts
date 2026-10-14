@@ -50,6 +50,7 @@ import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_authenticated/admin/newsletter'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminPagesRouteImport } from './routes/_authenticated/admin/pages'
+import { Route as AuthenticatedAdminPhonesRouteImport } from './routes/_authenticated/admin/phones'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
 import { Route as AuthenticatedAdminProfilesRouteImport } from './routes/_authenticated/admin/profiles'
 import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authenticated/admin/projects'
@@ -67,6 +68,14 @@ import { Route as AuthenticatedAdminVoicesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
+import { Route as ApiRackCheckInRouteImport } from './routes/api/rack/check-in'
+import { Route as ApiRackInstallDotshRouteImport } from './routes/api/rack/install[.]sh'
+import { Route as ApiRackLauncherDotpyRouteImport } from './routes/api/rack/launcher[.]py'
+import { Route as ApiRackNextRouteImport } from './routes/api/rack/next'
+import { Route as ApiRackPairRouteImport } from './routes/api/rack/pair'
+import { Route as ApiRackProgramDotpyRouteImport } from './routes/api/rack/program[.]py'
+import { Route as ApiRackReleaseRouteImport } from './routes/api/rack/release'
+import { Route as ApiRackResultRouteImport } from './routes/api/rack/result'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
@@ -299,6 +308,12 @@ const AuthenticatedAdminPagesRoute = AuthenticatedAdminPagesRouteImport.update({
   path: '/pages',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminPhonesRoute =
+  AuthenticatedAdminPhonesRouteImport.update({
+    id: '/phones',
+    path: '/phones',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminPlansRoute = AuthenticatedAdminPlansRouteImport.update({
   id: '/plans',
   path: '/plans',
@@ -395,6 +410,46 @@ const AuthenticatedChangelogWhatsNewRoute =
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   id: '/api/auth/google',
   path: '/api/auth/google',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRackCheckInRoute = ApiRackCheckInRouteImport.update({
+  id: '/api/rack/check-in',
+  path: '/api/rack/check-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRackInstallDotshRoute = ApiRackInstallDotshRouteImport.update({
+  id: '/api/rack/install.sh',
+  path: '/api/rack/install.sh',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRackLauncherDotpyRoute = ApiRackLauncherDotpyRouteImport.update({
+  id: '/api/rack/launcher.py',
+  path: '/api/rack/launcher.py',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRackNextRoute = ApiRackNextRouteImport.update({
+  id: '/api/rack/next',
+  path: '/api/rack/next',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRackPairRoute = ApiRackPairRouteImport.update({
+  id: '/api/rack/pair',
+  path: '/api/rack/pair',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRackProgramDotpyRoute = ApiRackProgramDotpyRouteImport.update({
+  id: '/api/rack/program.py',
+  path: '/api/rack/program.py',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRackReleaseRoute = ApiRackReleaseRouteImport.update({
+  id: '/api/rack/release',
+  path: '/api/rack/release',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRackResultRoute = ApiRackResultRouteImport.update({
+  id: '/api/rack/result',
+  path: '/api/rack/result',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWebhooksResendRoute = ApiWebhooksResendRouteImport.update({
@@ -528,6 +583,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
+  '/admin/phones': typeof AuthenticatedAdminPhonesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/profiles': typeof AuthenticatedAdminProfilesRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
@@ -544,6 +600,14 @@ export interface FileRoutesByFullPath {
   '/admin/voices': typeof AuthenticatedAdminVoicesRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/rack/check-in': typeof ApiRackCheckInRoute
+  '/api/rack/install.sh': typeof ApiRackInstallDotshRoute
+  '/api/rack/launcher.py': typeof ApiRackLauncherDotpyRoute
+  '/api/rack/next': typeof ApiRackNextRoute
+  '/api/rack/pair': typeof ApiRackPairRoute
+  '/api/rack/program.py': typeof ApiRackProgramDotpyRoute
+  '/api/rack/release': typeof ApiRackReleaseRoute
+  '/api/rack/result': typeof ApiRackResultRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -601,6 +665,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
+  '/admin/phones': typeof AuthenticatedAdminPhonesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/profiles': typeof AuthenticatedAdminProfilesRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
@@ -617,6 +682,14 @@ export interface FileRoutesByTo {
   '/admin/voices': typeof AuthenticatedAdminVoicesRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/rack/check-in': typeof ApiRackCheckInRoute
+  '/api/rack/install.sh': typeof ApiRackInstallDotshRoute
+  '/api/rack/launcher.py': typeof ApiRackLauncherDotpyRoute
+  '/api/rack/next': typeof ApiRackNextRoute
+  '/api/rack/pair': typeof ApiRackPairRoute
+  '/api/rack/program.py': typeof ApiRackProgramDotpyRoute
+  '/api/rack/release': typeof ApiRackReleaseRoute
+  '/api/rack/result': typeof ApiRackResultRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -678,6 +751,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/pages': typeof AuthenticatedAdminPagesRoute
+  '/_authenticated/admin/phones': typeof AuthenticatedAdminPhonesRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/_authenticated/admin/profiles': typeof AuthenticatedAdminProfilesRoute
   '/_authenticated/admin/projects': typeof AuthenticatedAdminProjectsRoute
@@ -694,6 +768,14 @@ export interface FileRoutesById {
   '/_authenticated/admin/voices': typeof AuthenticatedAdminVoicesRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/rack/check-in': typeof ApiRackCheckInRoute
+  '/api/rack/install.sh': typeof ApiRackInstallDotshRoute
+  '/api/rack/launcher.py': typeof ApiRackLauncherDotpyRoute
+  '/api/rack/next': typeof ApiRackNextRoute
+  '/api/rack/pair': typeof ApiRackPairRoute
+  '/api/rack/program.py': typeof ApiRackProgramDotpyRoute
+  '/api/rack/release': typeof ApiRackReleaseRoute
+  '/api/rack/result': typeof ApiRackResultRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -755,6 +837,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter'
     | '/admin/notifications'
     | '/admin/pages'
+    | '/admin/phones'
     | '/admin/plans'
     | '/admin/profiles'
     | '/admin/projects'
@@ -771,6 +854,14 @@ export interface FileRouteTypes {
     | '/admin/voices'
     | '/changelog/whats-new'
     | '/api/auth/google'
+    | '/api/rack/check-in'
+    | '/api/rack/install.sh'
+    | '/api/rack/launcher.py'
+    | '/api/rack/next'
+    | '/api/rack/pair'
+    | '/api/rack/program.py'
+    | '/api/rack/release'
+    | '/api/rack/result'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin/'
@@ -828,6 +919,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter'
     | '/admin/notifications'
     | '/admin/pages'
+    | '/admin/phones'
     | '/admin/plans'
     | '/admin/profiles'
     | '/admin/projects'
@@ -844,6 +936,14 @@ export interface FileRouteTypes {
     | '/admin/voices'
     | '/changelog/whats-new'
     | '/api/auth/google'
+    | '/api/rack/check-in'
+    | '/api/rack/install.sh'
+    | '/api/rack/launcher.py'
+    | '/api/rack/next'
+    | '/api/rack/pair'
+    | '/api/rack/program.py'
+    | '/api/rack/release'
+    | '/api/rack/result'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin'
@@ -904,6 +1004,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/newsletter'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/pages'
+    | '/_authenticated/admin/phones'
     | '/_authenticated/admin/plans'
     | '/_authenticated/admin/profiles'
     | '/_authenticated/admin/projects'
@@ -920,6 +1021,14 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/voices'
     | '/_authenticated/changelog/whats-new'
     | '/api/auth/google'
+    | '/api/rack/check-in'
+    | '/api/rack/install.sh'
+    | '/api/rack/launcher.py'
+    | '/api/rack/next'
+    | '/api/rack/pair'
+    | '/api/rack/program.py'
+    | '/api/rack/release'
+    | '/api/rack/result'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/_authenticated/admin/'
@@ -961,6 +1070,14 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
+  ApiRackCheckInRoute: typeof ApiRackCheckInRoute
+  ApiRackInstallDotshRoute: typeof ApiRackInstallDotshRoute
+  ApiRackLauncherDotpyRoute: typeof ApiRackLauncherDotpyRoute
+  ApiRackNextRoute: typeof ApiRackNextRoute
+  ApiRackPairRoute: typeof ApiRackPairRoute
+  ApiRackProgramDotpyRoute: typeof ApiRackProgramDotpyRoute
+  ApiRackReleaseRoute: typeof ApiRackReleaseRoute
+  ApiRackResultRoute: typeof ApiRackResultRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
@@ -1259,6 +1376,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPagesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/phones': {
+      id: '/_authenticated/admin/phones'
+      path: '/phones'
+      fullPath: '/admin/phones'
+      preLoaderRoute: typeof AuthenticatedAdminPhonesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/plans': {
       id: '/_authenticated/admin/plans'
       path: '/plans'
@@ -1376,6 +1500,62 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/google'
       fullPath: '/api/auth/google'
       preLoaderRoute: typeof ApiAuthGoogleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rack/check-in': {
+      id: '/api/rack/check-in'
+      path: '/api/rack/check-in'
+      fullPath: '/api/rack/check-in'
+      preLoaderRoute: typeof ApiRackCheckInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rack/install.sh': {
+      id: '/api/rack/install.sh'
+      path: '/api/rack/install.sh'
+      fullPath: '/api/rack/install.sh'
+      preLoaderRoute: typeof ApiRackInstallDotshRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rack/launcher.py': {
+      id: '/api/rack/launcher.py'
+      path: '/api/rack/launcher.py'
+      fullPath: '/api/rack/launcher.py'
+      preLoaderRoute: typeof ApiRackLauncherDotpyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rack/next': {
+      id: '/api/rack/next'
+      path: '/api/rack/next'
+      fullPath: '/api/rack/next'
+      preLoaderRoute: typeof ApiRackNextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rack/pair': {
+      id: '/api/rack/pair'
+      path: '/api/rack/pair'
+      fullPath: '/api/rack/pair'
+      preLoaderRoute: typeof ApiRackPairRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rack/program.py': {
+      id: '/api/rack/program.py'
+      path: '/api/rack/program.py'
+      fullPath: '/api/rack/program.py'
+      preLoaderRoute: typeof ApiRackProgramDotpyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rack/release': {
+      id: '/api/rack/release'
+      path: '/api/rack/release'
+      fullPath: '/api/rack/release'
+      preLoaderRoute: typeof ApiRackReleaseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rack/result': {
+      id: '/api/rack/result'
+      path: '/api/rack/result'
+      fullPath: '/api/rack/result'
+      preLoaderRoute: typeof ApiRackResultRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/webhooks/resend': {
@@ -1536,6 +1716,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminNewsletterRoute: typeof AuthenticatedAdminNewsletterRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminPagesRoute: typeof AuthenticatedAdminPagesRoute
+  AuthenticatedAdminPhonesRoute: typeof AuthenticatedAdminPhonesRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
   AuthenticatedAdminProfilesRoute: typeof AuthenticatedAdminProfilesRoute
   AuthenticatedAdminProjectsRoute: typeof AuthenticatedAdminProjectsRoute
@@ -1577,6 +1758,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminNewsletterRoute: AuthenticatedAdminNewsletterRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminPagesRoute: AuthenticatedAdminPagesRoute,
+  AuthenticatedAdminPhonesRoute: AuthenticatedAdminPhonesRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
   AuthenticatedAdminProfilesRoute: AuthenticatedAdminProfilesRoute,
   AuthenticatedAdminProjectsRoute: AuthenticatedAdminProjectsRoute,
@@ -1667,6 +1849,14 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
+  ApiRackCheckInRoute: ApiRackCheckInRoute,
+  ApiRackInstallDotshRoute: ApiRackInstallDotshRoute,
+  ApiRackLauncherDotpyRoute: ApiRackLauncherDotpyRoute,
+  ApiRackNextRoute: ApiRackNextRoute,
+  ApiRackPairRoute: ApiRackPairRoute,
+  ApiRackProgramDotpyRoute: ApiRackProgramDotpyRoute,
+  ApiRackReleaseRoute: ApiRackReleaseRoute,
+  ApiRackResultRoute: ApiRackResultRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,

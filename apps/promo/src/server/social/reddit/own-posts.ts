@@ -4,7 +4,7 @@ import { uuid } from "@/server/auth/security"
 import { redditSubmit, type CommandTarget } from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS, NO_PROFILE_MESSAGE } from "@/lib/social/options"
+import { MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS, noBrowserMessage } from "@/lib/social/options"
 import { postingRefusalText } from "@/lib/social/wording"
 
 import { queueJob } from "../jobs"
@@ -69,7 +69,7 @@ export async function queueOwnPost(
   if (account.projectId !== projectId) {
     throw new Refusal("That account is not in this project. Pick one of the project's accounts.")
   }
-  if (!account.profileId) throw new Refusal(NO_PROFILE_MESSAGE)
+  if (!account.profileId) throw new Refusal(noBrowserMessage(account))
 
   const [onItsWay] = await db
     .select({ id: promoJobs.id })

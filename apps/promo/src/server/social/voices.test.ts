@@ -150,7 +150,7 @@ describe("voices shared by accounts", () => {
       "does not exist"
     )
     expect(await deleteVoices(userId, [theirs], db)).toEqual({ deleted: [] })
-    await expect(saveAccount(userId, { profileId: null, voiceId: theirs }, db)).rejects.toThrow(
+    await expect(saveAccount(userId, { profileId: null, phoneId: null, voiceId: theirs }, db)).rejects.toThrow(
       "That voice does not exist."
     )
   })
@@ -158,7 +158,7 @@ describe("voices shared by accounts", () => {
   it("saves the account's pick and reads it back by name", async () => {
     const voiceId = await createVoice(userId, { name: "Main voice", ...words }, db)
 
-    const saved = await saveAccount(userId, { profileId: null, voiceId }, db)
+    const saved = await saveAccount(userId, { profileId: null, phoneId: null, voiceId }, db)
 
     expect(saved.voice).toEqual({ id: voiceId, name: "Main voice" })
     const [row] = await db.select().from(promoAccounts).where(eq(promoAccounts.id, saved.id))

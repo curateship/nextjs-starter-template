@@ -17,6 +17,8 @@ import { BrowserWindowDialog } from "@/components/browser/browser-window-dialog"
 import { ProfileDialog } from "@/components/browser/profile-dialog"
 import { ProfileGroupsDialog } from "@/components/browser/profile-groups-dialog"
 import { ProxyTestBadge } from "@/components/browser/proxy-test-badge"
+import { FilterSelect } from "@/components/browser/sorting-filters"
+import { ALL, LABEL_DOT, NONE } from "@/lib/browser/sorting"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -87,21 +89,8 @@ function compare(a: ProfileRow, b: ProfileRow, column: SortColumn): number {
   }
 }
 
-/** A label's colour as a dot. Label colours are the person's own choice of data. */
-const LABEL_DOT: Record<string, string> = {
-  emerald: "bg-emerald-500",
-  amber: "bg-amber-500",
-  red: "bg-red-500",
-  blue: "bg-blue-500",
-  violet: "bg-violet-500",
-  slate: "bg-slate-500",
-}
-
 /** How often the list is read again while a browser is opening or closing. */
 const POLL_MS = 2_000
-
-const ALL = "all"
-const NONE = "none"
 
 /**
  * Every isolated browser: its proxy, whether it is open, who is signed in
@@ -695,43 +684,5 @@ export function ProfilesDashboard({
         onConfirm={() => void remove(deleteTargets)}
       />
     </>
-  )
-}
-
-/** One of the list's filters: all, none, or one of the options. */
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  allLabel,
-  noneLabel,
-  options,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-  allLabel: string
-  noneLabel?: string
-  options: Array<{ id: string; name: string }>
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      {/* Off on a phone, where three filters left the search box no room. */}
-      <DashboardToolbarSelectTrigger
-        aria-label={`Filter by ${label.toLowerCase()}`}
-        className="hidden sm:flex"
-      >
-        <SelectValue />
-      </DashboardToolbarSelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL}>{allLabel}</SelectItem>
-        {noneLabel ? <SelectItem value={NONE}>{noneLabel}</SelectItem> : null}
-        {options.map((option) => (
-          <SelectItem key={option.id} value={option.id}>
-            {option.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   )
 }

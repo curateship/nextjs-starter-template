@@ -65,7 +65,7 @@ describe("Settings → Behaviour", () => {
 
   it("refuses to put the account in the reader, and stops reading in a reader given an account", async () => {
     await saveBehaviour(userId, { ...(await readBehaviour(userId, db)), readerProfileId: readerId }, db)
-    await expect(saveAccount(userId, { profileId: readerId, voiceId: null }, db)).rejects.toThrow(
+    await expect(saveAccount(userId, { profileId: readerId, phoneId: null, voiceId: null }, db)).rejects.toThrow(
       "is the reader browser"
     )
 

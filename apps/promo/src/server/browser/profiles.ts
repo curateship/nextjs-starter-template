@@ -55,8 +55,11 @@ export type ProfileInput = {
   tags: string[]
 }
 
-/** Trimmed, no empties, unique ignoring case, at most twenty of fifty letters. */
-function cleanTags(tags: readonly string[]): string[] {
+/**
+ * Trimmed, no empties, unique ignoring case, at most twenty of fifty letters.
+ * Phones use the same tags, so the rule is shared rather than copied.
+ */
+export function cleanTags(tags: readonly string[]): string[] {
   const seen = new Set<string>()
   const out: string[] = []
   for (const raw of tags) {

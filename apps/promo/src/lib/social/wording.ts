@@ -1,6 +1,7 @@
 import { daysBetween } from "@/lib/format/format-time"
 import {
   NO_PROFILE_MESSAGE,
+  ON_A_PHONE_MESSAGE,
   PICK_AN_ACCOUNT,
   type FindThread,
   type ProfileCheck,
@@ -35,6 +36,8 @@ type PostingAccount = {
   blocked: boolean
   reason: string
   profile: { id: string; name: string } | null
+  /** True when it runs on a phone instead of a profile. */
+  onPhone?: boolean
   posting: PostingState | null
 }
 
@@ -58,7 +61,7 @@ export function postingBlockedReason(
   }
   if (!status) return { text: PICK_AN_ACCOUNT }
   const profile = status.profile
-  if (!profile) return { text: NO_PROFILE_MESSAGE }
+  if (!profile) return { text: status.onPhone ? ON_A_PHONE_MESSAGE : NO_PROFILE_MESSAGE }
   if (status.blocked) {
     return {
       text: status.reason

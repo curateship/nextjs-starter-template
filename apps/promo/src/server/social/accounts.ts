@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 import { uuid } from "@/server/auth/security"
 import { promoProfiles } from "@/server/browser/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { promoPhones } from "@/server/phones/schema"
 
 import { readBehaviour } from "./behaviour"
 import { promoAccounts, promoJobs, promoVoices } from "./schema"
@@ -10,9 +11,10 @@ import { promoAccounts, promoJobs, promoVoices } from "./schema"
 /**
  * The Reddit accounts, as records a person picks for.
  *
- * An account owns neither its browser nor its words. It points at a browser
- * profile, managed on the Browser profiles dashboard, and at a voice, managed
- * on the Voices dashboard. There can be any number of accounts, one per
+ * An account owns neither its browser nor its words. It runs on a browser
+ * profile, managed on the Browser profiles dashboard, or on a phone, managed
+ * on the Phones dashboard, never both. It points at a voice, managed on the
+ * Voices dashboard. There can be any number of accounts, one per
  * profile, listed on the Reddit accounts dashboard (`account-list.ts`) and
  * grouped into projects (`projects.ts`).
  *
@@ -30,6 +32,8 @@ export type AccountView = {
   lastPostedAt: Date | null
   /** Null when none was picked, or the one picked was deleted. */
   profile: { id: string; name: string } | null
+  /** The phone it runs on instead, or null. Never set beside a profile. */
+  phone: { id: string; name: string } | null
   /** The voice it drafts with. Null when none was picked, or it was deleted. */
   voice: { id: string; name: string } | null
 }
@@ -48,6 +52,7 @@ export async function readAccount(
     redditCreatedAt: account.redditCreatedAt,
     lastPostedAt: account.lastPostedAt,
     profile: account.profile,
+    phone: account.phone,
     voice: account.voiceRef,
   }
 }
@@ -55,6 +60,8 @@ export async function readAccount(
 export type SaveAccountInput = {
   /** The browser profile the account signs in inside, or null for none. */
   profileId: string | null
+  /** The phone it runs on instead, or null. At most one of the two is set. */
+  phoneId: string | null
   /** The voice it drafts with, or null to draft plainly. */
   voiceId: string | null
 }
@@ -71,7 +78,7 @@ export async function saveAccount(
   const existing = await readAccount(userId, db)
   await checkPicks(userId, input, existing?.id ?? null, db)
 
-  const fields = { profileId: input.profileId, voiceId: input.voiceId }
+  const fields = { profileId: input.profileId, phoneId: input.phoneId, voiceId: input.voiceId }
 
   if (existing) {
     await db
@@ -88,15 +95,18 @@ export async function saveAccount(
 }
 
 /**
- * Adds another Reddit account, in a browser profile of its own, from the
- * Reddit accounts dashboard. It is signed in to Reddit inside that profile's
- * browser afterwards, and starts in no project.
+ * Adds another Reddit account, on a browser profile or a phone of its own,
+ * from the Reddit accounts dashboard. It is signed in to Reddit there
+ * afterwards, and starts in no project.
  */
 export async function addAccount(
   userId: string,
-  input: { profileId: string; voiceId: string | null },
+  input: SaveAccountInput,
   db: CustomShellDb = defaultDb
 ): Promise<string> {
+  if (!input.profileId && !input.phoneId) {
+    throw new Error("Pick the browser profile or the phone the account runs on.")
+  }
   await checkPicks(userId, input, null, db)
   const id = uuid()
   await db.insert(promoAccounts).values({
@@ -104,16 +114,41 @@ export async function addAccount(
     userId,
     platform: "reddit",
     profileId: input.profileId,
+    phoneId: input.phoneId,
     voiceId: input.voiceId,
   })
   return id
 }
 
 /**
- * Refuses a profile or voice that cannot be used, by name, before the
- * database's own rule would refuse it with an index name: a profile that is
- * not theirs, is the reader browser, or already holds another Reddit account,
- * and a voice that is not theirs.
+ * Moves an account to another browser profile or phone, from the row's
+ * settings on the Reddit accounts dashboard. Whatever it ran on before is
+ * cleared in the same write, so it is never on two at once.
+ */
+export async function setAccountRunsOn(
+  userId: string,
+  accountId: string,
+  input: Pick<SaveAccountInput, "profileId" | "phoneId">,
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  if (!input.profileId && !input.phoneId) {
+    throw new Error("Pick the browser profile or the phone the account runs on.")
+  }
+  await checkPicks(userId, { ...input, voiceId: null }, accountId, db)
+  const updated = await db
+    .update(promoAccounts)
+    .set({ profileId: input.profileId, phoneId: input.phoneId, updatedAt: new Date() })
+    .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
+    .returning({ id: promoAccounts.id })
+  if (!updated.length) throw new Error("That account is not there any more.")
+}
+
+/**
+ * Refuses a profile, phone or voice that cannot be used, by name, before the
+ * database's own rule would refuse it with an index name: both a profile and
+ * a phone at once, a profile or phone that is not theirs, the reader browser,
+ * a profile or phone that already holds another Reddit account, and a voice
+ * that is not theirs.
  */
 async function checkPicks(
   userId: string,
@@ -121,6 +156,35 @@ async function checkPicks(
   accountId: string | null,
   db: CustomShellDb
 ): Promise<void> {
+  if (input.profileId && input.phoneId) {
+    throw new Error("An account runs on a browser profile or a phone, never both.")
+  }
+
+  if (input.phoneId) {
+    const [phone] = await db
+      .select({ name: promoPhones.name })
+      .from(promoPhones)
+      .where(and(eq(promoPhones.id, input.phoneId), eq(promoPhones.userId, userId)))
+      .limit(1)
+    if (!phone) throw new Error("That phone does not exist.")
+    const [taken] = await db
+      .select({ id: promoAccounts.id })
+      .from(promoAccounts)
+      .where(
+        and(
+          eq(promoAccounts.phoneId, input.phoneId),
+          eq(promoAccounts.platform, "reddit"),
+          ...(accountId ? [ne(promoAccounts.id, accountId)] : [])
+        )
+      )
+      .limit(1)
+    if (taken) {
+      throw new Error(
+        `The phone ${phone.name} already has a Reddit account on it. One Reddit account per phone, or they sign in over each other.`
+      )
+    }
+  }
+
   if (input.profileId) {
     const [profile] = await db
       .select({ name: promoProfiles.name })
@@ -194,9 +258,15 @@ export async function accountsByProfile(
 
 async function readAccountRow(userId: string, db: CustomShellDb) {
   const [row] = await db
-    .select({ account: promoAccounts, profileName: promoProfiles.name, voiceName: promoVoices.name })
+    .select({
+      account: promoAccounts,
+      profileName: promoProfiles.name,
+      phoneName: promoPhones.name,
+      voiceName: promoVoices.name,
+    })
     .from(promoAccounts)
     .leftJoin(promoProfiles, eq(promoProfiles.id, promoAccounts.profileId))
+    .leftJoin(promoPhones, eq(promoPhones.id, promoAccounts.phoneId))
     .leftJoin(promoVoices, eq(promoVoices.id, promoAccounts.voiceId))
     .where(
       and(
@@ -208,13 +278,14 @@ async function readAccountRow(userId: string, db: CustomShellDb) {
     .orderBy(asc(promoAccounts.createdAt), asc(promoAccounts.id))
     .limit(1)
   if (!row) return null
-  const { account, profileName, voiceName } = row
+  const { account, profileName, phoneName, voiceName } = row
   return {
     ...account,
     profile:
       account.profileId && profileName !== null
         ? { id: account.profileId, name: profileName }
         : null,
+    phone: account.phoneId && phoneName !== null ? { id: account.phoneId, name: phoneName } : null,
     voiceRef:
       account.voiceId && voiceName !== null ? { id: account.voiceId, name: voiceName } : null,
   }

@@ -39,7 +39,7 @@ describe("the Reddit accounts list", () => {
 
   async function account(daysOld: number | null, patch: Partial<typeof promoAccounts.$inferInsert> = {}) {
     const profileId = await createProfile(userId, { name: `Profile ${uuid().slice(0, 4)}` }, db)
-    const id = await addAccount(userId, { profileId, voiceId: null }, db)
+    const id = await addAccount(userId, { profileId, phoneId: null, voiceId: null }, db)
     await db
       .update(promoAccounts)
       .set({
@@ -80,7 +80,7 @@ describe("the Reddit accounts list", () => {
     await account(400)
 
     expect(await listRedditAccounts(userId, { retired: false }, db, NOW)).toHaveLength(2)
-    await expect(addAccount(userId, { profileId: first.profileId, voiceId: null }, db)).rejects.toThrow(
+    await expect(addAccount(userId, { profileId: first.profileId, phoneId: null, voiceId: null }, db)).rejects.toThrow(
       "already has a Reddit account in it"
     )
   })
@@ -88,7 +88,7 @@ describe("the Reddit accounts list", () => {
   it("refuses the reader browser for an account", async () => {
     const reader = await createProfile(userId, { name: "Reader" }, db)
     await saveBehaviour(userId, { ...(await readBehaviour(userId, db)), readerProfileId: reader }, db)
-    await expect(addAccount(userId, { profileId: reader, voiceId: null }, db)).rejects.toThrow("reader browser")
+    await expect(addAccount(userId, { profileId: reader, phoneId: null, voiceId: null }, db)).rejects.toThrow("reader browser")
   })
 
   it("works out Warming up, Working, Ready and Banned", async () => {

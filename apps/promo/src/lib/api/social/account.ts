@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { adminGet, adminPost } from "@/server/guards"
 import { listProfiles } from "@/server/browser/profiles"
+import { phonesFreeForReddit } from "@/server/phones/phones"
 import {
   accountsByProfile,
   readAccount,
@@ -32,7 +33,10 @@ export type { AccountHealth, AccountView }
 
 export const getAccountErrorMessage = createErrorMessage(
   {
-    "already has a Reddit account": "That profile already has a Reddit account in it. Pick another, or make a new profile.",
+    "already has a Reddit account in it": "That profile already has a Reddit account in it. Pick another, or make a new profile.",
+    "already has a Reddit account on it": "That phone already has a Reddit account on it. Pick another.",
+    "phone does not exist": "That phone is not there any more. Pick another.",
+    "never both": "An account runs on a browser profile or a phone, never both.",
     "browser profile does not exist": "That browser profile is not there any more. Pick another.",
     "voice does not exist": "That voice is not there any more. Pick another.",
     "Set up a Reddit account first": "Save the account with a browser profile first, then check it.",
@@ -49,6 +53,8 @@ export type AccountSettings = {
    * other. The reader browser is left out, since it is signed in to nobody.
    */
   profiles: Array<{ id: string; name: string }>
+  /** The phones it could run on instead: every phone with no other Reddit account. */
+  phones: Array<{ id: string; name: string }>
   /** Every voice, since any number of accounts may share one. */
   voices: Array<{ id: string; name: string }>
 }
@@ -74,6 +80,7 @@ const loadFn = createServerFn({ method: "GET" })
           )
         )
         .map(({ id, name }) => ({ id, name })),
+      phones: await phonesFreeForReddit(userId, account?.id ?? null),
       voices: voices.map(({ id, name }) => ({ id, name })),
     }
   })
@@ -87,12 +94,13 @@ const saveFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       profileId: z.string().min(1).nullable(),
+      phoneId: z.string().min(1).nullable(),
       voiceId: z.string().min(1).nullable(),
     })
   )
   .handler(async ({ context, data }): Promise<AccountView> => saveAccount(context.user.id, data))
 
-export function saveRedditAccount(data: { profileId: string | null; voiceId: string | null }) {
+export function saveRedditAccount(data: { profileId: string | null; phoneId: string | null; voiceId: string | null }) {
   return saveFn({ data })
 }
 

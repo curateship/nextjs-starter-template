@@ -60,13 +60,17 @@ promo created, which has no shell version and so can never conflict.
 
 ## The tables it owns
 
-Twenty-four, all named `promo_*`, in two files of promo's own. The shell's tables
+Thirty, all named `promo_*`, in three files of promo's own. The shell's tables
 stay in `src/server/schema.ts`, which promo never opens.
 
 - `src/server/browser/schema.ts`: `promo_proxies`, `promo_proxy_addresses`,
   `promo_profiles`, `promo_profile_folders`, `promo_profile_labels`,
   `promo_profile_events`, `promo_browser_sessions`, `promo_browser_settings`,
   `promo_profile_backups`. These belong to no network.
+- `src/server/phones/schema.ts`: `promo_phones`, `promo_racks`,
+  `promo_rack_codes`, `promo_rack_nonces`, `promo_phone_actions` and
+  `promo_phone_screenshots`, from `drizzle/0114_promo_phones.sql`. These
+  belong to no network either.
 - `src/server/social/schema.ts`: `promo_voices`, `promo_accounts`, `promo_keywords`,
   `promo_blocked_subreddits`, `promo_subreddit_rules`, `promo_reddit_settings`,
   `promo_searches`, `promo_finds`, `promo_drafts`, `promo_comments`, `promo_jobs`,

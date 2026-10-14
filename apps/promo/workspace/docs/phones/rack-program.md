@@ -1,0 +1,154 @@
+# The rack program
+
+A small program on the computer the phones plug into. It finds the phones over
+USB, tells Promo which are there, runs one named action on one phone when
+Promo asks, and sends back the answer and any pictures. It is the only thing
+that touches the phones.
+
+Tyler's answers, 13 Oct 2026: Android's own USB tools (adb) with uiautomator2
+drive the phones, the program dials out to Promo, and the first rack is his own
+Mac. It also runs on Linux.
+
+## How it reaches Promo
+
+The program calls Promo. Promo never calls the house, so no port is opened at
+home and nothing changes on the Hetzner server.
+
+- **Every 15 seconds** it checks in at `/api/rack/check-in` with the phones adb
+  sees and its own version.
+- **Every 3 seconds** it asks `/api/rack/next` for the oldest waiting action,
+  and asks again at once after finishing one.
+- **The answer** goes to `/api/rack/result`, with up to four pictures shrunk to
+  540 pixels wide.
+- **An action left running five minutes** is failed by Promo: "The rack did not
+  answer within five minutes."
+- **Pictures** are kept for each phone's newest 20 actions and the older ones
+  deleted, so the table does not grow with every check ever run.
+
+## The actions
+
+Named, like the browser's routines, and the only things ever run. A name not
+on both lists is refused by whichever side does not know it: Promo's list is
+`PHONE_ACTIONS` in `src/lib/phones/options.ts`, the rack's is `ACTIONS` in
+`rack/promo_rack.py`.
+
+- **`phone/list`:** the phones adb sees.
+- **`phone/health`:** battery, temperature, free storage, whether the screen is
+  on, how long it has been on.
+- **`phone/android-version`:** the test of the whole path. It opens Settings at
+  About phone, reads the Android version off the screen and takes a picture,
+  then goes back home. On a Samsung it opens Software information first. The
+  answer is checked against the version Android itself reports, so a wrong
+  read shows as "Settings says 15, but Android itself reports 16".
+
+The network actions (`reddit/search` and the rest) join the list in the later
+phone farm files.
+
+## Pairing
+
+Nobody but Tyler's Promo can drive the phones.
+
+- **A one-time code.** Rack, then Make a pairing code, on the Phones dashboard
+  shows a code such as `ABCD-EFGH` and the whole install command with it. The
+  code works once, for 15 minutes. Promo keeps only its hash.
+- **Swapped for a key.** The program sends the code to `/api/rack/pair` once
+  and gets back its own key. Promo keeps the key encrypted with the server's
+  key (`CUSTOM_SHELL_SECRET_ENCRYPTION_KEY`), so pairing is refused on a server
+  without one, and the code still works once the key is set. The pairing address allows 10 tries per 15 minutes from one
+  internet address.
+- **Every message is signed, both ways.** A message from the rack is signed
+  over its address, the time, a random word and its body. Promo's answer is
+  signed over its status, that same random word, the time and its body. A
+  changed message, one sent twice, one more than five minutes off the clock,
+  or an answer without the right signature is refused. The rule is
+  `src/server/phones/signing.ts` and the same lines in `rack/promo_rack.py`,
+  and both are tested against one fixed example so the two cannot drift.
+- **Disconnect this rack**, in the Rack window, cancels the key at once. Every
+  message after that is refused, waiting checks are cancelled, the rack's
+  phones show offline, and nothing reaches them until it is installed again
+  with a new code. The phone records and the accounts on them stay.
+
+## Installing
+
+One command, pasted into Terminal on the computer the phones plug into:
+
+    curl -fsSL https://<promo>/api/rack/install.sh | bash -s -- ABCD-EFGH
+
+It puts everything in one folder of the person's own
+(`~/Library/Application Support/PromoRack` on a Mac,
+`~/.local/share/promo-rack` on Linux) and needs no password:
+
+- Android's platform tools, downloaded from Google into that folder.
+- A Python of its own with uiautomator2 3.7.0. macOS's own Python 3.9 is
+  enough.
+- The launcher and the program, downloaded from Promo, then paired with the
+  code.
+- A service that starts with the computer: a LaunchAgent on a Mac, which starts
+  when Tyler signs in, and a systemd user service on Linux. The log is
+  `rack.log` in that folder on a Mac, and `journalctl --user -u promo-rack` on
+  Linux.
+
+Running it again with a new code pairs afresh. The install script holds nothing
+secret, which is why its address is public. The address written into it is
+the app's own setting, never the request's, so a forged address cannot point a
+new rack somewhere else.
+
+Each phone needs USB debugging on once: Settings, About phone, tap Build
+number seven times, then Developer options, USB debugging. Plugging it in shows
+a question on its screen, and it stays offline with "Allow USB debugging on its
+screen" until someone taps Allow.
+
+## Updating itself
+
+The computer never needs a terminal after the first command.
+
+- **The version is one line**, `VERSION = "..."` at the top of
+  `rack/promo_rack.py`. Promo builds that file into itself and serves it, so
+  a deploy with a raised version is a new release. The Rack window shows the
+  version each rack runs.
+- **Every check-in's answer** names the version Promo serves. A rack on another
+  one downloads it from `/api/rack/release`, an answer signed with its own key
+  like every other, checks the file's checksum and its VERSION line, and
+  switches.
+- **Two minutes to check in.** The launcher (`rack/launcher.py`) runs the
+  program and is never updated itself, because it is the part that has to
+  keep working when a new version does not. A new version that stops before it
+  checks in, or is still running two minutes later without having checked in,
+  is stopped. The launcher goes back to the version before it and never tries
+  that version again.
+- **The dashboard says so.** The old version reports the rollback on its next
+  check-in, and the Rack window shows it in red: "Went back to 2026.10.13.1 on
+  2026-10-13 22:01 UTC, because 0.0.0-broken stopped with code 1 before it
+  checked in." It stays until the next good update.
+- **To watch a rollback happen**, run this on the rack computer:
+
+      ~/Library/Application\ Support/PromoRack/venv/bin/python \
+        ~/Library/Application\ Support/PromoRack/launcher.py selftest-rollback
+
+  It switches to a version that cannot start. The launcher goes back within
+  seconds and the note shows on the dashboard within 15.
+
+## Checking it without a phone
+
+- `npx vitest run src/server/phones src/components/phones` covers Promo's side.
+- `python3 -m unittest discover -s rack -p "test_*.py"`, from `apps/promo`,
+  covers the program: the device list, reading the Settings screen, the shared
+  signing example, and both kinds of rollback.
+- `python3 rack/promo_rack.py phones` prints what adb sees, for checking a
+  phone by hand.
+
+A real phone on the rack is the only proof that an action works on a phone.
+
+## Where it is
+
+- The program: `rack/promo_rack.py`, `rack/launcher.py`, `rack/install.sh`.
+- The addresses it calls: `src/routes/api/rack/`, each handing its request to
+  `src/server/phones/rack-http.ts`.
+- The work: `src/server/phones/rack.ts` (pairing, checking a message, check-ins,
+  the action queue, Disconnect) and `src/server/phones/release.ts` (the files
+  Promo serves).
+- The tables: `promo_racks`, `promo_rack_codes`, `promo_rack_nonces`,
+  `promo_phone_actions` and `promo_phone_screenshots`, in
+  `drizzle/0114_promo_phones.sql`.
+- Out of scope here: more than one rack (file 07), restarting a phone by
+  cutting its power, phones on Hetzner, emulators and cloud phones.

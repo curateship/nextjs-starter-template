@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 import { Refusal } from "@/server/browser/refusal"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { MAX_CHECKS_PER_PRESS, MAX_COMMENT_CHARS, NO_PROFILE_MESSAGE } from "@/lib/social/options"
+import { MAX_CHECKS_PER_PRESS, MAX_COMMENT_CHARS, noBrowserMessage } from "@/lib/social/options"
 
 import { nextExampleIds } from "./examples"
 import { queueJob } from "./jobs"
@@ -226,7 +226,7 @@ export async function queueCommentChange(
   if (account.retiredAt) {
     throw new Refusal(`${handle} is retired, so it no longer changes anything on Reddit. Bring it back on the Reddit accounts dashboard first.`)
   }
-  if (!account.profileId) throw new Refusal(NO_PROFILE_MESSAGE)
+  if (!account.profileId) throw new Refusal(noBrowserMessage(account))
   const paused = await pausedBy(userId, account, db)
   if (paused) {
     throw new Refusal(

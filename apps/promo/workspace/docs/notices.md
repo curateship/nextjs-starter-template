@@ -49,7 +49,10 @@ is never reported as failed because the bell could not be written
 (`ringBell`).
 
 The dead-proxy notice is older and keeps its own shape, in
-`src/server/browser/notices.ts`: its id is the proxy's own.
+`src/server/browser/notices.ts`: its id is the proxy's own. A phone that needs
+a hand has a notice of the same shape, in `src/server/phones/notices.ts`, whose
+id is the phone's own and whose heading names its shelf slot. The [Phones
+dashboard](phones/phones-dashboard.md) says when it rings.
 
 ## Where it is
 

@@ -246,6 +246,8 @@ export type ProjectAccount = {
   /** Empty when the browser was never seen signed in. */
   handle: string
   profile: { id: string; name: string } | null
+  /** True when it runs on a phone instead of a browser profile. */
+  onPhone: boolean
   voice: { id: string; name: string } | null
   /** Reddit is asking the browser something only a person can answer. */
   blocked: boolean
@@ -309,6 +311,7 @@ export async function readProjectView(
       id: account.id,
       handle: account.handle,
       profile: account.profileId && profileName !== null ? { id: account.profileId, name: profileName } : null,
+      onPhone: Boolean(account.phoneId),
       voice: account.voiceId && voiceName !== null ? { id: account.voiceId, name: voiceName } : null,
       blocked: account.blocked,
       reason: account.blockedReason,

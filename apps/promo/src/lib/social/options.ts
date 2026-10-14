@@ -122,7 +122,21 @@ export type ProfileCheck = {
  * the settings tab's error lookup needs the same words at runtime.
  */
 export const NO_PROFILE_MESSAGE =
-  "This Reddit account has no browser profile, so it cannot post. Add it again with a profile on the Reddit accounts dashboard, and retire this one."
+  "This Reddit account has no browser profile or phone, so it cannot post. Pick where it runs with its settings button on the Reddit accounts dashboard."
+
+/**
+ * What every Reddit job says for an account that runs on a phone. Phones
+ * take Reddit's jobs from a later phone farm step; until then a job is
+ * refused with this rather than run in a browser the account never signed in
+ * to.
+ */
+export const ON_A_PHONE_MESSAGE =
+  "This Reddit account runs on a phone, and phones do not take Reddit jobs yet. Move it to a browser profile with its settings button on the Reddit accounts dashboard to use it now."
+
+/** The refusal for an account with no browser profile: on a phone, or on nothing. */
+export function noBrowserMessage(account: { phoneId: string | null }): string {
+  return account.phoneId ? ON_A_PHONE_MESSAGE : NO_PROFILE_MESSAGE
+}
 
 /**
  * Why Post is off on the Projects dashboard before an account is clicked. A

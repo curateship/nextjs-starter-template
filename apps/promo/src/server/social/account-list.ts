@@ -1,7 +1,9 @@
-import { and, asc, eq, inArray, isNotNull, isNull, max } from "drizzle-orm"
+import { and, asc, eq, inArray, isNotNull, isNull, max, sql } from "drizzle-orm"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoProfileFolders, promoProfiles, promoProxies } from "@/server/browser/schema"
+import { promoPhones } from "@/server/phones/schema"
+import type { PhoneConnection } from "@/lib/phones/options"
 import {
   accountStatus,
   ACCOUNT_STATUS_LABELS,
@@ -80,7 +82,19 @@ export type RedditAccountRow = {
     folder: { id: string; name: string } | null
     tags: string[]
   } | null
-  /** The profile's proxy. Null when the profile has none. */
+  /**
+   * The phone it runs on instead of a profile, or null. Its folder and tags
+   * are the same folders and tags profiles use.
+   */
+  phone: {
+    id: string
+    name: string
+    folder: { id: string; name: string } | null
+    tags: string[]
+    connection: PhoneConnection
+    simCarrier: string
+  } | null
+  /** The profile's proxy, or the phone's on Wi-Fi. Null when there is none. */
   proxy: { label: string; country: string; lastTestResult: ProxyTestResult | null } | null
   voice: { id: string; name: string } | null
   redditCreatedAt: Date | null
@@ -106,6 +120,10 @@ export async function listRedditAccounts(
       projectPausedAt: promoProjects.pausedAt,
       profileName: promoProfiles.name,
       profileTags: promoProfiles.tags,
+      phoneName: promoPhones.name,
+      phoneTags: promoPhones.tags,
+      phoneConnection: promoPhones.connection,
+      phoneCarrier: promoPhones.simCarrier,
       folderId: promoProfileFolders.id,
       folderName: promoProfileFolders.name,
       proxyId: promoProxies.id,
@@ -117,8 +135,14 @@ export async function listRedditAccounts(
     .from(promoAccounts)
     .leftJoin(promoProjects, eq(promoProjects.id, promoAccounts.projectId))
     .leftJoin(promoProfiles, eq(promoProfiles.id, promoAccounts.profileId))
-    .leftJoin(promoProfileFolders, eq(promoProfileFolders.id, promoProfiles.folderId))
-    .leftJoin(promoProxies, eq(promoProxies.id, promoProfiles.proxyId))
+    .leftJoin(promoPhones, eq(promoPhones.id, promoAccounts.phoneId))
+    // An account is on a profile or a phone, never both, so whichever is set
+    // gives the folder and the proxy.
+    .leftJoin(
+      promoProfileFolders,
+      eq(promoProfileFolders.id, sql`coalesce(${promoProfiles.folderId}, ${promoPhones.folderId})`)
+    )
+    .leftJoin(promoProxies, eq(promoProxies.id, sql`coalesce(${promoProfiles.proxyId}, ${promoPhones.proxyId})`))
     .leftJoin(promoVoices, eq(promoVoices.id, promoAccounts.voiceId))
     .where(
       and(
@@ -148,6 +172,17 @@ export async function listRedditAccounts(
               name: row.profileName,
               folder: row.folderId && row.folderName !== null ? { id: row.folderId, name: row.folderName } : null,
               tags: row.profileTags ?? [],
+            }
+          : null,
+      phone:
+        account.phoneId && row.phoneName !== null
+          ? {
+              id: account.phoneId,
+              name: row.phoneName,
+              folder: row.folderId && row.folderName !== null ? { id: row.folderId, name: row.folderName } : null,
+              tags: row.phoneTags ?? [],
+              connection: row.phoneConnection ?? "sim",
+              simCarrier: row.phoneCarrier ?? "",
             }
           : null,
       proxy:

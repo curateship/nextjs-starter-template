@@ -34,6 +34,7 @@ import {
   type RedditWindow,
 } from "@/lib/social/reddit/options"
 import { promoProfiles } from "@/server/browser/schema"
+import { promoPhones } from "@/server/phones/schema"
 import { customShellUsers } from "@/server/schema"
 
 /**
@@ -124,8 +125,8 @@ export const promoProjects = pgTable(
  * The account posts go out from.
  *
  * The account owns neither its browser nor its words. It points at a browser
- * profile, which holds the proxy, the identity and the cookies, and at a voice,
- * which holds what the AI is told. The table still has `proxy_id`,
+ * profile, which holds the proxy, the identity and the cookies, or at a phone
+ * on the rack, and at a voice, which holds what the AI is told. The table still has `proxy_id`,
  * `fingerprint`, `voice`, `product` and `comment_rules` from before those
  * moves. They are kept, as every stored column is, and nothing reads them any
  * more, which is why they are not listed here.
@@ -154,6 +155,14 @@ export const promoAccounts = pgTable(
       () => promoProfiles.id,
       { onDelete: "set null" }
     ),
+    /**
+     * The phone this account runs on, in place of a browser profile. Never
+     * both: the database refuses an account with the two set. Added by
+     * `drizzle/0114_promo_phones.sql`.
+     */
+    phoneId: varchar("phone_id", { length: 36 }).references(() => promoPhones.id, {
+      onDelete: "set null",
+    }),
     /** True when the site was last seen asking the browser something only a person can answer. */
     blocked: boolean("blocked").notNull().default(false),
     /** What it was asking, in the browser's words. Empty when not blocked. */
@@ -224,6 +233,10 @@ export const promoAccounts = pgTable(
     uniqueIndex("ux_promo_accounts_profile_platform")
       .on(table.profileId, table.platform)
       .where(sql`${table.profileId} IS NOT NULL`),
+    /** The same rule on a phone: one account per network per phone. */
+    uniqueIndex("ux_promo_accounts_phone_platform")
+      .on(table.phoneId, table.platform)
+      .where(sql`${table.phoneId} IS NOT NULL`),
   ]
 )
 

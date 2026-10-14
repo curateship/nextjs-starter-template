@@ -323,14 +323,14 @@ describe("browser profiles", () => {
       // The person's own Reddit account is not that one, so it is refused.
       await db.update(promoAccounts).set({ userId: (await insertUser(db, { role: "admin" })).id })
       await expect(
-        saveAccount(userId, { profileId: id, voiceId: null }, db)
+        saveAccount(userId, { profileId: id, phoneId: null, voiceId: null }, db)
       ).rejects.toThrow("The profile Main already has a Reddit account in it.")
     })
 
     it("saves the pick and reads it back with the profile's name", async () => {
       const id = await createProfile(userId, { name: "Main" }, db)
 
-      const saved = await saveAccount(userId, { profileId: id, voiceId: null }, db)
+      const saved = await saveAccount(userId, { profileId: id, phoneId: null, voiceId: null }, db)
 
       expect(saved.profile).toEqual({ id, name: "Main" })
     })

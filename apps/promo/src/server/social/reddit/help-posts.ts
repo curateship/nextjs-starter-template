@@ -146,6 +146,8 @@ export type HelpPage = {
     blocked: boolean
     reason: string
     profile: { id: string; name: string } | null
+    /** True when it runs on a phone instead of a browser profile. */
+    onPhone: boolean
     voice: { id: string; name: string } | null
     posting: PostingState
     joinedSubreddits: string[]
@@ -215,6 +217,7 @@ export async function readHelpPage(
       blocked: account.blocked,
       reason: account.blockedReason,
       profile: account.profileId && row.profileName !== null ? { id: account.profileId, name: row.profileName } : null,
+      onPhone: Boolean(account.phoneId),
       voice: account.voiceId && row.voiceName !== null ? { id: account.voiceId, name: row.voiceName } : null,
       posting: await readPostingState(userId, account, db, now),
       joinedSubreddits: account.joinedSubreddits,

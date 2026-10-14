@@ -15,7 +15,7 @@ import {
   touchSession,
 } from "@/server/browser/session"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { NO_PROFILE_MESSAGE, READER_JOB_KINDS, WRITE_JOB_KINDS } from "@/lib/social/options"
+import { noBrowserMessage, READER_JOB_KINDS, WRITE_JOB_KINDS } from "@/lib/social/options"
 import { nextWakeAt } from "@/lib/social/waking"
 
 import { profileTimeZone, readBehaviour, readerProfile } from "./behaviour"
@@ -173,7 +173,7 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   }
 
   const account = await accountForJob(job, db)
-  if (!account.profileId) throw new Refusal(NO_PROFILE_MESSAGE)
+  if (!account.profileId) throw new Refusal(noBrowserMessage(account))
   // Retired after the job was queued. A retired account never posts and
   // never warms up; a health reading is only a read and still runs.
   const writes = WRITE_JOB_KINDS.includes(job.kind) || job.kind === "warm_up"

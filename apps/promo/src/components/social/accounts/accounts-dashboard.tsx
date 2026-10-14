@@ -9,6 +9,7 @@ import {
   PlayIcon,
   PlusIcon,
   RefreshCwIcon,
+  SettingsIcon,
   UsersIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -65,6 +66,7 @@ import { Hint } from "../hint"
 import { AccountStatusBadge } from "./account-status-badge"
 import { AddAccountDialog } from "./add-account-dialog"
 import { HelpPostsDialog } from "./help-posts-dialog"
+import { RunsOnDialog } from "./runs-on-dialog"
 
 type SortColumn = "account" | "status" | "project" | "profile" | "age" | "karma" | "last"
 
@@ -72,7 +74,7 @@ const COLUMNS: TableHeaderColumn<SortColumn>[] = [
   { key: "account", label: "Account", column: "main" },
   { key: "status", label: "Status", column: "meta" },
   { key: "project", label: "Project", column: "meta", className: "hidden lg:table-cell" },
-  { key: "profile", label: "Browser profile", column: "meta", className: "hidden md:table-cell" },
+  { key: "profile", label: "Runs on", column: "meta", className: "hidden md:table-cell" },
   { key: "proxy", label: "Proxy", column: "meta", className: "hidden lg:table-cell", sortable: false },
   { key: "voice", label: "Voice", column: "meta", className: "hidden xl:table-cell", sortable: false },
   // Under 1536px these three fold into a line under the account's name, or
@@ -94,7 +96,7 @@ function compare(a: RedditAccountRow, b: RedditAccountRow, column: SortColumn): 
     case "project":
       return (a.project?.name ?? "").localeCompare(b.project?.name ?? "")
     case "profile":
-      return (a.profile?.name ?? "").localeCompare(b.profile?.name ?? "")
+      return (a.profile?.name ?? a.phone?.name ?? "").localeCompare(b.profile?.name ?? b.phone?.name ?? "")
     // Older first when sorting up, so an account made earlier sorts above.
     case "age":
       return time(b.redditCreatedAt) - time(a.redditCreatedAt)
@@ -115,13 +117,14 @@ const NO_VOICE = "none"
 
 /**
  * Every Reddit account: its status, the project it comments for, the browser
- * profile it signs in inside and the proxy that profile goes through.
+ * profile or phone it runs on and how that goes online.
  *
  * Copied from the Comments dashboard and built from the shell's table. The
  * status is worked out by the app each time the list is read (Warming up,
  * Ready, Working, Banned) and a person can set another by hand, which the row
- * says. Rows group under their profile's folder from the Browser profiles
- * dashboard and filter by its tags; nothing new is stored for either.
+ * says. Rows group under their profile's or phone's folder, the folders the
+ * Browser profiles and Phones dashboards share, and filter by its tags;
+ * nothing new is stored for either.
  *
  * Retiring takes an account out of every list and picker. It never posts and
  * never warms up again, and its comments stay. "Show retired" brings the
@@ -141,6 +144,8 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
   const [adding, setAdding] = React.useState(false)
   /** The account whose help-only posts are open. */
   const [helpFor, setHelpFor] = React.useState<string | null>(null)
+  /** The account whose "Runs on" window is open. */
+  const [runsOnFor, setRunsOnFor] = React.useState<RedditAccountRow | null>(null)
 
   const refresh = React.useCallback(
     (retired: boolean): Promise<void> =>
@@ -157,7 +162,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
   const accounts = page.accounts
   const tags = React.useMemo(
     () =>
-      Array.from(new Set(accounts.flatMap((row) => row.profile?.tags ?? []))).sort((a, b) =>
+      Array.from(new Set(accounts.flatMap((row) => row.profile?.tags ?? row.phone?.tags ?? []))).sort((a, b) =>
         a.localeCompare(b)
       ),
     [accounts]
@@ -169,9 +174,9 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
     return accounts
       .filter((row) => {
         if (statusFilter !== ALL && row.status.status !== statusFilter) return false
-        if (tagFilter !== ALL && !(row.profile?.tags ?? []).includes(tagFilter)) return false
+        if (tagFilter !== ALL && !(row.profile?.tags ?? row.phone?.tags ?? []).includes(tagFilter)) return false
         if (!query) return true
-        return [row.handle, row.project?.name, row.profile?.name, row.voice?.name]
+        return [row.handle, row.project?.name, row.profile?.name, row.phone?.name, row.voice?.name]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(query))
       })
@@ -179,13 +184,13 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
   }, [accounts, direction, search, sort, statusFilter, tagFilter])
 
   /**
-   * The rows under their profile's folder, folders by name and "No folder"
+   * The rows under their profile's or phone's folder, folders by name and "No folder"
    * last. With no folder anywhere there is one group and no heading.
    */
   const groups = React.useMemo(() => {
     const byFolder = new Map<string, { name: string | null; rows: RedditAccountRow[] }>()
     for (const row of shown) {
-      const folder = row.profile?.folder ?? null
+      const folder = row.profile?.folder ?? row.phone?.folder ?? null
       const key = folder?.id ?? ""
       const group = byFolder.get(key) ?? { name: folder?.name ?? null, rows: [] }
       group.rows.push(row)
@@ -412,7 +417,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
         emptyText={
           accounts.length
             ? "No accounts match that."
-            : "No Reddit accounts yet. Press Add account, pick a browser profile, then sign in to Reddit in that profile's browser."
+            : "No Reddit accounts yet. Press Add account, pick a browser profile or a phone, then sign in to Reddit there."
         }
         emptyColSpan={columnCount}
         footer={{ type: "summary", count: shown.length, label: "accounts" }}
@@ -451,6 +456,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
                     )
                   }
                   onHelp={() => setHelpFor(row.id)}
+                  onRunsOn={() => setRunsOnFor(row)}
                   onPause={(paused) =>
                     void oneRow(
                       row.id,
@@ -474,9 +480,21 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
         </>
       </DashboardTable>
       <HelpPostsDialog accountId={helpFor} onClose={() => setHelpFor(null)} />
+      <RunsOnDialog
+        key={runsOnFor?.id ?? "closed"}
+        account={runsOnFor}
+        profiles={page.freeProfiles}
+        phones={page.freePhones}
+        onClose={() => setRunsOnFor(null)}
+        onSaved={async () => {
+          setRunsOnFor(null)
+          await refresh(showRetired)
+        }}
+      />
       <AddAccountDialog
         open={adding}
         profiles={page.freeProfiles}
+        phones={page.freePhones}
         voices={page.voices}
         onClose={() => setAdding(false)}
         onAdded={async () => {
@@ -497,6 +515,7 @@ function AccountRow({
   onVoice,
   onCheck,
   onHelp,
+  onRunsOn,
   onPause,
   onRetire,
 }: {
@@ -509,6 +528,8 @@ function AccountRow({
   onCheck: () => void
   /** Opens the account's help-only posts. */
   onHelp: () => void
+  /** Opens the window that moves it to another profile or phone. */
+  onRunsOn: () => void
   onPause: (paused: boolean) => void
   onRetire: (retire: boolean) => void
 }) {
@@ -577,13 +598,23 @@ function AccountRow({
           >
             {row.profile.name}
           </Link>
+        ) : row.phone ? (
+          <Link
+            to="/admin/phones"
+            search={{ open: row.phone.id }}
+            className="block truncate hover:underline"
+          >
+            Phone: {row.phone.name}
+          </Link>
         ) : (
-          <span className="text-destructive">No profile</span>
+          <span className="text-destructive">Nowhere</span>
         )}
       </TableCell>
       <TableCell column="meta" className="hidden lg:table-cell">
-        {!row.profile ? (
+        {!row.profile && !row.phone ? (
           <span className="text-muted-foreground">—</span>
+        ) : row.phone?.connection === "sim" ? (
+          <span className="block max-w-32 truncate">{row.phone.simCarrier || "Its own SIM"}</span>
         ) : row.proxy ? (
           <span className="flex items-center gap-2">
             <Hint label={row.proxy.label}>
@@ -592,7 +623,7 @@ function AccountRow({
             <ProxyTestBadge result={row.proxy.lastTestResult} compact />
           </span>
         ) : (
-          <span className="text-muted-foreground">No proxy</span>
+          <span className="text-muted-foreground">{row.phone ? "House Wi-Fi" : "No proxy"}</span>
         )}
       </TableCell>
       <TableCell column="meta" className="hidden xl:table-cell">
@@ -686,6 +717,18 @@ function AccountRow({
                 aria-label={row.paused === "account" ? `Resume ${name}` : `Pause ${name}`}
               >
                 {row.paused === "account" ? <PlayIcon className="size-4" /> : <PauseIcon className="size-4" />}
+              </Button>
+            </Hint>
+            <Hint label="Where it runs: a browser profile or a phone">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={busy}
+                onClick={onRunsOn}
+                aria-label={`Where ${name} runs`}
+              >
+                <SettingsIcon className="size-4" />
               </Button>
             </Hint>
             <Hint label="Retire: out of every list and picker, its comments stay">

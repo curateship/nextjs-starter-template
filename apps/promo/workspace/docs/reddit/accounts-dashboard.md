@@ -1,7 +1,7 @@
 # The Reddit accounts dashboard
 
 Every Reddit account in one list, with its status, the project it comments for,
-the browser profile it signs in inside and the proxy that profile goes through.
+the browser profile or phone it runs on, and how that goes online.
 It is at `/admin/reddit-accounts`, under **Projects** in the left menu.
 
 Tyler's words, 12 Oct 2026: "build a dashboard for reddit profiles with status
@@ -15,11 +15,16 @@ did, and a page for each account are not built yet.
 
 ## Several accounts
 
-**Add account** asks for a browser profile and a voice, the two choices
-Settings → Reddit account offers. One Reddit account per profile, so a profile
-already holding one, and the reader browser from Settings → Behaviour, are not
-offered. The account is then signed in to Reddit inside that profile's browser,
-on the Browser profiles dashboard, and starts in no project.
+**Add account** asks where the account runs and which voice it drafts with,
+the two choices Settings → Reddit account offers. "Runs on" is one list of
+browser profiles and phones from the [Phones dashboard](../phones/phones-dashboard.md).
+One Reddit account per profile and per phone, so one already holding one, and
+the reader browser from Settings → Behaviour, are not offered. The account is
+then signed in to Reddit there, and starts in no project.
+
+An account runs on a profile or a phone, never both. Phones do not take Reddit
+jobs yet, so an account on a phone has every search, comment and post refused
+with words saying so until phone farm file 02 is built.
 
 Settings → Reddit account still edits one account: the oldest one in use.
 Which account a comment goes out from is picked per comment on the
@@ -60,16 +65,17 @@ set it by hand.
 ## The list
 
 Columns: the account (u/name, or "Not signed in"), its status, its project or
-"No project", its browser profile (linking to it on the Browser profiles
-dashboard, "No profile" in red when it was deleted), the profile's proxy with
-its last test, its voice with a menu to swap it, its age, its karma and its
+"No project", where it runs (a browser profile linking to the Browser profiles
+dashboard, or "Phone:" and the phone's name linking to the Phones dashboard,
+"Nowhere" in red when neither is set), the profile's proxy with its last test
+or the phone's SIM carrier or Wi-Fi, its voice with a menu to swap it, its age, its karma and its
 last comment. Under 1536px wide the age, karma and last comment fold into a line
 under the name, because the row was otherwise wider than a 1440px window and
 its buttons went off the edge.
 
 - **Filter** by status (All, Warming up, Ready, Working, Banned) and by the
-  profile's tags. **Rows group** under their profile's folder from the Browser
-  profiles dashboard, with "No folder" last; with no folders anywhere there are
+  profile's or phone's tags. **Rows group** under their profile's or phone's
+  folder, the folders both dashboards share, with "No folder" last; with no folders anywhere there are
   no headings. Nothing new is stored for either.
 - **Tick many, then act.** Each is one request, and the message says how many
   changed, such as "3 accounts set to Ready."
@@ -78,7 +84,9 @@ its buttons went off the edge.
     each one. One already being checked, or retired, is skipped and counted.
   - Pause, and Resume.
   - Retire.
-- **Each row** has Help-only posts, Check now, Pause or Resume, and Retire.
+- **Each row** has Check now, Help-only posts, Pause or Resume, the settings
+  button for where it runs, and Retire. The settings button moves the account
+  to another profile or phone; sign-ins do not move with it.
 - **The voice menu is 128px wide**, 32px narrower than it was, so a row with
   four buttons still fits a 1440px window (measured 13 Oct 2026: 1232px of
   columns against 1232px of room).
