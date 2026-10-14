@@ -341,16 +341,26 @@ Neither puts a window over the page.
   done") and Chat ("Chat · 4"), each a card that folds shut and stays shut
   in this browser. The task's title isn't in the panel, as in Tyler's
   drawing; the open card is outlined on the Board.
+- **A card's arrow and cog show only while it is pointed at**, folded or
+  open (Tyler, 14 Oct 2026, `assets/pasted-image-1791995305794293000.png`).
+  The cog has no background. Clicking it, and only it, opens the card's
+  footer, a row of its buttons under a line: Notes has Edit notes (a pencil)
+  at the left and Earlier versions at the right; Steps has Add a step list
+  and Save these steps as a list. On a folded card the cog opens the card
+  with its footer showing. The cog stays while its footer is open, so it can
+  close it again. Chat has no buttons, so only its arrow. Moving onto a card
+  with the keyboard shows them too, and a screen with no pointer always
+  shows them (`src/components/project/panel-card.tsx`).
 - **Add note** opens a dropdown under the button with the editor ready
   (Tyler, 13 Oct 2026). Done saves, and only then does the Notes card appear
   in the panel, as it shows from then on. Closed with nothing typed, nothing
   appears. Typing and then clicking away saves too, so nothing written is
   lost. The dropdown opens leftward from the button, 16px clear of the
   window's edge. The editor opens with a cursor at the end of the note, so
-  the formatting bar shows only once words are selected. The Notes card's buttons (Earlier
-  versions, Edit notes, and Done while writing) are its footer, under the
-  notes (Tyler, 13 Oct 2026), so the formatting bar over the first line
-  never covers Done.
+  the formatting bar shows only once words are selected. While notes are being written,
+  Done sits at the right of the Notes card's footer whatever the cog says,
+  under the notes, so the formatting bar over the first line never covers
+  it.
 - **The paperclip** opens a Files window with the task's files and the place
   to drop more, ending with Done.
 - **The cog** opens a dropdown, as Tyler drew it on 13 Oct 2026

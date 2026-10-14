@@ -9,6 +9,7 @@ import { TaskFileDrop, TaskFilesCard } from "@/components/project/task-files-car
 import { TaskHistoryCard } from "@/components/project/task-history-card"
 import { TaskNotesField } from "@/components/project/task-notes"
 import { MoveTaskCard, ReminderCard, TaskMoreMenu } from "@/components/project/task-more-menu"
+import { PanelCardFooter } from "@/components/project/panel-card"
 import { StepListActions } from "@/components/project/step-list-actions"
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { TaskPlanCard } from "@/components/project/task-plan-card"
@@ -1140,7 +1141,12 @@ function StepsContent({
           </Button>
         </form>
       )}
-      {readOnly ? null : <StepListActions detail={detail} change={change} busy={busy} />}
+      {/* The Steps card's footer on the project page, behind its cog; a plain row in the window. */}
+      {readOnly ? null : (
+        <PanelCardFooter>
+          <StepListActions detail={detail} change={change} busy={busy} />
+        </PanelCardFooter>
+      )}
     </>
   )
 }
