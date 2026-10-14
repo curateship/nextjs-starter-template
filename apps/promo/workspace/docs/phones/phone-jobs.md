@@ -57,14 +57,28 @@ pressing Post, and a comment is never tried twice.
 - **Time limits.** Each action carries its own: five minutes for a check, the
   browser's own limits for a Reddit step (fifteen minutes for a comment
   visit). Past it, Promo fails the action and stops waiting.
+- **A freeze.** The rack reopens a frozen app or restarts a phone that stopped
+  answering, and fails the step. A reading is put back for another go; a
+  comment, an answer or a post is never sent again.
+  [Freezes and ban screens](freezes-and-ban-screens.md).
+- **A ban screen stops the account.** Its waiting jobs on the phone are
+  dropped, the job that found it is not tried again, and its new jobs are
+  refused until a person lets it run again.
+- **A broken action is refused.** A step the daily self-test found broken is
+  refused before anything reaches the phone, and the job is not tried again.
+  [The self-test and app updates](self-test-and-app-updates.md).
 
 ## Settings → Phones
 
-Two numbers that save as they change, with no Save button:
+Two numbers that save as they change, and a pick that saves at once, with no
+Save button:
 
 - **Phones working at once,** 1 to 50.
-- **Days pictures are kept,** 1 to 90. Each phone also keeps the pictures of its
-  newest 20 checks at most.
+- **Days pictures are kept,** 1 to 90. A finished action's step pictures go
+  after these days; a failed one's stay until cleared
+  ([a picture of every step](step-pictures.md)).
+- **Self-test phone:** the spare phone the daily self-test runs on, or none.
+  A phone that runs an account is refused.
 
 A value outside those is refused saying what is allowed. The pause switch is on
 the Phones dashboard, where the phones are. Waking hours and the warm-up apply

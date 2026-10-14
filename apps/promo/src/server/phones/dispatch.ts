@@ -4,6 +4,7 @@ import { uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 
 import { promoPhoneActions } from "./schema"
+import { refuseBrokenAction } from "./action-checks"
 
 /**
  * How a job's Reddit step reaches a phone: the same named routine the browser
@@ -14,7 +15,9 @@ import { promoPhoneActions } from "./schema"
  *
  * The rack runs only the names it knows. Until the Reddit app actions are
  * built (phone farm file 05) it answers every Reddit routine with "This rack
- * does not know the action ...", and the job fails with those words.
+ * does not know the action ...", and the job fails with those words. A
+ * routine the daily self-test found broken is refused before anything is
+ * written, so a job never finds out the hard way.
  */
 
 export type PhoneTarget = {
@@ -46,6 +49,7 @@ export async function callPhone(
   args: Record<string, unknown> | null,
   timeoutMs: number
 ): Promise<unknown> {
+  await refuseBrokenAction(target.phone.userId, routine)
   const id = uuid()
   await db.insert(promoPhoneActions).values({
     id,

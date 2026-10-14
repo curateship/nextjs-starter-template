@@ -36,6 +36,19 @@ vi.mock("@/lib/api/phones/phones", () => ({
   ...api,
   getPhoneErrorMessage: (error: unknown) => (error instanceof Error ? error.message : "failed"),
 }))
+const healthApi = vi.hoisted(() => ({
+  clearActionPictures: vi.fn(),
+  loadPhoneHistory: vi.fn(),
+  loadPhoneReadings: vi.fn(),
+  loadSelfTest: vi.fn(),
+  loadStepPictures: vi.fn(),
+  runSelfTest: vi.fn(),
+  updateApp: vi.fn(),
+}))
+vi.mock("@/lib/api/phones/health", () => ({
+  ...healthApi,
+  getPhoneHealthErrorMessage: (error: unknown) => (error instanceof Error ? error.message : "failed"),
+}))
 const screenApi = vi.hoisted(() => ({
   closeScreenWindow: vi.fn(async () => {}),
   loadScreen: vi.fn(),
@@ -76,6 +89,8 @@ function phone(patch: Partial<PhoneRecord>): PhoneRecord {
     inUse: false,
     lastSeenAt: new Date(),
     accounts: [],
+    vitals: { batteryPercent: 82, temperatureC: 31, storageUsedPercent: 60, signal: "in_service", at: new Date() },
+    apps: { reddit: "2025.40.0" },
     createdAt: new Date(),
     ...patch,
   }
@@ -110,6 +125,7 @@ const PAGE: PhonesPage = {
   ],
   rackVersion: "2026.10.13.1",
   pausedAt: null,
+  testPhoneId: null,
   folders: [],
   labels: [],
   proxies: [{ id: "x1", label: "US home line", host: "gate.test" }],
@@ -128,6 +144,7 @@ describe("Phones dashboard", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     for (const fn of Object.values(api)) fn.mockReset()
     for (const fn of Object.values(screenApi)) fn.mockReset()
+    for (const fn of Object.values(healthApi)) fn.mockReset()
     screenApi.closeScreenWindow.mockResolvedValue(undefined)
     navigation.navigate.mockReset()
     toasts.errors = []
@@ -159,6 +176,12 @@ describe("Phones dashboard", () => {
     )
     if (!found) throw new Error(`No button "${name}"`)
     return found
+  }
+  const openTab = async (name: string) => {
+    const tab = Array.from(document.querySelectorAll('[role="tab"]')).find((one) => one.textContent === name)!
+    await act(async () => {
+      tab.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))
+    })
   }
   const click = async (name: string) => {
     await act(async () => {
@@ -215,11 +238,8 @@ describe("Phones dashboard", () => {
     expect(text()).toContain("Where it sits")
     expect((document.getElementById("phone-usb") as HTMLInputElement).value).toBe("usb:1-1")
 
-    const checks = Array.from(document.querySelectorAll('[role="tab"]')).find((tab) => tab.textContent === "Checks")!
-    await act(async () => {
-      checks.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))
-    })
-    expect(text()).toContain("No checks run on this phone yet.")
+    await openTab("Actions")
+    expect(text()).toContain("Nothing has run on this phone yet.")
 
     api.loadPhoneActions.mockResolvedValue([
       {
@@ -228,15 +248,88 @@ describe("Phones dashboard", () => {
         status: "done",
         answer: "Settings says Android 16, the same as Android itself reports.",
         error: "",
+        recovered: "",
         createdAt: new Date(),
         finishedAt: new Date(),
-        screenshots: ["data:image/jpeg;base64,/9j/AAAA"],
+        steps: ["Opened About phone", "Read Android 16"],
       },
     ])
     await click("Read the Android version from Settings")
     expect(api.runPhoneAction).toHaveBeenCalledWith("p1", "phone/android-version")
     expect(text()).toContain("Settings says Android 16, the same as Android itself reports.")
-    expect(document.querySelector('img[alt^="What the phone\'s screen showed"]')).not.toBeNull()
+
+    healthApi.loadStepPictures.mockResolvedValue([
+      { id: "s1", step: "Opened About phone", src: "data:image/jpeg;base64,/9j/AAAA" },
+      { id: "s2", step: "Read Android 16", src: null },
+    ])
+    await click("Show the 2 steps")
+    expect(healthApi.loadStepPictures).toHaveBeenCalledWith("act1")
+    expect(document.querySelector('img[alt="Step 1: Opened About phone"]')).not.toBeNull()
+    expect(text()).toContain("This picture could not be kept.")
+  })
+
+  it("shows where a failed action stopped, and clears its pictures", async () => {
+    api.loadPhoneActions.mockResolvedValue([
+      {
+        id: "act2",
+        action: "reddit/comment",
+        status: "failed",
+        answer: "",
+        error: "The app stopped responding, so the rack closed it and opened it again.",
+        recovered: "app",
+        createdAt: new Date(),
+        finishedAt: new Date(),
+        steps: ["Opened the post", "Open the reply box"],
+      },
+    ])
+    healthApi.clearActionPictures.mockResolvedValue(undefined)
+    await render(PAGE, "p1")
+    await openTab("Actions")
+    expect(text()).toContain("Stopped at: Open the reply box")
+    expect(text()).toContain("The app froze, so the rack closed it and opened it again.")
+    await click("Clear the pictures")
+    expect(healthApi.clearActionPictures).toHaveBeenCalledWith("act2")
+  })
+
+  it("shows the phone's health and history in its window", async () => {
+    healthApi.loadPhoneReadings.mockResolvedValue([])
+    healthApi.loadPhoneHistory.mockResolvedValue([
+      { id: "e1", kind: "ran_hot", detail: "The battery reached 46.2°C.", at: new Date() },
+      { id: "e2", kind: "plugged_in", detail: "On USB port usb:1-1.", at: new Date() },
+    ])
+    await render(PAGE, "p1")
+    await openTab("Health")
+    expect(text()).toContain("82 out of 100")
+    expect(text()).toContain("31.0°C")
+    expect(text()).toContain("Has a signal")
+    expect(text()).toContain("No readings yet. A point is kept every ten minutes.")
+    expect(text()).toContain("2025.40.0")
+    await openTab("History")
+    expect(text()).toContain("Ran hot")
+    expect(text()).toContain("The battery reached 46.2°C.")
+    expect(text().indexOf("Ran hot")).toBeLessThan(text().indexOf("Plugged in"))
+  })
+
+  it("lists app versions on each row, and keeps the other phones' update pressable but refused until the test passes", async () => {
+    healthApi.loadSelfTest.mockResolvedValue({
+      testPhone: { id: "p2", name: "Galaxy A15" },
+      lastAskedAt: new Date(),
+      checks: [{ action: "reddit/comment", passed: false, step: "Open the reply box", error: "Could not find it.", checkedAt: new Date(), phoneActionId: null }],
+      rollouts: [{ app: "reddit", status: "available", fromVersion: "2025.40.0", toVersion: "", note: "", changedAt: new Date() }],
+    })
+    healthApi.updateApp.mockRejectedValue(new Error("The test phone has to pass the self-test on the new version before the other phones update."))
+    await render(PAGE)
+    expect(text()).toContain("Reddit 2025.40.0")
+    await click("Self-test")
+    expect(text()).toContain("reddit/comment: broken")
+    expect(text()).toContain("A newer version is out. The test phone has 2025.40.0.")
+    const others = Array.from(document.querySelectorAll("button")).filter((button) => button.textContent === "Update the other phones")
+    expect(others[0].disabled).toBe(false)
+    await act(async () => {
+      others[0].click()
+    })
+    expect(healthApi.updateApp).toHaveBeenCalledWith("reddit", "others")
+    expect(toasts.errors.at(-1)).toContain("has to pass the self-test")
   })
 
   it("pauses the rack, and asks which waiting jobs to drop before resuming", async () => {

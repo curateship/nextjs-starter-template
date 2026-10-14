@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
+  FlaskConicalIcon,
   MonitorSmartphoneIcon,
   PauseIcon,
   PlayIcon,
@@ -20,6 +21,7 @@ import { PhoneScreenDialog } from "@/components/phones/phone-screen-dialog"
 import { PhoneStatusText } from "@/components/phones/phone-status"
 import { RackDialog } from "@/components/phones/rack-dialog"
 import { ResumeRackDialog } from "@/components/phones/resume-rack-dialog"
+import { SelfTestDialog } from "@/components/phones/self-test-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -57,7 +59,7 @@ import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
-import { connectionWords } from "@/lib/phones/wording"
+import { appVersionWords, connectionWords } from "@/lib/phones/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 type SortColumn = "name" | "account" | "status" | "carrier" | "lastSeen"
@@ -99,8 +101,9 @@ function compare(a: PhoneRecord, b: PhoneRecord, column: SortColumn): number {
 const REFRESH_MS = 10_000
 
 /**
- * Every phone on the rack: the account on it, whether it is connected, its
- * carrier and when the rack last saw it.
+ * Every phone on the rack: the account on it, its app versions, whether it is
+ * connected, its carrier and when the rack last saw it. Self-test opens the
+ * daily self-test and app updates.
  *
  * Built like the Browser profiles dashboard, and sorted with the same
  * folders, labels and tags. A phone's window keeps it in `?open=<id>`, which
@@ -128,6 +131,7 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
   const [deleteTargets, setDeleteTargets] = React.useState<PhoneRecord[]>([])
   const [disconnecting, setDisconnecting] = React.useState<RackView | null>(null)
   const [resuming, setResuming] = React.useState(false)
+  const [selfTestOpen, setSelfTestOpen] = React.useState(false)
   const [screenFor, setScreenFor] = React.useState<string | null>(null)
   const [tagging, setTagging] = React.useState(false)
   const [tagText, setTagText] = React.useState("")
@@ -376,6 +380,17 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
                 {page.pausedAt ? "Rack paused" : "Pause the rack"}
               </Label>
             </span>
+            <Hint label="Self-test and app updates">
+              <DashboardToolbarButton
+                type="button"
+                variant="outline"
+                aria-label="Self-test and app updates"
+                onClick={() => setSelfTestOpen(true)}
+              >
+                <FlaskConicalIcon className="size-4" />
+                <span className="hidden sm:inline">Self-test</span>
+              </DashboardToolbarButton>
+            </Hint>
             <Hint label={rackWords}>
               <DashboardToolbarButton type="button" variant="outline" aria-label={rackWords} onClick={() => setRackOpen(true)}>
                 <span
@@ -472,6 +487,10 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
                 </span>
                 <span className="line-clamp-1 text-xs text-muted-foreground xl:hidden">
                   {phone.accounts.length ? phone.accounts.map(signedInWords).join(", ") : "No account on it"}
+                </span>
+                <span className="line-clamp-1 text-xs text-muted-foreground">
+                  {phone.id === page.testPhoneId ? "Self-test phone · " : ""}
+                  {appVersionWords(phone)}
                 </span>
               </TableCell>
               <TableCell column="meta" className="hidden text-sm xl:table-cell">
@@ -583,6 +602,13 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
       <PhoneScreenDialog
         phone={phones.find((phone) => phone.id === screenFor) ?? null}
         onClose={() => setScreenFor(null)}
+        onChanged={refresh}
+      />
+
+      <SelfTestDialog
+        open={selfTestOpen}
+        phones={phones}
+        onClose={() => setSelfTestOpen(false)}
         onChanged={refresh}
       />
 

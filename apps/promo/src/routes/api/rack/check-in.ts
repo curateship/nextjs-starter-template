@@ -16,6 +16,18 @@ const checkInShape = z.object({
         model: z.string().max(120).default(""),
         android: z.string().max(40).default(""),
         timezone: z.string().max(64).default(""),
+        vitals: z
+          .object({
+            batteryPercent: z.number().int().min(0).max(100).nullable().default(null),
+            temperatureC: z.number().min(-40).max(150).nullable().default(null),
+            storageUsedPercent: z.number().int().min(0).max(100).nullable().default(null),
+            signal: z.string().max(20).default(""),
+            upSeconds: z.number().int().min(0).nullable().default(null),
+            apps: z.record(z.string().max(20), z.string().max(60)).nullable().default(null),
+            restartWhy: z.string().max(300).default(""),
+          })
+          .nullable()
+          .default(null),
       })
     )
     .max(200),
@@ -26,7 +38,8 @@ const checkInShape = z.object({
 })
 
 /**
- * Every 15 seconds: the phones adb sees, and the program's version. The
+ * Every 15 seconds: the phones adb sees, and the program's version, and
+ * about once a minute each phone's battery, heat, storage and signal. The
  * answer says which version Promo serves, so the rack updates itself.
  */
 export const Route = createFileRoute("/api/rack/check-in")({

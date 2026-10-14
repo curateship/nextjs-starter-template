@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
+  BanIcon,
   HandHelpingIcon,
   Loader2Icon,
   PauseIcon,
@@ -567,6 +568,14 @@ function AccountRow({
               <PauseIcon className="size-3" aria-hidden="true" />
               {row.paused === "account" ? "Paused" : "Project paused"}
             </span>
+          ) : null}
+          {row.banScreen ? (
+            <Hint label={row.banScreen.words}>
+              <span className="flex items-center gap-1 text-xs text-destructive">
+                <BanIcon className="size-3" aria-hidden="true" />
+                Stopped by a ban screen
+              </span>
+            </Hint>
           ) : null}
           {row.status.warning ? (
             <Hint label={row.status.warning}>

@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+    <node index="0" text="Home" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,0][1032,50]" />
+    <node index="1" text="Popular" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,60][1032,110]" />
+    <node index="2" text="r/AskReddit" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,120][1032,170]" />
+    <node index="3" text="Your account has been suspended? Here's how the appeal went" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,180][1032,230]" />
+    <node index="4" text="1.2k upvotes" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,240][1032,290]" />
+    <node index="5" text="340 comments" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,300][1032,350]" />
+    <node index="6" text="Post 0 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,360][1032,410]" />
+    <node index="7" text="Post 1 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,420][1032,470]" />
+    <node index="8" text="Post 2 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,480][1032,530]" />
+    <node index="9" text="Post 3 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,540][1032,590]" />
+    <node index="10" text="Post 4 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,600][1032,650]" />
+    <node index="11" text="Post 5 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,660][1032,710]" />
+    <node index="12" text="Post 6 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,720][1032,770]" />
+    <node index="13" text="Post 7 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,780][1032,830]" />
+    <node index="14" text="Post 8 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,840][1032,890]" />
+    <node index="15" text="Post 9 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,900][1032,950]" />
+    <node index="16" text="Post 10 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,960][1032,1010]" />
+    <node index="17" text="Post 11 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1020][1032,1070]" />
+    <node index="18" text="Post 12 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1080][1032,1130]" />
+    <node index="19" text="Post 13 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1140][1032,1190]" />
+    <node index="20" text="Post 14 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1200][1032,1250]" />
+    <node index="21" text="Post 15 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1260][1032,1310]" />
+    <node index="22" text="Post 16 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1320][1032,1370]" />
+    <node index="23" text="Post 17 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1380][1032,1430]" />
+    <node index="24" text="Post 18 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1440][1032,1490]" />
+    <node index="25" text="Post 19 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1500][1032,1550]" />
+    <node index="26" text="Post 20 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1560][1032,1610]" />
+    <node index="27" text="Post 21 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1620][1032,1670]" />
+    <node index="28" text="Post 22 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1680][1032,1730]" />
+    <node index="29" text="Post 23 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1740][1032,1790]" />
+    <node index="30" text="Post 24 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1800][1032,1850]" />
+    <node index="31" text="Post 25 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1860][1032,1910]" />
+    <node index="32" text="Post 26 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1920][1032,1970]" />
+    <node index="33" text="Post 27 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,1980][1032,2030]" />
+    <node index="34" text="Post 28 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,2040][1032,2090]" />
+    <node index="35" text="Post 29 title about something ordinary" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,2100][1032,2150]" />
+</hierarchy>

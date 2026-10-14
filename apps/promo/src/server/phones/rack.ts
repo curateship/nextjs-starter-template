@@ -2,30 +2,25 @@ import { randomBytes, randomInt } from "node:crypto"
 import { and, asc, desc, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm"
 
 import {
-  PHONE_ACTIONS,
   PHONE_STALE_MS,
   RACK_CHECK_IN_SECONDS,
   RACK_CLOCK_WINDOW_SECONDS,
   RACK_CODE_MINUTES,
-  type PhoneAction,
+  actionWords,
 } from "@/lib/phones/options"
 import { resultWords } from "@/lib/phones/wording"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
-import { writePhoneNotice } from "./notices"
-import { readPhoneSettings } from "./settings"
+import { recordVitals, stopForBanScreen, type BanScreen, type ReportedVitals } from "./health"
+import { recordPhoneEvent } from "./history"
+import { clearProblem } from "./notices"
 import { RACK_VERSION } from "./release"
-import {
-  promoPhoneActions,
-  promoPhones,
-  promoPhoneScreenshots,
-  promoRackCodes,
-  promoRackNonces,
-  promoRacks,
-} from "./schema"
+import { promoPhoneActions, promoPhones, promoPhoneScreenshots, promoRackCodes, promoRackNonces, promoRacks } from "./schema"
+import { recordAppUpdate, recordSelfTest, recordStoreCheck } from "./self-test"
 import { replySignature, requestSignature, sameSignature, sha256Hex } from "./signing"
+import { dropStepPictures, keepStepPictures, type StepShot } from "./trail"
 
 /**
  * The rack program's side of Promo: pairing, checking every signed message,
@@ -182,6 +177,8 @@ export type ReportedPhone = {
   android: string
   /** The phone's own time zone, such as "America/Toronto", or empty when unread. */
   timezone?: string
+  /** Battery, heat, storage, signal and app versions, about once a minute. */
+  vitals?: ReportedVitals | null
 }
 
 export type CheckInInput = {
@@ -196,10 +193,12 @@ export type CheckInInput = {
  *
  * A serial Promo has never seen becomes a phone record named after its model,
  * so plugging a phone in is all it takes to see it on the dashboard. A known
- * phone gets its USB port, adb's word for it and the time. A phone that was
- * plugged into this rack and is missing now is marked gone at once, and a
- * phone that went missing or is waiting for a tap on its screen gets a bell
- * notice that names its shelf slot.
+ * phone gets its USB port, adb's word for it and the time, and the minute's
+ * reading of its battery, heat, storage and signal when one came. A phone
+ * that was plugged into this rack and is missing now is marked gone at once.
+ * Plugging in and pulling out are written in the phone's history; the bell
+ * is rung by the health sweep (`health.ts`), which waits five minutes before
+ * calling a phone offline.
  */
 export async function checkIn(
   rack: VerifiedRack,
@@ -248,14 +247,16 @@ export async function checkIn(
           usbPort: seen.usb.slice(0, 120),
           rackId: rack.id,
           adbState: state,
+          stateSince: now,
           lastSeenAt: now,
           createdAt: now,
           updatedAt: now,
         })
         .onConflictDoNothing()
         .returning()
-      if (added && state === "unauthorized") {
-        await writePhoneNotice(rack.userId, added, "is waiting for you to allow USB debugging on its screen", db)
+      if (added) {
+        await recordPhoneEvent(rack.userId, added.id, "plugged_in", pluggedWords(added.usbPort, state), db, now)
+        if (seen.vitals) await recordVitals(rack.userId, added, seen.vitals, db, now)
       }
       continue
     }
@@ -263,8 +264,10 @@ export async function checkIn(
       .update(promoPhones)
       .set({
         rackId: rack.id,
-        usbPort: seen.usb.slice(0, 120),
+        // A phone the rack is restarting is listed with no port; it keeps its own.
+        usbPort: seen.usb ? seen.usb.slice(0, 120) : phone.usbPort,
         adbState: state,
+        ...(state !== phone.adbState ? { stateSince: now } : {}),
         lastSeenAt: now,
         // The model a person typed is kept; adb's fills a blank one. The
         // Android version is a fact the phone reports, so it always wins.
@@ -276,9 +279,12 @@ export async function checkIn(
         ...(seen.timezone?.trim() ? { timeZone: seen.timezone.trim().slice(0, 64) } : {}),
       })
       .where(eq(promoPhones.id, phone.id))
-    if (state === "unauthorized" && phone.adbState !== "unauthorized") {
-      await writePhoneNotice(rack.userId, phone, "is waiting for you to allow USB debugging on its screen", db)
+    // Back from gone, or seen for the first time, is a plug-in. A phone the
+    // rack restarted comes back from "restarting", which is not.
+    if (!phone.adbState || phone.adbState === "gone") {
+      await recordPhoneEvent(rack.userId, phone.id, "plugged_in", pluggedWords(seen.usb, state), db, now)
     }
+    if (seen.vitals && state === "device") await recordVitals(rack.userId, phone, seen.vitals, db, now)
   }
 
   // Phones this rack had a moment ago that it no longer lists. Read before
@@ -296,20 +302,30 @@ export async function checkIn(
   if (missing.length) {
     await db
       .update(promoPhones)
-      .set({ adbState: "gone" })
+      .set({ adbState: "gone", stateSince: now })
       .where(inArray(promoPhones.id, missing.map((phone) => phone.id)))
   }
   for (const phone of missing) {
-    const wasLive =
-      phone.adbState === "device" &&
-      phone.lastSeenAt !== null &&
-      now.getTime() - phone.lastSeenAt.getTime() < PHONE_STALE_MS * 2
-    if (wasLive && !phone.held) {
-      await writePhoneNotice(rack.userId, phone, "disappeared from the rack", db)
-    }
+    await recordPhoneEvent(
+      rack.userId,
+      phone.id,
+      "unplugged",
+      phone.usbPort ? `It was on USB port ${phone.usbPort}.` : "",
+      db,
+      now
+    )
   }
 
   return { latestVersion: RACK_VERSION, checkInSeconds: RACK_CHECK_IN_SECONDS }
+}
+
+function pluggedWords(usb: string, state: string): string {
+  return [
+    usb ? `On USB port ${usb}.` : "",
+    state === "unauthorized" ? "Waiting for USB debugging to be allowed on its screen." : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
 }
 
 /** The name of a phone whose model could not be read yet. */
@@ -337,7 +353,7 @@ export async function nextAction(
   rack: VerifiedRack,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
-): Promise<{ id: string; serial: string; action: string; args: Record<string, unknown> } | null> {
+): Promise<{ id: string; serial: string; action: string; args: Record<string, unknown>; timeoutSeconds: number } | null> {
   await db
     .update(promoPhoneActions)
     .set({ status: "failed", error: "The rack did not answer in time.", finishedAt: now })
@@ -365,10 +381,17 @@ export async function nextAction(
       FOR UPDATE SKIP LOCKED
     )
     RETURNING "promo_phone_actions"."id", "promo_phone_actions"."phone_id",
-              "promo_phone_actions"."action", "promo_phone_actions"."args"
+              "promo_phone_actions"."action", "promo_phone_actions"."args",
+              "promo_phone_actions"."timeout_seconds"
   `)
   const action = (
-    claimed.rows as Array<{ id: string; phone_id: string; action: string; args: Record<string, unknown> | null }>
+    claimed.rows as Array<{
+      id: string
+      phone_id: string
+      action: string
+      args: Record<string, unknown> | null
+      timeout_seconds: number
+    }>
   )[0]
   if (!action) return null
   const [phone] = await db
@@ -376,7 +399,14 @@ export async function nextAction(
     .from(promoPhones)
     .where(eq(promoPhones.id, action.phone_id))
     .limit(1)
-  return { id: action.id, serial: phone?.serial ?? "", action: action.action, args: action.args ?? {} }
+  return {
+    id: action.id,
+    serial: phone?.serial ?? "",
+    action: action.action,
+    args: action.args ?? {},
+    // The rack reopens a frozen app shortly before this runs out.
+    timeoutSeconds: action.timeout_seconds,
+  }
 }
 
 export type ActionResultInput = {
@@ -384,17 +414,23 @@ export type ActionResultInput = {
   ok: boolean
   result: Record<string, unknown> | null
   error: string
-  screenshots: string[]
+  /** A picture of each step. */
+  steps?: StepShot[]
+  /** An app's suspended, locked or "confirm it's you" screen, when one was on the phone. */
+  banScreen?: BanScreen | null
+  /** What the rack did about a freeze: 'app' or 'phone', or empty. */
+  recovered?: string
 }
-
-/** At most this many pictures per action, each at most about 1.5MB of base64. */
-const MAX_SCREENSHOTS = 4
-const MAX_SCREENSHOT_CHARS = 2_000_000
 
 /**
  * The rack's answer to an action. Only the rack the action was handed to can
  * answer it, and only while it is running, so a late answer to a cancelled
  * action changes nothing.
+ *
+ * Then, whatever the action: its step pictures are kept, a ban screen stops
+ * the account, and a frozen app the rack reopened goes in the phone's
+ * history. The self-test, the Play Store look and an app update each move
+ * their own records on (`self-test.ts`).
  */
 export async function finishAction(
   rack: VerifiedRack,
@@ -402,102 +438,67 @@ export async function finishAction(
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<boolean> {
+  const recovered = input.recovered === "app" || input.recovered === "phone" ? input.recovered : ""
+  const mine = and(
+    eq(promoPhoneActions.id, input.id),
+    eq(promoPhoneActions.rackId, rack.id),
+    eq(promoPhoneActions.status, "running")
+  )
+  const [running] = await db
+    .select({ id: promoPhoneActions.id, phoneId: promoPhoneActions.phoneId })
+    .from(promoPhoneActions)
+    .where(mine)
+    .limit(1)
+  if (!running) return false
+
+  // The pictures go first, so a window that sees the action finished sees
+  // every step it took, not the first few while the rest are still uploading.
+  const kept = await keepStepPictures(running.phoneId, running.id, input.steps ?? [], db, now)
+  // Before the action reads as finished, so the job waiting on it already
+  // finds its account stopped and does not put itself back on the queue.
+  if (input.banScreen) await stopForBanScreen(rack.userId, running.phoneId, input.banScreen, db, now)
+
   const [done] = await db
     .update(promoPhoneActions)
     .set({
       status: input.ok ? "done" : "failed",
       result: input.ok ? input.result : null,
       error: input.ok ? "" : input.error.slice(0, 2_000) || "The rack gave no reason.",
+      recovered,
       finishedAt: now,
     })
-    .where(
-      and(
-        eq(promoPhoneActions.id, input.id),
-        eq(promoPhoneActions.rackId, rack.id),
-        eq(promoPhoneActions.status, "running")
-      )
+    .where(mine)
+    .returning({
+      id: promoPhoneActions.id,
+      phoneId: promoPhoneActions.phoneId,
+      action: promoPhoneActions.action,
+      args: promoPhoneActions.args,
+    })
+  if (!done) {
+    // Cancelled while the pictures were uploading: the answer is turned away.
+    await dropStepPictures(kept, db)
+    return false
+  }
+
+  if (recovered === "app") {
+    await recordPhoneEvent(
+      rack.userId,
+      done.phoneId,
+      "restarted",
+      `An app froze during ${actionWords(done.action)}, so the rack closed it and opened it again.`,
+      db,
+      now
     )
-    .returning({ id: promoPhoneActions.id, phoneId: promoPhoneActions.phoneId })
-  if (!done) return false
-  const shots = input.screenshots
-    .slice(0, MAX_SCREENSHOTS)
-    .filter((shot) => shot.length <= MAX_SCREENSHOT_CHARS && /^[A-Za-z0-9+/=]+$/.test(shot))
-  if (shots.length) {
-    await db
-      .insert(promoPhoneScreenshots)
-      .values(shots.map((imageBase64) => ({ id: uuid(), actionId: done.id, imageBase64, createdAt: now })))
-    await trimScreenshots(done.phoneId, db, now)
+  }
+
+  if (done.action === "phone/self-test" && input.ok) {
+    await recordSelfTest(rack.userId, done.phoneId, done.id, input.result, db, now)
+  } else if (done.action === "phone/check-updates" && input.ok) {
+    await recordStoreCheck(rack.userId, input.result, db, now)
+  } else if (done.action === "phone/update-app") {
+    await recordAppUpdate(rack.userId, done.phoneId, done.args, input, db, now)
   }
   return true
-}
-
-/**
- * Pictures are kept for a phone's newest twenty actions only, the ones the
- * dashboard can show, and never longer than the days set in Settings →
- * Phones, so the table does not grow with every check ever run.
- */
-const KEEP_SCREENSHOT_ACTIONS = 20
-
-async function trimScreenshots(phoneId: string, db: CustomShellDb, now: Date): Promise<void> {
-  const { screenshotDays } = await readPhoneSettings(db)
-  await db.execute(sql`
-    DELETE FROM "promo_phone_screenshots"
-    WHERE "promo_phone_screenshots"."created_at" < ${new Date(now.getTime() - screenshotDays * 86_400_000)}
-       OR "promo_phone_screenshots"."action_id" IN (
-         SELECT "older"."id" FROM "promo_phone_actions" AS "older"
-         WHERE "older"."phone_id" = ${phoneId}
-         ORDER BY "older"."created_at" DESC
-         OFFSET ${KEEP_SCREENSHOT_ACTIONS}
-       )`)
-}
-
-/**
- * Writes a named action for one phone, because a person pressed a button.
- * Refused for a name not on the list, a held phone, and a phone with no
- * connected rack. A second press while the same action is waiting adds
- * nothing.
- */
-export async function queuePhoneAction(
-  userId: string,
-  phoneId: string,
-  action: PhoneAction,
-  db: CustomShellDb = defaultDb,
-  now: Date = new Date()
-): Promise<string> {
-  if (!(PHONE_ACTIONS as readonly string[]).includes(action)) throw new Error("That is not an action a phone runs.")
-  const [row] = await db
-    .select({ phone: promoPhones, rackDisconnectedAt: promoRacks.disconnectedAt, rackSeenAt: promoRacks.seenAt })
-    .from(promoPhones)
-    .leftJoin(promoRacks, eq(promoRacks.id, promoPhones.rackId))
-    .where(and(eq(promoPhones.id, phoneId), eq(promoPhones.userId, userId)))
-    .limit(1)
-  if (!row) throw new Error("That phone does not exist.")
-  const { phone } = row
-  if (phone.held) throw new Error("That phone is held. Release it first.")
-  if (!phone.rackId || row.rackDisconnectedAt) throw new Error("That phone is not on a connected rack.")
-  if (!row.rackSeenAt || now.getTime() - row.rackSeenAt.getTime() > PHONE_STALE_MS) {
-    throw new Error("The rack has not checked in for a minute. Check the computer the phones are plugged into.")
-  }
-  if (phone.adbState !== "device" || !phone.lastSeenAt || now.getTime() - phone.lastSeenAt.getTime() > PHONE_STALE_MS) {
-    throw new Error("That phone is offline. Plug it in and allow USB debugging on its screen.")
-  }
-
-  const [waiting] = await db
-    .select({ id: promoPhoneActions.id })
-    .from(promoPhoneActions)
-    .where(
-      and(
-        eq(promoPhoneActions.phoneId, phoneId),
-        eq(promoPhoneActions.action, action),
-        inArray(promoPhoneActions.status, ["queued", "running"])
-      )
-    )
-    .limit(1)
-  if (waiting) return waiting.id
-
-  const id = uuid()
-  await db.insert(promoPhoneActions).values({ id, userId, rackId: phone.rackId, phoneId, action, createdAt: now })
-  return id
 }
 
 export type PhoneActionView = {
@@ -507,13 +508,15 @@ export type PhoneActionView = {
   /** A finished check's answer in words, or empty. */
   answer: string
   error: string
+  /** What the rack did about a freeze: 'app', 'phone' or empty. */
+  recovered: string
   createdAt: Date
   finishedAt: Date | null
-  /** JPEG pictures as data addresses, newest action's first. */
-  screenshots: string[]
+  /** The steps it has pictures for, in order. The pictures themselves are asked for one action at a time. */
+  steps: string[]
 }
 
-/** The phone's last ten actions, newest first, with their pictures. */
+/** The phone's last twenty actions, newest first, with the names of their steps. */
 export async function phoneActions(
   userId: string,
   phoneId: string,
@@ -524,24 +527,23 @@ export async function phoneActions(
     .from(promoPhoneActions)
     .where(and(eq(promoPhoneActions.phoneId, phoneId), eq(promoPhoneActions.userId, userId)))
     .orderBy(desc(promoPhoneActions.createdAt))
-    .limit(10)
+    .limit(20)
   if (!actions.length) return []
   const shots = await db
-    .select({ actionId: promoPhoneScreenshots.actionId, imageBase64: promoPhoneScreenshots.imageBase64 })
+    .select({ actionId: promoPhoneScreenshots.actionId, step: promoPhoneScreenshots.step })
     .from(promoPhoneScreenshots)
     .where(inArray(promoPhoneScreenshots.actionId, actions.map((action) => action.id)))
-    .orderBy(asc(promoPhoneScreenshots.createdAt))
+    .orderBy(asc(promoPhoneScreenshots.position), asc(promoPhoneScreenshots.createdAt))
   return actions.map((action) => ({
     id: action.id,
     action: action.action,
     status: action.status,
     answer: action.status === "done" && action.result ? resultWords(action.action, action.result) : "",
     error: action.error,
+    recovered: action.recovered,
     createdAt: action.createdAt,
     finishedAt: action.finishedAt,
-    screenshots: shots
-      .filter((shot) => shot.actionId === action.id)
-      .map((shot) => `data:image/jpeg;base64,${shot.imageBase64}`),
+    steps: shots.filter((shot) => shot.actionId === action.id).map((shot) => shot.step),
   }))
 }
 
@@ -601,6 +603,8 @@ export async function disconnectRack(
     .where(and(eq(promoRacks.id, rackId), eq(promoRacks.userId, userId), isNull(promoRacks.disconnectedAt)))
     .returning({ id: promoRacks.id })
   if (!rack) throw new Error("That rack is not connected.")
+  // Disconnected on purpose, so it is not "not checking in" any more.
+  await clearProblem(userId, "rack_silent", rackId, null, db, now)
   await db
     .update(promoPhoneActions)
     .set({ status: "cancelled", error: "The rack was disconnected.", finishedAt: now })

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { Loader2Icon, PlayIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -16,9 +16,11 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import { Label } from "@/components/ui/label"
 import {
   getRedditAccountsErrorMessage,
+  letRedditAccountRunAgain,
   setRedditAccountRunsOn,
   type RedditAccountRow,
 } from "@/lib/api/social/reddit-accounts"
+import { formatDateTime } from "@/lib/format/format-time"
 import { readRunsOn, runsOnValue } from "@/lib/social/runs-on"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -34,6 +36,10 @@ import { TwoFactorCard } from "./two-factor-card"
  *
  * Its two-factor code: the authenticator secret is saved at once, encrypted,
  * apart from Save changes, and never shown again; only the current code is.
+ *
+ * A ban screen: when a phone found the app suspended, locked or asking to
+ * confirm it's you, the account is stopped and the screen's words show here,
+ * with the button that lets it run again once it is sorted.
  */
 export function AccountSettingsDialog({
   account,
@@ -59,7 +65,22 @@ export function AccountSettingsDialog({
   const [value, setValue] = React.useState(initial)
   const [invalid, setInvalid] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+  const [releasing, setReleasing] = React.useState(false)
   const name = account?.handle ? `u/${account.handle}` : "this account"
+
+  async function runAgain() {
+    if (!account) return
+    setReleasing(true)
+    try {
+      await letRedditAccountRunAgain(account.id)
+      toast.success(`${name} takes jobs again.`)
+      await onChanged()
+    } catch (error) {
+      showErrorToast(getRedditAccountsErrorMessage(error))
+    } finally {
+      setReleasing(false)
+    }
+  }
 
   // The account's own profile or phone is not on the free lists, because it
   // holds this account. It goes back on, first, so the picker can show it.
@@ -108,6 +129,28 @@ export function AccountSettingsDialog({
           >
             <DialogBody>
               <div className="grid gap-6">
+              {account?.banScreen ? (
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Stopped by a ban screen</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <p className="text-sm">
+                      On {formatDateTime(account.banScreen.at)} the phone showed: &ldquo;{account.banScreen.words}&rdquo;
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Its jobs are refused and the ones waiting were dropped. Sort it out on the phone
+                      through its screen on the Phones dashboard, then let it run again.
+                    </p>
+                    <div>
+                      <Button type="button" variant="outline" disabled={releasing} onClick={() => void runAgain()}>
+                        {releasing ? <Loader2Icon className="animate-spin" /> : <PlayIcon />}
+                        Let it run again
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
               <Card size="sm">
                 <CardHeader>
                   <CardTitle>Runs on</CardTitle>

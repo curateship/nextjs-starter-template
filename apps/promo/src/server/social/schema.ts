@@ -173,6 +173,13 @@ export const promoAccounts = pgTable(
     blocked: boolean("blocked").notNull().default(false),
     /** What it was asking, in the browser's words. Empty when not blocked. */
     blockedReason: text("blocked_reason").notNull().default(""),
+    /**
+     * When a phone found the app showing a suspended, locked or "confirm
+     * it's you" screen. The account's jobs are refused until a person lets
+     * it run again; `blockedReason` holds the screen's own words. Added by
+     * `drizzle/0116_promo_phone_health.sql`.
+     */
+    banScreenAt: timestamp("ban_screen_at", { withTimezone: true }),
     /** When the browser program last read the handle and the block. Null means never. */
     stateReadAt: timestamp("state_read_at", { withTimezone: true }),
     /** What the AI writes with. Null when its voice was deleted, or none was picked. */

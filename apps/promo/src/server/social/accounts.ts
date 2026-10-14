@@ -3,7 +3,9 @@ import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 import { uuid } from "@/server/auth/security"
 import { promoProfiles } from "@/server/browser/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { recordPhoneEvent } from "@/server/phones/history"
 import { promoPhones } from "@/server/phones/schema"
+import { isTestPhone } from "@/server/phones/self-test"
 
 import { readBehaviour } from "./behaviour"
 import { promoAccounts, promoJobs, promoVoices } from "./schema"
@@ -88,6 +90,7 @@ export async function saveAccount(
   } else {
     await db.insert(promoAccounts).values({ id: uuid(), userId, platform: "reddit", ...fields })
   }
+  await notePhoneMove(userId, existing?.handle ?? "", existing?.phone?.id ?? null, input.phoneId, db)
 
   const saved = await readAccount(userId, db)
   if (!saved) throw new Error("The account could not be read back after saving.")
@@ -117,6 +120,7 @@ export async function addAccount(
     phoneId: input.phoneId,
     voiceId: input.voiceId,
   })
+  await notePhoneMove(userId, "", null, input.phoneId, db)
   return id
 }
 
@@ -135,12 +139,31 @@ export async function setAccountRunsOn(
     throw new Error("Pick the browser profile or the phone the account runs on.")
   }
   await checkPicks(userId, { ...input, voiceId: null }, accountId, db)
-  const updated = await db
+  const [before] = await db
+    .select({ handle: promoAccounts.handle, phoneId: promoAccounts.phoneId })
+    .from(promoAccounts)
+    .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
+    .limit(1)
+  if (!before) throw new Error("That account is not there any more.")
+  await db
     .update(promoAccounts)
     .set({ profileId: input.profileId, phoneId: input.phoneId, updatedAt: new Date() })
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
-    .returning({ id: promoAccounts.id })
-  if (!updated.length) throw new Error("That account is not there any more.")
+  await notePhoneMove(userId, before.handle, before.phoneId, input.phoneId, db)
+}
+
+/** A line in each phone's history when a Reddit account moves onto it or off it. */
+async function notePhoneMove(
+  userId: string,
+  handle: string,
+  from: string | null,
+  to: string | null,
+  db: CustomShellDb
+): Promise<void> {
+  if (from === to) return
+  const name = handle ? `u/${handle}` : "A Reddit account"
+  if (from) await recordPhoneEvent(userId, from, "account_moved", `${name} moved off it.`, db)
+  if (to) await recordPhoneEvent(userId, to, "account_moved", `${name} moved onto it.`, db)
 }
 
 /**
@@ -167,6 +190,11 @@ async function checkPicks(
       .where(and(eq(promoPhones.id, input.phoneId), eq(promoPhones.userId, userId)))
       .limit(1)
     if (!phone) throw new Error("That phone does not exist.")
+    if (await isTestPhone(input.phoneId, db)) {
+      throw new Error(
+        `The phone ${phone.name} is the self-test phone, which carries only its test account. Pick another phone, or change the self-test phone in Settings → Phones.`
+      )
+    }
     const [taken] = await db
       .select({ id: promoAccounts.id })
       .from(promoAccounts)

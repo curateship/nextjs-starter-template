@@ -2,18 +2,30 @@ import type { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { uuid } from "@/server/auth/security"
+import { createProfile } from "@/server/browser/profiles"
 import { setDbForTests } from "@/server/db"
 import { customShellNotifications } from "@/server/schema"
 import { addAccount } from "@/server/social/accounts"
 import { queueJob } from "@/server/social/jobs"
 import { runOneJob } from "@/server/social/runner"
-import { promoBehaviourSettings, promoJobs } from "@/server/social/schema"
+import { createProject } from "@/server/social/projects"
+import {
+  promoAccounts,
+  promoBehaviourSettings,
+  promoFinds,
+  promoJobs,
+  promoKeywords,
+  promoSearches,
+} from "@/server/social/schema"
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
 
+import { clearBanScreen } from "./health"
+import { phoneHistory } from "./history"
 import { createPhone, listPhones } from "./phones"
 import { checkIn, createPairingCode, finishAction, nextAction, pairRack, type VerifiedRack } from "./rack"
 import { RACK_VERSION } from "./release"
-import { promoPhoneActions, promoPhones } from "./schema"
+import { promoPhoneActionChecks, promoPhoneActions, promoPhones } from "./schema"
 import { exchangeScreens, sendScreenInput, setControl, watchScreen, closeScreen } from "./screens"
 import { readPhoneSettings, savePhoneSettings, setRackPaused, waitingPhoneJobs } from "./settings"
 
@@ -70,8 +82,16 @@ describe("jobs on phones", () => {
     return addAccount(userId, { profileId: null, phoneId, voiceId: null }, db)
   }
 
+  type FakeReply = {
+    ok: boolean
+    error?: string
+    result?: Record<string, unknown>
+    recovered?: string
+    banScreen?: { app: string; kind: string; words: string }
+  }
+
   /** The rack's side: answers every action it is handed, until stopped. */
-  function fakeRack(answer: (action: { action: string; serial: string }) => { ok: boolean; error?: string }) {
+  function fakeRack(answer: (action: { action: string; serial: string }) => FakeReply) {
     const seen: Array<{ action: string; serial: string; at: number }> = []
     const working: Array<Promise<unknown>> = []
     let stopped = false
@@ -89,7 +109,18 @@ describe("jobs on phones", () => {
         // even on a busy machine.
         working.push(
           sleep(1_000).then(() =>
-            finishAction(rack, { id: action.id, ok: reply.ok, result: {}, error: reply.error ?? "", screenshots: [] }, db)
+            finishAction(
+              rack,
+              {
+                id: action.id,
+                ok: reply.ok,
+                result: reply.result ?? {},
+                error: reply.error ?? "",
+                recovered: reply.recovered ?? "",
+                banScreen: reply.banScreen ?? null,
+              },
+              db
+            )
           )
         )
       }
@@ -230,6 +261,150 @@ describe("jobs on phones", () => {
     const [job] = await db.select().from(promoJobs).where(eq(promoJobs.id, jobId))
     expect(job.lane).toBe(`phone:${A1}`)
   })
+
+  describe("phone farm file 03", () => {
+    const signedIn = { checked: true, handle: "promo_tester", karma: 10, createdSeconds: null, blocked: false, reason: "" }
+
+    async function insertFind() {
+      const projectId = await createProject(userId, "Promo", db)
+      const [keyword] = await db
+        .insert(promoKeywords)
+        .values({ id: uuid(), userId, projectId, term: "client work", subreddits: ["productivity"], sort: "new", timeWindow: "week" })
+        .returning()
+      const [search] = await db.insert(promoSearches).values({ id: uuid(), userId, keywordId: keyword.id, status: "done" }).returning()
+      const [find] = await db
+        .insert(promoFinds)
+        .values({
+          id: uuid(),
+          userId,
+          keywordId: keyword.id,
+          firstSearchId: search.id,
+          redditId: "t3_1abc234",
+          permalink: "/r/productivity/comments/1abc234/a_post/",
+          subreddit: "productivity",
+          title: "What do you use to keep track of client work?",
+          score: 4,
+          commentCount: 1,
+          rank: 1,
+        })
+        .returning()
+      return find.id
+    }
+
+    it("stops an account at a ban screen within one action: blocked with the screen's words, its waiting jobs dropped, the bell rung", async () => {
+      const { A1 } = await plugIn("A1")
+      const accountId = await accountOn(A1)
+      await db.update(promoAccounts).set({ handle: "promo_tester" }).where(eq(promoAccounts.id, accountId))
+      for (let index = 0; index < 3; index += 1) await queueJob(userId, "health", { accountId }, db)
+      const words = "Your account has been suspended This account has been suspended for violating Reddit's Content Policy."
+      const fake = fakeRack((action) =>
+        action.action === "reddit/health"
+          ? { ok: false, error: "Could not read the profile.", banScreen: { app: "reddit", kind: "suspended", words } }
+          : { ok: true, result: signedIn }
+      )
+      await runOneJob("phone-lane", db, "phone")
+      await fake.stop()
+
+      const [account] = await db.select().from(promoAccounts).where(eq(promoAccounts.id, accountId))
+      expect(account).toMatchObject({ blocked: true, blockedReason: words })
+      expect(account.banScreenAt).not.toBeNull()
+      // The two waiting readings were dropped; the one that ran failed and is not tried again.
+      expect((await db.select().from(promoJobs)).map((job) => job.status)).toEqual(["failed"])
+      const messages = (await db.select().from(customShellNotifications)).map((notice) => notice.message)
+      expect(messages).toContain("Ban screen: u/promo_tester on Phone A1")
+
+      // A new job is refused before anything reaches the phone.
+      await queueJob(userId, "health", { accountId }, db)
+      const before = (await db.select().from(promoPhoneActions)).length
+      const refused = await runOneJob("phone-lane", db, "phone")
+      expect(refused).toMatchObject({ ok: false })
+      expect(String((refused as { error?: string }).error)).toContain("hit a ban screen")
+      expect(await db.select().from(promoPhoneActions)).toHaveLength(before)
+
+      await clearBanScreen(userId, accountId, db)
+      const [cleared] = await db.select().from(promoAccounts).where(eq(promoAccounts.id, accountId))
+      expect(cleared).toMatchObject({ blocked: false, blockedReason: "", banScreenAt: null })
+    }, 30_000)
+
+    it("tries a reading again after a freeze, and it finishes on the reopened app", async () => {
+      const { A1 } = await plugIn("A1")
+      const accountId = await accountOn(A1)
+      // A health reading's stranger's-eye half is filed for the reader browser.
+      const readerProfileId = await createProfile(userId, { name: "Reader" }, db)
+      await db.update(promoBehaviourSettings).set({ readerProfileId }).where(eq(promoBehaviourSettings.userId, userId))
+      const jobId = await queueJob(userId, "health", { accountId }, db)
+      let healthAsks = 0
+      const fake = fakeRack((action) => {
+        if (action.action !== "reddit/health") return { ok: true, result: signedIn }
+        healthAsks += 1
+        return healthAsks === 1
+          ? { ok: false, recovered: "app", error: "The app stopped responding, so the rack closed it and opened it again." }
+          : {
+              ok: true,
+              result: {
+                handle: "promo_tester",
+                karma: 12,
+                createdSeconds: null,
+                blocked: false,
+                reason: "",
+                profile: { signedIn: { status: 200, found: true, suspended: false } },
+              },
+            }
+      })
+      await runOneJob("phone-lane", db, "phone")
+      const [waiting] = await db.select().from(promoJobs).where(eq(promoJobs.id, jobId))
+      expect(waiting).toMatchObject({ status: "queued", attempts: 1 })
+      await runOneJob("phone-lane", db, "phone")
+      await fake.stop()
+
+      const [done] = await db.select().from(promoJobs).where(eq(promoJobs.id, jobId))
+      expect(done.status).toBe("done")
+      expect(healthAsks).toBe(2)
+      const history = await phoneHistory(userId, A1, db)
+      expect(history.map((line) => line.kind)).toContain("restarted")
+    }, 30_000)
+
+    it("fails a comment caught by a freeze and never sends it again", async () => {
+      const { A1 } = await plugIn("A1")
+      const accountId = await accountOn(A1)
+      const findId = await insertFind()
+      const jobId = await queueJob(userId, "comment", { accountId, findId, text: "We keep it all in one board." }, db)
+      const fake = fakeRack((action) =>
+        action.action === "reddit/comment"
+          ? { ok: false, recovered: "app", error: "The app stopped responding, so the rack closed it and opened it again." }
+          : { ok: true, result: signedIn }
+      )
+      await runOneJob("phone-lane", db, "phone")
+      expect(await runOneJob("phone-lane", db, "phone")).toEqual({ did: "nothing" })
+      await fake.stop()
+
+      const [job] = await db.select().from(promoJobs).where(eq(promoJobs.id, jobId))
+      expect(job.status).toBe("failed")
+      const comments = (await db.select().from(promoPhoneActions)).filter((row) => row.action === "reddit/comment")
+      expect(comments).toHaveLength(1)
+    }, 30_000)
+
+    it("refuses a job whose action the self-test found broken, before anything reaches the phone", { timeout: 30_000 }, async () => {
+      const { A1 } = await plugIn("A1")
+      const accountId = await accountOn(A1)
+      await db.insert(promoPhoneActionChecks).values({
+        userId,
+        action: "reddit/health",
+        passed: false,
+        step: "Open the profile",
+        error: 'Could not find "Profile" on the screen.',
+      })
+      await queueJob(userId, "health", { accountId }, db)
+      const fake = fakeRack(() => ({ ok: true, result: signedIn }))
+      const result = await runOneJob("phone-lane", db, "phone")
+      await fake.stop()
+      expect(result).toMatchObject({ ok: false })
+      expect(String((result as { error?: string }).error)).toContain('found reddit/health broken on')
+      expect((await db.select().from(promoPhoneActions)).filter((row) => row.action === "reddit/health")).toHaveLength(0)
+      // A refusal is final; it is not tried again.
+      expect((await db.select().from(promoJobs))[0].status).toBe("failed")
+    })
+  })
 })
 
 describe("the rack's settings", () => {
@@ -247,7 +422,7 @@ describe("the rack's settings", () => {
   })
 
   it("saves the numbers and refuses one out of range in words", async () => {
-    expect(await readPhoneSettings(db)).toEqual({ maxWorking: 5, screenshotDays: 7, pausedAt: null })
+    expect(await readPhoneSettings(db)).toEqual({ maxWorking: 5, screenshotDays: 7, pausedAt: null, testPhoneId: null })
     await savePhoneSettings({ maxWorking: 8, screenshotDays: 30 }, db)
     expect(await readPhoneSettings(db)).toMatchObject({ maxWorking: 8, screenshotDays: 30 })
     await expect(savePhoneSettings({ maxWorking: 0, screenshotDays: 30 }, db)).rejects.toThrow(

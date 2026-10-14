@@ -5,6 +5,7 @@ import {
   slotWords,
   type PhoneConnection,
   type PhoneStatus,
+  type TrackedApp,
 } from "@/lib/phones/options"
 import { uuid } from "@/server/auth/security"
 import { cleanTags } from "@/server/browser/profiles"
@@ -13,7 +14,10 @@ import { promoProfileFolders, promoProfileLabels, promoProxies } from "@/server/
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoAccounts } from "@/server/social/schema"
 
-import { promoPhoneActions, promoPhones, promoRacks } from "./schema"
+import { clearProblem } from "./notices"
+import { removePhonePictures } from "./trail"
+
+import { promoPhoneActions, promoPhones, promoPhoneSettings, promoRacks } from "./schema"
 
 /**
  * Phones as records: everything the Phones dashboard does with them except
@@ -129,10 +133,14 @@ export async function updatePhone(
 
 export type BulkResult = { done: string[]; skipped: string[] }
 
+const PHONE_NOTICE_KINDS = ["phone_offline", "phone_hot", "phone_signal", "phone_storage"] as const
+
 /**
  * Deletes phone records. The accounts on them are left with nowhere to run,
  * never deleted; the database does that through the foreign key. Waiting and
- * running actions go with the phone. Nothing on the phone itself changes.
+ * running actions go with the phone, its step pictures are deleted from R2
+ * first, and its health notices leave the bell. Nothing on the phone itself
+ * changes.
  */
 export async function deletePhones(
   userId: string,
@@ -140,6 +148,16 @@ export async function deletePhones(
   db: CustomShellDb = defaultDb
 ): Promise<BulkResult> {
   if (!ids.length) return { done: [], skipped: [] }
+  const owned = (
+    await db
+      .select({ id: promoPhones.id })
+      .from(promoPhones)
+      .where(and(inArray(promoPhones.id, ids), eq(promoPhones.userId, userId)))
+  ).map((row) => row.id)
+  await removePhonePictures(owned, db)
+  for (const id of owned) {
+    for (const kind of PHONE_NOTICE_KINDS) await clearProblem(userId, kind, id, null, db)
+  }
   const deleted = await db
     .delete(promoPhones)
     .where(and(inArray(promoPhones.id, ids), eq(promoPhones.userId, userId)))
@@ -259,6 +277,7 @@ export function inUse(phone: { controlUntil?: Date | null }, now: Date = new Dat
 
 /**
  * Why an offline phone is offline, in words a person can act on, or empty.
+ * "restarting" is the rack's own word while it restarts a frozen phone.
  * The shelf slot is not in here: the dashboard shows it beside the status.
  */
 export function offlineReason(
@@ -268,6 +287,7 @@ export function offlineReason(
   if (!phone.lastSeenAt || !phone.rackId) return "Never seen by the rack"
   if (!rackLive) return "Its rack is not connected"
   if (phone.adbState === "unauthorized") return "Allow USB debugging on its screen"
+  if (phone.adbState === "restarting") return "Restarting"
   if (phone.adbState === "gone") return "Not plugged in"
   return "Not seen for a minute"
 }
@@ -296,6 +316,16 @@ export type PhoneRecord = {
   inUse: boolean
   lastSeenAt: Date | null
   accounts: Array<{ id: string; platform: string; handle: string; blocked: boolean }>
+  /** What the rack last read off it, or nulls before the first reading. */
+  vitals: {
+    batteryPercent: number | null
+    temperatureC: number | null
+    storageUsedPercent: number | null
+    signal: string
+    at: Date | null
+  }
+  /** Each tracked app's version on it. */
+  apps: Partial<Record<TrackedApp, string>>
   createdAt: Date
 }
 
@@ -355,6 +385,14 @@ export async function listPhones(
       inUse: inUse(phone, now),
       lastSeenAt: phone.lastSeenAt,
       accounts: accounts.get(phone.id) ?? [],
+      vitals: {
+        batteryPercent: phone.batteryPercent,
+        temperatureC: phone.temperatureC,
+        storageUsedPercent: phone.storageUsedPercent,
+        signal: phone.signal,
+        at: phone.vitalsAt,
+      },
+      apps: phone.apps,
       createdAt: phone.createdAt,
     }
   })
@@ -403,8 +441,9 @@ export async function ownsPhone(
 
 /**
  * The phones a Reddit account could move to: every phone with no other
- * Reddit account on it, by name. `accountId` is the account asking, whose own
- * phone stays on the list.
+ * Reddit account on it, by name, except the self-test phone, which carries
+ * only its test account. `accountId` is the account asking, whose own phone
+ * stays on the list.
  */
 export async function phonesFreeForReddit(
   userId: string,
@@ -417,8 +456,15 @@ export async function phonesFreeForReddit(
     .where(eq(promoPhones.userId, userId))
     .orderBy(asc(promoPhones.name), asc(promoPhones.id))
   const holders = await accountsByPhone(userId, phones.map((phone) => phone.id), db)
-  return phones.filter((phone) =>
-    (holders.get(phone.id) ?? []).every((other) => other.platform !== "reddit" || other.id === accountId)
+  const [settings] = await db
+    .select({ testPhoneId: promoPhoneSettings.testPhoneId })
+    .from(promoPhoneSettings)
+    .where(eq(promoPhoneSettings.id, "default"))
+    .limit(1)
+  return phones.filter(
+    (phone) =>
+      phone.id !== settings?.testPhoneId &&
+      (holders.get(phone.id) ?? []).every((other) => other.platform !== "reddit" || other.id === accountId)
   )
 }
 
