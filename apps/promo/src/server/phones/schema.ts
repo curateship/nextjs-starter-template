@@ -5,6 +5,7 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  real,
   text,
   timestamp,
   uniqueIndex,
@@ -12,7 +13,7 @@ import {
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
-import type { PhoneActionStatus, PhoneConnection } from "@/lib/phones/options"
+import type { PhoneActionStatus, PhoneConnection, PhoneEventKind, RolloutStatus, TrackedApp } from "@/lib/phones/options"
 import { promoProfileFolders, promoProfileLabels, promoProxies } from "@/server/browser/schema"
 import { customShellUsers } from "@/server/schema"
 
@@ -122,7 +123,7 @@ export const promoPhones = pgTable(
     rackId: varchar("rack_id", { length: 36 }).references(() => promoRacks.id, {
       onDelete: "set null",
     }),
-    /** 'device', 'unauthorized', 'gone', or empty before the first check-in. */
+    /** 'device', 'unauthorized', 'restarting' (the rack restarting it), 'gone', or empty before the first check-in. */
     adbState: varchar("adb_state", { length: 20 }).notNull().default(""),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /**
@@ -136,6 +137,25 @@ export const promoPhones = pgTable(
      * clears it. Added by `drizzle/0115_promo_phone_jobs.sql`.
      */
     controlUntil: timestamp("control_until", { withTimezone: true }),
+    /**
+     * When `adbState` last changed, so a phone offline for five minutes can
+     * be told from one that blinked. The columns from here to `apps` are what
+     * the rack last read off the phone, about once a minute. Added by
+     * `drizzle/0116_promo_phone_health.sql`.
+     */
+    stateSince: timestamp("state_since", { withTimezone: true }),
+    batteryPercent: integer("battery_percent"),
+    temperatureC: real("temperature_c"),
+    storageUsedPercent: integer("storage_used_percent"),
+    /** Android's word for the SIM's service: 'in_service', 'out_of_service', 'emergency_only', 'power_off', or empty. */
+    signal: varchar("signal", { length: 20 }).notNull().default(""),
+    /** When the SIM last lost its service, or null while it has it. */
+    signalLostAt: timestamp("signal_lost_at", { withTimezone: true }),
+    /** Seconds since the phone started. A smaller number than last time means it restarted. */
+    upSeconds: integer("up_seconds"),
+    vitalsAt: timestamp("vitals_at", { withTimezone: true }),
+    /** Each tracked app's version, such as `{ "reddit": "2025.40.0" }`. An app not installed is left out. */
+    apps: jsonb("apps").$type<Partial<Record<TrackedApp, string>>>().notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -168,6 +188,8 @@ export const promoPhoneActions = pgTable(
     error: text("error").notNull().default(""),
     /** How long the rack has once it starts, in seconds. Added by 0115. */
     timeoutSeconds: integer("timeout_seconds").notNull().default(300),
+    /** What the rack did about a freeze: 'app' closed and reopened it, 'phone' restarted it. Added by 0116. */
+    recovered: varchar("recovered", { length: 10 }).notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
@@ -178,7 +200,11 @@ export const promoPhoneActions = pgTable(
   ]
 )
 
-/** A picture an action sent back, JPEG in base64, shrunk by the rack first. */
+/**
+ * A picture of one step of an action, shrunk by the rack and kept encrypted
+ * in R2 under `objectKey`, like a profile's backup. `imageBase64` is no
+ * longer written or read; it stays because stored columns are never dropped.
+ */
 export const promoPhoneScreenshots = pgTable(
   "promo_phone_screenshots",
   {
@@ -186,7 +212,11 @@ export const promoPhoneScreenshots = pgTable(
     actionId: varchar("action_id", { length: 36 })
       .notNull()
       .references(() => promoPhoneActions.id, { onDelete: "cascade" }),
-    imageBase64: text("image_base64").notNull(),
+    imageBase64: text("image_base64").notNull().default(""),
+    /** What the step was, such as "Opened About phone". */
+    step: varchar("step", { length: 200 }).notNull().default(""),
+    position: integer("position").notNull().default(0),
+    objectKey: varchar("object_key", { length: 300 }).notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("ix_promo_phone_screenshots_action").on(table.actionId)]
@@ -207,5 +237,83 @@ export const promoPhoneSettings = pgTable("promo_phone_settings", {
   pausedBy: varchar("paused_by", { length: 36 }).references(() => customShellUsers.id, { onDelete: "set null" }),
   /** The bell notice saying the rack is paused, removed when it resumes. */
   pauseNoticeId: varchar("pause_notice_id", { length: 36 }),
+  /**
+   * The spare phone the daily self-test runs on, signed into a test account
+   * and never given a real one (Tyler, 14 Oct 2026). Added by 0116.
+   */
+  testPhoneId: varchar("test_phone_id", { length: 36 }).references(() => promoPhones.id, { onDelete: "set null" }),
+  /** When the self-test was last asked for. */
+  selfTestAt: timestamp("self_test_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
+
+/** One line in a phone's history. The SQL is `drizzle/0116_promo_phone_health.sql`. */
+export const promoPhoneEvents = pgTable(
+  "promo_phone_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    phoneId: varchar("phone_id", { length: 36 })
+      .notNull()
+      .references(() => promoPhones.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 30 }).$type<PhoneEventKind>().notNull(),
+    detail: text("detail").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("ix_promo_phone_events_phone").on(table.phoneId, table.createdAt.desc())]
+)
+
+/** Battery and heat, every ten minutes and at every hot reading, for the four-week chart. */
+export const promoPhoneReadings = pgTable(
+  "promo_phone_readings",
+  {
+    phoneId: varchar("phone_id", { length: 36 })
+      .notNull()
+      .references(() => promoPhones.id, { onDelete: "cascade" }),
+    at: timestamp("at", { withTimezone: true }).notNull(),
+    batteryPercent: integer("battery_percent"),
+    temperatureC: real("temperature_c"),
+  },
+  (table) => [primaryKey({ columns: [table.phoneId, table.at] })]
+)
+
+/** The daily self-test's answer for each action. A broken one is refused until it passes. */
+export const promoPhoneActionChecks = pgTable(
+  "promo_phone_action_checks",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    action: varchar("action", { length: 60 }).notNull(),
+    passed: boolean("passed").notNull(),
+    /** The step it could not get past, or empty when it passed. */
+    step: varchar("step", { length: 200 }).notNull().default(""),
+    error: text("error").notNull().default(""),
+    /** The self-test run, whose pictures show where it stopped. */
+    phoneActionId: varchar("phone_action_id", { length: 36 }).references(() => promoPhoneActions.id, {
+      onDelete: "set null",
+    }),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.action] })]
+)
+
+/** An app update going round the rack, one phone first. */
+export const promoAppRollouts = pgTable(
+  "promo_app_rollouts",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    app: varchar("app", { length: 20 }).$type<TrackedApp>().notNull(),
+    status: varchar("status", { length: 20 }).$type<RolloutStatus>().notNull(),
+    fromVersion: varchar("from_version", { length: 60 }).notNull().default(""),
+    toVersion: varchar("to_version", { length: 60 }).notNull().default(""),
+    /** Why it failed, in words, or empty. */
+    note: text("note").notNull().default(""),
+    changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.app] })]
+)

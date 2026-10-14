@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { PHONE_ACTIONS } from "@/lib/phones/options"
+import { MANUAL_PHONE_ACTIONS } from "@/lib/phones/options"
 import { adminGet, adminPost } from "@/server/guards"
 import { listFoldersAndLabels, type FolderView, type LabelView } from "@/server/browser/profiles"
 import { listProxies } from "@/server/browser/proxies"
@@ -23,10 +23,10 @@ import {
   disconnectRack,
   listRacks,
   phoneActions,
-  queuePhoneAction,
   type PhoneActionView,
   type RackView,
 } from "@/server/phones/rack"
+import { queuePhoneAction } from "@/server/phones/queue"
 import { RACK_VERSION, rackServerAddress } from "@/server/phones/release"
 import {
   readPhoneSettings,
@@ -68,6 +68,8 @@ export type PhonesPage = {
   rackVersion: string
   /** When every phone job was paused, or null while the rack runs. */
   pausedAt: Date | null
+  /** The spare phone the daily self-test runs on, or null when none is picked. */
+  testPhoneId: string | null
   folders: FolderView[]
   labels: LabelView[]
   /** The proxies a phone on Wi-Fi can go out through, never a password. */
@@ -90,6 +92,7 @@ const listFn = createServerFn({ method: "GET" })
       racks,
       rackVersion: RACK_VERSION,
       pausedAt: settings.pausedAt,
+      testPhoneId: settings.testPhoneId,
       ...groups,
       proxies: proxies.map(({ id, label, host }) => ({ id, label, host })),
     }
@@ -179,13 +182,13 @@ export function loadPhoneActions(id: string) {
 
 const runFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(z.object({ id: z.string().min(1), action: z.enum(PHONE_ACTIONS) }))
+  .inputValidator(z.object({ id: z.string().min(1), action: z.enum(MANUAL_PHONE_ACTIONS) }))
   .handler(async ({ context, data }): Promise<{ id: string }> => ({
     id: await queuePhoneAction(context.user.id, data.id, data.action),
   }))
 
 /** Asks the rack to run one named action on the phone. */
-export function runPhoneAction(id: string, action: (typeof PHONE_ACTIONS)[number]) {
+export function runPhoneAction(id: string, action: (typeof MANUAL_PHONE_ACTIONS)[number]) {
   return runFn({ data: { id, action } })
 }
 

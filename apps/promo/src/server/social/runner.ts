@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 
 import {
   redditQuickState,
@@ -17,7 +17,8 @@ import {
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NO_PROFILE_MESSAGE, READER_JOB_KINDS, WRITE_JOB_KINDS } from "@/lib/social/options"
 import { nextWakeAt } from "@/lib/social/waking"
-import { phoneLane } from "@/lib/phones/options"
+import { PHONE_LANE_PREFIX, phoneLane } from "@/lib/phones/options"
+import { recordPhoneEvent } from "@/server/phones/history"
 import { phoneForJob } from "@/server/phones/phones"
 
 import { accountTimeZone, readBehaviour, readerProfile } from "./behaviour"
@@ -113,13 +114,22 @@ export async function runOneJob(
     // say the same thing again. A comment may already be on Reddit: the app
     // can give up waiting while the browser is still typing, and a retry
     // would then post it twice. An answer to a reply is a comment too.
-    const final = error instanceof Refusal || WRITE_JOB_KINDS.includes(job.kind)
+    // A ban screen found during the job stopped its account; trying again
+    // would only be refused.
+    const final = error instanceof Refusal || WRITE_JOB_KINDS.includes(job.kind) || (await stoppedByBanScreen(job, db))
     const attempts = final ? JOB_MAX_ATTEMPTS : job.attempts
     await failJob(job.id, claimToken, message, attempts, db)
     // A comment, an answer or a post that did not go out rings the bell.
     await ringForFailure(job, message, db)
     return { did: "job", kind: job.kind, jobId: job.id, ok: false, error: message }
   }
+}
+
+/** True when the job ran on a phone and a ban screen there has stopped its account. */
+async function stoppedByBanScreen(job: QueuedJob, db: CustomShellDb): Promise<boolean> {
+  if (!job.lane?.startsWith(PHONE_LANE_PREFIX)) return false
+  const account = await jobAccount(job.userId, job.payload, db)
+  return Boolean(account?.banScreenAt)
 }
 
 async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
@@ -187,6 +197,13 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   // another job on the same phone or browser.
   const lane = account.phoneId ? phoneLane(account.phoneId) : account.profileId
   if (lane && job.lane !== lane) throw new PutBack({ lane })
+  // A phone found the app showing a suspended, locked or "confirm it's you"
+  // screen. Nothing more goes out as this account until a person has looked.
+  if (account.banScreenAt) {
+    throw new Refusal(
+      `This account hit a ban screen and was stopped: "${account.blockedReason}". Let it run again from its settings on the Reddit accounts dashboard once it is sorted.`
+    )
+  }
   // Retired after the job was queued. A retired account never posts and
   // never warms up; a health reading is only a read and still runs.
   const writes = WRITE_JOB_KINDS.includes(job.kind) || job.kind === "warm_up"
@@ -423,7 +440,7 @@ async function readSignIns(
   full = false
 ): Promise<void> {
   const accounts = await db
-    .select({ id: promoAccounts.id, platform: promoAccounts.platform })
+    .select({ id: promoAccounts.id, platform: promoAccounts.platform, handle: promoAccounts.handle })
     .from(promoAccounts)
     .where(
       and(
@@ -434,14 +451,19 @@ async function readSignIns(
 
   for (const account of accounts) {
     if (account.platform !== "reddit") continue
+    let signedIn: string | null = null
     if (full) {
-      await saveSignIn(account.id, { checked: true, ...(await redditState(target)) }, db)
-      continue
+      signedIn = await saveSignIn(account, { checked: true, ...(await redditState(target)) }, db)
+    } else {
+      try {
+        signedIn = await saveSignIn(account, await redditQuickState(target), db)
+      } catch (error) {
+        console.error(`Could not read who is signed in for account ${account.id}`, error)
+      }
     }
-    try {
-      await saveSignIn(account.id, await redditQuickState(target), db)
-    } catch (error) {
-      console.error(`Could not read who is signed in for account ${account.id}`, error)
+    // A phone's history shows when its account signs in.
+    if (signedIn && "phoneId" in where) {
+      await recordPhoneEvent(userId, where.phoneId, "account_signed_in", `u/${signedIn} is signed in to Reddit.`, db)
     }
   }
 }
@@ -449,9 +471,13 @@ async function readSignIns(
 /**
  * Writes who is signed in, and the karma and age that came in the same
  * answer. Signed out, the last karma reading is kept with its own date.
+ * An account a ban screen stopped stays blocked with the screen's words
+ * until a person lets it run again, whatever a later look says.
+ *
+ * Returns the handle when the account was signed out and now is signed in.
  */
 async function saveSignIn(
-  accountId: string,
+  account: { id: string; handle: string },
   state: {
     checked: boolean
     handle: string | null
@@ -461,17 +487,18 @@ async function saveSignIn(
     reason: string
   },
   db: CustomShellDb
-): Promise<void> {
-  if (!state.checked) return
+): Promise<string | null> {
+  if (!state.checked) return null
   const now = new Date()
   await db
     .update(promoAccounts)
     .set({
       handle: state.handle ?? "",
-      blocked: state.blocked,
-      blockedReason: state.blocked ? state.reason : "",
+      blocked: sql`CASE WHEN ${promoAccounts.banScreenAt} IS NULL THEN ${state.blocked} ELSE true END`,
+      blockedReason: sql`CASE WHEN ${promoAccounts.banScreenAt} IS NULL THEN ${state.blocked ? state.reason : ""} ELSE ${promoAccounts.blockedReason} END`,
       stateReadAt: now,
       ...accountFigures(state, now),
     })
-    .where(eq(promoAccounts.id, accountId))
+    .where(eq(promoAccounts.id, account.id))
+  return !account.handle && state.handle ? state.handle : null
 }

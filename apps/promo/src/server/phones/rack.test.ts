@@ -6,7 +6,24 @@ import { z } from "zod"
 import { customShellNotifications } from "@/server/schema"
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
 
+// R2, in memory: the step pictures are written and read through it.
+const r2 = vi.hoisted(() => new Map<string, Uint8Array>())
+vi.mock("@/server/media/storage", () => ({
+  uploadToR2: vi.fn(async (key: string, data: Uint8Array) => {
+    r2.set(key, data)
+  }),
+  getFromR2: vi.fn(async (key: string) => ({
+    Body: r2.has(key) ? { transformToByteArray: async () => r2.get(key) as Uint8Array } : undefined,
+  })),
+  deleteFromR2: vi.fn(async (key: string) => {
+    r2.delete(key)
+  }),
+}))
+
+import { phoneHistory } from "./history"
+import { sweepPhoneHealth } from "./health"
 import { createPhone, listPhones } from "./phones"
+import { queuePhoneAction } from "./queue"
 import {
   checkIn,
   createPairingCode,
@@ -15,7 +32,6 @@ import {
   nextAction,
   pairRack,
   phoneActions,
-  queuePhoneAction,
   verifyRackRequest,
   type ReportedPhone,
   type VerifiedRack,
@@ -44,6 +60,7 @@ describe("the rack", () => {
   let userId: string
 
   beforeEach(async () => {
+    r2.clear()
     vi.stubEnv("CUSTOM_SHELL_SECRET_ENCRYPTION_KEY", "a key for these tests only")
     const made = await createTestDatabase()
     client = made.client
@@ -176,7 +193,7 @@ describe("the rack", () => {
       expect((await listPhones(userId, db, later(46)))[0].status).toBe("offline")
     })
 
-    it("moves the USB port by itself, and names the shelf slot in the notice when a phone goes missing", async () => {
+    it("moves the USB port by itself, and writes plugging in and pulling out in the phone's history", async () => {
       const rack = await paired()
       await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [device("A1", "usb:1-1")], rolledBack: null }, db, T0)
       const [phone] = await db.select().from(promoPhones)
@@ -186,10 +203,13 @@ describe("the rack", () => {
       expect((await db.select().from(promoPhones))[0].usbPort).toBe("usb:1-3")
 
       await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [], rolledBack: null }, db, later(30))
-      const [notice] = await db.select().from(customShellNotifications).where(eq(customShellNotifications.id, phone.id))
-      expect(notice.message).toBe("Phone needs a hand: Pixel 8a in slot 4 disappeared from the rack")
-      expect(notice.detail).toBe("It sits in slot 4. It was on USB port usb:1-3.")
       expect((await listPhones(userId, db, later(31)))[0]).toMatchObject({ status: "offline", shelfSlot: "4" })
+      // The bell waits five minutes (health.test.ts); the history does not.
+      expect(await db.select().from(customShellNotifications)).toEqual([])
+      expect((await phoneHistory(userId, phone.id, db)).map((line) => [line.kind, line.detail])).toEqual([
+        ["unplugged", "It was on USB port usb:1-3."],
+        ["plugged_in", "On USB port usb:1-1."],
+      ])
     })
 
     it("asks for a tap on the screen when USB debugging is not allowed yet", async () => {
@@ -197,11 +217,18 @@ describe("the rack", () => {
       await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [{ ...device("C3", "usb:2-1", "unauthorized"), model: "", android: "" }], rolledBack: null }, db, T0)
       const [phone] = await listPhones(userId, db, later(1))
       expect(phone).toMatchObject({ name: "Phone C3", status: "offline", offlineReason: "Allow USB debugging on its screen" })
-      const [notice] = await db.select().from(customShellNotifications).where(eq(customShellNotifications.id, phone.id))
-      expect(notice.message).toBe("Phone needs a hand: Phone C3 is waiting for you to allow USB debugging on its screen")
+      // Nothing changes until a person taps the phone, so the bell rings at once.
+      await sweepPhoneHealth(db, later(2))
+      const [notice] = await db.select().from(customShellNotifications)
+      expect(notice.message).toBe("Phone offline: Phone C3")
+      expect(notice.detail).toBe(
+        "Allow USB debugging on its screen. It was on USB port usb:2-1. Type its shelf slot on the Phones dashboard so the notice can say where it is."
+      )
       await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [{ ...device("C3", "usb:2-1", "unauthorized"), model: "", android: "" }], rolledBack: null }, db, later(15))
       await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [device("C3", "usb:2-1")], rolledBack: null }, db, later(30))
       expect((await listPhones(userId, db, later(31)))[0]).toMatchObject({ name: "Pixel 8a", status: "connected" })
+      await sweepPhoneHealth(db, later(32))
+      expect(await db.select().from(customShellNotifications)).toEqual([])
     })
 
     it("ties a phone typed in by hand to the plugged-in phone by its serial", async () => {
@@ -225,22 +252,47 @@ describe("the rack", () => {
       return { rack, phoneId: phone.id }
     }
 
-    it("hands an action out once, shows the phone busy, and keeps the answer and the picture", async () => {
+    it("hands an action out once, shows the phone busy, and keeps the answer and a picture of each step", async () => {
       const { rack, phoneId } = await rackWithPhone()
       const id = await queuePhoneAction(userId, phoneId, "phone/android-version", db, later(1))
       expect(await queuePhoneAction(userId, phoneId, "phone/android-version", db, later(2))).toBe(id)
 
-      expect(await nextAction(rack, db, later(3))).toEqual({ id, serial: "A1", action: "phone/android-version", args: {} })
+      expect(await nextAction(rack, db, later(3))).toEqual({
+        id,
+        serial: "A1",
+        action: "phone/android-version",
+        args: {},
+        timeoutSeconds: 300,
+      })
       expect(await nextAction(rack, db, later(4))).toBeNull()
       expect((await listPhones(userId, db, later(5)))[0].status).toBe("busy")
 
       const accepted = await finishAction(rack, {
-        id, ok: true, result: { fromScreen: "16", fromSystem: "16", match: true }, error: "", screenshots: ["/9j/AAAA"],
+        id,
+        ok: true,
+        result: { fromScreen: "16", fromSystem: "16", match: true },
+        error: "",
+        steps: [
+          { step: "Opened About phone", jpeg: "/9j/AAAA" },
+          { step: "Read Android 16", jpeg: "/9j/BBBB" },
+        ],
       }, db, later(6))
       expect(accepted).toBe(true)
       const [view] = await phoneActions(userId, phoneId, db)
-      expect(view).toMatchObject({ status: "done", answer: "Settings says Android 16, the same as Android itself reports." })
-      expect(view.screenshots).toEqual(["data:image/jpeg;base64,/9j/AAAA"])
+      expect(view).toMatchObject({
+        status: "done",
+        answer: "Settings says Android 16, the same as Android itself reports.",
+        steps: ["Opened About phone", "Read Android 16"],
+      })
+      // Kept in R2 encrypted, never as the picture itself.
+      const stored = [...r2.values()].map((bytes) => Buffer.from(bytes).toString("utf8"))
+      expect(stored).toHaveLength(2)
+      expect(stored.some((text) => text.includes("/9j/AAAA"))).toBe(false)
+      const { stepPictures } = await import("./trail")
+      expect((await stepPictures(userId, id, db)).map((picture) => [picture.step, picture.src])).toEqual([
+        ["Opened About phone", "data:image/jpeg;base64,/9j/AAAA"],
+        ["Read Android 16", "data:image/jpeg;base64,/9j/BBBB"],
+      ])
     })
 
     it("refuses an unknown action, a held phone and a rack that stopped checking in", async () => {
@@ -267,16 +319,44 @@ describe("the rack", () => {
       await expect(queuePhoneAction(userId, phoneId, "phone/health", db, later(16))).rejects.toThrow("phone is offline")
     })
 
-    it("keeps pictures for a phone's newest twenty checks only", async () => {
+    it("keeps the first steps and the last when an answer has too many, and deletes them with the phone", async () => {
       const { rack, phoneId } = await rackWithPhone()
-      for (let index = 0; index < 22; index += 1) {
-        const at = later(1 + index)
-        const id = await queuePhoneAction(userId, phoneId, "phone/health", db, at)
-        await nextAction(rack, db, at)
-        await finishAction(rack, { id, ok: true, result: {}, error: "", screenshots: ["/9j/AAAA"] }, db, at)
-      }
+      const id = await queuePhoneAction(userId, phoneId, "phone/android-version", db, later(1))
+      await nextAction(rack, db, later(1))
+      const steps = Array.from({ length: 40 }, (_, index) => ({ step: `Step ${index + 1}`, jpeg: "/9j/AAAA" }))
+      expect(await finishAction(rack, { id, ok: false, result: null, error: "Stopped.", steps }, db, later(2))).toBe(true)
+      const [view] = await phoneActions(userId, phoneId, db)
+      expect(view.steps).toHaveLength(30)
+      expect(view.steps.at(-1)).toBe("Step 40")
+      expect(r2.size).toBe(30)
+      const { deletePhones } = await import("./phones")
+      await deletePhones(userId, [phoneId], db)
+      expect(r2.size).toBe(0)
+    })
+
+    it("deletes a finished action's pictures after the days set, and keeps a failed one's until cleared", async () => {
+      const { rack, phoneId } = await rackWithPhone()
+      const done = await queuePhoneAction(userId, phoneId, "phone/health", db, later(1))
+      await nextAction(rack, db, later(1))
+      await finishAction(rack, { id: done, ok: true, result: {}, error: "", steps: [{ step: "Read", jpeg: "/9j/AAAA" }] }, db, later(2))
+      const failed = await queuePhoneAction(userId, phoneId, "phone/android-version", db, later(3))
+      await nextAction(rack, db, later(3))
+      await finishAction(rack, {
+        id: failed, ok: false, result: null, error: "No version on screen.", steps: [{ step: "Opened About phone", jpeg: "/9j/BBBB" }],
+      }, db, later(4))
+
+      const { tidyStepPictures, clearStepPictures } = await import("./trail")
       const { promoPhoneScreenshots } = await import("./schema")
-      expect(await db.select().from(promoPhoneScreenshots)).toHaveLength(20)
+      // Seven days is the setting; the day after, the finished one's picture is gone.
+      expect(await tidyStepPictures(db, later(6 * 86_400))).toBe(0)
+      expect(await tidyStepPictures(db, later(8 * 86_400))).toBe(1)
+      const left = await db.select().from(promoPhoneScreenshots)
+      expect(left.map((row) => row.actionId)).toEqual([failed])
+      expect(r2.size).toBe(1)
+
+      await clearStepPictures(userId, failed, db)
+      expect(await db.select().from(promoPhoneScreenshots)).toEqual([])
+      expect(r2.size).toBe(0)
     })
 
     it("fails an action the rack never answered after five minutes", async () => {
@@ -297,7 +377,7 @@ describe("the rack", () => {
       expect(row.status).toBe("cancelled")
       expect((await listPhones(userId, db, later(3)))[0]).toMatchObject({ status: "offline", offlineReason: "Its rack is not connected" })
       await expect(queuePhoneAction(userId, phoneId, "phone/health", db, later(3))).rejects.toThrow("not on a connected rack")
-      expect(await finishAction(rack, { id, ok: true, result: {}, error: "", screenshots: [] }, db, later(4))).toBe(false)
+      expect(await finishAction(rack, { id, ok: true, result: {}, error: "" }, db, later(4))).toBe(false)
     })
 
     it("refuses an answer from another rack", async () => {
@@ -305,7 +385,7 @@ describe("the rack", () => {
       const other = await paired()
       const id = await queuePhoneAction(userId, phoneId, "phone/health", db, later(1))
       await nextAction(rack, db, later(2))
-      expect(await finishAction(other, { id, ok: true, result: {}, error: "", screenshots: [] }, db, later(3))).toBe(false)
+      expect(await finishAction(other, { id, ok: true, result: {}, error: "" }, db, later(3))).toBe(false)
     })
   })
 

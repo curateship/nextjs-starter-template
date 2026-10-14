@@ -80,8 +80,8 @@ the repo's `docs/`, and is never copied here.
 
 - [The Phones dashboard](phones/phones-dashboard.md): every Android phone on
   the rack as a record, its status (Connected, Offline, Busy, Held), the shelf
-  slot, the bell when a phone needs a hand, and an account that runs on a
-  phone instead of a browser profile.
+  slot, the four tabs of its window, app versions on each row, and an account
+  that runs on a phone instead of a browser profile.
 - [The rack program](phones/rack-program.md): the program at home that drives
   the phones, how it reaches Promo without opening a port, the named actions,
   pairing with a one-time code, signed messages, Disconnect, the one install
@@ -92,6 +92,21 @@ the repo's `docs/`, and is never copied here.
   refusing at once, pausing the rack, and Settings → Phones.
 - [A phone's screen window](phones/screen-window.md): the live picture, control
   and the hold while a person taps, authenticator codes and texted codes.
+- [A phone's health](phones/phone-health.md): what the rack reads once a
+  minute, the bell for a phone offline, hot, with no signal or nearly full and
+  for the rack going quiet, the four-week battery and heat chart, and each
+  phone's history.
+- [Freezes and ban screens](phones/freezes-and-ban-screens.md): a frozen app
+  reopened and a frozen phone restarted without anything being sent twice,
+  and an app's suspended, locked or "confirm it's you" screen stopping the
+  account at once.
+- [A picture of every step](phones/step-pictures.md): each action's named
+  steps with a screenshot, kept encrypted in R2, how long they are kept, and
+  clearing a failed one's.
+- [The daily self-test and app updates](phones/self-test-and-app-updates.md):
+  the spare test phone, walking each action to its last button without
+  pressing it, broken actions refused, and app updates on the test phone
+  first.
 
 ## Writing
 

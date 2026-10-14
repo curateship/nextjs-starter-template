@@ -1,7 +1,8 @@
 # The Phones dashboard
 
 Every Android phone on the rack, as a record of its own, with the account on
-it, whether it is connected, its carrier and when the rack last saw it. On
+it, its app versions, whether it is connected, its carrier and when the rack
+last saw it. On
 narrower windows the columns fold so the row's buttons stay on screen: below
 1280 pixels the account moves under the phone's name and the carrier goes,
 and the last-seen time shows from 1536. It is
@@ -45,8 +46,9 @@ never disagree with what the rack last said.
   back. A check cannot be asked of a held phone, holding one cancels the
   checks still waiting for it, and its jobs wait until it is released.
 - **Offline:** not seen for 45 seconds, or missing from the rack's last list,
-  or waiting for someone to allow USB debugging on its screen, or on a rack
-  that was disconnected. The line under it says which.
+  or waiting for someone to allow USB debugging on its screen, or being
+  restarted by the rack after it froze ("Restarting"), or on a rack that was
+  disconnected. The line under it says which.
 - **Busy:** a check is running on it.
 - **Connected:** none of the above.
 
@@ -63,15 +65,10 @@ gets picked up first time.
 
 ## The bell
 
-A phone that disappears from a rack that is still checking in, or that starts
-waiting for USB debugging to be allowed, rings the bell: "Phone needs a hand:
-Pixel 8a in slot 4 disappeared from the rack". The detail says the slot and the
-USB port it was on. The notice's id is the phone's id, so clicking it opens the
-phone, and a phone has one notice that comes back to the top as unread each
-time it needs a hand again. A held phone going missing rings nothing.
-
-A whole rack going quiet does not ring the bell yet. Its phones show offline,
-and watching the rack itself is file 07 of the phone farm.
+A phone offline for five minutes, running hot, with no signal or nearly full,
+and the rack not checking in, each ring the bell once and clear when they
+end. [A phone's health](phone-health.md) has the rules. Clicking a notice
+opens the phone.
 
 ## Where an account runs
 
@@ -95,14 +92,26 @@ account per phone is a unique index, the same rule as profiles.
 
 A phone opens as a window over the list and keeps `?open=<id>` in the address,
 which is where its bell notice leads. The screen button on a row opens the
-phone's live screen ([the screen window](screen-window.md)). **Settings** has
-the fields above, and
-**Checks** asks the rack to read the Android version off the phone's own
-Settings screen, or take a health reading, with the last ten answers and any
-pictures the phone sent back. A check is refused for a held phone, an offline
-phone, and a rack that has not checked in for a minute. Pictures are kept for
-each phone's newest 20 checks. [The rack program](rack-program.md) explains
-both checks.
+phone's live screen ([the screen window](screen-window.md)). It has four tabs:
+
+- **Settings:** the fields above.
+- **Health:** the last reading (battery, heat, storage, signal), the battery
+  and heat chart for four weeks, and each app's version.
+  [A phone's health](phone-health.md).
+- **Actions:** ask the rack to read the Android version off the phone's own
+  Settings screen, or take a health reading, and the last 20 actions with a
+  picture of each step ([a picture of every step](step-pictures.md)). A check
+  is refused for a held phone, an offline phone, and a rack that has not
+  checked in for a minute. [The rack program](rack-program.md) explains both
+  checks.
+- **History:** everything that happened to the phone, newest first.
+
+## The rows and Self-test
+
+- **Each row lists the phone's app versions** under its name, such as
+  "Reddit 2025.40.0", and "Self-test phone" on the test phone.
+- **Self-test** in the toolbar opens the daily self-test's answers and app
+  updates: [the self-test and app updates](self-test-and-app-updates.md).
 
 Deleting a phone deletes only the record. Nothing on the phone changes, the
 accounts on it run on nothing until another place is picked, and a phone still
@@ -111,10 +120,11 @@ plugged in comes back as a new record on the next check-in.
 ## Where it is
 
 - The page: `src/components/phones/phones-dashboard.tsx`, the window
-  `phone-dialog.tsx` and `phone-checks-panel.tsx`, the Rack window
-  `rack-dialog.tsx`.
-- The endpoints: `src/lib/api/phones/phones.ts`. The server:
-  `src/server/phones/phones.ts`, with the bell in `src/server/phones/notices.ts`.
+  `phone-dialog.tsx` with `phone-health-panel.tsx`, `phone-actions-panel.tsx`
+  and `phone-history-panel.tsx`, the Rack window `rack-dialog.tsx`, the
+  Self-test window `self-test-dialog.tsx`.
+- The endpoints: `src/lib/api/phones/phones.ts` and `health.ts`. The server:
+  `src/server/phones/phones.ts`, with the bell in `src/server/phones/health.ts`.
 - The tables: `promo_phones` and `promo_accounts.phone_id`, in
   `src/server/phones/schema.ts` and `drizzle/0114_promo_phones.sql`, which also
   adds the left-menu link to every saved menu that already links to Browser

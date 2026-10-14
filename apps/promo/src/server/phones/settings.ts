@@ -13,7 +13,8 @@ import { promoPhones, promoPhoneSettings } from "./schema"
 
 /**
  * The rack's settings: how many phones work at once, how many days pictures
- * are kept, and the switch that pauses every phone job. One row, "default",
+ * are kept, the switch that pauses every phone job, and the self-test phone
+ * (`self-test.ts`). One row, "default",
  * made by `drizzle/0115_promo_phone_jobs.sql`, like the browser settings,
  * because the program that runs the jobs reads them with nobody signed in.
  */
@@ -22,17 +23,20 @@ export type PhoneSettings = { maxWorking: number; screenshotDays: number }
 
 const DEFAULTS: PhoneSettings = { maxWorking: 5, screenshotDays: 7 }
 
-export async function readPhoneSettings(db: CustomShellDb = defaultDb): Promise<PhoneSettings & { pausedAt: Date | null }> {
+export async function readPhoneSettings(
+  db: CustomShellDb = defaultDb
+): Promise<PhoneSettings & { pausedAt: Date | null; testPhoneId: string | null }> {
   const [row] = await db
     .select({
       maxWorking: promoPhoneSettings.maxWorking,
       screenshotDays: promoPhoneSettings.screenshotDays,
       pausedAt: promoPhoneSettings.pausedAt,
+      testPhoneId: promoPhoneSettings.testPhoneId,
     })
     .from(promoPhoneSettings)
     .where(eq(promoPhoneSettings.id, "default"))
     .limit(1)
-  return row ?? { ...DEFAULTS, pausedAt: null }
+  return row ?? { ...DEFAULTS, pausedAt: null, testPhoneId: null }
 }
 
 export async function savePhoneSettings(input: PhoneSettings, db: CustomShellDb = defaultDb): Promise<PhoneSettings> {

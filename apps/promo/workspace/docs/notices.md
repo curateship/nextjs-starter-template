@@ -22,6 +22,16 @@ acts on a bad reading". Tyler picked this the same day.
   the browser stopped part-way. Opens the Comments screen's Failed tab.
 - **A proxy renewing in the next three days**: "Renews soon: US residential 3",
   with the day and the cost. Once per renewal date. Opens the proxy.
+- **A phone or the rack in trouble**: "Phone offline:", "Phone running hot:",
+  "Phone has no signal:", "Phone storage nearly full:" and "Rack not checking
+  in:". Each is raised once and taken out of the bell when the problem ends.
+  [A phone's health](phones/phone-health.md) has the rules.
+- **A ban screen on a phone**: "Ban screen: u/name on Pixel 8a in slot 4", with
+  the screen's words. Opens the phone.
+  [Freezes and ban screens](phones/freezes-and-ban-screens.md).
+- **The self-test finding an action broken**, "Self-test failed:", and **an app
+  update in the Play Store**, "App update out:".
+  [The self-test and app updates](phones/self-test-and-app-updates.md).
 
 ## The limit to know
 
@@ -48,11 +58,15 @@ A notice is never allowed to fail the work that rang it: a reading that worked
 is never reported as failed because the bell could not be written
 (`ringBell`).
 
+A phone's problems are the one kind that does not come back to the top: each
+is raised once while it lasts and deleted when it ends (`raiseProblem` and
+`clearProblem` in `src/server/phones/notices.ts`), so a sweep every 15
+seconds leaves one quiet notice, not a fresh one each time.
+
 The dead-proxy notice is older and keeps its own shape, in
-`src/server/browser/notices.ts`: its id is the proxy's own. A phone that needs
-a hand has a notice of the same shape, in `src/server/phones/notices.ts`, whose
-id is the phone's own and whose heading names its shelf slot. The [Phones
-dashboard](phones/phones-dashboard.md) says when it rings.
+`src/server/browser/notices.ts`: its id is the proxy's own. Until 14 Oct 2026
+a phone that needed a hand had a notice of that shape, "Phone needs a hand:";
+the phone's health notices above replaced it.
 
 ## Where it is
 

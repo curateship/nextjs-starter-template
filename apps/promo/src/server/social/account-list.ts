@@ -106,6 +106,8 @@ export type RedditAccountRow = {
   paused: "account" | "project" | null
   /** True when an authenticator secret is saved. The secret itself never leaves the server. */
   twoFactor: boolean
+  /** When a phone found a ban screen and stopped it, with the screen's words, or null. */
+  banScreen: { at: Date; words: string } | null
 }
 
 /** The accounts in use, or with `retired` the retired ones too, oldest first. */
@@ -198,6 +200,7 @@ export async function listRedditAccounts(
       retiredAt: account.retiredAt,
       paused: account.pausedAt ? "account" : row.projectPausedAt ? "project" : null,
       twoFactor: Boolean(account.totpSecretEncrypted),
+      banScreen: account.banScreenAt ? { at: account.banScreenAt, words: account.blockedReason } : null,
     }
   })
 }

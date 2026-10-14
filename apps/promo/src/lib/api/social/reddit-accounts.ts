@@ -18,6 +18,7 @@ import { readBehaviour } from "@/server/social/behaviour"
 import { setAccountsPaused } from "@/server/social/pause"
 import { listVoices } from "@/server/social/voices"
 import { ACCOUNT_STATUSES } from "@/lib/social/account-status"
+import { clearBanScreen } from "@/server/phones/health"
 import { currentCodes, removeTwoFactor, saveTwoFactor, type CurrentCode } from "@/server/social/two-factor"
 
 import { createErrorMessage } from "../error-message"
@@ -46,6 +47,8 @@ export const getRedditAccountsErrorMessage = createErrorMessage(
     "not an authenticator secret": "That is not an authenticator secret. Paste the letters the site showed, or the otpauth:// link from its QR code.",
     "kind of code Promo does not make": "That link asks for a kind of code Promo does not make. Paste the secret letters instead.",
     ENCRYPTION_NOT_CONFIGURED: "This server has no encryption key set, so a secret cannot be kept.",
+    "not stopped by a ban screen": "That account is not stopped any more. Reload the page.",
+    "is the self-test phone": "That phone is the self-test phone, which carries only its test account. Pick another phone, or change the self-test phone in Settings → Phones.",
   },
   "That did not work. Please try again."
 )
@@ -205,4 +208,14 @@ const codeFn = createServerFn({ method: "GET" })
 /** The account's current authenticator code, or null when no secret is saved. */
 export function loadRedditAccountCode(accountId: string) {
   return codeFn({ data: { accountId } })
+}
+
+const banScreenFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ accountId: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<void> => clearBanScreen(context.user.id, data.accountId))
+
+/** Lets an account a ban screen stopped take jobs again. */
+export function letRedditAccountRunAgain(accountId: string) {
+  return banScreenFn({ data: { accountId } })
 }

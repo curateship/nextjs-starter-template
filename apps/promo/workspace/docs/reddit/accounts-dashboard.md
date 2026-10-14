@@ -87,7 +87,12 @@ its buttons went off the edge.
   button, and Retire. The settings button moves the account to another profile
   or phone, where sign-ins do not move with it, and saves its authenticator
   secret so its two-factor code shows there and beside its phone's screen
-  ([the screen window](../phones/screen-window.md)).
+  ([the screen window](../phones/screen-window.md)). The test phone of the
+  daily self-test is never on its list.
+- **Stopped by a ban screen** shows under an account's status when a phone
+  found Reddit's suspended, locked or "confirm it's you" screen, with the
+  screen's words on hover. Its jobs are refused until **Let it run again** in
+  its settings window ([freezes and ban screens](../phones/freezes-and-ban-screens.md)).
 - **The voice menu is 128px wide**, 32px narrower than it was, so a row with
   four buttons still fits a 1440px window (measured 13 Oct 2026: 1232px of
   columns against 1232px of room).
