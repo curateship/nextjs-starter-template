@@ -232,14 +232,14 @@ function SideBody({ side }: { side: TaskSide }) {
     <>
       {side.notices}
       {side.notes.empty ? null : (
-        <PanelCard storageId="project-task-notes" title="Notes">
+        <PanelCard storageId="project-task-notes" title="Notes" settings quiet>
           {side.notes.field({ adding: false, onFinished: () => undefined })}
         </PanelCard>
       )}
-      <PanelCard storageId="project-task-steps" title="Steps" meta={side.steps.meta}>
+      <PanelCard storageId="project-task-steps" title="Steps" meta={side.steps.meta} settings={!side.readOnly} quiet>
         <StepsBox>{side.steps.content}</StepsBox>
       </PanelCard>
-      <PanelCard storageId="project-task-chat" title="Chat" meta={side.chat.count || null}>
+      <PanelCard storageId="project-task-chat" title="Chat" meta={side.chat.count || null} quiet>
         {side.chat.content}
       </PanelCard>
     </>
