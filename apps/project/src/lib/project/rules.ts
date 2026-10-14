@@ -457,13 +457,16 @@ export const createProjectSchema = z.object({
   description: z.string().trim().max(LIMITS.projectDescription).default(""),
 })
 
-export const statusOrderSchema = z.object({
-  projectId: id,
-  statusOrder: z
-    .array(z.enum(TASK_STATUSES))
-    .length(TASK_STATUSES.length)
-    .refine((order) => new Set(order).size === order.length, "Each column can appear only once."),
-})
+/** Every Board column once, in a new order. */
+const statusListSchema = z
+  .array(z.enum(TASK_STATUSES))
+  .length(TASK_STATUSES.length)
+  .refine((order) => new Set(order).size === order.length, "Each column can appear only once.")
+
+export const statusOrderSchema = z.object({ projectId: id, statusOrder: statusListSchema })
+
+/** My dashboard's own column order, which only I see. */
+export const myStatusOrderSchema = z.object({ statusOrder: statusListSchema })
 
 export const updateProjectSchema = z.object({
   projectId: id,

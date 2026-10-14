@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { NoticeSwitchId } from "@/lib/project/notice-switches"
-import type { TeamRole } from "@/lib/project/rules"
+import { boardStatusOrder, type TaskStatus, type TeamRole } from "@/lib/project/rules"
 import { db } from "@/server/db"
 import { requireMembership } from "@/server/project/access"
 import { loadCheckinPage, type CheckinPage } from "@/server/project/checkins"
@@ -10,7 +10,7 @@ import { listTeamLabels, type Label } from "@/server/project/labels"
 import { listSavedViews, type SavedView } from "@/server/project/saved-views"
 import { listTeamTypes } from "@/server/project/task-types"
 import type { TaskType } from "@/lib/project/task-types"
-import { loadCheckinRecord, type CheckinRecord } from "@/server/project/time-off"
+import { listTimeOffFor, loadCheckinRecord, type CheckinRecord } from "@/server/project/time-off"
 import { projectTeamMembers, projectTeams } from "@/server/project/schema"
 import { loadMyWork, type TaskCard } from "@/server/project/tasks"
 import { loadNoticesOff } from "@/server/project/notice-switches"
@@ -45,6 +45,10 @@ export type MyDashboard = {
   views: SavedView[]
   /** The bell notices I've switched off. Only I see these. */
   noticesOff: NoticeSwitchId[]
+  /** My Board's columns, in my own order. */
+  statusOrder: TaskStatus[]
+  /** My days off coming up, loaded with the page so the Time off card never shows a load when opened. */
+  timeOff: Awaited<ReturnType<typeof listTimeOffFor>>
 }
 
 export async function loadMyDashboard(userId: string, database = db): Promise<MyDashboard> {
@@ -58,6 +62,7 @@ export async function loadMyDashboard(userId: string, database = db): Promise<My
       joinedAt: projectTeamMembers.joinedAt,
       teamName: projectTeams.name,
       title: projectTeamMembers.title,
+      statusOrder: projectTeamMembers.myStatusOrder,
     })
     .from(projectTeamMembers)
     .innerJoin(projectTeams, eq(projectTeams.id, projectTeamMembers.teamId))
@@ -83,5 +88,16 @@ export async function loadMyDashboard(userId: string, database = db): Promise<My
     record: await loadCheckinRecord(userId, database),
     views: await listSavedViews(userId, membership.teamId, null, database),
     noticesOff: await loadNoticesOff(userId, database),
+    statusOrder: boardStatusOrder(row.statusOrder),
+    timeOff: await listTimeOffFor(userId, undefined, database),
   }
+}
+
+/** My dashboard's Board columns dragged into a new order: mine alone. */
+export async function setMyStatusOrder(userId: string, statusOrder: TaskStatus[], database = db) {
+  const membership = await requireMembership(userId, database)
+  await database
+    .update(projectTeamMembers)
+    .set({ myStatusOrder: statusOrder })
+    .where(and(eq(projectTeamMembers.teamId, membership.teamId), eq(projectTeamMembers.userId, userId)))
 }

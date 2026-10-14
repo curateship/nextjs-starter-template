@@ -4,7 +4,7 @@
 for it on 10 Oct 2026: three panels, me on the left, my tasks in the middle,
 my inbox on the right. The panels resize and collapse like the project page's.
 Below 1280px wide one panel shows at a time, with My tasks, Me and Inbox tabs.
-Switching tabs keeps each panel as it was: My tasks stays on Open, and Time
+Switching tabs keeps each panel as it was: My tasks stays on its view, and Time
 off doesn't load again. Tyler redrew all three panels on 13 Oct 2026
 (`assets/pasted-image-1791938818669097000.png`); what follows is that
 version.
@@ -13,8 +13,11 @@ version.
 
 - **The header** shows my photo, my name, and my role and team ("Owner · My
   team"). The cog beside it opens My settings, a dropdown with my email and
-  the day I joined, my Job title, My check-in time and My notices (below).
-  Closing it saves the field being typed in.
+  the day I joined, then three cards that fold open, the same as a task's
+  cog (Tyler, 14 Oct 2026): Job title ("None"), Check-in time ("9:00 AM,
+  America/Toronto") and Bell notices ("All on" or "3 off"), each with its
+  answer on the right while shut. The dropdown is 384px wide. Closing it saves
+  the field being typed in.
 - **Under it, three cards that fold**, each remembered open or shut in this
   browser (`src/components/project/panel-card.tsx`, the shell's grey card
   with a muted note and a badge in its heading).
@@ -49,8 +52,10 @@ version.
   the weekly manager email; the check-in isn't for watching people.
 - **Time off**: my days off coming up, with Add time off (a first and last
   day) and a bin button that asks before taking one off. With none coming
-  up, "No time off coming up." and a small Add share one line. See Time off in
-  [The morning check-in](morning-check-in.md#time-off).
+  up, "No time off coming up." and a small Add share one line. The days off
+  load with the page, so folding the card and opening it again shows them at
+  once instead of flashing "Loading time off…" (Tyler, 14 Oct 2026). See Time
+  off in [The morning check-in](morning-check-in.md#time-off).
 - **My check-in time** (in My settings): my own time and time zone, saved on change.
 - **My notices** (in My settings): a switch for each kind of bell notice, grouped under
   Tasks, Dates and The team. A switch saves the moment it flips, and a
@@ -66,8 +71,32 @@ version.
 
 ## Middle: my tasks
 
-Three tabs, Today, Open and Done, each with its count, then the search box,
-Filter and Views along the same header, as on the project page. A task is
+The header is the project page's (Tyler, 14 Oct 2026): the same four views,
+Board, List, Calendar and Timeline, as underlined tabs, then the due-date
+dropdown ("All time"), the search as a magnifying glass, Filter, Views and New task. New task
+opens the same dropdown as the signed-in header's, with a Project picker
+starting on the last project used. There is no members dropdown, since every
+task here is mine. Under 896px wide the dropdowns drop their words for their
+icons, under 768px New task shows only its plus, and narrower still the tabs
+scroll sideways. The view last used is remembered in this browser. They
+replaced the Today, Open and Done tabs the same day, by Tyler's choice.
+
+- **Board**: my tasks in the four status columns, each card naming its
+  project. Dragging a card to another column changes its status, the same as
+  on the task, and Stuck asks why first. Cards sort by due date, soonest
+  first, and don't drag up or down, since they come from several projects
+  (Tyler's choice). The columns drag left or right by their heading into my
+  own order, which only I see and which lasts after a reload; it is mine, not
+  any project's (`project_team_members.my_status_order`, migration 0116).
+- **Calendar** and **Timeline**: the project page's, with my tasks. The
+  Timeline groups rows under each project when there is more than one.
+  Moving a date is the same save as on the task.
+- **List**: the rows below.
+
+Snoozed tasks stay out of every view until their day. An archived project's
+tasks leave My dashboard with it and come back if it is brought back (Tyler,
+14 Oct 2026), as they already left the check-in: nothing in an archived
+project can change, so they could only be refused. On the List a task is
 one row (`src/components/project/my-task-rows.tsx`): a round tick box, the
 title with the project and its chips under it (High, the type, labels, "Date
 moved 5 times", "Waiting on 1 task", "3 new"), then the due date ("Overdue ·
@@ -76,18 +105,19 @@ On a phone the date and steps give way. Group headings are small capitals
 with a dot: OVERDUE red, TODAY orange, THIS WEEK blue, LATER purple, NO DATE
 grey, and WAITING FOR MY ANSWER yellow. Rows sort soonest first.
 
-- **Today**: what I picked on today's check-in, in my own order. It is the
-  tab the page opens on when I have picks. Rows drag up and down to set that
-  order, which only I see. Dragging is off while a search or filter is on.
-- **Open**: every task assigned to me that isn't Done, split into Waiting
-  for my answer, Overdue, Today, This week (the next seven days), Later and No
-  date, each with its count. Empty groups are hidden. **Accept all 9 tasks**
+- **Picked for today** comes first: what I picked on today's check-in, in my
+  own order. Those rows drag up and down to set that order, which only I see;
+  rows in other groups don't drag. Dragging is off while a search or filter is
+  on. A picked task shows only here, not again under its due date.
+- **Then every other open task of mine**, split into Waiting for my answer,
+  Overdue, Today, This week (the next seven days), Later and No date, then
+  **Done** last, each with its count. Empty groups are hidden. **Accept all 9 tasks**
   sits beside "9 tasks are waiting for you…", on a grey line: each is accepted on its own, so
   each writes its history line, and the result says "9 accepted", or names one
   that changed hands since with the reason. "Today" is my own day,
   in my time zone, the same day the check-in uses.
-- **Catch up** sits at the end of a red line, "9 tasks are overdue.", on
-  the Open tab, while anything is overdue and no search or filter is on. It opens a
+- **Catch up** sits at the end of a red line, "9 tasks are overdue.", above
+  every view, while anything is overdue and no search or filter is on. It opens a
   window listing those tasks, the same ones as the Overdue group, all
   ticked. Untick any to keep, then pick one new due date and press "Move 7
   tasks", or press "Leave with no date". It is the bulk bar's due date
@@ -101,11 +131,13 @@ grey, and WAITING FOR MY ANSWER yellow. Rows sort soonest first.
 A task whose chat has messages I haven't read says "3 new" beside its title,
 and opening it reads them (see [Task chat](task-chat.md#new-messages)).
 
-The search box sits in the header when the middle panel is at least 640px
-wide; narrower, it is the first row of the Filter popover, with a "Searching
-for …" line under the header. Filter holds Status, Priority, Label and Type,
-then Clear and Save as view. All of it lives in the address like the
-project page's. There is no Person filter here, since every task is mine.
+The magnifying glass opens the search box, which stays open while it holds
+words; Escape empties and closes it. The due-date dropdown is the project
+page's: All time, Overdue, Today, This week, Next week, No date. Filter holds
+Status, Priority, Label and Type, then Clear and Save as view. All of it lives
+in the address like the project page's, and a saved view keeps the due date.
+Priority used to change the address without narrowing the list; it narrows it
+now.
 
 A tick in a round box selects the task without opening it. Ticked rows can be marked Done together, or changed with the same bar as a
 project's List tab: Status, Hand to (with one optional note for them all) and

@@ -494,7 +494,7 @@ export function NewTaskDialog({
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="new-task-due">Due date</Label>
-                      <DueDayPicker id="new-task-due" value={due} onChange={setDue} placeholder="No due date" />
+                      <DueDayPicker id="new-task-due" value={due} onChange={setDue} placeholder="No due date" clearLabel="Clear the due date" />
                     </div>
                   </div>
                   {assignee !== NOBODY && assignee !== me.id ? (

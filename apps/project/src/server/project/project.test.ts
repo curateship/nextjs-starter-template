@@ -18,12 +18,14 @@ import {
   PROJECT_NAV_SECTION_ID,
   addProjectNavigation,
 } from "@/server/project/navigation"
+import { loadMyDashboard, setMyStatusOrder } from "@/server/project/my-dashboard"
 import {
   addProjectMember,
   createProject,
   loadProjectPage,
   loadProjectsPage,
   removeProjectMember,
+  setProjectArchived,
 } from "@/server/project/projects"
 import { projectNavigationAdded, projectNoticeLinks, projectTasks } from "@/server/project/schema"
 import { sendMessage } from "@/server/project/task-chat"
@@ -242,6 +244,23 @@ describe("handing tasks over", () => {
     await addProjectMember(anna.id, id, ben.id, database)
     return id
   }
+
+  it("keeps my own Board column order on My dashboard, which nobody else gets", async () => {
+    await projectWithBen()
+    await setMyStatusOrder(ben.id, ["doing", "todo", "stuck", "done"], database)
+    expect((await loadMyDashboard(ben.id, database)).statusOrder).toEqual(["doing", "todo", "stuck", "done"])
+    expect((await loadMyDashboard(anna.id, database)).statusOrder).toEqual(["todo", "doing", "done", "stuck"])
+  })
+
+  it("takes an archived project's tasks off My dashboard, and brings them back with it", async () => {
+    const projectId = await projectWithBen()
+    const { id } = await createTask(anna, newTask(projectId, { assigneeUserId: ben.id }), database)
+    expect((await loadMyWork(ben.id, database)).map((card) => card.id)).toEqual([id])
+    await setProjectArchived(anna.id, projectId, true, database)
+    expect(await loadMyWork(ben.id, database)).toEqual([])
+    await setProjectArchived(anna.id, projectId, false, database)
+    expect((await loadMyWork(ben.id, database)).map((card) => card.id)).toEqual([id])
+  })
 
   it("keeps a handed-over task Waiting until it's accepted, and tells the person", async () => {
     const projectId = await projectWithBen()

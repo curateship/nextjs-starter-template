@@ -65,7 +65,10 @@ import {
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import type { WrittenPageNode } from "@/lib/pages/written-page-body"
+import { plural } from "@/lib/format/plural"
 import { localTimeOf, momentOnDay } from "@/lib/project/dates"
+import { clockLabel, dayLabel } from "@/lib/project/days"
+import { OptionCard } from "@/components/project/option-card"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import {
   BIN_DAYS,
@@ -150,12 +153,11 @@ export type TaskSide = {
   /** Follow or stop following, at the right of the cog dropdown's tabs. */
   followButton: React.ReactNode
   files: { count: number; content: React.ReactNode }
-  /** The fields of the cog's Details tab: person, dates, priority, type, section, labels and review. */
-  details: React.ReactNode
-  /** The task type's own fields, as a card. Nothing when its type has none. */
-  typeFields: React.ReactNode
-  /** Repeat, snooze, waiting on and my reminder, as a card. */
-  plan: React.ReactNode
+  /**
+   * The cog's Details tab as cards that fold open: Person, Dates, Priority and
+   * type, Needs review, the type's own fields, and the Plan.
+   */
+  settings: React.ReactNode
   /** The cog's History tab, as a card. */
   history: React.ReactNode
   detail: TaskDetail
@@ -703,28 +705,16 @@ function TaskForm({
   const startField = (
     <div className="grid content-start gap-2">
       <Label htmlFor="task-start">Start day</Label>
-      <div className="flex flex-wrap items-center gap-2">
-        <DueDayPicker
-          id="task-start"
-          value={task.startDate}
-          placeholder="No start day"
-          disabled={readOnly || busy}
-          onChange={(startDate) => {
-            if (startDate !== task.startDate) void change(() => saveTask({ taskId: task.id, startDate }))
-          }}
-        />
-        {task.startDate && !readOnly ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-            onClick={() => void change(() => saveTask({ taskId: task.id, startDate: null }))}
-          >
-            Clear
-          </Button>
-        ) : null}
-      </div>
+      <DueDayPicker
+        id="task-start"
+        value={task.startDate}
+        placeholder="No start day"
+        disabled={readOnly || busy}
+        clearLabel="Clear the start day"
+        onChange={(startDate) => {
+          if (startDate !== task.startDate) void change(() => saveTask({ taskId: task.id, startDate }))
+        }}
+      />
     </div>
   )
 
@@ -737,21 +727,11 @@ function TaskForm({
           value={task.dueDate}
           placeholder="No due date"
           disabled={readOnly || busy}
+          clearLabel="Clear the due date"
           onChange={(dueDate) => {
             if (dueDate !== task.dueDate) void change(() => saveTask({ taskId: task.id, dueDate }))
           }}
         />
-        {task.dueDate && !readOnly ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-            onClick={() => void change(() => saveTask({ taskId: task.id, dueDate: null }))}
-          >
-            Clear
-          </Button>
-        ) : null}
         <DueMovesMark moves={task.dueMoves} status={task.status} />
       </div>
     </div>
@@ -976,25 +956,85 @@ function TaskForm({
         />
       ),
     },
-    details: (
+    // Each group a card that folds open, with its answer on the right (Tyler, 14 Oct 2026).
+    settings: (
       <>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <OptionCard
+          id="task-settings-person"
+          title="Person"
+          description="Who does it. Handing it to someone else waits for them to accept."
+          summary={task.assignee ? `${task.assignee.name}${task.waiting ? " · waiting" : ""}` : "Nobody"}
+        >
           {assigneeField}
+          {handoverRow}
+          {handBackButton}
+        </OptionCard>
+        <OptionCard
+          id="task-settings-dates"
+          title="Dates"
+          description="When it starts and when it's due. A time makes it overdue from that minute."
+          summary={datesSummary(task)}
+        >
           {startField}
           {dueField}
-          {priorityField}
           {dueByField}
+        </OptionCard>
+        <OptionCard
+          id="task-settings-sorting"
+          title="Priority and type"
+          description="How it's sorted and found: its priority, the kind of task, its section and labels."
+          summary={[
+            TASK_PRIORITY_LABEL[task.priority],
+            task.type?.name,
+            task.section?.name,
+            task.labels.length ? `${task.labels.length} ${plural(task.labels.length, "label")}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        >
+          {priorityField}
           {typeField}
           {sectionField}
           {labelsField}
-        </div>
-        {handoverRow}
-        {reviewField}
-        {handBackButton}
+        </OptionCard>
+        {detail.canAskForReview ? (
+          <OptionCard
+            id="task-needs-review"
+            title="Needs review"
+            hint="When it's marked Done, you get a notice and check it. It still counts as Done meanwhile."
+            toggle={{
+              checked: task.review.needed,
+              disabled: readOnly || busy,
+              onChange: (on) =>
+                void change(
+                  () => setTaskNeedsReview(task.id, on),
+                  on ? "You'll review it when it's Done." : "It no longer needs your review."
+                ),
+            }}
+          />
+        ) : task.review.needed && task.review.reviewer ? (
+          <OptionCard id="task-needs-review" title="Needs review" summary={task.review.reviewer.name} />
+        ) : null}
+        {detail.fields.type?.fields.length ? (
+          <OptionCard
+            id="task-settings-fields"
+            title={detail.fields.type.name}
+            description="What this kind of task asks for."
+            summary={`${detail.fields.type.fields.length} ${plural(detail.fields.type.fields.length, "field")}`}
+          >
+            <div className={INNER_CARD}>{fieldsCard}</div>
+          </OptionCard>
+        ) : null}
+        <OptionCard
+          id="task-settings-plan"
+          title="Plan"
+          description="What happens next: repeating, snoozing, what it waits on, and your own reminder."
+          summary={planSummary(detail)}
+        >
+          <div className={INNER_CARD}>{planCard}</div>
+        </OptionCard>
       </>
     ),
-    typeFields: detail.fields.type?.fields.length ? fieldsCard : null,
-    plan: planCard,
     history: historyCard,
     followButton: (
       <Button
@@ -1061,6 +1101,30 @@ function TaskForm({
     ),
     remove: detail.canDelete && !readOnly ? { busy, run: remove } : null,
   })
+}
+
+/** A card's own frame and heading, dropped inside an OptionCard that already names it. */
+const INNER_CARD =
+  "[&_[data-slot=card]]:rounded-none [&_[data-slot=card]]:bg-transparent [&_[data-slot=card]]:py-0 [&_[data-slot=card]]:ring-0 [&_[data-slot=card-content]]:!px-0 [&_[data-slot=card-header]]:hidden"
+
+/** "Oct 12 to Oct 19", "Due Oct 19 by 3:06 PM", or "No dates", for the Dates card. */
+function datesSummary(task: TaskDetail["task"]) {
+  const due = task.dueDate ? `${dayLabel(task.dueDate)}${task.dueAt ? ` by ${clockLabel(localTimeOf(task.dueAt))}` : ""}` : null
+  if (task.startDate && due) return `${dayLabel(task.startDate)} to ${due}`
+  if (due) return `Due ${due}`
+  if (task.startDate) return `Starts ${dayLabel(task.startDate)}`
+  return "No dates"
+}
+
+/** What the Plan holds, in a few words, or "Nothing set". */
+function planSummary(detail: TaskDetail) {
+  const parts = [
+    detail.task.repeat ? "Repeats" : null,
+    detail.task.snoozedUntil ? `Snoozed to ${dayLabel(detail.task.snoozedUntil)}` : null,
+    detail.waitingOn.length ? `Waits on ${detail.waitingOn.length} ${plural(detail.waitingOn.length, "task")}` : null,
+    detail.myReminder ? "Reminder set" : null,
+  ].filter(Boolean)
+  return parts.length ? parts.join(" · ") : "Nothing set"
 }
 
 /**

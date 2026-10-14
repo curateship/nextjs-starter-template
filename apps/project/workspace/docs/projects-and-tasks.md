@@ -194,8 +194,10 @@ So a crowded week is obvious at a glance.
 
 So an owner sees how a project's work overlaps over the coming weeks.
 
-- **A start day on any task.** Inside the task, "Start day" sits beside
-  "Due date", with its own Clear. It can be left empty, and it can never be
+- **A start day on any task.** Inside the task, "Start day" sits above
+  "Due date" in the cog's Dates card. A set day shows a small cross at the
+  right end of its box that empties it, in place of a Clear button under it
+  (Tyler, 14 Oct 2026); New task's due date has the same cross. It can be left empty, and it can never be
   after the due date: setting either end the wrong way round, from the task,
   the Calendar, the Timeline or a bulk change, is refused with "The start
   day can't be after the due day. Move the due day first." A bulk change
@@ -417,11 +419,21 @@ Neither puts a window over the page.
 - **The cog** opens a dropdown, as Tyler drew it on 13 Oct 2026
   (`assets/pasted-image-1791937217887403000.png`). Follow (or Following) sits
   at the right of its Details and History tabs (Tyler, 14 Oct 2026,
-  `assets/pasted-image-1791997051267604000.png`). Its Details tab holds
-  Assigned to and Start day; Due date and Priority (Due by appears once
-  there's a due date); Type and Section; Labels; Needs review. Then the task
-  type's own fields, then Plan (repeat, snooze, waiting on, my reminder),
-  then Duplicate task, Move to project, Remind me and Delete task. Its
+  `assets/pasted-image-1791997051267604000.png`). Its Details tab is a stack
+  of cards that fold open (Tyler, 14 Oct 2026, from Trade's order window and
+  the Broadcast dashboard's settings, `assets/pasted-image-1792015687885493000.png`
+  and `assets/pasted-image-1792016136552647000.png`). Shut, a card shows its
+  name and its answer on the right with an arrow; open, a line saying what
+  it is for and its fields one per row. Person ("Admin", or "· waiting")
+  holds Assigned to, the hand-over note and Hand back; Dates ("Oct 14 to Oct
+  23") holds Start day, Due date and Due by; Priority and type ("Normal ·
+  Video editing · 2 labels") holds Priority, Type, Section and Labels; Needs
+  review is a tick box with nothing to open; then the task type's own fields
+  ("3 fields"), and Plan ("Repeats · Reminder set", or "Nothing set") with
+  repeat, snooze, waiting on and my reminder. Each card starts shut and
+  remembers in this browser whether it was left open
+  (`src/components/project/option-card.tsx`). The dropdown is 384px wide. Then
+  Duplicate task, Move to project, Remind me and Delete task. Its
   History tab holds the task's history. Every field saves on its own, and
   closing the dropdown saves the field being typed in. Move to project and
   Remind me were not in the drawing; they are kept there because nothing

@@ -67,7 +67,7 @@ import {
   isTaskStatus,
   type TaskStatus,
 } from "@/lib/project/rules"
-import { todayKey } from "@/lib/project/dates"
+import { dueDayOf, todayKey } from "@/lib/project/dates"
 import type { DoingWarning } from "@/lib/project/doing-limit"
 import { splitRecentDone } from "@/lib/project/task-filters"
 import { byPosition } from "@/lib/project/task-order"
@@ -120,8 +120,8 @@ export type AddTask = (
  * for it wherever it is over, so it never jumps back to where it started.
  *
  * A column drags left or right by its heading to set the order of the
- * columns, which is the project's and everyone on it sees (Tyler, 14 Oct
- * 2026). Grouped by person, moving a column in one row moves it in every row.
+ * columns (Tyler, 14 Oct 2026): on a project page the project's, which
+ * everyone on it sees; on My dashboard my own. Grouped by person, moving a column in one row moves it in every row.
  *
  * Each column's "+" opens New task for that column (and that person's row),
  * and pointing at a card shows its "..." menu with Duplicate and Delete
@@ -141,6 +141,8 @@ export function TaskBoard({
   cardActions,
   statusOrder = TASK_STATUSES,
   onStatusOrder,
+  cardOrder = "project",
+  showProject = false,
 }: {
   tasks: TaskCard[]
   /** The task open in the panel beside the Board, whose card is outlined. */
@@ -163,6 +165,14 @@ export function TaskBoard({
   statusOrder?: readonly TaskStatus[]
   /** A column dropped in a new place: the new order. Left out, columns don't drag. */
   onStatusOrder?: (order: TaskStatus[]) => void
+  /**
+   * "project": the project's own order, set by dragging up or down. "due": by
+   * due date, soonest first, with no order of its own, for My dashboard, whose
+   * cards come from several projects. Dragging across columns still works.
+   */
+  cardOrder?: "project" | "due"
+  /** Names each card's project, for a Board of several projects. */
+  showProject?: boolean
 }) {
   // A short drag threshold, so a click on a card still opens it.
   // No keyboard dragging: Enter on a card opens it, as a button should.
@@ -177,7 +187,7 @@ export function TaskBoard({
   const grouped = Boolean(lanes)
 
   const columns = React.useMemo(() => {
-    const sorted = [...tasks].sort(byPosition)
+    const sorted = [...tasks].sort(cardOrder === "due" ? byDue : byPosition)
     const result: Record<string, { shown: TaskCard[]; hidden: number }> = {}
     for (const lane of rows) {
       const mine = grouped ? sorted.filter((task) => laneOf(task) === lane.id) : sorted
@@ -196,7 +206,7 @@ export function TaskBoard({
       }
     }
     return result
-  }, [grouped, rows, today, showOlder, tasks])
+  }, [cardOrder, grouped, rows, today, showOlder, tasks])
 
   // Each column's cards while one is held, moved as it crosses columns. The
   // ref is what the drop reads, so a drop in the same instant as a crossing
@@ -286,6 +296,7 @@ export function TaskBoard({
       onMove(task, status, ids)
       return
     }
+    if (cardOrder === "due") return
     const before = columns[key].shown.map((t) => t.id)
     if (ids.some((id, index) => id !== before[index])) onReorder(ids)
   }
@@ -322,6 +333,7 @@ export function TaskBoard({
           onOpenTask={onOpenTask}
           openTaskId={openTaskId}
           compact={grouped}
+          showProject={showProject}
           columnDrag={readOnly || !onStatusOrder ? null : COLUMN_DRAG + key}
           addButton={
             addTask
@@ -381,7 +393,7 @@ export function TaskBoard({
       <DragOverlay>
         {heldTask ? (
           <div aria-hidden className={cn(CARD_CLASS, "cursor-grabbing shadow-lg")}>
-            <CardContent task={heldTask} />
+            <CardContent task={heldTask} showProject={showProject} />
           </div>
         ) : null}
       </DragOverlay>
@@ -400,6 +412,12 @@ function splitKey(key: string): { lane: string; status: TaskStatus } {
   const at = key.lastIndexOf(KEY_SEPARATOR)
   const status = key.slice(at + KEY_SEPARATOR.length)
   return { lane: key.slice(0, at), status: isTaskStatus(status) ? status : "todo" }
+}
+
+/** Soonest due first, with no date last, then by title. */
+function byDue(a: TaskCard, b: TaskCard) {
+  const day = (task: TaskCard) => dueDayOf(task) ?? "9999-12-31"
+  return day(a).localeCompare(day(b)) || a.title.localeCompare(b.title)
 }
 
 /** The row a task sits in when grouped: its person's, or "Nobody assigned". */
@@ -491,6 +509,7 @@ function BoardColumn({
   onOpenTask,
   openTaskId,
   compact,
+  showProject,
   columnDrag,
   addButton,
   cardActions,
@@ -509,6 +528,7 @@ function BoardColumn({
   openTaskId: string | undefined
   /** In a person's row: a shorter empty column. */
   compact: boolean
+  showProject: boolean
   /** The column's own drag id, dragged by its heading; null when columns don't move. */
   columnDrag: string | null
   /** The "+" with its New task dropdown, at the heading's right. */
@@ -577,6 +597,7 @@ function BoardColumn({
                 readOnly={readOnly}
                 onOpen={() => onOpenTask(task.id)}
                 actions={cardActions}
+                showProject={showProject}
               />
             ))}
           </ul>
@@ -597,6 +618,7 @@ function BoardCard({
   readOnly,
   onOpen,
   actions,
+  showProject,
 }: {
   task: TaskCard
   /** Open in the panel beside the Board: outlined in the text colour. */
@@ -604,6 +626,7 @@ function BoardCard({
   readOnly: boolean
   onOpen: () => void
   actions?: CardActions
+  showProject: boolean
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -632,7 +655,7 @@ function BoardCard({
           open && "border-foreground ring-1 ring-foreground"
         )}
       >
-        <CardContent task={task} roomForMenu={Boolean(actions)} />
+        <CardContent task={task} roomForMenu={Boolean(actions)} showProject={showProject} />
       </button>
       {actions ? (
         // Beside the card's button rather than in it: a button can't hold another.
@@ -677,7 +700,15 @@ function BoardCard({
  * labels as small tinted chips; any warning; then one line with the due
  * date, steps, messages and what it waits on, and the person at its end.
  */
-function CardContent({ task, roomForMenu = false }: { task: TaskCard; roomForMenu?: boolean }) {
+function CardContent({
+  task,
+  roomForMenu = false,
+  showProject = false,
+}: {
+  task: TaskCard
+  roomForMenu?: boolean
+  showProject?: boolean
+}) {
   const chips = task.type || task.priority === "high" || task.section || task.labels.length
   const slipping = task.dueMoves >= DUE_MOVED_MANY && task.status !== "done"
   return (
@@ -692,6 +723,7 @@ function CardContent({ task, roomForMenu = false }: { task: TaskCard; roomForMen
       >
         {task.title}
       </span>
+      {showProject ? <span className="-mt-1 truncate text-xs text-muted-foreground">{task.projectName}</span> : null}
       {chips ? (
         <span className="flex flex-wrap items-center gap-1">
           <PriorityMark priority={task.priority} />

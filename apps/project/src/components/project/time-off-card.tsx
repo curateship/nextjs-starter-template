@@ -27,6 +27,7 @@ export function TimeOffSection({
   userId,
   idPrefix,
   compact = false,
+  initial,
 }: {
   /** Left out for my own. */
   userId?: string
@@ -36,9 +37,15 @@ export function TimeOffSection({
    * line, as Tyler drew it on 13 Oct 2026.
    */
   compact?: boolean
+  /**
+   * The days off the page loaded with it. Without them the card loads its own
+   * and shows "Loading time off…"; My dashboard passes them, since its card
+   * folds shut, and opening it again would flash the load (Tyler, 14 Oct 2026).
+   */
+  initial?: TimeOff[]
 }) {
   const router = useRouter()
-  const [entries, setEntries] = React.useState<TimeOff[] | null>(null)
+  const [entries, setEntries] = React.useState<TimeOff[] | null>(initial ?? null)
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [reloads, setReloads] = React.useState(0)
   const [removing, setRemoving] = React.useState<TimeOff | null>(null)
@@ -46,8 +53,14 @@ export function TimeOffSection({
   const [first, setFirst] = React.useState<Date | undefined>()
   const [last, setLast] = React.useState<Date | undefined>()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  // The page's own copy is fresh on the first open; an add or remove loads again.
+  const seeded = React.useRef(initial !== undefined)
 
   React.useEffect(() => {
+    if (seeded.current) {
+      seeded.current = false
+      return
+    }
     let live = true
     loadDaysOff(userId).then(
       (found) => {

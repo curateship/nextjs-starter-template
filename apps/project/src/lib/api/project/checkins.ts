@@ -6,6 +6,7 @@ import {
   blockerReplySchema,
   checkOutSchema,
   myCheckinTimeSchema,
+  myStatusOrderSchema,
   orderPicksSchema,
   saveCheckinNotesSchema,
   submitCheckinSchema,
@@ -25,7 +26,7 @@ import {
 } from "@/server/project/checkins"
 import { loadMyWeek } from "@/server/project/my-week"
 import { listInvitesForMe } from "@/server/project/invites"
-import { loadMyDashboard } from "@/server/project/my-dashboard"
+import { loadMyDashboard, setMyStatusOrder } from "@/server/project/my-dashboard"
 import { loadTeamDay, loadTeamMonth } from "@/server/project/team-days"
 import { setCalendarDueDates } from "@/server/project/team-due-dates"
 import { addTimeOff, listTimeOffFor, removeTimeOff } from "@/server/project/time-off"
@@ -185,4 +186,14 @@ const setCalendarDueDatesFn = createServerFn({ method: "POST" })
 /** My own "Due dates" switch on the Team calendar. */
 export function showDueDatesOnCalendar(on: boolean) {
   return setCalendarDueDatesFn({ data: { on } })
+}
+
+const setMyStatusOrderFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(myStatusOrderSchema)
+  .handler(async ({ data, context }) => setMyStatusOrder(context.user.id, data.statusOrder))
+
+/** My dashboard's Board columns in my own order, which only I see. */
+export function saveMyStatusOrder(statusOrder: z.input<typeof myStatusOrderSchema>["statusOrder"]) {
+  return setMyStatusOrderFn({ data: { statusOrder } })
 }

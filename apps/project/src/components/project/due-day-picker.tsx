@@ -1,10 +1,11 @@
 import * as React from "react"
 import { format } from "date-fns"
-import { CalendarIcon } from "lucide-react"
+import { CalendarIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { dateFromKey, keyFromDate } from "@/lib/project/dates"
 import { dayLabel, longDayLabel } from "@/lib/project/days"
 import { useQuickDays } from "@/lib/project/use-quick-days"
@@ -16,6 +17,9 @@ import { cn } from "@/lib/utils"
  * Monday skip the team's days off (`src/lib/project/quick-days.ts`). Days are
  * "YYYY-MM-DD" both ways. It looks like the shell's `DatePicker`, which can't
  * carry the buttons without changing a shell file.
+ *
+ * With `clearLabel`, a set day shows a small cross inside the box at its right
+ * end that empties it (Tyler, 14 Oct 2026), rather than a Clear button under it.
  */
 export function DueDayPicker({
   id,
@@ -26,6 +30,7 @@ export function DueDayPicker({
   className,
   defaultOpen = false,
   onOpenChange,
+  clearLabel,
   "aria-invalid": ariaInvalid,
 }: {
   id?: string
@@ -36,6 +41,8 @@ export function DueDayPicker({
   className?: string
   defaultOpen?: boolean
   onOpenChange?: (open: boolean) => void
+  /** "Clear the start day": shows the cross while a day is set, named this. */
+  clearLabel?: string
   "aria-invalid"?: boolean
 }) {
   const [open, setOpenState] = React.useState(defaultOpen)
@@ -49,21 +56,54 @@ export function DueDayPicker({
     setOpen(false)
   }
 
+  const clearable = Boolean(clearLabel && value && !disabled)
+  const trigger = (
+    <PopoverTrigger asChild>
+      <Button
+        id={id}
+        type="button"
+        variant="outline"
+        disabled={disabled}
+        aria-invalid={ariaInvalid || undefined}
+        className={cn(
+          "w-full justify-start px-2.5 font-normal",
+          !value && "text-muted-foreground",
+          // Room for the cross, so a long date never runs under it.
+          clearable && "pr-9",
+          className
+        )}
+      >
+        <CalendarIcon className="size-4 text-muted-foreground" />
+        {value ? format(dateFromKey(value)!, "PPP") : placeholder}
+      </Button>
+    </PopoverTrigger>
+  )
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          id={id}
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          aria-invalid={ariaInvalid || undefined}
-          className={cn("w-full justify-start px-2.5 font-normal", !value && "text-muted-foreground", className)}
-        >
-          <CalendarIcon className="size-4 text-muted-foreground" />
-          {value ? format(dateFromKey(value)!, "PPP") : placeholder}
-        </Button>
-      </PopoverTrigger>
+      {clearable ? (
+        // Only a picker showing the cross is wrapped, so the others keep their own width.
+        <div className="relative w-full">
+          {trigger}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={clearLabel}
+                className="absolute top-1/2 right-1.5 -translate-y-1/2 text-muted-foreground"
+                onClick={() => onChange(null)}
+              >
+                <XIcon className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{clearLabel}</TooltipContent>
+          </Tooltip>
+        </div>
+      ) : (
+        trigger
+      )}
       <PopoverContent className="w-auto p-0" align="start">
         {quick ? (
           <div className="grid grid-cols-2 gap-1 border-b p-2">

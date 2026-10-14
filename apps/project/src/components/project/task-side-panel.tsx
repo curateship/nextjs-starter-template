@@ -364,9 +364,10 @@ function StepsBox({ children }: { children: React.ReactNode }) {
 
 /**
  * The cog's dropdown, as Tyler drew it on 13 Oct 2026: a Details tab with
- * every field that isn't on the panel (title, person, dates, priority, type,
- * section, labels and review), the type's own fields and the Plan under it,
- * then Duplicate, Move, Remind me and Delete. The History tab holds the
+ * every field that isn't on the panel, as cards that fold open with their
+ * answer on the right (Tyler, 14 Oct 2026): Person, Dates, Priority and type,
+ * Needs review, the type's own fields and the Plan. Then Duplicate, Move,
+ * Remind me and Delete. The History tab holds the
  * task's history. Each field saves on its own, so there is no Save button.
  */
 function TaskSettingsMenu({
@@ -414,7 +415,8 @@ function TaskSettingsMenu({
       </Tooltip>
       <PopoverContent
         align="end"
-        className="w-[min(30rem,calc(100vw-2rem))] gap-0 p-0"
+        // As narrow as My settings' dropdown now its fields stack one per row (Tyler, 14 Oct 2026).
+        className="w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
         onCloseAutoFocus={onCloseAutoFocus}
       >
         <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
@@ -429,10 +431,8 @@ function TaskSettingsMenu({
         </Tabs>
         <ScrollArea className="min-h-0" viewportClassName="max-h-[min(70vh,44rem)]">
           {tab === "details" ? (
-            <div className={cn("grid [&_[data-slot=select-trigger]]:w-full", FLAT_CARDS)}>
-              <div className="grid gap-4 p-4">{side.details}</div>
-              {side.typeFields ? <div className="border-t p-4">{side.typeFields}</div> : null}
-              <div className="border-t p-4">{side.plan}</div>
+            <div className="grid [&_[data-slot=select-trigger]]:w-full">
+              <div className="grid gap-2 p-3">{side.settings}</div>
               <div className="grid gap-1 border-t p-2 empty:hidden">
                 {side.readOnly ? null : (
                   <TaskMoreRows detail={side.detail} onMove={onMove} onRemind={onRemind} onPicked={close} />
@@ -459,9 +459,6 @@ function TaskSettingsMenu({
   )
 }
 
-/**
- * The Plan, History and type-field cards drawn flat inside the dropdown: a
- * heading and its fields, with a line between sections instead of a frame.
- */
+/** The History card drawn flat inside the dropdown: a heading and its rows, no frame. */
 const FLAT_CARDS =
   "[&_[data-slot=card]]:rounded-none [&_[data-slot=card]]:bg-transparent [&_[data-slot=card]]:py-0 [&_[data-slot=card]]:ring-0 [&_[data-slot=card-header]]:!px-0 [&_[data-slot=card-content]]:!px-0"

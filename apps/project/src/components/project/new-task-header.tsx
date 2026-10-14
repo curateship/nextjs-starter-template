@@ -15,12 +15,36 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * New task in the signed-in header, on every page, so a task is written down
- * the moment it is thought of. It opens the New task dropdown with a Project
- * picker, and "More options" opens the full window. On a project's page it starts on that project; elsewhere,
- * or on an archived project, on the last project used (remembered in this
- * browser). The page under the window stays as it is.
+ * the moment it is thought of. The page under it stays as it is.
  */
 export default function NewTaskHeader(_props: AppHeaderActionProps) {
+  return (
+    <NewTaskWithProjectPicker align="end">
+      {(loading) => (
+        <Button type="button" variant="outline" data-icon="inline-start" disabled={loading}>
+          {loading ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
+          New task
+        </Button>
+      )}
+    </NewTaskWithProjectPicker>
+  )
+}
+
+/**
+ * The New task dropdown with a Project picker, for wherever no one project is
+ * in view: the signed-in header and My dashboard. "More options" opens the
+ * full window. On a project's page it starts on that project; elsewhere, or on
+ * an archived project, on the last project used (remembered in this browser).
+ * The projects load on each opening, so one made a moment ago is offered.
+ */
+export function NewTaskWithProjectPicker({
+  align,
+  children,
+}: {
+  align: "start" | "end"
+  /** The button, told while the projects load. */
+  children: (loading: boolean) => React.ReactNode
+}) {
   const here = useParams({ strict: false }).projectId
   const [projects, setProjects] = React.useState<NewTaskProject[] | null>(null)
   const [types, setTypes] = React.useState<TaskType[]>([])
@@ -54,7 +78,6 @@ export default function NewTaskHeader(_props: AppHeaderActionProps) {
 
   return (
     <>
-      {/* The projects load on each opening, so one made a moment ago is offered. */}
       <QuickNewTask
         projects={projects ?? []}
         types={types}
@@ -63,11 +86,9 @@ export default function NewTaskHeader(_props: AppHeaderActionProps) {
         onOpenChange={(next) => (next ? void start() : setOpen(false))}
         onMoreOptions={(projectId, draft) => setFull({ projectId, start: draft })}
         onCreated={rememberProject}
+        align={align}
       >
-        <Button type="button" variant="outline" data-icon="inline-start" disabled={loading}>
-          {loading ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
-          New task
-        </Button>
+        {children(loading)}
       </QuickNewTask>
       {projects ? (
         <NewTaskDialog

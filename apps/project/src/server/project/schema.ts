@@ -110,6 +110,8 @@ export const projectTeamMembers = pgTable(
     hiddenAnnouncementId: varchar("hidden_announcement_id", { length: 36 }),
     /** The Team calendar's "Due dates" switch, each person's own (`drizzle/0113_project_nine_features.sql`). */
     calendarDueDates: boolean("calendar_due_dates").notNull().default(false),
+    /** My dashboard's Board columns, each person's own order (`drizzle/0116_project_my_status_order.sql`). */
+    myStatusOrder: text("my_status_order").array().$type<TaskStatus[]>().notNull().default([]),
   },
   (table) => [primaryKey({ columns: [table.teamId, table.userId] })]
 )

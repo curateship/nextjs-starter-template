@@ -21,8 +21,8 @@ import { cn } from "@/lib/utils"
 /**
  * The project page's view tabs as Tyler drew them on 14 Oct 2026: words with
  * a line under the one showing, sitting on the header's bottom edge. The
- * UI rules' grey pills stay everywhere else; this header is the one
- * exception, by his choice. They scroll sideways rather than sliding under
+ * UI rules' grey pills stay everywhere else; this header and My dashboard's
+ * middle header are the exception, by his choice. They scroll sideways rather than sliding under
  * the buttons.
  */
 export function UnderlineTabs({
@@ -33,7 +33,7 @@ export function UnderlineTabs({
 }: {
   value: string
   onValueChange: (value: string) => void
-  tabs: { value: string; label: string }[]
+  tabs: { value: string; label: React.ReactNode }[]
   /** More, drawn as one of the tabs. */
   after?: React.ReactNode
 }) {

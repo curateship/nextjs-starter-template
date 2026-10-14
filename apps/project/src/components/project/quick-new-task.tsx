@@ -251,7 +251,7 @@ export function QuickNewTask({
             </div>
             <div className="grid min-w-0 gap-2">
               <Label htmlFor="quick-task-due">Due date</Label>
-              <DueDayPicker id="quick-task-due" value={due} onChange={setDue} placeholder="No date" className="w-full" />
+              <DueDayPicker id="quick-task-due" value={due} onChange={setDue} placeholder="No date" clearLabel="Clear the due date" />
             </div>
           </div>
           {status === "stuck" ? (

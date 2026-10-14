@@ -141,7 +141,7 @@ export const DUE_GROUPS = [
 type DueGroup = (typeof DUE_GROUPS)[number]["key"]
 
 /**
- * Where a task sits on My tasks' Open tab. `today` is the person's own day, as
+ * Where an open task sits on My dashboard's List. `today` is the person's own day, as
  * in the check-in. "This week" is the next seven days after today.
  */
 export function dueGroupOf(
