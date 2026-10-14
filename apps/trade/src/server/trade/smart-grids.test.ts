@@ -38,6 +38,7 @@ import {
   updateGridEnd,
   updateGridStop,
 } from "@/server/trade/grid-orders"
+import { endGridByHand } from "@/server/trade/grid-hand-over"
 import {
   insertReversedGrid,
   reverseGridOrder,
@@ -1310,6 +1311,54 @@ describe("calling levels off", () => {
     expect(grid.status).toBe("active")
     expect(grid.plan.levels[3].status).toBe("holding")
     expect((await positions())[0].szi).toBeGreaterThan(0)
+  })
+
+  it("ending it by hand keeps each held level's sell as a manual order", async () => {
+    await place()
+    await priceTo(109)
+    const before = await onlyGrid()
+    const held = before.plan.levels[3].heldSz
+    expect(before.plan.levels[3].status).toBe("holding")
+
+    const ended = await endGridByHand(userId, wallet, { gridId: before.id })
+    expect(ended).toEqual({ cancelled: 3, kept: 1, dropped: 0 })
+
+    const rows = await gridRows()
+    const grid = rows.find((row) => row.kind === "grid")
+    const watches = rows.filter((row) => row.kind === "watch")
+    expect(grid?.status).toBe("done")
+    expect((grid?.plan as GridPlan).closedReason).toBe("cancelled")
+    expect(
+      (grid?.plan as GridPlan).levels.every((one) => one.status === "cancelled")
+    ).toBe(true)
+    expect(watches).toHaveLength(1)
+    expect(watches[0].plan).toMatchObject({
+      side: "sell",
+      triggerPx: before.plan.levels[3].sellPx,
+      sz: held,
+      reduceOnly: true,
+      phase: "waiting",
+    })
+    expect((await positions())[0].szi).toBeCloseTo(held, 9)
+
+    // The manual sell, not the grid, takes the coin out at its price: one
+    // pass sees the level reached and sends, the next fills it.
+    await priceTo(before.plan.levels[3].sellPx + 1)
+    await priceTo(before.plan.levels[3].sellPx + 1)
+    expect(await positions()).toHaveLength(0)
+    const after = await gridRows()
+    expect(after.find((row) => row.kind === "grid")?.status).toBe("done")
+  })
+
+  it("ending a grid holding nothing just ends it", async () => {
+    await place()
+    const ended = await endGridByHand(userId, wallet, {
+      gridId: (await onlyGrid()).id,
+    })
+    expect(ended).toEqual({ cancelled: 4, kept: 0, dropped: 0 })
+    const grid = await onlyGrid()
+    expect(grid.status).toBe("done")
+    expect(grid.plan.closedReason).toBe("cancelled")
   })
 })
 

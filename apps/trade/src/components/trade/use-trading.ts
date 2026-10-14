@@ -34,7 +34,7 @@ import {
 import {
   cancelAllSmartOrders as cancelAllSmartOrdersApi,
   cancelGridLevel as cancelGridLevelApi,
-  cancelGridRest,
+  endGrid,
   cancelLadderRest,
   cancelLadderRung,
   moveGridExit as moveGridExitApi,
@@ -2526,11 +2526,22 @@ export function useTrading(
 
   const cancelGrid: Trading["cancelGrid"] = React.useCallback(
     async (walletId, gridId) => {
-      await callOff(
+      const answer: { dropped: number } = { dropped: 0 }
+      const worked = await callOff(
         gridId,
-        () => cancelGridRest({ walletId, gridId }),
+        async () => {
+          answer.dropped = (await endGrid({ walletId, gridId })).dropped
+        },
         getTradingSmartOrderError
       )
+      // The grid's coin is the person's now. A sell the exchange would not
+      // take (too small) leaves that coin with no exit, which has to be said.
+      const { dropped } = answer
+      if (worked && dropped > 0) {
+        toast.warning(
+          `Grid ended. ${dropped} of its sells ${dropped === 1 ? "was" : "were"} below the exchange's smallest order and ${dropped === 1 ? "was" : "were"} not kept. Those coins have no sell.`
+        )
+      }
     },
     [callOff]
   )

@@ -9,7 +9,7 @@ it.each<BnbRefusal>(["no-route", "unknown-token", "maximum", "malformed", "kyber
   expect(getLiveErrorMessage(bnbRefusalError(code))).toBe(bnbRefusalSentence(code))
 })
 
-it("explains a wallet writer timeout and an already-stopped grid", () => {
+it("explains a wallet writer timeout and a grid stop the exchange kept", () => {
   for (const describeError of [
     getSmartOrderErrorMessage,
     getLiveErrorMessage,
@@ -19,9 +19,9 @@ it("explains a wallet writer timeout and an already-stopped grid", () => {
     )
   }
   expect(
-    getSmartOrderErrorMessage(new Error("SMART_GRID_ALREADY_STOPPED"))
+    getSmartOrderErrorMessage(new Error("SMART_GRID_STOP_NOT_CANCELLED"))
   ).toBe(
-    "This grid has no new trades left to stop. Its open position and exits are unchanged."
+    "The exchange would not take back the grid's stop, so the grid was not ended. It is still running as it was. Try again in a moment."
   )
   expect(
     getSmartOrderErrorMessage(new Error("SMART_LADDER_ALREADY_STOPPED"))

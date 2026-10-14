@@ -1671,23 +1671,43 @@ describe("what stopping a grid warns it will do", () => {
 
   it("says the grid ends when it is holding nothing", () => {
     const warning = stopGridWarning({
-      plan: { levels: [level(), level()], carriedLevels: [] },
+      plan: { levels: [level(), level()], carriedLevels: [], stopLoss: null },
     })
 
     expect(warning).toContain("2 waiting levels are cancelled")
-    expect(warning).toContain("stopping it ends the grid")
+    expect(warning).toContain("holding nothing, so it ends")
   })
 
-  it("promises the sells keep working when it is holding coins", () => {
+  it("says the sells become manual orders when it is holding coins", () => {
     const warning = stopGridWarning({
       plan: {
-        levels: [level(), level({ status: "holding", heldSz: 4 })],
+        levels: [
+          level(),
+          level({ status: "holding", heldSz: 4 }),
+          level({ status: "holding", heldSz: 2 }),
+        ],
         carriedLevels: [],
+        stopLoss: { mode: "percent", underPct: 2, px: null, base: null },
       },
     })
 
     expect(warning).toContain("1 waiting level is cancelled")
-    expect(warning).toContain("its sells keep working")
+    expect(warning).toContain("Its 2 sells stay at their prices as manual orders")
+    expect(warning).toContain("stop loss ends with it")
+  })
+
+  it("has nothing to say about waiting levels when every level has filled", () => {
+    const warning = stopGridWarning({
+      plan: {
+        levels: [level({ status: "holding", heldSz: 1 })],
+        carriedLevels: [],
+        stopLoss: null,
+      },
+    })
+
+    expect(warning).not.toContain("waiting")
+    expect(warning).toContain("Its sell stays at its price as a manual order")
+    expect(warning).not.toContain("stop loss")
   })
 })
 

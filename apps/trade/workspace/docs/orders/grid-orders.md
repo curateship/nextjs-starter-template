@@ -641,22 +641,45 @@ line at $0.087657, and it was finished nineteen minutes later having done
 nothing. There is no profit to take on a grid that never bought, so it keeps
 waiting.
 
-## Stopping a grid that holds nothing ends it
+## Ending a grid by hand hands its coin over
 
-"Stop the grid" calls off every waiting level. A grid still holding coins
-carries on working its exits, which is what the warning has always promised.
-A grid holding nothing has then got nothing to buy and nothing to sell, so the
-engine writes it down as finished on its next pass and it leaves the chart.
+The × on the grid's bar ends the grid, and it is on every grid, whether or not
+any level is still waiting. Tyler, 14 Oct 2026: cancelling a grid turns it
+into manual orders, and its sells "stay at their prices but belong to you
+now".
 
-Two things follow from that, and both were missing until 20 September 2026.
+Pressing it, after the "End this grid?" window, does this:
 
-- **The warning says which of the two is about to happen.** A grid holding
-  nothing now reads "This grid is holding nothing, so stopping it ends the
-  grid" instead of a promise that its sells keep working.
-- **The record names the hand that stopped it.** It used to be written down as
-  "flat", the same word a grid gets when it runs out of levels by itself, so a
-  grid stopped by hand and a grid that ended on its own were the same row.
-  Stopping it by hand now writes "cancelled".
+- **Every waiting level is cancelled.** It does not come back.
+- **Every level holding coin keeps its sell as a manual order.** One watched,
+  reduce-only order per level, at the price that level was going to sell at
+  and for the coins it holds. They show in Manual orders and on the chart like
+  any order placed by hand, and can be moved or cancelled the same way.
+- **The grid ends.** It is written down as done with the reason "cancelled",
+  holds no coin, and leaves the chart. The position is then one placed by
+  hand, so it shows in Manual orders and takes a hand-set take profit or stop.
+- **The grid's stop ends with it.** The window says so when the grid had one.
+  A stop resting on the exchange (Lighter's fixed-size stop, or a grid paired
+  above a ladder) is cancelled first. If the exchange will not cancel it, the
+  grid is not ended and nothing changes.
+- **A grid holding nothing simply ends.**
+
+The grid lets go of its coin before the manual orders are written, so the coin
+never has two owners selling it. A sell the exchange would not take, because
+it is below the smallest order allowed, is left out, and a warning says how
+many sells were left out, so those coins have no sell.
+
+Before 14 Oct 2026 the × only cancelled the waiting levels, and only showed
+while one was waiting. A grid holding coin kept running its own sells. The
+browser hid the whole grid while waiting for the server, so for a moment the
+coin showed in Manual orders, and the grid came back once the next read
+arrived.
+
+The code is `endGridByHand` in `src/server/trade/grid-hand-over.ts` and
+`endGridByHandPlan` in `src/server/trade/smart-order-actions.ts`. Stand-down
+and automations still use the old "cancel the waiting levels" action
+(`cancelGridRest` and `cancelLiveGridRest`), which leaves held coin with the
+grid.
 
 ## Following price up and down
 

@@ -291,6 +291,13 @@ add up to.
 
 ## Grids
 
+- Tyler, 14 Oct 2026: **"I should still be able to cancel because canelling a
+  grid turns it into manual order which is what I want"**, and for the grid's
+  sells: **"Keep them as manual sell orders. They stay at their prices but
+  belong to you now."** The × on a grid is on every grid. It cancels the
+  waiting levels, turns each held level's sell into a manual order at the same
+  price, and ends the grid, so the coin becomes a position placed by hand.
+  `../orders/grid-orders.md` has the details.
 - Tyler, 1 Sep 2026: **"for smart grid. I want to be able to move the whole
   grid at once. Add a draggable knob here"** and **"knob should be light gray
   and its not supposeed to disapear after i place the grid. I should be able to
