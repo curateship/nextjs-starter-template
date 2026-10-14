@@ -161,6 +161,8 @@ export const projectProjects = pgTable("project_projects", {
     (): AnyPgColumn => projectTaskTypes.id,
     { onDelete: "set null" }
   ),
+  /** The Board's column order (`drizzle/0115_project_status_order.sql`); empty is the usual one. */
+  statusOrder: text("status_order").array().$type<TaskStatus[]>().notNull().default([]),
 })
 
 export const projectProjectMembers = pgTable(

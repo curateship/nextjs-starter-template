@@ -40,7 +40,8 @@ import {
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { notesForEditor, readTaskNotes } from "@/lib/project/notes"
-import { LIMITS } from "@/lib/project/rules"
+import { moveNewTasks } from "@/lib/project/new-task-status"
+import { LIMITS, TASK_STATUS_LABEL, type TaskStatus } from "@/lib/project/rules"
 import {
   fillInFirst,
   firstMissingField,
@@ -55,7 +56,7 @@ import { usePeopleRoom } from "@/lib/project/use-people-room"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
-const NOBODY = "nobody"
+export const NOBODY = "nobody"
 const NO_TYPE = "none"
 
 /** What a type puts into New task: its steps and its notes, as the editor holds them. */
@@ -81,6 +82,21 @@ function fieldsAskedFor(type: TaskType | undefined) {
 }
 
 /**
+ * What the New task dropdown (`quick-new-task.tsx`) already holds when
+ * "More options" opens this window: the title or pasted lines, the person,
+ * the due date, and the Board column it was started from.
+ */
+export type NewTaskStart = {
+  title: string
+  lines: string[] | null
+  /** A member's id, or `NOBODY`. */
+  assignee: string
+  due: string | null
+  status: TaskStatus
+  stuckReason: string
+}
+
+/**
  * A new task. It starts assigned to its maker when they are on the project.
  * Handing it to someone else leaves it Waiting until they accept, and tells
  * them in the bell.
@@ -92,13 +108,15 @@ function fieldsAskedFor(type: TaskType | undefined) {
  *
  * Picking a task type fills the Steps card and the notes from the type, and
  * asks for the type's fields that are needed when it is made. A pasted list
- * is made without a type.
+ * is made without a type. Opened from a Board column's "+", the task goes
+ * into that column once it is made, and Stuck asks for its reason here.
  */
 export function NewTaskDialog({
   projects,
   types,
   initialProjectId,
   initialTitle = "",
+  start,
   open,
   onClose,
   onCreated,
@@ -109,6 +127,8 @@ export function NewTaskDialog({
   initialProjectId: string
   /** The title the window opens with, such as a line of a meeting's notes. */
   initialTitle?: string
+  /** What the New task dropdown held, for "More options". */
+  start?: NewTaskStart
   open: boolean
   onClose: () => void
   /**
@@ -134,6 +154,9 @@ export function NewTaskDialog({
   const [steps, setSteps] = React.useState<string[]>([])
   const [stepText, setStepText] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
+  const [status, setStatusChoice] = React.useState<TaskStatus>("todo")
+  const [stuckReason, setStuckReason] = React.useState("")
+  const [stuckInvalid, setStuckInvalid] = React.useState(false)
   const offered = (target: NewTaskProject | undefined) =>
     types.filter((type) => target?.typeIds.includes(type.id))
   const startingType = (target: NewTaskProject | undefined) =>
@@ -158,6 +181,7 @@ export function NewTaskDialog({
       stepText.trim() ||
       due ||
       handoverNote.trim() ||
+      stuckReason.trim() ||
       Object.values(drafts).some((draft) => draft !== "" && draft !== false)
   )
 
@@ -192,7 +216,18 @@ export function NewTaskDialog({
     // Each opening starts on the project's default type, with its steps and notes.
     if (open) {
       applyType(startingType(target), { steps: [], notes: emptyWrittenPageBody() })
-      setTitle(initialTitle.slice(0, LIMITS.taskTitle))
+      setTitle((start?.title ?? initialTitle).slice(0, LIMITS.taskTitle))
+      if (start) {
+        setPasted(start.lines)
+        setAssignee(
+          start.assignee === NOBODY || target?.members.some((m) => m.userId === start.assignee)
+            ? start.assignee
+            : startingAssignee(target)
+        )
+        setDue(start.due)
+        setStatusChoice(start.status)
+        setStuckReason(start.stuckReason)
+      }
     }
   }
 
@@ -217,6 +252,9 @@ export function NewTaskDialog({
     setSteps([])
     setStepText("")
     setInvalid(false)
+    setStatusChoice("todo")
+    setStuckReason("")
+    setStuckInvalid(false)
     setTypeId(startingType(project))
     setTemplate(templateOf(undefined))
     setDrafts({})
@@ -266,17 +304,26 @@ export function NewTaskDialog({
     const name = project.members.find((m) => m.userId === assigneeUserId)?.name
     // The note only goes with a task handed to someone else.
     const note = someoneElse ? handoverNote.trim() || null : null
+    // Checked first, so a refused Stuck never leaves a task made twice.
+    if (status === "stuck" && !stuckReason.trim()) {
+      setStuckInvalid(true)
+      showErrorToast("Say why it's stuck, so whoever handed it out knows.")
+      document.getElementById("new-task-stuck-reason")?.focus()
+      return
+    }
     let madeId: string | null = null
+    let madeIds: string[] = []
     if (pasted) {
       const ok = await run(
-        () =>
-          createTasksFromLines({
+        async () => {
+          madeIds = (await createTasksFromLines({
             projectId: project.id,
             titles: pasted,
             assigneeUserId,
             dueDate: due,
             handoverNote: note,
-          }),
+          })).ids
+        },
         `${pasted.length} tasks made${someoneElse && name ? ` and handed to ${name}` : ""}.`
       )
       if (!ok) return
@@ -322,11 +369,13 @@ export function NewTaskDialog({
             fieldValues,
           })
           madeId = made.id
+          madeIds = [made.id]
         },
         someoneElse && name ? `Task handed to ${name}.` : "Task created."
       )
       if (!ok) return
     }
+    await moveNewTasks(madeIds, status, stuckReason.trim())
     onCreated?.(project.id, madeId)
     close()
     await router.invalidate()
@@ -341,7 +390,7 @@ export function NewTaskDialog({
             <DialogDescription>
               {projects.length > 1
                 ? "A task handed to someone else waits for them to accept it."
-                : `In ${project?.name ?? "this project"}. A task handed to someone else waits for them to accept it.`}
+                : `In ${project?.name ?? "this project"}${status === "todo" ? "" : `, in ${TASK_STATUS_LABEL[status]}`}. A task handed to someone else waits for them to accept it.`}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -463,6 +512,21 @@ export function NewTaskDialog({
                             : "Client wants it by Thursday"
                         }
                         onChange={(event) => setHandoverNote(event.target.value)}
+                      />
+                    </div>
+                  ) : null}
+                  {status === "stuck" ? (
+                    <div className="grid gap-2">
+                      <Label htmlFor="new-task-stuck-reason">Why is it stuck?</Label>
+                      <Input
+                        id="new-task-stuck-reason"
+                        value={stuckReason}
+                        maxLength={LIMITS.reason}
+                        aria-invalid={stuckInvalid || undefined}
+                        onChange={(event) => {
+                          setStuckReason(event.target.value)
+                          setStuckInvalid(false)
+                        }}
                       />
                     </div>
                   ) : null}

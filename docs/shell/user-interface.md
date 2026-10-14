@@ -36,6 +36,14 @@
   `border` / `border-b` / `border-t` with no color class, so they take
   `--border`, the variable the Divider lines setting writes. Card and surface
   hairlines come from the card border width and color settings.
+- **A table's heading line and footer line are dividers**, so they take
+  Divider lines too (`src/theme.css`, `[data-slot="table-header"] th` and
+  `[data-slot="table-footer"]`). They used to follow the card border, and
+  under a panel header that put two different lines either side of the grey
+  heading row, which read as a double border (Tyler, 14 Oct 2026). The
+  divider colour is see-through, so the line sits on a one-pixel strip of the
+  card colour rather than on the grey band, or it comes out darker than the
+  line above it.
 - **The colour is set at the top of the stylesheet, never at the bottom and
   never from a component.** Tailwind's preflight resets everything to
   `border: 0 solid` and names no colour, so a border with no colour named is

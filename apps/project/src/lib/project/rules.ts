@@ -47,6 +47,16 @@ export function isTaskStatus(value: unknown): value is TaskStatus {
 }
 
 /**
+ * A project's Board columns in the order its people dragged them into. A saved
+ * order keeps what it names, once each, and any status it leaves out goes at
+ * the end, so an empty one is the usual order.
+ */
+export function boardStatusOrder(saved: readonly string[]): TaskStatus[] {
+  const kept = [...new Set(saved.filter(isTaskStatus))]
+  return [...kept, ...TASK_STATUSES.filter((status) => !kept.includes(status))]
+}
+
+/**
  * What to pick first at check-in. Every task starts Normal. Low is drawn
  * faintly so people use it, because when everything is High nothing is.
  */
@@ -445,6 +455,14 @@ export const createProjectSchema = z.object({
   name: trimmed(LIMITS.projectName, "The project name"),
   color: projectColorSchema,
   description: z.string().trim().max(LIMITS.projectDescription).default(""),
+})
+
+export const statusOrderSchema = z.object({
+  projectId: id,
+  statusOrder: z
+    .array(z.enum(TASK_STATUSES))
+    .length(TASK_STATUSES.length)
+    .refine((order) => new Set(order).size === order.length, "Each column can appear only once."),
 })
 
 export const updateProjectSchema = z.object({

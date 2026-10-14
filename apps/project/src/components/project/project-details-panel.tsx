@@ -1,7 +1,6 @@
 import * as React from "react"
 import { FolderKanbanIcon, SettingsIcon } from "lucide-react"
 
-import { ProjectMembersSection, SECTION_HEADING } from "@/components/project/project-members-section"
 import { ProjectSettingsDialog } from "@/components/project/project-settings-dialog"
 import { StarButton } from "@/components/project/star-button"
 import { ProjectDot } from "@/components/project/task-bits"
@@ -11,23 +10,14 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ProjectPage } from "@/lib/api/project/projects"
 
 /**
- * The project's description and its members. The cog in the header opens
- * Project settings, which holds the name, colour, description, due date and
- * Archive (Tyler, 10 Oct 2026: "add a cog icon here and put all the project
- * settings there"). The members moved here from the right panel on 13 Oct
- * 2026, when the right panel became the open task's. The bin is in the
- * tasks panel's More menu.
+ * The project's description. The cog in the header opens Project settings,
+ * which holds the name, colour, description, due date, members and Archive
+ * (Tyler, 10 Oct 2026: "add a cog icon here and put all the project settings
+ * there"). The members list left this panel on 14 Oct 2026: whose tasks show
+ * is a dropdown in the tasks panel's header, and adding or removing someone
+ * is in Project settings. The bin is in the tasks panel's More menu.
  */
-export function ProjectDetailsPanel({
-  page,
-  selectedUserId,
-  onSelectMember,
-}: {
-  page: ProjectPage
-  /** The member whose tasks alone the middle panel shows. */
-  selectedUserId: string | null
-  onSelectMember: (userId: string) => void
-}) {
+export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
   const { project } = page
   const [settingsOpen, setSettingsOpen] = React.useState(false)
 
@@ -68,16 +58,13 @@ export function ProjectDetailsPanel({
             </p>
           ) : null}
           <div className="grid gap-2">
-            <h3 className={SECTION_HEADING}>Description</h3>
+            <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Description</h3>
             <p className="text-sm break-words whitespace-pre-wrap">
               {project.personal
                 ? "Your own tasks, which only you can see. They show on My dashboard and in your check-in."
                 : project.description || <span className="text-muted-foreground">No description yet.</span>}
             </p>
           </div>
-          {project.personal ? null : (
-            <ProjectMembersSection page={page} selectedUserId={selectedUserId} onSelect={onSelectMember} />
-          )}
         </div>
       </ScrollArea>
       <ProjectSettingsDialog

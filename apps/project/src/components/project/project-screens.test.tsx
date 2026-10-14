@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import { InvitePage } from "@/components/project/invite-page"
 import { TaskTypesDashboard } from "@/components/project/task-types-dashboard"
 import type { TaskType } from "@/lib/project/task-types"
+import { ProjectMembersCard } from "@/components/project/project-members-card"
 import { ProjectWorkspace } from "@/components/project/project-workspace"
 import { ProjectsDashboard } from "@/components/project/projects-dashboard"
 import { TaskBoard } from "@/components/project/task-board"
@@ -40,6 +41,7 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     startDate: null,
     assignee: { id: "ben", name: "Ben Ortiz", avatarUrl: "" },
     assignedBy: { id: "me", name: "Tyler" },
+    createdByUserId: "me",
     waiting: false,
     handoverNote: null,
     review: { needed: false, waiting: false, reviewer: null },
@@ -101,6 +103,22 @@ describe("the board", () => {
     // "3/3" with the words for screen readers, as Tyler drew the card on 13 Oct 2026.
     expect(html).toContain("3/3<span class=\"sr-only\"> steps done</span>")
     expect(html).toContain("Overdue · ")
+  })
+
+  it("gives each card a ... menu with Duplicate, and Delete only where allowed, but none on an archived project", () => {
+    const withMenus = (readOnly: boolean) =>
+      renderToStaticMarkup(
+        <TaskBoard
+          tasks={tasks}
+          readOnly={readOnly}
+          onOpenTask={() => {}}
+          onMove={() => {}}
+          onReorder={() => {}}
+          cardActions={readOnly ? undefined : { onDuplicate: () => {}, onDelete: () => {}, canDelete: () => true }}
+        />
+      )
+    expect(withMenus(false)).toContain(`aria-label="More for &quot;Pick the photos&quot;"`)
+    expect(withMenus(true)).not.toContain("More for")
   })
 
   it("outlines the card of the task open beside the Board", () => {
@@ -278,6 +296,7 @@ describe("the project page", () => {
       doingLimit: null,
       hiddenTypeIds: [],
       defaultTypeId: null,
+      statusOrder: ["todo", "doing", "done", "stuck"],
     },
     sections: [{ id: "s1", name: "Design" }],
     taskTypes: [],
@@ -295,7 +314,7 @@ describe("the project page", () => {
     views: [],
   }
 
-  it("draws details and members, tasks, and an empty task panel", () => {
+  it("draws details, tasks with the header's dropdowns, and an empty task panel", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
         <ProjectWorkspace page={page} openTaskId={undefined} filters={{}} />
@@ -303,12 +322,26 @@ describe("the project page", () => {
     )
     expect(html).toContain(`aria-label="Project settings"`)
     expect(html).toContain(`aria-label="Unstar Website"`)
-    // Until the panel is measured the search sits inside Filter.
     expect(html).toContain(">Filter</span>")
     expect(html).toContain("Click a task to see its steps and chat here.")
     expect(html).toContain("New site")
     expect(html).toContain("Board")
     expect(html).toContain("New task")
+    // Whose tasks show, when they're due and the search are the header's, not the left panel's.
+    expect(html).toContain(`aria-label="Showing: All members"`)
+    expect(html).toContain("All time")
+    expect(html).toContain(`aria-label="Search tasks"`)
+    expect(html).not.toContain("Tyler (you)")
+    // Each column has its own "+".
+    expect(html).toContain(`aria-label="Add a task to Doing"`)
+  })
+
+  it("lists the members in Project settings, where they are added and removed", () => {
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <ProjectMembersCard page={page} />
+      </TooltipProvider>
+    )
     expect(html).toContain("Members")
     expect(html).toContain("Tyler (you)")
     expect(html).toContain("3 open tasks")
@@ -319,19 +352,20 @@ describe("the project page", () => {
   })
 
   it("locks an archived project", () => {
+    const archived = { ...page, project: { ...page.project, archived: true }, members: [] }
     const html = renderToStaticMarkup(
-      <ProjectWorkspace
-        page={{ ...page, project: { ...page.project, archived: true }, members: [] }}
-        openTaskId={undefined}
-        filters={{}}
-      />
+      <TooltipProvider>
+        <ProjectWorkspace page={archived} openTaskId={undefined} filters={{}} />
+      </TooltipProvider>
     )
     expect(html).toContain("This project is archived")
     expect(html).toContain("Bring it back from Project settings to work on it.")
     expect(html).not.toContain("New task")
-    // Nobody can be added to an archived project, so the empty panel doesn't ask.
-    expect(html).toContain("Nobody is on this project.")
-    expect(html).not.toContain("Add a teammate so tasks can be handed to them.")
+    expect(html).not.toContain("Add a task to")
+    const members = renderToStaticMarkup(<ProjectMembersCard page={archived} />)
+    // Nobody can be added to an archived project, so the empty card doesn't ask.
+    expect(members).toContain("Nobody is on this project.")
+    expect(members).not.toContain("Add a teammate so tasks can be handed to them.")
   })
 
   it("says so when a search matches nothing", () => {

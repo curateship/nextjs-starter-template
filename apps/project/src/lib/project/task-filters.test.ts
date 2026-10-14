@@ -44,11 +44,43 @@ describe("filtering tasks", () => {
   })
 
   it("reads only real filters from an address", () => {
-    expect(readTaskFilters({ q: "x", status: "nope", person: "ben", label: "<script>", type: "video" })).toEqual({
+    expect(
+      readTaskFilters({ q: "x", status: "nope", person: "ben", label: "<script>", type: "video", due: "someday" })
+    ).toEqual({
       q: "x",
       person: "ben",
       type: "video",
     })
+    expect(readTaskFilters({ due: "next-week" })).toEqual({ due: "next-week" })
+  })
+})
+
+describe("the due-date dropdown", () => {
+  // Noon on Wednesday 14 Oct on the reader's clock.
+  const now = new Date(2026, 9, 14, 12)
+  const tasks = [
+    task({ id: "late", dueDate: "2026-10-12" }),
+    task({ id: "late-but-done", dueDate: "2026-10-12", status: "done" }),
+    task({ id: "today", dueDate: "2026-10-14" }),
+    task({ id: "sunday", dueDate: "2026-10-20" }),
+    task({ id: "monday-week", dueDate: "2026-10-21" }),
+    task({ id: "far", dueDate: "2026-10-28" }),
+    task({ id: "none", dueDate: null }),
+  ]
+  const ids = (due: Parameters<typeof filterTasks>[1]["due"]) => filterTasks(tasks, { due }, now).map((t) => t.id)
+
+  it("splits the days from today: this week is today and six more, next week the seven after", () => {
+    expect(ids("overdue")).toEqual(["late"])
+    expect(ids("today")).toEqual(["today"])
+    expect(ids("week")).toEqual(["today", "sunday"])
+    expect(ids("next-week")).toEqual(["monday-week"])
+    expect(ids("none")).toEqual(["none"])
+    expect(ids(undefined)).toHaveLength(7)
+  })
+
+  it("counts a task due today by a time that has passed as overdue", () => {
+    const byTen = task({ id: "by-ten", dueDate: "2026-10-14", dueAt: new Date(2026, 9, 14, 10).toISOString() })
+    expect(filterTasks([byTen], { due: "overdue" }, now).map((t) => t.id)).toEqual(["by-ten"])
   })
 })
 

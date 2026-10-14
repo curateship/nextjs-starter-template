@@ -2,6 +2,7 @@ import { and, asc, count, eq, inArray, isNull } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import {
+  boardStatusOrder,
   type ProjectColor,
   type TaskStatus,
   type TeamRole,
@@ -170,6 +171,8 @@ export type ProjectPage = {
     /** The team's types this project leaves out, and the one New task starts on. */
     hiddenTypeIds: string[]
     defaultTypeId: string | null
+    /** The Board's columns, in the order the project's people dragged them into. */
+    statusOrder: TaskStatus[]
   }
   sections: Section[]
   /** The team's task types, archived ones included, for New task, the Type filter and field columns. */
@@ -239,6 +242,7 @@ export async function loadProjectPage(
       doingLimit: project.doingLimit,
       hiddenTypeIds: project.hiddenTypeIds,
       defaultTypeId: project.defaultTypeId,
+      statusOrder: boardStatusOrder(project.statusOrder),
     },
     sections: await listSections(project.id, database),
     taskTypes: await listTeamTypes(membership.teamId, database),
@@ -300,6 +304,22 @@ export async function updateProject(
     .update(projectProjects)
     .set({ ...fields, updatedAt: now() })
     .where(eq(projectProjects.id, projectId))
+}
+
+/**
+ * The Board's column order, for everyone on the project. Anyone who can change
+ * the project can drag it, "Just me" lists included, since it is only layout.
+ */
+export async function setStatusOrder(
+  userId: string,
+  input: { projectId: string; statusOrder: TaskStatus[] },
+  database = db
+) {
+  await requireOpenProject(userId, input.projectId, database)
+  await database
+    .update(projectProjects)
+    .set({ statusOrder: input.statusOrder, updatedAt: now() })
+    .where(eq(projectProjects.id, input.projectId))
 }
 
 export async function setProjectArchived(

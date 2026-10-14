@@ -16,11 +16,11 @@
 - **Archived projects are read-only.** Archive from Project settings (the cog
   on the project page) or from the Projects table. Bring back undoes it. The
   details panel says "Bring it back from Project settings to work on it."
-- **Leaving a project.** Your own row under Members has a leave button
+- **Leaving a project.** Your own row in Project settings' Members card has a leave button
   instead of a bin. It asks "Leave this project? You'll no longer see it.",
   and an owner or admin is told they'll still see it, because they see every
   project. After leaving, the page goes to Projects.
-- **An empty Members list** says "Nobody is on this project." and adds
+- **An empty Members card** says "Nobody is on this project." and adds
   "Invite a teammate so tasks can be handed to them." only when Invite is
   there to do it.
 
@@ -56,33 +56,56 @@ panels and nothing along the bottom.
 Tyler drew the page as it is now on 13 Oct 2026
 (`assets/pasted-image-1791936316739365000.png`): the task moved from the
 middle panel to the right, so the Board stays in view beside it, and the
-members moved to the left.
+members moved to the left. On 14 Oct 2026 he redrew the tasks panel's header
+(`assets/pasted-image-1792006703561170000.png`) and moved picking whose tasks
+show out of the left panel and into that header.
 
-- **Left: description and members.** "Description" and "Members · 2" are
-  small capital headings. The star in the header stars the project for me
+- **Left: description.** "Description" is a small capital heading. The star in the header stars the project for me
   (see Stars below). The cog opens Project settings, a window with the name,
-  colour, description, due date, Doing limit, Archive and the project's sections. Tyler, 10 Oct 2026: "add a
+  colour, description, due date, Doing limit, Archive, its members and its sections. Tyler, 10 Oct 2026: "add a
   cog icon here and put all the project settings there". Each field saves when
   it is left, and the colour and due date the moment they are picked, so the window ends with
   Done. Closing it with Escape or a click outside saves the field being typed
-  in too. Each member is a small card with their role and how many open
-  tasks they have. Clicking one is the Person filter: it shows only their
-  tasks, and clicking again shows everyone's. "+ Invite" lists teammates not
-  yet on the project, and for the owner and admins ends with "Invite someone
-  new to the team", the team's invite window. A "Just me" list shows no
-  members.
+  in too. The Members card lists each member with their role and how many
+  open tasks they have, with leave or remove at the row's end. "+ Invite"
+  lists teammates not yet on the project, and for the owner and admins ends
+  with "Invite someone new to the team", the team's invite window.
 - **Middle: tasks.** Board, List, Calendar and Timeline tabs, then More, which
   holds Activity, Files, Chat and the Bin. While Activity, Files or Chat
-  shows, More wears its name. The Board has one column per status, each
+  shows, More wears its name. The tabs are words with a line under the one
+  showing, sitting on the header's bottom edge, as Tyler drew them on 14 Oct
+  2026. Everywhere else the UI rules' grey pills stay; this header is the one
+  exception, by his choice. The Board has one column per status, each
   headed by the status's dot (To do yellow, Doing blue, Done green, Stuck
   red), as tall as its cards. The List has the same tasks in rows, grouped
   under the project's sections when it has any; the Calendar shows due dates
   and the Timeline start days and due dates (all below). A task with
   messages I haven't read says "3 new" on its card and row, and More and
   Chat say the same for the project's chat (see
-  [Task chat](task-chat.md#new-messages)). The header's right end holds the
-  search box, Filter, Views and New task (see Search and filters below). In
-  a narrow panel the tabs scroll sideways and New task shows only its plus.
+  [Task chat](task-chat.md#new-messages)). The header's right end holds, in
+  order: the due-date dropdown ("All time"), the search as a magnifying
+  glass, Filter, Views, whose tasks show (the members' faces, with no
+  background), and New task
+  (see Search and filters below). Under 896px wide the dropdowns drop their
+  words for their icons, and under 768px New task shows only its plus. A
+  panel narrower still, such as on a phone, scrolls the tabs sideways.
+- **Board columns move.** Drag a column by its heading to the left or right
+  to change the order of To do, Doing, Done and Stuck (Tyler, 14 Oct 2026).
+  The order belongs to the project: everyone on it sees the same one, it
+  shows at once and is put back if the save is refused, and it lasts after a
+  reload. Grouped by person, moving a column in one row moves it in every
+  row. The "+" in the heading still clicks, since a drag starts only after
+  the pointer has moved 8px. An archived project's columns don't move. Only
+  the Board follows the order; the List, the status dropdowns and the
+  filters keep the usual one. Saved in `project_projects.status_order`
+  (migration 0115); empty is the usual order, and a status the saved order
+  leaves out goes at the end (`boardStatusOrder` in `src/lib/project/rules.ts`).
+- **Each Board column has a "+"** at the right of its heading. It opens the
+  New task dropdown (see Making tasks quickly) for that column: the task is
+  made and moved there, and in Stuck the dropdown asks "Why is it stuck?"
+  first. Grouped by person, the "+" in a person's row hands the task to them,
+  and in "Nobody assigned" to nobody. A move the server refuses, such as Done
+  with a field still empty, leaves the task in To do and says why.
   A card drags between Board columns to change its status, and up or down
   to set the project's order. The Board and List change on their own when
   someone else changes a task (see [Task chat](task-chat.md#live-updates)).
@@ -94,6 +117,11 @@ members moved to the left.
   the message count, "Waiting" while a task it waits on is open (or
   "Ready"), and the person at the line's end. A task with no due date shows
   no date. The card of the task open on the right is outlined.
+- **A card's "..."** shows at its top right while it is pointed at (always on
+  a touch screen). It opens Duplicate, which makes the copy and opens it on
+  the right, and Delete, which asks the bin's question first. Delete shows
+  only to whoever made the task and the team's owner and admins, the same
+  people the server lets delete it. An archived project's cards have no "...".
 - **Right: the open task.** Clicking a task opens it here (see Opening a
   task below). With none open, the panel says "Click a task to see its steps
   and chat here."
@@ -293,18 +321,27 @@ goes, so it no longer ends up on whatever task was open.
   more, so "Leo's stuck tasks" opened without that filter." Leaving a
   project deletes my views on it, and leaving the team deletes them all. At
   most 30 in one place.
-- **Search and filters.** The search box looks through each task's title
-  and notes, every word typed, whatever its capitals. It doesn't look inside
-  a task type's fields. Filter opens a popover with Status, Priority, Person
-  (anyone, nobody assigned, or one member), Label and Type, which narrow the
-  Board, List, Calendar and Timeline at once, then Group by person, then
-  Clear and Save as view. Filter counts the filters set, "Filter 2". The
-  search box sits in the header when the tasks panel is at least 896px wide;
-  narrower, it is the popover's first row, and a line under the header says
-  'Searching for "logo"' with Clear search. Save as view with nothing picked
+- **Search and filters.** The magnifying glass opens the search box, which
+  looks through each task's title and notes, every word typed, whatever its
+  capitals. It doesn't look inside a task type's fields. The box stays open
+  while it holds words; Escape empties and closes it. Filter opens a popover
+  with Status, Priority, Label and Type, which narrow the Board, List,
+  Calendar and Timeline at once, then Group by person, then Clear and Save as
+  view. Filter counts the filters set, "Filter 2", and Clear leaves the
+  header's own two dropdowns alone. Save as view with nothing picked
   says "Search or pick a filter first, then save it as a view." A search that
   finds nothing says so.
-- **They live in the address** (`?q=…&status=…&priority=…&person=…&label=…&type=…`), so a
+- **Whose tasks show** is the dropdown with the members' faces: All members
+  with the project's open tasks, each member with their role and open tasks
+  ("Owner · 3 open tasks"), and Unassigned. The button shows the one picked.
+  A "Just me" list has none. A link naming someone who has left the project
+  keeps filtering and reads "Someone no longer on the project".
+- **The due-date dropdown** is All time, Overdue, Today, This week, Next
+  week and No date, on the reader's own clock. This week is today and the
+  six days after it; Next week is the seven after those. Overdue leaves out
+  Done tasks and counts a task due today by a time that has passed, the same
+  as the red date on a card. A saved view keeps it.
+- **They live in the address** (`?q=…&status=…&priority=…&person=…&label=…&type=…&due=…`), so a
   pasted link opens the page filtered the same way.
 - **Field columns.** Filtered to one task type, the List's Columns menu adds
   up to 3 of that type's fields as columns (see [Task types](task-types.md)).
@@ -333,14 +370,22 @@ Neither puts a window over the page.
 
 - **The task panel.** Along the top: the status as a pill with
   its dot, "Add note" (only while the task has no notes), the paperclip with
-  the number of files, Follow, the cog, and a cross at the far right that
-  closes the task. In a narrow panel Add note and Follow keep their icons and
-  drop their words. Down the panel: anything that needs an answer (a
+  the number of files, the chat icon (only while the chat has no messages),
+  the cog, and a cross at the far right that closes the task. In a narrow
+  panel Add note keeps its pencil and drops its words. Follow is in the
+  cog's dropdown (Tyler, 14 Oct 2026). Down the panel: anything that needs an answer (a
   hand-over to accept, a review, the Stuck reason row, the Move and Remind
   me cards), then Notes once the task has some, Steps ("Steps · 0 of 2
-  done") and Chat ("Chat · 4"), each a card that folds shut and stays shut
-  in this browser. The task's title isn't in the panel, as in Tyler's
-  drawing; the open card is outlined on the Board.
+  done") and Chat ("Chat · 4") once it has a message, each a card that folds shut and stays shut
+  in this browser. The task's title is the panel's first line, in bold
+  (Tyler, 14 Oct 2026, `assets/pasted-image-1792006071437749000.png`).
+  Clicking it edits it in place: Enter or clicking away saves it, and an
+  empty title is refused and put back. It left the cog's Details tab, so
+  the title is edited in one place. An archived project's title can't be
+  edited. The open card is outlined on the Board.
+- **The panel's header buttons have no border or background**, the status
+  included, so the status, Add note, the paperclip, the chat icon and the
+  cog are plain until pointed at (Tyler, 14 Oct 2026).
 - **A card's arrow and cog show only while it is pointed at**, folded or
   open (Tyler, 14 Oct 2026, `assets/pasted-image-1791995305794293000.png`).
   The cog has no background. Clicking it, and only it, opens the card's
@@ -361,11 +406,19 @@ Neither puts a window over the page.
   Done sits at the right of the Notes card's footer whatever the cog says,
   under the notes, so the formatting bar over the first line never covers
   it.
-- **The paperclip** opens a Files window with the task's files and the place
-  to drop more, ending with Done.
+- **The paperclip** opens a dropdown under it (Tyler, 14 Oct 2026; it was a
+  window) with "1 file", the limit, the task's files and the place to drop
+  more.
+- **The chat icon** works like Add note (Tyler, 14 Oct 2026): while the chat
+  has no messages, it opens a dropdown with the box to write the first one,
+  and once one is sent the Chat card appears and the icon goes. A deleted
+  message doesn't count, so a chat holding only "Message deleted" still has
+  the icon, shows the deleted line in the dropdown, and counts 0.
 - **The cog** opens a dropdown, as Tyler drew it on 13 Oct 2026
-  (`assets/pasted-image-1791937217887403000.png`). Its Details tab holds
-  Title; Assigned to and Start day; Due date and Priority (Due by appears once
+  (`assets/pasted-image-1791937217887403000.png`). Follow (or Following) sits
+  at the right of its Details and History tabs (Tyler, 14 Oct 2026,
+  `assets/pasted-image-1791997051267604000.png`). Its Details tab holds
+  Assigned to and Start day; Due date and Priority (Due by appears once
   there's a due date); Type and Section; Labels; Needs review. Then the task
   type's own fields, then Plan (repeat, snooze, waiting on, my reminder),
   then Duplicate task, Move to project, Remind me and Delete task. Its
@@ -472,8 +525,15 @@ Neither puts a window over the page.
 - **A task type** can be picked in New task, which then fills the type's
   starting steps and notes and asks for its fields that are needed when made
   (see [Task types](task-types.md)).
-- **New task in the header**, on every page. It opens the project page's
-  window with a Project picker. On a project's page it starts on that
+- **New task opens a dropdown**, not a window (Tyler, 14 Oct 2026): the
+  title, who it is for (me, when I'm on the project) and a due date. Enter or
+  Create task makes it, with the project's own type and that type's steps
+  and notes. "More options" opens the full New task window with what was
+  typed. So does a type that needs fields filled in when it is made (the
+  dropdown says so and its button reads Continue), and so does pasting
+  several lines. Clicking away keeps what was typed for the next opening.
+- **New task in the header**, on every page. It opens the same dropdown with
+  a Project picker. On a project's page it starts on that
   project; anywhere else, or on an archived project, on the last project used
   (remembered in this browser, also by the project page's own New task). The page under it stays as it is. On a phone
   it folds into the header's three-dot menu.
@@ -862,7 +922,10 @@ Projects, Team and Task types to the members' menu and to each admin menu.
 - **Screens:** `src/components/project/`. A task's window is `task-dialog.tsx`,
   and the right panel of the project page and My dashboard, with the cog's
   dropdown, is `task-side-panel.tsx`. The Filter popover is `task-filter-popover.tsx` and
-  the left panel's members `project-members-section.tsx`. The Board is
+  the header's due-date, search and members dropdowns `task-header-controls.tsx`.
+  New task's dropdown is `quick-new-task.tsx`, and a task made from a Board
+  column moves there through `src/lib/project/new-task-status.ts`. Project
+  settings' Members card is `project-members-card.tsx`. The Board is
   `task-board.tsx`, the Calendar tab `task-calendar.tsx`, the Timeline tab
   `task-timeline.tsx` and the Files tab `project-files.tsx`.
 
