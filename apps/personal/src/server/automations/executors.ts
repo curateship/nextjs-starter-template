@@ -1,0 +1,444 @@
+import { audienceNode, audienceWording } from "@/lib/automations/nodes/audience"
+import {
+  billingMomentNode,
+  readBillingMoment,
+} from "@/lib/automations/nodes/billing-moment"
+import {
+  approvalDeadline,
+  waitForApprovalNode,
+} from "@/lib/automations/nodes/wait-for-approval"
+import { sendEmailNode } from "@/lib/automations/nodes/send-email"
+import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
+import { joinedSegmentNode } from "@/lib/automations/nodes/joined-segment"
+import {
+  MEMBER_EVENT_LABELS,
+  memberEventNode,
+  readMemberEvent,
+} from "@/lib/automations/nodes/member-event"
+import { webhookNode } from "@/lib/automations/nodes/webhook"
+import {
+  MEMBER_TAG_MODES,
+  memberTagNode,
+  type MemberTagMode,
+} from "@/lib/automations/nodes/member-tag"
+import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
+import { appAutomationExecutors } from "@/server/app-options"
+import {
+  countAutomationAudience,
+  memberMatchesAutomationAudience,
+  readAutomationAudience,
+  requireAudienceSegment,
+} from "@/server/automations/audience"
+import { syncContactsFromUsers } from "@/server/people/contacts"
+import type { CustomShellDb } from "@/server/db"
+import type { CustomShellAutomationRun } from "@/server/schema"
+import { workspaceForRun } from "@/server/automations/runs"
+import type { AutomationTriggerFacts } from "@/lib/automations/run"
+import { formatDate } from "@/lib/format/format-time"
+import { plural } from "@/lib/format/plural"
+import {
+  formatScheduledInstant,
+  readAutomationSchedule,
+} from "@/lib/automations/schedule"
+import { executeSendEmailNode } from "@/server/automations/send-email"
+import { executeWebhookNode } from "@/server/automations/webhook"
+import { changeMemberTag } from "@/server/people/member-tags"
+import { normalizeMemberTag } from "@/lib/member-tags"
+
+/**
+ * What a step is handed, and what it may answer with.
+ *
+ * One executor per node kind. A node task ships its descriptor (how it draws
+ * and compiles) beside its executor here (what it does), and the engine knows
+ * nothing about either.
+ */
+export type AutomationExecutorContext = {
+  database: CustomShellDb
+  run: CustomShellAutomationRun
+  nodeId: string
+  /** The node's settings, already strict-parsed at compile time. */
+  settings: Record<string, unknown>
+  now: () => Date
+  /** The dry-run task sets this so outside effects can describe, not happen. */
+  dryRun?: boolean
+  /** A rehearsal against one member, with outside effects made safe. */
+  testRun?: boolean
+}
+
+export type AutomationExecutorResult =
+  /** Done — carry on to whatever this step feeds into. */
+  | { type: "next"; summary: string; output?: AutomationRunOutput }
+  /** Done, and deliberately the end of the flow. */
+  | { type: "complete"; summary: string; output?: AutomationRunOutput }
+  /**
+   * Stop and wait for a person. The engine hands the claim back, so the run
+   * occupies nothing while it waits, and auto-rejects it at `deadlineAt`.
+   */
+  | { type: "park"; summary: string; deadlineAt: Date }
+
+export type AutomationExecutor = (
+  context: AutomationExecutorContext
+) => Promise<AutomationExecutorResult>
+
+/**
+ * Every node kind the shell itself can run. A kind with a descriptor but no
+ * executor still draws and compiles; reaching one at run time fails the run in
+ * plain words rather than pretending the step happened.
+ */
+export const automationExecutors: Record<string, AutomationExecutor> = {
+  placeholder: async () => ({
+    type: "next",
+    summary: "Did nothing — this is a stand-in step.",
+  }),
+
+  /**
+   * The billing trigger, and all a trigger step does when the flow reaches it
+   * is say why the flow is running.
+   *
+   * The work happened before the run existed — the webhook, or the look that
+   * spotted the date. This writes the first line of the history, and it is the
+   * line that names the moment and the person.
+   *
+   * A one-member test has no real billing moment on purpose. It names the
+   * chosen member and carries on without pretending a payment event happened.
+   */
+  [billingMomentNode.kind]: async ({ run, settings, testRun }) => {
+    const facts = run.triggerFacts
+    const who = run.subjectLabel?.trim()
+    if (testRun && who) {
+      return {
+        type: "next",
+        summary: `Testing this flow with ${who}. No real billing event happened.`,
+      }
+    }
+    if (!facts || !who) {
+      throw new Error(
+        "This billing run has no member or billing event, so it cannot continue."
+      )
+    }
+    return { type: "next", summary: billingMomentLine(settings, facts, who) }
+  },
+
+  [timeActivateNode.kind]: async ({ run, settings }) => {
+    const schedule = readAutomationSchedule(settings)
+    const scheduledAt = run.triggerFacts?.scheduledAt
+    if (
+      schedule &&
+      typeof scheduledAt === "string" &&
+      Number.isFinite(new Date(scheduledAt).getTime())
+    ) {
+      return {
+        type: "next",
+        summary: `Started on schedule at ${formatScheduledInstant(new Date(scheduledAt), schedule.timezone)}.`,
+      }
+    }
+    return {
+      type: "next",
+      summary:
+        "Started by hand. The saved schedule was not changed, and its next automatic run stays where it was.",
+    }
+  },
+
+  [joinedSegmentNode.kind]: async ({ run, testRun }) => {
+    const who = run.subjectLabel?.trim()
+    if (testRun && who) {
+      return {
+        type: "next",
+        summary: `Testing this flow with ${who}. They did not really join the segment.`,
+      }
+    }
+    if (!who) {
+      throw new Error(
+        "This segment run has no contact, so it cannot continue safely."
+      )
+    }
+    return {
+      type: "next",
+      summary: `${who} joined the segment.`,
+    }
+  },
+
+  [memberEventNode.kind]: async ({ run, settings, testRun }) => {
+    const who = run.subjectLabel?.trim()
+    const event = readMemberEvent(settings)
+    if (testRun && who && event) {
+      return {
+        type: "next",
+        summary: `Testing this flow with ${who}. ${MEMBER_EVENT_LABELS[event]} did not really happen.`,
+      }
+    }
+    if (!who || !event || run.triggerFacts?.event !== event) {
+      throw new Error(
+        "This member event run has no matching member event, so it cannot continue."
+      )
+    }
+    return {
+      type: "next",
+      summary: `${MEMBER_EVENT_LABELS[event]} for ${who}.`,
+    }
+  },
+
+  [memberTagNode.kind]: async ({ database, run, settings, testRun }) => {
+    const mode = settings.mode
+    const tag =
+      typeof settings.tag === "string" ? normalizeMemberTag(settings.tag) : ""
+    const who = run.subjectLabel?.trim() || "the flow's member"
+    if (!MEMBER_TAG_MODES.includes(mode as MemberTagMode) || !tag) {
+      throw new Error(
+        "This tag step has incomplete settings, so it cannot continue."
+      )
+    }
+    if (!run.subjectUserId) {
+      throw new Error(
+        "This run has no member for the tag step to change, so it cannot continue."
+      )
+    }
+    if (testRun) {
+      return {
+        type: "next",
+        summary: `Would ${mode} the '${tag}' tag on ${who}. No tag was changed in this test.`,
+      }
+    }
+
+    const change = await changeMemberTag(
+      run.subjectUserId,
+      mode as MemberTagMode,
+      tag,
+      database
+    )
+    if (change === "unchanged") {
+      return {
+        type: "next",
+        summary:
+          mode === "add"
+            ? `${who} already had the '${tag}' tag. Nothing changed.`
+            : `${who} did not have the '${tag}' tag. Nothing changed.`,
+      }
+    }
+    return {
+      type: "next",
+      summary:
+        mode === "add"
+          ? `Tagged ${who} with '${tag}'.`
+          : `Removed the '${tag}' tag from ${who}.`,
+    }
+  },
+
+  /**
+   * Works out who the rest of the flow is about and writes the answer into the
+   * run's history — the choice and the number it matched, never the names.
+   *
+   * The answer is a count of contacts, in the flow owner's current workspace —
+   * the same list a newsletter reads, so a person who unsubscribed can never be
+   * in an audience and an address with no account behind it can. The contact
+   * list is brought up to date with the accounts first, the same first move
+   * every send batch makes, so nobody who signed up since the last sync is
+   * missing from the count.
+   *
+   * Matching nobody is not a failure: a flow that runs on a week when nobody
+   * qualifies should say so and carry on, not stop as broken. A plan or a
+   * segment the flow points at having been deleted *is* a failure, because
+   * carrying on would mean guessing.
+   */
+  [audienceNode.kind]: async ({ database, run, settings, now, testRun }) => {
+    const audience = readAutomationAudience(settings)
+    // The run's own workspace, fixed when it started. Only a run that predates
+    // that column falls back to its owner's — looking it up every time is how a
+    // flow's audience used to change when its owner switched workspace.
+    const workspaceId = await workspaceForRun(run, database)
+    // A test must not "helpfully" create or update the chosen member's contact.
+    // It reads exactly what exists and says when that means they do not match.
+    if (!testRun) await syncContactsFromUsers(workspaceId, database)
+
+    // Looked up here as well as inside the count so the run history can say
+    // the segment's name — and looked up by id, so a renamed segment still
+    // means the same people.
+    const segment = await requireAudienceSegment(
+      audience,
+      workspaceId,
+      database
+    )
+    const timestamp = now()
+    const subjectMatched =
+      testRun && run.subjectUserId
+        ? await memberMatchesAutomationAudience(
+            audience,
+            workspaceId,
+            run.subjectUserId,
+            database,
+            timestamp,
+            segment
+          )
+        : null
+    const matched =
+      subjectMatched === null
+        ? await countAutomationAudience(
+            audience,
+            workspaceId,
+            database,
+            timestamp,
+            segment
+          )
+        : Number(subjectMatched)
+    const who = audienceWording(
+      audience.kind,
+      audience.planSlug,
+      segment?.name ?? "",
+      audience.tag
+    )
+
+    if (subjectMatched !== null) {
+      const subject = run.subjectLabel?.trim() || "The chosen member"
+      return {
+        type: "next",
+        summary: subjectMatched
+          ? `${subject} matched — ${who}.`
+          : `${subject} did not match — ${who}.`,
+      }
+    }
+
+    return {
+      type: "next",
+      summary:
+        matched === 0
+          ? `Nobody matched just now — ${who}. The rest of the flow has no one to act on.`
+          : `Matched ${matched} ${plural(matched, "person", "people")} — ${who}.`,
+    }
+  },
+
+  [sendEmailNode.kind]: executeSendEmailNode,
+
+  [webhookNode.kind]: executeWebhookNode,
+
+  [waitForApprovalNode.kind]: async ({ settings, now }) => {
+    const summary =
+      typeof settings.summary === "string" ? settings.summary.trim() : ""
+    const timeoutDays =
+      typeof settings.timeoutDays === "number" ? settings.timeoutDays : 3
+
+    return {
+      type: "park",
+      summary,
+      deadlineAt: approvalDeadline(now(), timeoutDays),
+    }
+  },
+}
+
+/**
+ * Only these built-in steps may execute during a one-member rehearsal.
+ * App-owned and future steps are skipped until they explicitly gain a safe
+ * test path, so a new outside action cannot accidentally touch the member.
+ */
+const TEST_RUN_SAFE_KINDS = new Set([
+  "placeholder",
+  billingMomentNode.kind,
+  memberEventNode.kind,
+  memberTagNode.kind,
+  timeActivateNode.kind,
+  audienceNode.kind,
+  sendEmailNode.kind,
+  webhookNode.kind,
+  waitForApprovalNode.kind,
+])
+
+export function automationExecutorMayRunInTest(kind: string): boolean {
+  return TEST_RUN_SAFE_KINDS.has(kind)
+}
+
+/**
+ * One sentence saying what happened and to whom, in the words of whichever
+ * moment the node was set to.
+ *
+ * The moment comes from the node's own settings rather than from the facts,
+ * because the settings are the run's frozen copy of what the flow was watching
+ * for — the same thing that decided it should start at all.
+ */
+function billingMomentLine(
+  settings: Record<string, unknown>,
+  facts: AutomationTriggerFacts,
+  who: string
+): string {
+  const moment = readBillingMoment(settings)
+
+  if (moment === "trialEnding") {
+    const days = typeof facts.daysLeft === "number" ? facts.daysLeft : null
+    const ends = text(facts.trialEndsAt)
+    return days === null
+      ? `${who}'s free trial is running out.`
+      : `${who}'s free trial has ${days} ${plural(days, "day", "days")} left${
+          ends ? `, ending ${formatDate(ends)}` : ""
+        }.`
+  }
+
+  if (moment === "cardExpiring") {
+    const card = [text(facts.cardBrand), text(facts.cardLast4)]
+      .filter(Boolean)
+      .join(" ending ")
+    const expires = text(facts.cardExpiresOn)
+    const renews = text(facts.renewsAt)
+    return [
+      card
+        ? `${who}'s ${card} runs out${expires ? ` in ${expires}` : ""}.`
+        : `${who}'s saved card runs out${expires ? ` in ${expires}` : ""}.`,
+      renews ? `Their plan renews on ${formatDate(renews)}.` : "",
+    ]
+      .filter(Boolean)
+      .join(" ")
+  }
+
+  const amount = text(facts.amountDue)
+  const next = text(facts.nextAttemptAt)
+  return [
+    amount
+      ? `${who}'s payment of ${amount} did not go through.`
+      : `${who}'s payment did not go through.`,
+    text(facts.invoiceNumber) ? `Bill ${text(facts.invoiceNumber)}.` : "",
+    next ? `Stripe tries again on ${formatDate(next)}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+}
+
+/** A fact as a trimmed string, or "" for anything that is not text. */
+function text(value: AutomationTriggerFacts[string]): string {
+  return typeof value === "string" ? value.trim() : ""
+}
+
+let appExecutors: Record<string, AutomationExecutor> | null = null
+
+/**
+ * The steps this app added, checked once against the shell's own.
+ *
+ * Read on demand rather than at the top of this file: the app's answers import
+ * app code, which imports shell code, which can lead back here.
+ */
+function checkedAppExecutors(): Record<string, AutomationExecutor> {
+  if (appExecutors) return appExecutors
+  const supplied = appAutomationExecutors()
+  for (const kind of Object.keys(supplied)) {
+    // An app adds steps; it never takes one of the shell's over. Letting it
+    // would change what already-saved flows do with nothing on screen saying
+    // so.
+    if (Object.hasOwn(automationExecutors, kind)) {
+      throw new Error(
+        `This app supplies its own "${kind}" automation step, but the shell already runs one. An app's own step needs a kind the shell isn't already using.`
+      )
+    }
+  }
+  appExecutors = supplied
+  return appExecutors
+}
+
+/**
+ * What runs a step of this kind — the shell's own first — or null if nothing
+ * does.
+ *
+ * `hasOwn` rather than plain indexing because a kind is whatever a saved graph
+ * says it is, and `automationExecutors["constructor"]` would otherwise hand
+ * back something off `Object`'s prototype and the engine would try to run it.
+ */
+export function automationExecutorFor(kind: string): AutomationExecutor | null {
+  if (Object.hasOwn(automationExecutors, kind)) return automationExecutors[kind]
+  const supplied = checkedAppExecutors()
+  return Object.hasOwn(supplied, kind) ? supplied[kind] : null
+}

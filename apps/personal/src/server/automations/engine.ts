@@ -1,0 +1,1024 @@
+import { and, eq, inArray, isNotNull, lte, sql } from "drizzle-orm"
+
+import { automationCompiledConfigSchema } from "@/lib/automations/compile"
+import { automationSettingValueSchema } from "@/lib/automations/graph"
+import { automationNodeName } from "@/lib/automations/node-registry"
+import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
+import {
+  automationEntryNodeId,
+  automationCanStartManually,
+  automationNextNodeId,
+  type AutomationApprovalDecision,
+} from "@/lib/automations/run"
+import { runBillingTriggerScans } from "@/server/automations/billing-triggers"
+import { runTimeActivateTriggers } from "@/server/automations/time-triggers"
+import { runJoinedSegmentTriggers } from "@/server/automations/segment-triggers"
+import { readAutomationsPaused } from "@/server/automations/pause"
+import { automationSubjectLabel } from "@/server/automations/triggers"
+import {
+  automationExecutorFor,
+  automationExecutorMayRunInTest,
+  type AutomationExecutorResult,
+} from "@/server/automations/executors"
+import { db, type CustomShellDb } from "@/server/db"
+import { inspectAutomation } from "@/server/automations/flows"
+import {
+  publishNotificationCreated,
+  publishNotificationCreatedMany,
+} from "@/server/notifications/events"
+import { findActiveWorkspaceMember } from "@/server/people/workspace-users"
+import {
+  customShellAutomationRuns,
+  customShellAutomationRunSteps,
+  customShellAutomations,
+  customShellNotifications,
+  customShellUsers,
+  type CustomShellAutomationRun,
+} from "@/server/schema"
+import { now, uuid } from "@/server/auth/security"
+
+/**
+ * The run engine: an in-process ticker that walks flows one step at a time.
+ *
+ * Every fifteen seconds it claims the runs that are due, walks each one as far
+ * as it can, and hands the claim back. See `drizzle/0028` for why a run holds a
+ * claim rather than a lock and why a run parked at an approval checkpoint costs
+ * nothing at all.
+ */
+
+/** How many runs one pass takes on. */
+const CLAIM_BATCH_SIZE = 20
+/**
+ * A claim older than this belonged to a process that died. Take it back.
+ *
+ * This is a bet that no single step takes longer than five minutes. Every write
+ * here is guarded by the claim token, so a process that loses its claim mid-walk
+ * stops rather than overwriting the new owner — but the step it was *already
+ * inside* still finishes, and the new owner starts that same step again. Two
+ * executions of one step is the failure this window trades against.
+ *
+ * The webhook executor is capped at ten seconds, safely inside this window.
+ * Any future step allowed to run for minutes needs the claim extended while it
+ * works (a heartbeat), not a bigger timeout here.
+ */
+const CLAIM_TIMEOUT_MINUTES = 5
+/** A cap on one run's share of a pass, so a long flow cannot starve the rest. */
+const NODE_BUDGET_PER_TICK = 25
+const MAX_ATTEMPTS = 3
+const RETRY_BACKOFF_MS = 30_000
+/** Rich history data stays a pointer or compact view model, not a report dump. */
+const MAX_STEP_OUTPUT_JSON_LENGTH = 50_000
+
+/**
+ * One pass: look for the moments that start a flow, claim the runs that are
+ * due, walk each of them, then auto-reject any checkpoint whose deadline has
+ * passed.
+ */
+export async function runAutomationTick(database: CustomShellDb = db) {
+  // The kill switch, asked before anything is claimed. Nothing below runs while
+  // it is on — not the walk, and not the deadline sweep, because auto-rejecting
+  // a checkpoint nobody could answer during the pause would be the switch
+  // throwing work away. See `server/automations/pause.ts` for the whole rule.
+  if (await readAutomationsPaused(database)) {
+    // Segment membership still advances while paused, but starts nothing. This
+    // deliberately skips arrivals during the pause rather than releasing a
+    // catch-up burst when the switch comes back on.
+    try {
+      await runJoinedSegmentTriggers(database, { startRuns: false })
+    } catch (error) {
+      console.error("Joined-segment snapshot failed while paused", error)
+    }
+    return { processed: 0, failed: 0, expired: 0, started: 0, paused: true }
+  }
+
+  // Before anything is claimed, so a run a trigger starts this instant is
+  // walked in this same pass rather than sitting still for fifteen seconds.
+  // Never throws — a scan that falls over must not stop the runs already going.
+  let started = 0
+  try {
+    started += await runJoinedSegmentTriggers(database)
+  } catch (error) {
+    console.error("Joined-segment trigger scan failed", error)
+  }
+  try {
+    started += await runTimeActivateTriggers(database)
+  } catch (error) {
+    console.error("Time trigger scan failed", error)
+  }
+  started += (await runBillingTriggerScans(database)).started
+
+  const claimToken = uuid()
+
+  // A worker that vanished cannot catch its own error. Count each stale claim
+  // as an attempt, and stop a run that has been abandoned three times instead
+  // of reclaiming it forever in silence.
+  let failed = await failExpiredClaims(database)
+
+  // The claim and the pick happen in one statement. SKIP LOCKED means a second
+  // ticker running at the same moment steps over the rows this one is taking
+  // instead of queueing behind them, so neither can claim the same run.
+  const claimed = await database.execute(sql`
+    UPDATE automation_runs
+    SET claim_token = ${claimToken},
+        claimed_at = now(),
+        attempts = CASE
+          WHEN claimed_at IS NOT NULL
+            AND claimed_at < now() - interval '${sql.raw(String(CLAIM_TIMEOUT_MINUTES))} minutes'
+          THEN attempts + 1
+          ELSE attempts
+        END,
+        updated_at = now()
+    WHERE id IN (
+      SELECT id FROM automation_runs
+      WHERE status = 'active'
+        AND wake_at <= now()
+        AND (
+          claimed_at IS NULL
+          OR claimed_at < now() - interval '${sql.raw(String(CLAIM_TIMEOUT_MINUTES))} minutes'
+        )
+      ORDER BY wake_at ASC
+      LIMIT ${CLAIM_BATCH_SIZE}
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id
+  `)
+
+  const runIds = (claimed.rows as Array<{ id: string }>).map((row) => row.id)
+
+  let processed = 0
+  for (const runId of runIds) {
+    try {
+      await processRun(runId, claimToken, database)
+      processed += 1
+    } catch (error) {
+      // One bad run must not take the rest of the batch with it. The run keeps
+      // its own retry count and hands its claim back when that can be recorded.
+      console.error(`Automation run ${runId} failed to process`, error)
+      try {
+        await recoverUnexpectedRunFailure(runId, claimToken, error, database)
+      } catch (recoveryError) {
+        console.error(
+          `Automation run ${runId} could not record its failure`,
+          recoveryError
+        )
+      }
+      failed += 1
+    }
+  }
+
+  const expired = await sweepExpiredApprovals(database)
+
+  return { processed, failed, expired, started, paused: false }
+}
+
+/** Stops runs whose worker vanished on the same step three times. */
+async function failExpiredClaims(database: CustomShellDb): Promise<number> {
+  const cutoff = new Date(
+    now().getTime() - CLAIM_TIMEOUT_MINUTES * 60 * 1000
+  )
+  const [candidate] = await database
+    .select({ id: customShellAutomationRuns.id })
+    .from(customShellAutomationRuns)
+    .where(
+      and(
+        eq(customShellAutomationRuns.status, "active"),
+        isNotNull(customShellAutomationRuns.claimedAt),
+        lte(customShellAutomationRuns.claimedAt, cutoff),
+        sql`${customShellAutomationRuns.attempts} >= ${MAX_ATTEMPTS - 1}`
+      )
+    )
+    .limit(1)
+  if (!candidate) return 0
+
+  const result = await database.transaction(async (tx) => {
+    // Bounded like the normal claim pass, and skips rows another worker is
+    // already deciding. A large backlog therefore cannot turn one tick into
+    // an unbounded write or make two workers wait on each other.
+    const failedRuns = await tx.execute(sql`
+      UPDATE automation_runs
+      SET status = 'failed',
+          attempts = attempts + 1,
+          error = 'The automation worker stopped while this step was running three times.',
+          finished_at = now(),
+          claim_token = NULL,
+          claimed_at = NULL,
+          updated_at = now()
+      WHERE id IN (
+        SELECT id FROM automation_runs
+        WHERE status = 'active'
+          AND claimed_at IS NOT NULL
+          AND claimed_at <= ${cutoff}
+          AND attempts >= ${MAX_ATTEMPTS - 1}
+        ORDER BY claimed_at ASC
+        LIMIT ${CLAIM_BATCH_SIZE}
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id
+    `)
+    const runIds = (failedRuns.rows as Array<{ id: string }>).map(
+      (run) => run.id
+    )
+    return {
+      failed: runIds.length,
+      recipients: await insertAutomationFailureNotifications(tx, runIds),
+    }
+  })
+  await publishNotificationCreatedMany(result.recipients, database)
+  return result.failed
+}
+
+/**
+ * A thrown executor error follows the normal retry path inside `processRun`.
+ * This is for the engine itself failing between those guarded points.
+ */
+async function recoverUnexpectedRunFailure(
+  runId: string,
+  claimToken: string,
+  error: unknown,
+  database: CustomShellDb
+) {
+  const message = error instanceof Error ? error.message : String(error)
+  const recipients = await database.transaction(async (tx) => {
+    const [run] = await tx
+      .select({ attempts: customShellAutomationRuns.attempts })
+      .from(customShellAutomationRuns)
+      .where(
+        and(
+          eq(customShellAutomationRuns.id, runId),
+          eq(customShellAutomationRuns.status, "active"),
+          eq(customShellAutomationRuns.claimToken, claimToken)
+        )
+      )
+      .limit(1)
+    if (!run) return []
+
+    const attempts = run.attempts + 1
+    const terminal = attempts >= MAX_ATTEMPTS
+    const [updated] = await tx
+      .update(customShellAutomationRuns)
+      .set({
+        status: terminal ? "failed" : "active",
+        attempts,
+        error: message,
+        ...(terminal
+          ? { finishedAt: now() }
+          : {
+              wakeAt: new Date(
+                now().getTime() + RETRY_BACKOFF_MS * attempts
+              ),
+            }),
+        claimToken: null,
+        claimedAt: null,
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(customShellAutomationRuns.id, runId),
+          eq(customShellAutomationRuns.status, "active"),
+          eq(customShellAutomationRuns.claimToken, claimToken)
+        )
+      )
+      .returning({ id: customShellAutomationRuns.id })
+
+    return terminal && updated
+      ? insertAutomationFailureNotifications(tx, [updated.id])
+      : []
+  })
+  await publishNotificationCreatedMany(recipients, database)
+}
+
+/** Inserts the missing one-per-admin rows inside the run's failure transaction. */
+async function insertAutomationFailureNotifications(
+  database: CustomShellDb,
+  runIds: string[]
+): Promise<string[]> {
+  if (!runIds.length) return []
+  const admins = await database
+    .select({ id: customShellUsers.id })
+    .from(customShellUsers)
+    .where(
+      and(
+        eq(customShellUsers.role, "admin"),
+        eq(customShellUsers.status, "active")
+      )
+    )
+  if (!admins.length) return []
+
+  const inserted = await database
+    .insert(customShellNotifications)
+    .values(
+      runIds.flatMap((runId) =>
+        admins.map((admin) => ({
+          id: uuid(),
+          recipientUserId: admin.id,
+          actorUserId: null,
+          type: "automation_failed",
+          automationRunId: runId,
+          createdAt: now(),
+        }))
+      )
+    )
+    .onConflictDoNothing()
+    .returning({ recipientUserId: customShellNotifications.recipientUserId })
+  return inserted.map((row) => row.recipientUserId)
+}
+
+/** Walks one claimed run as far as this pass allows. */
+async function processRun(
+  runId: string,
+  claimToken: string,
+  database: CustomShellDb
+) {
+  const [run] = await database
+    .select()
+    .from(customShellAutomationRuns)
+    .where(
+      and(
+        eq(customShellAutomationRuns.id, runId),
+        eq(customShellAutomationRuns.claimToken, claimToken)
+      )
+    )
+    .limit(1)
+
+  // Somebody else took it between the claim and the read.
+  if (!run) return
+
+  /**
+   * Every exit from this function goes through here: it writes the run's new
+   * state and hands the claim back in the same statement, still guarded by the
+   * token, so a process that lost its claim mid-step cannot overwrite whoever
+   * has it now.
+   */
+  const release = async (
+    values: Partial<typeof customShellAutomationRuns.$inferInsert>
+  ) => {
+    if (values.status === "failed") {
+      const recipients = await database.transaction(async (tx) => {
+        const [failedRun] = await tx
+          .update(customShellAutomationRuns)
+          .set({ ...values, claimToken: null, claimedAt: null, updatedAt: now() })
+          .where(
+            and(
+              eq(customShellAutomationRuns.id, runId),
+              eq(customShellAutomationRuns.claimToken, claimToken)
+            )
+          )
+          .returning({ id: customShellAutomationRuns.id })
+        return failedRun
+          ? insertAutomationFailureNotifications(tx, [failedRun.id])
+          : []
+      })
+      await publishNotificationCreatedMany(recipients, database)
+      return
+    }
+
+    await database
+      .update(customShellAutomationRuns)
+      .set({ ...values, claimToken: null, claimedAt: null, updatedAt: now() })
+      .where(
+        and(
+          eq(customShellAutomationRuns.id, runId),
+          eq(customShellAutomationRuns.claimToken, claimToken)
+        )
+      )
+  }
+
+  const parsed = automationCompiledConfigSchema.safeParse(run.configSnapshot)
+  if (!parsed.success) {
+    await release({
+      status: "failed",
+      error: "This run's saved copy of the flow could not be read.",
+      finishedAt: now(),
+    })
+    return
+  }
+  const config = parsed.data
+
+  let currentNodeId = run.currentNodeId
+  let attempts = run.attempts
+
+  for (let step = 0; step < NODE_BUDGET_PER_TICK; step += 1) {
+    const node = config.nodes[currentNodeId]
+    if (!node) {
+      await release({
+        status: "failed",
+        error: "A step this run was about to take is no longer in the flow.",
+        finishedAt: now(),
+      })
+      return
+    }
+
+    const executor = automationExecutorFor(node.kind)
+    const startedAt = now()
+
+    if (!executor) {
+      const message = `"${nodeLabel(node.kind)}" steps cannot run yet in this app.`
+      await recordStep(database, {
+        runId,
+        nodeId: currentNodeId,
+        kind: node.kind,
+        status: "failed",
+        attempts: attempts + 1,
+        summary: message,
+        error: message,
+        startedAt,
+      })
+      await release({ status: "failed", error: message, finishedAt: now() })
+      return
+    }
+
+    let result: AutomationExecutorResult
+    let output: AutomationRunOutput | null = null
+    try {
+      result =
+        run.testRun && !automationExecutorMayRunInTest(node.kind)
+          ? {
+              type: "next",
+              summary: `${nodeLabel(node.kind)} was skipped in this test so it could not change anything outside the run.`,
+            }
+          : await executor({
+              database,
+              run,
+              nodeId: currentNodeId,
+              settings: node.settings,
+              now,
+              dryRun: run.testRun,
+              testRun: run.testRun,
+            })
+      if (result.type !== "park") output = readStepOutput(result.output)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      attempts += 1
+      await recordStep(database, {
+        runId,
+        nodeId: currentNodeId,
+        kind: node.kind,
+        status: "failed",
+        attempts,
+        summary: `${nodeLabel(node.kind)} could not finish.`,
+        error: message,
+        startedAt,
+      })
+      if (attempts >= MAX_ATTEMPTS) {
+        await release({
+          status: "failed",
+          attempts,
+          error: message,
+          finishedAt: now(),
+        })
+      } else {
+        // Back off further with each try, so a service that is briefly down is
+        // given longer to come back rather than being hammered three times in
+        // ninety seconds.
+        await release({
+          status: "active",
+          attempts,
+          wakeAt: new Date(now().getTime() + RETRY_BACKOFF_MS * attempts),
+        })
+      }
+      return
+    }
+
+    if (result.type === "park") {
+      // No step row here on purpose. Nothing has happened yet — the run's own
+      // approval columns are what describes a checkpoint while it waits, and
+      // the step is written by whichever decision ends it.
+      await parkForApproval({
+        database,
+        run,
+        claimToken,
+        nodeId: currentNodeId,
+        result,
+      })
+      return
+    }
+
+    await recordStep(database, {
+      runId,
+      nodeId: currentNodeId,
+      kind: node.kind,
+      status: "completed",
+      attempts: attempts + 1,
+      summary: result.summary,
+      output,
+      startedAt,
+    })
+
+    const next =
+      result.type === "complete"
+        ? null
+        : automationNextNodeId(config, currentNodeId)
+
+    if (!next) {
+      await release({ status: "completed", error: null, finishedAt: now() })
+      return
+    }
+
+    currentNodeId = next
+    attempts = 0
+    // Written after every step so a crash resumes at the next step rather than
+    // replaying the flow from the top — and guarded by the claim like every
+    // other write here, not merely assumed to still hold it. A step that
+    // outlasts the stale-claim window (five minutes) can be reclaimed by
+    // another ticker mid-walk; without this condition that ticker's progress
+    // would be overwritten from this loop's stale position and the run would be
+    // walked twice, executing steps twice.
+    const [stillOurs] = await database
+      .update(customShellAutomationRuns)
+      .set({ currentNodeId, attempts, updatedAt: now() })
+      .where(
+        and(
+          eq(customShellAutomationRuns.id, runId),
+          eq(customShellAutomationRuns.claimToken, claimToken)
+        )
+      )
+      .returning({ id: customShellAutomationRuns.id })
+    // The claim is gone, so this run belongs to somebody else now. Stop
+    // touching it — including the release below, which is guarded too and
+    // would do nothing anyway.
+    if (!stillOurs) return
+
+    // The kill switch again, between steps rather than only once a pass. A pass
+    // can be inside a long flow for minutes, and the promise the switch makes is
+    // that the step already running finishes and nothing after it starts — not
+    // that everything already claimed runs to the end. The step just taken is
+    // recorded and `currentNodeId` now points at the next one, so handing the
+    // claim back here holds the run exactly where it stands.
+    if (await readAutomationsPaused(database)) {
+      await release({ status: "active", attempts, wakeAt: now() })
+      return
+    }
+  }
+
+  // Budget spent on one very long flow. Hand the claim back and finish it on
+  // the next pass rather than holding the batch open.
+  await release({ status: "active", attempts, wakeAt: now() })
+}
+
+/**
+ * Parks the run at a checkpoint and asks its owner to decide.
+ *
+ * The claim goes back in the same write, which is what makes a parked run free:
+ * `status = 'waiting_approval'` is not a status the claim query looks at, so a
+ * run can sit here for days without occupying anything.
+ */
+async function parkForApproval({
+  database,
+  run,
+  claimToken,
+  nodeId,
+  result,
+}: {
+  database: CustomShellDb
+  run: CustomShellAutomationRun
+  claimToken: string
+  nodeId: string
+  result: Extract<AutomationExecutorResult, { type: "park" }>
+}) {
+  const [parked] = await database
+    .update(customShellAutomationRuns)
+    .set({
+      status: "waiting_approval",
+      approvalNodeId: nodeId,
+      approvalSummary: result.summary,
+      approvalDeadlineAt: result.deadlineAt,
+      // A second checkpoint later in the same flow starts from a clean slate,
+      // or it would inherit the first one's answer.
+      approvalDecision: null,
+      approvalDecidedAt: null,
+      approvalDecidedBy: null,
+      claimToken: null,
+      claimedAt: null,
+      updatedAt: now(),
+    })
+    .where(
+      and(
+        eq(customShellAutomationRuns.id, run.id),
+        eq(customShellAutomationRuns.claimToken, claimToken),
+        eq(customShellAutomationRuns.status, "active")
+      )
+    )
+    .returning({ id: customShellAutomationRuns.id })
+
+  // Lost the claim, so this process is not the one that parked it and must not
+  // send a second notice for it.
+  if (!parked) return
+
+  await notifyApproval(database, run.userId, run.id, "pending")
+}
+
+/**
+ * The one way a run leaves `waiting_approval` — used by the Approve and Reject
+ * buttons and by the deadline sweep alike.
+ *
+ * Returns false when the run had already moved on, which is what makes a second
+ * click, a second tab, or two servers sweeping the same deadline harmless: the
+ * first one through wins and the rest do nothing.
+ */
+export async function decideAutomationApproval({
+  runId,
+  decision,
+  decidedByUserId,
+  decidedByName,
+  database = db,
+}: {
+  runId: string
+  decision: AutomationApprovalDecision
+  /** Null when the deadline decided it rather than a person. */
+  decidedByUserId: string | null
+  decidedByName: string | null
+  database?: CustomShellDb
+}): Promise<boolean> {
+  const timestamp = now()
+  const approved = decision === "approved"
+  let failureRecipients: string[] = []
+
+  const decided = await database.transaction(async (tx) => {
+    // Read and write inside one transaction: the run's move and the step that
+    // records why must land together or not at all.
+    const [waiting] = await tx
+      .select()
+      .from(customShellAutomationRuns)
+      .where(
+        and(
+          eq(customShellAutomationRuns.id, runId),
+          eq(customShellAutomationRuns.status, "waiting_approval")
+        )
+      )
+      .limit(1)
+    if (!waiting || !waiting.approvalNodeId) return false
+
+    const config = automationCompiledConfigSchema.safeParse(
+      waiting.configSnapshot
+    )
+    // Approving means "carry on", and with an unreadable snapshot there is no
+    // way to know what carrying on would do. Say so rather than marking the run
+    // complete, which would claim the rest of the flow ran when it never did.
+    if (approved && !config.success) {
+      const [failedRun] = await tx
+        .update(customShellAutomationRuns)
+        .set({
+          status: "failed",
+          error: "This run's saved copy of the flow could not be read.",
+          finishedAt: timestamp,
+          updatedAt: timestamp,
+        })
+        .where(eq(customShellAutomationRuns.id, runId))
+        .returning({ id: customShellAutomationRuns.id })
+      failureRecipients = failedRun
+        ? await insertAutomationFailureNotifications(tx, [failedRun.id])
+        : []
+      return false
+    }
+    const next = config.success
+      ? automationNextNodeId(config.data, waiting.approvalNodeId)
+      : null
+
+    const decidedBy = decidedByName ?? "nobody"
+    const summary = approved
+      ? `Approved by ${decidedBy}. The flow carried on.`
+      : decision === "timed_out"
+        ? "Nobody answered before the deadline, so the run stopped here."
+        : `Rejected by ${decidedBy}. Nothing after this step ran.`
+
+    const [moved] = await tx
+      .update(customShellAutomationRuns)
+      .set({
+        approvalDecision: decision,
+        approvalDecidedAt: timestamp,
+        approvalDecidedBy: decidedByUserId,
+        updatedAt: timestamp,
+        ...(approved
+          ? {
+              // Waiting for a person is not a failed attempt, so the resumed
+              // leg gets its own full retry budget.
+              attempts: 0,
+              error: null,
+              // Stepping past the checkpoint here is what stops the engine
+              // walking back into it and parking the run a second time.
+              ...(next
+                ? { status: "active" as const, currentNodeId: next, wakeAt: timestamp }
+                : { status: "completed" as const, finishedAt: timestamp }),
+            }
+          : { status: "rejected" as const, error: summary, finishedAt: timestamp }),
+      })
+      .where(
+        and(
+          eq(customShellAutomationRuns.id, runId),
+          eq(customShellAutomationRuns.status, "waiting_approval")
+        )
+      )
+      .returning({ id: customShellAutomationRuns.id })
+    if (!moved) return false
+
+    await tx.insert(customShellAutomationRunSteps).values({
+      id: uuid(),
+      runId,
+      nodeId: waiting.approvalNodeId,
+      kind: "waitForApproval",
+      status: approved ? "completed" : "rejected",
+      attempts: 1,
+      summary,
+      error: null,
+      startedAt: waiting.updatedAt,
+      finishedAt: timestamp,
+    })
+
+    return true
+  })
+  await publishNotificationCreatedMany(failureRecipients, database)
+  return decided
+}
+
+/** Auto-rejects checkpoints nobody answered before their deadline. */
+export async function sweepExpiredApprovals(database: CustomShellDb = db) {
+  const expired = await database
+    .select({
+      id: customShellAutomationRuns.id,
+      userId: customShellAutomationRuns.userId,
+    })
+    .from(customShellAutomationRuns)
+    .where(
+      and(
+        eq(customShellAutomationRuns.status, "waiting_approval"),
+        isNotNull(customShellAutomationRuns.approvalDeadlineAt),
+        lte(customShellAutomationRuns.approvalDeadlineAt, now())
+      )
+    )
+
+  let timedOut = 0
+  for (const run of expired) {
+    const decided = await decideAutomationApproval({
+      runId: run.id,
+      decision: "timed_out",
+      decidedByUserId: null,
+      decidedByName: null,
+      database,
+    }).catch((error) => {
+      console.error(`Automation approval timeout failed for ${run.id}`, error)
+      return false
+    })
+
+    // Only the process that actually moved the run says so, so two servers
+    // sweeping the same deadline cannot send the notice twice.
+    if (decided) {
+      timedOut += 1
+      await notifyApproval(database, run.userId, run.id, "timed_out")
+    }
+  }
+
+  return timedOut
+}
+
+/**
+ * Sets a flow going now.
+ *
+ * The run takes its own copy of the compiled flow, so editing the flow
+ * afterwards changes nothing about a run already in flight.
+ */
+export async function startAutomationRun(
+  workspaceId: string,
+  userId: string,
+  automationId: string,
+  database: CustomShellDb = db
+): Promise<CustomShellAutomationRun> {
+  return startAutomationRunRecord(
+    workspaceId,
+    userId,
+    automationId,
+    undefined,
+    database
+  )
+}
+
+/** Starts a side-effect-safe rehearsal with one real member as its subject. */
+export async function startAutomationTestRun(
+  workspaceId: string,
+  userId: string,
+  automationId: string,
+  subjectUserId: string,
+  database: CustomShellDb = db
+): Promise<CustomShellAutomationRun> {
+  const [admin, subject] = await Promise.all([
+    database
+      .select({ email: customShellUsers.email })
+      .from(customShellUsers)
+      .where(
+        and(
+          eq(customShellUsers.id, userId),
+          eq(customShellUsers.role, "admin"),
+          eq(customShellUsers.status, "active")
+        )
+      )
+      .limit(1),
+    findActiveWorkspaceMember(workspaceId, subjectUserId, database),
+  ])
+  if (!admin[0]) throw new Error("NOT_FOUND")
+  if (!subject) throw new Error("MEMBER_NOT_FOUND")
+
+  return startAutomationRunRecord(
+    workspaceId,
+    userId,
+    automationId,
+    {
+      subjectUserId: subject.id,
+      subjectLabel: automationSubjectLabel(subject),
+      testRecipientEmail: admin[0].email,
+    },
+    database
+  )
+}
+
+async function startAutomationRunRecord(
+  workspaceId: string,
+  userId: string,
+  automationId: string,
+  test:
+    | {
+        subjectUserId: string
+        subjectLabel: string
+        testRecipientEmail: string
+      }
+    | undefined,
+  database: CustomShellDb
+): Promise<CustomShellAutomationRun> {
+  // Refused rather than held, and this is the one place the kill switch works
+  // that way. Everything already going is kept and resumes; but somebody is
+  // standing here having just pressed a button, and telling them "everything is
+  // paused" beats saving a run they never see that fires the moment the switch
+  // goes back off.
+  if (await readAutomationsPaused(database)) {
+    throw new Error("AUTOMATIONS_PAUSED")
+  }
+
+  const [automation] = await database
+    .select()
+    .from(customShellAutomations)
+    .where(
+      and(
+        eq(customShellAutomations.id, automationId),
+        eq(customShellAutomations.workspaceId, workspaceId)
+      )
+    )
+    .limit(1)
+  if (!automation) throw new Error("NOT_FOUND")
+
+  const inspected = inspectAutomation(automation)
+  if (!inspected.compiledConfig || inspected.errors.length > 0) {
+    throw new Error("NOT_RUNNABLE")
+  }
+
+  const entryNodeId = automationEntryNodeId(inspected.compiledConfig)
+  if (!entryNodeId) throw new Error("NO_SINGLE_START")
+  if (!test && !automationCanStartManually(inspected.compiledConfig)) {
+    throw new Error("REQUIRES_SUBJECT")
+  }
+
+  const timestamp = now()
+  const [run] = await database
+    .insert(customShellAutomationRuns)
+    .values({
+      id: uuid(),
+      automationId: automation.id,
+      // Who pressed Run, for the record, and the flow's own site — not
+      // whichever site they happen to be looking at. A run's audience is fixed
+      // the moment it starts and cannot drift afterwards.
+      userId,
+      workspaceId: automation.workspaceId,
+      status: "active",
+      currentNodeId: entryNodeId,
+      configSnapshot: inspected.compiledConfig,
+      wakeAt: timestamp,
+      attempts: 0,
+      subjectUserId: test?.subjectUserId,
+      subjectLabel: test?.subjectLabel,
+      testRun: Boolean(test),
+      testRecipientEmail: test?.testRecipientEmail,
+      startedAt: timestamp,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .returning()
+  if (!run) throw new Error("NOT_FOUND")
+
+  return run
+}
+
+/**
+ * The bell notice: this run is waiting on you, and later that nobody answered.
+ *
+ * Never fatal. The run's state is already committed by the time this runs, and
+ * the runs page says the same thing without it — so a failure here is logged
+ * and the caller carries on.
+ */
+/**
+ * "This run is waiting on you." Sent to whoever wrote the flow — and to nobody
+ * when they have since left, which is the one case where there is no answer.
+ */
+async function notifyApproval(
+  database: CustomShellDb,
+  userId: string | null,
+  runId: string,
+  state: "pending" | "timed_out"
+) {
+  // Nobody left to ask. The run still waits in the list where any admin on the
+  // site can answer it; there is simply no tray to drop a notice into.
+  if (!userId) return
+
+  try {
+    await database.insert(customShellNotifications).values({
+      id: uuid(),
+      recipientUserId: userId,
+      // No actor: the app is asking, not a person.
+      actorUserId: null,
+      type: "automation_approval",
+      automationRunId: runId,
+      automationApprovalState: state,
+      createdAt: now(),
+    })
+    // The case this whole feature exists for. The ticker is a background loop,
+    // not a request, so nothing else would ever tell the browser — and "a run
+    // is waiting for you before it emails real members" is exactly the notice
+    // that must not sit unseen for a minute.
+    await publishNotificationCreated(userId, database)
+  } catch (error) {
+    console.error(`Automation approval notice failed for ${runId}`, error)
+  }
+}
+
+/** Deletes finished runs. A run still going or waiting is refused, not killed. */
+export async function deleteAutomationRuns(
+  workspaceId: string,
+  runIds: string[],
+  database: CustomShellDb = db
+): Promise<{ deleted: string[]; kept: string[] }> {
+  const deleted = await database
+    .delete(customShellAutomationRuns)
+    .where(
+      and(
+        eq(customShellAutomationRuns.workspaceId, workspaceId),
+        inArray(customShellAutomationRuns.id, runIds),
+        inArray(customShellAutomationRuns.status, [
+          "completed",
+          "failed",
+          "rejected",
+          "canceled",
+        ])
+      )
+    )
+    .returning({ id: customShellAutomationRuns.id })
+
+  const wentThrough = new Set(deleted.map((row) => row.id))
+  return {
+    deleted: [...wentThrough],
+    kept: runIds.filter((id) => !wentThrough.has(id)),
+  }
+}
+
+/** The step's name as the canvas writes it, for a run-history line. */
+function nodeLabel(kind: string): string {
+  return automationNodeName({ id: "", kind, x: 0, y: 0, settings: {} })
+}
+
+async function recordStep(
+  database: CustomShellDb,
+  step: {
+    runId: string
+    nodeId: string
+    kind: string
+    status: "completed" | "failed"
+    attempts: number
+    summary: string
+    output?: AutomationRunOutput | null
+    error?: string
+    startedAt: Date
+  }
+) {
+  await database.insert(customShellAutomationRunSteps).values({
+    id: uuid(),
+    runId: step.runId,
+    nodeId: step.nodeId,
+    kind: step.kind,
+    status: step.status,
+    attempts: step.attempts,
+    summary: step.summary,
+    output: step.output ?? null,
+    error: step.error ?? null,
+    startedAt: step.startedAt,
+    finishedAt: now(),
+  })
+}
+
+/** Refuses output an app could not safely store or send back to the browser. */
+function readStepOutput(value: AutomationRunOutput | undefined) {
+  if (value === undefined) return null
+
+  const parsed = automationSettingValueSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new Error("Automation step output must contain valid JSON values.")
+  }
+  if (JSON.stringify(parsed.data).length > MAX_STEP_OUTPUT_JSON_LENGTH) {
+    throw new Error("Automation step output must stay under 50,000 characters.")
+  }
+  return parsed.data
+}
