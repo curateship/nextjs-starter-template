@@ -101,7 +101,8 @@ function SidePanel({ parts, onClose }: { parts: TaskParts; onClose: () => void }
     >
       {/* In a narrow panel Add note and Follow drop their words for their
           icons, and anything still too wide scrolls sideways rather than
-          pushing the cross out of reach. */}
+          pushing the cross out of reach. The status and the icon buttons have
+          no border or background (Tyler, 14 Oct 2026). */}
       <DashboardCardHeader className="@container/task-head">
         <ScrollArea className="min-w-0 flex-1">
           {side ? (
@@ -194,6 +195,7 @@ function SidePanel({ parts, onClose }: { parts: TaskParts; onClose: () => void }
 function SideBody({ side }: { side: TaskSide }) {
   return (
     <>
+      {side.title}
       {side.notices}
       {side.notes.empty ? null : (
         <PanelCard storageId="project-task-notes" title="Notes" settings quiet>
@@ -231,7 +233,7 @@ function AddNoteMenu({
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" aria-label="Add note" className={cn(open && "bg-muted")}>
+        <Button type="button" variant="ghost" aria-label="Add note" className={cn(open && "bg-muted")}>
           <PenLineIcon className="size-4" />
           <span className="@max-lg/task-head:hidden">Add note</span>
         </Button>
@@ -272,7 +274,7 @@ function FilesMenu({
           <PopoverTrigger asChild>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               className={cn("px-2.5", open && "bg-muted")}
               aria-label={`Files, ${count}`}
             >
@@ -324,7 +326,7 @@ function ChatMenu({
           <PopoverTrigger asChild>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="icon"
               aria-label="Start the chat"
               className={cn(open && "bg-muted")}
@@ -399,7 +401,7 @@ function TaskSettingsMenu({
           <PopoverTrigger asChild>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="icon"
               aria-label="Task settings"
               className={cn(open && "bg-muted")}

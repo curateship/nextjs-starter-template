@@ -32,6 +32,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
@@ -89,6 +90,20 @@ const NOBODY = "nobody"
 export const DELETE_TASK_QUESTION = "Delete this task?"
 export const DELETE_TASK_DETAIL = `It moves to the project's bin with its steps, chat and files, and can be brought back for ${BIN_DAYS} days.`
 
+/** "Task moved to the bin." with Undo, after a task is deleted from its panel or its Board card. */
+export function showBinnedToast(taskId: string, router: { invalidate: () => Promise<unknown> }) {
+  toast.success("Task moved to the bin.", {
+    action: {
+      label: "Undo",
+      onClick: () =>
+        void restoreProjectTask(taskId).then(
+          () => router.invalidate(),
+          (error: unknown) => showErrorToast(getProjectErrorMessage(error))
+        ),
+    },
+  })
+}
+
 /**
  * What a task shows, split into the pieces its frames place differently: the
  * window on the Team dashboard (`task-dialog.tsx`) draws `body`, the whole
@@ -118,6 +133,8 @@ export type TaskParts = {
  * of the fields in the cog's dropdown.
  */
 export type TaskSide = {
+  /** The title at the top of the panel, edited where it is written. */
+  title: React.ReactNode
   status: React.ReactNode
   /** A hand-over to accept, a review, the Stuck reason row, and the Move and Remind me cards. */
   notices: React.ReactNode
@@ -133,7 +150,7 @@ export type TaskSide = {
   /** Follow or stop following, at the right of the cog dropdown's tabs. */
   followButton: React.ReactNode
   files: { count: number; content: React.ReactNode }
-  /** The fields of the cog's Details tab: title, person, dates, priority, type, section, labels and review. */
+  /** The fields of the cog's Details tab: person, dates, priority, type, section, labels and review. */
   details: React.ReactNode
   /** The task type's own fields, as a card. Nothing when its type has none. */
   typeFields: React.ReactNode
@@ -396,16 +413,7 @@ function TaskForm({
   async function remove() {
     const ok = await run(() => deleteProjectTask(task.id))
     if (!ok) return false
-    toast.success("Task moved to the bin.", {
-      action: {
-        label: "Undo",
-        onClick: () =>
-          void restoreProjectTask(task.id).then(
-            () => router.invalidate(),
-            (error: unknown) => showErrorToast(getProjectErrorMessage(error))
-          ),
-      },
-    })
+    showBinnedToast(task.id, router)
     await router.invalidate()
     return true
   }
@@ -606,7 +614,11 @@ function TaskForm({
       onValueChange={(value) => pickStatus(value as TaskStatus)}
       disabled={readOnly || busy}
     >
-      <SelectTrigger aria-label="Status" className="w-fit">
+      {/* No border or background in the panel's header, like the icons beside it (Tyler, 14 Oct 2026). */}
+      <SelectTrigger
+        aria-label="Status"
+        className="w-fit border-transparent bg-transparent shadow-none hover:bg-muted dark:bg-transparent dark:hover:bg-muted/50"
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -883,6 +895,27 @@ function TaskForm({
   )
 
   const side: TaskSide = {
+    // Written as a heading, as Tyler drew it on 14 Oct 2026, and edited in place.
+    // Enter saves rather than starting a new line, as the Title field did.
+    title: readOnly ? (
+      <h2 className="text-base font-semibold break-words">{task.title}</h2>
+    ) : (
+      <Textarea
+        aria-label="Task title"
+        rows={1}
+        value={title}
+        maxLength={LIMITS.taskTitle}
+        onChange={(event) => setTitle(event.target.value.replace(/\n/g, " "))}
+        onBlur={commitTitle}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            event.currentTarget.blur()
+          }
+        }}
+        className="-mx-2 resize-none border-transparent px-2 py-1 text-base font-semibold shadow-none hover:border-input dark:bg-transparent"
+      />
+    ),
     status: statusPill,
     notices: (
       <>
@@ -945,7 +978,6 @@ function TaskForm({
     },
     details: (
       <>
-        {titleField}
         <div className="grid gap-4 sm:grid-cols-2">
           {assigneeField}
           {startField}

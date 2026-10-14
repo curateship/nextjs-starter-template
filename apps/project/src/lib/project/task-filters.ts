@@ -1,4 +1,4 @@
-import { dueDayOf } from "@/lib/project/dates"
+import { dueDayOf, isOverdue, todayKey } from "@/lib/project/dates"
 import { addDays } from "@/lib/project/days"
 import {
   DONE_RECENT_DAYS,
@@ -10,12 +10,30 @@ import {
 
 /**
  * Narrowing a list of tasks: a search over title and notes, and Status,
- * Priority, Person, Label and Type filters. They live in the page's address, so a
+ * Priority, Person, Label, Type and due-date filters. They live in the page's address, so a
  * pasted link keeps them. The search doesn't look inside a type's fields.
  */
 
 /** A task with nobody assigned, for the Person filter. */
 export const NOBODY_FILTER = "nobody"
+
+/**
+ * The project page's due-date dropdown. "This week" is today and the six days
+ * after it, and "Next week" the seven days after those, on the reader's own
+ * clock. Overdue leaves out Done tasks, as the red date on a card does.
+ */
+export const DUE_FILTERS = [
+  { key: "overdue", label: "Overdue" },
+  { key: "today", label: "Today" },
+  { key: "week", label: "This week" },
+  { key: "next-week", label: "Next week" },
+  { key: "none", label: "No date" },
+] as const
+export type DueFilter = (typeof DUE_FILTERS)[number]["key"]
+
+export function isDueFilter(value: unknown): value is DueFilter {
+  return DUE_FILTERS.some((option) => option.key === value)
+}
 
 export type TaskFilters = {
   q?: string
@@ -26,6 +44,7 @@ export type TaskFilters = {
   label?: string
   /** A task type's id. */
   type?: string
+  due?: DueFilter
 }
 
 type Filterable = {
@@ -36,6 +55,8 @@ type Filterable = {
   assignee: { id: string } | null
   labels: { id: string }[]
   type: { id: string } | null
+  dueDate?: string | null
+  dueAt?: string | null
 }
 
 const ID = /^[\w-]{1,36}$/
@@ -49,16 +70,18 @@ export function readTaskFilters(search: Record<string, unknown>): TaskFilters {
   if (typeof search.person === "string" && ID.test(search.person)) result.person = search.person
   if (typeof search.label === "string" && ID.test(search.label)) result.label = search.label
   if (typeof search.type === "string" && ID.test(search.type)) result.type = search.type
+  if (isDueFilter(search.due)) result.due = search.due
   return result
 }
 
 export function hasTaskFilters(filters: TaskFilters) {
   return Boolean(
-    filters.q?.trim() || filters.status || filters.priority || filters.person || filters.label || filters.type
+    filters.q?.trim() || filters.status || filters.priority || filters.person || filters.label || filters.type || filters.due
   )
 }
 
-export function filterTasks<T extends Filterable>(tasks: T[], filters: TaskFilters): T[] {
+export function filterTasks<T extends Filterable>(tasks: T[], filters: TaskFilters, now = new Date()): T[] {
+  const today = todayKey(now)
   const words = (filters.q ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean)
   return tasks.filter((task) => {
     if (filters.status && task.status !== filters.status) return false
@@ -69,12 +92,23 @@ export function filterTasks<T extends Filterable>(tasks: T[], filters: TaskFilte
     }
     if (filters.label && !task.labels.some((label) => label.id === filters.label)) return false
     if (filters.type && task.type?.id !== filters.type) return false
+    if (filters.due && !matchesDue(task, filters.due, today, now)) return false
     if (words.length) {
       const haystack = `${task.title}\n${task.notesText}`.toLowerCase()
       if (!words.every((word) => haystack.includes(word))) return false
     }
     return true
   })
+}
+
+function matchesDue(task: Filterable, due: DueFilter, today: string, now: Date) {
+  const day = dueDayOf({ dueDate: task.dueDate ?? null, dueAt: task.dueAt })
+  if (due === "none") return !day
+  if (!day) return false
+  if (due === "overdue") return isOverdue(task.dueDate ?? null, task.status, task.dueAt ?? null, now)
+  if (due === "today") return day === today
+  if (due === "week") return day >= today && day <= addDays(today, 6)
+  return day > addDays(today, 6) && day <= addDays(today, 13)
 }
 
 /**

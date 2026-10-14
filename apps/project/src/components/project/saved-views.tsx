@@ -56,6 +56,7 @@ export function SavedViewsControls({
   onChange,
   here,
   saveButton = true,
+  buttonVariant = "outline",
 }: {
   views: SavedView[]
   filters: TaskFilters
@@ -63,6 +64,8 @@ export function SavedViewsControls({
   here: Here
   /** Off where Save as view sits elsewhere, as in the project page's Filter popover. */
   saveButton?: boolean
+  /** Ghost in the project page's header, where every control is. */
+  buttonVariant?: "outline" | "ghost"
 }) {
   const router = useRouter()
   const [saving, setSaving] = React.useState(false)
@@ -80,6 +83,7 @@ export function SavedViewsControls({
       person: undefined,
       label: undefined,
       type: undefined,
+      due: undefined,
       ...next,
     })
     if (missing.length) {
@@ -104,9 +108,10 @@ export function SavedViewsControls({
       ) : null}
       <DropdownMenu onOpenChange={(open) => (open ? undefined : setRemoving(false))}>
         <DropdownMenuTrigger asChild>
-          <DashboardToolbarButton type="button" variant="outline">
+          <DashboardToolbarButton type="button" variant={buttonVariant}>
             <BookmarkIcon className="size-4" />
-            Views
+            {/* The tasks panel's header is the container: in a narrow one the icon stays and the word goes. */}
+            <span className="@max-4xl:sr-only">Views</span>
             {views.length ? <span className="text-muted-foreground">{views.length}</span> : null}
           </DashboardToolbarButton>
         </DropdownMenuTrigger>
