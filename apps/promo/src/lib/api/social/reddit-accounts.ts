@@ -18,10 +18,11 @@ import { readBehaviour } from "@/server/social/behaviour"
 import { setAccountsPaused } from "@/server/social/pause"
 import { listVoices } from "@/server/social/voices"
 import { ACCOUNT_STATUSES } from "@/lib/social/account-status"
+import { currentCodes, removeTwoFactor, saveTwoFactor, type CurrentCode } from "@/server/social/two-factor"
 
 import { createErrorMessage } from "../error-message"
 
-export type { BulkAnswer, RedditAccountRow }
+export type { BulkAnswer, CurrentCode, RedditAccountRow }
 
 /**
  * The Reddit accounts dashboard's endpoints: every account with its status
@@ -42,6 +43,9 @@ export const getRedditAccountsErrorMessage = createErrorMessage(
     "is the reader browser": "That profile is the reader browser, which stays signed in to nobody. Pick another, or change the reader in Settings → Behaviour.",
     "account is not there any more": "That account is not there any more. Reload the page.",
     "There is no reader browser": "Pick a reader browser in Settings → Behaviour first. A health reading needs one.",
+    "not an authenticator secret": "That is not an authenticator secret. Paste the letters the site showed, or the otpauth:// link from its QR code.",
+    "kind of code Promo does not make": "That link asks for a kind of code Promo does not make. Paste the secret letters instead.",
+    ENCRYPTION_NOT_CONFIGURED: "This server has no encryption key set, so a secret cannot be kept.",
   },
   "That did not work. Please try again."
 )
@@ -175,4 +179,30 @@ const voiceFn = createServerFn({ method: "POST" })
 
 export function setRedditAccountVoice(accountId: string, voiceId: string | null) {
   return voiceFn({ data: { accountId, voiceId } })
+}
+
+const twoFactorFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ accountId: z.string().min(1), secret: z.string().max(1_000).nullable() }))
+  .handler(async ({ context, data }): Promise<void> => {
+    if (data.secret === null) await removeTwoFactor(context.user.id, data.accountId)
+    else await saveTwoFactor(context.user.id, data.accountId, data.secret)
+  })
+
+/** Saves an account's authenticator secret, encrypted, or with null removes it. */
+export function setRedditAccountTwoFactor(accountId: string, secret: string | null) {
+  return twoFactorFn({ data: { accountId, secret } })
+}
+
+const codeFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ accountId: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<CurrentCode | null> => {
+    const [code] = await currentCodes(context.user.id, { accountIds: [data.accountId] })
+    return code ?? null
+  })
+
+/** The account's current authenticator code, or null when no secret is saved. */
+export function loadRedditAccountCode(accountId: string) {
+  return codeFn({ data: { accountId } })
 }

@@ -8,6 +8,11 @@ Only the actions named in ACTIONS below are ever run; any other name is
 refused. Every message both ways is signed with the key this rack was given
 when it was paired, and a reply without the right signature is thrown away.
 
+Two threads besides the main loop's own: each action runs on a thread of its
+own, so two phones work side by side (Promo hands a phone one action at a
+time), and one thread sends the screens of the phones someone is watching,
+a few pictures a second, and carries their taps back.
+
 Commands:
   promo_rack.py pair --url https://promo.example --code ABCD-EFGH [--name "Rack"]
   promo_rack.py run
@@ -36,12 +41,13 @@ import secrets
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ElementTree
 
-VERSION = "2026.10.13.1"
+VERSION = "2026.10.14.1"
 
 # The launcher restarts the program when it exits with this code: a new
 # version was written, or someone switched versions on disk.
@@ -245,7 +251,7 @@ def parse_devices(output):
     return phones
 
 
-# Each phone's model and Android version, read once while it stays plugged in.
+# Each phone's model, Android version and time zone, read once while it stays plugged in.
 _PROPS = {}
 
 
@@ -262,6 +268,7 @@ def list_phones():
                 _PROPS[serial] = {
                     "model": shell(serial, "getprop ro.product.model", timeout=10),
                     "android": shell(serial, "getprop ro.build.version.release", timeout=10),
+                    "timezone": shell(serial, "getprop persist.sys.timezone", timeout=10),
                 }
             except (RuntimeError, subprocess.TimeoutExpired):
                 continue
@@ -397,6 +404,179 @@ ACTIONS = {
 
 
 # ---------------------------------------------------------------------------
+# Screens. While someone has a phone's window open in Promo, this sends a
+# picture of its screen a few times a second and carries back the taps and
+# typing, which Promo hands over only while that person has control on. It
+# also looks for a code texted to the phone. Texts are never written down.
+
+SCREEN_GAP_SECONDS = 0.3
+IDLE_SCREEN_GAP_SECONDS = 2
+TEXT_GAP_SECONDS = 4
+# A texted code older than this is not shown.
+TEXT_WINDOW_MS = 10 * 60 * 1000
+CODE_PATTERN = re.compile(r"(?<![\d])(\d{4,8})(?![\d])")
+
+KEYCODES = {
+    "back": "KEYCODE_BACK",
+    "home": "KEYCODE_HOME",
+    "recents": "KEYCODE_APP_SWITCH",
+    "enter": "KEYCODE_ENTER",
+    "delete": "KEYCODE_DEL",
+}
+
+
+def screen_frame(device):
+    """A picture of the screen, shrunk, with the phone's own size for placing taps."""
+    image = device.screenshot()
+    width, height = image.width, image.height
+    if width > SCREENSHOT_WIDTH:
+        image = image.resize((SCREENSHOT_WIDTH, round(height * SCREENSHOT_WIDTH / width)))
+    buffer = io.BytesIO()
+    image.convert("RGB").save(buffer, format="JPEG", quality=60)
+    return buffer.getvalue(), width, height
+
+
+def typed_text(text):
+    """`input text`'s own spelling, quoted for the phone's shell: spaces are %s."""
+    return "'%s'" % text.replace("'", "'\\''").replace(" ", "%s")
+
+
+def apply_input(serial, item, size):
+    width, height = size
+    kind = item.get("kind")
+    if kind == "tap":
+        shell(serial, "input tap %d %d" % (round(item["x"] * width), round(item["y"] * height)))
+    elif kind == "swipe":
+        shell(serial, "input swipe %d %d %d %d 300" % (
+            round(item["x1"] * width), round(item["y1"] * height),
+            round(item["x2"] * width), round(item["y2"] * height),
+        ))
+    elif kind == "text":
+        shell(serial, "input text %s" % typed_text(str(item.get("text", ""))[:500]))
+    elif kind == "key" and item.get("key") in KEYCODES:
+        shell(serial, "input keyevent %s" % KEYCODES[item["key"]])
+
+
+def newest_code(messages, now_ms):
+    """The newest code in messages of (sender, body, time in ms) from the last ten minutes."""
+    for sender, body, at in sorted(messages, key=lambda message: message[2], reverse=True):
+        if now_ms - at > TEXT_WINDOW_MS:
+            continue
+        found = CODE_PATTERN.search(body)
+        if found:
+            return {"code": found.group(1), "from": sender[:80]}
+    return None
+
+
+def parse_sms_rows(output):
+    """`content query` rows: Row: 0 address=..., body=..., date=..."""
+    messages = []
+    for line in output.splitlines():
+        found = re.match(r"^Row: \d+ address=(.*?), body=(.*), date=(\d+)\s*$", line.strip())
+        if found:
+            messages.append((found.group(1), found.group(2), int(found.group(3))))
+    return messages
+
+
+def parse_notification_texts(output, now_ms):
+    """Message notifications' text, from `dumpsys notification --noredact`."""
+    messages = []
+    block_is_messages = False
+    title = ""
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("NotificationRecord("):
+            block_is_messages = bool(re.search(r"pkg=\S*(messaging|mms|sms)", stripped))
+            title = ""
+        elif block_is_messages and stripped.startswith("android.title="):
+            title = re.sub(r"^android\.title=\w+ \((.*)\)$", r"\1", stripped)
+        elif block_is_messages and stripped.startswith("android.text="):
+            text = re.sub(r"^android\.text=\w+ \((.*)\)$", r"\1", stripped)
+            messages.append((title, text, now_ms))
+    return messages
+
+
+def read_texted_code(serial):
+    """The newest code texted to the phone, from its inbox or, if Android refuses that, its notifications."""
+    now_ms = int(time.time() * 1000)
+    since = now_ms - TEXT_WINDOW_MS
+    try:
+        output = shell(
+            serial,
+            "content query --uri content://sms/inbox --projection address:body:date --where \"date>%d\"" % since,
+            timeout=10,
+        )
+        if "Error" not in output and "Exception" not in output:
+            return newest_code(parse_sms_rows(output), now_ms)
+    except (RuntimeError, subprocess.TimeoutExpired):
+        pass
+    try:
+        return newest_code(parse_notification_texts(shell(serial, "dumpsys notification --noredact", timeout=10), now_ms), now_ms)
+    except (RuntimeError, subprocess.TimeoutExpired):
+        return None
+
+
+def screen_loop(config):
+    """Runs for as long as the program does. A turn that fails for any reason
+    is logged and the next one tried, so screens never stop for good."""
+    state = {"wanted": [], "devices": {}, "sizes": {}, "texts_read_at": {}, "warned": set()}
+    while True:
+        try:
+            gap = screen_turn(config, state)
+        except Exception as failure:  # Anything unforeseen; the loop must outlive it.
+            log("Screens stopped a turn: %s" % failure)
+            gap = 10
+        time.sleep(gap)
+
+
+def screen_turn(config, state):
+    """One turn: pictures and texted codes for the watched phones, out; which
+    phones to watch and their taps, back. Returns how long to wait."""
+    devices, sizes, texts_read_at, warned = state["devices"], state["sizes"], state["texts_read_at"], state["warned"]
+    frames, texts = [], []
+    for serial in state["wanted"]:
+        try:
+            device = devices.get(serial) or connect_screen(serial)
+            devices[serial] = device
+            jpeg, width, height = screen_frame(device)
+            sizes[serial] = (width, height)
+            frames.append({"serial": serial, "jpeg": base64.b64encode(jpeg).decode("ascii"), "width": width, "height": height})
+            warned.discard(serial)
+        except Exception as failure:  # A phone pulled out mid-picture; try again next turn.
+            devices.pop(serial, None)
+            if serial not in warned:
+                log("No picture from %s: %s" % (serial, failure))
+                warned.add(serial)
+        if time.time() - texts_read_at.get(serial, 0) > TEXT_GAP_SECONDS:
+            texts_read_at[serial] = time.time()
+            code = read_texted_code(serial)
+            if code:
+                texts.append(dict(code, serial=serial))
+
+    try:
+        reply = call(config, "/api/rack/screen", {"frames": frames, "texts": texts})
+    except (CallFailed, Refused) as failure:
+        log("Screens: %s" % failure)
+        return 10
+    wanted = [serial for serial in reply.get("wanted") or [] if isinstance(serial, str)]
+    state["wanted"] = wanted
+
+    for serial, items in (reply.get("inputs") or {}).items():
+        if serial not in sizes:
+            continue
+        for item in items:
+            try:
+                apply_input(serial, item, sizes[serial])
+            except (RuntimeError, subprocess.TimeoutExpired, KeyError, TypeError, ValueError) as failure:
+                log("A tap on %s did not go through: %s" % (serial, failure))
+    for serial in list(devices):
+        if serial not in wanted:
+            devices.pop(serial, None)
+            texts_read_at.pop(serial, None)
+    return SCREEN_GAP_SECONDS if wanted else IDLE_SCREEN_GAP_SECONDS
+
+
+# ---------------------------------------------------------------------------
 # The loop
 
 def platform_name():
@@ -444,6 +624,31 @@ def install_update(config, latest):
     sys.exit(EXIT_SWITCH)
 
 
+# The actions running now, so the program never switches version under one.
+_RUNNING = set()
+_RUNNING_LOCK = threading.Lock()
+
+
+def start_action(config, action):
+    """Runs one action on a thread of its own, so another phone's can start meanwhile."""
+    with _RUNNING_LOCK:
+        _RUNNING.add(action["id"])
+
+    def work():
+        try:
+            run_action(config, action)
+        finally:
+            with _RUNNING_LOCK:
+                _RUNNING.discard(action["id"])
+
+    threading.Thread(target=work, name="action-%s" % action["id"][:8], daemon=True).start()
+
+
+def actions_running():
+    with _RUNNING_LOCK:
+        return len(_RUNNING)
+
+
 def run_action(config, action):
     name = action.get("action", "")
     handler = ACTIONS.get(name)
@@ -457,13 +662,22 @@ def run_action(config, action):
         except Exception as failure:  # The answer goes back to Promo either way.
             ok, result, error = False, None, str(failure) or failure.__class__.__name__
     log("%s on %s: %s" % (name, action.get("serial", ""), "done" if ok else error))
-    call(config, "/api/rack/result", {
+    answer = {
         "id": action["id"],
         "ok": ok,
         "result": result,
         "error": error,
         "screenshots": [base64.b64encode(shot).decode("ascii") for shot in shots],
-    })
+    }
+    # The answer is worth a few tries: a comment that went out must be
+    # reported, or Promo calls it failed when it was not.
+    for attempt in range(5):
+        try:
+            call(config, "/api/rack/result", answer)
+            return
+        except (CallFailed, Refused) as failure:
+            log("Could not hand in the answer to %s (%s). %s" % (name, attempt + 1, failure))
+            time.sleep(5)
 
 
 def run():
@@ -472,11 +686,12 @@ def run():
         log("This rack is not paired. Run the install command from the Phones dashboard.")
         sys.exit(1)
     log("Promo rack %s started, talking to %s." % (VERSION, config["url"]))
+    threading.Thread(target=screen_loop, args=(config,), name="screens", daemon=True).start()
     interval = DEFAULT_CHECK_IN_SECONDS
     last_check_in = 0.0
     while True:
         current = load_state().get("current")
-        if current and current != VERSION:
+        if current and current != VERSION and not actions_running():
             log("Switching to %s." % current)
             sys.exit(EXIT_SWITCH)
         try:
@@ -485,11 +700,17 @@ def run():
                 last_check_in = time.time()
                 interval = int(reply.get("checkInSeconds") or DEFAULT_CHECK_IN_SECONDS)
                 latest = reply.get("latestVersion")
-                if latest and latest != VERSION and latest not in (load_state().get("failed") or []):
+                # Never under a running action: it would be cut off half-way.
+                if (
+                    latest
+                    and latest != VERSION
+                    and latest not in (load_state().get("failed") or [])
+                    and not actions_running()
+                ):
                     install_update(config, latest)
             work = call(config, "/api/rack/next", {}).get("action")
             if work:
-                run_action(config, work)
+                start_action(config, work)
                 continue
             time.sleep(POLL_SECONDS)
         except Refused as refusal:

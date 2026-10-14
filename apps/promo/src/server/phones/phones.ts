@@ -2,11 +2,13 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm"
 
 import {
   PHONE_STALE_MS,
+  slotWords,
   type PhoneConnection,
   type PhoneStatus,
 } from "@/lib/phones/options"
 import { uuid } from "@/server/auth/security"
 import { cleanTags } from "@/server/browser/profiles"
+import { Refusal } from "@/server/browser/refusal"
 import { promoProfileFolders, promoProfileLabels, promoProxies } from "@/server/browser/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoAccounts } from "@/server/social/schema"
@@ -233,20 +235,26 @@ async function bulkUpdate(
 
 /**
  * What the dashboard says about a phone. Held wins, because a person chose
- * it. Then offline: never seen, not seen for three check-ins, missing from
+ * it, by the hold button or by taking control in its screen window. Then
+ * offline: never seen, not seen for three check-ins, missing from
  * its rack's last list, waiting for a tap on its screen, or on a rack that
  * was disconnected. Then busy, while an action runs on it.
  */
 export function phoneStatus(
-  phone: { held: boolean; adbState: string; lastSeenAt: Date | null },
+  phone: { held: boolean; controlUntil?: Date | null; adbState: string; lastSeenAt: Date | null },
   rackLive: boolean,
   running: boolean,
   now: Date = new Date()
 ): PhoneStatus {
-  if (phone.held) return "held"
+  if (phone.held || inUse(phone, now)) return "held"
   const seen = phone.lastSeenAt && now.getTime() - phone.lastSeenAt.getTime() < PHONE_STALE_MS
   if (!rackLive || !seen || phone.adbState !== "device") return "offline"
   return running ? "busy" : "connected"
+}
+
+/** True while a person controls the phone from its screen window. */
+export function inUse(phone: { controlUntil?: Date | null }, now: Date = new Date()): boolean {
+  return Boolean(phone.controlUntil && phone.controlUntil > now)
 }
 
 /**
@@ -284,6 +292,8 @@ export type PhoneRecord = {
   status: PhoneStatus
   /** Why it is offline, or empty when it is not. */
   offlineReason: string
+  /** Held because a person controls it from its screen window. */
+  inUse: boolean
   lastSeenAt: Date | null
   accounts: Array<{ id: string; platform: string; handle: string; blocked: boolean }>
   createdAt: Date
@@ -342,6 +352,7 @@ export async function listPhones(
       usbPort: phone.usbPort,
       status,
       offlineReason: status === "offline" ? offlineReason(phone, rackLive) : "",
+      inUse: inUse(phone, now),
       lastSeenAt: phone.lastSeenAt,
       accounts: accounts.get(phone.id) ?? [],
       createdAt: phone.createdAt,
@@ -409,4 +420,44 @@ export async function phonesFreeForReddit(
   return phones.filter((phone) =>
     (holders.get(phone.id) ?? []).every((other) => other.platform !== "reddit" || other.id === accountId)
   )
+}
+
+/**
+ * The phone a job is about to run on, as a target for its Reddit steps, or a
+ * refusal a person can act on. Offline fails at once, the way a dead proxy
+ * does for a browser: a comment is then never tried again, and nothing waits
+ * on a phone that is not there. A held phone, or one a person is using from
+ * its screen window, puts the job back to wait; that only happens when the
+ * hold came in after the job was taken, because the queue skips held phones.
+ */
+export async function phoneForJob(
+  userId: string,
+  phoneId: string,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<
+  | { ready: true; target: { phone: { id: string; userId: string; rackId: string; name: string } }; timeZone: string }
+  | { ready: false; held: true }
+> {
+  const [row] = await db
+    .select({ phone: promoPhones, rackDisconnectedAt: promoRacks.disconnectedAt })
+    .from(promoPhones)
+    .leftJoin(promoRacks, eq(promoRacks.id, promoPhones.rackId))
+    .where(and(eq(promoPhones.id, phoneId), eq(promoPhones.userId, userId)))
+    .limit(1)
+  if (!row) throw new Refusal("The phone this account runs on is not there any more. Pick another on the Reddit accounts dashboard.")
+  const { phone } = row
+  if (phone.held || inUse(phone, now)) return { ready: false, held: true }
+  const rackLive = Boolean(phone.rackId) && !row.rackDisconnectedAt
+  if (phoneStatus(phone, rackLive, false, now) === "offline" || !phone.rackId) {
+    const slot = slotWords(phone.shelfSlot)
+    throw new Refusal(
+      `${phone.name}${slot ? ` in ${slot}` : ""} is offline: ${offlineReason(phone, rackLive)}. Nothing was sent. Check it on the Phones dashboard.`
+    )
+  }
+  return {
+    ready: true,
+    target: { phone: { id: phone.id, userId, rackId: phone.rackId, name: phone.name } },
+    timeZone: phone.timeZone,
+  }
 }

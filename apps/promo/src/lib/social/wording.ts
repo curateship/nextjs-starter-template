@@ -1,7 +1,6 @@
 import { daysBetween } from "@/lib/format/format-time"
 import {
   NO_PROFILE_MESSAGE,
-  ON_A_PHONE_MESSAGE,
   PICK_AN_ACCOUNT,
   type FindThread,
   type ProfileCheck,
@@ -36,8 +35,8 @@ type PostingAccount = {
   blocked: boolean
   reason: string
   profile: { id: string; name: string } | null
-  /** True when it runs on a phone instead of a profile. */
-  onPhone?: boolean
+  /** The phone it runs on instead of a profile, or null. */
+  phone: { id: string; name: string } | null
   posting: PostingState | null
 }
 
@@ -60,18 +59,23 @@ export function postingBlockedReason(
     return { text: "Read the replies first, so the comment does not repeat one of them." }
   }
   if (!status) return { text: PICK_AN_ACCOUNT }
-  const profile = status.profile
-  if (!profile) return { text: status.onPhone ? ON_A_PHONE_MESSAGE : NO_PROFILE_MESSAGE }
+  // Where a person goes to fix what the account's browser or phone shows.
+  const device = status.profile
+    ? { kind: "browser", where: `the profile ${status.profile.name} on the Browser profiles dashboard` }
+    : status.phone
+      ? { kind: "phone", where: `the screen of ${status.phone.name} on the Phones dashboard` }
+      : null
+  if (!device) return { text: NO_PROFILE_MESSAGE }
   if (status.blocked) {
     return {
       text: status.reason
-        ? `Reddit is asking the browser something: ${status.reason}. Open the profile ${profile.name} on the Browser profiles dashboard and clear it.`
-        : `Reddit is showing a challenge. Open the profile ${profile.name} on the Browser profiles dashboard and clear it.`,
+        ? `Reddit is asking the ${device.kind} something: ${status.reason}. Open ${device.where} and clear it.`
+        : `Reddit is showing a challenge. Open ${device.where} and clear it.`,
     }
   }
   if (!status.handle) {
     return {
-      text: `The browser is not signed in to Reddit. Open the profile ${profile.name} on the Browser profiles dashboard and sign in once.`,
+      text: `The ${device.kind} is not signed in to Reddit. Open ${device.where} and sign in once.`,
     }
   }
   const refusal = status.posting ? postingRefusalText(status.posting, now) : null

@@ -2,6 +2,7 @@ import { and, asc, count, eq, isNull, max, notInArray } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { promoPhones } from "@/server/phones/schema"
 import { promoProfiles } from "@/server/browser/schema"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { commentReadiness, type AccountStatusView } from "@/lib/social/account-status"
@@ -246,8 +247,8 @@ export type ProjectAccount = {
   /** Empty when the browser was never seen signed in. */
   handle: string
   profile: { id: string; name: string } | null
-  /** True when it runs on a phone instead of a browser profile. */
-  onPhone: boolean
+  /** The phone it runs on instead of a browser profile, or null. */
+  phone: { id: string; name: string } | null
   voice: { id: string; name: string } | null
   /** Reddit is asking the browser something only a person can answer. */
   blocked: boolean
@@ -287,9 +288,15 @@ export async function readProjectView(
   const project = await ownedProject(userId, projectId, db)
 
   const rows = await db
-    .select({ account: promoAccounts, profileName: promoProfiles.name, voiceName: promoVoices.name })
+    .select({
+      account: promoAccounts,
+      profileName: promoProfiles.name,
+      phoneName: promoPhones.name,
+      voiceName: promoVoices.name,
+    })
     .from(promoAccounts)
     .leftJoin(promoProfiles, eq(promoProfiles.id, promoAccounts.profileId))
+    .leftJoin(promoPhones, eq(promoPhones.id, promoAccounts.phoneId))
     .leftJoin(promoVoices, eq(promoVoices.id, promoAccounts.voiceId))
     .where(
       and(
@@ -304,14 +311,14 @@ export async function readProjectView(
   const statuses = await accountStatuses(userId, mine.map((row) => row.account), db, now)
 
   const accounts: Array<ProjectAccount & { rank: number }> = []
-  for (const { account, profileName, voiceName } of mine) {
+  for (const { account, profileName, phoneName, voiceName } of mine) {
     const posting = await readPostingState(userId, account, db, now)
     const status = statuses.get(account.id) ?? { status: null, byHand: false, warning: null }
     accounts.push({
       id: account.id,
       handle: account.handle,
       profile: account.profileId && profileName !== null ? { id: account.profileId, name: profileName } : null,
-      onPhone: Boolean(account.phoneId),
+      phone: account.phoneId && phoneName !== null ? { id: account.phoneId, name: phoneName } : null,
       voice: account.voiceId && voiceName !== null ? { id: account.voiceId, name: voiceName } : null,
       blocked: account.blocked,
       reason: account.blockedReason,

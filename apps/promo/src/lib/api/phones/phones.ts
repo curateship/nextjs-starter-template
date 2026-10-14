@@ -28,10 +28,17 @@ import {
   type RackView,
 } from "@/server/phones/rack"
 import { RACK_VERSION, rackServerAddress } from "@/server/phones/release"
+import {
+  readPhoneSettings,
+  setRackPaused,
+  waitingPhoneJobs,
+  type WaitingPhoneJob,
+} from "@/server/phones/settings"
+import { cancelJobs } from "@/server/social/job-list"
 
 import { createErrorMessage } from "../error-message"
 
-export type { BulkResult, FolderView, LabelView, PhoneActionView, PhoneRecord, RackView }
+export type { BulkResult, FolderView, LabelView, PhoneActionView, PhoneRecord, RackView, WaitingPhoneJob }
 
 /**
  * The Phones dashboard's endpoints. Every one is admin-only and scoped to the
@@ -59,6 +66,8 @@ export type PhonesPage = {
   racks: RackView[]
   /** The version Promo serves, so a rack on an older one can say so. */
   rackVersion: string
+  /** When every phone job was paused, or null while the rack runs. */
+  pausedAt: Date | null
   folders: FolderView[]
   labels: LabelView[]
   /** The proxies a phone on Wi-Fi can go out through, never a password. */
@@ -69,16 +78,18 @@ const listFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<PhonesPage> => {
     const userId = context.user.id
-    const [phones, racks, groups, proxies] = await Promise.all([
+    const [phones, racks, groups, proxies, settings] = await Promise.all([
       listPhones(userId),
       listRacks(userId),
       listFoldersAndLabels(userId),
       listProxies(userId),
+      readPhoneSettings(),
     ])
     return {
       phones,
       racks,
       rackVersion: RACK_VERSION,
+      pausedAt: settings.pausedAt,
       ...groups,
       proxies: proxies.map(({ id, label, host }) => ({ id, label, host })),
     }
@@ -209,4 +220,37 @@ const disconnectFn = createServerFn({ method: "POST" })
 /** Cancels a rack's key at once. */
 export function disconnectPhoneRack(id: string) {
   return disconnectFn({ data: { id } })
+}
+
+const pauseFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .handler(async ({ context }): Promise<void> => setRackPaused(context.user.id, true))
+
+/** Pauses every phone job. Jobs already running finish. */
+export function pauseRack() {
+  return pauseFn()
+}
+
+const waitingFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }): Promise<WaitingPhoneJob[]> => waitingPhoneJobs(context.user.id))
+
+/** The phone jobs still waiting, for the question asked before resuming. */
+export function loadWaitingPhoneJobs() {
+  return waitingFn()
+}
+
+const resumeFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ drop: z.array(z.string().min(1)).max(200) }))
+  .handler(async ({ context, data }): Promise<{ dropped: number }> => {
+    // The stale ones go first, so none of them starts in the moment between.
+    const dropped = data.drop.length ? (await cancelJobs(context.user.id, data.drop)).completed.length : 0
+    await setRackPaused(context.user.id, false)
+    return { dropped }
+  })
+
+/** Drops the ticked waiting jobs, then resumes the rack. */
+export function resumeRack(drop: string[]) {
+  return resumeFn({ data: { drop } })
 }

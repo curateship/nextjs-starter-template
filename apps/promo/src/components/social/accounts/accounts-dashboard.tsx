@@ -66,7 +66,7 @@ import { Hint } from "../hint"
 import { AccountStatusBadge } from "./account-status-badge"
 import { AddAccountDialog } from "./add-account-dialog"
 import { HelpPostsDialog } from "./help-posts-dialog"
-import { RunsOnDialog } from "./runs-on-dialog"
+import { AccountSettingsDialog } from "./account-settings-dialog"
 
 type SortColumn = "account" | "status" | "project" | "profile" | "age" | "karma" | "last"
 
@@ -480,9 +480,9 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
         </>
       </DashboardTable>
       <HelpPostsDialog accountId={helpFor} onClose={() => setHelpFor(null)} />
-      <RunsOnDialog
+      <AccountSettingsDialog
         key={runsOnFor?.id ?? "closed"}
-        account={runsOnFor}
+        account={runsOnFor ? (accounts.find((row) => row.id === runsOnFor.id) ?? runsOnFor) : null}
         profiles={page.freeProfiles}
         phones={page.freePhones}
         onClose={() => setRunsOnFor(null)}
@@ -490,6 +490,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
           setRunsOnFor(null)
           await refresh(showRetired)
         }}
+        onChanged={() => refresh(showRetired)}
       />
       <AddAccountDialog
         open={adding}
@@ -719,14 +720,14 @@ function AccountRow({
                 {row.paused === "account" ? <PlayIcon className="size-4" /> : <PauseIcon className="size-4" />}
               </Button>
             </Hint>
-            <Hint label="Where it runs: a browser profile or a phone">
+            <Hint label="Settings: where it runs and its two-factor code">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 disabled={busy}
                 onClick={onRunsOn}
-                aria-label={`Where ${name} runs`}
+                aria-label={`Settings for ${name}`}
               >
                 <SettingsIcon className="size-4" />
               </Button>

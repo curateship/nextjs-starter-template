@@ -23,19 +23,25 @@ import { readRunsOn, runsOnValue } from "@/lib/social/runs-on"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { RunsOnSelect } from "./runs-on-select"
+import { TwoFactorCard } from "./two-factor-card"
 
 /**
- * Moves one account to another browser profile or phone. Whatever it ran on
- * before is cleared in the same save, so it is never on two at once. The
- * account then signs in again in the new place: cookies and app sign-ins do
- * not move with it.
+ * One account's settings, from the settings button on its row.
+ *
+ * Where it runs: moving it to another browser profile or phone clears what it
+ * ran on before in the same save, so it is never on two at once, and it signs
+ * in again in the new place: cookies and app sign-ins do not move with it.
+ *
+ * Its two-factor code: the authenticator secret is saved at once, encrypted,
+ * apart from Save changes, and never shown again; only the current code is.
  */
-export function RunsOnDialog({
+export function AccountSettingsDialog({
   account,
   profiles,
   phones,
   onClose,
   onSaved,
+  onChanged,
 }: {
   /** Null when the window is closed. */
   account: RedditAccountRow | null
@@ -44,6 +50,8 @@ export function RunsOnDialog({
   phones: Array<{ id: string; name: string }>
   onClose: () => void
   onSaved: () => Promise<void>
+  /** The row changed without the window closing: a secret saved or removed. */
+  onChanged: () => Promise<void>
 }) {
   const initial = account
     ? runsOnValue({ profileId: account.profile?.id ?? null, phoneId: account.phone?.id ?? null })
@@ -60,6 +68,10 @@ export function RunsOnDialog({
 
   async function save() {
     if (!account) return
+    if (value === initial) {
+      onClose()
+      return
+    }
     if (!value) {
       setInvalid(true)
       showErrorToast("Pick the browser profile or the phone the account runs on.")
@@ -82,10 +94,9 @@ export function RunsOnDialog({
       {(requestClose) => (
         <DialogContent variant="admin">
           <DialogHeader>
-            <DialogTitle>Where {name} runs</DialogTitle>
+            <DialogTitle>Settings for {name}</DialogTitle>
             <DialogDescription>
-              A browser profile or a phone, never both. Sign-ins do not move with it, so
-              sign in to Reddit again in the new place.
+              Where it runs, a browser profile or a phone, never both, and its two-factor code.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -96,6 +107,7 @@ export function RunsOnDialog({
             }}
           >
             <DialogBody>
+              <div className="grid gap-6">
               <Card size="sm">
                 <CardHeader>
                   <CardTitle>Runs on</CardTitle>
@@ -115,8 +127,15 @@ export function RunsOnDialog({
                       invalid={invalid}
                     />
                   </div>
+                  <p className="text-sm text-muted-foreground">
+                    Sign-ins do not move with it, so sign in to Reddit again in the new place.
+                  </p>
                 </CardContent>
               </Card>
+              {account ? (
+                <TwoFactorCard accountId={account.id} saved={account.twoFactor} onChanged={onChanged} />
+              ) : null}
+              </div>
             </DialogBody>
             <DialogFooter>
               <Button type="button" variant="outline" disabled={saving} onClick={requestClose}>

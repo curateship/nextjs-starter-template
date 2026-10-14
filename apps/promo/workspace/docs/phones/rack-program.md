@@ -15,15 +15,24 @@ The program calls Promo. Promo never calls the house, so no port is opened at
 home and nothing changes on the Hetzner server.
 
 - **Every 15 seconds** it checks in at `/api/rack/check-in` with the phones adb
-  sees and its own version.
+  sees, each phone's model, Android version and time zone, and its own version.
 - **Every 3 seconds** it asks `/api/rack/next` for the oldest waiting action,
-  and asks again at once after finishing one.
+  and asks again at once after taking one. Promo hands each phone one action
+  at a time; the program runs each on a thread of its own, so two phones
+  work side by side.
 - **The answer** goes to `/api/rack/result`, with up to four pictures shrunk to
-  540 pixels wide.
-- **An action left running five minutes** is failed by Promo: "The rack did not
-  answer within five minutes."
-- **Pictures** are kept for each phone's newest 20 actions and the older ones
-  deleted, so the table does not grow with every check ever run.
+  540 pixels wide. It is tried five times, because a comment that went out
+  must be reported.
+- **An action left running past its own time limit** is failed by Promo: "The
+  rack did not answer in time." A check has five minutes; a job's Reddit step
+  has the browser's own limit for that step.
+- **Pictures** are kept for each phone's newest 20 actions, and never longer
+  than the days in Settings → Phones.
+- **While a screen window is open,** a third thread sends that phone's screen
+  to `/api/rack/screen` about three times a second and carries back the taps.
+  [The screen window](screen-window.md) has the rest.
+- **It never switches version under a running action,** and waits for the
+  actions to finish first.
 
 ## The actions
 

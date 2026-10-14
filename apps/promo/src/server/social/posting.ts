@@ -8,7 +8,7 @@ import { postingRefusalText } from "@/lib/social/wording"
 
 import {
   isYoung,
-  profileTimeZone,
+  accountTimeZone,
   readBehaviour,
   recentComments,
   warmUpEndsAt,
@@ -66,12 +66,12 @@ type AccountRow = typeof promoAccounts.$inferSelect
 
 export async function readPostingState(
   userId: string,
-  account: Pick<AccountRow, "id" | "profileId" | "redditCreatedAt" | "pausedAt" | "projectId">,
+  account: Pick<AccountRow, "id" | "profileId" | "phoneId" | "redditCreatedAt" | "pausedAt" | "projectId">,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<PostingState> {
   const behaviour = await readBehaviour(userId, db)
-  const timeZone = await profileTimeZone(account.profileId, db)
+  const timeZone = await accountTimeZone(account, db)
   const ends = warmUpEndsAt(account.redditCreatedAt, behaviour.warmUpDays, now)
   const young = isYoung(account.redditCreatedAt, behaviour.youngDays, now)
   const { posted, waiting } = await recentComments(userId, account.id, db, now)
@@ -136,7 +136,7 @@ const UNDO_SECONDS = 10
  */
 export async function queueComment(
   userId: string,
-  account: Pick<AccountRow, "id" | "profileId" | "redditCreatedAt" | "pausedAt" | "projectId">,
+  account: Pick<AccountRow, "id" | "profileId" | "phoneId" | "redditCreatedAt" | "pausedAt" | "projectId">,
   input: { findId: string; text: string; draftId: string | null },
   db: CustomShellDb = defaultDb,
   now: Date = new Date()

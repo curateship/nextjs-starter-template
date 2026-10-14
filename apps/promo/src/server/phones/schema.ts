@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -124,6 +125,17 @@ export const promoPhones = pgTable(
     /** 'device', 'unauthorized', 'gone', or empty before the first check-in. */
     adbState: varchar("adb_state", { length: 20 }).notNull().default(""),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    /**
+     * The phone's own time zone, read by the rack on every check-in, or empty
+     * before the first. Added by `drizzle/0115_promo_phone_jobs.sql`.
+     */
+    timeZone: varchar("time_zone", { length: 64 }).notNull().default(""),
+    /**
+     * While a person controls the phone from its screen window, its jobs
+     * wait. Each tap moves this fifteen minutes on and closing the window
+     * clears it. Added by `drizzle/0115_promo_phone_jobs.sql`.
+     */
+    controlUntil: timestamp("control_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -154,6 +166,8 @@ export const promoPhoneActions = pgTable(
     status: varchar("status", { length: 20 }).$type<PhoneActionStatus>().notNull().default("queued"),
     result: jsonb("result").$type<Record<string, unknown> | null>(),
     error: text("error").notNull().default(""),
+    /** How long the rack has once it starts, in seconds. Added by 0115. */
+    timeoutSeconds: integer("timeout_seconds").notNull().default(300),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
@@ -177,3 +191,21 @@ export const promoPhoneScreenshots = pgTable(
   },
   (table) => [index("ix_promo_phone_screenshots_action").on(table.actionId)]
 )
+
+/**
+ * The rack's settings, one row, "default", like the browser settings: how
+ * many phones work at once, how many days pictures are kept, and the pause.
+ * The SQL is `drizzle/0115_promo_phone_jobs.sql`.
+ */
+export const promoPhoneSettings = pgTable("promo_phone_settings", {
+  id: varchar("id", { length: 20 }).primaryKey(),
+  maxWorking: integer("max_working").notNull().default(5),
+  screenshotDays: integer("screenshot_days").notNull().default(7),
+  /** When the whole rack was paused, or null when it runs. */
+  pausedAt: timestamp("paused_at", { withTimezone: true }),
+  /** Who paused it, so the bell rings for them. */
+  pausedBy: varchar("paused_by", { length: 36 }).references(() => customShellUsers.id, { onDelete: "set null" }),
+  /** The bell notice saying the rack is paused, removed when it resumes. */
+  pauseNoticeId: varchar("pause_notice_id", { length: 36 }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+})

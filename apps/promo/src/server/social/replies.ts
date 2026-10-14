@@ -4,7 +4,7 @@ import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import {
   MAX_COMMENT_CHARS,
-  noBrowserMessage,
+  NO_PROFILE_MESSAGE,
   type IncomingReply,
 } from "@/lib/social/options"
 import { postingRefusalText } from "@/lib/social/wording"
@@ -174,7 +174,7 @@ export async function queueReply(
       `${handle} sent this comment and is retired, so it no longer posts. Bring it back on the Reddit accounts dashboard first.`
     )
   }
-  if (!account.profileId) throw new Refusal(noBrowserMessage(account))
+  if (!account.profileId && !account.phoneId) throw new Refusal(NO_PROFILE_MESSAGE)
 
   const state = await readPostingState(userId, account, db, now)
   const refusal = postingRefusalText(state, now, state.timeZone)

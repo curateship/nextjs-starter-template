@@ -15,7 +15,7 @@ const STATUS_DOT: Record<PhoneStatus, string> = {
 export function PhoneStatusText({
   phone,
 }: {
-  phone: { status: PhoneStatus; offlineReason: string; shelfSlot: string }
+  phone: { status: PhoneStatus; offlineReason: string; shelfSlot: string; inUse?: boolean }
 }) {
   const slot = phone.status === "offline" ? slotWords(phone.shelfSlot) : ""
   return (
@@ -26,6 +26,9 @@ export function PhoneStatusText({
         {slot ? <span className="font-medium">· {slot}</span> : null}
       </span>
       {phone.offlineReason ? <span className="text-xs text-muted-foreground">{phone.offlineReason}</span> : null}
+      {phone.status === "held" && phone.inUse ? (
+        <span className="text-xs text-muted-foreground">In use on its screen</span>
+      ) : null}
     </span>
   )
 }

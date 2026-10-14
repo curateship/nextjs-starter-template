@@ -13,7 +13,7 @@ import {
   browserHealth,
   browserIdentity,
   browserIdentityId,
-  type CommandTarget,
+  type BrowserTarget,
 } from "./command"
 import {
   DockerRequestError,
@@ -116,7 +116,7 @@ const LIVE_STATUSES = ["starting", "running"] as const
 export type LiveSession = {
   id: string
   profileId: string
-  target: CommandTarget
+  target: BrowserTarget
 }
 
 /**
@@ -716,7 +716,7 @@ async function imageOf(connection: DockerConnection, containerId: string): Promi
  */
 async function keepIdentity(
   profile: typeof promoProfiles.$inferSelect,
-  target: CommandTarget,
+  target: BrowserTarget,
   db: CustomShellDb
 ): Promise<void> {
   try {
@@ -825,7 +825,7 @@ async function claimPorts(
  * have the window's address until a page they were not waiting for had
  * finished painting.
  */
-async function waitUntilReady(target: CommandTarget): Promise<void> {
+async function waitUntilReady(target: BrowserTarget): Promise<void> {
   const deadline = Date.now() + READY_TIMEOUT_MS
   let lastError = ""
 

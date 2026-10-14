@@ -51,12 +51,6 @@ export const RACK_CODE_MINUTES = 15
 /** How far a signed message's clock may be from the server's, either way. */
 export const RACK_CLOCK_WINDOW_SECONDS = 300
 
-/**
- * How long an action may sit running before Promo gives up on it. Reading a
- * Settings screen takes seconds; this covers a slow phone and a slow line.
- */
-export const PHONE_ACTION_TIMEOUT_MS = 5 * 60_000
-
 /** The bell notice's heading for a phone that needs a hand. */
 export const PHONE_NOTICE_PREFIX = "Phone needs a hand: "
 
@@ -65,3 +59,20 @@ export function slotWords(shelfSlot: string): string {
   const slot = shelfSlot.trim()
   return slot ? `slot ${slot}` : ""
 }
+
+/** The bounds Settings → Phones allows. Here because the tab draws them too. */
+export const MAX_WORKING_RANGE = { min: 1, max: 50 } as const
+export const SCREENSHOT_DAYS_RANGE = { min: 1, max: 90 } as const
+
+/** A forgotten screen window with control on lets the phone go after this long without a tap. */
+export const CONTROL_HOLD_MS = 15 * 60_000
+
+/** A phone job's lane: `phone:` and the phone's id, so it never shares a profile's lane. */
+export const PHONE_LANE_PREFIX = "phone:"
+
+export function phoneLane(phoneId: string): string {
+  return `${PHONE_LANE_PREFIX}${phoneId}`
+}
+
+/** The bell notice's heading while the rack is paused. */
+export const RACK_PAUSED_NOTICE = "The rack is paused"

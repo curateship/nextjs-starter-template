@@ -1,7 +1,10 @@
 # The Phones dashboard
 
 Every Android phone on the rack, as a record of its own, with the account on
-it, whether it is connected, its carrier and when the rack last saw it. It is
+it, whether it is connected, its carrier and when the rack last saw it. On
+narrower windows the columns fold so the row's buttons stay on screen: below
+1280 pixels the account moves under the phone's name and the carrier goes,
+and the last-seen time shows from 1536. It is
 at `/admin/phones`, under **Anti Detect** in the left menu, after Proxies.
 
 Tyler chose real phones for the important Reddit, Instagram and TikTok
@@ -37,9 +40,10 @@ Worked out from the rows every time the list is read, never stored, so it can
 never disagree with what the rack last said.
 
 - **Held:** a person took it out of use, with the pause button on its row or
-  Hold on ticked rows. It wins over everything else. Release puts it back. A
-  check cannot be asked of a held phone, and holding one cancels the checks
-  still waiting for it.
+  Hold on ticked rows, or has control of it in its screen window ("In use on
+  its screen" under the word). It wins over everything else. Release puts it
+  back. A check cannot be asked of a held phone, holding one cancels the
+  checks still waiting for it, and its jobs wait until it is released.
 - **Offline:** not seen for 45 seconds, or missing from the rack's last list,
   or waiting for someone to allow USB debugging on its screen, or on a rack
   that was disconnected. The line under it says which.
@@ -81,15 +85,18 @@ account per phone is a unique index, the same rule as profiles.
   phone. Whatever it ran on before is cleared in the same save. Sign-ins do
   not move with it.
 - **Settings → Reddit account** has the same list, with Nowhere.
-- **Phones do not take Reddit jobs yet.** That is file 02 of the phone farm.
-  Until then a search, comment, reply or post for an account on a phone is
-  refused with words saying so, and Post on the Projects dashboard says the
-  same. Nothing is ever sent through a browser the account never signed in to.
+- **Its jobs run on the phone.** [Jobs on phones](phone-jobs.md) explains the
+  queue, the limit and the waking hours. Until the Reddit app actions are
+  built (phone farm file 05), the phone answers every Reddit step with "This
+  rack does not know the action reddit/health", and the job fails with those
+  words.
 
 ## The window
 
 A phone opens as a window over the list and keeps `?open=<id>` in the address,
-which is where its bell notice leads. **Settings** has the fields above, and
+which is where its bell notice leads. The screen button on a row opens the
+phone's live screen ([the screen window](screen-window.md)). **Settings** has
+the fields above, and
 **Checks** asks the rack to read the Android version off the phone's own
 Settings screen, or take a health reading, with the last ten answers and any
 pictures the phone sent back. A check is refused for a held phone, an offline

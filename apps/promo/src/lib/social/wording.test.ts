@@ -92,6 +92,7 @@ describe("why posting is off", () => {
     blocked: false,
     reason: "",
     profile: { id: "p1", name: "Main" },
+    phone: null,
     posting: null,
   }
   const read = { thread: { body: "", replies: [] } }
@@ -122,6 +123,14 @@ describe("why posting is off", () => {
   it("sends a person to the Reddit accounts dashboard when the account has no profile", () => {
     const reason = postingBlockedReason({ ...ready, profile: null }, read)
     expect(reason?.text).toContain("on the Reddit accounts dashboard")
+  })
+
+  it("sends a person to the phone's screen for an account on a phone", () => {
+    const reason = postingBlockedReason({ ...ready, profile: null, phone: { id: "f1", name: "Pixel 8a" }, handle: null }, read)
+    expect(reason?.text).toBe(
+      "The phone is not signed in to Reddit. Open the screen of Pixel 8a on the Phones dashboard and sign in once."
+    )
+    expect(postingBlockedReason({ ...ready, profile: null, phone: { id: "f1", name: "Pixel 8a" } }, read)).toBeNull()
   })
 
   it("says to pick an account on the left before one is clicked", () => {

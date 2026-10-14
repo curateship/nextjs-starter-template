@@ -4,6 +4,7 @@ import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import { READER_JOB_KINDS, WRITE_JOB_KINDS, type JobKind } from "@/lib/social/options"
+import { PHONE_LANE_PREFIX, phoneLane } from "@/lib/phones/options"
 
 import { readerProfile } from "./behaviour"
 import { readBrowserProgram } from "./browser-program"
@@ -63,9 +64,20 @@ export type QueuedJob = {
   kind: JobKind
   payload: Record<string, unknown>
   attempts: number
-  /** The profile it was filed under, which keeps it from running beside another job there. */
+  /**
+   * The profile it was filed under, or `phone:` and a phone's id, which keeps
+   * it from running beside another job there.
+   */
   lane: string | null
 }
+
+/**
+ * Which jobs a lane of the program takes. Browser lanes take profile jobs, up
+ * to the browser limit; phone lanes take phone jobs, up to the limit in
+ * Settings → Phones. A phone job waiting on its phone never holds a browser's
+ * place, and the other way round.
+ */
+export type JobPool = "browser" | "phone"
 
 /**
  * Serialises claims across every copy of the browser program, so checking
@@ -125,8 +137,9 @@ export async function jobAccount(
 
 /**
  * The profile a job works in, which is its lane: the one a dashboard job
- * names, the reader for a reader job, or its account's. Null when there is
- * none, so the job is its own lane and is refused when it runs.
+ * names, the reader for a reader job, or its account's profile, or its
+ * account's phone as `phone:<id>`. Null when there is none, so the job is its
+ * own lane and is refused when it runs.
  */
 async function laneFor(
   userId: string,
@@ -136,7 +149,9 @@ async function laneFor(
 ): Promise<string | null> {
   if (typeof payload.profileId === "string" && payload.profileId) return payload.profileId
   if (READER_JOB_KINDS.includes(kind)) return (await readerProfile(userId, db)).id
-  return (await jobAccount(userId, payload, db))?.profileId ?? null
+  const account = await jobAccount(userId, payload, db)
+  if (account?.phoneId) return phoneLane(account.phoneId)
+  return account?.profileId ?? null
 }
 
 /**
@@ -154,9 +169,26 @@ async function laneFor(
  */
 export async function claimNextJob(
   claimToken: string,
-  db: CustomShellDb = defaultDb
+  db: CustomShellDb = defaultDb,
+  pool: JobPool = "browser"
 ): Promise<QueuedJob | null> {
   await failExpiredClaims(db)
+
+  // A phone job waits, untouched, while its phone is held, while a person
+  // controls it from its screen window, and while the whole rack is paused.
+  const inPool =
+    pool === "phone"
+      ? sql`"inner"."lane" LIKE ${`${PHONE_LANE_PREFIX}%`}
+          AND NOT EXISTS (
+            SELECT 1 FROM "promo_phones" AS "phone"
+            WHERE "phone"."id" = substr("inner"."lane", ${PHONE_LANE_PREFIX.length + 1})
+              AND ("phone"."held" OR "phone"."control_until" > now())
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM "promo_phone_settings" AS "rack"
+            WHERE "rack"."id" = 'default' AND "rack"."paused_at" IS NOT NULL
+          )`
+      : sql`("inner"."lane" IS NULL OR "inner"."lane" NOT LIKE ${`${PHONE_LANE_PREFIX}%`})`
 
   const claimed = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${CLAIM_LOCK_KEY.toString()}::bigint)`)
@@ -170,6 +202,7 @@ export async function claimNextJob(
         SELECT "inner"."id" FROM "promo_jobs" AS "inner"
         WHERE "inner"."status" = 'queued'
           AND ("inner"."run_after" IS NULL OR "inner"."run_after" <= now())
+          AND ${inPool}
           AND (
             "inner"."lane" IS NULL
             OR NOT EXISTS (

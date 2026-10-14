@@ -2,7 +2,6 @@ import { randomBytes, randomInt } from "node:crypto"
 import { and, asc, desc, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm"
 
 import {
-  PHONE_ACTION_TIMEOUT_MS,
   PHONE_ACTIONS,
   PHONE_STALE_MS,
   RACK_CHECK_IN_SECONDS,
@@ -16,6 +15,7 @@ import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import { writePhoneNotice } from "./notices"
+import { readPhoneSettings } from "./settings"
 import { RACK_VERSION } from "./release"
 import {
   promoPhoneActions,
@@ -174,7 +174,15 @@ export function signReply(rack: VerifiedRack, status: number, nonce: string, bod
   }
 }
 
-export type ReportedPhone = { serial: string; state: string; usb: string; model: string; android: string }
+export type ReportedPhone = {
+  serial: string
+  state: string
+  usb: string
+  model: string
+  android: string
+  /** The phone's own time zone, such as "America/Toronto", or empty when unread. */
+  timezone?: string
+}
 
 export type CheckInInput = {
   version: string
@@ -235,6 +243,7 @@ export async function checkIn(
           name: seen.model.trim().slice(0, 120) || serialName(serial),
           model: seen.model.trim().slice(0, 120),
           androidVersion: seen.android.trim().slice(0, 40),
+          timeZone: (seen.timezone ?? "").trim().slice(0, 64),
           serial,
           usbPort: seen.usb.slice(0, 120),
           rackId: rack.id,
@@ -264,6 +273,7 @@ export async function checkIn(
         // its serial. It takes its model's name once that can be read.
         ...(phone.name === serialName(serial) && seen.model.trim() ? { name: seen.model.trim().slice(0, 120) } : {}),
         ...(seen.android.trim() ? { androidVersion: seen.android.trim().slice(0, 40) } : {}),
+        ...(seen.timezone?.trim() ? { timeZone: seen.timezone.trim().slice(0, 64) } : {}),
       })
       .where(eq(promoPhones.id, phone.id))
     if (state === "unauthorized" && phone.adbState !== "unauthorized") {
@@ -315,8 +325,13 @@ function rollbackWords(note: { from: string; to: string; at: string; why: string
 
 /**
  * Hands the rack its oldest waiting action and marks it running, in one
- * statement, so an action is never handed out twice. An action left running
- * longer than five minutes is failed first: the rack lost it.
+ * statement, so an action is never handed out twice. A phone runs one action
+ * at a time, in order, so an action whose phone is already busy waits; two
+ * phones work side by side. An action left running past its own time limit
+ * is failed first: the rack lost it.
+ *
+ * Every column in the raw statement is qualified, because an unqualified one
+ * resolves against the wrong table without complaint.
  */
 export async function nextAction(
   rack: VerifiedRack,
@@ -325,36 +340,43 @@ export async function nextAction(
 ): Promise<{ id: string; serial: string; action: string; args: Record<string, unknown> } | null> {
   await db
     .update(promoPhoneActions)
-    .set({ status: "failed", error: "The rack did not answer within five minutes.", finishedAt: now })
+    .set({ status: "failed", error: "The rack did not answer in time.", finishedAt: now })
     .where(
       and(
         eq(promoPhoneActions.rackId, rack.id),
         eq(promoPhoneActions.status, "running"),
-        lt(promoPhoneActions.startedAt, new Date(now.getTime() - PHONE_ACTION_TIMEOUT_MS))
+        sql`${promoPhoneActions.startedAt} + make_interval(secs => ${promoPhoneActions.timeoutSeconds}) < ${now}`
       )
     )
 
-  const claimed = await db
-    .update(promoPhoneActions)
-    .set({ status: "running", startedAt: now })
-    .where(
-      eq(
-        promoPhoneActions.id,
-        sql`(SELECT ${promoPhoneActions.id} FROM ${promoPhoneActions}
-              WHERE ${promoPhoneActions.rackId} = ${rack.id} AND ${promoPhoneActions.status} = 'queued'
-              ORDER BY ${promoPhoneActions.createdAt} ASC
-              LIMIT 1 FOR UPDATE SKIP LOCKED)`
-      )
+  const claimed = await db.execute(sql`
+    UPDATE "promo_phone_actions"
+    SET "status" = 'running', "started_at" = ${now}
+    WHERE "promo_phone_actions"."id" = (
+      SELECT "waiting"."id" FROM "promo_phone_actions" AS "waiting"
+      WHERE "waiting"."rack_id" = ${rack.id}
+        AND "waiting"."status" = 'queued'
+        AND NOT EXISTS (
+          SELECT 1 FROM "promo_phone_actions" AS "busy"
+          WHERE "busy"."phone_id" = "waiting"."phone_id" AND "busy"."status" = 'running'
+        )
+      ORDER BY "waiting"."created_at" ASC
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
     )
-    .returning()
-  const action = claimed[0]
+    RETURNING "promo_phone_actions"."id", "promo_phone_actions"."phone_id",
+              "promo_phone_actions"."action", "promo_phone_actions"."args"
+  `)
+  const action = (
+    claimed.rows as Array<{ id: string; phone_id: string; action: string; args: Record<string, unknown> | null }>
+  )[0]
   if (!action) return null
   const [phone] = await db
     .select({ serial: promoPhones.serial })
     .from(promoPhones)
-    .where(eq(promoPhones.id, action.phoneId))
+    .where(eq(promoPhones.id, action.phone_id))
     .limit(1)
-  return { id: action.id, serial: phone?.serial ?? "", action: action.action, args: action.args }
+  return { id: action.id, serial: phone?.serial ?? "", action: action.action, args: action.args ?? {} }
 }
 
 export type ActionResultInput = {
@@ -404,26 +426,29 @@ export async function finishAction(
     await db
       .insert(promoPhoneScreenshots)
       .values(shots.map((imageBase64) => ({ id: uuid(), actionId: done.id, imageBase64, createdAt: now })))
-    await trimScreenshots(done.phoneId, db)
+    await trimScreenshots(done.phoneId, db, now)
   }
   return true
 }
 
 /**
  * Pictures are kept for a phone's newest twenty actions only, the ones the
- * dashboard can show, so the table does not grow with every check ever run.
+ * dashboard can show, and never longer than the days set in Settings →
+ * Phones, so the table does not grow with every check ever run.
  */
 const KEEP_SCREENSHOT_ACTIONS = 20
 
-async function trimScreenshots(phoneId: string, db: CustomShellDb): Promise<void> {
+async function trimScreenshots(phoneId: string, db: CustomShellDb, now: Date): Promise<void> {
+  const { screenshotDays } = await readPhoneSettings(db)
   await db.execute(sql`
-    DELETE FROM ${promoPhoneScreenshots}
-    WHERE ${promoPhoneScreenshots.actionId} IN (
-      SELECT ${promoPhoneActions.id} FROM ${promoPhoneActions}
-      WHERE ${promoPhoneActions.phoneId} = ${phoneId}
-      ORDER BY ${promoPhoneActions.createdAt} DESC
-      OFFSET ${KEEP_SCREENSHOT_ACTIONS}
-    )`)
+    DELETE FROM "promo_phone_screenshots"
+    WHERE "promo_phone_screenshots"."created_at" < ${new Date(now.getTime() - screenshotDays * 86_400_000)}
+       OR "promo_phone_screenshots"."action_id" IN (
+         SELECT "older"."id" FROM "promo_phone_actions" AS "older"
+         WHERE "older"."phone_id" = ${phoneId}
+         ORDER BY "older"."created_at" DESC
+         OFFSET ${KEEP_SCREENSHOT_ACTIONS}
+       )`)
 }
 
 /**

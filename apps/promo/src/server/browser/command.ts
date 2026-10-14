@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { callPhone, PhoneActionError, type PhoneTarget } from "@/server/phones/dispatch"
+
 /**
  * The typed way to talk to a running browser container.
  *
@@ -53,11 +55,33 @@ export class BrowserCommandError extends Error {
   }
 }
 
-export type CommandTarget = {
+export type BrowserTarget = {
   /** The published port on 127.0.0.1. */
   port: number
   /** The shared secret the container was started with. */
   token: string
+}
+
+/**
+ * Where a routine runs: a browser container, or a phone on the rack. A
+ * phone gets the same routine names and its answers are checked against the
+ * same shapes, so nothing above this file knows which one it was.
+ */
+export type CommandTarget = BrowserTarget | PhoneTarget
+
+/** The answer, checked against its shape, the same way for a browser and a phone. */
+function checked<T>(routine: string, status: number, parsed: unknown, shape: z.ZodType<T>): T {
+  const result = shape.safeParse(parsed)
+  if (!result.success) {
+    throw new BrowserCommandError(
+      routine,
+      status,
+      `The browser answered ${routine} in a shape this app does not know: ${result.error.issues
+        .map((issue) => `${issue.path.join(".") || "(root)"} ${issue.message}`)
+        .join("; ")}`
+    )
+  }
+  return result.data
 }
 
 async function call<T>(
@@ -67,6 +91,17 @@ async function call<T>(
   shape: z.ZodType<T>,
   timeoutMs = DEFAULT_TIMEOUT_MS
 ): Promise<T> {
+  if ("phone" in target) {
+    let answer: unknown
+    try {
+      answer = await callPhone(target, routine, args, timeoutMs)
+    } catch (error) {
+      if (error instanceof PhoneActionError) throw new BrowserCommandError(routine, 0, error.message)
+      throw error
+    }
+    return checked(routine, 200, answer, shape)
+  }
+
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
@@ -119,17 +154,7 @@ async function call<T>(
     throw new BrowserCommandError(routine, response.status, message)
   }
 
-  const checked = shape.safeParse(parsed)
-  if (!checked.success) {
-    throw new BrowserCommandError(
-      routine,
-      response.status,
-      `The browser answered ${routine} in a shape this app does not know: ${checked.error.issues
-        .map((issue) => `${issue.path.join(".") || "(root)"} ${issue.message}`)
-        .join("; ")}`
-    )
-  }
-  return checked.data
+  return checked(routine, response.status, parsed, shape)
 }
 
 /** A post as the browser read it. Seconds, not a Date: JSON has no dates. */

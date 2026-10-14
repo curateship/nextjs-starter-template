@@ -15,10 +15,12 @@ import {
   touchSession,
 } from "@/server/browser/session"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { noBrowserMessage, READER_JOB_KINDS, WRITE_JOB_KINDS } from "@/lib/social/options"
+import { NO_PROFILE_MESSAGE, READER_JOB_KINDS, WRITE_JOB_KINDS } from "@/lib/social/options"
 import { nextWakeAt } from "@/lib/social/waking"
+import { phoneLane } from "@/lib/phones/options"
+import { phoneForJob } from "@/server/phones/phones"
 
-import { profileTimeZone, readBehaviour, readerProfile } from "./behaviour"
+import { accountTimeZone, readBehaviour, readerProfile } from "./behaviour"
 import { ringForFailure } from "./failures"
 import { pausedBy } from "./pause"
 import { accountFigures, recordAccountHealth, recordStrangerCheck } from "./health"
@@ -37,6 +39,7 @@ import {
   finishJob,
   jobAccount,
   putJobBack,
+  type JobPool,
   type QueuedJob,
 } from "./jobs"
 import { loadFindThread, runKeywordSearch } from "./reddit/search"
@@ -67,6 +70,9 @@ type Account = typeof promoAccounts.$inferSelect
 /** How long a comment pressed before a pause waits before it looks again. */
 const PAUSED_RECHECK_MS = 10 * 60_000
 
+/** How long a job for a phone that was held after it was taken waits before it looks again. */
+const HELD_RECHECK_MS = 60_000
+
 /**
  * A job that did nothing and goes back on the queue untried: taken outside
  * its account's waking hours, so it waits for them, or filed under a lane
@@ -87,9 +93,10 @@ class PutBack extends Error {
 
 export async function runOneJob(
   claimToken: string,
-  db: CustomShellDb = defaultDb
+  db: CustomShellDb = defaultDb,
+  pool: JobPool = "browser"
 ): Promise<TurnResult> {
-  const job = await claimNextJob(claimToken, db)
+  const job = await claimNextJob(claimToken, db, pool)
   if (!job) return { did: "nothing" }
 
   try {
@@ -163,7 +170,7 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
       await runSiteCheck(job.userId, profileId, session.target, db)
       return
     }
-    await readSignIns(job.userId, profileId, session.target, db, job.kind === "check")
+    await readSignIns(job.userId, { profileId }, session.target, db, job.kind === "check")
     return
   }
 
@@ -173,7 +180,13 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   }
 
   const account = await accountForJob(job, db)
-  if (!account.profileId) throw new Refusal(noBrowserMessage(account))
+  if (!account.profileId && !account.phoneId) throw new Refusal(NO_PROFILE_MESSAGE)
+  // The account moved to a phone or a profile after the job was filed, or
+  // the job is from before lanes. It is filed again where it now runs, so it
+  // takes that lane's turn, in that lane's pool, and never runs beside
+  // another job on the same phone or browser.
+  const lane = account.phoneId ? phoneLane(account.phoneId) : account.profileId
+  if (lane && job.lane !== lane) throw new PutBack({ lane })
   // Retired after the job was queued. A retired account never posts and
   // never warms up; a health reading is only a read and still runs.
   const writes = WRITE_JOB_KINDS.includes(job.kind) || job.kind === "warm_up"
@@ -198,23 +211,52 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
     )
   }
 
-  // An account acts only while it is awake, in its own time zone. A health
-  // reading is only a read, so it may run at any hour; a comment, an answer
-  // to a reply and a warm-up wait for morning, before a browser is even opened.
-  if (writes) {
+  // An account acts only while it is awake, in its own time zone. In a
+  // browser a health reading is only a read, so it may run at any hour; a
+  // comment, an answer to a reply and a warm-up wait for morning, before a
+  // browser is even opened. On a phone every job waits, because any of them
+  // lights the phone's screen, and a phone's screen stays off while its
+  // account sleeps.
+  if (writes || account.phoneId) {
     const behaviour = await readBehaviour(job.userId, db)
     const wakes = nextWakeAt(
       new Date(),
-      await profileTimeZone(account.profileId, db),
+      await accountTimeZone(account, db),
       behaviour.wakeFromMinute,
       behaviour.wakeUntilMinute
     )
     if (wakes) throw new PutBack({ runAfter: wakes })
   }
 
+  if (account.phoneId) {
+    const phone = await phoneForJob(job.userId, account.phoneId, db)
+    if (!phone.ready) throw new PutBack({ runAfter: new Date(Date.now() + HELD_RECHECK_MS) })
+    await runAccountJob(job, account, phone.target, db)
+    return
+  }
+
+  if (!account.profileId) throw new Refusal(NO_PROFILE_MESSAGE)
   const session = await ensureSession(job.userId, account.profileId, db)
   await touchSession(session.id, db)
+  try {
+    await runAccountJob(job, account, session.target, db)
+  } finally {
+    await touchSession(session.id, db)
+  }
+}
 
+/**
+ * The account's own Reddit work, the same steps whether `target` is its
+ * browser or its phone. Afterwards, whether it worked or not, what the
+ * browser or phone can see is written down: a failed search is often a
+ * sign-out or a captcha, and that is exactly what a dashboard needs to show.
+ */
+async function runAccountJob(
+  job: QueuedJob,
+  account: Account,
+  target: CommandTarget,
+  db: CustomShellDb
+): Promise<void> {
   try {
     if (job.kind === "comment") {
       const findId = String(job.payload.findId ?? "")
@@ -228,7 +270,7 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
           text,
           draftId: job.payload.draftId ? String(job.payload.draftId) : null,
         },
-        session.target,
+        target,
         db
       )
     } else if (job.kind === "reply") {
@@ -246,32 +288,33 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
           text,
           draftId: job.payload.draftId ? String(job.payload.draftId) : null,
         },
-        session.target,
+        target,
         db
       )
     } else if (job.kind === "submit") {
-      await submitOwnPost(job.userId, account.id, job.payload, session.target, db)
+      await submitOwnPost(job.userId, account.id, job.payload, target, db)
     } else if (job.kind === "delete_comment" || job.kind === "edit_comment") {
       const commentId = String(job.payload.commentId ?? "")
       if (!commentId) throw new Error(`That ${job.kind} job names no comment.`)
       if (job.kind === "delete_comment") {
-        await deleteSentComment(job.userId, commentId, session.target, db)
+        await deleteSentComment(job.userId, commentId, target, db)
       } else {
-        await editSentComment(job.userId, commentId, String(job.payload.text ?? ""), session.target, db)
+        await editSentComment(job.userId, commentId, String(job.payload.text ?? ""), target, db)
       }
     } else if (job.kind === "health") {
-      await recordAccountHealth(job.userId, account.id, session.target, db)
+      await recordAccountHealth(job.userId, account.id, target, db)
     } else if (job.kind === "warm_up") {
-      await runWarmUp(job.userId, account, session.target, db)
+      await runWarmUp(job.userId, account, target, db)
     } else {
       throw new Error(`There is no job kind called "${job.kind}".`)
     }
   } finally {
-    // Whether the job worked or not, what the browser can see now is worth
-    // writing down: a failed search is often a sign-out or a captcha, and
-    // that is exactly what a dashboard needs to show.
-    await touchSession(session.id, db)
-    await readSignIns(job.userId, account.profileId, session.target, db)
+    await readSignIns(
+      job.userId,
+      account.phoneId ? { phoneId: account.phoneId } : { profileId: account.profileId ?? "" },
+      target,
+      db
+    )
   }
 }
 
@@ -361,7 +404,8 @@ async function accountForJob(job: QueuedJob, db: CustomShellDb): Promise<Account
 }
 
 /**
- * Writes down who each account inside the profile is signed in as.
+ * Writes down who each account inside the profile, or on the phone, is
+ * signed in as.
  *
  * After an ordinary job it takes the quick look, which never moves the page.
  * For a `check` a person asked for, it takes the full look, which goes to the
@@ -373,7 +417,7 @@ async function accountForJob(job: QueuedJob, db: CustomShellDb): Promise<Account
  */
 async function readSignIns(
   userId: string,
-  profileId: string,
+  where: { profileId: string } | { phoneId: string },
   target: CommandTarget,
   db: CustomShellDb,
   full = false
@@ -381,7 +425,12 @@ async function readSignIns(
   const accounts = await db
     .select({ id: promoAccounts.id, platform: promoAccounts.platform })
     .from(promoAccounts)
-    .where(and(eq(promoAccounts.profileId, profileId), eq(promoAccounts.userId, userId)))
+    .where(
+      and(
+        "phoneId" in where ? eq(promoAccounts.phoneId, where.phoneId) : eq(promoAccounts.profileId, where.profileId),
+        eq(promoAccounts.userId, userId)
+      )
+    )
 
   for (const account of accounts) {
     if (account.platform !== "reddit") continue

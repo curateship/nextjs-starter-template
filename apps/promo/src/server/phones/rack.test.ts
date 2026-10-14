@@ -285,7 +285,7 @@ describe("the rack", () => {
       await nextAction(rack, db, later(2))
       await nextAction(rack, db, later(2 + 301))
       const [row] = await db.select().from(promoPhoneActions).where(eq(promoPhoneActions.id, id))
-      expect(row).toMatchObject({ status: "failed", error: "The rack did not answer within five minutes." })
+      expect(row).toMatchObject({ status: "failed", error: "The rack did not answer in time." })
     })
 
     it("after Disconnect, cancels what was waiting, shows the phones offline and lets no action through", async () => {

@@ -104,6 +104,8 @@ export type RedditAccountRow = {
   retiredAt: Date | null
   /** Paused by itself, or through a paused project, or null when it runs. */
   paused: "account" | "project" | null
+  /** True when an authenticator secret is saved. The secret itself never leaves the server. */
+  twoFactor: boolean
 }
 
 /** The accounts in use, or with `retired` the retired ones too, oldest first. */
@@ -195,6 +197,7 @@ export async function listRedditAccounts(
       lastPostedAt: account.lastPostedAt,
       retiredAt: account.retiredAt,
       paused: account.pausedAt ? "account" : row.projectPausedAt ? "project" : null,
+      twoFactor: Boolean(account.totpSecretEncrypted),
     }
   })
 }

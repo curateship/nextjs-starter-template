@@ -85,5 +85,7 @@ page is open.
 - `src/server/social/job-list.ts`: the list, Cancel and Try again.
 - `src/server/social/browser-program.ts`: check-in, check-out and the reading.
 - `worker/src/social-browser.ts`: checks in each time it matches its lanes to
-  the open-browser limit, every 15 seconds.
+  the open-browser limit and the phones-working limit, every 15 seconds. Phone
+  jobs run in this same program, on lanes of their own
+  ([Jobs on phones](../phones/phone-jobs.md)).
 - `src/lib/social/job-words.ts`: every sentence the dashboard shows.

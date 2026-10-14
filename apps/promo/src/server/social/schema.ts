@@ -163,6 +163,12 @@ export const promoAccounts = pgTable(
     phoneId: varchar("phone_id", { length: 36 }).references(() => promoPhones.id, {
       onDelete: "set null",
     }),
+    /**
+     * The authenticator secret, encrypted with the server's key, or empty for
+     * none. Never sent to a page: only the current code is. Added by
+     * `drizzle/0115_promo_phone_jobs.sql`.
+     */
+    totpSecretEncrypted: text("totp_secret_encrypted").notNull().default(""),
     /** True when the site was last seen asking the browser something only a person can answer. */
     blocked: boolean("blocked").notNull().default(false),
     /** What it was asking, in the browser's words. Empty when not blocked. */
@@ -718,11 +724,12 @@ export const promoJobs = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     kind: varchar("kind", { length: 30 }).$type<JobKind>().notNull(),
     /**
-     * The profile the job works in. Jobs in one lane run one at a time, in
-     * order; jobs in different lanes run side by side. Null on jobs from
-     * before lanes, each of which is its own.
+     * The profile the job works in, or `phone:` and the phone's id. Jobs in
+     * one lane run one at a time, in order; jobs in different lanes run side
+     * by side. Null on jobs from before lanes, each of which is its own.
+     * Widened to 64 by `drizzle/0115_promo_phone_jobs.sql` for the phones.
      */
-    lane: varchar("lane", { length: 36 }),
+    lane: varchar("lane", { length: 64 }),
     /** A keyword id, a find id, or a find id plus the text to post. */
     payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
     status: varchar("status", { length: 20 })

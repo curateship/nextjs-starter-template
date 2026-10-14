@@ -15,6 +15,7 @@ const checkInShape = z.object({
         usb: z.string().max(120).default(""),
         model: z.string().max(120).default(""),
         android: z.string().max(40).default(""),
+        timezone: z.string().max(64).default(""),
       })
     )
     .max(200),

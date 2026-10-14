@@ -76,6 +76,87 @@ class SettingsScreenTest(unittest.TestCase):
         self.assertIsNone(promo_rack.version_beside_label('<hierarchy><node text="Settings" /></hierarchy>'))
 
 
+class TextedCodeTest(unittest.TestCase):
+    """Codes texted to a phone, read without a helper app (Tyler, 14 Oct 2026)."""
+
+    def test_reads_the_newest_code_from_the_inbox(self):
+        now = 1_800_000_000_000
+        output = (
+            "Row: 0 address=+15550100, body=Your Reddit code is 482913. Don't share it, date=%d\n"
+            "Row: 1 address=+15550199, body=Lunch at 12, ok?, date=%d\n" % (now - 60_000, now - 30_000)
+        )
+        self.assertEqual(
+            promo_rack.newest_code(promo_rack.parse_sms_rows(output), now),
+            {"code": "482913", "from": "+15550100"},
+        )
+
+    def test_ignores_a_code_older_than_ten_minutes(self):
+        now = 1_800_000_000_000
+        output = "Row: 0 address=Reddit, body=Code 111222, date=%d\n" % (now - 11 * 60_000)
+        self.assertIsNone(promo_rack.newest_code(promo_rack.parse_sms_rows(output), now))
+
+    def test_reads_a_code_off_a_message_notification(self):
+        output = """
+  NotificationRecord(0x0f: pkg=com.google.android.apps.messaging user=UserHandle{0} id=0 tag=null)
+      android.title=String (Reddit)
+      android.text=String (123456 is your Reddit verification code)
+  NotificationRecord(0x10: pkg=com.android.systemui user=UserHandle{0})
+      android.text=String (Battery 15%, 999999 minutes)
+"""
+        messages = promo_rack.parse_notification_texts(output, 5)
+        self.assertEqual(messages, [("Reddit", "123456 is your Reddit verification code", 5)])
+        self.assertEqual(promo_rack.newest_code(messages, 5), {"code": "123456", "from": "Reddit"})
+
+
+class ScreenInputTest(unittest.TestCase):
+    def test_spells_typing_for_the_phone_shell(self):
+        self.assertEqual(promo_rack.typed_text("it's a test"), "'it'\\''s%sa%stest'")
+
+    def test_places_taps_and_swipes_in_the_phone_own_pixels(self):
+        sent = []
+        original = promo_rack.shell
+        promo_rack.shell = lambda serial, command, timeout=30: sent.append((serial, command)) or ""
+        try:
+            promo_rack.apply_input("A1", {"kind": "tap", "x": 0.5, "y": 0.25}, (1080, 2400))
+            promo_rack.apply_input("A1", {"kind": "swipe", "x1": 0.5, "y1": 0.8, "x2": 0.5, "y2": 0.2}, (1080, 2400))
+            promo_rack.apply_input("A1", {"kind": "key", "key": "back"}, (1080, 2400))
+            promo_rack.apply_input("A1", {"kind": "key", "key": "reboot"}, (1080, 2400))
+        finally:
+            promo_rack.shell = original
+        self.assertEqual(sent, [
+            ("A1", "input tap 540 600"),
+            ("A1", "input swipe 540 1920 540 480 300"),
+            ("A1", "input keyevent KEYCODE_BACK"),
+        ])
+
+
+class ScreenTurnTest(unittest.TestCase):
+    def test_a_turn_survives_a_phone_with_no_picture_and_hands_taps_over(self):
+        sent, applied = [], []
+        originals = (promo_rack.call, promo_rack.connect_screen, promo_rack.read_texted_code, promo_rack.apply_input)
+
+        def fake_call(config, path, payload):
+            sent.append((path, payload))
+            return {"wanted": ["A1"], "inputs": {"A1": [{"kind": "key", "key": "home"}]}}
+
+        def no_screen(serial):
+            raise RuntimeError("uiautomator2 is not installed on the rack.")
+
+        promo_rack.call = fake_call
+        promo_rack.connect_screen = no_screen
+        promo_rack.read_texted_code = lambda serial: {"code": "123456", "from": "Reddit"}
+        promo_rack.apply_input = lambda serial, item, size: applied.append((serial, item, size))
+        try:
+            state = {"wanted": ["A1"], "devices": {}, "sizes": {"A1": (1080, 2400)}, "texts_read_at": {}, "warned": set()}
+            gap = promo_rack.screen_turn({}, state)
+        finally:
+            promo_rack.call, promo_rack.connect_screen, promo_rack.read_texted_code, promo_rack.apply_input = originals
+        self.assertEqual(gap, promo_rack.SCREEN_GAP_SECONDS)
+        self.assertEqual(sent, [("/api/rack/screen", {"frames": [], "texts": [{"code": "123456", "from": "Reddit", "serial": "A1"}]})])
+        self.assertEqual(applied, [("A1", {"kind": "key", "key": "home"}, (1080, 2400))])
+        self.assertEqual(state["wanted"], ["A1"])
+
+
 class LauncherRollbackTest(unittest.TestCase):
     """A new version that stops before checking in is rolled back by itself."""
 

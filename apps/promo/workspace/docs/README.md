@@ -86,6 +86,12 @@ the repo's `docs/`, and is never copied here.
   the phones, how it reaches Promo without opening a port, the named actions,
   pairing with a one-time code, signed messages, Disconnect, the one install
   command, and updating itself with a rollback.
+- [Jobs on phones](phones/phone-jobs.md): a phone account's jobs through the
+  same job list, one at a time per phone and side by side across phones, the
+  phones' own limit, waking hours on the phone's clock, an offline phone
+  refusing at once, pausing the rack, and Settings → Phones.
+- [A phone's screen window](phones/screen-window.md): the live picture, control
+  and the hold while a person taps, authenticator codes and texted codes.
 
 ## Writing
 

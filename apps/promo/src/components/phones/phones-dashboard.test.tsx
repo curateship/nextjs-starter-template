@@ -25,13 +25,26 @@ const api = vi.hoisted(() => ({
   changePhones: vi.fn(),
   disconnectPhoneRack: vi.fn(),
   loadPhoneActions: vi.fn(),
+  loadWaitingPhoneJobs: vi.fn(),
   makePairingCode: vi.fn(),
+  pauseRack: vi.fn(),
+  resumeRack: vi.fn(),
   runPhoneAction: vi.fn(),
   savePhone: vi.fn(),
 }))
 vi.mock("@/lib/api/phones/phones", () => ({
   ...api,
   getPhoneErrorMessage: (error: unknown) => (error instanceof Error ? error.message : "failed"),
+}))
+const screenApi = vi.hoisted(() => ({
+  closeScreenWindow: vi.fn(async () => {}),
+  loadScreen: vi.fn(),
+  sendToScreen: vi.fn(),
+  setScreenControl: vi.fn(),
+}))
+vi.mock("@/lib/api/phones/screen", () => ({
+  ...screenApi,
+  getScreenErrorMessage: (error: unknown) => (error instanceof Error ? error.message : "failed"),
 }))
 
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -60,6 +73,7 @@ function phone(patch: Partial<PhoneRecord>): PhoneRecord {
     usbPort: "usb:1-1",
     status: "connected",
     offlineReason: "",
+    inUse: false,
     lastSeenAt: new Date(),
     accounts: [],
     createdAt: new Date(),
@@ -95,6 +109,7 @@ const PAGE: PhonesPage = {
     },
   ],
   rackVersion: "2026.10.13.1",
+  pausedAt: null,
   folders: [],
   labels: [],
   proxies: [{ id: "x1", label: "US home line", host: "gate.test" }],
@@ -112,6 +127,8 @@ describe("Phones dashboard", () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     for (const fn of Object.values(api)) fn.mockReset()
+    for (const fn of Object.values(screenApi)) fn.mockReset()
+    screenApi.closeScreenWindow.mockResolvedValue(undefined)
     navigation.navigate.mockReset()
     toasts.errors = []
     container = document.createElement("div")
@@ -220,6 +237,66 @@ describe("Phones dashboard", () => {
     expect(api.runPhoneAction).toHaveBeenCalledWith("p1", "phone/android-version")
     expect(text()).toContain("Settings says Android 16, the same as Android itself reports.")
     expect(document.querySelector('img[alt^="What the phone\'s screen showed"]')).not.toBeNull()
+  })
+
+  it("pauses the rack, and asks which waiting jobs to drop before resuming", async () => {
+    api.pauseRack.mockResolvedValue(undefined)
+    await render(PAGE)
+    const pauseSwitch = () => document.getElementById("phones-rack-paused") as HTMLButtonElement
+    expect(document.querySelector('label[for="phones-rack-paused"]')?.textContent).toBe("Pause the rack")
+    await act(async () => {
+      pauseSwitch().click()
+    })
+    expect(api.pauseRack).toHaveBeenCalled()
+
+    api.loadWaitingPhoneJobs.mockResolvedValue([
+      { id: "j1", kind: "comment", phoneName: "Pixel 8a", createdAt: new Date() },
+      { id: "j2", kind: "health", phoneName: "Pixel 8a", createdAt: new Date() },
+    ])
+    api.resumeRack.mockResolvedValue({ dropped: 1 })
+    await render({ ...PAGE, pausedAt: new Date() })
+    expect(document.querySelector('label[for="phones-rack-paused"]')?.textContent).toBe("Rack paused")
+    await act(async () => {
+      pauseSwitch().click()
+    })
+    expect(text()).toContain("Resume the rack?")
+    const firstTick = document.querySelector('[role="checkbox"][id="drop-j1"]') as HTMLButtonElement
+    await act(async () => {
+      firstTick.click()
+    })
+    await click("Drop 1 and resume")
+    expect(api.resumeRack).toHaveBeenCalledWith(["j1"])
+  })
+
+  it("opens a phone's screen, sends nothing with control off, and taps with it on", async () => {
+    screenApi.loadScreen.mockResolvedValue({
+      frame: { src: "data:image/jpeg;base64,/9j/AA", width: 1080, height: 2400, seq: 1, at: new Date() },
+      controlUntil: null,
+      codes: [{ accountId: "a1", handle: "quiet_builder", code: "482913", secondsLeft: 12 }],
+      texted: { code: "556677", from: "Reddit", at: new Date() },
+    })
+    await render(PAGE)
+    await click("Show the screen of Pixel 8a")
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10)
+    })
+    expect(document.querySelector('img[alt="Pixel 8a\'s screen"]')).not.toBeNull()
+    expect(text()).toContain("482913")
+    expect(text()).toContain("556677")
+
+    await click("Back")
+    expect(screenApi.sendToScreen).not.toHaveBeenCalled()
+    expect(toasts.errors).toContain("Control is off. Switch it on under the screen first.")
+
+    screenApi.setScreenControl.mockResolvedValue({ controlUntil: new Date(Date.now() + 900_000) })
+    const control = document.getElementById("phone-screen-control") as HTMLButtonElement
+    await act(async () => {
+      control.click()
+    })
+    expect(screenApi.setScreenControl).toHaveBeenCalledWith("p1", true)
+    screenApi.sendToScreen.mockResolvedValue(undefined)
+    await click("Back")
+    expect(screenApi.sendToScreen).toHaveBeenCalledWith("p1", { kind: "key", key: "back" })
   })
 
   it("refuses to save a phone with no name, keeping what was typed", async () => {

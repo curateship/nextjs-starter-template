@@ -32,6 +32,11 @@
  * search on another. The claim itself skips a profile with a job running (see
  * `claimNextJob`), so this only decides how many to run at once.
  *
+ * **Phones have lanes of their own.** A job for an account on a phone waits
+ * on the phone's rack, not on a browser, so it never takes a browser's place.
+ * Phone lanes take only phone jobs, one phone at a time each, up to the
+ * number of phones allowed to work at once in Settings → Phones.
+ *
  * **Two copies are safe.** A job is claimed under a lock every copy shares,
  * so two copies cannot both start work on one profile. What is *not* safe
  * twice is the browser itself, and that is held to one by a unique index on
@@ -43,6 +48,8 @@
 import { randomUUID } from "node:crypto"
 
 import { readBrowserSettings } from "@/server/browser/settings"
+import { readPhoneSettings } from "@/server/phones/settings"
+import type { JobPool } from "@/server/social/jobs"
 import {
   checkInBrowserProgram,
   checkOutBrowserProgram,
@@ -70,11 +77,12 @@ const SETTINGS_GAP_MS = 15_000
 const claimToken = randomUUID()
 
 let stopping = false
-let wanted = 1
+/** How many lanes each pool may run, from Settings. */
+const wanted: Record<JobPool, number> = { browser: 1, phone: 1 }
 let settingsTimer: ReturnType<typeof setTimeout> | null = null
 
-/** Running lanes by number, each a promise that settles when it ends. */
-const lanes = new Map<number, Promise<void>>()
+/** Running lanes by pool and number, each a promise that settles when it ends. */
+const lanes = new Map<string, Promise<void>>()
 
 /** Wakes every lane waiting out an idle gap, so a stop is not held up by one. */
 const wakers = new Set<() => void>()
@@ -92,9 +100,9 @@ function pause(ms: number): Promise<void> {
 }
 
 /** One job: claim, run, log. Returns whether there was one. */
-async function turn(): Promise<boolean> {
+async function turn(pool: JobPool): Promise<boolean> {
   try {
-    const result = await runOneJob(claimToken)
+    const result = await runOneJob(claimToken, undefined, pool)
     if (result.did === "nothing") return false
     if (result.did === "put back") {
       console.log(`Put ${result.kind} job ${result.jobId} back untried: ${result.why}`)
@@ -120,12 +128,12 @@ async function turn(): Promise<boolean> {
  * waiting. A lane numbered past a lowered limit ends after its job, so a
  * lower limit never stops work part-way.
  */
-async function lane(index: number): Promise<void> {
-  while (!stopping && index < wanted) {
-    const didWork = await turn()
+async function lane(pool: JobPool, index: number): Promise<void> {
+  while (!stopping && index < wanted[pool]) {
+    const didWork = await turn(pool)
     if (!didWork && !stopping) await pause(IDLE_GAP_MS)
   }
-  lanes.delete(index)
+  lanes.delete(`${pool}:${index}`)
 }
 
 /**
@@ -135,19 +143,23 @@ async function lane(index: number): Promise<void> {
  */
 async function matchLanes(): Promise<void> {
   try {
-    wanted = (await readBrowserSettings()).maxOpen
+    wanted.browser = (await readBrowserSettings()).maxOpen
+    wanted.phone = (await readPhoneSettings()).maxWorking
   } catch (error) {
     // Keeps the lanes it has; the next look tries again.
-    console.error("Could not read the browser settings", error)
+    console.error("Could not read the browser or phone settings", error)
   }
   try {
-    await checkInBrowserProgram(claimToken, wanted)
+    await checkInBrowserProgram(claimToken, wanted.browser)
   } catch (error) {
     // Only the Jobs dashboard's line is wrong while this fails; the work goes on.
     console.error("Could not check in", error)
   }
-  for (let index = 0; index < wanted && !stopping; index += 1) {
-    if (!lanes.has(index)) lanes.set(index, lane(index))
+  for (const pool of ["browser", "phone"] as const) {
+    for (let index = 0; index < wanted[pool] && !stopping; index += 1) {
+      const key = `${pool}:${index}`
+      if (!lanes.has(key)) lanes.set(key, lane(pool, index))
+    }
   }
   if (!stopping) settingsTimer = setTimeout(() => void forgetOldBrowserPrograms()
   .catch((error: unknown) => console.error("Could not clear old check-ins", error))
@@ -179,7 +191,7 @@ process.on("SIGTERM", () => void shutdown("SIGTERM"))
 process.on("SIGINT", () => void shutdown("SIGINT"))
 
 console.log(
-  `Social browser started as ${claimToken}, one lane per open browser the limit allows, each looking every ${
+  `Social browser started as ${claimToken}, one lane per open browser and per working phone the limits allow, each looking every ${
     IDLE_GAP_MS / 1000
   }s when idle`
 )

@@ -22,9 +22,8 @@ One Reddit account per profile and per phone, so one already holding one, and
 the reader browser from Settings → Behaviour, are not offered. The account is
 then signed in to Reddit there, and starts in no project.
 
-An account runs on a profile or a phone, never both. Phones do not take Reddit
-jobs yet, so an account on a phone has every search, comment and post refused
-with words saying so until phone farm file 02 is built.
+An account runs on a profile or a phone, never both. An account on a phone has
+its jobs run on the phone ([Jobs on phones](../phones/phone-jobs.md)).
 
 Settings → Reddit account still edits one account: the oldest one in use.
 Which account a comment goes out from is picked per comment on the
@@ -85,8 +84,10 @@ its buttons went off the edge.
   - Pause, and Resume.
   - Retire.
 - **Each row** has Check now, Help-only posts, Pause or Resume, the settings
-  button for where it runs, and Retire. The settings button moves the account
-  to another profile or phone; sign-ins do not move with it.
+  button, and Retire. The settings button moves the account to another profile
+  or phone, where sign-ins do not move with it, and saves its authenticator
+  secret so its two-factor code shows there and beside its phone's screen
+  ([the screen window](../phones/screen-window.md)).
 - **The voice menu is 128px wide**, 32px narrower than it was, so a row with
   four buttons still fits a 1440px window (measured 13 Oct 2026: 1232px of
   columns against 1232px of room).

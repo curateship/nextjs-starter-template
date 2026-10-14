@@ -76,6 +76,7 @@ import { Route as ApiRackPairRouteImport } from './routes/api/rack/pair'
 import { Route as ApiRackProgramDotpyRouteImport } from './routes/api/rack/program[.]py'
 import { Route as ApiRackReleaseRouteImport } from './routes/api/rack/release'
 import { Route as ApiRackResultRouteImport } from './routes/api/rack/result'
+import { Route as ApiRackScreenRouteImport } from './routes/api/rack/screen'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
@@ -452,6 +453,11 @@ const ApiRackResultRoute = ApiRackResultRouteImport.update({
   path: '/api/rack/result',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRackScreenRoute = ApiRackScreenRouteImport.update({
+  id: '/api/rack/screen',
+  path: '/api/rack/screen',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWebhooksResendRoute = ApiWebhooksResendRouteImport.update({
   id: '/api/webhooks/resend',
   path: '/api/webhooks/resend',
@@ -608,6 +614,7 @@ export interface FileRoutesByFullPath {
   '/api/rack/program.py': typeof ApiRackProgramDotpyRoute
   '/api/rack/release': typeof ApiRackReleaseRoute
   '/api/rack/result': typeof ApiRackResultRoute
+  '/api/rack/screen': typeof ApiRackScreenRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -690,6 +697,7 @@ export interface FileRoutesByTo {
   '/api/rack/program.py': typeof ApiRackProgramDotpyRoute
   '/api/rack/release': typeof ApiRackReleaseRoute
   '/api/rack/result': typeof ApiRackResultRoute
+  '/api/rack/screen': typeof ApiRackScreenRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -776,6 +784,7 @@ export interface FileRoutesById {
   '/api/rack/program.py': typeof ApiRackProgramDotpyRoute
   '/api/rack/release': typeof ApiRackReleaseRoute
   '/api/rack/result': typeof ApiRackResultRoute
+  '/api/rack/screen': typeof ApiRackScreenRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -862,6 +871,7 @@ export interface FileRouteTypes {
     | '/api/rack/program.py'
     | '/api/rack/release'
     | '/api/rack/result'
+    | '/api/rack/screen'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin/'
@@ -944,6 +954,7 @@ export interface FileRouteTypes {
     | '/api/rack/program.py'
     | '/api/rack/release'
     | '/api/rack/result'
+    | '/api/rack/screen'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin'
@@ -1029,6 +1040,7 @@ export interface FileRouteTypes {
     | '/api/rack/program.py'
     | '/api/rack/release'
     | '/api/rack/result'
+    | '/api/rack/screen'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/_authenticated/admin/'
@@ -1078,6 +1090,7 @@ export interface RootRouteChildren {
   ApiRackProgramDotpyRoute: typeof ApiRackProgramDotpyRoute
   ApiRackReleaseRoute: typeof ApiRackReleaseRoute
   ApiRackResultRoute: typeof ApiRackResultRoute
+  ApiRackScreenRoute: typeof ApiRackScreenRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
@@ -1558,6 +1571,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRackResultRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/rack/screen': {
+      id: '/api/rack/screen'
+      path: '/api/rack/screen'
+      fullPath: '/api/rack/screen'
+      preLoaderRoute: typeof ApiRackScreenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/webhooks/resend': {
       id: '/api/webhooks/resend'
       path: '/api/webhooks/resend'
@@ -1857,6 +1877,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRackProgramDotpyRoute: ApiRackProgramDotpyRoute,
   ApiRackReleaseRoute: ApiRackReleaseRoute,
   ApiRackResultRoute: ApiRackResultRoute,
+  ApiRackScreenRoute: ApiRackScreenRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,

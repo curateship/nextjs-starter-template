@@ -3,6 +3,7 @@ import { and, asc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 import { Refusal } from "@/server/browser/refusal"
 import { promoProfiles, promoProxies } from "@/server/browser/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { promoPhones } from "@/server/phones/schema"
 import {
   BEHAVIOUR_DEFAULTS,
   BEHAVIOUR_RANGES,
@@ -163,6 +164,24 @@ export async function profileTimeZone(
 }
 
 /**
+ * The time zone an account lives in, wherever it runs: the clock its browser
+ * shows, or on a phone the phone's own clock, which the rack reads on every
+ * check-in. A phone never seen yet is on UTC.
+ */
+export async function accountTimeZone(
+  account: { profileId: string | null; phoneId: string | null },
+  db: CustomShellDb = defaultDb
+): Promise<string> {
+  if (!account.phoneId) return profileTimeZone(account.profileId, db)
+  const [phone] = await db
+    .select({ timeZone: promoPhones.timeZone })
+    .from(promoPhones)
+    .where(eq(promoPhones.id, account.phoneId))
+    .limit(1)
+  return knownTimeZone(phone?.timeZone || null)
+}
+
+/**
  * When an account's warm-up ends, counted from the day Reddit made it.
  * Null when it is over or switched off. Undefined when the age has never been
  * read, so nobody can tell.
@@ -300,7 +319,7 @@ export async function readBehaviourView(
     views.push({
       id: account.id,
       handle: account.handle,
-      timeZone: await profileTimeZone(account.profileId, db),
+      timeZone: await accountTimeZone(account, db),
       redditCreatedAt: account.redditCreatedAt,
       warmUpEndsAt: ends ?? null,
       ageUnknown: ends === undefined,
