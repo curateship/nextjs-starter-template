@@ -26,10 +26,16 @@ const spanLabel = (entry: TimeOff) => dayRangeLabel(entry.firstDay, entry.lastDa
 export function TimeOffSection({
   userId,
   idPrefix,
+  compact = false,
 }: {
   /** Left out for my own. */
   userId?: string
   idPrefix: string
+  /**
+   * My dashboard's card: "No time off coming up." and a small Add on one
+   * line, as Tyler drew it on 13 Oct 2026.
+   */
+  compact?: boolean
 }) {
   const router = useRouter()
   const [entries, setEntries] = React.useState<TimeOff[] | null>(null)
@@ -94,7 +100,15 @@ export function TimeOffSection({
       ) : entries === null ? (
         <LoadingRow label="Loading time off…" />
       ) : entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No time off coming up.</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">No time off coming up.</p>
+          {compact && !adding ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => setAdding(true)}>
+              <PlusIcon className="size-4" />
+              Add
+            </Button>
+          ) : null}
+        </div>
       ) : (
         <ul className="grid gap-2">
           {entries.map((entry) => (
@@ -140,7 +154,7 @@ export function TimeOffSection({
             </Button>
           </div>
         </div>
-      ) : (
+      ) : compact && entries?.length === 0 ? null : (
         <div>
           <Button type="button" variant="outline" onClick={() => setAdding(true)}>
             <PlusIcon className="size-4" />

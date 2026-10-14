@@ -3,29 +3,29 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 
 import { ProjectDetailsPanel } from "@/components/project/project-details-panel"
 import { PersonPages } from "@/components/project/person-pages"
-import { ProjectMembersPanel } from "@/components/project/project-members-panel"
 import { ProjectTasksPanel } from "@/components/project/project-tasks-panel"
-import { TaskInPlace } from "@/components/project/task-in-place"
+import { TaskSidePanel } from "@/components/project/task-side-panel"
 import { ThreePanels } from "@/components/project/three-panels"
 import type { ProjectPage } from "@/lib/api/project/projects"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { PROJECT_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
 import type { TaskFilters } from "@/lib/project/task-filters"
 import { useProjectLive } from "@/lib/project/use-project-live"
-import { useReloadAfterReading } from "@/lib/project/use-reload-after-reading"
 
 const PROJECT_ROUTE_ID = "/_authenticated/projects/$projectId"
 
 /**
- * The project page: details on the left, tasks in the middle, the project's
- * members on the right. Tyler asked for the four-panel dashboard without its
- * bottom panel; the layout is the CRM screen's (`crm-workspace.tsx`), which
- * already has three resizable panels and nothing along the bottom.
+ * The project page: details and members on the left, tasks in the middle,
+ * the open task on the right. Tyler asked for the four-panel dashboard
+ * without its bottom panel; the layout is the CRM screen's
+ * (`crm-workspace.tsx`), which already has three resizable panels and
+ * nothing along the bottom. The task moved from the middle panel to the
+ * right on 13 Oct 2026, from Tyler's drawing, so the Board stays in view
+ * beside it.
  *
- * A task opens in the middle panel, in the Board or List's place, and Back
- * returns to them as they were. The open task lives in the address
- * (`?task=<id>`), so a bell notice or a pasted link opens it. So do the
- * search and filters, and clicking a member is the Person filter.
+ * The open task lives in the address (`?task=<id>`), so a bell notice or a
+ * pasted link opens it. So do the search and filters, and clicking a member
+ * is the Person filter.
  */
 export function ProjectWorkspace({
   page,
@@ -44,27 +44,24 @@ export function ProjectWorkspace({
   const router = useRouter()
 
   // A task changed by someone else moves on the Board and List as it happens.
-  // Only this page's own data reloads. While a task covers the Board, the
-  // reload waits for Back, so an open chat isn't slowed by a Board nobody sees.
-  const boardStale = React.useRef(false)
+  // Only this page's own data reloads.
   const reloadBoard = React.useCallback(
     () => void router.invalidate({ filter: (match) => match.routeId === PROJECT_ROUTE_ID }),
     [router]
   )
-  useProjectLive(
-    page.project.id,
-    (change) => change !== "chat",
-    () => {
-      if (openTaskId) boardStale.current = true
-      else reloadBoard()
-    }
-  )
+  useProjectLive(page.project.id, (change) => change !== "chat", reloadBoard)
+
+  // Opening a task reads its chat, so its card's "3 new" goes once it has loaded.
+  const tasksRef = React.useRef(page.tasks)
   React.useEffect(() => {
-    if (openTaskId || !boardStale.current) return
-    boardStale.current = false
-    reloadBoard()
-  }, [openTaskId, reloadBoard])
-  useReloadAfterReading(openTaskId, page.tasks, reloadBoard)
+    tasksRef.current = page.tasks
+  }, [page.tasks])
+  const taskLoaded = React.useCallback(
+    (taskId: string) => {
+      if (tasksRef.current.some((task) => task.id === taskId && task.unread > 0)) reloadBoard()
+    },
+    [reloadBoard]
+  )
 
   const chatOpened = React.useCallback(
     () =>
@@ -93,39 +90,38 @@ export function ProjectWorkspace({
     <PersonPages>
       <ThreePanels
         layoutKey={PROJECT_PANEL_LAYOUT_KEY}
-        showMiddleFor={openTaskId}
+        showRightFor={openTaskId}
         left={{
           label: "Details",
           showLabel: "Show the project details",
-          content: <ProjectDetailsPanel page={page} />,
-        }}
-        middle={{
-          label: "Tasks",
           content: (
-            <TaskInPlace taskId={openTaskId} onBack={taskAddress.back}>
-              <ProjectTasksPanel
-                page={page}
-                filters={filters}
-                onFilters={setFilters}
-                onOpenTask={taskAddress.open}
-                openChat={openChat}
-                onChatOpened={chatOpened}
-              />
-            </TaskInPlace>
-          ),
-        }}
-        right={{
-          label: "Members",
-          showLabel: "Show the members",
-          content: (
-            <ProjectMembersPanel
+            <ProjectDetailsPanel
               page={page}
               selectedUserId={filters.person ?? null}
-              onSelect={(userId) =>
+              onSelectMember={(userId) =>
                 setFilters({ person: filters.person === userId ? undefined : userId })
               }
             />
           ),
+        }}
+        middle={{
+          label: "Tasks",
+          content: (
+            <ProjectTasksPanel
+              page={page}
+              filters={filters}
+              onFilters={setFilters}
+              onOpenTask={taskAddress.open}
+              openTaskId={openTaskId}
+              openChat={openChat}
+              onChatOpened={chatOpened}
+            />
+          ),
+        }}
+        right={{
+          label: "Task",
+          showLabel: "Show the task",
+          content: <TaskSidePanel taskId={openTaskId} onClose={taskAddress.back} onLoaded={taskLoaded} />,
         }}
       />
     </PersonPages>

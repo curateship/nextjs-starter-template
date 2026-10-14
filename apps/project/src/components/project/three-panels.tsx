@@ -48,7 +48,11 @@ export function ThreePanels({
    * tab: a task opened from the inbox or a notice shows at once.
    */
   showMiddleFor?: string
-  /** The same for the right panel: each new value switches to its tab. */
+  /**
+   * The same for the right panel: each new value switches to its tab, and
+   * going back to nothing returns to the middle panel's tab, as closing the
+   * project page's task does.
+   */
   showRightFor?: string
   /** Windows that open over the screen. */
   children?: React.ReactNode
@@ -64,6 +68,7 @@ export function ThreePanels({
   if (showRightFor !== rightFor) {
     setRightFor(showRightFor)
     if (showRightFor) setNarrowView("right")
+    else if (narrowView === "right") setNarrowView("middle")
   }
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)
   const rightRef = React.useRef<PanelImperativeHandle | null>(null)

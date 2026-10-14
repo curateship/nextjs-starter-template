@@ -98,8 +98,24 @@ describe("the board", () => {
     expect(html).toMatch(/<\/svg>Waiting</)
     expect(html).toContain("Stuck: Waiting on the page list")
     expect(html).toContain("Nobody (was Leo)")
-    expect(html).toContain("3 of 3 steps done")
+    // "3/3" with the words for screen readers, as Tyler drew the card on 13 Oct 2026.
+    expect(html).toContain("3/3<span class=\"sr-only\"> steps done</span>")
     expect(html).toContain("Overdue · ")
+  })
+
+  it("outlines the card of the task open beside the Board", () => {
+    const open = renderToStaticMarkup(
+      <TaskBoard
+        tasks={tasks}
+        openTaskId="d"
+        readOnly={false}
+        onOpenTask={() => {}}
+        onMove={() => {}}
+        onReorder={() => {}}
+      />
+    )
+    expect(open.match(/aria-current="true"/g)).toHaveLength(1)
+    expect(html).not.toContain(`aria-current="true"`)
   })
 
   it("shows labels and the section on a card, and keeps old Done tasks behind Show older", () => {
@@ -279,7 +295,7 @@ describe("the project page", () => {
     views: [],
   }
 
-  it("draws details, tasks and members", () => {
+  it("draws details and members, tasks, and an empty task panel", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
         <ProjectWorkspace page={page} openTaskId={undefined} filters={{}} />
@@ -287,7 +303,9 @@ describe("the project page", () => {
     )
     expect(html).toContain(`aria-label="Project settings"`)
     expect(html).toContain(`aria-label="Unstar Website"`)
-    expect(html).toContain("Search tasks")
+    // Until the panel is measured the search sits inside Filter.
+    expect(html).toContain(">Filter</span>")
+    expect(html).toContain("Click a task to see its steps and chat here.")
     expect(html).toContain("New site")
     expect(html).toContain("Board")
     expect(html).toContain("New task")

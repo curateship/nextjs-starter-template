@@ -378,7 +378,10 @@ function Composer({
         attach([...event.dataTransfer.files])
       }}
     >
-      <Label htmlFor={id}>Message</Label>
+      {/* The box sits under its chat's heading, so the label is for screen readers. */}
+      <Label htmlFor={id} className="sr-only">
+        Message
+      </Label>
       {replyTo ? (
         <div className="flex items-start gap-2 border-l-2 pl-2 text-sm">
           <div className="grid min-w-0 flex-1">
@@ -520,8 +523,9 @@ function MessageBox({
   })
   return (
     <>
-      <div className="flex items-end gap-2">
-        {before}
+      {/* One box, as Tyler drew it on 13 Oct 2026: the words on top, the
+          paperclip at the bottom left and Send at the bottom right. */}
+      <div className="grid rounded-lg border bg-background focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
         <TagTextarea
           id={id}
           ref={boxRef}
@@ -536,7 +540,7 @@ function MessageBox({
           autoFocus={autoFocus}
           placeholder="Write a message. Type @ to tag someone, # to link a task."
           aria-describedby={away.length ? `${id}-away` : undefined}
-          className="max-h-48"
+          className="max-h-48 min-h-16 resize-none border-0 !bg-transparent shadow-none focus-visible:ring-0"
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault()
@@ -549,7 +553,10 @@ function MessageBox({
             }
           }}
         />
-        {after}
+        <div className="flex items-center gap-1 px-1.5 pb-1.5">
+          {before}
+          <div className="ml-auto flex items-center gap-2">{after}</div>
+        </div>
       </div>
       {away.length ? (
         // Only the dates, never the reason for the time off.

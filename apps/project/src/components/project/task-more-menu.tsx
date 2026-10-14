@@ -33,7 +33,7 @@ import { shortDayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 
-const MOVE_PICKER_ID = "move-task-project"
+export const MOVE_PICKER_ID = "move-task-project"
 
 /**
  * Duplicate, Move to project and Remind me, behind one button beside Follow.
@@ -49,27 +49,11 @@ export function TaskMoreMenu({
   onMove: () => void
   onRemind: () => void
 }) {
-  const router = useRouter()
-  const navigate = useNavigate()
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  const { task } = detail
+  const { duplicate, busy } = useDuplicateTask(detail)
   const cantMove = detail.moveTargets.length === 0
   // Choosing Move or Remind me hands the keyboard to its card, so the menu
   // mustn't take it back to its own button as it closes.
   const picked = React.useRef<"move" | "remind" | null>(null)
-
-  async function duplicate() {
-    let copyId = ""
-    const ok = await run(async () => {
-      copyId = (await duplicateProjectTask(task.id)).id
-    }, "Task copied. This is the copy.")
-    if (!ok) return
-    await router.invalidate()
-    void navigate({
-      to: ".",
-      search: (previous: Record<string, unknown>) => ({ ...previous, task: copyId }),
-    })
-  }
 
   return (
     <DropdownMenu>
@@ -117,6 +101,92 @@ export function TaskMoreMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** Duplicate: the copy opens straight away, in the same place the task was open. */
+function useDuplicateTask(detail: TaskDetail) {
+  const router = useRouter()
+  const navigate = useNavigate()
+  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+
+  async function duplicate() {
+    let copyId = ""
+    const ok = await run(async () => {
+      copyId = (await duplicateProjectTask(detail.task.id)).id
+    }, "Task copied. This is the copy.")
+    if (!ok) return
+    await router.invalidate()
+    void navigate({
+      to: ".",
+      search: (previous: Record<string, unknown>) => ({ ...previous, task: copyId }),
+    })
+  }
+
+  return { duplicate, busy }
+}
+
+/**
+ * The same three as the menu, as rows at the foot of the task's cog dropdown
+ * on the project page. Each closes the dropdown first (`onPicked`): Move and
+ * Remind me open their card at the top of the task's panel.
+ */
+export function TaskMoreRows({
+  detail,
+  onMove,
+  onRemind,
+  onPicked,
+}: {
+  detail: TaskDetail
+  onMove: () => void
+  onRemind: () => void
+  onPicked: () => void
+}) {
+  const { duplicate, busy } = useDuplicateTask(detail)
+  const cantMove = detail.moveTargets.length === 0
+  return (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        className="justify-start"
+        disabled={busy}
+        onClick={() => {
+          onPicked()
+          void duplicate()
+        }}
+      >
+        {busy ? <Loader2Icon className="size-4 animate-spin" /> : <CopyIcon className="size-4" />}
+        Duplicate task
+      </Button>
+      <DisabledReason reason="You're not on any other project." disabled={cantMove} className="flex w-full">
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full justify-start"
+          disabled={cantMove}
+          onClick={() => {
+            onPicked()
+            onMove()
+          }}
+        >
+          <FolderInputIcon className="size-4" />
+          Move to project
+        </Button>
+      </DisabledReason>
+      <Button
+        type="button"
+        variant="ghost"
+        className="justify-start"
+        onClick={() => {
+          onPicked()
+          onRemind()
+        }}
+      >
+        <BellRingIcon className="size-4" />
+        {detail.myReminder ? "Change my reminder" : "Remind me"}
+      </Button>
+    </>
   )
 }
 

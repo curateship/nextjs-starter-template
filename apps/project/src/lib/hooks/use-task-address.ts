@@ -8,6 +8,10 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
  * back button and Back agree. A task that arrived from a link has no list
  * step behind it, so Back swaps the address for the list instead of leaving
  * the page.
+ *
+ * Opening a task while another is open, as the project page's Board allows
+ * beside its task panel, swaps one for the other without a new step, so
+ * closing the task returns to the list rather than to the task before.
  */
 export function useTaskAddress() {
   const navigate = useNavigate()
@@ -16,13 +20,24 @@ export function useTaskAddress() {
 
   const open = React.useCallback(
     (taskId: string) => {
+      const showing = (router.state.location.search as { task?: unknown }).task
+      if (typeof showing === "string" && showing) {
+        if (showing === taskId) return
+        if (openedHere.current === showing) openedHere.current = taskId
+        void navigate({
+          to: ".",
+          replace: true,
+          search: (previous: Record<string, unknown>) => ({ ...previous, task: taskId }),
+        })
+        return
+      }
       openedHere.current = taskId
       void navigate({
         to: ".",
         search: (previous: Record<string, unknown>) => ({ ...previous, task: taskId }),
       })
     },
-    [navigate]
+    [navigate, router]
   )
 
   const back = React.useCallback(() => {

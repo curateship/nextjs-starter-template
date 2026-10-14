@@ -16,7 +16,10 @@ It works the same as a task's chat, except for who it tells (see
 - **A running conversation.** Messages read oldest at the top and newest at
   the bottom, each with the writer's photo, name and how long ago ("3 minutes
   ago"), with the exact date and time on hover. The box to write in sits
-  under them.
+  under them: one bordered box with the words on top, the paperclip (and New
+  poll in a project's chat) at its bottom left and Send at its bottom right,
+  as Tyler drew it on 13 Oct 2026. Its "Message" label is for screen readers
+  only, since the box sits under its chat's heading.
 - **Enter sends, Shift+Enter starts a new line.** A message goes once however
   fast Enter is pressed, and anything typed while it sends stays in the box.
 - **A writer's name and photo open their page** (see
@@ -97,9 +100,10 @@ can see where the talk moved without opening every task.
   the List, and in My tasks on My dashboard. A project's own chat shows "3
   new" on its Chat tab, which follows new messages live while I'm on
   another tab.
-- **Opening reads it.** Loading a task, in the middle panel or a window,
+- **Opening reads it.** Loading a task, in a panel or a window,
   reads its chat up to that moment, and opening the Chat tab reads the
-  project's. The "3 new" goes when I come Back to the list.
+  project's. On the project page the card's "3 new" goes as soon as the task
+  has loaded beside the Board or My tasks.
 - **Nothing old counts as new.** Without a "read up to" time of my own yet,
   the day I was added to the project counts, or the day I joined the team
   for an owner or admin who isn't on it. Every message written before 13 Oct
@@ -138,7 +142,7 @@ the launch?" is settled without twelve messages.
   typed. Arrow keys move through the list, Enter or Tab picks, Escape closes
   it. Typing "@Leo Hart" in full works too.
 - **A tagged person gets "Anna asked you about a task"** in their bell, and
-  clicking it opens the task in the middle panel of its project page.
+  clicking it opens the task in the right panel of its project page.
 - **Only people on the project can be tagged.** Tagging anyone else refuses
   the whole message with "You can only tag people who are on this project."
 - **Tagging yourself sends nothing.**
@@ -195,7 +199,7 @@ the launch?" is settled without twelve messages.
 
 ## Files in chat messages
 
-- **The paperclip beside the box, or dropping files on the box**, adds files
+- **The paperclip in the box, or dropping files on the box**, adds files
   to the message. They show as names above the box, each with an X to leave
   it out, and go when Send is pressed. A message can be files alone.
 - **Up to 5 files per message**, so one send stays one upload of at most

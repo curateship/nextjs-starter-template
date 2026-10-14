@@ -3,9 +3,9 @@ import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 import { BellIcon, CheckIcon, ClipboardCheckIcon, HeartIcon, PlusIcon, UndoIcon } from "lucide-react"
 
-import { TaskChatCard } from "@/components/project/task-chat"
+import { ChatThread, TaskChatCard } from "@/components/project/task-chat"
 import { TaskFieldsCard, TaskTypeField } from "@/components/project/task-fields-card"
-import { TaskFilesCard } from "@/components/project/task-files-card"
+import { TaskFileDrop, TaskFilesCard } from "@/components/project/task-files-card"
 import { TaskHistoryCard } from "@/components/project/task-history-card"
 import { TaskNotesField } from "@/components/project/task-notes"
 import { MoveTaskCard, ReminderCard, TaskMoreMenu } from "@/components/project/task-more-menu"
@@ -22,6 +22,7 @@ import {
   ReviewBadge,
   RoomNote,
   StatusBadge,
+  StatusDot,
   WaitingBadge,
 } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
@@ -61,6 +62,7 @@ import {
 } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
+import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 import { localTimeOf, momentOnDay } from "@/lib/project/dates"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import {
@@ -73,6 +75,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
+import { readTaskNotes, taskNotesAreEmpty } from "@/lib/project/notes"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 import { usePeopleRoom } from "@/lib/project/use-people-room"
 import { useProjectLive } from "@/lib/project/use-project-live"
@@ -81,15 +84,16 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 const authenticatedRoute = getRouteApi("/_authenticated")
 const NOBODY = "nobody"
 
-/** The one question before deleting a task, in the window and in the middle panel alike. */
+/** The one question before deleting a task, in the window and in the right panel alike. */
 export const DELETE_TASK_QUESTION = "Delete this task?"
 export const DELETE_TASK_DETAIL = `It moves to the project's bin with its steps, chat and files, and can be brought back for ${BIN_DAYS} days.`
 
 /**
- * What a task shows, split into the pieces its two frames place differently:
- * the window on the Team dashboard (`task-dialog.tsx`), and the middle panel
- * of the project page and My dashboard (`task-in-place.tsx`). Both draw the
- * same body, so the task reads the same wherever it opens.
+ * What a task shows, split into the pieces its frames place differently: the
+ * window on the Team dashboard (`task-dialog.tsx`) draws `body`, the whole
+ * task in one column. The right panel of the project page and My dashboard
+ * (`task-side-panel.tsx`) draws `side` instead. Every piece is the same field with the same saving, so the task
+ * behaves the same wherever it opens.
  */
 export type TaskParts = {
   title: string
@@ -97,12 +101,48 @@ export type TaskParts = {
   /** The project, who handed it out, and whether it's archived. */
   description: React.ReactNode
   body: React.ReactNode
+  /** The pieces of the project page's panel. Null until the task has loaded. */
+  side: TaskSide | null
   /** The Follow button, once the task has loaded. */
   follow: React.ReactNode
   /** Duplicate and Move to project, once the task has loaded and can change. */
   more: React.ReactNode
   /** Deletes the task and refreshes the page under it. Null when this person can't. */
   remove: { busy: boolean; run: () => Promise<boolean> } | null
+}
+
+/**
+ * The project page's task panel: the status in its header, notices, Notes,
+ * Steps and Chat down the panel, the files behind the paperclip and the rest
+ * of the fields in the cog's dropdown.
+ */
+export type TaskSide = {
+  status: React.ReactNode
+  /** A hand-over to accept, a review, the Stuck reason row, and the Move and Remind me cards. */
+  notices: React.ReactNode
+  notes: {
+    empty: boolean
+    /** `adding` opens the editor at once, for "Add note". */
+    field: (options: { adding: boolean; onFinished: () => void }) => React.ReactNode
+  }
+  /** `meta` is "0 of 2 done", or null with no steps. */
+  steps: { meta: string | null; content: React.ReactNode }
+  chat: { count: number; content: React.ReactNode }
+  files: { count: number; content: React.ReactNode }
+  /** The fields of the cog's Details tab: title, person, dates, priority, type, section, labels and review. */
+  details: React.ReactNode
+  /** The task type's own fields, as a card. Nothing when its type has none. */
+  typeFields: React.ReactNode
+  /** Repeat, snooze, waiting on and my reminder, as a card. */
+  plan: React.ReactNode
+  /** The cog's History tab, as a card. */
+  history: React.ReactNode
+  detail: TaskDetail
+  readOnly: boolean
+  /** Opens the Move to project card at the top of the panel. */
+  move: () => void
+  /** Opens the Remind me card at the top of the panel. */
+  remind: () => void
 }
 
 type Loaded =
@@ -117,9 +157,12 @@ type Loaded =
  */
 export function TaskView({
   taskId,
+  onLoaded,
   children,
 }: {
   taskId: string
+  /** Once the task has first loaded, which marks its chat read. */
+  onLoaded?: (taskId: string) => void
   children: (parts: TaskParts) => React.ReactNode
 }) {
   const router = useRouter()
@@ -127,11 +170,23 @@ export function TaskView({
   const me = authenticatedRoute.useLoaderData().user
   const [loaded, setLoaded] = React.useState<Loaded>({ state: "loading" })
   const [reloads, setReloads] = React.useState(0)
+  const onLoadedRef = React.useRef(onLoaded)
+  React.useEffect(() => {
+    onLoadedRef.current = onLoaded
+  }, [onLoaded])
+  const firstLoad = React.useRef(true)
 
   React.useEffect(() => {
     let live = true
     loadTask(taskId).then(
-      (detail) => live && setLoaded({ state: "ready", detail }),
+      (detail) => {
+        if (!live) return
+        setLoaded({ state: "ready", detail })
+        if (firstLoad.current) {
+          firstLoad.current = false
+          onLoadedRef.current?.(taskId)
+        }
+      },
       (error: unknown) =>
         live && setLoaded({ state: "error", message: getProjectErrorMessage(error) })
     )
@@ -191,6 +246,7 @@ export function TaskView({
       ) : (
         <ErrorRow message={loaded.message} onRetry={() => setReloads((n) => n + 1)} />
       ),
+    side: null,
     follow: null,
     more: null,
     remove: null,
@@ -350,7 +406,10 @@ function TaskForm({
     return true
   }
 
-  const body = (
+  // What a task tells whoever opens it, above everything else: a hand-over
+  // to accept, a review, thanks, a reason it is stuck, and the Move and
+  // Remind me cards.
+  const notices = (
     <>
       {moving && !readOnly ? <MoveTaskCard detail={detail} onDone={() => setMoving(false)} /> : null}
       {reminding && !readOnly ? (
@@ -493,247 +552,418 @@ function TaskForm({
           Stuck: {task.stuckReason}
         </p>
       ) : null}
+    </>
+  )
 
+  const titleField = (
+    <div className="grid gap-2">
+      <Label htmlFor="task-title">Title</Label>
+      <Input
+        id="task-title"
+        value={title}
+        maxLength={LIMITS.taskTitle}
+        disabled={readOnly}
+        onChange={(event) => setTitle(event.target.value)}
+        onBlur={commitTitle}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur()
+        }}
+      />
+    </div>
+  )
+
+  const statusField = (
+    <div className="grid gap-2">
+      <Label htmlFor="task-status">Status</Label>
+      <Select
+        value={pendingStuck ? "stuck" : task.status}
+        onValueChange={(value) => pickStatus(value as TaskStatus)}
+        disabled={readOnly || busy}
+      >
+        <SelectTrigger id="task-status" className="w-full sm:w-fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {TASK_STATUSES.map((status) => (
+            <SelectItem key={status} value={status}>
+              {TASK_STATUS_LABEL[status]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+
+  // The project page's panel puts the status in its header, a small pill with
+  // the status's own dot, the same as the Board's column headings.
+  const statusPill = (
+    <Select
+      value={pendingStuck ? "stuck" : task.status}
+      onValueChange={(value) => pickStatus(value as TaskStatus)}
+      disabled={readOnly || busy}
+    >
+      <SelectTrigger aria-label="Status" className="w-fit">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {TASK_STATUSES.map((status) => (
+          <SelectItem key={status} value={status}>
+            <StatusDot status={status} />
+            {TASK_STATUS_LABEL[status]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+
+  const assigneeField = (
+    <div className="grid gap-2">
+      <Label htmlFor="task-assignee">Assigned to</Label>
+      <Select
+        value={handingTo?.id ?? task.assignee?.id ?? NOBODY}
+        onValueChange={pickAssignee}
+        disabled={readOnly || busy}
+      >
+        <SelectTrigger id="task-assignee" className="w-full sm:w-fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NOBODY}>Nobody</SelectItem>
+          {detail.assignable.map((person) => (
+            <SelectItem key={person.id} value={person.id}>
+              <PersonAvatar name={person.name} avatarUrl={person.avatarUrl} />
+              {person.id === myUserId ? `${person.name} (you)` : person.name}
+              {person.title ? (
+                <span className="text-muted-foreground"> · {person.title}</span>
+              ) : null}
+              <RoomNote room={room[person.id]} />
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {!task.assignee && task.formerAssigneeName ? (
+        <p className="text-xs text-muted-foreground">
+          Was assigned to {task.formerAssigneeName}, who is no longer on the project.
+        </p>
+      ) : null}
+    </div>
+  )
+
+  const handoverRow = handingTo ? (
+    <ReasonRow
+      id="handover-note"
+      label={`Note for ${handingTo.name} (optional)`}
+      value={handoverNote}
+      onChange={setHandoverNote}
+      confirmLabel="Hand over"
+      busy={busy}
+      optional
+      maxLength={LIMITS.handoverNote}
+      placeholder="Client wants it by Thursday"
+      onConfirm={() => void handOver()}
+      onCancel={() => {
+        setHandingTo(null)
+        setHandoverNote("")
+      }}
+    />
+  ) : null
+
+  const stuckRow = pendingStuck ? (
+    <ReasonRow
+      id="stuck-reason"
+      label="Why is it stuck?"
+      value={stuckReason}
+      onChange={setStuckReason}
+      confirmLabel="Mark Stuck"
+      busy={busy}
+      onConfirm={() => void markStuck()}
+      onCancel={() => {
+        setPendingStuck(false)
+        setStuckReason("")
+      }}
+    />
+  ) : null
+
+  const startField = (
+    <div className="grid content-start gap-2">
+      <Label htmlFor="task-start">Start day</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        <DueDayPicker
+          id="task-start"
+          value={task.startDate}
+          placeholder="No start day"
+          disabled={readOnly || busy}
+          onChange={(startDate) => {
+            if (startDate !== task.startDate) void change(() => saveTask({ taskId: task.id, startDate }))
+          }}
+        />
+        {task.startDate && !readOnly ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => void change(() => saveTask({ taskId: task.id, startDate: null }))}
+          >
+            Clear
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
+
+  const dueField = (
+    <div className="grid content-start gap-2">
+      <Label htmlFor="task-due">Due date</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        <DueDayPicker
+          id="task-due"
+          value={task.dueDate}
+          placeholder="No due date"
+          disabled={readOnly || busy}
+          onChange={(dueDate) => {
+            if (dueDate !== task.dueDate) void change(() => saveTask({ taskId: task.id, dueDate }))
+          }}
+        />
+        {task.dueDate && !readOnly ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => void change(() => saveTask({ taskId: task.id, dueDate: null }))}
+          >
+            Clear
+          </Button>
+        ) : null}
+        <DueMovesMark moves={task.dueMoves} status={task.status} />
+      </div>
+    </div>
+  )
+
+  const dueByField = task.dueDate ? (
+    <DueByField
+      task={task}
+      disabled={readOnly || busy}
+      onSave={(dueAt) => void change(() => saveTask({ taskId: task.id, dueAt }))}
+    />
+  ) : null
+
+  const priorityField = (
+    <div className="grid content-start gap-2">
+      <Label htmlFor="task-priority">Priority</Label>
+      <Select
+        value={task.priority}
+        onValueChange={(value) =>
+          void change(() => saveTask({ taskId: task.id, priority: value as TaskPriority }))
+        }
+        disabled={readOnly || busy}
+      >
+        <SelectTrigger id="task-priority" className="w-full sm:w-fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {TASK_PRIORITIES.map((priority) => (
+            <SelectItem key={priority} value={priority}>
+              {TASK_PRIORITY_LABEL[priority]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+
+  const datesAndPriority = (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {startField}
+      {dueField}
+      {dueByField}
+      {priorityField}
+    </div>
+  )
+
+  const typeField = <TaskTypeField detail={detail} readOnly={readOnly} busy={busy} change={change} />
+  const sectionField = <TaskSectionField detail={detail} readOnly={readOnly} busy={busy} change={change} />
+  const labelsField = <TaskLabelsField detail={detail} readOnly={readOnly} busy={busy} change={change} />
+  const reviewField = detail.canAskForReview ? (
+    <div className="flex items-center justify-between gap-4">
+      <FieldLabel
+        htmlFor="task-needs-review"
+        hint="When it's marked Done, you get a notice and check it. It still counts as Done meanwhile."
+      >
+        Needs review
+      </FieldLabel>
+      <Switch
+        id="task-needs-review"
+        checked={task.review.needed}
+        disabled={readOnly || busy}
+        onCheckedChange={(on) =>
+          void change(
+            () => setTaskNeedsReview(task.id, on),
+            on ? "You'll review it when it's Done." : "It no longer needs your review."
+          )
+        }
+      />
+    </div>
+  ) : task.review.needed && task.review.reviewer ? (
+    <p className="text-sm text-muted-foreground">
+      Needs review: {task.review.reviewer.name} checks it once it's Done.
+    </p>
+  ) : null
+
+  const sortingFields = (
+    <>
+      {typeField}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {sectionField}
+        {labelsField}
+      </div>
+      {reviewField}
+    </>
+  )
+
+  const saveNotes = (notes: WrittenPageNode, notesSession: string) =>
+    change(() => saveTask({ taskId: task.id, notes, notesSession }))
+  const noteLinks = { id: task.id, links: detail.noteLinks, change }
+
+  const handBackButton =
+    canHandBack && !task.waiting && !handingBack && !readOnly ? (
+      <div>
+        <Button type="button" variant="outline" onClick={() => setHandingBack(true)}>
+          <UndoIcon className="size-4" />
+          Hand back to {task.assignedBy?.name}
+        </Button>
+      </div>
+    ) : null
+
+  const fieldsCard = <TaskFieldsCard detail={detail} readOnly={readOnly} change={change} refresh={refresh} />
+  const planCard = <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} />
+  const historyCard = <TaskHistoryCard detail={detail} />
+  const stepsTitle = `Steps${detail.steps.length ? ` · ${detail.steps.filter((step) => step.done).length} of ${detail.steps.length} done` : ""}`
+  const steps = <StepsContent detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} busy={busy} />
+
+  const body = (
+    <>
+      {notices}
       <Card size="sm">
         <CardHeader>
           <CardTitle>Task</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="task-title">Title</Label>
-            <Input
-              id="task-title"
-              value={title}
-              maxLength={LIMITS.taskTitle}
-              disabled={readOnly}
-              onChange={(event) => setTitle(event.target.value)}
-              onBlur={commitTitle}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur()
-              }}
-            />
-          </div>
+          {titleField}
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="task-status">Status</Label>
-              <Select
-                value={pendingStuck ? "stuck" : task.status}
-                onValueChange={(value) => pickStatus(value as TaskStatus)}
-                disabled={readOnly || busy}
-              >
-                <SelectTrigger id="task-status" className="w-full sm:w-fit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TASK_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {TASK_STATUS_LABEL[status]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="task-assignee">Assigned to</Label>
-              <Select
-                value={handingTo?.id ?? task.assignee?.id ?? NOBODY}
-                onValueChange={pickAssignee}
-                disabled={readOnly || busy}
-              >
-                <SelectTrigger id="task-assignee" className="w-full sm:w-fit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NOBODY}>Nobody</SelectItem>
-                  {detail.assignable.map((person) => (
-                    <SelectItem key={person.id} value={person.id}>
-                      <PersonAvatar name={person.name} avatarUrl={person.avatarUrl} />
-                      {person.id === myUserId ? `${person.name} (you)` : person.name}
-                      {person.title ? (
-                        <span className="text-muted-foreground"> · {person.title}</span>
-                      ) : null}
-                      <RoomNote room={room[person.id]} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!task.assignee && task.formerAssigneeName ? (
-                <p className="text-xs text-muted-foreground">
-                  Was assigned to {task.formerAssigneeName}, who is no longer on the project.
-                </p>
-              ) : null}
-            </div>
+            {statusField}
+            {assigneeField}
           </div>
-          {handingTo ? (
-            <ReasonRow
-              id="handover-note"
-              label={`Note for ${handingTo.name} (optional)`}
-              value={handoverNote}
-              onChange={setHandoverNote}
-              confirmLabel="Hand over"
-              busy={busy}
-              optional
-              maxLength={LIMITS.handoverNote}
-              placeholder="Client wants it by Thursday"
-              onConfirm={() => void handOver()}
-              onCancel={() => {
-                setHandingTo(null)
-                setHandoverNote("")
-              }}
-            />
-          ) : null}
-          {pendingStuck ? (
-            <ReasonRow
-              id="stuck-reason"
-              label="Why is it stuck?"
-              value={stuckReason}
-              onChange={setStuckReason}
-              confirmLabel="Mark Stuck"
-              busy={busy}
-              onConfirm={() => void markStuck()}
-              onCancel={() => {
-                setPendingStuck(false)
-                setStuckReason("")
-              }}
-            />
-          ) : null}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid content-start gap-2">
-              <Label htmlFor="task-start">Start day</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <DueDayPicker
-                  id="task-start"
-                  value={task.startDate}
-                  placeholder="No start day"
-                  disabled={readOnly || busy}
-                  onChange={(startDate) => {
-                    if (startDate !== task.startDate) void change(() => saveTask({ taskId: task.id, startDate }))
-                  }}
-                />
-                {task.startDate && !readOnly ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => void change(() => saveTask({ taskId: task.id, startDate: null }))}
-                  >
-                    Clear
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-            <div className="grid content-start gap-2">
-              <Label htmlFor="task-due">Due date</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <DueDayPicker
-                  id="task-due"
-                  value={task.dueDate}
-                  placeholder="No due date"
-                  disabled={readOnly || busy}
-                  onChange={(dueDate) => {
-                    if (dueDate !== task.dueDate) void change(() => saveTask({ taskId: task.id, dueDate }))
-                  }}
-                />
-                {task.dueDate && !readOnly ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => void change(() => saveTask({ taskId: task.id, dueDate: null }))}
-                  >
-                    Clear
-                  </Button>
-                ) : null}
-                <DueMovesMark moves={task.dueMoves} status={task.status} />
-              </div>
-            </div>
-            {task.dueDate ? (
-              <DueByField
-                task={task}
-                disabled={readOnly || busy}
-                onSave={(dueAt) => void change(() => saveTask({ taskId: task.id, dueAt }))}
-              />
-            ) : null}
-            <div className="grid content-start gap-2">
-              <Label htmlFor="task-priority">Priority</Label>
-              <Select
-                value={task.priority}
-                onValueChange={(value) =>
-                  void change(() => saveTask({ taskId: task.id, priority: value as TaskPriority }))
-                }
-                disabled={readOnly || busy}
-              >
-                <SelectTrigger id="task-priority" className="w-full sm:w-fit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TASK_PRIORITIES.map((priority) => (
-                    <SelectItem key={priority} value={priority}>
-                      {TASK_PRIORITY_LABEL[priority]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <TaskTypeField detail={detail} readOnly={readOnly} busy={busy} change={change} />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <TaskSectionField detail={detail} readOnly={readOnly} busy={busy} change={change} />
-            <TaskLabelsField detail={detail} readOnly={readOnly} busy={busy} change={change} />
-          </div>
-          {detail.canAskForReview ? (
-            <div className="flex items-center justify-between gap-4">
-              <FieldLabel
-                htmlFor="task-needs-review"
-                hint="When it's marked Done, you get a notice and check it. It still counts as Done meanwhile."
-              >
-                Needs review
-              </FieldLabel>
-              <Switch
-                id="task-needs-review"
-                checked={task.review.needed}
-                disabled={readOnly || busy}
-                onCheckedChange={(on) =>
-                  void change(
-                    () => setTaskNeedsReview(task.id, on),
-                    on ? "You'll review it when it's Done." : "It no longer needs your review."
-                  )
-                }
-              />
-            </div>
-          ) : task.review.needed && task.review.reviewer ? (
-            <p className="text-sm text-muted-foreground">
-              Needs review: {task.review.reviewer.name} checks it once it's Done.
-            </p>
-          ) : null}
-          <TaskNotesField
-            key={task.id}
-            notes={task.notes}
-            readOnly={readOnly}
-            onSave={(notes, notesSession) => change(() => saveTask({ taskId: task.id, notes, notesSession }))}
-            task={{ id: task.id, links: detail.noteLinks, change }}
-          />
-          {canHandBack && !task.waiting && !handingBack && !readOnly ? (
-            <div>
-              <Button type="button" variant="outline" onClick={() => setHandingBack(true)}>
-                <UndoIcon className="size-4" />
-                Hand back to {task.assignedBy?.name}
-              </Button>
-            </div>
-          ) : null}
+          {handoverRow}
+          {stuckRow}
+          {datesAndPriority}
+          {sortingFields}
+          <TaskNotesField key={task.id} notes={task.notes} readOnly={readOnly} onSave={saveNotes} task={noteLinks} />
+          {handBackButton}
         </CardContent>
       </Card>
 
-      <TaskFieldsCard detail={detail} readOnly={readOnly} change={change} refresh={refresh} />
-      <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} />
-      <StepsCard detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} busy={busy} />
+      {fieldsCard}
+      {planCard}
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>{stepsTitle}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">{steps}</CardContent>
+      </Card>
       <TaskFilesCard detail={detail} readOnly={readOnly} refresh={refresh} change={change} />
       <TaskChatCard detail={detail} myUserId={myUserId} readOnly={readOnly} change={change} room={room} />
-      <TaskHistoryCard detail={detail} />
+      {historyCard}
     </>
   )
+
+  const side: TaskSide = {
+    status: statusPill,
+    notices: (
+      <>
+        {stuckRow}
+        {notices}
+      </>
+    ),
+    notes: {
+      empty: taskNotesAreEmpty(readTaskNotes(task.notes)),
+      field: ({ adding, onFinished }) => (
+        <TaskNotesField
+          key={task.id}
+          notes={task.notes}
+          readOnly={readOnly}
+          onSave={saveNotes}
+          task={noteLinks}
+          startEditing={adding}
+          onFinished={onFinished}
+          hideLabel
+        />
+      ),
+    },
+    steps: {
+      meta: detail.steps.length
+        ? `${detail.steps.filter((step) => step.done).length} of ${detail.steps.length} done`
+        : null,
+      content: steps,
+    },
+    chat: {
+      count: detail.comments.length,
+      content: (
+        <ChatThread
+          chat={{ taskId: task.id }}
+          messages={detail.comments}
+          people={detail.assignable}
+          myUserId={myUserId}
+          readOnly={readOnly}
+          change={change}
+          room={room}
+          fileRoom={LIMITS.filesPerTask - detail.fields.fileCount}
+          emptyText={`No messages yet.${readOnly ? "" : " Type @ to ask someone on the project about this task."}`}
+          listClassName="max-h-96"
+        />
+      ),
+    },
+    files: {
+      count: detail.files.length,
+      content: (
+        <TaskFileDrop
+          taskId={task.id}
+          files={detail.files}
+          taskFileCount={detail.fields.fileCount}
+          readOnly={readOnly}
+          refresh={refresh}
+          change={change}
+          emptyText="No files yet."
+        />
+      ),
+    },
+    details: (
+      <>
+        {titleField}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {assigneeField}
+          {startField}
+          {dueField}
+          {priorityField}
+          {dueByField}
+          {typeField}
+          {sectionField}
+          {labelsField}
+        </div>
+        {handoverRow}
+        {reviewField}
+        {handBackButton}
+      </>
+    ),
+    typeFields: detail.fields.type?.fields.length ? fieldsCard : null,
+    plan: planCard,
+    history: historyCard,
+    detail,
+    readOnly,
+    move: () => setMoving(true),
+    remind: () => setReminding(true),
+  }
 
   return children({
     title: task.title,
@@ -753,6 +983,7 @@ function TaskForm({
       </>
     ),
     body,
+    side,
     follow: (
       <Button
         type="button"
@@ -767,7 +998,8 @@ function TaskForm({
         }
       >
         {detail.following ? <CheckIcon className="size-4" /> : <BellIcon className="size-4" />}
-        {detail.following ? "Following" : "Follow"}
+        {/* The project page's narrow task panel keeps the bell and drops the word. */}
+        <span className="@max-lg/task-head:sr-only">{detail.following ? "Following" : "Follow"}</span>
       </Button>
     ),
     more: readOnly ? null : (
@@ -840,7 +1072,7 @@ function ReasonRow({
   )
 }
 
-function StepsCard({
+function StepsContent({
   detail,
   myUserId,
   readOnly,
@@ -856,7 +1088,6 @@ function StepsCard({
   const taskId = detail.task.id
   const steps = detail.steps
   const [text, setText] = React.useState("")
-  const done = steps.filter((step) => step.done).length
 
   async function add() {
     const next = text.trim()
@@ -868,56 +1099,49 @@ function StepsCard({
   }
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>
-          Steps{steps.length ? ` · ${done} of ${steps.length} done` : ""}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        {steps.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No steps. Add some to show progress as "3 of 5 steps done".
-          </p>
-        ) : (
-          <ul className="grid gap-2">
-            {steps.map((step) => (
-              <StepRow
-                key={step.id}
-                step={step}
-                people={detail.assignable}
-                myUserId={myUserId}
-                readOnly={readOnly}
-                change={change}
-                busy={busy}
-              />
-            ))}
-          </ul>
-        )}
-        {readOnly ? null : (
-          <form
-            className="flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void add()
-            }}
-          >
-            <Input
-              aria-label="New step"
-              placeholder="Add a step"
-              value={text}
-              maxLength={LIMITS.stepText}
-              onChange={(event) => setText(event.target.value)}
+    <>
+      {steps.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No steps. Add some to show progress as "3 of 5 steps done".
+        </p>
+      ) : (
+        <ul className="grid gap-2">
+          {steps.map((step) => (
+            <StepRow
+              key={step.id}
+              step={step}
+              people={detail.assignable}
+              myUserId={myUserId}
+              readOnly={readOnly}
+              change={change}
+              busy={busy}
             />
-            <Button type="submit" variant="outline" disabled={busy}>
-              <PlusIcon className="size-4" />
-              Add
-            </Button>
-          </form>
-        )}
-        {readOnly ? null : <StepListActions detail={detail} change={change} busy={busy} />}
-      </CardContent>
-    </Card>
+          ))}
+        </ul>
+      )}
+      {readOnly ? null : (
+        <form
+          className="flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void add()
+          }}
+        >
+          <Input
+            aria-label="New step"
+            placeholder="Add a step"
+            value={text}
+            maxLength={LIMITS.stepText}
+            onChange={(event) => setText(event.target.value)}
+          />
+          <Button type="submit" variant="outline" disabled={busy}>
+            <PlusIcon className="size-4" />
+            Add
+          </Button>
+        </form>
+      )}
+      {readOnly ? null : <StepListActions detail={detail} change={change} busy={busy} />}
+    </>
   )
 }
 

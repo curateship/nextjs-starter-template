@@ -1,3 +1,5 @@
+import type * as React from "react"
+
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -77,6 +79,21 @@ export function StatusBadge({ status }: { status: TaskStatus }) {
       {TASK_STATUS_LABEL[status]}
     </Badge>
   )
+}
+
+/**
+ * A status's own dot, beside its name on the Board's column headings and in
+ * the task panel's status pill. Always beside the word, never alone.
+ */
+const STATUS_DOT: Record<TaskStatus, string> = {
+  todo: "bg-amber-500",
+  doing: "bg-blue-500",
+  done: "bg-green-600",
+  stuck: "bg-red-500",
+}
+
+export function StatusDot({ status, className }: { status: TaskStatus; className?: string }) {
+  return <span aria-hidden className={cn("inline-block size-2 shrink-0 rounded-full", STATUS_DOT[status], className)} />
 }
 
 export function WaitingBadge() {
@@ -286,6 +303,27 @@ export function RepeatMark({ repeat }: { repeat: unknown }) {
     <span className="flex items-center gap-1 text-muted-foreground">
       <Repeat2Icon className="size-3" aria-hidden />
       Repeats
+    </span>
+  )
+}
+
+/** A type's or section's name, or a warning, as a small chip tinted in its colour. */
+const TINT: Record<ProjectColor, string> = {
+  slate: "bg-muted text-foreground",
+  red: "bg-red-500/10 text-red-700 dark:text-red-300",
+  orange: "bg-orange-500/10 text-orange-700 dark:text-orange-300",
+  amber: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+  green: "bg-green-600/10 text-green-700 dark:text-green-300",
+  teal: "bg-teal-500/10 text-teal-700 dark:text-teal-300",
+  blue: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
+  violet: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+  pink: "bg-pink-500/10 text-pink-700 dark:text-pink-300",
+}
+
+export function TintChip({ color, children }: { color: ProjectColor; children: React.ReactNode }) {
+  return (
+    <span className={cn("inline-flex h-5 max-w-40 items-center rounded px-1.5 text-xs", TINT[color])}>
+      <span className="truncate">{children}</span>
     </span>
   )
 }

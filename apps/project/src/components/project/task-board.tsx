@@ -20,16 +20,16 @@ import {
 } from "@dnd-kit/sortable"
 import {
   ChevronRightIcon,
-  CircleAlertIcon,
-  FolderIcon,
+  HourglassIcon,
+  ListChecksIcon,
   MessageSquareIcon,
+  PlayIcon,
   TriangleAlertIcon,
   UndoIcon,
 } from "lucide-react"
 
 import {
   DueDate,
-  DueMovesMark,
   LabelChip,
   PersonAvatar,
   PickedDaysBadge,
@@ -37,17 +37,22 @@ import {
   RepeatMark,
   ReviewBadge,
   SnoozedBadge,
-  StepsCount,
+  StatusDot,
+  TintChip,
   WaitingBadge,
-  WaitingOnBadge,
-  TypeChip,
   UnreadBadge,
 } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import type { TaskCard } from "@/lib/api/project/tasks"
 import { plural } from "@/lib/format/plural"
-import { TASK_STATUSES, TASK_STATUS_LABEL, isTaskStatus, type TaskStatus } from "@/lib/project/rules"
+import {
+  DUE_MOVED_MANY,
+  TASK_STATUSES,
+  TASK_STATUS_LABEL,
+  isTaskStatus,
+  type TaskStatus,
+} from "@/lib/project/rules"
 import { todayKey } from "@/lib/project/dates"
 import type { DoingWarning } from "@/lib/project/doing-limit"
 import { splitRecentDone } from "@/lib/project/task-filters"
@@ -82,6 +87,7 @@ export const NOBODY_LANE = "nobody"
  */
 export function TaskBoard({
   tasks,
+  openTaskId,
   readOnly,
   onOpenTask,
   onMove,
@@ -91,6 +97,8 @@ export function TaskBoard({
   doingWarnings = [],
 }: {
   tasks: TaskCard[]
+  /** The task open in the panel beside the Board, whose card is outlined. */
+  openTaskId?: string
   readOnly: boolean
   /** Grouped by person: a row per person, in this order. Left out, one row. */
   lanes?: BoardLane[]
@@ -229,6 +237,7 @@ export function TaskBoard({
           onShowOlder={() => setShowOlder(true)}
           readOnly={readOnly}
           onOpenTask={onOpenTask}
+          openTaskId={openTaskId}
           compact={grouped}
         />
       )
@@ -262,7 +271,7 @@ export function TaskBoard({
             ))}
           </div>
         ) : (
-          <div className="flex h-full min-h-0 gap-3 p-3">{columnsOf(ALL_LANE)}</div>
+          <div className="flex min-h-0 items-start gap-3 p-3">{columnsOf(ALL_LANE)}</div>
         )}
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
@@ -374,6 +383,7 @@ function BoardColumn({
   onShowOlder,
   readOnly,
   onOpenTask,
+  openTaskId,
   compact,
 }: {
   /** The column's drop id: its row and status. */
@@ -387,7 +397,8 @@ function BoardColumn({
   onShowOlder: () => void
   readOnly: boolean
   onOpenTask: (taskId: string) => void
-  /** In a person's row: no full height to fill. */
+  openTaskId: string | undefined
+  /** In a person's row: a shorter empty column. */
   compact: boolean
 }) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: readOnly })
@@ -397,13 +408,14 @@ function BoardColumn({
       ref={setNodeRef}
       aria-labelledby={headingId}
       className={cn(
-        "flex w-64 shrink-0 flex-col gap-2 rounded-lg bg-muted/60 p-2",
-        compact && "min-h-16",
+        "flex w-64 shrink-0 flex-col gap-2 rounded-lg border bg-muted/40 p-2",
+        // As tall as its cards, with room under them to drop one into an empty column.
+        compact ? "min-h-16" : "min-h-56",
         isOver && "ring-2 ring-ring"
       )}
     >
-      <h3 id={headingId} className="flex items-center gap-2 px-1 text-sm font-medium">
-        {status === "stuck" ? <CircleAlertIcon className="size-4 text-destructive" aria-hidden /> : null}
+      <h3 id={headingId} className="flex items-center gap-2 px-1 pt-1 text-sm font-medium">
+        <StatusDot status={status} />
         {TASK_STATUS_LABEL[status]}
         <span className="text-muted-foreground">{tasks.length + hidden}</span>
       </h3>
@@ -425,7 +437,13 @@ function BoardColumn({
         <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-col gap-2">
             {tasks.map((task) => (
-              <BoardCard key={task.id} task={task} readOnly={readOnly} onOpen={() => onOpenTask(task.id)} />
+              <BoardCard
+                key={task.id}
+                task={task}
+                open={task.id === openTaskId}
+                readOnly={readOnly}
+                onOpen={() => onOpenTask(task.id)}
+              />
             ))}
           </ul>
         </SortableContext>
@@ -441,10 +459,13 @@ function BoardColumn({
 
 function BoardCard({
   task,
+  open,
   readOnly,
   onOpen,
 }: {
   task: TaskCard
+  /** Open in the panel beside the Board: outlined in the text colour. */
+  open: boolean
   readOnly: boolean
   onOpen: () => void
 }) {
@@ -467,9 +488,11 @@ function BoardCard({
         // dnd-kit names the card a draggable; it is a button that opens the task.
         role="button"
         aria-roledescription={readOnly ? undefined : "draggable task"}
+        aria-current={open || undefined}
         className={cn(
           CARD_CLASS,
-          "hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          "hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+          open && "border-foreground ring-1 ring-foreground"
         )}
       >
         <CardContent task={task} />
@@ -478,29 +501,32 @@ function BoardCard({
   )
 }
 
+/**
+ * A card as Tyler drew it on 13 Oct 2026: the title; the type, section and
+ * labels as small tinted chips; any warning; then one line with the due
+ * date, steps, messages and what it waits on, and the person at its end.
+ */
 function CardContent({ task }: { task: TaskCard }) {
+  const chips = task.type || task.priority === "high" || task.section || task.labels.length
+  const slipping = task.dueMoves >= DUE_MOVED_MANY && task.status !== "done"
   return (
     <>
       <span className={cn("font-medium break-words", task.priority === "low" && "text-muted-foreground")}>
         {task.title}
       </span>
-      {task.type || task.priority !== "normal" ? (
+      {chips ? (
         <span className="flex flex-wrap items-center gap-1">
           <PriorityMark priority={task.priority} />
-          <TypeChip type={task.type} />
-        </span>
-      ) : null}
-      {task.section ? (
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <FolderIcon className="size-3" aria-hidden />
-          {task.section.name}
-        </span>
-      ) : null}
-      {task.labels.length ? (
-        <span className="flex flex-wrap gap-1">
+          {task.type ? <TintChip color={task.type.color}>{task.type.name}</TintChip> : null}
+          {task.section ? <TintChip color="slate">{task.section.name}</TintChip> : null}
           {task.labels.map((label) => (
             <LabelChip key={label.id} label={label} />
           ))}
+        </span>
+      ) : null}
+      {slipping ? (
+        <span className="flex">
+          <TintChip color="amber">Date moved {task.dueMoves} times</TintChip>
         </span>
       ) : null}
       {task.status === "stuck" && task.stuckReason ? (
@@ -512,41 +538,74 @@ function CardContent({ task }: { task: TaskCard }) {
           Handed back by {task.handedBack.byName}
         </span>
       ) : null}
-      {task.waitingOn || task.snoozedUntil ? (
-        <span className="flex flex-wrap gap-1">
-          <WaitingOnBadge waitingOn={task.waitingOn} />
+      {task.waiting || task.review.waiting || task.pickedDays || task.snoozedUntil ? (
+        <span className="flex flex-wrap gap-1 empty:hidden">
+          {task.waiting ? <WaitingBadge /> : null}
+          <ReviewBadge review={task.review} />
+          <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
           <SnoozedBadge until={task.snoozedUntil} today={todayKey()} />
         </span>
       ) : null}
-      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-        {task.waiting ? <WaitingBadge /> : null}
-        <ReviewBadge review={task.review} />
-        <RepeatMark repeat={task.repeat} />
-        <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
-        <DueDate dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} />
-        <DueMovesMark moves={task.dueMoves} status={task.status} />
-        <StepsCount steps={task.steps} />
-        <UnreadBadge count={task.unread} />
-        {task.commentCount ? (
-          <span className="flex items-center gap-1 text-muted-foreground">
-            <MessageSquareIcon className="size-3" aria-hidden />
-            {task.commentCount}
-            <span className="sr-only">{plural(task.commentCount, "comment")}</span>
-          </span>
-        ) : null}
-      </span>
       <span className="flex items-center gap-2 text-xs text-muted-foreground">
-        {task.assignee ? (
-          <>
-            <PersonAvatar name={task.assignee.name} avatarUrl={task.assignee.avatarUrl} />
-            {task.assignee.name}
-          </>
-        ) : task.formerAssigneeName ? (
-          `Nobody (was ${task.formerAssigneeName})`
-        ) : (
-          "Nobody assigned"
-        )}
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+          {task.dueDate ? <DueDate dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} /> : null}
+          {task.steps.total ? (
+            <span className="flex items-center gap-1">
+              <ListChecksIcon className="size-3" aria-hidden />
+              {task.steps.done}/{task.steps.total}
+              <span className="sr-only"> steps done</span>
+            </span>
+          ) : null}
+          {task.commentCount ? (
+            <span className="flex items-center gap-1">
+              <MessageSquareIcon className="size-3" aria-hidden />
+              {task.commentCount}
+              <span className="sr-only">{plural(task.commentCount, "comment")}</span>
+            </span>
+          ) : null}
+          <UnreadBadge count={task.unread} />
+          <WaitingOnMark waitingOn={task.waitingOn} />
+          <RepeatMark repeat={task.repeat} />
+        </span>
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {task.assignee ? (
+            <>
+              <PersonAvatar name={task.assignee.name} avatarUrl={task.assignee.avatarUrl} className="size-5" />
+              <span className="max-w-24 truncate">{task.assignee.name}</span>
+            </>
+          ) : task.formerAssigneeName ? (
+            <span className="max-w-32 truncate">Nobody (was {task.formerAssigneeName})</span>
+          ) : (
+            "Nobody"
+          )}
+        </span>
       </span>
     </>
+  )
+}
+
+/** "Waiting" with an hourglass while a task it waits on is open, "Ready" once they're all Done. */
+function WaitingOnMark({ waitingOn }: { waitingOn: TaskCard["waitingOn"] }) {
+  if (!waitingOn) return null
+  if (waitingOn.ready) {
+    return (
+      <span className="flex items-center gap-1">
+        <PlayIcon className="size-3" aria-hidden />
+        Ready
+        <span className="sr-only"> to start</span>
+      </span>
+    )
+  }
+  const open = waitingOn.tasks.filter((task) => !task.done)
+  return (
+    <span className="flex items-center gap-1">
+      <HourglassIcon className="size-3" aria-hidden />
+      Waiting
+      <span className="sr-only">
+        {open.length === 1
+          ? ` on ${open[0].title ?? "1 task in another project"}`
+          : ` on ${open.length} tasks`}
+      </span>
+    </span>
   )
 }

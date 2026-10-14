@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { ChevronDownIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { BinDialog } from "@/components/project/bin-dialog"
 import { FieldColumnsMenu } from "@/components/project/field-columns-menu"
@@ -9,18 +9,24 @@ import { ProjectActivity } from "@/components/project/project-activity"
 import { ProjectChat } from "@/components/project/project-chat"
 import { ProjectFiles } from "@/components/project/project-files"
 import { ReasonDialog } from "@/components/project/reason-dialog"
-import { SavedViewsControls } from "@/components/project/saved-views"
+import { SaveViewDialog, SavedViewsControls } from "@/components/project/saved-views"
 import { NOBODY_LANE, TaskBoard, type BoardLane } from "@/components/project/task-board"
 import { TaskCalendar } from "@/components/project/task-calendar"
-import { TaskFiltersBar } from "@/components/project/task-filters-bar"
+import { TaskFilterPopover } from "@/components/project/task-filter-popover"
 import { TaskList } from "@/components/project/task-list"
 import { TaskTimeline } from "@/components/project/task-timeline"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { loadProjectChatUnread } from "@/lib/api/project/chat"
@@ -40,12 +46,18 @@ import { placesAfterReorder } from "@/lib/project/task-order"
 import { offeredTypes } from "@/lib/project/task-types"
 import { useFieldColumns } from "@/lib/project/use-field-columns"
 import { useProjectLive } from "@/lib/project/use-project-live"
+import { useWidthAtLeast } from "@/lib/project/use-width-at-least"
+import { viewHasFilters } from "@/lib/project/saved-views"
+import { cn } from "@/lib/utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const VIEWS = ["board", "list", "calendar", "timeline", "activity", "files", "chat"] as const
 type View = (typeof VIEWS)[number]
 
 const NO_SECTION = "none"
+
+/** The tasks panel's width from which the search box fits in its header beside the tabs. */
+const SEARCH_ROOM_PX = 896
 
 const GROUPS = ["status", "person"] as const
 type Group = (typeof GROUPS)[number]
@@ -72,6 +84,7 @@ export function ProjectTasksPanel({
   filters,
   onFilters,
   onOpenTask,
+  openTaskId,
   openChat,
   onChatOpened,
 }: {
@@ -79,6 +92,8 @@ export function ProjectTasksPanel({
   filters: TaskFilters
   onFilters: (patch: Partial<TaskFilters>) => void
   onOpenTask: (taskId: string) => void
+  /** The task open in the right panel, outlined on the Board and List. */
+  openTaskId?: string
   /** A chat notice's link asked for the Chat tab. */
   openChat: boolean
   onChatOpened: () => void
@@ -108,6 +123,7 @@ export function ProjectTasksPanel({
   )
   const [creating, setCreating] = React.useState(false)
   const [binOpen, setBinOpen] = React.useState(false)
+  const [savingView, setSavingView] = React.useState(false)
   // The task waiting for its Stuck reason, and where the Board dropped it.
   const [stuck, setStuck] = React.useState<{ task: TaskCard; order?: string[] } | null>(null)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
@@ -228,106 +244,126 @@ export function ProjectTasksPanel({
     await router.invalidate()
   }
 
+  function pickView(next: View) {
+    if (view === "chat") setChatUnread(0)
+    setView(next)
+  }
+
   function requestStatus(task: TaskCard, status: TaskStatus, order?: string[]) {
     // Stuck needs its reason first; every other move goes straight through.
     if (status === "stuck") setStuck({ task, order })
     else void changeStatus(task, status, null, order)
   }
 
+  const here = { projectId: page.project.id, people, labels: page.labels, types: page.taskTypes }
+  // The search box needs the panel's width; below it, the box is the Filter popover's first row.
+  const [header, roomForSearch] = useWidthAtLeast<HTMLDivElement>(SEARCH_ROOM_PX)
+  const taskTab = view !== "activity" && view !== "files" && view !== "chat"
+
+  function saveView() {
+    if (!viewHasFilters(filters)) {
+      showErrorToast("Search or pick a filter first, then save it as a view.")
+      return
+    }
+    setSavingView(true)
+  }
+
   return (
     <>
-      <Tabs
-        value={view}
-        onValueChange={(value) => {
-          if (view === "chat") setChatUnread(0)
-          setView(value as View)
-        }}
-      >
-        {/* Five tabs and two buttons don't fit a phone or a squeezed panel, so the
-            tabs scroll sideways rather than sliding under the buttons. */}
-        <DashboardCardHeader>
-          <ScrollArea className="min-w-0 flex-1">
-            <TabsList className="justify-start">
-              <TabsTrigger value="board">Board</TabsTrigger>
-              <TabsTrigger value="list">List</TabsTrigger>
-              <TabsTrigger value="calendar">Calendar</TabsTrigger>
-              <TabsTrigger value="timeline">Timeline</TabsTrigger>
-              <TabsTrigger value="activity">Activity</TabsTrigger>
-              {hasChat ? <TabsTrigger value="files">Files</TabsTrigger> : null}
-              {hasChat ? (
-                <TabsTrigger value="chat">
-                  Chat
-                  {view !== "chat" && chatUnread > 0 ? (
-                    <Badge className="h-4 px-1.5">
-                      {chatUnread} new<span className="sr-only"> {chatUnread === 1 ? "message" : "messages"}</span>
-                    </Badge>
-                  ) : null}
-                </TabsTrigger>
-              ) : null}
-            </TabsList>
+      <DashboardCardHeader ref={header} className="@container">
+        <Tabs
+          value={view}
+          onValueChange={(value) => pickView(value as View)}
+          className="min-w-0 flex-1"
+        >
+          {/* The tabs scroll sideways rather than sliding under the buttons. */}
+          <ScrollArea className="min-w-0">
+            <div className="flex w-max items-center gap-1">
+              <TabsList className="justify-start">
+                <TabsTrigger value="board">Board</TabsTrigger>
+                <TabsTrigger value="list">List</TabsTrigger>
+                <TabsTrigger value="calendar">Calendar</TabsTrigger>
+                <TabsTrigger value="timeline">Timeline</TabsTrigger>
+              </TabsList>
+              <MoreViews
+                view={view}
+                hasChat={hasChat}
+                chatUnread={view === "chat" ? 0 : chatUnread}
+                onPick={pickView}
+                onBin={readOnly ? null : () => setBinOpen(true)}
+              />
+            </div>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
-          {readOnly ? null : (
-            <div className="flex shrink-0 items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Bin"
-                title="Bin"
-                onClick={() => setBinOpen(true)}
-              >
-                <Trash2Icon className="size-4" />
-              </Button>
-              {/* Words from 640px up; on a phone the tabs need the room. */}
-              <Button
-                type="button"
-                className="max-sm:size-8 max-sm:px-0"
-                aria-label="New task"
-                onClick={() => setCreating(true)}
-              >
-                <PlusIcon className="size-4" />
-                <span className="max-sm:hidden">New task</span>
-              </Button>
-            </div>
-          )}
-        </DashboardCardHeader>
-      </Tabs>
-      {view === "activity" || view === "files" || view === "chat" ? null : (
-        <TaskFiltersBar
-          filters={filters}
-          onChange={onFilters}
-          people={people}
-          labels={page.labels}
-          types={page.taskTypes}
-        >
-          <SavedViewsControls
-            views={page.views}
-            filters={filters}
-            onChange={onFilters}
-            here={{ projectId: page.project.id, people, labels: page.labels, types: page.taskTypes }}
-          />
-          {view === "board" && !page.project.personal ? (
-            <div className="flex items-center gap-2">
-              <Switch
-                id="board-group-by-person"
-                checked={byPerson}
-                onCheckedChange={(on) => setGroup(on ? "person" : "status")}
+        </Tabs>
+        <div className="flex shrink-0 items-center gap-2">
+          {taskTab ? (
+            <>
+              {roomForSearch ? (
+                <DashboardToolbarSearch
+                inputClassName="sm:w-44 lg:w-48"
+                name="task-search"
+                aria-label="Search tasks by title and notes"
+                placeholder="Search tasks"
+                value={filters.q ?? ""}
+                onChange={(event) => onFilters({ q: event.target.value || undefined })}
+                />
+              ) : null}
+              <TaskFilterPopover
+                filters={filters}
+                onChange={onFilters}
+                people={people}
+                labels={page.labels}
+                types={page.taskTypes}
+                search={!roomForSearch}
+                groupByPerson={
+                  view === "board" && !page.project.personal
+                    ? { on: byPerson, onChange: (on) => setGroup(on ? "person" : "status") }
+                    : undefined
+                }
+                extra={
+                  view === "list" && filteredType?.fields.length ? (
+                    <FieldColumnsMenu
+                      fields={filteredType.fields}
+                      chosen={fieldColumns.map((column) => column.field.id)}
+                      onChange={setColumnIds}
+                    />
+                  ) : null
+                }
+                onSaveView={saveView}
               />
-              <Label htmlFor="board-group-by-person" className="text-sm font-normal">
-                Group by person
-              </Label>
-            </div>
+              <SavedViewsControls
+                views={page.views}
+                filters={filters}
+                onChange={onFilters}
+                here={here}
+                saveButton={false}
+              />
+            </>
           ) : null}
-          {view === "list" && filteredType?.fields.length ? (
-            <FieldColumnsMenu
-              fields={filteredType.fields}
-              chosen={fieldColumns.map((column) => column.field.id)}
-              onChange={setColumnIds}
-            />
-          ) : null}
-        </TaskFiltersBar>
-      )}
+          {readOnly ? null : (
+            // Words where there is room; an icon with its name in a narrow panel.
+            <Button
+              type="button"
+              className="@max-2xl:size-8 @max-2xl:px-0"
+              aria-label="New task"
+              onClick={() => setCreating(true)}
+            >
+              <PlusIcon className="size-4" />
+              <span className="@max-2xl:hidden">New task</span>
+            </Button>
+          )}
+        </div>
+      </DashboardCardHeader>
+      {taskTab && !roomForSearch && filters.q?.trim() ? (
+        // The search box is inside Filter in a narrow panel, so the words being searched show here.
+        <p className="flex items-center gap-2 border-b px-3 py-2 text-sm text-muted-foreground">
+          Searching for "{filters.q.trim()}"
+          <Button type="button" variant="ghost" size="sm" onClick={() => onFilters({ q: undefined })}>
+            Clear search
+          </Button>
+        </p>
+      ) : null}
       {view === "chat" ? (
         <ProjectChat page={page} />
       ) : view === "activity" ? (
@@ -358,6 +394,7 @@ export function ProjectTasksPanel({
       ) : view === "board" ? (
         <TaskBoard
           tasks={filtered}
+          openTaskId={openTaskId}
           readOnly={readOnly || busy}
           onOpenTask={onOpenTask}
           onMove={requestStatus}
@@ -408,6 +445,7 @@ export function ProjectTasksPanel({
         onCreated={rememberProject}
       />
       <BinDialog projectId={page.project.id} open={binOpen} onClose={() => setBinOpen(false)} />
+      <SaveViewDialog open={savingView} filters={filters} here={here} onClose={() => setSavingView(false)} />
       <ConfirmDialog
         open={Boolean(handingOver)}
         onOpenChange={(open) => (open || busy ? undefined : setHandingOver(null))}
@@ -441,5 +479,73 @@ export function ProjectTasksPanel({
         }
       />
     </>
+  )
+}
+
+const MORE_VIEW_LABEL: Partial<Record<View, string>> = { activity: "Activity", files: "Files", chat: "Chat" }
+
+/**
+ * Activity, Files and Chat, and the bin, behind More beside the four tabs,
+ * as Tyler drew the page on 13 Oct 2026. While one of the three is showing,
+ * the button wears its name. "3 new" on the project's chat shows on the
+ * button and on Chat.
+ */
+function MoreViews({
+  view,
+  hasChat,
+  chatUnread,
+  onPick,
+  onBin,
+}: {
+  view: View
+  hasChat: boolean
+  chatUnread: number
+  onPick: (view: View) => void
+  /** Null on an archived project. */
+  onBin: (() => void) | null
+}) {
+  const showing = MORE_VIEW_LABEL[view]
+  const unread =
+    chatUnread > 0 ? (
+      <Badge className="h-4 px-1.5">
+        {chatUnread} new<span className="sr-only"> {chatUnread === 1 ? "message" : "messages"}</span>
+      </Badge>
+    ) : null
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          className={cn(showing ? "bg-muted text-foreground" : "text-muted-foreground")}
+          aria-current={showing ? "page" : undefined}
+        >
+          {showing ?? "More"}
+          {unread}
+          <ChevronDownIcon className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-48">
+        <DropdownMenuItem onSelect={() => onPick("activity")}>Activity</DropdownMenuItem>
+        {hasChat ? (
+          <>
+            <DropdownMenuItem onSelect={() => onPick("files")}>Files</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onPick("chat")}>
+              Chat
+              {unread}
+            </DropdownMenuItem>
+          </>
+        ) : null}
+        {onBin ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onBin}>
+              <Trash2Icon className="size-4" />
+              Bin
+            </DropdownMenuItem>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

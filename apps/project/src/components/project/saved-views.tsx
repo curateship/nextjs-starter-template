@@ -55,11 +55,14 @@ export function SavedViewsControls({
   filters,
   onChange,
   here,
+  saveButton = true,
 }: {
   views: SavedView[]
   filters: TaskFilters
   onChange: (patch: Partial<TaskFilters>) => void
   here: Here
+  /** Off where Save as view sits elsewhere, as in the project page's Filter popover. */
+  saveButton?: boolean
 }) {
   const router = useRouter()
   const [saving, setSaving] = React.useState(false)
@@ -93,7 +96,7 @@ export function SavedViewsControls({
 
   return (
     <>
-      {viewHasFilters(filters) ? (
+      {saveButton && viewHasFilters(filters) ? (
         <DashboardToolbarButton type="button" variant="ghost" onClick={() => setSaving(true)}>
           <BookmarkPlusIcon className="size-4" />
           Save view
@@ -112,7 +115,7 @@ export function SavedViewsControls({
           <DropdownMenuSeparator />
           {views.length === 0 ? (
             <p className="px-2 py-2 text-sm text-muted-foreground">
-              None yet. Search or pick filters, then press Save view.
+              None yet. Search or pick filters, then save them as a view.
             </p>
           ) : (
             <>
@@ -188,7 +191,8 @@ function describeView(view: SavedView, here: Here) {
   return parts.join(" · ")
 }
 
-function SaveViewDialog({
+/** The Save view window, for a screen that puts its own Save as view button somewhere else. */
+export function SaveViewDialog({
   open,
   filters,
   here,

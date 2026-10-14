@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
+import type { Editor } from "@tiptap/react"
 import { HistoryIcon, ListTodoIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react"
 
 import { WrittenPageBody } from "@/components/pages/written-page-body"
@@ -60,6 +61,9 @@ export function TaskNotesField({
   links,
   placeholder,
   reading,
+  startEditing: editingAtStart = false,
+  onFinished,
+  hideLabel = false,
 }: {
   notes: string
   readOnly: boolean
@@ -75,11 +79,17 @@ export function TaskNotesField({
   placeholder?: string
   /** Draws formatted notes for reading, in place of the plain drawing. */
   reading?: (body: WrittenPageNode) => React.ReactNode
+  /** Opens with the editor ready, as "Add note" on the project page does. */
+  startEditing?: boolean
+  /** After Done has saved and the editor has closed. */
+  onFinished?: () => void
+  /** The label stays for screen readers only, under a card already called Notes. */
+  hideLabel?: boolean
 }) {
   const navigate = useNavigate()
   const saved = readTaskNotes(notes)
-  const [editing, setEditing] = React.useState(false)
-  const [session, setSession] = React.useState("")
+  const [editing, setEditing] = React.useState(editingAtStart)
+  const [session, setSession] = React.useState(() => (editingAtStart ? crypto.randomUUID() : ""))
   const [versionsOpen, setVersionsOpen] = React.useState(false)
   // Null until something is typed, so leaving an untouched editor saves nothing.
   const [draft, setDraft] = React.useState<WrittenPageNode | null>(null)
@@ -88,17 +98,29 @@ export function TaskNotesField({
   const openable = task?.links ?? links ?? {}
 
   // The editor draws itself a moment after it mounts, so the cursor goes in
-  // once its writing area exists.
+  // once its writing area exists. Focus alone leaves everything in it
+  // selected, which the formatting bar reads as words picked and shows itself
+  // over nothing (Tyler, 13 Oct 2026), so the editor itself is asked for a
+  // cursor at the end, a beat later, after the window or dropdown around it
+  // has moved the keyboard in.
   React.useEffect(() => {
     if (!editing) return
     let tries = 0
+    let settle = 0
     const timer = window.setInterval(() => {
-      const area = editorBox.current?.querySelector<HTMLElement>(".tiptap")
+      const area = editorBox.current?.querySelector<HTMLElement & { editor?: Editor }>(".tiptap")
       tries += 1
       if (area || tries > 20) window.clearInterval(timer)
-      area?.focus()
+      if (!area) return
+      area.focus()
+      settle = window.setTimeout(() => {
+        if (area.editor) area.editor.commands.focus("end")
+      }, 30)
     }, 25)
-    return () => window.clearInterval(timer)
+    return () => {
+      window.clearInterval(timer)
+      window.clearTimeout(settle)
+    }
   }, [editing])
 
   function startEditing() {
@@ -120,13 +142,23 @@ export function TaskNotesField({
     setFinishing(true)
     const ok = await save()
     setFinishing(false)
-    if (ok) setEditing(false)
+    if (!ok) return
+    setEditing(false)
+    onFinished?.()
   }
 
   return (
     <div className="grid gap-2" role="group" aria-labelledby={labelId}>
-      <div className="flex min-h-7 items-center justify-between gap-2">
-        <Label id={labelId} asChild>
+      {/* Under a Notes card the buttons are the card's footer, below the
+          notes (Tyler, 13 Oct 2026), so the formatting bar over the first
+          line also never sits on Done. */}
+      <div
+        className={cn(
+          "flex min-h-7 items-center justify-between gap-2",
+          hideLabel && "order-last justify-end"
+        )}
+      >
+        <Label id={labelId} asChild className={hideLabel ? "sr-only" : undefined}>
           <span>{label}</span>
         </Label>
         <div className="flex items-center gap-1">

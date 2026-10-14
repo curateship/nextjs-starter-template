@@ -22,8 +22,8 @@ import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 /**
  * One task as a window over the page, which is how the Team dashboard opens a
  * task, because its middle panel is a calendar rather than a task list. The
- * project page and My dashboard open a task in their middle panel instead
- * (`task-in-place.tsx`). Both draw the same `TaskView`.
+ * project page and My dashboard open a task in their right panel instead
+ * (`task-side-panel.tsx`). Both draw the same `TaskView`.
  */
 export function TaskDialog({
   taskId,
