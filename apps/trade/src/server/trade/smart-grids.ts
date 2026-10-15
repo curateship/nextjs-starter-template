@@ -167,10 +167,19 @@ const positionGoneSince = new Map<string, number>()
  */
 const heldTooMuchSince = new Map<string, number>()
 
+/**
+ * The rungs each grid is skipping right now because the wallet's free money
+ * cannot pay for them, by row id. Kept so a rung is announced once when it
+ * starts being skipped, not every minute it stays skipped. A restart forgets
+ * it, which at worst repeats one notice.
+ */
+const cashSkipping = new Map<string, Set<string>>()
+
 /** Test support: forgets what every grid has been told about its position. */
 export function resetGridPositionGoneMemory(): void {
   positionGoneSince.clear()
   heldTooMuchSince.clear()
+  cashSkipping.clear()
 }
 
 export type GridRow = {
@@ -517,6 +526,7 @@ export async function advanceGrid(
 
   if (over) {
     positionGoneSince.delete(row.id)
+    cashSkipping.delete(row.id)
     for (const level of plan.levels) {
       if (level.status === "waiting") level.status = "cancelled"
     }
@@ -735,6 +745,7 @@ export async function advanceGrid(
   // waiting. One big lump is not a grid.
 
   const entryLevels = shiftedAwayThisPass ? [] : plan.levels
+  const skippedForCash: { key: string; name: string; buyPx: number; needs: number }[] = []
   for (const [levelIndex, level] of entryLevels.entries()) {
     if (level.status !== "waiting" || level.dead) continue
     if (mark === null) continue
@@ -776,7 +787,17 @@ export async function advanceGrid(
     // Not affordable this minute. Left watching rather than thrown away: margin
     // frees up when another level closes. Nothing was reserved, so this costs
     // the grid nothing but a turn.
-    if (level.budget / plan.leverage > deps.freeCash(book) + 1e-9) continue
+    if (level.budget / plan.leverage > deps.freeCash(book) + 1e-9) {
+      skippedForCash.push({
+        key: level.id ?? `level-${levelIndex}`,
+        name:
+          level.name ??
+          `Rung ${gridRungNumber(levelIndex, plan.levels.length, direction)}`,
+        buyPx: level.buyPx,
+        needs: level.budget / plan.leverage,
+      })
+      continue
+    }
 
     const priorSz = level.sz
     const priorStatus = level.status
@@ -811,6 +832,29 @@ export async function advanceGrid(
     level.status = "holding"
     level.heldSz = sz
     changed = true
+  }
+
+  // Announced once per rung: a rung already being skipped last pass is not
+  // news, and one that bought or that price left drops out of the record.
+  const wasSkipping = cashSkipping.get(row.id)
+  const startedSkipping = skippedForCash.filter(
+    (one) => !wasSkipping?.has(one.key)
+  )
+  if (skippedForCash.length > 0) {
+    cashSkipping.set(row.id, new Set(skippedForCash.map((one) => one.key)))
+  } else {
+    cashSkipping.delete(row.id)
+  }
+  if (startedSkipping.length > 0 && deps.cashSkipped) {
+    await deps.cashSkipped({
+      marketKey: row.marketKey,
+      rungs: startedSkipping.map(({ name, buyPx, needs }) => ({
+        name,
+        buyPx,
+        needs,
+      })),
+      free: deps.freeCash(book),
+    })
   }
 
   // ----- 5b. Follow price INTO the loss ------------------------------------

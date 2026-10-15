@@ -92,6 +92,14 @@ export type EngineFill = {
   reason: string
 }
 
+/** Grid rungs price reached that the wallet's free money could not pay for. */
+export type GridCashSkip = {
+  marketKey: string
+  rungs: readonly { name: string; buyPx: number; needs: number }[]
+  /** The wallet's free money when the rungs were skipped. */
+  free: number
+}
+
 export type LadderEngineDeps = {
   fill: (
     book: WalletBook,
@@ -181,6 +189,16 @@ export type LadderEngineDeps = {
    * exchange, and a backtest keeps it in memory and writes nothing.
    */
   insertOrder: (input: LadderOrderInput) => Promise<string>
+  /**
+   * Told when grid rungs that price has reached start being skipped because
+   * the wallet's free money cannot cover them.
+   *
+   * Called once when a rung starts being skipped, not on every pass it stays
+   * skipped. Only the real-money engine passes it. A skip used to say nothing
+   * at all, so a rung price went straight through looked broken (Tyler, CHIP,
+   * 15 Oct 2026).
+   */
+  cashSkipped?: (skip: GridCashSkip) => Promise<void>
   /** Writes the order's plan and status down, for the same reason. */
   saveLadder: (
     row: SmartRow,

@@ -74,7 +74,8 @@ describe("the grid window's saved settings", () => {
     >["onPlace"] = async () => false,
     onPreview: React.ComponentProps<typeof GridOrderDialog>["onPreview"] = () =>
       undefined,
-    positionLeverage: number | null = null
+    positionLeverage: number | null = null,
+    otherGridsNeed = 0
   ) => {
     await act(async () => {
       root.render(
@@ -87,6 +88,7 @@ describe("the grid window's saved settings", () => {
             takerFeeRate={0.00045}
             busy={false}
             positionLeverage={positionLeverage}
+            otherGridsNeed={otherGridsNeed}
             onPreview={onPreview}
             onPlace={onPlace}
             onClose={() => undefined}
@@ -644,6 +646,28 @@ describe("the grid window's saved settings", () => {
 
     expect(host.textContent).not.toContain("nothing would fit")
     expect(onPlace).toHaveBeenCalledOnce()
+  })
+
+  it("warns, and still places, when the wallet's grids promise more than it has free", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    const onPlace = vi.fn(async () => true)
+    await renderDialog(onPlace, undefined, null, 790)
+
+    expect(host.textContent).toContain(
+      "Your grids on this wallet would need"
+    )
+    expect(host.textContent).toContain("and it has $800.00 free")
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.startsWith("Place")
+    )
+    await act(async () => place?.click())
+    expect(onPlace).toHaveBeenCalledOnce()
+  })
+
+  it("says nothing about money when the wallet's grids fit in what is free", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog(undefined, undefined, null, 0)
+    expect(host.textContent).not.toContain("Your grids on this wallet")
   })
 
   it("asks how far ABOVE a click a selling grid reaches", async () => {

@@ -407,6 +407,31 @@ to the exchange-wide request limits and engine health. The default of five can
 be changed with `TRADE_SMART_ORDER_REFUSAL_LIMIT`; values are kept between two
 and twenty.
 
+## When a grid skips a rung for money
+
+A real-money grid rung that price reaches buys only when the wallet's free
+money covers its margin (the rung's dollars divided by its leverage). When it
+does not, the rung stays waiting and the engine tries again on the next pass.
+That used to say nothing at all, so a rung price went straight through looked
+broken: on 15 Oct 2026 CHIP's Rung 11 ($0.044601) and Rung 12 ($0.043203) were
+reached while HL1 - GRID had no money free, and neither bought.
+
+Now the moment a rung starts being skipped sends one warning notice, titled
+"CHIP grid skipped Rung 11" (or "skipped 2 rungs" when several start in the
+same pass). The body names each rung, its price and what it needs, the wallet
+and how much it had free, and says the rung stays waiting. Pressing it opens
+the coin's chart.
+
+- **Once per rung, not once a minute.** A rung still being skipped on the next
+  pass sends nothing. It is announced again only after it bought or price left
+  it and then came back while money was short.
+- **A restart can repeat one.** The engine keeps the list of skipped rungs in
+  memory (`cashSkipping` in `src/server/trade/smart-grids.ts`), so a rung
+  still being skipped after a restart is announced once more.
+- **Real money only.** Practice grids and backtests send nothing.
+
+The notice is written by `cashSkipped` in `src/server/trade/live-smart-orders.ts`.
+
 ## What sends nothing
 
 Resting orders being placed or cancelled, per-coin waiting reasons ("no base

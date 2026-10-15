@@ -60,6 +60,7 @@ import {
   heldEnginePortfolio,
 } from "@/server/trade/engine-exchange-reads"
 import { writeTradeNotice } from "@/server/trade/notices"
+import { formatPrice, formatUsd } from "@/lib/trade/format"
 import {
   copySmartOrderPauseState,
   isSmartOrderRefusal,
@@ -1796,6 +1797,32 @@ export async function reconcileLiveLaddersOnce(
         },
         buysLandNextPass: true,
         freeCash,
+        cashSkipped: async (skip) => {
+          const one = skip.rungs.length === 1 ? skip.rungs[0] : null
+          const needs = skip.rungs
+            .map(
+              (rung) =>
+                `${rung.name} at ${formatPrice(rung.buyPx)} needs ${formatUsd(rung.needs)}`
+            )
+            .join(", ")
+          try {
+            await writeTradeNotice({
+              userId,
+              title: one
+                ? `${marketSymbol(skip.marketKey)} grid skipped ${one.name}`
+                : `${marketSymbol(skip.marketKey)} grid skipped ${skip.rungs.length} rungs`,
+              body: `Price reached ${needs}, but ${wallet.label} had ${formatUsd(Math.max(skip.free, 0))} free. ${one ? "It stays" : "They stay"} waiting and ${one ? "buys" : "buy"} if price comes back while money is free.`,
+              level: "warning",
+              href: marketChartHref(skip.marketKey),
+            })
+          } catch (error) {
+            recordEngineError(
+              "live-smart-orders",
+              "trade engine: could not write grid cash-skip notice",
+              error
+            )
+          }
+        },
         insertOrder: async (input) => {
           const tempId = `pending:${randomUUID()}`
           pendingPlaces.push({ tempId, input })

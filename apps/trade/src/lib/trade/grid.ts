@@ -1854,6 +1854,23 @@ export function gridLevelSize(
 }
 
 /**
+ * The margin a grid still needs to buy every rung that is waiting.
+ *
+ * What the placement window adds up across a wallet's grids to warn when they
+ * have promised more than the wallet has free. A waiting rung spends nothing
+ * until price reaches it, so this is a promise, not money already gone.
+ */
+export function gridWaitingMargin(
+  plan: Pick<GridPlan, "levels" | "leverage">
+): number {
+  let sum = 0
+  for (const level of plan.levels) {
+    if (level.status === "waiting" && !level.dead) sum += level.budget
+  }
+  return sum / Math.max(plan.leverage, 1)
+}
+
+/**
  * The coins the grid is holding right now, active and carried levels
  * together. What a paired grid's fixed-size stop is sized to: exactly what
  * the grid owns, never a coin of the ladder's beneath it.

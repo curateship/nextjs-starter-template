@@ -105,6 +105,7 @@ import {
   isGridStopLeg,
   plannedGridReversal,
   stopGridWarning,
+  gridWaitingMargin,
   type GridRangeMove,
 } from "@/lib/trade/grid"
 import { prefetchLadderBase } from "@/lib/trade/ladder-base-cache"
@@ -2617,6 +2618,12 @@ export function ChartPanel({
             free={free}
             takerFeeRate={TAKER_FEE_RATE}
             busy={trading.busy}
+            otherGridsNeed={trading.grids
+              .filter(
+                (one) =>
+                  one.walletId === trading.wallet?.id && one.status === "active"
+              )
+              .reduce((sum, one) => sum + gridWaitingMargin(one.plan), 0)}
             pairedWithLadder={trading.smartOrders.some(
               (one) =>
                 one.kind === "dca" &&

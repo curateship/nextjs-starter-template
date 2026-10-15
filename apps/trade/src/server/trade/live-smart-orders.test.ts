@@ -566,6 +566,51 @@ describe("live Smart orders", () => {
     })
   })
 
+  describe("a rung the wallet cannot pay for", () => {
+    it("says so once when it starts being skipped, and again only for a new rung", async () => {
+      await insertWorkspace(database, { userId })
+      await database.insert(tradeSmartLadders).values({
+        id: "cash-skip-grid",
+        userId,
+        walletId: wallet.id,
+        marketKey: MARKET,
+        kind: "grid",
+        status: "active",
+        plan: gridState({ entered: true }),
+      })
+      account.mockResolvedValue({
+        equity: 1_000,
+        free: 0,
+        inTrades: 1_000,
+        openProfit: 0,
+      })
+      const pass = async (price: number) => {
+        prices.mockResolvedValue(new Map([["BTC", price]]))
+        await database
+          .update(tradeSmartLadders)
+          .set({ updatedAt: new Date(Date.now() - 3_000) })
+          .where(eq(tradeSmartLadders.id, "cash-skip-grid"))
+        dropEngineExchangeReads(wallet)
+        await reconcileLiveLadders(userId, wallet)
+      }
+
+      // $84 reaches the $85 rung only.
+      await pass(84)
+      await pass(84)
+      let notices = await database.select().from(customShellNotifications)
+      expect(notices).toHaveLength(1)
+      expect(notices[0].message).toBe("BTC grid skipped Rung 1")
+      expect(notices[0].detail).toContain("needs $85.00")
+      expect(notices[0].detail).toContain("Live test had $0.00 free")
+
+      // $79 reaches the $80 rung as well: one more notice, for that rung.
+      await pass(79)
+      notices = await database.select().from(customShellNotifications)
+      expect(notices).toHaveLength(2)
+      expect(place).not.toHaveBeenCalled()
+    })
+  })
+
   describe("ending a grid by hand", () => {
     /** Bought at $85 and selling at $90, with the $80 level still waiting. */
     async function seedHoldingGrid(over: Partial<GridPlan> = {}) {

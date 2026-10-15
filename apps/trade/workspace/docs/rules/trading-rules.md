@@ -291,6 +291,10 @@ add up to.
 
 ## Grids
 
+- Tyler, 15 Oct 2026, after CHIP skipped two rungs because HL1 - GRID had no
+  money free: **"2 and 3 (warm only)"**, meaning a bell notice when a rung is
+  skipped for money, and a warning, never a refusal, when a new grid would
+  push a wallet's grids past the money it has free.
 - Tyler, 14 Oct 2026: **"I should still be able to cancel because canelling a
   grid turns it into manual order which is what I want"**, and for the grid's
   sells: **"Keep them as manual sell orders. They stay at their prices but

@@ -213,6 +213,7 @@ export function GridOrderDialog({
   takerFeeRate,
   busy,
   pairedWithLadder = false,
+  otherGridsNeed = 0,
   pairedLeverage = null,
   positionLeverage = null,
   onPreview,
@@ -236,6 +237,12 @@ export function GridOrderDialog({
    * the two. The window then says out loud what they will share.
    */
   pairedWithLadder?: boolean
+  /**
+   * The margin this wallet's other grids still need for their waiting rungs.
+   * Added to this grid's to warn, never to refuse, when together they promise
+   * more than the wallet has free (Tyler, 15 Oct 2026).
+   */
+  otherGridsNeed?: number
   /** The borrowing already fixed by a DCA ladder sharing this position. */
   pairedLeverage?: number | null
   /** The borrowing already fixed by a position held in this wallet. */
@@ -788,6 +795,15 @@ export function GridOrderDialog({
     plan && borrowing !== null && borrowing > 0
       ? plan.totalCost / borrowing
       : null
+
+  // Every waiting rung of every grid on the wallet, this one included, against
+  // the free money. A rung price reaches while money is short is skipped, so
+  // the window says so before Place rather than the bell saying so later.
+  const gridsNeed =
+    plan && borrowing !== null && borrowing > 0
+      ? otherGridsNeed + plan.totalCost / borrowing
+      : null
+  const overPromised = gridsNeed !== null && gridsNeed > free + 0.005
 
   React.useEffect(() => {
     if (!plan) {
@@ -1674,6 +1690,11 @@ export function GridOrderDialog({
             exchange they still share one position — one pot of margin and one
             borrowing choice and one liquidation price. If the ladder falls far
             enough, the exchange can close the grid's coins with it.
+          </p>
+        ) : null}
+        {overPromised && gridsNeed !== null ? (
+          <p className="pb-3 text-xs text-amber-700 dark:text-amber-400">
+            {`Your grids on this wallet would need ${formatUsd(gridsNeed)} to buy every waiting rung, this one included, and it has ${formatUsd(Math.max(free, 0))} free. A rung price reaches while money is short is skipped until money frees up.`}
           </p>
         ) : null}
         <OrderRefusal id="grid-refusal" className="pb-3">

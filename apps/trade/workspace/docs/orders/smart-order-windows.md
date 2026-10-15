@@ -126,6 +126,16 @@ the window does not compare the complete ladder cost with today's free cash.
 The engine checks the full rung's margin at that later moment, including its
 chosen borrowing, and leaves it waiting when the wallet cannot afford it.
 
+**The grid window warns when a wallet's grids promise more than it has.** It
+adds up the margin every waiting rung still needs across the wallet's active
+grids, plus the new grid's, and compares that with the free money in the
+header. When it is more, an amber line above Place reads "Your grids on this
+wallet would need $X to buy every waiting rung, this one included, and it has
+$Y free. A rung price reaches while money is short is skipped until money frees
+up." It is a warning only and never stops Place (Tyler, 15 Oct 2026). Ladders
+on the same wallet are not counted. A rung that is skipped for money later
+sends a bell notice (`../screens/notices.md`).
+
 Take profit and Stop loss have no settings chevron while their checkbox is off.
 Turning either one on adds the chevron and opens its settings, matching the Grid
 window.
