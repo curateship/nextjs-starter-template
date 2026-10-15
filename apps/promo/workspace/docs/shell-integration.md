@@ -139,8 +139,11 @@ Reddit link. A sidebar that already has Comments, or was never saved, is left
 alone. `drizzle/0108_promo_projects.sql` then turned the saved Reddit entry into
 Projects, kept what sat under it, and added Reddit accounts
 (`/admin/reddit-accounts`); a sidebar with no Reddit entry got Projects at the
-end of its Administration section. After that the entries are an admin's to
-move or remove like any other.
+end of its Administration section. `drizzle/0118_promo_project_networks.sql`
+took Today, Comments, Reddit accounts and Jobs back out of every saved sidebar,
+wherever they sat, when they moved inside each project's Reddit module on 14 Oct
+2026 ([Networks as modules](network-modules.md)). After that the entries are an
+admin's to move or remove like any other.
 
 ## Two shell hazards worth knowing
 

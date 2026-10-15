@@ -136,7 +136,7 @@ function NewPostWindow({
   // Post is greyed out only for a reason no typing can fix. An empty box is
   // said on the press instead, and the box is marked.
   const blocked = account ? postingBlockedReason(account, null) : null
-  const postReason = !accounts.length ? "This project has no accounts. Add one on the left first." : (blocked?.text ?? null)
+  const postReason = !accounts.length ? "This project has no Reddit accounts. Add one from the dropdown beside Post comment first." : (blocked?.text ?? null)
   const missing = !account
     ? "Pick the account it posts as."
     : !cleaned

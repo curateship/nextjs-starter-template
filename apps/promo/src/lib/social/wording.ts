@@ -126,13 +126,13 @@ export function postingRefusalText(
   timeZone?: string
 ): string | null {
   if (state.paused === "account") {
-    return "This account is paused. Resume it on the Reddit accounts dashboard to post from it again."
+    return "This account is paused. Resume it on the Accounts dashboard, to post from it again."
   }
   if (state.paused === "project") {
     return "This account's project is paused. Resume the project on its dashboard to post from it again."
   }
   if (state.warmUp.ageUnknown) {
-    return "Promo has not read how old this account is, so it cannot tell when the warm-up ends. Tick it on the Reddit accounts dashboard and press Check now, then try again."
+    return "Promo has not read how old this account is, so it cannot tell when the warm-up ends. Tick it on the Accounts dashboard, and press Check now, then try again."
   }
   if (state.warmUp.endsAt && state.warmUp.endsAt > now) {
     return `This account is still warming up. Its first comment is allowed ${whenText(state.warmUp.endsAt, now, timeZone)}.`

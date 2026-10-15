@@ -15,6 +15,7 @@ import { sql } from "drizzle-orm"
 
 import type { AccountStatus } from "@/lib/social/account-status"
 import type { AccountImportance } from "@/lib/social/importance"
+import type { Network } from "@/lib/social/networks"
 import {
   type DraftRewrite,
   type DraftStatus,
@@ -106,6 +107,13 @@ export const promoProjects = pgTable(
      * `drizzle/0111_promo_project_image.sql`.
      */
     imageUrl: varchar("image_url", { length: 2048 }).notNull().default(""),
+    /**
+     * The networks the project uses, in the order they were added, each a
+     * row in its dashboard's left column (`src/lib/social/networks.ts`).
+     * Added by `drizzle/0118_promo_project_networks.sql`, which gave every
+     * project made before it Reddit.
+     */
+    networks: jsonb("networks").$type<Network[]>().notNull().default([]),
     /**
      * When the whole project was paused: none of its accounts posts, warms
      * up or takes a health reading until it is resumed. Null is running.

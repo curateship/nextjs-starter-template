@@ -4,6 +4,7 @@ import { Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DialogBody,
@@ -22,6 +23,7 @@ import {
   makeProject,
   removeProject,
 } from "@/lib/api/social/projects"
+import { NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 export type ProjectDialog =
@@ -31,7 +33,7 @@ export type ProjectDialog =
 
 /**
  * The two windows the Projects dashboard opens: a new project, which asks
- * only for its name, and deleting one, which the server refuses while the
+ * for its name and the networks it uses, and deleting one, which the server refuses while the
  * project still holds accounts or keywords.
  */
 export function ProjectDialogs({
@@ -91,8 +93,21 @@ export function NewProjectDialog({
   onCreated: (projectId: string) => Promise<void>
 }) {
   const [name, setName] = React.useState("")
+  /**
+   * Every network Promo has is ticked to begin with, since today that is
+   * Reddit alone and a project using nothing has nothing to show. Tyler,
+   * 14 Oct 2026: "add a project a select what social network this project
+   * will use".
+   */
+  const [networks, setNetworks] = React.useState<Network[]>([...NETWORKS])
   const [invalid, setInvalid] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+
+  function reset() {
+    setName("")
+    setNetworks([...NETWORKS])
+    setInvalid(false)
+  }
 
   async function create() {
     if (!name.trim()) {
@@ -102,9 +117,8 @@ export function NewProjectDialog({
     }
     setSaving(true)
     try {
-      const { id } = await makeProject(name.trim())
-      setName("")
-      setInvalid(false)
+      const { id } = await makeProject(name.trim(), networks)
+      reset()
       await onCreated(id)
     } catch (error) {
       showErrorToast(getProjectErrorMessage(error))
@@ -119,8 +133,7 @@ export function NewProjectDialog({
       dirty={Boolean(name.trim())}
       busy={saving}
       onClose={() => {
-        setName("")
-        setInvalid(false)
+        reset()
         onClose()
       }}
     >
@@ -129,8 +142,8 @@ export function NewProjectDialog({
           <DialogHeader>
             <DialogTitle>New project</DialogTitle>
             <DialogDescription>
-              One thing you promote. Its description, accounts and keywords go on
-              the Projects dashboard once it is made.
+              One thing you promote, and the networks it is promoted on. Its
+              description, accounts and keywords go on its dashboard once it is made.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -160,6 +173,31 @@ export function NewProjectDialog({
                       }}
                     />
                   </div>
+                </CardContent>
+              </Card>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Networks</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  {NETWORKS.map((network) => (
+                    <div key={network} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`new-project-network-${network}`}
+                        checked={networks.includes(network)}
+                        onCheckedChange={(checked) =>
+                          setNetworks((current) =>
+                            checked === true
+                              ? NETWORKS.filter((item) => item === network || current.includes(item))
+                              : current.filter((item) => item !== network)
+                          )
+                        }
+                      />
+                      <Label htmlFor={`new-project-network-${network}`} className="font-normal">
+                        {NETWORK_NAMES[network]}
+                      </Label>
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             </DialogBody>

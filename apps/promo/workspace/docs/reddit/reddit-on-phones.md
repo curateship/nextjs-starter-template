@@ -73,8 +73,8 @@ post, exactly as from a browser.
 
 On the Projects dashboard, the button under the comment box names where the
 comment goes from: **Post from phone · slot 4** for an account on a phone in
-shelf slot 4, **Post from browser** for one on a browser profile. Clicking
-another account on the left changes it.
+shelf slot 4, **Post from browser** for one on a browser profile. Picking
+another account in the **Comment as** dropdown above the box changes it.
 
 When a phone account cannot take the comment now, Post is off and its tooltip
 says why, with what to do:
@@ -84,13 +84,13 @@ says why, with what to do:
 - it was stopped for showing the wrong address
   ([a Wi-Fi phone's address](../phones/looking-like-a-real-person.md)).
 
-The accounts on the left are listed under **Important** and **Throwaway**
+The accounts in the dropdown are listed under **Important** and **Throwaway**
 ([important and throwaway accounts](../accounts/important-and-throwaway.md)).
 
 ## Moving an account from a browser profile to a phone
 
 How a throwaway that turned valuable is promoted, one way only. In the
-account's settings on the Reddit accounts dashboard, under Throwaway.
+account's settings on the Accounts dashboard, under Throwaway.
 
 1. **Pick a phone** and press **Move to a phone**. It has to be free, ready
    (wiped and set up if an account was on it before) and not the self-test
@@ -99,7 +99,7 @@ account's settings on the Reddit accounts dashboard, under Throwaway.
    and project must not be shared with a throwaway.
 2. **Sign in by hand** on the phone through its screen window on the Phones
    dashboard. The account keeps running on its browser profile meanwhile, and
-   the Reddit accounts dashboard shows "Moving to" the phone.
+   the Accounts dashboard shows "Moving to" the phone.
 3. **Check sign-in** asks the phone who the Reddit app is signed in as. The
    window says what the phone last read, such as "found u/other signed in, not
    u/name".

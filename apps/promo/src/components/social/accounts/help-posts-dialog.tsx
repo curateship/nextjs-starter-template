@@ -2,7 +2,7 @@ import * as React from "react"
 import { Loader2Icon, RefreshCwIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { AnswerPanel, type DraftView, type FindDetail } from "@/components/social/reddit/answer-panel"
+import { AnswerPanel, PostsAs, type DraftView, type FindDetail } from "@/components/social/reddit/answer-panel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -176,6 +176,7 @@ function HelpWindow({ accountId, onClose }: { accountId: string; onClose: () => 
             disabledReason={account ? postingBlockedReason(account, open?.find ?? null) : null}
             postingState={account?.posting ?? null}
             voiceName={account?.voice?.name ?? null}
+            accountPicker={<PostsAs handle={account?.handle || null} postingState={account?.posting ?? null} />}
             onBack={() => {
               setSelected(null)
               void refresh()

@@ -39,3 +39,19 @@ export const PROJECTS_PANEL_LAYOUT_KEY = "promo-projects-workspace"
  * can never be mistaken for one.
  */
 export const EVERYTHING = "everything"
+
+/**
+ * The tabs across the Reddit module's middle column: three of posts, by their
+ * stored status, then Today and Comments, which were screens of their own in
+ * the left menu until Tyler, 14 Oct 2026: "Today and comments can be part of
+ * the views tabs". The tab is kept in the project's address as `?view=`.
+ */
+export const FIND_VIEWS = ["new", "commented", "skipped"] as const
+export type FindsTab = (typeof FIND_VIEWS)[number]
+
+export const REDDIT_VIEWS = [...FIND_VIEWS, "today", "comments"] as const
+export type RedditView = (typeof REDDIT_VIEWS)[number]
+
+export function isFindsTab(view: RedditView): view is FindsTab {
+  return (FIND_VIEWS as readonly string[]).includes(view)
+}

@@ -223,7 +223,7 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   // screen. Nothing more goes out as this account until a person has looked.
   if (account.banScreenAt) {
     throw new Refusal(
-      `This account hit a ban screen and was stopped: "${account.blockedReason}". Let it run again from its settings on the Reddit accounts dashboard once it is sorted.`
+      `This account hit a ban screen and was stopped: "${account.blockedReason}". Let it run again from its settings on the Accounts dashboard once it is sorted.`
     )
   }
   // Retired after the job was queued. A retired account never posts and
@@ -231,7 +231,7 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   const writes = WRITE_JOB_KINDS.includes(job.kind) || job.kind === "warm_up"
   if (account.retiredAt && writes) {
     throw new Refusal(
-      "This account is retired, so it no longer posts or warms up. Bring it back on the Reddit accounts dashboard first."
+      "This account is retired, so it no longer posts or warms up. Bring it back on the Accounts dashboard first."
     )
   }
 
@@ -245,7 +245,7 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   if (paused) {
     throw new Refusal(
       paused === "account"
-        ? "This account is paused, so it does not warm up or take health readings. Resume it on the Reddit accounts dashboard."
+        ? "This account is paused, so it does not warm up or take health readings. Resume it on the Accounts dashboard."
         : "This account's project is paused, so it does not warm up or take health readings. Resume the project on its dashboard."
     )
   }

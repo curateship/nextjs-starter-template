@@ -21,7 +21,6 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   DRAFT_REWRITES,
   MAX_COMMENT_CHARS,
-  PICK_AN_ACCOUNT,
   type DraftRewrite,
   type FindThread,
   type LinkPage,
@@ -117,6 +116,7 @@ export function AnswerPanel({
   disabledReason,
   postingState,
   voiceName,
+  accountPicker,
   onRead,
   onReadRules,
   onDraft,
@@ -136,9 +136,9 @@ export function AnswerPanel({
    */
   prefill?: { findId: string; text: string } | null
   /**
-   * The Reddit account it posts as, without the u/: the one clicked on the
-   * Projects dashboard. Null when none is clicked, or the clicked one was
-   * never seen signed in.
+   * The Reddit account it posts as, without the u/: the one picked beside
+   * Post. Null when none is picked, or the picked one was never seen signed
+   * in.
    */
   handle: string | null
   /**
@@ -156,6 +156,8 @@ export function AnswerPanel({
   postingState: PostingState | null
   /** The voice drafts are written in, or null when the account has none. */
   voiceName: string | null
+  /** Who it posts as, picked beside Post (`AccountPicker`). */
+  accountPicker: React.ReactNode
   onRead: (findId: string) => Promise<void>
   /** Reads the rules of the subreddit the post is in. */
   onReadRules: (findId: string) => Promise<void>
@@ -616,13 +618,27 @@ export function AnswerPanel({
             </p>
           ) : null}
 
+          {/* Who it posts as, on a row of its own right above the box. Tyler,
+              14 Oct 2026: "Accounts can be a dropdown in the right panel". It
+              sat beside Post until then, where a 290px column left the
+              dropdown 14px wide and pushed Post past the box's edge, measured
+              15 Oct 2026. */}
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 text-xs text-muted-foreground">Comment as</span>
+            {accountPicker}
+          </div>
+
           {/* The box, with what to do with it along its bottom edge: Write
-              with AI and Check on the left, who it posts as and Post on the
-              right. Tyler's design, 13 Oct 2026. */}
+              with AI and Check on the left, Post on the right. Tyler's
+              design, 13 Oct 2026. */}
           {/* `grid-cols-1` is a column that may shrink below its widest line,
-              so who it posts as gives up its room rather than pushing Post
-              past the box's edge. */}
-          <div className="grid grid-cols-1 rounded-lg border bg-background focus-within:ring-2 focus-within:ring-ring/50">
+              so the buttons give up their room rather than pushing Post past
+              the box's edge. */}
+          {/* A container, so Write with AI and Check drop their words for
+              their icons when the box is too narrow for them and Post side by
+              side: 261px at a 1440px window put Post 7px past the box's edge,
+              measured 15 Oct 2026. */}
+          <div className="@container/box grid grid-cols-1 rounded-lg border bg-background focus-within:ring-2 focus-within:ring-ring/50">
             <Textarea
               id="promo-comment-text"
               aria-label="What to post"
@@ -644,20 +660,21 @@ export function AnswerPanel({
               }}
               placeholder={drafts.length ? "Pick a draft above, or write your comment" : "Write your comment"}
             />
-            {/* One row that never wraps: who it posts as gives up its room
-                first, so Post always sits on the box's bottom right. */}
+            {/* One row that never wraps, with Post always on the box's bottom
+                right. */}
             <div className="flex items-center gap-1 p-1.5">
               <Hint
                 label={
                   voiceName
-                    ? `Drafts in the voice ${voiceName}`
-                    : "No voice picked for this account, so drafts are plain"
+                    ? `Write with AI, in the voice ${voiceName}`
+                    : "Write with AI. No voice picked for this account, so drafts are plain"
                 }
               >
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
+                  aria-label="Write with AI"
                   disabled={drafting}
                   onClick={async () => {
                     setDrafting(true)
@@ -669,7 +686,7 @@ export function AnswerPanel({
                   }}
                 >
                   {drafting ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-                  Write with AI
+                  <span className="hidden @[20rem]/box:inline">Write with AI</span>
                 </Button>
               </Hint>
               {/* Only on a press: Tyler, 12 Oct 2026, "let me click the check
@@ -680,6 +697,7 @@ export function AnswerPanel({
                     type="button"
                     variant="ghost"
                     size="sm"
+                    aria-label="Check"
                     disabled={checking}
                     onClick={async () => {
                       setChecking(true)
@@ -696,17 +714,11 @@ export function AnswerPanel({
                     }}
                   >
                     {checking ? <Loader2Icon className="animate-spin" /> : <ShieldCheckIcon />}
-                    Check
+                    <span className="hidden @[24rem]/box:inline">Check</span>
                   </Button>
                 </Hint>
               ) : null}
-              <Hint label={postingState ? paceLineText(postingState) : PICK_AN_ACCOUNT}>
-                <span
-                  className="ml-auto min-w-0 truncate px-1 text-xs text-muted-foreground"
-                >
-                  {handle ? `as u/${handle}` : postingState ? "as an account not signed in" : "No account picked"}
-                </span>
-              </Hint>
+              <span className="flex-1" />
               {/* Why Post is off lives in the button's own tooltip rather than a
                   line under the box, which Tyler asked to be removed on 6 Oct
                   2026. An empty box never turns it off: pressing it then says
@@ -753,6 +765,19 @@ export function AnswerPanel({
         </div>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * Who it posts as, written out, for a box whose account is fixed: the help-only
+ * posts window answers from the one account it was opened for. The counts are
+ * behind it in plain figures.
+ */
+export function PostsAs({ handle, postingState }: { handle: string | null; postingState: PostingState | null }) {
+  return (
+    <Hint label={postingState ? paceLineText(postingState) : null}>
+      <span className="min-w-0 truncate text-sm">{handle ? `u/${handle}` : "An account not signed in"}</span>
+    </Hint>
   )
 }
 

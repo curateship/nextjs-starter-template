@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import type { FindRow } from "@/server/social/keywords"
 import type { PostingState } from "@/server/social/posting"
 
-import { AnswerPanel, type FindDetail } from "./answer-panel"
+import { AnswerPanel, PostsAs, type FindDetail } from "./answer-panel"
 import { paceLineText } from "@/lib/social/wording"
 
 import { FindsPanel, FindsSearch } from "./finds-panel"
@@ -56,6 +56,7 @@ function answerPanel(
         disabledReason={null}
         postingState={postingState}
         voiceName={null}
+        accountPicker={<PostsAs handle="me" postingState={postingState} />}
         onRead={nothing}
         onReadRules={nothing}
         onDraft={nothing}
@@ -178,6 +179,7 @@ function findsPanel(finds: FindRow[], tab: "new" | "commented", everything = fal
         selectedId={null}
         tab={tab}
         onTabChange={() => {}}
+        otherView={null}
         onSelect={() => {}}
         onBlock={nothing}
         onSkip={nothing}
@@ -231,6 +233,7 @@ describe("the search box over the posts", () => {
           selectedId={null}
           tab="new"
           onTabChange={() => {}}
+          otherView={null}
           onSelect={() => {}}
           onBlock={nothing}
           onSkip={nothing}
@@ -281,9 +284,10 @@ describe("the pace line and a waiting comment", () => {
     waiting: [],
   }
 
-  it("says who it posts as, with the counts in plain figures behind it", () => {
+  it("says who it posts as, on its own row above the box, with the counts in plain figures behind it", () => {
     const html = answerPanel(undefined, find, quiet)
-    expect(html).toContain("as u/me")
+    expect(html).toContain("Comment as")
+    expect(html).toContain("u/me")
     // The counts are the line's tooltip, drawn on hover.
     expect(paceLineText(quiet)).toBe("3 comments in the last hour, 11 today.")
     expect(html).not.toContain("New accounts get banned")

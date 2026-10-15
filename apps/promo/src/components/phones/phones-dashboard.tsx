@@ -707,7 +707,7 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
         description={[
           "Only the record goes. Nothing on the phone changes, and if it is still plugged in the rack adds it back as a new phone on its next check-in.",
           deletedAccounts.length
-            ? `${deletedAccounts.map(signedInWords).join(", ")} will run on nothing until you pick a browser profile or phone for ${deletedAccounts.length === 1 ? "it" : "them"} on the Reddit accounts dashboard.`
+            ? `${deletedAccounts.map(signedInWords).join(", ")} will run on nothing until you pick a browser profile or phone for ${deletedAccounts.length === 1 ? "it" : "them"} on the Accounts dashboard.`
             : "No account runs on it.",
         ].join(" ")}
         confirmLabel={deleteTargets.length === 1 ? "Delete phone" : "Delete phones"}

@@ -271,12 +271,17 @@ describe("the 12 Oct 2026 features against the database", () => {
   })
 
   describe("Today", () => {
-    it("lists Strong fit posts from every project, once each", async () => {
+    it("lists one project's Strong fit posts, once each, and none of another project's", async () => {
       await find("A fresh quiet post", { rank: 2, postedAt: now })
       await find("A weak post", { rank: 0.1, postedAt: now })
-      const { posts } = await readToday(userId, db, now)
+      const otherProject = await createProject(userId, "Another project", db)
+      const otherKeyword = uuid()
+      await db.insert(promoKeywords).values({ id: otherKeyword, userId, projectId: otherProject, term: "other tool" })
+      await find("Another project's post", { rank: 2, postedAt: now, keywordId: otherKeyword })
+      const { posts } = await readToday(userId, projectId, db, now)
       expect(posts.map((row) => row.title)).toEqual(["A fresh quiet post"])
-      expect(posts[0].project.id).toBe(projectId)
+      const other = await readToday(userId, otherProject, db, now)
+      expect(other.posts.map((row) => row.title)).toEqual(["Another project's post"])
     })
   })
 })

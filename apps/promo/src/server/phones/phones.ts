@@ -557,7 +557,7 @@ export async function phoneForJob(
     .leftJoin(promoRacks, eq(promoRacks.id, promoPhones.rackId))
     .where(and(eq(promoPhones.id, phoneId), eq(promoPhones.userId, userId)))
     .limit(1)
-  if (!row) throw new Refusal("The phone this account runs on is not there any more. Pick another on the Reddit accounts dashboard.")
+  if (!row) throw new Refusal("The phone this account runs on is not there any more. Pick another on the Accounts dashboard.")
   const { phone } = row
   if (phone.held || inUse(phone, now)) return { ready: false, held: true }
   const rackLive = Boolean(phone.rackId) && !row.rackDisconnectedAt

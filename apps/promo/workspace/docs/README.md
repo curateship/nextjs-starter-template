@@ -11,14 +11,20 @@ the repo's `docs/`, and is never copied here.
 ## Projects
 
 - [The Projects dashboard](projects-dashboard.md): the table of every project,
-  and one project's description, accounts, keywords and posts on one screen, which account comments, what the
-  AI is told about what you make, the order accounts are listed in, pausing a
-  project, and the Today page of every project's best posts and waiting replies.
+  and one project's description, networks, keywords and posts on one screen,
+  the accounts dropdown and which account comments, what the AI is told about
+  what you make, the order accounts are listed in, pausing a project, and the
+  Today tab of the project's best posts and waiting replies.
+- [Networks as modules](network-modules.md): a project picks the networks it
+  uses, each a row in its left column that fills the middle and right columns,
+  Reddit's screens folded into its module as tabs and windows, the tables that
+  fold by the column's width, and where the old addresses lead.
 
 ## Reddit
 
-- [The Reddit accounts dashboard](reddit/accounts-dashboard.md): every account
-  with its status (Warming up, Ready, Working, Banned), project, profile and
+- [The Accounts dashboard](reddit/accounts-dashboard.md): `/admin/accounts`,
+  under Projects after Voices, every account on every platform with a Platform
+  filter, and its status (Warming up, Ready, Working, Banned), project, profile and
   proxy, adding one, setting a status by hand, pausing, help-only posts, and
   retiring.
 - [Finding posts worth answering](reddit/finding-posts.md) — what a keyword is,
@@ -41,7 +47,7 @@ the repo's `docs/`, and is never copied here.
 - [Posts of your own](reddit/your-own-posts.md): New post on a project, the
   subreddit's rules first, the same rules as Post, and the Posts tab.
 - [Answering replies](reddit/answering-replies.md) — the Replies window on the
-  Comments screen: the replies under a sent comment, drafting and sending an
+  Comments tab: the replies under a sent comment, drafting and sending an
   answer from the same account under Post's rules, and how an answer is stored.
 - [How Reddit sees the account](reddit/account-health.md) — karma, account age,
   and whether a stranger can see the profile, read once a day and on request.
@@ -67,8 +73,8 @@ the repo's `docs/`, and is never copied here.
   signing in once, the proxy, the limit on how many run at once, profiles
   working side by side, why only the browser program opens one, and how a dead
   or leftover one is cleared.
-- [The Jobs dashboard](browser/jobs-dashboard.md): last under Projects in the
-  left menu. Whether the browser program is running and how to start it, and
+- [The Jobs window](browser/jobs-dashboard.md): the Jobs button on a
+  project's Reddit module. Whether the browser program is running and how to start it, and
   every search, read, comment and check it is running, waiting to run,
   finished or failed, with Cancel and Try again.
 - [Browser profiles](browser/profiles.md) — one isolated browser as a record of

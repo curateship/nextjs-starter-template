@@ -12,11 +12,7 @@ import {
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
-import {
-  DashboardToolbarButton,
-  DashboardToolbarSearch,
-  DashboardToolbarSelectTrigger,
-} from "@/components/shared/dashboard-toolbar"
+import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import {
   SelectAllTableHead,
   SortableTableHeader,
@@ -27,7 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Switch } from "@/components/ui/switch"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -58,6 +54,7 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { Hint } from "../hint"
+import { IN_COLUMN_TABLE } from "../projects/project-columns"
 import { CommentRepliesDialog } from "./comment-replies-dialog"
 import { EditCommentDialog } from "./edit-comment-dialog"
 import { FailedTable } from "./failed-table"
@@ -68,23 +65,26 @@ const POLL_MS = 2_000
 
 export type CommentsTab = "sent" | "failed" | "posts"
 
-export type CommentsPage = { comments: CommentRow[]; failures: FailureRow[]; posts: OwnPostRow[] }
+type CommentsPage = { comments: CommentRow[]; failures: FailureRow[]; posts: OwnPostRow[] }
 
-type SortColumn = "post" | "account" | "project" | "subreddit" | "sent" | "upvotes" | "replies" | "state"
+type SortColumn = "post" | "account" | "subreddit" | "sent" | "upvotes" | "replies" | "state"
 
 const COLUMNS: TableHeaderColumn<SortColumn>[] = [
   { key: "post", label: "Post", column: "main" },
-  // Under 1536px these three fold into a line under the post's title, or the
-  // row is wider than the window and its switch and buttons go off the edge:
-  // 1332px of columns against 1232px of room at a 1440px window, measured
-  // 13 Oct 2026.
-  { key: "account", label: "Account", column: "meta", className: "hidden 2xl:table-cell" },
-  { key: "project", label: "Project", column: "meta", className: "hidden 2xl:table-cell" },
-  { key: "subreddit", label: "Subreddit", column: "meta", className: "hidden md:table-cell" },
-  { key: "sent", label: "Sent", column: "meta", className: "hidden 2xl:table-cell" },
-  { key: "upvotes", label: "Upvotes", column: "meta", className: "text-right" },
-  { key: "replies", label: "Replies", column: "meta", className: "text-right" },
-  { key: "state", label: "Still there", column: "meta" },
+  // The table sits in the project's middle column, so its columns go by the
+  // column's width, not the window's. Every column takes 1,287px, so
+  // narrower than 82rem the account and when it was sent fold into a line
+  // under the post's title, and narrower than 68rem the subreddit, whether it
+  // is still there, its upvotes and its replies fold into a second one.
+  // Otherwise the row is wider than the column and its switch and buttons go
+  // off the edge: 1,076px of columns in a 710px column at a 1440px window,
+  // and 1,287px in 1,035px at 2000px, measured 15 Oct 2026.
+  { key: "account", label: "Account", column: "meta", className: "hidden @[82rem]:table-cell" },
+  { key: "subreddit", label: "Subreddit", column: "meta", className: "hidden @[68rem]:table-cell" },
+  { key: "sent", label: "Sent", column: "meta", className: "hidden @[82rem]:table-cell" },
+  { key: "upvotes", label: "Upvotes", column: "meta", className: "hidden text-right @[68rem]:table-cell" },
+  { key: "replies", label: "Replies", column: "meta", className: "hidden text-right @[68rem]:table-cell" },
+  { key: "state", label: "Still there", column: "meta", className: "hidden @[68rem]:table-cell" },
   { key: "example", label: "Voice example", column: "meta", sortable: false },
 ]
 
@@ -104,8 +104,6 @@ function compare(a: CommentRow, b: CommentRow, column: SortColumn): number {
   switch (column) {
     case "account":
       return (a.account.handle || "~").localeCompare(b.account.handle || "~")
-    case "project":
-      return (a.project?.name ?? "~").localeCompare(b.project?.name ?? "~")
     case "subreddit":
       return a.subreddit.localeCompare(b.subreddit)
     case "sent":
@@ -133,9 +131,6 @@ function changingReason(changing: CommentRow["changing"]): string {
     : "Changing its words on Reddit now. Wait for that to finish."
 }
 
-const ALL_PROJECTS = "all"
-const NO_PROJECT = "none"
-
 /**
  * How many checked comments are gone in each subreddit, by lower-case name.
  * Only comments a check has read count, and ones you deleted never do.
@@ -154,49 +149,52 @@ function removalsBySubreddit(rows: CommentRow[]): Map<string, { removed: number;
 }
 
 /**
- * Every comment the app has sent, and what became of it, with a second tab
- * for the comments that did not go out.
+ * The Comments tab in a project's Reddit module: every comment the project's
+ * accounts sent, and what became of it, with posts of your own and what did
+ * not go out on tabs of their own. Tyler, 14 Oct 2026: "Today and comments can
+ * be part of the views tabs". A comment counts toward the project its account
+ * is in now, the same rule the Projects table counts by.
  *
- * Sent: upvotes, how many replies sit under it, whether it is still there,
- * who sent it and for which project. A reading needs the browser, so Check
- * writes a job and the screen asks again every two seconds until it is
- * done. A comment nobody has checked says so rather than showing 0 replies.
- * Edit and Delete change it on Reddit from the account that sent it.
+ * Sent: upvotes, how many replies sit under it, whether it is still there and
+ * who sent it. A reading needs the browser, so Check writes a job and the
+ * screen asks again every two seconds until it is done. A comment nobody has
+ * checked says so rather than showing 0 replies. Edit and Delete change it on
+ * Reddit from the account that sent it.
  *
  * Failed: comments, answers and posts that never reached Reddit, read off
- * their jobs, with Try again, which puts the words back in the box and
- * never sends them by itself.
+ * their jobs, with Try again, which puts the words back in the box and never
+ * sends them by itself.
  *
- * `?replies=<id>` opens a comment's Replies window and `?comment=<id>` shows
- * that one comment, which is where the bell's reply and removal notices go.
+ * The lists are read when the tab opens. In the address, `?list=` picks Posts
+ * or Failed, `?replies=<id>` opens a comment's Replies window and
+ * `?comment=<id>` shows that one comment, which is where the bell's reply and
+ * removal notices lead.
  */
 export function CommentsDashboard({
-  initial,
-  tab,
+  projectId,
+  list,
   repliesId,
   commentId,
 }: {
-  initial: CommentsPage
-  tab: CommentsTab
+  projectId: string
+  list: CommentsTab
   /** The comment whose Replies window the address opens. */
   repliesId?: string
   /** One comment the address shows on its own. */
   commentId?: string
 }) {
   const navigate = useNavigate()
-  const [rows, setRows] = React.useState(initial.comments)
-  const [failures, setFailures] = React.useState(initial.failures)
-  const [posts, setPosts] = React.useState(initial.posts)
+  const [lists, setLists] = React.useState<CommentsPage | null>(null)
   const [error, setError] = React.useState<string | null>(null)
 
   const setSearch = React.useCallback(
-    (patch: { tab?: CommentsTab; replies?: string; comment?: string }) =>
+    (patch: { list?: CommentsTab; replies?: string; comment?: string }) =>
       void navigate({
         to: ".",
         search: (previous: Record<string, unknown>) => {
           const next: Record<string, unknown> = { ...previous, ...patch }
           for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key]
-          if (next.tab === "sent") delete next.tab
+          if (next.list === "sent") delete next.list
           return next
         },
       }),
@@ -206,54 +204,73 @@ export function CommentsDashboard({
   const refresh = React.useCallback(
     (): Promise<void> =>
       Promise.all([loadComments(), loadFailures(), loadOwnPosts()]).then(
-        ([nextComments, nextFailures, nextPosts]) => {
-          setRows(nextComments)
-          setFailures(nextFailures)
-          setPosts(nextPosts)
+        ([comments, failures, posts]) => {
+          // Every list is read whole and narrowed to this project here: the
+          // lists are one person's, and each row already says its project.
+          setLists({
+            comments: comments.filter((row) => row.project?.id === projectId),
+            failures: failures.filter((row) => row.projectId === projectId),
+            posts: posts.filter((row) => row.project?.id === projectId),
+          })
           setError(null)
         },
         (failure: unknown) => setError(getCommentsErrorMessage(failure))
       ),
-    []
+    [projectId]
   )
 
+  React.useEffect(() => {
+    void refresh()
+  }, [refresh])
+
   // Asks again only while a check, a delete or an edit is waiting or running.
-  const anyWorking = rows.some((row) => row.checking || row.changing !== null)
+  const anyWorking = Boolean(lists?.comments.some((row) => row.checking || row.changing !== null))
   React.useEffect(() => {
     if (!anyWorking) return
     const timer = setInterval(() => void refresh(), POLL_MS)
     return () => clearInterval(timer)
   }, [anyWorking, refresh])
 
+  if (!lists) {
+    return error ? (
+      <ErrorRow message={error} onRetry={() => void refresh()} />
+    ) : (
+      <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+        <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+        Reading the comments
+      </p>
+    )
+  }
+
   const tabs = (
-    <Tabs value={tab} onValueChange={(value) => setSearch({ tab: value as CommentsTab, comment: undefined })}>
+    <Tabs value={list} onValueChange={(value) => setSearch({ list: value as CommentsTab, comment: undefined })}>
       <TabsList>
-        <TabsTrigger value="sent" aria-label={`Sent, ${rows.length}`}>
+        <TabsTrigger value="sent" aria-label={`Sent, ${lists.comments.length}`}>
           Sent
-          <TabsCount>{rows.length}</TabsCount>
+          <TabsCount>{lists.comments.length}</TabsCount>
         </TabsTrigger>
-        <TabsTrigger value="posts" aria-label={`Posts of your own, ${posts.length}`}>
+        <TabsTrigger value="posts" aria-label={`Posts of your own, ${lists.posts.length}`}>
           Posts
-          <TabsCount>{posts.length}</TabsCount>
+          <TabsCount>{lists.posts.length}</TabsCount>
         </TabsTrigger>
-        <TabsTrigger value="failed" aria-label={`Failed, ${failures.length}`}>
+        <TabsTrigger value="failed" aria-label={`Failed, ${lists.failures.length}`}>
           Failed
-          <TabsCount>{failures.length}</TabsCount>
+          <TabsCount>{lists.failures.length}</TabsCount>
         </TabsTrigger>
       </TabsList>
     </Tabs>
   )
 
-  if (tab === "posts") return <PostsTable tabs={tabs} rows={posts} />
+  if (list === "posts") return <PostsTable tabs={tabs} rows={lists.posts} />
 
-  if (tab === "failed") {
+  if (list === "failed") {
     return (
       <FailedTable
         tabs={tabs}
-        failures={failures}
+        failures={lists.failures}
         error={error}
         onRefresh={refresh}
-        onOpenReplies={(id) => setSearch({ tab: "sent", replies: id })}
+        onOpenReplies={(id) => setSearch({ list: "sent", replies: id })}
       />
     )
   }
@@ -261,7 +278,7 @@ export function CommentsDashboard({
   return (
     <SentTable
       tabs={tabs}
-      rows={rows}
+      rows={lists.comments}
       error={error}
       onRefresh={refresh}
       repliesId={repliesId ?? null}
@@ -293,7 +310,6 @@ function SentTable({
 }) {
   const { config } = useShellRuntime()
   const [search, setSearch] = React.useState("")
-  const [projectFilter, setProjectFilter] = React.useState(ALL_PROJECTS)
   const { sort, direction, toggleSort } = useTableSort<SortColumn>("sent", "desc")
   const [page, setPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
@@ -306,12 +322,6 @@ function SentTable({
   const openRow = repliesId ? (rows.find((row) => row.id === repliesId) ?? null) : null
   const editRow = editing ? (rows.find((row) => row.id === editing) ?? null) : null
 
-  const projects = React.useMemo(() => {
-    const byId = new Map<string, string>()
-    for (const row of rows) if (row.project) byId.set(row.project.id, row.project.name)
-    return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]))
-  }, [rows])
-  const noProject = rows.some((row) => !row.project)
   const removals = React.useMemo(() => removalsBySubreddit(rows), [rows])
 
   const shown = React.useMemo(() => {
@@ -319,13 +329,6 @@ function SentTable({
     const factor = direction === "asc" ? 1 : -1
     return rows
       .filter((row) => !commentId || row.id === commentId)
-      .filter((row) =>
-        projectFilter === ALL_PROJECTS
-          ? true
-          : projectFilter === NO_PROJECT
-            ? !row.project
-            : row.project?.id === projectFilter
-      )
       .filter(
         (row) =>
           !query ||
@@ -335,7 +338,7 @@ function SentTable({
           row.account.handle.toLowerCase().includes(query)
       )
       .sort((a, b) => factor * compare(a, b, sort))
-  }, [commentId, direction, projectFilter, rows, search, sort])
+  }, [commentId, direction, rows, search, sort])
 
   const totalPages = Math.max(1, Math.ceil(shown.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -448,6 +451,8 @@ function SentTable({
         <DashboardTable
           title="Comments"
           icon={<MessagesSquareIcon />}
+          fillHeight
+          className={IN_COLUMN_TABLE}
           tabs={tabs}
           count={shown.length}
           error={error ? { message: error, onRetry: () => void onRefresh() } : null}
@@ -494,28 +499,6 @@ function SentTable({
                   setPage(1)
                 }}
               />
-              {projects.length > 1 || (projects.length && noProject) ? (
-                <Select
-                  value={projectFilter}
-                  onValueChange={(value) => {
-                    setProjectFilter(value)
-                    setPage(1)
-                  }}
-                >
-                  <DashboardToolbarSelectTrigger aria-label="Filter by project" className="hidden sm:flex">
-                    <SelectValue />
-                  </DashboardToolbarSelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL_PROJECTS}>All projects</SelectItem>
-                    {projects.map(([id, name]) => (
-                      <SelectItem key={id} value={id}>
-                        {name}
-                      </SelectItem>
-                    ))}
-                    {noProject ? <SelectItem value={NO_PROJECT}>No project</SelectItem> : null}
-                  </SelectContent>
-                </Select>
-              ) : null}
           </>
         }
         header={
@@ -538,7 +521,7 @@ function SentTable({
         emptyText={
           rows.length
             ? "No comments match that."
-            : "Nothing has been sent yet. A comment posted from the Projects dashboard shows up here."
+            : "Nothing sent from this project yet."
         }
         emptyColSpan={COLUMNS.length + 2}
         footer={{
@@ -587,23 +570,25 @@ function SentTable({
                     {row.text}
                   </span>
                 </Hint>
-                <span className="block truncate text-xs text-muted-foreground 2xl:hidden">
+                <span className="block truncate text-xs text-muted-foreground @[82rem]:hidden">
                   {row.account.handle ? `u/${row.account.handle}` : "An account not signed in"}
-                  {row.project ? ` · ${row.project.name}` : ""}
                   {` · sent ${postedDateText(new Date(row.postedAt)).toLowerCase()}`}
                 </span>
+                <span className="block truncate text-xs text-muted-foreground @[68rem]:hidden">
+                  {`r/${row.subreddit} · `}
+                  {row.changing === "delete" ? "Deleting" : row.changing === "edit" ? "Editing" : state.label}
+                  {read && row.upvotes !== null ? ` · ${row.upvotes} ${row.upvotes === 1 ? "upvote" : "upvotes"}` : ""}
+                  {read && row.replyCount !== null ? ` · ${row.replyCount} ${row.replyCount === 1 ? "reply" : "replies"}` : ""}
+                  {toAnswerText(row.toAnswer) ? `, ${toAnswerText(row.toAnswer)}` : ""}
+                  {removal ? ` · ${removal}` : ""}
+                </span>
               </TableCell>
-              <TableCell column="meta" className="hidden max-w-32 2xl:table-cell">
+              <TableCell column="meta" className="hidden max-w-32 @[82rem]:table-cell">
                 <span className="block truncate">
                   {row.account.handle ? `u/${row.account.handle}` : "Not signed in"}
                 </span>
               </TableCell>
-              <TableCell column="meta" className="hidden max-w-32 2xl:table-cell">
-                <span className="block truncate text-muted-foreground">
-                  {row.project?.name ?? "No project"}
-                </span>
-              </TableCell>
-              <TableCell column="meta" className="hidden max-w-32 md:table-cell">
+              <TableCell column="meta" className="hidden max-w-32 @[68rem]:table-cell">
                 <span className="block truncate text-muted-foreground">r/{row.subreddit}</span>
                 {removal ? (
                   <Hint label={`Of your checked comments in r/${row.subreddit}, this many are gone. Counted from checks only.`}>
@@ -614,10 +599,10 @@ function SentTable({
                   </Hint>
                 ) : null}
               </TableCell>
-              <TableCell column="meta" className="hidden text-muted-foreground 2xl:table-cell">
+              <TableCell column="meta" className="hidden text-muted-foreground @[82rem]:table-cell">
                 {postedDateText(new Date(row.postedAt))}
               </TableCell>
-              <TableCell column="meta" className="text-right tabular-nums">
+              <TableCell column="meta" className="hidden text-right tabular-nums @[68rem]:table-cell">
                 {!read ? (
                   <Hint label="Not read yet">
                     <span className="text-muted-foreground">—</span>
@@ -630,7 +615,7 @@ function SentTable({
                   row.upvotes
                 )}
               </TableCell>
-              <TableCell column="meta" className="text-right tabular-nums">
+              <TableCell column="meta" className="hidden text-right tabular-nums @[68rem]:table-cell">
                 {!read || row.replyCount === null ? (
                   <Hint label="Not read yet">
                     <span className="text-muted-foreground">—</span>
@@ -644,7 +629,7 @@ function SentTable({
                   </span>
                 ) : null}
               </TableCell>
-              <TableCell column="meta">
+              <TableCell column="meta" className="hidden @[68rem]:table-cell">
                 <Hint label={state.detail}>
                   <span className="block text-sm">
                     {row.changing === "delete" ? "Deleting" : row.changing === "edit" ? "Editing" : state.label}

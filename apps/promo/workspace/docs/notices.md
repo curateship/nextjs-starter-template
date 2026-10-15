@@ -13,13 +13,14 @@ acts on a bad reading". Tyler picked this the same day.
   wrote it and what they said. Opens the comment's Replies window.
 - **A comment going from there to gone**, as a stranger sees it: "Your comment
   was removed on ...". Rings once, when it goes, not on every reading after.
-  Opens that one comment on the Comments screen.
+  Opens that one comment on the Comments tab of its account's project.
 - **Reddit marking an account suspended**, from the daily health reading:
-  "Reddit suspended u/name". Rings once, when it happens. Opens the Reddit
-  accounts dashboard.
+  "Reddit suspended u/name". Rings once, when it happens. Opens the Accounts
+  dashboard, filtered to Reddit.
 - **A comment, an answer or a post of your own that did not go out**: "Did not
   go out: a comment", with Reddit's reason, and "may already be on Reddit" when
-  the browser stopped part-way. Opens the Comments screen's Failed tab.
+  the browser stopped part-way. Opens the Failed list on the Comments tab of
+  the project its account is in, or the Projects table for an account in none.
 - **A proxy renewing in the next three days**: "Renews soon: US residential 3",
   with the day and the cost. Once per renewal date. Opens the proxy.
 - **A phone or the rack in trouble**: "Phone offline:", "Phone running hot:",
@@ -40,7 +41,7 @@ acts on a bad reading". Tyler picked this the same day.
 ## The limit to know
 
 Replies and removals are only found by a check of the comment, and checks run
-only when Check is pressed on the Comments screen, because the automatic
+only when Check is pressed on the Comments tab, because the automatic
 re-check was not picked. So those two notices come after a Check. Failures,
 suspensions and renewals ring by themselves.
 
