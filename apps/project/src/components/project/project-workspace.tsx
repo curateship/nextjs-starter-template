@@ -15,7 +15,7 @@ import { useProjectLive } from "@/lib/project/use-project-live"
 const PROJECT_ROUTE_ID = "/_authenticated/projects/$projectId"
 
 /**
- * The project page: details and members on the left, tasks in the middle,
+ * The project page: details on the left, tasks in the middle,
  * the open task on the right. Tyler asked for the four-panel dashboard
  * without its bottom panel; the layout is the CRM screen's
  * (`crm-workspace.tsx`), which already has three resizable panels and
@@ -24,8 +24,8 @@ const PROJECT_ROUTE_ID = "/_authenticated/projects/$projectId"
  * beside it.
  *
  * The open task lives in the address (`?task=<id>`), so a bell notice or a
- * pasted link opens it. So do the search and filters, and clicking a member
- * is the Person filter.
+ * pasted link opens it. So do the search and filters, including whose tasks
+ * show, picked in the tasks panel's header.
  */
 export function ProjectWorkspace({
   page,
@@ -94,15 +94,7 @@ export function ProjectWorkspace({
         left={{
           label: "Details",
           showLabel: "Show the project details",
-          content: (
-            <ProjectDetailsPanel
-              page={page}
-              selectedUserId={filters.person ?? null}
-              onSelectMember={(userId) =>
-                setFilters({ person: filters.person === userId ? undefined : userId })
-              }
-            />
-          ),
+          content: <ProjectDetailsPanel page={page} />,
         }}
         middle={{
           label: "Tasks",

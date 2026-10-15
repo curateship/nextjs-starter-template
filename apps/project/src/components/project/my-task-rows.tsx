@@ -39,13 +39,15 @@ import { cn } from "@/lib/utils"
 
 export type RowGroup = { key: string; label: string }
 
-/** The dot before each group's name on the Open tab. */
+/** The dot before each group's name on My dashboard's List. */
 const GROUP_DOT: Record<string, string> = {
   waiting: "bg-amber-500",
   overdue: "bg-red-500",
   today: "bg-orange-500",
   week: "bg-blue-500",
   later: "bg-violet-500",
+  picked: "bg-foreground",
+  done: "bg-green-500",
   none: "bg-muted-foreground/40",
 }
 
@@ -64,6 +66,7 @@ export function MyTaskRows({
   groupOf,
   onOpenTask,
   onReorder,
+  reorderGroup,
   bulk,
   emptyText,
 }: {
@@ -75,6 +78,8 @@ export function MyTaskRows({
   onOpenTask: (task: TaskCard) => void
   /** The rows in their new order. Left out, rows don't drag. */
   onReorder?: (taskIds: string[]) => void
+  /** With groups, the one group whose rows drag, such as today's picks. */
+  reorderGroup?: string
   bulk: BulkTargets
   emptyText: string
 }) {
@@ -116,7 +121,11 @@ export function MyTaskRows({
   function handleDragEnd(event: DragEndEvent) {
     const overId = event.over?.id
     if (!onReorder || overId === undefined || overId === event.active.id) return
-    onReorder(arrayMove(ids, ids.indexOf(String(event.active.id)), ids.indexOf(String(overId))))
+    // Rows move within their own group: the order sent is that group's.
+    const group = sections.find((section) => section.rows.some((task) => task.id === event.active.id))
+    const groupIds = (group?.rows ?? tasks).map((task) => task.id)
+    if (!groupIds.includes(String(overId))) return
+    onReorder(arrayMove(groupIds, groupIds.indexOf(String(event.active.id)), groupIds.indexOf(String(overId))))
   }
 
   return (
@@ -153,7 +162,7 @@ export function MyTaskRows({
                       <Row
                         key={task.id}
                         task={task}
-                        canDrag={Boolean(onReorder)}
+                        canDrag={Boolean(onReorder) && (!reorderGroup || section.key === reorderGroup)}
                         open={task.id === openTaskId}
                         selected={selection.selected.has(task.id)}
                         onToggle={() => selection.toggle(task.id)}

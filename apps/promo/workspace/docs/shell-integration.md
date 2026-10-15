@@ -37,7 +37,7 @@ promo created, which has no shell version and so can never conflict.
 
 `src/app/server-options.ts`, which the browser never sees:
 
-- **`background.workers`** — seven quick jobs on the shell's ticker, listed in
+- **`background.workers`** — eight quick jobs on the shell's ticker, listed in
   `src/app/server-options.ts`:
   - re-testing the three proxies that have waited longest, and once an hour
     ringing the bell for a proxy renewing in the next three days;
@@ -52,15 +52,19 @@ promo created, which has no shell version and so can never conflict.
   - reading the page a few [link posts](reddit/link-posts.md) point to, four a
     pass, each capped at eight seconds, refusing any address inside the network;
   - looking after the browsers: closing an idle one, marking a dead one,
-    removing a container nothing claims.
+    removing a container nothing claims;
+  - [the phones' health](phones/phone-health.md): the bell for a phone
+    offline, hot, with no signal or nearly full and for a quiet rack, the
+    daily [self-test](phones/self-test-and-app-updates.md) on the test phone,
+    and once an hour deleting old step pictures and chart readings.
 
-  None of them opens or drives a browser. They ask Docker, a proxy or a web
-  page, or only write a job. The slow browser work is deliberately not here;
+  None of them opens or drives a browser or touches a phone. They ask Docker,
+  a proxy or a web page, read rows, or only write a job or a phone action. The slow browser work is deliberately not here;
   see below.
 
 ## The tables it owns
 
-Thirty, all named `promo_*`, in three files of promo's own. The shell's tables
+Thirty-one, all named `promo_*`, in three files of promo's own. The shell's tables
 stay in `src/server/schema.ts`, which promo never opens.
 
 - `src/server/browser/schema.ts`: `promo_proxies`, `promo_proxy_addresses`,
@@ -69,7 +73,10 @@ stay in `src/server/schema.ts`, which promo never opens.
   `promo_profile_backups`. These belong to no network.
 - `src/server/phones/schema.ts`: `promo_phones`, `promo_racks`,
   `promo_rack_codes`, `promo_rack_nonces`, `promo_phone_actions` and
-  `promo_phone_screenshots`, from `drizzle/0114_promo_phones.sql`. These
+  `promo_phone_screenshots`, from `drizzle/0114_promo_phones.sql`,
+  `promo_phone_settings` from `drizzle/0115_promo_phone_jobs.sql`, and
+  `promo_phone_events`, `promo_phone_readings`, `promo_phone_action_checks`
+  and `promo_app_rollouts` from `drizzle/0116_promo_phone_health.sql`. These
   belong to no network either.
 - `src/server/social/schema.ts`: `promo_voices`, `promo_accounts`, `promo_keywords`,
   `promo_blocked_subreddits`, `promo_subreddit_rules`, `promo_reddit_settings`,
@@ -132,8 +139,11 @@ Reddit link. A sidebar that already has Comments, or was never saved, is left
 alone. `drizzle/0108_promo_projects.sql` then turned the saved Reddit entry into
 Projects, kept what sat under it, and added Reddit accounts
 (`/admin/reddit-accounts`); a sidebar with no Reddit entry got Projects at the
-end of its Administration section. After that the entries are an admin's to
-move or remove like any other.
+end of its Administration section. `drizzle/0118_promo_project_networks.sql`
+took Today, Comments, Reddit accounts and Jobs back out of every saved sidebar,
+wherever they sat, when they moved inside each project's Reddit module on 14 Oct
+2026 ([Networks as modules](network-modules.md)). After that the entries are an
+admin's to move or remove like any other.
 
 ## Two shell hazards worth knowing
 

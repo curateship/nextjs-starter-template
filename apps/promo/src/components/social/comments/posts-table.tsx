@@ -11,23 +11,23 @@ import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { postedDateText } from "@/lib/social/wording"
 
 import { Hint } from "../hint"
+import { IN_COLUMN_TABLE } from "../projects/project-columns"
 
-type SortColumn = "post" | "account" | "project" | "subreddit" | "sent"
+type SortColumn = "post" | "account" | "subreddit" | "sent"
 
 const COLUMNS: TableHeaderColumn<SortColumn>[] = [
   { key: "post", label: "Post", column: "main" },
-  { key: "account", label: "Account", column: "meta", className: "hidden md:table-cell" },
-  { key: "project", label: "Project", column: "meta", className: "hidden lg:table-cell" },
+  // By the middle column's width, not the window's: narrower than 56rem the
+  // account and when it went up fold into a line under the post's title.
+  { key: "account", label: "Account", column: "meta", className: "hidden @4xl:table-cell" },
   { key: "subreddit", label: "Subreddit", column: "meta" },
-  { key: "sent", label: "Sent", column: "meta", className: "hidden md:table-cell" },
+  { key: "sent", label: "Sent", column: "meta", className: "hidden @4xl:table-cell" },
 ]
 
 function compare(a: OwnPostRow, b: OwnPostRow, column: SortColumn): number {
   switch (column) {
     case "account":
       return (a.account.handle || "~").localeCompare(b.account.handle || "~")
-    case "project":
-      return (a.project?.name ?? "~").localeCompare(b.project?.name ?? "~")
     case "subreddit":
       return a.subreddit.localeCompare(b.subreddit)
     case "sent":
@@ -64,6 +64,8 @@ export function PostsTable({ tabs, rows }: { tabs: React.ReactNode; rows: OwnPos
     <DashboardTable
       title="Posts of your own"
       icon={<MessagesSquareIcon />}
+      fillHeight
+      className={IN_COLUMN_TABLE}
       tabs={tabs}
       count={rows.length}
       header={
@@ -76,7 +78,7 @@ export function PostsTable({ tabs, rows }: { tabs: React.ReactNode; rows: OwnPos
         />
       }
       isEmpty={rows.length === 0}
-      emptyText="No posts of your own yet. Write one from a project's dashboard, under its accounts."
+      emptyText="No posts of your own from this project yet."
       emptyColSpan={COLUMNS.length + 1}
       footer={{
         type: "pagination",
@@ -108,17 +110,18 @@ export function PostsTable({ tabs, rows }: { tabs: React.ReactNode; rows: OwnPos
                 {row.body || "A post with a title alone."}
               </span>
             </Hint>
+            <span className="block truncate text-xs text-muted-foreground @4xl:hidden">
+              {row.account.handle ? `u/${row.account.handle}` : "An account not signed in"}
+              {` · sent ${postedDateText(new Date(row.postedAt)).toLowerCase()}`}
+            </span>
           </TableCell>
-          <TableCell column="meta" className="hidden max-w-32 md:table-cell">
+          <TableCell column="meta" className="hidden max-w-32 @4xl:table-cell">
             <span className="block truncate">{row.account.handle ? `u/${row.account.handle}` : "Not signed in"}</span>
-          </TableCell>
-          <TableCell column="meta" className="hidden max-w-32 lg:table-cell">
-            <span className="block truncate text-muted-foreground">{row.project?.name ?? "No project"}</span>
           </TableCell>
           <TableCell column="meta" className="max-w-32">
             <span className="block truncate text-muted-foreground">r/{row.subreddit}</span>
           </TableCell>
-          <TableCell column="meta" className="hidden text-muted-foreground md:table-cell">
+          <TableCell column="meta" className="hidden text-muted-foreground @4xl:table-cell">
             {postedDateText(new Date(row.postedAt))}
           </TableCell>
           <TableCell column="actions">

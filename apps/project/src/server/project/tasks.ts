@@ -117,6 +117,8 @@ export type TaskCard = {
   startDate: string | null
   assignee: Person | null
   assignedBy: { id: string; name: string } | null
+  /** Who made it, when they still have an account: they, and the team's owners and admins, can delete it. */
+  createdByUserId: string | null
   /** Handed to someone who hasn't accepted it yet. */
   waiting: boolean
   /** The hand-over's note, shown beside Waiting until the task is accepted. */
@@ -249,6 +251,7 @@ export async function listTaskCards(
         task.assignedByUserId && row.assignerName !== null
           ? { id: task.assignedByUserId, name: row.assignerName }
           : null,
+      createdByUserId: task.createdByUserId,
       waiting: isWaiting(task),
       handoverNote: isWaiting(task) ? task.handoverNote : null,
       review: {
@@ -489,6 +492,11 @@ export async function loadTaskDetail(
 }
 
 /** My tasks on My dashboard: every task assigned to me, across every project I can see. */
+/**
+ * My tasks for My dashboard. An archived project's tasks leave it with the
+ * project (Tyler, 14 Oct 2026), as they already leave the check-in: nothing in
+ * an archived project can change, so they could only be refused.
+ */
 export async function loadMyWork(userId: string, database = db): Promise<TaskCard[]> {
   const membership = await findMembership(userId, database)
   if (!membership) return []
@@ -497,7 +505,8 @@ export async function loadMyWork(userId: string, database = db): Promise<TaskCar
     await listTaskCards(
       and(
         eq(projectTasks.assigneeUserId, userId),
-        eq(projectProjects.teamId, membership.teamId)
+        eq(projectProjects.teamId, membership.teamId),
+        isNull(projectProjects.archivedAt)
       ),
       database
     ),

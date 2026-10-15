@@ -1,22 +1,30 @@
 import * as React from "react"
-import { useRouter } from "@tanstack/react-router"
+import { useNavigate, useRouter } from "@tanstack/react-router"
 import { ChevronDownIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { BinDialog } from "@/components/project/bin-dialog"
 import { FieldColumnsMenu } from "@/components/project/field-columns-menu"
-import { NewTaskDialog } from "@/components/project/new-task-dialog"
+import { NOBODY, NewTaskDialog, type NewTaskStart } from "@/components/project/new-task-dialog"
 import { ProjectActivity } from "@/components/project/project-activity"
 import { ProjectChat } from "@/components/project/project-chat"
 import { ProjectFiles } from "@/components/project/project-files"
+import { QuickNewTask } from "@/components/project/quick-new-task"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { SaveViewDialog, SavedViewsControls } from "@/components/project/saved-views"
-import { NOBODY_LANE, TaskBoard, type BoardLane } from "@/components/project/task-board"
+import { ALL_LANE, NOBODY_LANE, TaskBoard, type BoardLane } from "@/components/project/task-board"
 import { TaskCalendar } from "@/components/project/task-calendar"
+import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION, showBinnedToast } from "@/components/project/task-body"
 import { TaskFilterPopover } from "@/components/project/task-filter-popover"
+import {
+  DueFilterMenu,
+  MembersFilterMenu,
+  SearchToggle,
+  UNDERLINE_TAB_CLASS,
+  UnderlineTabs,
+} from "@/components/project/task-header-controls"
 import { TaskList } from "@/components/project/task-list"
 import { TaskTimeline } from "@/components/project/task-timeline"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -27,28 +35,32 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { loadProjectChatUnread } from "@/lib/api/project/chat"
-import type { ProjectPage } from "@/lib/api/project/projects"
+import { saveStatusOrder, type ProjectPage } from "@/lib/api/project/projects"
 import { saveTaskOrder } from "@/lib/api/project/sorting"
-import { assignProjectTask, saveTask, setStatus, type TaskCard } from "@/lib/api/project/tasks"
+import {
+  assignProjectTask,
+  deleteProjectTask,
+  duplicateProjectTask,
+  saveTask,
+  setStatus,
+  type NewTaskProject,
+  type TaskCard,
+} from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { rememberProject } from "@/lib/project/new-task-project"
 import { BOARD_GROUP_KEY, PROJECT_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
-import type { TaskStatus } from "@/lib/project/rules"
+import { runsTheTeam, type TaskStatus } from "@/lib/project/rules"
 import { filterTasks, hasTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
 import { overDoingLimit } from "@/lib/project/doing-limit"
 import { placesAfterReorder } from "@/lib/project/task-order"
 import { offeredTypes } from "@/lib/project/task-types"
 import { useFieldColumns } from "@/lib/project/use-field-columns"
 import { useProjectLive } from "@/lib/project/use-project-live"
-import { useWidthAtLeast } from "@/lib/project/use-width-at-least"
 import { viewHasFilters } from "@/lib/project/saved-views"
-import { cn } from "@/lib/utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const VIEWS = ["board", "list", "calendar", "timeline", "activity", "files", "chat"] as const
@@ -56,8 +68,8 @@ type View = (typeof VIEWS)[number]
 
 const NO_SECTION = "none"
 
-/** The tasks panel's width from which the search box fits in its header beside the tabs. */
-const SEARCH_ROOM_PX = 896
+/** The header's New task, as opposed to a Board column's "+". */
+const HEADER_NEW_TASK = "header"
 
 const GROUPS = ["status", "person"] as const
 type Group = (typeof GROUPS)[number]
@@ -78,6 +90,11 @@ type PendingHandOver = {
  * address. A status change or a new order shows at once and is put back if
  * the server refuses it. A "Just me" list has no Files or Chat, since
  * nobody else can read it.
+ *
+ * The header, as Tyler drew it on 14 Oct 2026: underlined tabs, then the
+ * due-date dropdown, search, Filter, Views, whose tasks show (moved here from
+ * the left panel), and New task. New task, and the "+" on each Board column,
+ * open a dropdown rather than a window. A card's "..." duplicates or deletes it.
  */
 export function ProjectTasksPanel({
   page,
@@ -99,6 +116,7 @@ export function ProjectTasksPanel({
   onChatOpened: () => void
 }) {
   const router = useRouter()
+  const navigate = useNavigate()
   const [chosenView, setView] = useRememberedChoice<View>(PROJECT_TASK_VIEW_KEY, "board", VIEWS)
   // A "Just me" list has no Chat and no Files tab, since nobody else shares it.
   const hasChat = !page.project.personal
@@ -110,6 +128,7 @@ export function ProjectTasksPanel({
     onChatOpened()
   }, [openChat, hasChat, setView, onChatOpened])
   const [tasks, setTasks] = useSyncedDraft(page.tasks)
+  const [statusOrder, setStatusOrder] = useSyncedDraft(page.project.statusOrder)
   // "3 new" on the Chat tab. Opening the chat reads it, so nothing shows there
   // and nothing is left once I move on; elsewhere it follows new messages.
   const [chatUnread, setChatUnread] = useSyncedDraft(page.chatUnread)
@@ -121,7 +140,11 @@ export function ProjectTasksPanel({
       loadProjectChatUnread(page.project.id).then(setChatUnread, () => undefined)
     }
   )
-  const [creating, setCreating] = React.useState(false)
+  // Which New task dropdown is open: the header's, or a Board column's by its key.
+  const [quickOpen, setQuickOpen] = React.useState<string | null>(null)
+  // "More options": the full window, with what the dropdown held.
+  const [full, setFull] = React.useState<NewTaskStart | null>(null)
+  const [deleting, setDeleting] = React.useState<TaskCard | null>(null)
   const [binOpen, setBinOpen] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
   // The task waiting for its Stuck reason, and where the Board dropped it.
@@ -205,6 +228,15 @@ export function ProjectTasksPanel({
     return ok
   }
 
+  /** A Board column dropped in a new place: shown at once, saved for everyone on the project, put back if refused. */
+  async function changeStatusOrder(next: TaskStatus[]) {
+    const before = statusOrder
+    setStatusOrder(next)
+    const ok = await run(() => saveStatusOrder({ projectId: page.project.id, statusOrder: next }))
+    if (!ok) setStatusOrder(before)
+    else await router.invalidate()
+  }
+
   /** A day dropped on the Calendar: the same save as picking the date on the task. */
   async function changeDueDate(task: TaskCard, dueDate: string | null) {
     const before = tasks
@@ -256,9 +288,73 @@ export function ProjectTasksPanel({
   }
 
   const here = { projectId: page.project.id, people, labels: page.labels, types: page.taskTypes }
-  // The search box needs the panel's width; below it, the box is the Filter popover's first row.
-  const [header, roomForSearch] = useWidthAtLeast<HTMLDivElement>(SEARCH_ROOM_PX)
   const taskTab = view !== "activity" && view !== "files" && view !== "chat"
+
+  const thisProject: NewTaskProject = {
+    id: page.project.id,
+    name: page.project.name,
+    color: page.project.color,
+    members: page.members,
+    typeIds: offeredTypes(page.taskTypes, page.project.personal ? [] : page.project.hiddenTypeIds).map(
+      (type) => type.id
+    ),
+    defaultTypeId: page.project.defaultTypeId,
+  }
+
+  /** A New task dropdown, opened by `children`. `key` says which one is open. */
+  function quickNewTask(
+    key: string,
+    children: React.ReactNode,
+    start?: { status: TaskStatus; assignee?: string; tooltip: string }
+  ) {
+    return (
+      <QuickNewTask
+        projects={[thisProject]}
+        types={page.taskTypes}
+        initialProjectId={page.project.id}
+        status={start?.status}
+        assignee={start?.assignee}
+        tooltip={start?.tooltip}
+        align={key === HEADER_NEW_TASK ? "end" : "start"}
+        open={quickOpen === key}
+        onOpenChange={(open) => setQuickOpen(open ? key : null)}
+        onMoreOptions={(_projectId, draft) => setFull(draft)}
+        onCreated={rememberProject}
+      >
+        {children}
+      </QuickNewTask>
+    )
+  }
+
+  /** Duplicate from a card's menu: the copy opens beside the Board, as from the task's own cog. */
+  async function duplicate(task: TaskCard) {
+    let copyId = ""
+    const ok = await run(async () => {
+      copyId = (await duplicateProjectTask(task.id)).id
+    }, "Task copied. This is the copy.")
+    if (!ok) return
+    await router.invalidate()
+    onOpenTask(copyId)
+  }
+
+  async function remove(task: TaskCard) {
+    const ok = await run(() => deleteProjectTask(task.id))
+    if (!ok) return
+    setDeleting(null)
+    showBinnedToast(task.id, router)
+    // A deleted task can't stay open beside the Board.
+    if (task.id === openTaskId) {
+      void navigate({
+        to: ".",
+        replace: true,
+        search: (previous: Record<string, unknown>) => ({ ...previous, task: undefined }),
+      })
+    }
+    await router.invalidate()
+  }
+
+  // Open tasks for the members dropdown, counted before any filter.
+  const openTasks = tasks.filter((task) => task.status !== "done")
 
   function saveView() {
     if (!viewHasFilters(filters)) {
@@ -270,52 +366,37 @@ export function ProjectTasksPanel({
 
   return (
     <>
-      <DashboardCardHeader ref={header} className="@container">
-        <Tabs
+      <DashboardCardHeader className="@container">
+        <UnderlineTabs
           value={view}
           onValueChange={(value) => pickView(value as View)}
-          className="min-w-0 flex-1"
-        >
-          {/* The tabs scroll sideways rather than sliding under the buttons. */}
-          <ScrollArea className="min-w-0">
-            <div className="flex w-max items-center gap-1">
-              <TabsList className="justify-start">
-                <TabsTrigger value="board">Board</TabsTrigger>
-                <TabsTrigger value="list">List</TabsTrigger>
-                <TabsTrigger value="calendar">Calendar</TabsTrigger>
-                <TabsTrigger value="timeline">Timeline</TabsTrigger>
-              </TabsList>
-              <MoreViews
-                view={view}
-                hasChat={hasChat}
-                chatUnread={view === "chat" ? 0 : chatUnread}
-                onPick={pickView}
-                onBin={readOnly ? null : () => setBinOpen(true)}
-              />
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </Tabs>
-        <div className="flex shrink-0 items-center gap-2">
+          tabs={[
+            { value: "board", label: "Board" },
+            { value: "list", label: "List" },
+            { value: "calendar", label: "Calendar" },
+            { value: "timeline", label: "Timeline" },
+          ]}
+          after={
+            <MoreViews
+              view={view}
+              hasChat={hasChat}
+              chatUnread={view === "chat" ? 0 : chatUnread}
+              onPick={pickView}
+              onBin={readOnly ? null : () => setBinOpen(true)}
+            />
+          }
+        />
+        <div className="flex shrink-0 items-center gap-1">
           {taskTab ? (
             <>
-              {roomForSearch ? (
-                <DashboardToolbarSearch
-                inputClassName="sm:w-44 lg:w-48"
-                name="task-search"
-                aria-label="Search tasks by title and notes"
-                placeholder="Search tasks"
-                value={filters.q ?? ""}
-                onChange={(event) => onFilters({ q: event.target.value || undefined })}
-                />
-              ) : null}
+              <DueFilterMenu value={filters.due} onChange={(due) => onFilters({ due })} />
+              <SearchToggle value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
               <TaskFilterPopover
                 filters={filters}
                 onChange={onFilters}
-                people={people}
                 labels={page.labels}
                 types={page.taskTypes}
-                search={!roomForSearch}
+                buttonVariant="ghost"
                 groupByPerson={
                   view === "board" && !page.project.personal
                     ? { on: byPerson, onChange: (on) => setGroup(on ? "person" : "status") }
@@ -338,32 +419,33 @@ export function ProjectTasksPanel({
                 onChange={onFilters}
                 here={here}
                 saveButton={false}
+                buttonVariant="ghost"
               />
+              {/* A "Just me" list has one person, so there is nobody to pick. */}
+              {page.project.personal ? null : (
+                <MembersFilterMenu
+                  members={page.members}
+                  myUserId={page.myUserId}
+                  openTotal={openTasks.length}
+                  openUnassigned={openTasks.filter((task) => !task.assignee).length}
+                  value={filters.person}
+                  onChange={(person) => onFilters({ person })}
+                />
+              )}
             </>
           ) : null}
-          {readOnly ? null : (
-            // Words where there is room; an icon with its name in a narrow panel.
-            <Button
-              type="button"
-              className="@max-2xl:size-8 @max-2xl:px-0"
-              aria-label="New task"
-              onClick={() => setCreating(true)}
-            >
-              <PlusIcon className="size-4" />
-              <span className="@max-2xl:hidden">New task</span>
-            </Button>
-          )}
+          {readOnly
+            ? null
+            : quickNewTask(
+                HEADER_NEW_TASK,
+                // Words where there is room; an icon with its name in a narrow panel.
+                <Button type="button" className="ml-1 @max-3xl:size-8 @max-3xl:px-0" aria-label="New task">
+                  <PlusIcon className="size-4" />
+                  <span className="@max-3xl:hidden">New task</span>
+                </Button>
+              )}
         </div>
       </DashboardCardHeader>
-      {taskTab && !roomForSearch && filters.q?.trim() ? (
-        // The search box is inside Filter in a narrow panel, so the words being searched show here.
-        <p className="flex items-center gap-2 border-b px-3 py-2 text-sm text-muted-foreground">
-          Searching for "{filters.q.trim()}"
-          <Button type="button" variant="ghost" size="sm" onClick={() => onFilters({ q: undefined })}>
-            Clear search
-          </Button>
-        </p>
-      ) : null}
       {view === "chat" ? (
         <ProjectChat page={page} />
       ) : view === "activity" ? (
@@ -400,6 +482,28 @@ export function ProjectTasksPanel({
           onMove={requestStatus}
           onReorder={(taskIds) => void reorder(taskIds)}
           lanes={byPerson ? lanes : undefined}
+          statusOrder={statusOrder}
+          onStatusOrder={(next) => void changeStatusOrder(next)}
+          addTask={
+            readOnly
+              ? undefined
+              : (key, status, laneId, button, label) =>
+                  quickNewTask(key, button, {
+                    status,
+                    tooltip: label,
+                    // On a person's row the task is theirs; "Nobody assigned" makes it nobody's.
+                    assignee: laneId === NOBODY_LANE ? NOBODY : laneId === ALL_LANE ? undefined : laneId,
+                  })
+          }
+          cardActions={
+            readOnly
+              ? undefined
+              : {
+                  onDuplicate: (task) => void duplicate(task),
+                  onDelete: (task) => setDeleting(task),
+                  canDelete: (task) => task.createdByUserId === page.myUserId || runsTheTeam(page.myRole),
+                }
+          }
           onHandOver={(task, personId, status, order) => {
             // A move to Stuck in another row still needs its reason, so it is refused here.
             if (status === "stuck" && task.status !== "stuck") {
@@ -426,22 +530,12 @@ export function ProjectTasksPanel({
         />
       )}
       <NewTaskDialog
-        projects={[
-          {
-            id: page.project.id,
-            name: page.project.name,
-            color: page.project.color,
-            members: page.members,
-            typeIds: offeredTypes(page.taskTypes, page.project.personal ? [] : page.project.hiddenTypeIds).map(
-              (type) => type.id
-            ),
-            defaultTypeId: page.project.defaultTypeId,
-          },
-        ]}
+        projects={[thisProject]}
         types={page.taskTypes}
         initialProjectId={page.project.id}
-        open={creating}
-        onClose={() => setCreating(false)}
+        start={full ?? undefined}
+        open={Boolean(full)}
+        onClose={() => setFull(null)}
         onCreated={rememberProject}
       />
       <BinDialog projectId={page.project.id} open={binOpen} onClose={() => setBinOpen(false)} />
@@ -461,6 +555,16 @@ export function ProjectTasksPanel({
         confirmLabel={handingOver?.person ? "Hand over" : "Unassign"}
         loading={busy}
         onConfirm={() => (handingOver ? void handOver(handingOver) : undefined)}
+      />
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        onOpenChange={(open) => (open || busy ? undefined : setDeleting(null))}
+        title={DELETE_TASK_QUESTION}
+        description={deleting ? `"${deleting.title}". ${DELETE_TASK_DETAIL}` : DELETE_TASK_DETAIL}
+        confirmLabel="Delete task"
+        destructive
+        loading={busy}
+        onConfirm={() => (deleting ? void remove(deleting) : undefined)}
       />
       <ReasonDialog
         open={Boolean(stuck)}
@@ -486,7 +590,7 @@ const MORE_VIEW_LABEL: Partial<Record<View, string>> = { activity: "Activity", f
 
 /**
  * Activity, Files and Chat, and the bin, behind More beside the four tabs,
- * as Tyler drew the page on 13 Oct 2026. While one of the three is showing,
+ * as Tyler drew the page on 13 Oct 2026, and drawn as a tab since 14 Oct. While one of the three is showing,
  * the button wears its name. "3 new" on the project's chat shows on the
  * button and on Chat.
  */
@@ -514,16 +618,17 @@ function MoreViews({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
+        {/* Drawn as a fifth tab, underlined while one of its views shows. */}
+        <button
           type="button"
-          variant="ghost"
-          className={cn(showing ? "bg-muted text-foreground" : "text-muted-foreground")}
+          className={UNDERLINE_TAB_CLASS}
+          data-state={showing ? "active" : "inactive"}
           aria-current={showing ? "page" : undefined}
         >
           {showing ?? "More"}
           {unread}
           <ChevronDownIcon className="size-4" />
-        </Button>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48">
         <DropdownMenuItem onSelect={() => onPick("activity")}>Activity</DropdownMenuItem>

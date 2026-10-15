@@ -24,7 +24,8 @@ export function MonthGrid({
   return (
     <div className="grid grid-cols-7 gap-1.5 p-3">
       {WEEK_DAYS.map(({ day, short }) => (
-        <div key={day} aria-hidden className="pb-1 text-center text-xs text-muted-foreground">
+        // Small capitals at each square's left, as Tyler drew the Team calendar on 14 Oct 2026.
+        <div key={day} aria-hidden className="px-2 pb-1 text-left text-xs tracking-wide text-muted-foreground uppercase">
           {short}
         </div>
       ))}

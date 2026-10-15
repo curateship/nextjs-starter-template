@@ -22,6 +22,7 @@ import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { Hint } from "../hint"
+import { IN_COLUMN_TABLE } from "../projects/project-columns"
 
 /** Only an address on Reddit is ever opened from a stored value. */
 function openOnReddit(url: string) {
@@ -32,9 +33,11 @@ type SortColumn = "what" | "account" | "why" | "when"
 
 const COLUMNS: TableHeaderColumn<SortColumn>[] = [
   { key: "what", label: "What", column: "main" },
-  { key: "account", label: "Account", column: "meta", className: "hidden md:table-cell" },
+  // By the middle column's width, not the window's: narrower than 56rem the
+  // account and when fold into a line under what failed.
+  { key: "account", label: "Account", column: "meta", className: "hidden @4xl:table-cell" },
   { key: "why", label: "Why", column: "meta" },
-  { key: "when", label: "When", column: "meta", className: "hidden md:table-cell" },
+  { key: "when", label: "When", column: "meta", className: "hidden @4xl:table-cell" },
 ]
 
 function what(row: FailureRow): string {
@@ -134,6 +137,8 @@ export function FailedTable({
     <DashboardTable
       title="Comments that did not go out"
       icon={<MessagesSquareIcon />}
+      fillHeight
+      className={IN_COLUMN_TABLE}
       tabs={tabs}
       count={failures.length}
       error={error ? { message: error, onRetry: () => void onRefresh() } : null}
@@ -169,7 +174,7 @@ export function FailedTable({
         />
       }
       isEmpty={failures.length === 0}
-      emptyText="Nothing failed. Every comment, answer and post you pressed went out."
+      emptyText="Nothing failed. Everything you pressed went out."
       emptyColSpan={6}
       footer={{
         type: "pagination",
@@ -221,8 +226,11 @@ export function FailedTable({
                   {row.subreddit ? ` in r/${row.subreddit}` : ""} · {row.text || "No words were saved."}
                 </span>
               </Hint>
+              <span className="block truncate text-xs text-muted-foreground @4xl:hidden">
+                {accountText(row)} · {formatTimeAgo(row.failedAt)}
+              </span>
             </TableCell>
-            <TableCell column="meta" className="hidden max-w-32 md:table-cell">
+            <TableCell column="meta" className="hidden max-w-32 @4xl:table-cell">
               <Hint label={accountText(row)}>
                 <span className="block truncate">{accountText(row)}</span>
               </Hint>
@@ -240,7 +248,7 @@ export function FailedTable({
                 <span className="block truncate text-xs text-muted-foreground">{row.reason}</span>
               </Hint>
             </TableCell>
-            <TableCell column="meta" className="hidden whitespace-nowrap text-muted-foreground md:table-cell">
+            <TableCell column="meta" className="hidden whitespace-nowrap text-muted-foreground @4xl:table-cell">
               {formatTimeAgo(row.failedAt)}
             </TableCell>
             <TableCell column="actions">

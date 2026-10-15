@@ -85,6 +85,14 @@ describe("the Reddit accounts list", () => {
     )
   })
 
+  it("lists every platform's accounts, each naming its platform", async () => {
+    await account(400)
+    await db.insert(promoAccounts).values({ id: uuid(), userId, platform: "instagram", handle: "a_gram" })
+
+    const rows = await listRedditAccounts(userId, { retired: false }, db, NOW)
+    expect(rows.map((row) => row.platform).sort()).toEqual(["instagram", "reddit"])
+  })
+
   it("refuses the reader browser for an account", async () => {
     const reader = await createProfile(userId, { name: "Reader" }, db)
     await saveBehaviour(userId, { ...(await readBehaviour(userId, db)), readerProfileId: reader }, db)

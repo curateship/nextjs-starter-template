@@ -2,7 +2,7 @@ import * as React from "react"
 import { Loader2Icon, RefreshCwIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { AnswerPanel, type DraftView, type FindDetail } from "@/components/social/reddit/answer-panel"
+import { AnswerPanel, PostsAs, type DraftView, type FindDetail } from "@/components/social/reddit/answer-panel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -36,7 +36,7 @@ import {
   readThread,
   setFindsStatus,
 } from "@/lib/api/social/reddit/keywords"
-import { postedDateText, postingBlockedReason, waitingCommentText } from "@/lib/social/wording"
+import { postButtonWords, postedDateText, postingBlockedReason, waitingCommentText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { Hint } from "../hint"
@@ -169,12 +169,14 @@ function HelpWindow({ accountId, onClose }: { accountId: string; onClose: () => 
           <AnswerPanel
             find={open?.find ?? null}
             handle={account?.handle || null}
+            postWords={postButtonWords(account)}
             drafts={open?.drafts ?? []}
             loading={!open}
             working={busy}
             disabledReason={account ? postingBlockedReason(account, open?.find ?? null) : null}
             postingState={account?.posting ?? null}
             voiceName={account?.voice?.name ?? null}
+            accountPicker={<PostsAs handle={account?.handle || null} postingState={account?.posting ?? null} />}
             onBack={() => {
               setSelected(null)
               void refresh()

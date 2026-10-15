@@ -19,12 +19,15 @@ const { queueComment } = await import("./posting")
 const {
   accountForFind,
   addAccountToProject,
+  addProjectNetwork,
   createProject,
   deleteProject,
   deleteProjects,
   listProjectRows,
+  projectForOldScreen,
   readProjectView,
   removeAccountFromProject,
+  removeProjectNetwork,
   updateProject,
 } = await import("./projects")
 const { promoAccounts, promoComments, promoFinds, promoJobs, promoKeywords, promoProjects } = await import("./schema")
@@ -284,5 +287,66 @@ describe("projects", () => {
 
     await draftComments({ userId, findId, accountId: loose.id }, db)
     expect(prompt).not.toContain("WHAT I MAKE")
+  })
+
+  it("uses the networks ticked when it is made, and adds or takes one off", async () => {
+    const id = await createProject(userId, "Networked", db, ["reddit"])
+    expect((await readProjectView(userId, id, db)).project.networks).toEqual(["reddit"])
+    await expect(addProjectNetwork(userId, id, "reddit", db)).rejects.toThrow("Networked already uses Reddit.")
+
+    const bare = await createProject(userId, "Bare", db)
+    expect((await readProjectView(userId, bare, db)).project.networks).toEqual([])
+    await addProjectNetwork(userId, bare, "reddit", db)
+    expect((await readProjectView(userId, bare, db)).project.networks).toEqual(["reddit"])
+    await removeProjectNetwork(userId, bare, "reddit", db)
+    expect((await readProjectView(userId, bare, db)).project.networks).toEqual([])
+
+    // Somebody else's project is never changed.
+    const stranger = (await insertUser(db, { role: "admin" })).id
+    await expect(addProjectNetwork(stranger, bare, "reddit", db)).rejects.toThrow("does not exist")
+    await expect(addProjectNetwork(userId, bare, "myspace" as "reddit", db)).rejects.toThrow("cannot use that network")
+  })
+
+  it("refuses to take Reddit off while the project holds Reddit accounts or keywords, saying how many", async () => {
+    const projectId = await createProject(userId, "Busy", db, ["reddit"])
+    await account({ projectId })
+    await find(projectId)
+    await expect(removeProjectNetwork(userId, projectId, "reddit", db)).rejects.toThrow(
+      "Busy still holds 1 Reddit account and 1 keyword. Take its accounts out and remove its keywords first, then take Reddit off."
+    )
+    expect((await readProjectView(userId, projectId, db)).project.networks).toEqual(["reddit"])
+  })
+
+  it("sends the old screens' addresses to the right project", async () => {
+    expect(await projectForOldScreen(userId, "today", null, db)).toBeNull()
+    expect(await projectForOldScreen(userId, "jobs", null, db)).toBeNull()
+
+    const first = await createProject(userId, "First", db, ["reddit"])
+    expect(await projectForOldScreen(userId, "today", null, db)).toBe(first)
+
+    const second = await createProject(userId, "Second", db, ["reddit"])
+    // With two to pick from, Today and Comments go to the Projects table;
+    // Jobs is the same list from any project, so the first.
+    expect(await projectForOldScreen(userId, "today", null, db)).toBeNull()
+    expect(await projectForOldScreen(userId, "comments", null, db)).toBeNull()
+    expect(await projectForOldScreen(userId, "jobs", null, db)).toBe(first)
+
+    // A comment opens in the project its account is in now.
+    const { id: accountId } = await account({ projectId: second })
+    const findId = await find(second)
+    const commentId = uuid()
+    await db.insert(promoComments).values({
+      id: commentId,
+      userId,
+      findId,
+      accountId,
+      text: "Try a kanban board.",
+      status: "posted",
+      postedAt: NOW,
+    })
+    expect(await projectForOldScreen(userId, "comments", commentId, db)).toBe(second)
+    // Another person's comment id says nothing about where it is.
+    const stranger = (await insertUser(db, { role: "admin" })).id
+    expect(await projectForOldScreen(stranger, "comments", commentId, db)).toBeNull()
   })
 })

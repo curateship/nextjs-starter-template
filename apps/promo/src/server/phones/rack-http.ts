@@ -14,7 +14,7 @@ import { RackRefusal, signReply, verifyRackRequest, type VerifiedRack } from "./
  * failure, is signed, so the rack can trust whatever it acts on.
  */
 
-/** A check-in is a few kilobytes; a result may carry four shrunk pictures. */
+/** A check-in is a few kilobytes; a result may carry thirty shrunk step pictures. */
 const MAX_BODY_CHARS = 10_000_000
 
 const NEVER_CACHE = { "cache-control": "no-store" }

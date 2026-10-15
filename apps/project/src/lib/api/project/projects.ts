@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { copyProjectSchema, createProjectSchema, updateProjectSchema } from "@/lib/project/rules"
+import { copyProjectSchema, createProjectSchema, statusOrderSchema, updateProjectSchema } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
 import { listInvitesForMe } from "@/server/project/invites"
 import { loadProjectActivity } from "@/server/project/project-activity"
@@ -14,6 +14,7 @@ import {
   loadProjectsPage,
   removeProjectMember,
   setProjectArchived,
+  setStatusOrder,
   updateProject,
 } from "@/server/project/projects"
 
@@ -52,6 +53,11 @@ const updateProjectFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(updateProjectSchema)
   .handler(async ({ data, context }) => updateProject(context.user.id, data))
+
+const statusOrderFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(statusOrderSchema)
+  .handler(async ({ data, context }) => setStatusOrder(context.user.id, data))
 
 const setArchivedFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -111,6 +117,9 @@ export function createNewProject(data: z.input<typeof createProjectSchema>) {
 }
 export function saveProject(data: z.input<typeof updateProjectSchema>) {
   return updateProjectFn({ data })
+}
+export function saveStatusOrder(data: z.input<typeof statusOrderSchema>) {
+  return statusOrderFn({ data })
 }
 export function archiveProject(projectId: string, archived: boolean) {
   return setArchivedFn({ data: { projectId, archived } })

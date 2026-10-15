@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="" class="android.widget.FrameLayout" package="com.android.chrome" content-desc="" bounds="[0,0][1080,2400]">
+    <node index="0" text="ipinfo.io/json" class="android.widget.EditText" package="com.android.chrome" content-desc="" bounds="[100,80][900,180]" />
+    <node index="1" text="" class="android.webkit.WebView" package="com.android.chrome" content-desc="" bounds="[0,200][1080,2400]">
+      <node index="0" text="{" class="android.widget.TextView" package="com.android.chrome" content-desc="" bounds="[20,220][60,270]" />
+      <node index="1" text="&quot;ip&quot;: &quot;172.56.21.9&quot;," class="android.widget.TextView" package="com.android.chrome" content-desc="" bounds="[20,280][900,330]" />
+      <node index="2" text="&quot;city&quot;: &quot;Toronto&quot;," class="android.widget.TextView" package="com.android.chrome" content-desc="" bounds="[20,340][900,390]" />
+      <node index="3" text="&quot;country&quot;: &quot;CA&quot;," class="android.widget.TextView" package="com.android.chrome" content-desc="" bounds="[20,400][900,450]" />
+      <node index="4" text="&quot;org&quot;: &quot;AS812 Rogers Communications Canada Inc.&quot;," class="android.widget.TextView" package="com.android.chrome" content-desc="" bounds="[20,460][900,510]" />
+      <node index="5" text="&quot;timezone&quot;: &quot;America/Toronto&quot;" class="android.widget.TextView" package="com.android.chrome" content-desc="" bounds="[20,520][900,570]" />
+      <node index="6" text="}" class="android.widget.TextView" package="com.android.chrome" content-desc="" bounds="[20,580][60,630]" />
+    </node>
+  </node>
+</hierarchy>

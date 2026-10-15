@@ -335,7 +335,10 @@ def reddit_thread(page, args):
     _goto(page, url)
 
     limit = int(args.get("replyLimit") or 8)
-    parsed = _fetch_json(page, url.rstrip("/") + ".json?limit=%d" % limit)
+    # "new" puts a just-posted comment first, which is how the app finds the
+    # address of a comment a phone posted. Anything else is Reddit's order.
+    sort = "&sort=new" if args.get("sort") == "new" else ""
+    parsed = _fetch_json(page, url.rstrip("/") + ".json?limit=%d%s" % (limit, sort))
 
     if isinstance(parsed, list) and len(parsed) >= 2:
         post_children = ((parsed[0].get("data") or {}).get("children")) or []
@@ -346,11 +349,13 @@ def reddit_thread(page, args):
             text = _text(data.get("body"))
             if not text or data.get("author") in (None, "[deleted]"):
                 continue
+            permalink = data.get("permalink") or ""
             replies.append(
                 {
                     "author": data.get("author") or "",
                     "text": text,
                     "score": int(data.get("score") or 0),
+                    "permalink": ("https://www.reddit.com" + permalink) if permalink.startswith("/") else "",
                 }
             )
             if len(replies) >= limit:

@@ -1,15 +1,22 @@
-# The Jobs dashboard
+# The Jobs window
 
-**Jobs** (`/admin/jobs`), last under Projects in the left menu, shows whether
-the browser program is running, and lists every job it is doing, waiting to
-do, or did lately.
+**Jobs**, a button in the middle column's header on a project's Reddit module,
+opens a window that shows whether the browser program is running, and lists
+every job it is doing, waiting to do, or did lately, for every project. The
+button shows how many are running or waiting. **See the jobs**, in the red line
+under the keyword chips, opens the same window.
 
 Tyler asked for it on 13 Oct 2026: "should there be jobs visible somewhere in
 the settings so I can see what's running?" His searches had sat waiting since
 the evening before, with the keyword chip spinning, because the program that
 runs them was not running. Nothing on screen could say so. It started as a
 Settings tab, and the same day he asked for it to be "its own route and put it
-under projects". The menu link is added by `drizzle/0113_promo_jobs_menu.sql`.
+under projects". The menu link was added by `drizzle/0113_promo_jobs_menu.sql`.
+On 14 Oct 2026 Tyler moved it inside the project: "Jobs can be a button in
+middle header panel that opens up a modal". `drizzle/0118_promo_project_networks.sql`
+took the menu link out, and `/admin/jobs` now opens the window on the first
+project. The list is read when the window opens, then again every five seconds
+while it is open.
 
 ## Why there is a program to watch
 
@@ -72,18 +79,19 @@ deleted post does the same.
 - **Try again** puts a failed job back on the queue for a fresh three goes. It
   is offered only for jobs that read. A comment, an answer, a post of your own,
   a delete or an edit may have reached Reddit before it failed, so those are
-  tried again from the Comments screen's Failed tab, where the words go back in
+  tried again from the Comments tab's Failed list, where the words go back in
   the box and Post still needs a press.
-
-The list loads with the page, then is read again every five seconds while the
-page is open.
 
 ## Where the code is
 
-- `src/routes/_authenticated/admin/jobs.tsx`: the page.
+- `src/components/social/reddit/jobs-window.tsx`: the window, which reads
+  the list as it opens. `src/routes/_authenticated/admin/jobs.tsx` only sends
+  the old address on.
 - `src/components/social/jobs/jobs-dashboard.tsx`: the card and the table.
 - `src/server/social/job-list.ts`: the list, Cancel and Try again.
 - `src/server/social/browser-program.ts`: check-in, check-out and the reading.
 - `worker/src/social-browser.ts`: checks in each time it matches its lanes to
-  the open-browser limit, every 15 seconds.
+  the open-browser limit and the phones-working limit, every 15 seconds. Phone
+  jobs run in this same program, on lanes of their own
+  ([Jobs on phones](../phones/phone-jobs.md)).
 - `src/lib/social/job-words.ts`: every sentence the dashboard shows.

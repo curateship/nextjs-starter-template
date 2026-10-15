@@ -34,6 +34,7 @@ import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/h
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as AuthenticatedAdminAccountsRouteImport } from './routes/_authenticated/admin/accounts'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
@@ -76,6 +77,7 @@ import { Route as ApiRackPairRouteImport } from './routes/api/rack/pair'
 import { Route as ApiRackProgramDotpyRouteImport } from './routes/api/rack/program[.]py'
 import { Route as ApiRackReleaseRouteImport } from './routes/api/rack/release'
 import { Route as ApiRackResultRouteImport } from './routes/api/rack/result'
+import { Route as ApiRackScreenRouteImport } from './routes/api/rack/screen'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
@@ -217,6 +219,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminAccountsRoute =
+  AuthenticatedAdminAccountsRouteImport.update({
+    id: '/accounts',
+    path: '/accounts',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAiRoute = AuthenticatedAdminAiRouteImport.update({
   id: '/ai',
   path: '/ai',
@@ -452,6 +460,11 @@ const ApiRackResultRoute = ApiRackResultRouteImport.update({
   path: '/api/rack/result',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRackScreenRoute = ApiRackScreenRouteImport.update({
+  id: '/api/rack/screen',
+  path: '/api/rack/screen',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWebhooksResendRoute = ApiWebhooksResendRouteImport.update({
   id: '/api/webhooks/resend',
   path: '/api/webhooks/resend',
@@ -567,6 +580,7 @@ export interface FileRoutesByFullPath {
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/admin/accounts': typeof AuthenticatedAdminAccountsRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -608,6 +622,7 @@ export interface FileRoutesByFullPath {
   '/api/rack/program.py': typeof ApiRackProgramDotpyRoute
   '/api/rack/release': typeof ApiRackReleaseRoute
   '/api/rack/result': typeof ApiRackResultRoute
+  '/api/rack/screen': typeof ApiRackScreenRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -649,6 +664,7 @@ export interface FileRoutesByTo {
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/admin/accounts': typeof AuthenticatedAdminAccountsRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -690,6 +706,7 @@ export interface FileRoutesByTo {
   '/api/rack/program.py': typeof ApiRackProgramDotpyRoute
   '/api/rack/release': typeof ApiRackReleaseRoute
   '/api/rack/result': typeof ApiRackResultRoute
+  '/api/rack/screen': typeof ApiRackScreenRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -735,6 +752,7 @@ export interface FileRoutesById {
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/_authenticated/admin/accounts': typeof AuthenticatedAdminAccountsRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -776,6 +794,7 @@ export interface FileRoutesById {
   '/api/rack/program.py': typeof ApiRackProgramDotpyRoute
   '/api/rack/release': typeof ApiRackReleaseRoute
   '/api/rack/result': typeof ApiRackResultRoute
+  '/api/rack/screen': typeof ApiRackScreenRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -821,6 +840,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/workspaces'
     | '/api/health'
+    | '/admin/accounts'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -862,6 +882,7 @@ export interface FileRouteTypes {
     | '/api/rack/program.py'
     | '/api/rack/release'
     | '/api/rack/result'
+    | '/api/rack/screen'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin/'
@@ -903,6 +924,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/workspaces'
     | '/api/health'
+    | '/admin/accounts'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -944,6 +966,7 @@ export interface FileRouteTypes {
     | '/api/rack/program.py'
     | '/api/rack/release'
     | '/api/rack/result'
+    | '/api/rack/screen'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin'
@@ -988,6 +1011,7 @@ export interface FileRouteTypes {
     | '/_authenticated/home'
     | '/_authenticated/workspaces'
     | '/api/health'
+    | '/_authenticated/admin/accounts'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
@@ -1029,6 +1053,7 @@ export interface FileRouteTypes {
     | '/api/rack/program.py'
     | '/api/rack/release'
     | '/api/rack/result'
+    | '/api/rack/screen'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/_authenticated/admin/'
@@ -1078,6 +1103,7 @@ export interface RootRouteChildren {
   ApiRackProgramDotpyRoute: typeof ApiRackProgramDotpyRoute
   ApiRackReleaseRoute: typeof ApiRackReleaseRoute
   ApiRackResultRoute: typeof ApiRackResultRoute
+  ApiRackScreenRoute: typeof ApiRackScreenRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
@@ -1262,6 +1288,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/accounts': {
+      id: '/_authenticated/admin/accounts'
+      path: '/accounts'
+      fullPath: '/admin/accounts'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/ai': {
@@ -1558,6 +1591,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRackResultRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/rack/screen': {
+      id: '/api/rack/screen'
+      path: '/api/rack/screen'
+      fullPath: '/api/rack/screen'
+      preLoaderRoute: typeof ApiRackScreenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/webhooks/resend': {
       id: '/api/webhooks/resend'
       path: '/api/webhooks/resend'
@@ -1700,6 +1740,7 @@ const AuthenticatedAdminSettingsRouteWithChildren =
   )
 
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminAccountsRoute: typeof AuthenticatedAdminAccountsRoute
   AuthenticatedAdminAiRoute: typeof AuthenticatedAdminAiRoute
   AuthenticatedAdminAiUsageRoute: typeof AuthenticatedAdminAiUsageRoute
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
@@ -1742,6 +1783,7 @@ interface AuthenticatedAdminRouteChildren {
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminAccountsRoute: AuthenticatedAdminAccountsRoute,
   AuthenticatedAdminAiRoute: AuthenticatedAdminAiRoute,
   AuthenticatedAdminAiUsageRoute: AuthenticatedAdminAiUsageRoute,
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
@@ -1857,6 +1899,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRackProgramDotpyRoute: ApiRackProgramDotpyRoute,
   ApiRackReleaseRoute: ApiRackReleaseRoute,
   ApiRackResultRoute: ApiRackResultRoute,
+  ApiRackScreenRoute: ApiRackScreenRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,

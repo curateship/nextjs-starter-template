@@ -19,7 +19,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
-import { NOBODY_FILTER, type TaskFilters } from "@/lib/project/task-filters"
+import type { TaskFilters } from "@/lib/project/task-filters"
 import type { TaskType } from "@/lib/project/task-types"
 
 const ALL = "all"
@@ -29,32 +29,32 @@ const NO_TASK_FILTERS: Partial<TaskFilters> = {
   q: undefined,
   status: undefined,
   priority: undefined,
-  person: undefined,
   label: undefined,
   type: undefined,
 }
 
 /**
  * The project page's filters behind one Filter button, as Tyler drew them on
- * 13 Oct 2026: a row each for Status, Priority, Person, Label and Type, the
+ * 13 Oct 2026: a row each for Status, Priority, Label and Type, the
  * Board's "Group by person" switch, then Clear and Save as view. The button
  * counts the filters set. Where the panel is too narrow for the header's
- * search box, the search is the popover's first row instead.
+ * search box, the search is the popover's first row instead. Who the task
+ * is for and when it is due are dropdowns of their own in the project page's
+ * header (Tyler, 14 Oct 2026), so Clear leaves them alone.
  */
 export function TaskFilterPopover({
   filters,
   onChange,
-  people,
   labels,
   types,
   search,
   groupByPerson,
   extra,
   onSaveView,
+  buttonVariant = "outline",
 }: {
   filters: TaskFilters
   onChange: (patch: Partial<TaskFilters>) => void
-  people?: { id: string; name: string }[]
   labels: TaskLabel[]
   /** The team's task types; archived ones still find the tasks that have them. */
   types: TaskType[]
@@ -65,18 +65,18 @@ export function TaskFilterPopover({
   /** More controls under the switch, such as the List's Columns menu. */
   extra?: React.ReactNode
   onSaveView: () => void
+  /** Ghost in the project page's header, where every control is. */
+  buttonVariant?: "outline" | "ghost"
 }) {
-  const count = [filters.status, filters.priority, filters.person, filters.label, filters.type].filter(
-    Boolean
-  ).length
+  const count = [filters.status, filters.priority, filters.label, filters.type].filter(Boolean).length
 
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <DashboardToolbarButton type="button" variant="outline" aria-label={count ? `Filter, ${count} set` : "Filter"}>
+        <DashboardToolbarButton type="button" variant={buttonVariant} aria-label={count ? `Filter, ${count} set` : "Filter"}>
           <ListFilterIcon className="size-4" />
           {/* The tasks panel's header is the container: on a phone the icon stays and the word goes. */}
-          <span className="@max-xl:sr-only">Filter</span>
+          <span className="@max-4xl:sr-only">Filter</span>
           {count ? <span className="text-muted-foreground">{count}</span> : null}
         </DashboardToolbarButton>
       </PopoverTrigger>
@@ -131,27 +131,6 @@ export function TaskFilterPopover({
               </SelectContent>
             </Select>
           </FilterRow>
-          {people ? (
-            <FilterRow id="filter-person" label="Person">
-              <Select
-                value={filters.person ?? ALL}
-                onValueChange={(value) => onChange({ person: value === ALL ? undefined : value })}
-              >
-                <SelectTrigger id="filter-person" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>Anyone</SelectItem>
-                  <SelectItem value={NOBODY_FILTER}>Nobody assigned</SelectItem>
-                  {people.map((person) => (
-                    <SelectItem key={person.id} value={person.id}>
-                      {person.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FilterRow>
-          ) : null}
           <FilterRow id="filter-label" label="Label">
             <Select
               value={filters.label ?? ALL}

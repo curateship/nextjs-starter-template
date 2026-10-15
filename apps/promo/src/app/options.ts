@@ -69,6 +69,12 @@ export const appOptions: AppOptions = {
         panel: () => import("@/components/browser/browser-settings"),
       },
       {
+        id: "phones",
+        label: "Phones",
+        /** How many phones work at once, and how many days their pictures are kept. */
+        panel: () => import("@/components/phones/phone-settings"),
+      },
+      {
         id: "behaviour",
         label: "Behaviour",
         /**

@@ -3,6 +3,8 @@ import { Link } from "@tanstack/react-router"
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
+  ArrowRightLeftIcon,
+  BanIcon,
   HandHelpingIcon,
   Loader2Icon,
   PauseIcon,
@@ -10,6 +12,7 @@ import {
   PlusIcon,
   RefreshCwIcon,
   SettingsIcon,
+  ShieldCheckIcon,
   UsersIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -59,6 +62,8 @@ import {
   ACCOUNT_STATUS_LABELS,
   type AccountStatus,
 } from "@/lib/social/account-status"
+import { ACCOUNT_IMPORTANCE, IMPORTANCE_WORDS } from "@/lib/social/importance"
+import { isNetwork, NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
 import { accountAgeText, postedDateText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -66,7 +71,7 @@ import { Hint } from "../hint"
 import { AccountStatusBadge } from "./account-status-badge"
 import { AddAccountDialog } from "./add-account-dialog"
 import { HelpPostsDialog } from "./help-posts-dialog"
-import { RunsOnDialog } from "./runs-on-dialog"
+import { AccountSettingsDialog } from "./account-settings-dialog"
 
 type SortColumn = "account" | "status" | "project" | "profile" | "age" | "karma" | "last"
 
@@ -115,9 +120,18 @@ const APP_DECIDES = "app"
 /** The voice menu's value for "no voice". */
 const NO_VOICE = "none"
 
+/** A network's name, or the stored word for one Promo no longer offers. */
+function platformName(platform: string): string {
+  return isNetwork(platform) ? NETWORK_NAMES[platform] : platform
+}
+
 /**
- * Every Reddit account: its status, the project it comments for, the browser
- * profile or phone it runs on and how that goes online.
+ * Every account, on every platform: its status, the project it comments for,
+ * the browser profile or phone it runs on and how that goes online. Tyler, 15
+ * Oct 2026: "I think accounts should be on its own dashboard with platform
+ * filtering". The Platform filter is the address's `?platform=`, which Manage
+ * accounts in a project's Comment as dropdown sets to Reddit, and each row
+ * names its platform beside the account.
  *
  * Copied from the Comments dashboard and built from the shell's table. The
  * status is worked out by the app each time the list is read (Warming up,
@@ -130,13 +144,27 @@ const NO_VOICE = "none"
  * never warms up again, and its comments stay. "Show retired" brings the
  * retired ones back into the list, with Bring back on each.
  */
-export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPage }) {
+export function RedditAccountsDashboard({
+  initial,
+  platform,
+  onPlatformChange,
+}: {
+  initial: RedditAccountsPage
+  /** The platform filtered to, read from the address, or null for every one. */
+  platform: Network | null
+  /** Puts a platform in the address, or null for every one. */
+  onPlatformChange: (platform: Network | null) => void
+}) {
   const [page, setPage] = React.useState(initial)
+  // The address holds the filter, so a link to the page, a reload or the left
+  // menu's own link always shows what the address says.
+  const platformFilter: string = platform ?? ALL
   const [showRetired, setShowRetired] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [search, setSearch] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState<string>(ALL)
   const [tagFilter, setTagFilter] = React.useState(ALL)
+  const [kindFilter, setKindFilter] = React.useState<string>(ALL)
   const { sort, direction, toggleSort } = useTableSort<SortColumn>("account")
   const selection = useSelection()
   const [busy, setBusy] = React.useState(false)
@@ -173,7 +201,9 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
     const factor = direction === "asc" ? 1 : -1
     return accounts
       .filter((row) => {
+        if (platformFilter !== ALL && row.platform !== platformFilter) return false
         if (statusFilter !== ALL && row.status.status !== statusFilter) return false
+        if (kindFilter !== ALL && row.importance !== kindFilter) return false
         if (tagFilter !== ALL && !(row.profile?.tags ?? row.phone?.tags ?? []).includes(tagFilter)) return false
         if (!query) return true
         return [row.handle, row.project?.name, row.profile?.name, row.phone?.name, row.voice?.name]
@@ -181,7 +211,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
           .some((value) => String(value).toLowerCase().includes(query))
       })
       .sort((a, b) => factor * compare(a, b, sort))
-  }, [accounts, direction, search, sort, statusFilter, tagFilter])
+  }, [accounts, direction, kindFilter, platformFilter, search, sort, statusFilter, tagFilter])
 
   /**
    * The rows under their profile's or phone's folder, folders by name and "No folder"
@@ -246,7 +276,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
   return (
     <>
       <DashboardTable
-        title="Reddit accounts"
+        title="Accounts"
         icon={<UsersIcon />}
         count={shown.length}
         error={error ? { message: error, onRetry: () => void refresh(showRetired) } : null}
@@ -349,6 +379,22 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
+            <Select
+              value={platformFilter}
+              onValueChange={(value) => onPlatformChange(isNetwork(value) ? value : null)}
+            >
+              <DashboardToolbarSelectTrigger aria-label="Filter by platform" className="hidden sm:flex">
+                <SelectValue />
+              </DashboardToolbarSelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All platforms</SelectItem>
+                {NETWORKS.map((network) => (
+                  <SelectItem key={network} value={network}>
+                    {NETWORK_NAMES[network]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <DashboardToolbarSelectTrigger aria-label="Filter by status" className="hidden sm:flex">
                 <SelectValue />
@@ -358,6 +404,19 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
                 {ACCOUNT_STATUSES.map((status) => (
                   <SelectItem key={status} value={status}>
                     {ACCOUNT_STATUS_LABELS[status]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={kindFilter} onValueChange={setKindFilter}>
+              <DashboardToolbarSelectTrigger aria-label="Filter by important or throwaway" className="hidden sm:flex">
+                <SelectValue />
+              </DashboardToolbarSelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Important and throwaway</SelectItem>
+                {ACCOUNT_IMPORTANCE.map((importance) => (
+                  <SelectItem key={importance} value={importance}>
+                    {IMPORTANCE_WORDS[importance]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -417,7 +476,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
         emptyText={
           accounts.length
             ? "No accounts match that."
-            : "No Reddit accounts yet. Press Add account, pick a browser profile or a phone, then sign in to Reddit there."
+            : "No accounts yet. Press Add account, pick a browser profile or a phone, then sign in to Reddit there."
         }
         emptyColSpan={columnCount}
         footer={{ type: "summary", count: shown.length, label: "accounts" }}
@@ -480,9 +539,9 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
         </>
       </DashboardTable>
       <HelpPostsDialog accountId={helpFor} onClose={() => setHelpFor(null)} />
-      <RunsOnDialog
+      <AccountSettingsDialog
         key={runsOnFor?.id ?? "closed"}
-        account={runsOnFor}
+        account={runsOnFor ? (accounts.find((row) => row.id === runsOnFor.id) ?? runsOnFor) : null}
         profiles={page.freeProfiles}
         phones={page.freePhones}
         onClose={() => setRunsOnFor(null)}
@@ -490,6 +549,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
           setRunsOnFor(null)
           await refresh(showRetired)
         }}
+        onChanged={() => refresh(showRetired)}
       />
       <AddAccountDialog
         open={adding}
@@ -547,6 +607,7 @@ function AccountRow({
       <TableCell column="main" className="max-w-0">
         <span className={row.handle ? "block truncate text-sm font-medium" : "block truncate text-sm text-muted-foreground"}>
           {name}
+          <span className="font-normal text-muted-foreground"> · {platformName(row.platform)}</span>
         </span>
         <span className="block truncate text-xs text-muted-foreground 2xl:hidden">
           {[age, karma, lastComment].join(" · ")}
@@ -566,6 +627,26 @@ function AccountRow({
               <PauseIcon className="size-3" aria-hidden="true" />
               {row.paused === "account" ? "Paused" : "Project paused"}
             </span>
+          ) : null}
+          {row.importance === "important" ? (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <ShieldCheckIcon className="size-3" aria-hidden="true" />
+              Important
+            </span>
+          ) : null}
+          {row.move ? (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <ArrowRightLeftIcon className="size-3" aria-hidden="true" />
+              Moving to {row.move.phone.name}
+            </span>
+          ) : null}
+          {row.banScreen ? (
+            <Hint label={row.banScreen.words}>
+              <span className="flex items-center gap-1 text-xs text-destructive">
+                <BanIcon className="size-3" aria-hidden="true" />
+                Stopped by a ban screen
+              </span>
+            </Hint>
           ) : null}
           {row.status.warning ? (
             <Hint label={row.status.warning}>
@@ -719,14 +800,14 @@ function AccountRow({
                 {row.paused === "account" ? <PlayIcon className="size-4" /> : <PauseIcon className="size-4" />}
               </Button>
             </Hint>
-            <Hint label="Where it runs: a browser profile or a phone">
+            <Hint label="Settings: important or throwaway, where it runs, and its two-factor code">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 disabled={busy}
                 onClick={onRunsOn}
-                aria-label={`Where ${name} runs`}
+                aria-label={`Settings for ${name}`}
               >
                 <SettingsIcon className="size-4" />
               </Button>

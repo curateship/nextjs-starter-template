@@ -1443,16 +1443,17 @@ function GridLines({
       >
         <SettingsIcon className="size-3" />
       </button>
-      {waiting > 0 ? (
-        <button
-          type="button"
-          aria-label={`Stop the grid trading — cancel every waiting ${entryWord(direction)}`}
-          className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
-          onClick={() => onCancelGrid(grid)}
-        >
-          <XIcon className="size-3" />
-        </button>
-      ) : null}
+      {/* On every grid, waiting levels or not. Ending a grid hands what it
+          holds over as manual orders, so a grid whose levels have all filled
+          still needs it (Tyler, 14 Oct 2026). */}
+      <button
+        type="button"
+        aria-label={`End the grid: cancel every waiting ${entryWord(direction)} and keep its sells as manual orders`}
+        className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
+        onClick={() => onCancelGrid(grid)}
+      >
+        <XIcon className="size-3" />
+      </button>
     </span>
   )
   return (

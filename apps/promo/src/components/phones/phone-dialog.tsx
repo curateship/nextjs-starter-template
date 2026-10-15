@@ -2,7 +2,10 @@ import * as React from "react"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
-import { PhoneChecksPanel } from "@/components/phones/phone-checks-panel"
+import { PhoneActionsPanel } from "@/components/phones/phone-actions-panel"
+import { PhoneHealthPanel } from "@/components/phones/phone-health-panel"
+import { PhoneHistoryPanel } from "@/components/phones/phone-history-panel"
+import { PhoneSetupPanel } from "@/components/phones/phone-setup-panel"
 import { PhoneStatusText } from "@/components/phones/phone-status"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -67,9 +70,14 @@ function formFrom(phone: PhoneRecord | null): Form {
 
 const orNull = (value: string) => (value === NONE ? null : value)
 
+type Tab = "settings" | "setup" | "health" | "actions" | "history"
+
 /**
- * One phone, as a window over the list, with its settings and its checks. A
- * new phone has only the settings: the checks need the rack to have seen it.
+ * One phone, as a window over the list: its settings, its setup (the setup
+ * check, what the platform sees, and wiping), its health (battery,
+ * heat, storage, signal, the four-week chart and its app versions), its
+ * actions with a picture of each step, and its history. A new phone has only
+ * the settings: the rest need the rack to have seen it.
  *
  * The model, Android version and serial fill in by themselves when the phone
  * is plugged into the rack. Typing the serial by hand ties a record made
@@ -101,7 +109,7 @@ export function PhoneDialog({
   const [form, setForm] = React.useState(initial)
   const [saving, setSaving] = React.useState(false)
   const [nameInvalid, setNameInvalid] = React.useState(false)
-  const [tab, setTab] = React.useState<"settings" | "checks">("settings")
+  const [tab, setTab] = React.useState<Tab>("settings")
   const dirty = JSON.stringify(form) !== JSON.stringify(initial)
   const set = <K extends keyof Form>(key: K, value: Form[K]) =>
     setForm((current) => ({ ...current, [key]: value }))
@@ -145,7 +153,7 @@ export function PhoneDialog({
         <DialogContent variant="admin" className="h-[48rem]">
           <Tabs
             value={tab}
-            onValueChange={(value) => setTab(value as "settings" | "checks")}
+            onValueChange={(value) => setTab(value as Tab)}
             className="flex min-h-0 flex-1 flex-col gap-0"
           >
             <DialogHeader>
@@ -154,7 +162,10 @@ export function PhoneDialog({
                 {phone ? (
                   <TabsList>
                     <TabsTrigger value="settings">Settings</TabsTrigger>
-                    <TabsTrigger value="checks">Checks</TabsTrigger>
+                    <TabsTrigger value="setup">Setup</TabsTrigger>
+                    <TabsTrigger value="health">Health</TabsTrigger>
+                    <TabsTrigger value="actions">Actions</TabsTrigger>
+                    <TabsTrigger value="history">History</TabsTrigger>
                   </TabsList>
                 ) : null}
               </div>
@@ -378,9 +389,20 @@ export function PhoneDialog({
                   </div>
                 </TabsContent>
                 {phone ? (
-                  <TabsContent value="checks" className="min-w-0">
-                    {tab === "checks" ? <PhoneChecksPanel phone={phone} onChanged={onChanged} /> : null}
-                  </TabsContent>
+                  <>
+                    <TabsContent value="setup" className="min-w-0">
+                      {tab === "setup" ? <PhoneSetupPanel phone={phone} onChanged={onChanged} /> : null}
+                    </TabsContent>
+                    <TabsContent value="health" className="min-w-0">
+                      {tab === "health" ? <PhoneHealthPanel phone={phone} /> : null}
+                    </TabsContent>
+                    <TabsContent value="actions" className="min-w-0">
+                      {tab === "actions" ? <PhoneActionsPanel phone={phone} onChanged={onChanged} /> : null}
+                    </TabsContent>
+                    <TabsContent value="history" className="min-w-0">
+                      {tab === "history" ? <PhoneHistoryPanel phoneId={phone.id} /> : null}
+                    </TabsContent>
+                  </>
                 ) : null}
               </DialogBody>
             </form>

@@ -221,10 +221,12 @@ says how many posts it is hiding and comes back off with Unblock.
 
 ## The screen
 
-The keywords and the posts are the middle column of the
-[Projects dashboard](../projects-dashboard.md), keywords above posts, with the
-project and its accounts on the left. They were the Reddit dashboard's left and
-middle columns until 12 Oct 2026. Every list below is one project's.
+The keywords and the posts are the middle column of a project's Reddit module
+on the [Projects dashboard](../projects-dashboard.md), keywords above posts,
+with the project and its networks on the left
+([Networks as modules](../network-modules.md)). They were the Reddit
+dashboard's left and middle columns until 12 Oct 2026. Every list below is one
+project's.
 
 - **Keywords**, as chips across the top of the middle column since Tyler's
   design of 13 Oct 2026. Each chip is the keyword, its post count, when it last

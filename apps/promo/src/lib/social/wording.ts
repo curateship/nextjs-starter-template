@@ -1,13 +1,14 @@
 import { daysBetween } from "@/lib/format/format-time"
+import { slotWords } from "@/lib/phones/options"
 import {
   NO_PROFILE_MESSAGE,
-  ON_A_PHONE_MESSAGE,
   PICK_AN_ACCOUNT,
   type FindThread,
   type ProfileCheck,
   type SubredditRule,
 } from "@/lib/social/options"
 import { clockText, knownTimeZone, localDateKey, localMinutes } from "@/lib/social/waking"
+import type { PostPhone } from "@/server/phones/phones"
 import type { PostingState } from "@/server/social/posting"
 
 /**
@@ -36,9 +37,23 @@ type PostingAccount = {
   blocked: boolean
   reason: string
   profile: { id: string; name: string } | null
-  /** True when it runs on a phone instead of a profile. */
-  onPhone?: boolean
+  /** The phone it runs on instead of a profile, or null, with what Post says about it. */
+  phone: PostPhone | null
   posting: PostingState | null
+}
+
+/**
+ * Which device a comment goes from, on the Post button itself (part 30 of
+ * the phone farm): "Post from phone · slot 4", "Post from browser", or with
+ * no account picked, "Post comment".
+ */
+export function postButtonWords(account: Pick<PostingAccount, "profile" | "phone"> | null): string {
+  if (account?.phone) {
+    const slot = slotWords(account.phone.shelfSlot)
+    return slot ? `Post from phone · ${slot}` : "Post from phone"
+  }
+  if (account?.profile) return "Post from browser"
+  return "Post comment"
 }
 
 /**
@@ -60,18 +75,39 @@ export function postingBlockedReason(
     return { text: "Read the replies first, so the comment does not repeat one of them." }
   }
   if (!status) return { text: PICK_AN_ACCOUNT }
-  const profile = status.profile
-  if (!profile) return { text: status.onPhone ? ON_A_PHONE_MESSAGE : NO_PROFILE_MESSAGE }
+  // Where a person goes to fix what the account's browser or phone shows.
+  const device = status.profile
+    ? { kind: "browser", where: `the profile ${status.profile.name} on the Browser profiles dashboard` }
+    : status.phone
+      ? { kind: "phone", where: `the screen of ${status.phone.name} on the Phones dashboard` }
+      : null
+  if (!device) return { text: NO_PROFILE_MESSAGE }
+  // A phone that cannot take the comment now says why, with where to fix it.
+  const phone = status.phone
+  if (phone) {
+    const named = `${phone.name}${phone.shelfSlot ? ` in ${slotWords(phone.shelfSlot)}` : ""}`
+    if (phone.addressStop) return { text: `${named} was stopped for showing the wrong address: ${phone.addressStop}` }
+    if (phone.status === "offline") {
+      return { text: `${named} is offline: ${phone.offlineReason || "not seen by the rack"}. Check it on the Phones dashboard.` }
+    }
+    if (phone.status === "held") {
+      return {
+        text: phone.inUse
+          ? `${named} is held while someone uses its screen window. Close the window, or wait for it to let go, then post.`
+          : `${named} is held. Release it on the Phones dashboard, then post.`,
+      }
+    }
+  }
   if (status.blocked) {
     return {
       text: status.reason
-        ? `Reddit is asking the browser something: ${status.reason}. Open the profile ${profile.name} on the Browser profiles dashboard and clear it.`
-        : `Reddit is showing a challenge. Open the profile ${profile.name} on the Browser profiles dashboard and clear it.`,
+        ? `Reddit is asking the ${device.kind} something: ${status.reason}. Open ${device.where} and clear it.`
+        : `Reddit is showing a challenge. Open ${device.where} and clear it.`,
     }
   }
   if (!status.handle) {
     return {
-      text: `The browser is not signed in to Reddit. Open the profile ${profile.name} on the Browser profiles dashboard and sign in once.`,
+      text: `The ${device.kind} is not signed in to Reddit. Open ${device.where} and sign in once.`,
     }
   }
   const refusal = status.posting ? postingRefusalText(status.posting, now) : null
@@ -90,13 +126,13 @@ export function postingRefusalText(
   timeZone?: string
 ): string | null {
   if (state.paused === "account") {
-    return "This account is paused. Resume it on the Reddit accounts dashboard to post from it again."
+    return "This account is paused. Resume it on the Accounts dashboard, to post from it again."
   }
   if (state.paused === "project") {
     return "This account's project is paused. Resume the project on its dashboard to post from it again."
   }
   if (state.warmUp.ageUnknown) {
-    return "Promo has not read how old this account is, so it cannot tell when the warm-up ends. Tick it on the Reddit accounts dashboard and press Check now, then try again."
+    return "Promo has not read how old this account is, so it cannot tell when the warm-up ends. Tick it on the Accounts dashboard, and press Check now, then try again."
   }
   if (state.warmUp.endsAt && state.warmUp.endsAt > now) {
     return `This account is still warming up. Its first comment is allowed ${whenText(state.warmUp.endsAt, now, timeZone)}.`

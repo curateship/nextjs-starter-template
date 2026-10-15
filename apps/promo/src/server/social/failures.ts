@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm"
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
@@ -201,6 +201,16 @@ export async function ringForFailure(
 ): Promise<void> {
   if (!(WRITE_KINDS as readonly string[]).includes(job.kind)) return
   const what = job.kind === "submit" ? "a post of yours" : job.kind === "reply" ? "an answer to a reply" : "a comment"
+  // It opens on the Comments tab of the project the account is in, under
+  // Failed. An account in no project has no Comments tab, so that one opens
+  // the Projects table.
+  const [owner] = await db
+    .select({ projectId: promoAccounts.projectId })
+    .from(promoJobs)
+    .innerJoin(promoAccounts, eq(promoAccounts.id, sql`${promoJobs.payload}->>'accountId'`))
+    .where(and(eq(promoJobs.id, job.id), eq(promoJobs.userId, job.userId)))
+    .limit(1)
+  const projectId = owner?.projectId ?? null
   await ringBell(
     job.userId,
     {
@@ -208,9 +218,9 @@ export async function ringForFailure(
       targetId: job.id,
       message: `${NOTICE_HEADINGS.failed} ${what}`,
       detail: reason.includes(MAY_HAVE_LANDED)
-        ? `${reason} It is on the Comments screen's Failed tab.`
-        : `${reason} It is on the Comments screen's Failed tab, with Try again.`,
-      href: "/admin/comments?tab=failed",
+        ? `${reason} It is on the project's Comments tab, under Failed.`
+        : `${reason} It is on the project's Comments tab, under Failed, with Try again.`,
+      href: projectId ? `/admin/projects/${encodeURIComponent(projectId)}?view=comments&list=failed` : "/admin/projects",
     },
     db
   )

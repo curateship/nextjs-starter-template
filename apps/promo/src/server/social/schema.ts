@@ -14,6 +14,8 @@ import {
 import { sql } from "drizzle-orm"
 
 import type { AccountStatus } from "@/lib/social/account-status"
+import type { AccountImportance } from "@/lib/social/importance"
+import type { Network } from "@/lib/social/networks"
 import {
   type DraftRewrite,
   type DraftStatus,
@@ -106,6 +108,13 @@ export const promoProjects = pgTable(
      */
     imageUrl: varchar("image_url", { length: 2048 }).notNull().default(""),
     /**
+     * The networks the project uses, in the order they were added, each a
+     * row in its dashboard's left column (`src/lib/social/networks.ts`).
+     * Added by `drizzle/0118_promo_project_networks.sql`, which gave every
+     * project made before it Reddit.
+     */
+    networks: jsonb("networks").$type<Network[]>().notNull().default([]),
+    /**
      * When the whole project was paused: none of its accounts posts, warms
      * up or takes a health reading until it is resumed. Null is running.
      * Added by `drizzle/0110_promo_new_features.sql`.
@@ -163,10 +172,38 @@ export const promoAccounts = pgTable(
     phoneId: varchar("phone_id", { length: 36 }).references(() => promoPhones.id, {
       onDelete: "set null",
     }),
+    /**
+     * The authenticator secret, encrypted with the server's key, or empty for
+     * none. Never sent to a page: only the current code is. Added by
+     * `drizzle/0115_promo_phone_jobs.sql`.
+     */
+    totpSecretEncrypted: text("totp_secret_encrypted").notNull().default(""),
+    /**
+     * 'important' or 'throwaway'. Every account starts as throwaway until a
+     * person marks it, and important is one way: an important account only
+     * ever runs on a phone, and is never marked throwaway again (Tyler, 14
+     * Oct 2026). Promo keeps the two groups apart (`apart.ts`). Added by
+     * `drizzle/0117_promo_phone_identity.sql`, as is the column below.
+     */
+    importance: varchar("importance", { length: 12 }).$type<AccountImportance>().notNull().default("throwaway"),
+    /**
+     * The phone a throwaway is being moved to from its browser profile. The
+     * move finishes when that phone reads the account signed in.
+     */
+    movingToPhoneId: varchar("moving_to_phone_id", { length: 36 }).references(() => promoPhones.id, {
+      onDelete: "set null",
+    }),
     /** True when the site was last seen asking the browser something only a person can answer. */
     blocked: boolean("blocked").notNull().default(false),
     /** What it was asking, in the browser's words. Empty when not blocked. */
     blockedReason: text("blocked_reason").notNull().default(""),
+    /**
+     * When a phone found the app showing a suspended, locked or "confirm
+     * it's you" screen. The account's jobs are refused until a person lets
+     * it run again; `blockedReason` holds the screen's own words. Added by
+     * `drizzle/0116_promo_phone_health.sql`.
+     */
+    banScreenAt: timestamp("ban_screen_at", { withTimezone: true }),
     /** When the browser program last read the handle and the block. Null means never. */
     stateReadAt: timestamp("state_read_at", { withTimezone: true }),
     /** What the AI writes with. Null when its voice was deleted, or none was picked. */
@@ -718,11 +755,12 @@ export const promoJobs = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     kind: varchar("kind", { length: 30 }).$type<JobKind>().notNull(),
     /**
-     * The profile the job works in. Jobs in one lane run one at a time, in
-     * order; jobs in different lanes run side by side. Null on jobs from
-     * before lanes, each of which is its own.
+     * The profile the job works in, or `phone:` and the phone's id. Jobs in
+     * one lane run one at a time, in order; jobs in different lanes run side
+     * by side. Null on jobs from before lanes, each of which is its own.
+     * Widened to 64 by `drizzle/0115_promo_phone_jobs.sql` for the phones.
      */
-    lane: varchar("lane", { length: 36 }),
+    lane: varchar("lane", { length: 64 }),
     /** A keyword id, a find id, or a find id plus the text to post. */
     payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
     status: varchar("status", { length: 20 })

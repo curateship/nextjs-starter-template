@@ -1,10 +1,8 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
 import {
-  ChevronDownIcon,
-  ChevronUpIcon,
   FolderOpenIcon,
   Loader2Icon,
+  MessagesSquareIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
@@ -17,7 +15,6 @@ import { useReportedSaveStatus } from "@/components/settings/use-reported-save-s
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,19 +25,12 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Meter } from "@/components/ui/meter"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import {
-  getProjectErrorMessage,
-  saveProject,
-  type ProjectAccount,
-  type ProjectView,
-} from "@/lib/api/social/projects"
-import { accountStatusText } from "@/lib/social/account-status"
-import { accountAgeText, whenText } from "@/lib/social/wording"
+import { getProjectErrorMessage, saveProject, type ProjectView } from "@/lib/api/social/projects"
+import { NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -50,41 +40,37 @@ import { Hint } from "../hint"
 const SAVE_AFTER_MS = 700
 
 /**
- * The Projects dashboard's left column: the project's picture, name and
- * description, and the accounts that comment for it. Tyler sent this design
- * on 13 Oct 2026.
+ * The project dashboard's left column: the project's picture, name and
+ * description, and the networks it uses. Tyler sent the design on 13 Oct
+ * 2026, and the networks took the accounts' place on 14 Oct 2026, when the
+ * account that comments moved to a dropdown beside Post.
  *
  * The cog opens the project's name and description, which save as they are
  * typed with no Save button, then New project, Pause and Delete. The arrow
  * goes back to the table of every project, which is where another project is
  * picked.
- *
- * The accounts are cards built by hand rather than the dashboard table, whose
- * main column forces a width a side panel does not have. Clicking one picks
- * who comments; it never posts. They are listed best to comment from first,
- * an order worked out on the server.
  */
 export function ProjectPanel({
   view,
-  selectedAccountId,
-  onSelectAccount,
+  selectedNetwork,
+  onSelectNetwork,
+  onAddNetwork,
+  onRemoveNetwork,
   onNewProject,
   onDeleteProject,
   onTogglePause,
-  onAddAccount,
-  onRemoveAccount,
   onSaved,
 }: {
   view: ProjectView
-  /** The account clicked, whose comment Post sends. Null before one is clicked. */
-  selectedAccountId: string | null
-  onSelectAccount: (accountId: string) => void
+  /** The network whose panels fill the middle and right columns. */
+  selectedNetwork: Network | null
+  onSelectNetwork: (network: Network) => void
+  onAddNetwork: (network: Network) => Promise<void>
+  onRemoveNetwork: (network: Network) => Promise<void>
   onNewProject: () => void
   onDeleteProject: () => void
   /** Pauses the project, or resumes it when it is paused. */
   onTogglePause: () => Promise<void>
-  onAddAccount: (accountId: string) => Promise<void>
-  onRemoveAccount: (accountId: string) => Promise<void>
   /** The name, description or picture was saved, so the page should read it again. */
   onSaved: () => void
 }) {
@@ -156,12 +142,12 @@ export function ProjectPanel({
             </div>
           </div>
 
-          <ProjectAccounts
-            view={view}
-            selectedAccountId={selectedAccountId}
-            onSelectAccount={onSelectAccount}
-            onAddAccount={onAddAccount}
-            onRemoveAccount={onRemoveAccount}
+          <ProjectNetworks
+            networks={project.networks}
+            selected={selectedNetwork}
+            onSelect={onSelectNetwork}
+            onAdd={onAddNetwork}
+            onRemove={onRemoveNetwork}
           />
         </div>
       </ScrollArea>
@@ -379,259 +365,120 @@ function ProjectMenu({
   )
 }
 
-/** Each status's dot. The status is always written beside it. */
-function statusDot(account: ProjectAccount): string {
-  switch (account.status.status) {
-    case "ready":
-    case "working":
-      return "bg-emerald-500"
-    case "warming_up":
-      return "bg-amber-500"
-    case "banned":
-      return "bg-destructive"
-    default:
-      return "bg-muted-foreground/40"
-  }
-}
-
-function ProjectAccounts({
-  view,
-  selectedAccountId,
-  onSelectAccount,
-  onAddAccount,
-  onRemoveAccount,
+/**
+ * The networks the project uses, one row each, and "+ Add network" offering
+ * the ones Promo has built that it does not use yet. Picking a row fills the
+ * middle and right columns with that network's panels. Tyler, 14 Oct 2026:
+ * "If I click on reddit then the middle and right panel will show reddit
+ * panels". The X takes a network off, which the server refuses while the
+ * project still holds that network's accounts or keywords.
+ */
+function ProjectNetworks({
+  networks,
+  selected,
+  onSelect,
+  onAdd,
+  onRemove,
 }: {
-  view: ProjectView
-  selectedAccountId: string | null
-  onSelectAccount: (accountId: string) => void
-  onAddAccount: (accountId: string) => Promise<void>
-  onRemoveAccount: (accountId: string) => Promise<void>
+  networks: Network[]
+  selected: Network | null
+  onSelect: (network: Network) => void
+  onAdd: (network: Network) => Promise<void>
+  onRemove: (network: Network) => Promise<void>
 }) {
-  const [adding, setAdding] = React.useState(false)
+  const [busy, setBusy] = React.useState<Network | null>(null)
+  const addable = NETWORKS.filter((network) => !networks.includes(network))
+
+  async function run(network: Network, action: (network: Network) => Promise<void>) {
+    setBusy(network)
+    try {
+      await action(network)
+    } finally {
+      setBusy(null)
+    }
+  }
 
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-2">
-        <Hint label={view.accounts.length > 1 ? "Listed best to comment from first" : null}>
-          <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Accounts</h3>
-        </Hint>
+        <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Networks</h3>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="sm" disabled={adding}>
-              {adding ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
-              Add account
+            <Button type="button" variant="ghost" size="sm" disabled={busy !== null}>
+              <PlusIcon />
+              Add network
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
-            {view.freeAccounts.length ? (
-              view.freeAccounts.map((account) => (
-                <DropdownMenuItem
-                  key={account.id}
-                  onSelect={async () => {
-                    setAdding(true)
-                    try {
-                      await onAddAccount(account.id)
-                    } finally {
-                      setAdding(false)
-                    }
-                  }}
-                >
-                  <span className="truncate">
-                    {account.handle ? `u/${account.handle}` : "Not signed in"}
-                    {account.profileName ? ` · ${account.profileName}` : ""}
-                  </span>
+            {addable.length ? (
+              addable.map((network) => (
+                <DropdownMenuItem key={network} onSelect={() => void run(network, onAdd)}>
+                  {NETWORK_NAMES[network]}
                 </DropdownMenuItem>
               ))
             ) : (
-              <>
-                <DropdownMenuLabel className="font-normal text-muted-foreground">
-                  Every account is in a project.
-                </DropdownMenuLabel>
-                <DropdownMenuItem asChild>
-                  <Link to="/admin/reddit-accounts">Add one on the Reddit accounts dashboard</Link>
-                </DropdownMenuItem>
-              </>
+              <DropdownMenuLabel className="font-normal text-muted-foreground">
+                This project uses every network Promo has. Instagram joins once it is built.
+              </DropdownMenuLabel>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {view.accounts.length ? (
-        <div className="grid gap-2">
-          {view.accounts.map((account) => (
-            <AccountCard
-              key={account.id}
-              account={account}
-              selected={account.id === selectedAccountId}
-              onSelect={() => onSelectAccount(account.id)}
-              onRemove={() => onRemoveAccount(account.id)}
-            />
-          ))}
+      {networks.length ? (
+        <div className="grid gap-1">
+          {networks.map((network) => {
+            const name = NETWORK_NAMES[network]
+            const picked = network === selected
+            return (
+              <div
+                key={network}
+                className={cn(
+                  "flex min-w-0 items-center gap-1 rounded-lg border pr-1",
+                  picked && "bg-muted"
+                )}
+              >
+                <button
+                  type="button"
+                  aria-pressed={picked}
+                  onClick={() => onSelect(network)}
+                  className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-left text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                >
+                  <NetworkIcon network={network} />
+                  <span className="truncate">{name}</span>
+                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Take ${name} off this project`}
+                      disabled={busy !== null}
+                      onClick={() => void run(network, onRemove)}
+                    >
+                      {busy === network ? <Loader2Icon className="animate-spin" /> : <XIcon />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Take {name} off this project. Refused while it holds accounts or keywords.</TooltipContent>
+                </Tooltip>
+              </div>
+            )
+          })}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          No accounts in this project yet. The posts still show, and you can
-          write comments, but Post needs an account to send from.
+          This project uses no network yet. Add one and its posts and comment box open beside this column.
         </p>
       )}
     </div>
   )
 }
 
-/**
- * One account: a dot and its name, its status, and today's comments. A young
- * account's comments fill a bar up to its daily limit; an older account has
- * no daily limit, so it shows the count alone. The status opens the card to
- * the account's limit, sleep, karma, age and last comment, with Open on
- * Reddit and the way out of the project. Tyler sent this design on 13 Oct
- * 2026.
- */
-function AccountCard({
-  account,
-  selected,
-  onSelect,
-  onRemove,
-}: {
-  account: ProjectAccount
-  selected: boolean
-  onSelect: () => void
-  onRemove: () => Promise<void>
-}) {
-  const [open, setOpen] = React.useState(false)
-  const [removing, setRemoving] = React.useState(false)
-  const name = account.handle ? `u/${account.handle}` : "Not signed in"
-  const posting = account.posting
-  const status = posting.paused ? "Paused" : accountStatusText(account.status)
-  const cap = posting.young ? posting.youngPerDay : null
-
-  async function remove() {
-    setRemoving(true)
-    try {
-      await onRemove()
-    } finally {
-      setRemoving(false)
-    }
+/** A network's mark, the same size as the text beside it. */
+function NetworkIcon({ network }: { network: Network }) {
+  switch (network) {
+    case "reddit":
+      return <MessagesSquareIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
   }
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen} className="min-w-0 overflow-hidden rounded-lg border">
-      <div className={cn("grid min-w-0 gap-2 p-3", selected && "bg-muted")}>
-        <div className="flex min-w-0 items-center gap-2">
-          <Hint label={`Comment as ${name}`}>
-            <button
-              type="button"
-              aria-pressed={selected}
-              onClick={onSelect}
-              className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <span className={cn("size-2 shrink-0 rounded-full", statusDot(account))} aria-hidden="true" />
-              <span className="truncate text-sm font-medium">{name}</span>
-            </button>
-          </Hint>
-          <CollapsibleTrigger
-            aria-label={`${name}: ${status}. ${open ? "Hide" : "Show"} more about it`}
-            className="flex shrink-0 items-center gap-1 rounded-sm text-xs whitespace-nowrap text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-          >
-            {status}
-            {open ? (
-              <ChevronUpIcon className="size-3.5" aria-hidden="true" />
-            ) : (
-              <ChevronDownIcon className="size-3.5" aria-hidden="true" />
-            )}
-          </CollapsibleTrigger>
-        </div>
-        <div className="flex items-center gap-3 pl-4">
-          {cap ? (
-            <Meter
-              value={posting.lastDay}
-              max={cap}
-              size="sm"
-              label={`${name}'s comments today`}
-              valueText={`${posting.lastDay} of ${cap}`}
-              // A track that still shows on a chosen card, whose ground is the muted tone.
-              className="flex-1 bg-muted-foreground/15"
-            />
-          ) : (
-            <span className="flex-1" />
-          )}
-          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-            {cap ? `${posting.lastDay} of ${cap}` : `${posting.lastDay} today`}
-          </span>
-        </div>
-      </div>
-
-      <CollapsibleContent className="grid gap-3 border-t p-3">
-        <dl className="grid gap-1.5 text-sm">
-          {accountFacts(account).map((fact) => (
-            <div key={fact.label} className="flex min-w-0 items-baseline justify-between gap-3">
-              <dt className="shrink-0 text-muted-foreground">{fact.label}</dt>
-              <dd className="min-w-0 text-right break-words">
-                {fact.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        {account.status.warning ? (
-          <p className="text-xs text-amber-600 dark:text-amber-400">{account.status.warning}</p>
-        ) : null}
-        <div className="flex gap-2">
-          {account.handle ? (
-            <Button asChild type="button" variant="outline" className="flex-1">
-              <a href={`https://www.reddit.com/user/${encodeURIComponent(account.handle)}`} target="_blank" rel="noreferrer">
-                Open on Reddit
-              </a>
-            </Button>
-          ) : (
-            <span className="flex-1 self-center text-xs text-muted-foreground">
-              Never seen signed in, so there is no Reddit page to open.
-            </span>
-          )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label={`Take ${name} out of this project`}
-                disabled={removing}
-                onClick={() => void remove()}
-              >
-                {removing ? <Loader2Icon className="animate-spin" /> : <XIcon />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Take out of this project. Its comments and settings stay.</TooltipContent>
-          </Tooltip>
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  )
-}
-
-/** The rows an opened card lists, each in the words a person would say. */
-function accountFacts(account: ProjectAccount): Array<{ label: string; value: string }> {
-  const posting = account.posting
-  const sleep =
-    posting.awake || !posting.nextWakeAt
-      ? { label: "Awake", value: "Now" }
-      : { label: "Asleep until", value: capitalise(whenText(new Date(posting.nextWakeAt))) }
-  return [
-    {
-      label: "Daily limit",
-      value: posting.young ? `${posting.youngPerDay} comments` : "No limit",
-    },
-    sleep,
-    { label: "Karma", value: account.karma === null ? "Not read yet" : account.karma.toLocaleString() },
-    {
-      label: "Account age",
-      value: account.redditCreatedAt ? capitalise(accountAgeText(new Date(account.redditCreatedAt))) : "Not read yet",
-    },
-    {
-      label: "Last comment",
-      value: account.lastPostedAt ? capitalise(whenText(new Date(account.lastPostedAt))) : "None yet",
-    },
-  ]
-}
-
-function capitalise(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1)
 }

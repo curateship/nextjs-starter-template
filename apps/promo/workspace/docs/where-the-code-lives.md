@@ -23,29 +23,49 @@ an app wide feature, not just a reddit feature."
 | `src/components/browser/` | The Proxies and Browser profiles dashboards, their windows, the browser window inside the app, and the Browsers tab in Settings. |
 | `src/server/social/voices.ts` | Voices: the words the AI is told, shared by any number of accounts on any network. |
 | `src/lib/api/social/account.ts` | Settings → Reddit account's endpoints, for the oldest account in use. |
-| `src/server/social/account-list.ts`, `src/lib/api/social/reddit-accounts.ts` | Every account as a list, with its status, and the actions on ticked rows: the Reddit accounts dashboard. |
+| `src/server/social/account-list.ts`, `src/lib/api/social/reddit-accounts.ts` | Every account on every platform as a list, with its status and platform, and the actions on ticked rows: the Accounts dashboard at `/admin/accounts`. |
 | `src/lib/social/account-status.ts` | Warming up, Ready, Working and Banned, and the order the Projects dashboard lists accounts in. |
-| `src/server/social/projects.ts`, `src/lib/api/social/projects.ts` | Projects: a description, accounts and keywords, and the check that an account comments only on its own project's posts. |
-| `src/components/social/projects/` | The Projects table, and a project's own dashboard: the page that holds the three columns and its project column. |
-| `src/components/social/accounts/` | The Reddit accounts dashboard, its Add account window and the status badge. |
+| `src/server/social/projects.ts`, `src/lib/api/social/projects.ts` | Projects: a description, the networks it uses, accounts and keywords, the check that an account comments only on its own project's posts, and which project an old screen's address now opens. |
+| `src/lib/social/networks.ts` | The networks Promo has built, which a project can add ([Networks as modules](network-modules.md)). |
+| `src/components/social/projects/` | The Projects table, and a project's own dashboard: the page that picks the network (`workspace.tsx`), the three columns any network fills (`project-columns.tsx`) and its project column. |
+| `src/components/social/accounts/` | The Accounts dashboard, its Add account window and the status badge. |
 | `src/lib/api/social/voices.ts` | The Voices dashboard's endpoints. |
 | `src/components/social/account-settings.tsx` | The Reddit account tab in Settings: which profile and which voice the account uses. |
 | `src/components/social/voices/` | The Voices dashboard and its window, with Try it. |
 | `src/server/social/pause.ts` | Pausing an account or a whole project. |
 | `src/server/social/notices.ts`, `src/lib/social/notice-words.ts`, `src/lib/social/notices.ts`, `src/lib/api/social/notices.ts` | Promo's bell notices: writing them, their headings, their icons, and where each opens. |
-| `src/server/social/failures.ts` | What did not reach Reddit, read off its job: the Comments screen's Failed tab, and the notice each failure rings. |
+| `src/server/social/failures.ts` | What did not reach Reddit, read off its job: the Comments tab's Failed list, and the notice each failure rings. |
 | `src/server/social/ai-tasks.ts` | The smaller things asked of the AI: the rules check, rewrites, keyword ideas, a post of your own, and trying a voice. All through `askModel` in `drafts.ts`. |
-| `src/server/social/today.ts`, `src/lib/api/social/today.ts`, `src/components/social/today/` | The Today page. |
+| `src/server/social/today.ts`, `src/lib/api/social/today.ts`, `src/components/social/today/` | The Today tab. |
 
 ## What belongs to Reddit alone
 
 | Folder | What is in it |
 | --- | --- |
 | `src/server/social/reddit/` | Searching Reddit, reading a thread, posting a comment, and the ranking that decides which posts are worth answering. Also searching again by itself (`timed-searches.ts`), posts of your own (`own-posts.ts`), help-only posts (`help-posts.ts`), self-promotion threads (`promo-threads.ts`), what you said before (`past-answers.ts`), and deleting and editing a sent comment (`change-comment.ts`). |
-| `src/lib/social/reddit/options.ts` | Reddit's own sort orders and time windows, and the keys the Projects dashboard remembers its columns under. |
+| `src/lib/social/reddit/options.ts` | Reddit's own sort orders and time windows, the tabs across its middle column, and the keys the Projects dashboard remembers its columns under. |
 | `src/lib/api/social/reddit/` | The keyword, post, draft and Post endpoints the Projects dashboard calls. |
-| `src/components/social/reddit/` | The keywords panel, the posts list and the post-and-comment panel, which the Projects dashboard shows. |
-| `docker/browser/routines/reddit.py` | The only file that knows how a Reddit page is put together. |
+| `src/components/social/reddit/` | Reddit's module (`reddit-module.tsx`): the keywords panel, the tabs and the posts list, the post-and-comment panel with the accounts dropdown (`account-picker.tsx`), and the Jobs window (`jobs-window.tsx`), which a project's dashboard shows when Reddit is picked. |
+| `docker/browser/routines/reddit.py` | The only file that knows how a Reddit page is put together. Its Reddit app twin is `rack/promo_rack.py`. |
+
+## Phones
+
+Real Android phones are app-wide, like the browser: a device an account runs
+on, belonging to no network.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/phones/` | The phones as records, the rack's side (pairing, signed messages, check-ins, the action queue), sending a job's step to a phone (`dispatch.ts`), health and the bell, the self-test, step pictures, the setup check and the Wi-Fi address guard (`setup.ts`), and wiping (`wipe.ts`). |
+| `src/lib/phones/` | The phone farm's fixed lists and words, the setup check's lines (`setup-check.ts`) and the rack mix (`rack-mix.ts`). |
+| `src/lib/api/phones/` | The Phones dashboard's endpoints. None of them talks to a phone; each writes an action the rack picks up. |
+| `src/components/phones/` | The Phones dashboard, a phone's window and its tabs, the screen window, and the Rack, Self-test and Mix windows. |
+| `rack/` | The program on the computer at home that drives the phones over adb: `promo_rack.py`, with every action, the Reddit app's steps, and the hands that tap, swipe and type like a person. The second file, beside `docker/browser/routines/reddit.py`, that knows how Reddit is put together: this one for the Reddit app. |
+
+What ties an account to a phone, and the rules for important and throwaway
+accounts, are about accounts, so they sit in `src/server/social/`:
+`apart.ts` (the two groups kept apart) and `move-to-phone.ts` (a throwaway
+moved from its browser profile to a phone). A comment a phone posted gets its
+link from `src/server/social/reddit/comment-link.ts`.
 
 ## The browser container
 
@@ -71,7 +91,13 @@ is the person-pace helper every network's routines type and read with.
    `routines/__init__.py`.
 2. `src/server/social/instagram/` for searching, reading and posting.
 3. `src/lib/social/instagram/options.ts` for anything only Instagram has.
-4. `src/components/social/instagram/` and a route beside `admin/reddit.tsx`.
+4. `src/components/social/instagram/` with its module, the middle and right
+   columns it fills on a project's dashboard, beside
+   `src/components/social/reddit/reddit-module.tsx`. It gets no route and no
+   left menu entry of its own: add `"instagram"` to `NETWORKS` in
+   `src/lib/social/networks.ts`, and add a branch for it in
+   `src/components/social/projects/workspace.tsx` where Reddit's module is
+   picked ([Networks as modules](network-modules.md)).
 5. Add the calls to `src/server/browser/command.ts`, which already carries the
    network in every address.
 6. The browser program writes down who is signed in after each job, for each
@@ -114,3 +140,5 @@ needs no key, and never opens or drives one.
   network shares them.
 - **The old route `/admin/reddit` still answers,** by sending to
   `/admin/projects`. A folder name is ours to change and an address is not.
+  `/admin/today`, `/admin/comments`, `/admin/jobs` and `/admin/reddit-accounts`
+  send on the same way, each to its tab or window in a project.

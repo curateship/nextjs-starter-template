@@ -1,11 +1,15 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
+  AlertTriangleIcon,
+  FlaskConicalIcon,
+  MonitorSmartphoneIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
   ServerIcon,
   SettingsIcon,
+  ShapesIcon,
   SmartphoneIcon,
   TagIcon,
   Trash2Icon,
@@ -14,9 +18,14 @@ import { toast } from "sonner"
 
 import { FilterSelect } from "@/components/browser/sorting-filters"
 import { ALL, LABEL_DOT, NONE } from "@/lib/browser/sorting"
+import { rackMix } from "@/lib/phones/rack-mix"
 import { PhoneDialog } from "@/components/phones/phone-dialog"
+import { PhoneScreenDialog } from "@/components/phones/phone-screen-dialog"
 import { PhoneStatusText } from "@/components/phones/phone-status"
 import { RackDialog } from "@/components/phones/rack-dialog"
+import { ResumeRackDialog } from "@/components/phones/resume-rack-dialog"
+import { RackMixDialog } from "@/components/phones/rack-mix-dialog"
+import { SelfTestDialog } from "@/components/phones/self-test-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -37,11 +46,13 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   changePhones,
   disconnectPhoneRack,
   getPhoneErrorMessage,
+  pauseRack,
   type BulkPhoneAction,
   type PhoneRecord,
   type PhonesPage,
@@ -52,17 +63,21 @@ import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
-import { connectionWords } from "@/lib/phones/wording"
+import { appVersionWords, connectionWords } from "@/lib/phones/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 type SortColumn = "name" | "account" | "status" | "carrier" | "lastSeen"
 
 const COLUMNS: SortableColumn<SortColumn>[] = [
   { key: "name", label: "Phone", column: "main" },
-  { key: "account", label: "Account", column: "meta" },
+  { key: "account", label: "Account", column: "meta", className: "hidden xl:table-cell" },
   { key: "status", label: "Status", column: "meta" },
-  { key: "carrier", label: "Carrier", column: "meta", className: "hidden md:table-cell" },
-  { key: "lastSeen", label: "Last seen", column: "meta", className: "hidden lg:table-cell" },
+  // Folded away on narrower windows, or the row is wider than its card and
+  // its buttons go off the edge (measured 14 Oct 2026: 1148px of columns in
+  // a 1082px card at 1280 wide, 837px in 826px at 1024). The account folds
+  // into a line under the phone's name; the carrier is in its window.
+  { key: "carrier", label: "Carrier", column: "meta", className: "hidden xl:table-cell" },
+  { key: "lastSeen", label: "Last seen", column: "meta", className: "hidden 2xl:table-cell" },
 ]
 
 const STATUS_ORDER = { connected: 0, busy: 1, held: 2, offline: 3 } as const
@@ -90,8 +105,9 @@ function compare(a: PhoneRecord, b: PhoneRecord, column: SortColumn): number {
 const REFRESH_MS = 10_000
 
 /**
- * Every phone on the rack: the account on it, whether it is connected, its
- * carrier and when the rack last saw it.
+ * Every phone on the rack: the account on it, its app versions, whether it is
+ * connected, its carrier and when the rack last saw it. Self-test opens the
+ * daily self-test and app updates.
  *
  * Built like the Browser profiles dashboard, and sorted with the same
  * folders, labels and tags. A phone's window keeps it in `?open=<id>`, which
@@ -104,6 +120,20 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
   const navigate = useNavigate()
   const page = initial
   const phones = page.phones
+  const mix = React.useMemo(
+    () =>
+      rackMix(
+        phones.map((phone) => ({
+          model: phone.model,
+          androidVersion: phone.androidVersion,
+          connection: phone.connection,
+          // What the SIM itself says beats what was typed.
+          carrier: phone.setupCheck?.figures.simCarrier || phone.simCarrier,
+          proxyName: phone.proxy ? phone.proxy.label || phone.proxy.host : "",
+        }))
+      ),
+    [phones]
+  )
 
   const [search, setSearch] = React.useState("")
   const [folderFilter, setFolderFilter] = React.useState(ALL)
@@ -118,6 +148,10 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
   const [rackOpen, setRackOpen] = React.useState(false)
   const [deleteTargets, setDeleteTargets] = React.useState<PhoneRecord[]>([])
   const [disconnecting, setDisconnecting] = React.useState<RackView | null>(null)
+  const [resuming, setResuming] = React.useState(false)
+  const [selfTestOpen, setSelfTestOpen] = React.useState(false)
+  const [mixOpen, setMixOpen] = React.useState(false)
+  const [screenFor, setScreenFor] = React.useState<string | null>(null)
   const [tagging, setTagging] = React.useState(false)
   const [tagText, setTagText] = React.useState("")
   const [busy, setBusy] = React.useState(false)
@@ -213,6 +247,19 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
       await refresh()
     } catch (disconnectError) {
       showErrorToast(getPhoneErrorMessage(disconnectError))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function pause() {
+    setBusy(true)
+    try {
+      await pauseRack()
+      toast.success("The rack is paused. No phone job starts until you resume it; running ones finish.")
+      await refresh()
+    } catch (pauseError) {
+      showErrorToast(getPhoneErrorMessage(pauseError))
     } finally {
       setBusy(false)
     }
@@ -341,6 +388,43 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
                 options={tags.map((tag) => ({ id: tag, name: tag }))}
               />
             ) : null}
+            <span className="flex h-8 items-center gap-2">
+              <Switch
+                id="phones-rack-paused"
+                checked={Boolean(page.pausedAt)}
+                disabled={busy}
+                onCheckedChange={(checked) => (checked ? void pause() : setResuming(true))}
+              />
+              <Label htmlFor="phones-rack-paused" className="text-sm font-normal whitespace-nowrap">
+                {page.pausedAt ? "Rack paused" : "Pause the rack"}
+              </Label>
+            </span>
+            <Hint label={mix.warnings.length ? mix.warnings[0].text : "Rack mix: models, carriers and Android versions"}>
+              <DashboardToolbarButton
+                type="button"
+                variant="outline"
+                aria-label={mix.warnings.length ? `Rack mix: ${mix.warnings.length} ${mix.warnings.length === 1 ? "warning" : "warnings"}` : "Rack mix"}
+                onClick={() => setMixOpen(true)}
+              >
+                {mix.warnings.length ? (
+                  <AlertTriangleIcon className="size-4 text-amber-600 dark:text-amber-400" />
+                ) : (
+                  <ShapesIcon className="size-4" />
+                )}
+                <span className="hidden sm:inline">Mix</span>
+              </DashboardToolbarButton>
+            </Hint>
+            <Hint label="Self-test and app updates">
+              <DashboardToolbarButton
+                type="button"
+                variant="outline"
+                aria-label="Self-test and app updates"
+                onClick={() => setSelfTestOpen(true)}
+              >
+                <FlaskConicalIcon className="size-4" />
+                <span className="hidden sm:inline">Self-test</span>
+              </DashboardToolbarButton>
+            </Hint>
             <Hint label={rackWords}>
               <DashboardToolbarButton type="button" variant="outline" aria-label={rackWords} onClick={() => setRackOpen(true)}>
                 <span
@@ -435,8 +519,18 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
                     .filter(Boolean)
                     .join(" · ") || "No model read yet"}
                 </span>
+                <span className="line-clamp-1 text-xs text-muted-foreground xl:hidden">
+                  {phone.accounts.length ? phone.accounts.map(signedInWords).join(", ") : "No account on it"}
+                </span>
+                <span className="line-clamp-1 text-xs text-muted-foreground">
+                  {phone.id === page.testPhoneId ? "Self-test phone · " : ""}
+                  {appVersionWords(phone)}
+                </span>
+                {setupWarning(phone) ? (
+                  <span className="line-clamp-1 text-xs text-amber-600 dark:text-amber-400">{setupWarning(phone)}</span>
+                ) : null}
               </TableCell>
-              <TableCell column="meta" className="text-sm">
+              <TableCell column="meta" className="hidden text-sm xl:table-cell">
                 {phone.accounts.length ? (
                   <span className="grid">
                     {phone.accounts.map((account) => (
@@ -450,10 +544,10 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
               <TableCell column="meta" className="text-sm">
                 <PhoneStatusText phone={phone} />
               </TableCell>
-              <TableCell column="meta" className="hidden max-w-48 text-sm md:table-cell">
+              <TableCell column="meta" className="hidden max-w-48 text-sm xl:table-cell">
                 <span className="line-clamp-2">{connectionWords(phone)}</span>
               </TableCell>
-              <TableCell column="meta" className="hidden text-sm text-muted-foreground lg:table-cell">
+              <TableCell column="meta" className="hidden text-sm text-muted-foreground 2xl:table-cell">
                 {phone.lastSeenAt ? formatTimeAgo(phone.lastSeenAt) : "Never"}
               </TableCell>
               <TableCell column="actions">
@@ -469,6 +563,17 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
                     aria-label={phone.held ? `Release ${phone.name}` : `Hold ${phone.name}`}
                   >
                     {phone.held ? <PlayIcon className="size-4" /> : <PauseIcon className="size-4" />}
+                  </Button>
+                </Hint>
+                <Hint label="Show the screen">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setScreenFor(phone.id)}
+                    aria-label={`Show the screen of ${phone.name}`}
+                  >
+                    <MonitorSmartphoneIcon className="size-4" />
                   </Button>
                 </Hint>
                 <Hint label="Phone settings">
@@ -531,6 +636,29 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
         }}
       />
 
+      <PhoneScreenDialog
+        phone={phones.find((phone) => phone.id === screenFor) ?? null}
+        onClose={() => setScreenFor(null)}
+        onChanged={refresh}
+      />
+
+      <RackMixDialog open={mixOpen} mix={mix} onClose={() => setMixOpen(false)} />
+      <SelfTestDialog
+        open={selfTestOpen}
+        phones={phones}
+        onClose={() => setSelfTestOpen(false)}
+        onChanged={refresh}
+      />
+
+      <ResumeRackDialog
+        open={resuming}
+        onClose={() => setResuming(false)}
+        onResumed={async () => {
+          setResuming(false)
+          await refresh()
+        }}
+      />
+
       <ConfirmDialog
         open={disconnecting !== null}
         onOpenChange={(next) => {
@@ -579,7 +707,7 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
         description={[
           "Only the record goes. Nothing on the phone changes, and if it is still plugged in the rack adds it back as a new phone on its next check-in.",
           deletedAccounts.length
-            ? `${deletedAccounts.map(signedInWords).join(", ")} will run on nothing until you pick a browser profile or phone for ${deletedAccounts.length === 1 ? "it" : "them"} on the Reddit accounts dashboard.`
+            ? `${deletedAccounts.map(signedInWords).join(", ")} will run on nothing until you pick a browser profile or phone for ${deletedAccounts.length === 1 ? "it" : "them"} on the Accounts dashboard.`
             : "No account runs on it.",
         ].join(" ")}
         confirmLabel={deleteTargets.length === 1 ? "Delete phone" : "Delete phones"}
@@ -588,4 +716,23 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
       />
     </>
   )
+}
+
+/**
+ * The one thing about a phone's setup worth a line on its row, most urgent
+ * first: the wrong address showing, a wipe owed, a wiped phone not set up
+ * again, or a setup check with lines that do not pass. Its Setup tab has the rest.
+ */
+function setupWarning(phone: PhoneRecord): string {
+  if (phone.addressStop) return "Stopped: the wrong address showed"
+  if (phone.needsWipeAt) return "Needs wiping before another account"
+  const check = phone.setupCheck
+  if (phone.wipedAt && !(check?.passed && new Date(check.checkedAt) > new Date(phone.wipedAt))) {
+    return "Wiped: set it up again and run its setup check"
+  }
+  if (check && !check.passed) {
+    const failing = check.lines.filter((line) => line.verdict === "fails").length
+    return failing ? `Setup check: ${failing} of ${check.lines.length} lines fail` : ""
+  }
+  return ""
 }

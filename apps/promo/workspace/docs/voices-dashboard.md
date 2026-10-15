@@ -41,7 +41,7 @@ words, try again, compare. Tyler picked this on 12 Oct 2026.
   before it is kept.
 - **The post** is picked from the newest posts found under any keyword. The
   drafts are told that post's own project's description, the same as Write
-  with AI before an account is clicked.
+  with AI before an account is picked.
 - **Nothing is stored or sent.** The drafts never show on the post's own draft
   tiles.
 - **Two drafts are one AI call,** counted as "reddit-comment" on the AI usage
@@ -55,7 +55,7 @@ the call is `tryVoice` in `src/server/social/ai-tasks.ts`.
 It drafts plainly: neither box is sent. What you make still comes from its
 project's description. On the Projects dashboard, Write with AI's tooltip says
 "No voice picked for this account, so drafts are plain", and the Reddit account tab links here. A voice
-can be swapped on each row of the Reddit accounts dashboard.
+can be swapped on each row of the Accounts dashboard.
 
 ## The first account's words
 

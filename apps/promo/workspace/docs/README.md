@@ -11,14 +11,20 @@ the repo's `docs/`, and is never copied here.
 ## Projects
 
 - [The Projects dashboard](projects-dashboard.md): the table of every project,
-  and one project's description, accounts, keywords and posts on one screen, which account comments, what the
-  AI is told about what you make, the order accounts are listed in, pausing a
-  project, and the Today page of every project's best posts and waiting replies.
+  and one project's description, networks, keywords and posts on one screen,
+  the accounts dropdown and which account comments, what the AI is told about
+  what you make, the order accounts are listed in, pausing a project, and the
+  Today tab of the project's best posts and waiting replies.
+- [Networks as modules](network-modules.md): a project picks the networks it
+  uses, each a row in its left column that fills the middle and right columns,
+  Reddit's screens folded into its module as tabs and windows, the tables that
+  fold by the column's width, and where the old addresses lead.
 
 ## Reddit
 
-- [The Reddit accounts dashboard](reddit/accounts-dashboard.md): every account
-  with its status (Warming up, Ready, Working, Banned), project, profile and
+- [The Accounts dashboard](reddit/accounts-dashboard.md): `/admin/accounts`,
+  under Projects after Voices, every account on every platform with a Platform
+  filter, and its status (Warming up, Ready, Working, Banned), project, profile and
   proxy, adding one, setting a status by hand, pausing, help-only posts, and
   retiring.
 - [Finding posts worth answering](reddit/finding-posts.md) — what a keyword is,
@@ -41,10 +47,14 @@ the repo's `docs/`, and is never copied here.
 - [Posts of your own](reddit/your-own-posts.md): New post on a project, the
   subreddit's rules first, the same rules as Post, and the Posts tab.
 - [Answering replies](reddit/answering-replies.md) — the Replies window on the
-  Comments screen: the replies under a sent comment, drafting and sending an
+  Comments tab: the replies under a sent comment, drafting and sending an
   answer from the same account under Post's rules, and how an answer is stored.
 - [How Reddit sees the account](reddit/account-health.md) — karma, account age,
   and whether a stranger can see the profile, read once a day and on request.
+- [Reddit on phones](reddit/reddit-on-phones.md): who is signed in, the health
+  reading and the comment done in the real Reddit app, finding a phone
+  comment's link, the Post button naming its device, and moving an account
+  from a browser profile to a phone.
 
 ## Accounts
 
@@ -52,6 +62,9 @@ the repo's `docs/`, and is never copied here.
   browser that searches so accounts never do, the visit around every comment,
   waking hours, warm-up, the pace limit for young accounts, clicks and
   scrolls like a hand, and help-only comments that build karma. Settings → Behaviour.
+- [Important and throwaway accounts](accounts/important-and-throwaway.md): the
+  two groups, marking one important for good, and everything Promo refuses
+  that would link them.
 
 ## The browser
 
@@ -60,8 +73,8 @@ the repo's `docs/`, and is never copied here.
   signing in once, the proxy, the limit on how many run at once, profiles
   working side by side, why only the browser program opens one, and how a dead
   or leftover one is cleared.
-- [The Jobs dashboard](browser/jobs-dashboard.md): last under Projects in the
-  left menu. Whether the browser program is running and how to start it, and
+- [The Jobs window](browser/jobs-dashboard.md): the Jobs button on a
+  project's Reddit module. Whether the browser program is running and how to start it, and
   every search, read, comment and check it is running, waiting to run,
   finished or failed, with Cancel and Try again.
 - [Browser profiles](browser/profiles.md) — one isolated browser as a record of
@@ -80,12 +93,36 @@ the repo's `docs/`, and is never copied here.
 
 - [The Phones dashboard](phones/phones-dashboard.md): every Android phone on
   the rack as a record, its status (Connected, Offline, Busy, Held), the shelf
-  slot, the bell when a phone needs a hand, and an account that runs on a
-  phone instead of a browser profile.
+  slot, the five tabs of its window, app versions on each row, the Mix window,
+  and an account that runs on a phone instead of a browser profile.
 - [The rack program](phones/rack-program.md): the program at home that drives
   the phones, how it reaches Promo without opening a port, the named actions,
   pairing with a one-time code, signed messages, Disconnect, the one install
   command, and updating itself with a rollback.
+- [Jobs on phones](phones/phone-jobs.md): a phone account's jobs through the
+  same job list, one at a time per phone and side by side across phones, the
+  phones' own limit, waking hours on the phone's clock, an offline phone
+  refusing at once, pausing the rack, and Settings → Phones.
+- [A phone's screen window](phones/screen-window.md): the live picture, control
+  and the hold while a person taps, authenticator codes and texted codes.
+- [A phone's health](phones/phone-health.md): what the rack reads once a
+  minute, the bell for a phone offline, hot, with no signal or nearly full and
+  for the rack going quiet, the four-week battery and heat chart, and each
+  phone's history.
+- [Freezes and ban screens](phones/freezes-and-ban-screens.md): a frozen app
+  reopened and a frozen phone restarted without anything being sent twice,
+  and an app's suspended, locked or "confirm it's you" screen stopping the
+  account at once.
+- [A picture of every step](phones/step-pictures.md): each action's named
+  steps with a screenshot, kept encrypted in R2, how long they are kept, and
+  clearing a failed one's.
+- [Making each phone look like one person's](phones/looking-like-a-real-person.md):
+  the setup check, what the platform sees, wiping a phone between accounts,
+  the rack mix warning, and Wi-Fi phones that must show their proxy's address.
+- [The daily self-test and app updates](phones/self-test-and-app-updates.md):
+  the spare test phone, walking each action to its last button without
+  pressing it, broken actions refused, and app updates on the test phone
+  first.
 
 ## Writing
 
@@ -96,8 +133,8 @@ the repo's `docs/`, and is never copied here.
 ## Notices
 
 - [Promo's bell notices](notices.md): new replies, removed comments, suspended
-  accounts, failures and proxy renewals, one notice per thing, and where each
-  opens.
+  accounts, failures, proxy renewals and phone problems, one notice per thing,
+  and where each opens.
 
 ## Shell
 

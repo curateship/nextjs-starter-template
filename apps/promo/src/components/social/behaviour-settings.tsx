@@ -378,7 +378,7 @@ function clockLine(account: BehaviourAccount, settings: BehaviourSettings): stri
 function warmUpLine(account: BehaviourAccount): string {
   const name = accountName(account)
   if (account.ageUnknown) {
-    return `${name}: Promo has not read how old it is yet, so its warm-up cannot be counted. Tick it on the Reddit accounts dashboard and press Check now.`
+    return `${name}: Promo has not read how old it is yet, so its warm-up cannot be counted. Tick it on the Accounts dashboard and press Check now.`
   }
   const age = account.redditCreatedAt ? `is ${accountAgeText(account.redditCreatedAt)}` : "has no age read"
   if (!account.warmUpEndsAt) return `${name} ${age} and past its warm-up.`

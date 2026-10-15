@@ -15,15 +15,30 @@ The program calls Promo. Promo never calls the house, so no port is opened at
 home and nothing changes on the Hetzner server.
 
 - **Every 15 seconds** it checks in at `/api/rack/check-in` with the phones adb
-  sees and its own version.
+  sees, each phone's model, Android version and time zone, and its own version.
+  Once a minute each phone's reading rides along: battery, heat, storage, the
+  SIM's signal, the time since it started, and every ten minutes its app
+  versions. A thread of its own takes the readings, so a slow phone never
+  holds up a check-in. [A phone's health](phone-health.md) has the rest.
 - **Every 3 seconds** it asks `/api/rack/next` for the oldest waiting action,
-  and asks again at once after finishing one.
-- **The answer** goes to `/api/rack/result`, with up to four pictures shrunk to
-  540 pixels wide.
-- **An action left running five minutes** is failed by Promo: "The rack did not
-  answer within five minutes."
-- **Pictures** are kept for each phone's newest 20 actions and the older ones
-  deleted, so the table does not grow with every check ever run.
+  and asks again at once after taking one. Promo hands each phone one action
+  at a time; the program runs each on a thread of its own, so two phones
+  work side by side.
+- **The answer** goes to `/api/rack/result`, with a picture of each step,
+  shrunk to 540 pixels wide ([a picture of every step](step-pictures.md)),
+  any ban screen found after an app action, and what was done about a freeze.
+  It is tried five times, because a comment that went out must be reported.
+- **Each action carries its own time limit.** A check has five minutes; a
+  job's Reddit step has the browser's own limit for that step. The program
+  gives up a minute before the limit, reopens a frozen app or restarts a
+  phone that stopped answering ([freezes and ban screens](freezes-and-ban-screens.md)),
+  and never runs the action again. One the rack never answers is failed by
+  Promo: "The rack did not answer in time."
+- **While a screen window is open,** a third thread sends that phone's screen
+  to `/api/rack/screen` about three times a second and carries back the taps.
+  [The screen window](screen-window.md) has the rest.
+- **It never switches version under a running action,** and waits for the
+  actions to finish first.
 
 ## The actions
 
@@ -36,13 +51,41 @@ on both lists is refused by whichever side does not know it: Promo's list is
 - **`phone/health`:** battery, temperature, free storage, whether the screen is
   on, how long it has been on.
 - **`phone/android-version`:** the test of the whole path. It opens Settings at
-  About phone, reads the Android version off the screen and takes a picture,
-  then goes back home. On a Samsung it opens Software information first. The
-  answer is checked against the version Android itself reports, so a wrong
-  read shows as "Settings says 15, but Android itself reports 16".
+  About phone, reads the Android version off the screen with a picture of
+  each step, then goes back home. On a Samsung it opens Software information
+  first. The answer is checked against the version Android itself reports, so
+  a wrong read shows as "Settings says 15, but Android itself reports 16".
+- **`phone/self-test`:** walks every action in `REHEARSALS` up to its last
+  button and never presses it. Promo asks once a day on the test phone.
+- **`phone/check-updates`:** opens each tracked app's Play Store page and reads
+  whether Update shows. Presses nothing.
+- **`phone/update-app`:** presses Update on one app's Play Store page and waits
+  up to eight minutes for the new version.
 
-The network actions (`reddit/search` and the rest) join the list in the later
-phone farm files.
+The last three are Promo's own, never a button on a phone's window. [The
+self-test and app updates](self-test-and-app-updates.md) has them.
+
+- **`phone/setup-check`:** Wi-Fi, location permissions, the clock, the
+  language, the SIM, the battery, the Play Store's auto-update setting, and the
+  address apps see beside the house's own. Each part is read on its own, so
+  one that fails leaves the rest.
+- **`phone/outside-address`:** only the two addresses, before every job on a
+  Wi-Fi phone.
+- **`phone/wipe`:** a factory reset through Settings. The erase is pressed
+  through the last-button guard, so a rehearsal never presses it, and it is
+  never rehearsed.
+  [Making each phone look like one person's](looking-like-a-real-person.md)
+  has all three.
+- **`reddit/state`, `reddit/quick_state`, `reddit/health` and
+  `reddit/comment`:** the Reddit app's own steps, answering in the browser's
+  shapes. [Reddit on phones](../reddit/reddit-on-phones.md).
+
+Every action that touches the screen walks it as named steps through the
+`Walk` class, which keeps a picture of each, stops pressing anything once the
+action is given up on, and in a self-test only finds the last button. A
+button an app update may rename is looked for in each of its known shapes
+(`find_first`), and a press lands a little off the button's middle
+(`tap_point`), like a thumb.
 
 ## Pairing
 
@@ -133,7 +176,11 @@ The computer never needs a terminal after the first command.
 - `npx vitest run src/server/phones src/components/phones` covers Promo's side.
 - `python3 -m unittest discover -s rack -p "test_*.py"`, from `apps/promo`,
   covers the program: the device list, reading the Settings screen, the shared
-  signing example, and both kinds of rollback.
+  signing example, both kinds of rollback, the readings, the self-test never
+  pressing Post, every saved ban screen, reopening a frozen app or
+  restarting a frozen phone, the setup check's readings, the wipe, the Reddit
+  app's screens, and taps, swipes and typing like a person. pytest is not
+  needed.
 - `python3 rack/promo_rack.py phones` prints what adb sees, for checking a
   phone by hand.
 
@@ -149,6 +196,7 @@ A real phone on the rack is the only proof that an action works on a phone.
   Promo serves).
 - The tables: `promo_racks`, `promo_rack_codes`, `promo_rack_nonces`,
   `promo_phone_actions` and `promo_phone_screenshots`, in
-  `drizzle/0114_promo_phones.sql`.
+  `drizzle/0114_promo_phones.sql`, with the step pictures, readings and
+  freezes added by `drizzle/0116_promo_phone_health.sql`.
 - Out of scope here: more than one rack (file 07), restarting a phone by
   cutting its power, phones on Hetzner, emulators and cloud phones.

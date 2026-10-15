@@ -1,5 +1,4 @@
 import * as React from "react"
-import { BellIcon } from "lucide-react"
 
 import { SaveLine } from "@/components/project/save-line"
 import { Label } from "@/components/ui/label"
@@ -44,14 +43,9 @@ export function MyNoticeSwitches({
   }
 
   return (
-    <section className="grid gap-4" aria-labelledby="my-notices-heading">
-      <div className="flex items-center justify-between gap-2">
-        <h3 id="my-notices-heading" className="flex items-center gap-2 text-sm font-medium">
-          <BellIcon className="size-4 text-muted-foreground" aria-hidden />
-          My notices
-        </h3>
-        <SaveLine state={saveState} />
-      </div>
+    // Its name is the card around it in My settings, so only the save sign is here.
+    <section className="grid gap-4" aria-label="My notices">
+      <SaveLine state={saveState} className="justify-self-end empty:hidden" />
       <p className="text-sm text-muted-foreground">
         Pick what reaches your bell. A notice switched off is never sent to you, and everyone
         else still gets theirs. Time to check in, your own reminders and tags always reach you.

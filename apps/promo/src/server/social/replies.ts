@@ -1,14 +1,16 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 
+import { phoneStepRefusal } from "@/lib/phones/options"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import {
   MAX_COMMENT_CHARS,
-  noBrowserMessage,
+  NO_PROFILE_MESSAGE,
   type IncomingReply,
 } from "@/lib/social/options"
 import { postingRefusalText } from "@/lib/social/wording"
 
+import { refuseInteraction } from "./apart"
 import { queueJob } from "./jobs"
 import { readPostingState } from "./posting"
 import {
@@ -171,14 +173,17 @@ export async function queueReply(
   const handle = account.handle ? `u/${account.handle}` : "This account"
   if (account.retiredAt) {
     throw new Refusal(
-      `${handle} sent this comment and is retired, so it no longer posts. Bring it back on the Reddit accounts dashboard first.`
+      `${handle} sent this comment and is retired, so it no longer posts. Bring it back on the Accounts dashboard first.`
     )
   }
-  if (!account.profileId) throw new Refusal(noBrowserMessage(account))
+  if (!account.profileId && !account.phoneId) throw new Refusal(NO_PROFILE_MESSAGE)
+  const onPhone = account.phoneId ? phoneStepRefusal("reddit/reply", account.handle ? `u/${account.handle}'s phone` : "This account's phone") : null
+  if (onPhone) throw new Refusal(onPhone)
 
   const state = await readPostingState(userId, account, db, now)
   const refusal = postingRefusalText(state, now, state.timeZone)
   if (refusal) throw new Refusal(refusal)
+  await refuseInteraction(userId, account, { replyAuthor: reply.author, words: [text] }, db)
 
   const runAfter = state.nextWakeAt
   const jobId = await queueJob(

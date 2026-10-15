@@ -47,6 +47,9 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  * change a sent comment, each from the account that sent it. `help_read`
  * reads the newest posts in one account's everyday subreddits, and
  * `promo_threads` looks for a subreddit's self-promotion thread.
+ * `forget` closes a browser profile and deletes its saved sign-in, after its
+ * account moved to a phone, and `comment_link` finds the address of a
+ * comment a phone posted, which the Reddit app does not show.
  *
  * `READER_JOB_KINDS` run in the signed-out reader browser, never in the
  * account's own: the account Reddit sees commenting never searches.
@@ -72,6 +75,8 @@ export type JobKind =
   | "edit_comment"
   | "help_read"
   | "promo_threads"
+  | "forget"
+  | "comment_link"
 
 /** The kinds that run in the reader browser, signed in to nobody. */
 export const READER_JOB_KINDS: readonly JobKind[] = [
@@ -82,6 +87,7 @@ export const READER_JOB_KINDS: readonly JobKind[] = [
   "profile_check",
   "help_read",
   "promo_threads",
+  "comment_link",
 ]
 
 /**
@@ -122,28 +128,14 @@ export type ProfileCheck = {
  * the settings tab's error lookup needs the same words at runtime.
  */
 export const NO_PROFILE_MESSAGE =
-  "This Reddit account has no browser profile or phone, so it cannot post. Pick where it runs with its settings button on the Reddit accounts dashboard."
+  "This Reddit account has no browser profile or phone, so it cannot post. Pick where it runs with its settings button on the Accounts dashboard."
 
 /**
- * What every Reddit job says for an account that runs on a phone. Phones
- * take Reddit's jobs from a later phone farm step; until then a job is
- * refused with this rather than run in a browser the account never signed in
- * to.
+ * Why Post is off on the Projects dashboard before an account is picked. A
+ * comment always goes out from the account picked in the dropdown beside
+ * Post, so there is never a default one to fall back to.
  */
-export const ON_A_PHONE_MESSAGE =
-  "This Reddit account runs on a phone, and phones do not take Reddit jobs yet. Move it to a browser profile with its settings button on the Reddit accounts dashboard to use it now."
-
-/** The refusal for an account with no browser profile: on a phone, or on nothing. */
-export function noBrowserMessage(account: { phoneId: string | null }): string {
-  return account.phoneId ? ON_A_PHONE_MESSAGE : NO_PROFILE_MESSAGE
-}
-
-/**
- * Why Post is off on the Projects dashboard before an account is clicked. A
- * comment always goes out from the account clicked on the left, so there is
- * never a default one to fall back to.
- */
-export const PICK_AN_ACCOUNT = "Pick an account on the left."
+export const PICK_AN_ACCOUNT = "Pick an account beside Post comment."
 
 /**
  * What a search, a reply read or a stranger's check says when no reader
@@ -260,6 +252,7 @@ export type ProfileEventKind =
   | "proxy_refused"
   | "backed_up"
   | "restored"
+  | "sign_in_deleted"
 export type SearchStatus = "running" | "done" | "failed"
 export type DraftStatus = "draft" | "sent" | "discarded"
 

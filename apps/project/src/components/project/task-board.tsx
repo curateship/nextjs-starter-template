@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  closestCenter,
   closestCorners,
   DndContext,
   DragOverlay,
@@ -10,20 +11,26 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type CollisionDetection,
   type UniqueIdentifier,
 } from "@dnd-kit/core"
 import {
   arrayMove,
+  horizontalListSortingStrategy,
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import {
   ChevronRightIcon,
+  CopyIcon,
+  EllipsisIcon,
   HourglassIcon,
   ListChecksIcon,
   MessageSquareIcon,
   PlayIcon,
+  PlusIcon,
+  Trash2Icon,
   TriangleAlertIcon,
   UndoIcon,
 } from "lucide-react"
@@ -43,6 +50,13 @@ import {
   UnreadBadge,
 } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import type { TaskCard } from "@/lib/api/project/tasks"
 import { plural } from "@/lib/format/plural"
@@ -53,7 +67,7 @@ import {
   isTaskStatus,
   type TaskStatus,
 } from "@/lib/project/rules"
-import { todayKey } from "@/lib/project/dates"
+import { dueDayOf, todayKey } from "@/lib/project/dates"
 import type { DoingWarning } from "@/lib/project/doing-limit"
 import { splitRecentDone } from "@/lib/project/task-filters"
 import { byPosition } from "@/lib/project/task-order"
@@ -70,6 +84,26 @@ export type BoardLane = {
 export const ALL_LANE = "all"
 export const NOBODY_LANE = "nobody"
 
+/** Duplicate and Delete on a card's "..." menu. */
+export type CardActions = {
+  onDuplicate: (task: TaskCard) => void
+  onDelete: (task: TaskCard) => void
+  /** Whoever made the task, and the team's owners and admins. */
+  canDelete: (task: TaskCard) => boolean
+}
+
+/**
+ * A column's "+": the screen wraps `button` in its New task dropdown, keyed so
+ * only one opens, with `label` as its tooltip.
+ */
+export type AddTask = (
+  key: string,
+  status: TaskStatus,
+  laneId: string,
+  button: React.ReactNode,
+  label: string
+) => React.ReactNode
+
 /**
  * One column per status. A card drags up or down inside its column to set the
  * project's order, which everyone on it sees, and across to another column to
@@ -84,6 +118,14 @@ export const NOBODY_LANE = "nobody"
  *
  * While a card is held, a copy follows the pointer and the columns make room
  * for it wherever it is over, so it never jumps back to where it started.
+ *
+ * A column drags left or right by its heading to set the order of the
+ * columns (Tyler, 14 Oct 2026): on a project page the project's, which
+ * everyone on it sees; on My dashboard my own. Grouped by person, moving a column in one row moves it in every row.
+ *
+ * Each column's "+" opens New task for that column (and that person's row),
+ * and pointing at a card shows its "..." menu with Duplicate and Delete
+ * (Tyler, 14 Oct 2026). Neither shows on an archived project.
  */
 export function TaskBoard({
   tasks,
@@ -95,6 +137,12 @@ export function TaskBoard({
   onHandOver,
   lanes,
   doingWarnings = [],
+  addTask,
+  cardActions,
+  statusOrder = TASK_STATUSES,
+  onStatusOrder,
+  cardOrder = "project",
+  showProject = false,
 }: {
   tasks: TaskCard[]
   /** The task open in the panel beside the Board, whose card is outlined. */
@@ -111,6 +159,20 @@ export function TaskBoard({
   onReorder: (taskIds: string[]) => void
   /** Dropped in another person's row: hand it to them (null for nobody), into this column. */
   onHandOver?: (task: TaskCard, personId: string | null, status: TaskStatus, taskIds: string[]) => void
+  addTask?: AddTask
+  cardActions?: CardActions
+  /** The columns, left to right. */
+  statusOrder?: readonly TaskStatus[]
+  /** A column dropped in a new place: the new order. Left out, columns don't drag. */
+  onStatusOrder?: (order: TaskStatus[]) => void
+  /**
+   * "project": the project's own order, set by dragging up or down. "due": by
+   * due date, soonest first, with no order of its own, for My dashboard, whose
+   * cards come from several projects. Dragging across columns still works.
+   */
+  cardOrder?: "project" | "due"
+  /** Names each card's project, for a Board of several projects. */
+  showProject?: boolean
 }) {
   // A short drag threshold, so a click on a card still opens it.
   // No keyboard dragging: Enter on a card opens it, as a button should.
@@ -125,7 +187,7 @@ export function TaskBoard({
   const grouped = Boolean(lanes)
 
   const columns = React.useMemo(() => {
-    const sorted = [...tasks].sort(byPosition)
+    const sorted = [...tasks].sort(cardOrder === "due" ? byDue : byPosition)
     const result: Record<string, { shown: TaskCard[]; hidden: number }> = {}
     for (const lane of rows) {
       const mine = grouped ? sorted.filter((task) => laneOf(task) === lane.id) : sorted
@@ -144,7 +206,7 @@ export function TaskBoard({
       }
     }
     return result
-  }, [grouped, rows, today, showOlder, tasks])
+  }, [cardOrder, grouped, rows, today, showOlder, tasks])
 
   // Each column's cards while one is held, moved as it crosses columns. The
   // ref is what the drop reads, so a drop in the same instant as a crossing
@@ -158,7 +220,26 @@ export function TaskBoard({
   const byId = React.useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
   const heldTask = held ? byId.get(held.id) : undefined
 
+  // Cards land on cards and columns; a column only on another column in its own row.
+  const collisionDetection = React.useCallback<CollisionDetection>((args) => {
+    const id = String(args.active.id)
+    if (!isColumnDrag(id)) {
+      return closestCorners({
+        ...args,
+        droppableContainers: args.droppableContainers.filter((c) => !isColumnDrag(String(c.id))),
+      })
+    }
+    const lane = splitKey(id.slice(COLUMN_DRAG.length)).lane
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter(
+        (c) => isColumnDrag(String(c.id)) && splitKey(String(c.id).slice(COLUMN_DRAG.length)).lane === lane
+      ),
+    })
+  }, [])
+
   function handleDragStart(event: DragStartEvent) {
+    if (isColumnDrag(String(event.active.id))) return
     setHeld({
       id: String(event.active.id),
       columns: Object.fromEntries(
@@ -169,7 +250,7 @@ export function TaskBoard({
 
   function handleDragOver({ active, over }: DragOverEvent) {
     const current = heldRef.current
-    if (!over || !current) return
+    if (!over || !current || isColumnDrag(String(active.id))) return
     const from = columnOf(current.columns, active.id)
     const to = columnOf(current.columns, over.id)
     if (!from || !to || from === to) return
@@ -189,6 +270,13 @@ export function TaskBoard({
   }
 
   function handleDragEnd({ active, over }: DragEndEvent) {
+    if (isColumnDrag(String(active.id))) {
+      if (!over || !onStatusOrder) return
+      const from = statusOrder.indexOf(splitKey(String(active.id).slice(COLUMN_DRAG.length)).status)
+      const to = statusOrder.indexOf(splitKey(String(over.id).slice(COLUMN_DRAG.length)).status)
+      if (from >= 0 && to >= 0 && from !== to) onStatusOrder(arrayMove([...statusOrder], from, to))
+      return
+    }
     const state = heldRef.current
     setHeld(null)
     const task = byId.get(String(active.id))
@@ -208,6 +296,7 @@ export function TaskBoard({
       onMove(task, status, ids)
       return
     }
+    if (cardOrder === "due") return
     const before = columns[key].shown.map((t) => t.id)
     if (ids.some((id, index) => id !== before[index])) onReorder(ids)
   }
@@ -221,8 +310,13 @@ export function TaskBoard({
     })
   }
 
-  const columnsOf = (laneId: string) =>
-    TASK_STATUSES.map((status) => {
+  const laneName = (laneId: string) => rows.find((lane) => lane.id === laneId)?.name ?? ""
+  const columnsOf = (laneId: string) => (
+    <SortableContext
+      items={statusOrder.map((status) => COLUMN_DRAG + columnKey(laneId, status))}
+      strategy={horizontalListSortingStrategy}
+    >
+      {statusOrder.map((status) => {
       const key = columnKey(laneId, status)
       return (
         <BoardColumn
@@ -239,15 +333,36 @@ export function TaskBoard({
           onOpenTask={onOpenTask}
           openTaskId={openTaskId}
           compact={grouped}
+          showProject={showProject}
+          columnDrag={readOnly || !onStatusOrder ? null : COLUMN_DRAG + key}
+          addButton={
+            addTask
+              ? (() => {
+                  const label = `Add a task to ${TASK_STATUS_LABEL[status]}${grouped ? ` for ${laneName(laneId)}` : ""}`
+                  return addTask(
+                    key,
+                    status,
+                    laneId,
+                    <Button type="button" variant="ghost" size="icon-sm" aria-label={label}>
+                      <PlusIcon className="size-4" />
+                    </Button>,
+                    label
+                  )
+                })()
+              : null
+          }
+          cardActions={cardActions}
         />
       )
-    })
+      })}
+    </SortableContext>
+  )
 
   return (
     <DndContext
       id={dndId}
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -278,7 +393,7 @@ export function TaskBoard({
       <DragOverlay>
         {heldTask ? (
           <div aria-hidden className={cn(CARD_CLASS, "cursor-grabbing shadow-lg")}>
-            <CardContent task={heldTask} />
+            <CardContent task={heldTask} showProject={showProject} />
           </div>
         ) : null}
       </DragOverlay>
@@ -289,11 +404,20 @@ export function TaskBoard({
 type Held = { id: string; columns: Record<string, string[]> }
 
 const KEY_SEPARATOR = "::"
+/** A column's own drag id is its key after this, so it never meets a card's or a drop area's. */
+const COLUMN_DRAG = "column-drag|"
+const isColumnDrag = (id: string) => id.startsWith(COLUMN_DRAG)
 const columnKey = (lane: string, status: TaskStatus) => `${lane}${KEY_SEPARATOR}${status}`
 function splitKey(key: string): { lane: string; status: TaskStatus } {
   const at = key.lastIndexOf(KEY_SEPARATOR)
   const status = key.slice(at + KEY_SEPARATOR.length)
   return { lane: key.slice(0, at), status: isTaskStatus(status) ? status : "todo" }
+}
+
+/** Soonest due first, with no date last, then by title. */
+function byDue(a: TaskCard, b: TaskCard) {
+  const day = (task: TaskCard) => dueDayOf(task) ?? "9999-12-31"
+  return day(a).localeCompare(day(b)) || a.title.localeCompare(b.title)
 }
 
 /** The row a task sits in when grouped: its person's, or "Nobody assigned". */
@@ -385,6 +509,10 @@ function BoardColumn({
   onOpenTask,
   openTaskId,
   compact,
+  showProject,
+  columnDrag,
+  addButton,
+  cardActions,
 }: {
   /** The column's drop id: its row and status. */
   id: string
@@ -400,25 +528,50 @@ function BoardColumn({
   openTaskId: string | undefined
   /** In a person's row: a shorter empty column. */
   compact: boolean
+  showProject: boolean
+  /** The column's own drag id, dragged by its heading; null when columns don't move. */
+  columnDrag: string | null
+  /** The "+" with its New task dropdown, at the heading's right. */
+  addButton?: React.ReactNode
+  cardActions?: CardActions
 }) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: readOnly })
+  const sortable = useSortable({ id: columnDrag ?? `${id}-fixed`, disabled: !columnDrag })
   const headingId = `board-column-${id.replace(/[^\w-]/g, "-")}`
   return (
     <section
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node)
+        sortable.setNodeRef(node)
+      }}
       aria-labelledby={headingId}
+      style={
+        sortable.transform
+          ? { transform: `translate3d(${sortable.transform.x}px, 0, 0)`, transition: sortable.transition }
+          : undefined
+      }
       className={cn(
         "flex w-64 shrink-0 flex-col gap-2 rounded-lg border bg-muted/40 p-2",
         // As tall as its cards, with room under them to drop one into an empty column.
         compact ? "min-h-16" : "min-h-56",
-        isOver && "ring-2 ring-ring"
+        isOver && "ring-2 ring-ring",
+        // The column being moved floats over the others as they make room.
+        sortable.isDragging && "relative z-10 shadow-lg"
       )}
     >
-      <h3 id={headingId} className="flex items-center gap-2 px-1 pt-1 text-sm font-medium">
-        <StatusDot status={status} />
-        {TASK_STATUS_LABEL[status]}
-        <span className="text-muted-foreground">{tasks.length + hidden}</span>
-      </h3>
+      <div
+        className={cn("flex min-h-7 items-center gap-2", columnDrag && "cursor-grab active:cursor-grabbing")}
+        // The heading is the handle; the "+" inside it still clicks, since a drag starts only after 8px.
+        {...(columnDrag ? sortable.listeners : {})}
+        aria-roledescription={columnDrag ? "movable column" : undefined}
+      >
+        <h3 id={headingId} className="flex flex-1 items-center gap-2 px-1 text-sm font-medium">
+          <StatusDot status={status} />
+          {TASK_STATUS_LABEL[status]}
+          <span className="text-muted-foreground">{tasks.length + hidden}</span>
+        </h3>
+        {addButton}
+      </div>
       {warnings.length ? (
         <ul className="grid gap-1 px-1" aria-label="Over the Doing limit">
           {warnings.map((warning) => (
@@ -443,6 +596,8 @@ function BoardColumn({
                 open={task.id === openTaskId}
                 readOnly={readOnly}
                 onOpen={() => onOpenTask(task.id)}
+                actions={cardActions}
+                showProject={showProject}
               />
             ))}
           </ul>
@@ -462,13 +617,18 @@ function BoardCard({
   open,
   readOnly,
   onOpen,
+  actions,
+  showProject,
 }: {
   task: TaskCard
   /** Open in the panel beside the Board: outlined in the text colour. */
   open: boolean
   readOnly: boolean
   onOpen: () => void
+  actions?: CardActions
+  showProject: boolean
 }) {
+  const [menuOpen, setMenuOpen] = React.useState(false)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     disabled: readOnly,
@@ -479,7 +639,7 @@ function BoardCard({
 
   return (
     // The card stays in the column as a faint placeholder while its copy follows the pointer.
-    <li ref={setNodeRef} style={style} className={cn(isDragging && "opacity-40")}>
+    <li ref={setNodeRef} style={style} className={cn("group/card relative", isDragging && "opacity-40")}>
       <button
         type="button"
         onClick={onOpen}
@@ -495,8 +655,42 @@ function BoardCard({
           open && "border-foreground ring-1 ring-foreground"
         )}
       >
-        <CardContent task={task} />
+        <CardContent task={task} roomForMenu={Boolean(actions)} showProject={showProject} />
       </button>
+      {actions ? (
+        // Beside the card's button rather than in it: a button can't hold another.
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`More for "${task.title}"`}
+              className={cn(
+                "absolute top-2 right-2 opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100",
+                (menuOpen || isDragging) && "opacity-100"
+              )}
+            >
+              <EllipsisIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onSelect={() => actions.onDuplicate(task)}>
+              <CopyIcon className="size-4" />
+              Duplicate
+            </DropdownMenuItem>
+            {actions.canDelete(task) ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onSelect={() => actions.onDelete(task)}>
+                  <Trash2Icon className="size-4" />
+                  Delete
+                </DropdownMenuItem>
+              </>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </li>
   )
 }
@@ -506,14 +700,30 @@ function BoardCard({
  * labels as small tinted chips; any warning; then one line with the due
  * date, steps, messages and what it waits on, and the person at its end.
  */
-function CardContent({ task }: { task: TaskCard }) {
+function CardContent({
+  task,
+  roomForMenu = false,
+  showProject = false,
+}: {
+  task: TaskCard
+  roomForMenu?: boolean
+  showProject?: boolean
+}) {
   const chips = task.type || task.priority === "high" || task.section || task.labels.length
   const slipping = task.dueMoves >= DUE_MOVED_MANY && task.status !== "done"
   return (
     <>
-      <span className={cn("font-medium break-words", task.priority === "low" && "text-muted-foreground")}>
+      <span
+        className={cn(
+          "font-medium break-words",
+          task.priority === "low" && "text-muted-foreground",
+          // Clear of the "..." in the card's corner.
+          roomForMenu && "pr-6"
+        )}
+      >
         {task.title}
       </span>
+      {showProject ? <span className="-mt-1 truncate text-xs text-muted-foreground">{task.projectName}</span> : null}
       {chips ? (
         <span className="flex flex-wrap items-center gap-1">
           <PriorityMark priority={task.priority} />

@@ -28,6 +28,7 @@ import {
   queueReply,
   type CommentReplies,
 } from "@/server/social/replies"
+import { passReaderWritten } from "@/lib/social/refusal-words"
 
 import { createErrorMessage, describeAuthError } from "../error-message"
 import { getPostErrorMessage } from "./reddit/drafts"
@@ -40,14 +41,14 @@ export type { CommentRow, CommentReplies, FailureRow }
  * comment out of the AI's examples. Admin only, like every Reddit endpoint.
  */
 
-export const getCommentsErrorMessage = createErrorMessage(
+export const getCommentsErrorMessage = passReaderWritten(createErrorMessage(
   {
     "no longer saved": "That comment is not there any more. Reload the page.",
     "There is no reader browser": NO_READER_MESSAGE,
     "now holds an account": "The reader browser now holds an account, so nothing is read in it. Pick another reader in Settings → Behaviour.",
   },
   "That did not work. Please try again."
-)
+))
 
 const listFn = createServerFn({ method: "GET" })
   .middleware([adminGet])

@@ -1,8 +1,34 @@
-# The Reddit accounts dashboard
+# The Accounts dashboard
 
-Every Reddit account in one list, with its status, the project it comments for,
-the browser profile or phone it runs on, and how that goes online.
-It is at `/admin/reddit-accounts`, under **Projects** in the left menu.
+Every account on every platform in one list, with its status, the project it
+comments for, the browser profile or phone it runs on, and how that goes
+online. It is at `/admin/accounts`, under **Projects** in the left menu, right
+after Voices.
+
+Tyler, 15 Oct 2026: "I think accounts should be on its own dashboard with
+platform filtering". It had been a window inside each project for a day, after
+the Reddit accounts page left the left menu on 14 Oct 2026
+([Networks as modules](../network-modules.md)).
+
+- **Platform** is a filter in the toolbar, "All platforms" or one network, and
+  each row names its platform after the account ("u/name · Reddit"). Only
+  Reddit accounts exist so far, and the list reads every platform's.
+- **The filter lives in the address** as `?platform=reddit`, so a reload, a
+  link or the left menu's own link always shows what the address says.
+  **Manage accounts**, the last item in the **Comment as** dropdown above a
+  project's comment box, comes here that way. A platform Promo does not offer
+  is ignored and the filter shows All platforms.
+- **The old address** `/admin/reddit-accounts`, which the bell's suspended
+  account notice used, sends here filtered to Reddit. New suspended notices
+  open `/admin/accounts?platform=reddit` straight away.
+- **An account's own windows** (its settings, Add account, help-only posts)
+  open over this page, one window at a time.
+- **The left menu link** is added by `drizzle/0119_promo_accounts_menu.sql`
+  to every saved left menu with a Projects entry: after Voices, or last under
+  Projects where Voices is not there.
+- **Every action still speaks Reddit.** Add account makes a Reddit account,
+  and Check now reads Reddit. When Instagram is built, its accounts need their
+  own Add and Check (`workspace/tasks/Phone farm/06-instagram-and-tiktok.md`).
 
 Tyler's words, 12 Oct 2026: "build a dashboard for reddit profiles with status
 (like warming up, ready etc...) show what profile and proxy as currantly
@@ -22,9 +48,14 @@ One Reddit account per profile and per phone, so one already holding one, and
 the reader browser from Settings → Behaviour, are not offered. The account is
 then signed in to Reddit there, and starts in no project.
 
-An account runs on a profile or a phone, never both. Phones do not take Reddit
-jobs yet, so an account on a phone has every search, comment and post refused
-with words saying so until phone farm file 02 is built.
+An account runs on a profile or a phone, never both. An account on a phone has
+its jobs run on the phone ([Jobs on phones](../phones/phone-jobs.md)).
+
+Every account is important or a throwaway, and starts as a throwaway
+([important and throwaway accounts](../accounts/important-and-throwaway.md)).
+A phone that is not ready for an account is listed with why, such as "needs
+wiping", and picking it is refused with what to do
+([making each phone look like one person's](../phones/looking-like-a-real-person.md)).
 
 Settings → Reddit account still edits one account: the oldest one in use.
 Which account a comment goes out from is picked per comment on the
@@ -73,8 +104,8 @@ last comment. Under 1536px wide the age, karma and last comment fold into a line
 under the name, because the row was otherwise wider than a 1440px window and
 its buttons went off the edge.
 
-- **Filter** by status (All, Warming up, Ready, Working, Banned) and by the
-  profile's or phone's tags. **Rows group** under their profile's or phone's
+- **Filter** by status (All, Warming up, Ready, Working, Banned), by
+  important or throwaway, and by the profile's or phone's tags. **Rows group** under their profile's or phone's
   folder, the folders both dashboards share, with "No folder" last; with no folders anywhere there are
   no headings. Nothing new is stored for either.
 - **Tick many, then act.** Each is one request, and the message says how many
@@ -85,8 +116,23 @@ its buttons went off the edge.
   - Pause, and Resume.
   - Retire.
 - **Each row** has Check now, Help-only posts, Pause or Resume, the settings
-  button for where it runs, and Retire. The settings button moves the account
-  to another profile or phone; sign-ins do not move with it.
+  button, and Retire. The settings button moves the account to another profile
+  or phone, where sign-ins do not move with it, and saves its authenticator
+  secret so its two-factor code shows there and beside its phone's screen
+  ([the screen window](../phones/screen-window.md)). The test phone of the
+  daily self-test is never on its list.
+- **Important** shows under an important account's status, and **Moving to**
+  a phone's name while a move from its browser profile is waiting on the phone.
+- **The settings window** says whether the account is important or a
+  throwaway. A throwaway on a phone has **Mark important**, after a
+  confirmation and for good. A throwaway on a browser profile has **Move to a
+  phone**, then **Check sign-in** and **Cancel move** while it waits
+  ([Reddit on phones](reddit-on-phones.md)). An important account is offered
+  phones only under Runs on.
+- **Stopped by a ban screen** shows under an account's status when a phone
+  found Reddit's suspended, locked or "confirm it's you" screen, with the
+  screen's words on hover. Its jobs are refused until **Let it run again** in
+  its settings window ([freezes and ban screens](../phones/freezes-and-ban-screens.md)).
 - **The voice menu is 128px wide**, 32px narrower than it was, so a row with
   four buttons still fits a 1440px window (measured 13 Oct 2026: 1232px of
   columns against 1232px of room).

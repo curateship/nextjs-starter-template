@@ -1,10 +1,12 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 
+import { phoneStepRefusal } from "@/lib/phones/options"
 import { Refusal } from "@/server/browser/refusal"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { MAX_CHECKS_PER_PRESS, MAX_COMMENT_CHARS, noBrowserMessage } from "@/lib/social/options"
+import { MAX_CHECKS_PER_PRESS, MAX_COMMENT_CHARS, NO_PROFILE_MESSAGE } from "@/lib/social/options"
 
+import { refuseInteraction } from "./apart"
 import { nextExampleIds } from "./examples"
 import { queueJob } from "./jobs"
 import { unansweredCounts } from "./replies"
@@ -224,14 +226,18 @@ export async function queueCommentChange(
   }
   const handle = account.handle ? `u/${account.handle}` : "The account that sent it"
   if (account.retiredAt) {
-    throw new Refusal(`${handle} is retired, so it no longer changes anything on Reddit. Bring it back on the Reddit accounts dashboard first.`)
+    throw new Refusal(`${handle} is retired, so it no longer changes anything on Reddit. Bring it back on the Accounts dashboard first.`)
   }
-  if (!account.profileId) throw new Refusal(noBrowserMessage(account))
+  if (!account.profileId && !account.phoneId) throw new Refusal(NO_PROFILE_MESSAGE)
+  const onPhone = account.phoneId
+    ? phoneStepRefusal(change.kind === "delete" ? "reddit/delete_comment" : "reddit/edit_comment", account.handle ? `u/${account.handle}'s phone` : "This account's phone")
+    : null
+  if (onPhone) throw new Refusal(onPhone)
   const paused = await pausedBy(userId, account, db)
   if (paused) {
     throw new Refusal(
       paused === "account"
-        ? `${handle} is paused. Resume it on the Reddit accounts dashboard first.`
+        ? `${handle} is paused. Resume it on the Accounts dashboard first.`
         : `${handle}'s project is paused. Resume the project first.`
     )
   }
@@ -246,6 +252,7 @@ export async function queueCommentChange(
     throw new Refusal(`That is ${text.length} characters, and a comment stops at ${MAX_COMMENT_CHARS}.`)
   }
   if (text === comment.text) throw new Refusal("Those are the words it already has.")
+  await refuseInteraction(userId, account, { words: [text] }, db)
   await queueJob(userId, "edit_comment", { commentId, accountId: account.id, text }, db)
 }
 

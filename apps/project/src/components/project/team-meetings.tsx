@@ -1,9 +1,10 @@
-import { ExternalLinkIcon, SettingsIcon } from "lucide-react"
+import { ExternalLinkIcon, PlusIcon, SettingsIcon } from "lucide-react"
 
 import { PersonAvatar } from "@/components/project/task-bits"
+import { TeamSideCard } from "@/components/project/team-side-card"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Meeting, MeetingOccurrence, MeetingPerson } from "@/lib/api/project/meetings"
-import { shortDayLabel } from "@/lib/project/days"
 import { MEETING_CHIP, repeatWords, timeRangeLabel, type DayMeeting } from "@/lib/project/meetings"
 import { PROJECT_COLOR_DOT } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
@@ -34,40 +35,39 @@ export function MeetingChips({ meetings }: { meetings: DayMeeting[] }) {
 }
 
 /**
- * Under the calendar: the chosen day's meetings, one row each with its time,
- * name, where it happens and who is coming. The row opens the meeting's
- * window for that date, Join opens the video link in a new tab, and the cog
- * changes the meeting for whoever may (Tyler's choice, 12 Oct 2026).
+ * The chosen day's meetings, as a card in the right panel under the day's
+ * check-ins (Tyler, 14 Oct 2026; they sat under the calendar before). One row
+ * each with its time, name, where it happens and who is coming. The row opens
+ * the meeting's window for that date, Join opens the video link in a new tab,
+ * the cog changes the meeting for whoever may, and "+ Add" makes a new one.
  */
-export function DayMeetings({
-  day,
+export function MeetingsCard({
   holiday,
   meetings,
   viewerZone,
   onOpen,
   onEdit,
+  onAdd,
 }: {
-  day: string
   /** The team holiday's name, which a calendar square has too little room for. */
   holiday?: string
   meetings: DayMeeting[]
   viewerZone: string
   onOpen: (meeting: Meeting, occurrence: MeetingOccurrence) => void
   onEdit: (meeting: Meeting) => void
+  onAdd: () => void
 }) {
   return (
-    <section className="grid gap-3 border-t p-4" aria-labelledby="day-meetings-heading">
-      <div className="flex items-baseline justify-between gap-2">
-        <h3 id="day-meetings-heading" className="min-w-0 font-medium break-words">
-          {shortDayLabel(day)}
-          {holiday ? <span className="font-normal text-muted-foreground"> · {holiday}</span> : null}
-        </h3>
-        <span className="shrink-0 text-sm text-muted-foreground">
-          {meetings.length === 0
-            ? "No meetings"
-            : `${meetings.length} ${meetings.length === 1 ? "meeting" : "meetings"}`}
-        </span>
-      </div>
+    <TeamSideCard
+      title="Meetings"
+      aside={
+        <Button type="button" variant="ghost" size="sm" className="-mr-2" onClick={onAdd}>
+          <PlusIcon className="size-4" />
+          Add
+        </Button>
+      }
+    >
+      {holiday ? <p className="text-sm text-muted-foreground">{holiday}, a team holiday.</p> : null}
       {meetings.length ? (
         <ul className="grid gap-2">
           {meetings.map(({ occurrence, meeting }) => (
@@ -81,8 +81,10 @@ export function DayMeetings({
             />
           ))}
         </ul>
-      ) : null}
-    </section>
+      ) : (
+        <p className="text-sm text-muted-foreground">No meetings.</p>
+      )}
+    </TeamSideCard>
   )
 }
 
@@ -112,8 +114,9 @@ function MeetingRow({
   const body = (
     <>
       <span aria-hidden className={cn("h-9 w-1 shrink-0 rounded-full", PROJECT_COLOR_DOT[meeting.color])} />
-      <span className="grid min-w-0 flex-1 gap-0.5 sm:flex sm:items-center sm:gap-4">
-        <span className="shrink-0 text-sm tabular-nums sm:w-36">{time}</span>
+      {/* The time over the name: the right panel is too narrow for them side by side. */}
+      <span className="grid min-w-0 flex-1 gap-0.5">
+        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{time}</span>
         <span className="grid min-w-0">
           <span className="truncate font-medium">{meeting.title}</span>
           <span className="truncate text-xs text-muted-foreground">{details.join(" · ")}</span>
@@ -123,7 +126,7 @@ function MeetingRow({
   )
 
   return (
-    <li className="flex items-center gap-2 rounded-lg border pr-2">
+    <li className="flex items-center gap-1 rounded-lg border bg-background pr-1">
       <button
         type="button"
         aria-label={`${meeting.title}, ${time}, ${details.join(", ")}. Open the meeting`}
@@ -133,18 +136,22 @@ function MeetingRow({
         {body}
       </button>
       {meeting.videoUrl ? (
-        // Words from 640px up; on a phone the row needs the room.
-        <Button asChild variant="outline" className="max-sm:size-8 max-sm:px-0">
-          <a
-            href={meeting.videoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`Join ${meeting.title} on ${meeting.service ?? "the video link"} (opens in a new tab)`}
-          >
-            <ExternalLinkIcon className="size-4" />
-            <span className="max-sm:hidden">Join</span>
-          </a>
-        </Button>
+        // An icon, since the right panel's row has little room; its name says Join.
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button asChild variant="ghost" size="icon">
+              <a
+                href={meeting.videoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Join ${meeting.title} on ${meeting.service ?? "the video link"} (opens in a new tab)`}
+              >
+                <ExternalLinkIcon className="size-4" />
+              </a>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Join</TooltipContent>
+        </Tooltip>
       ) : null}
       <PeopleStack people={meeting.people} />
       {meeting.canEdit ? (

@@ -5,16 +5,16 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { shownFind } from "./keywords"
 import { STRONG_FIT_FROM, rankReason } from "./reddit/rank"
 import { unansweredCounts } from "./replies"
-import { promoAccounts, promoComments, promoFinds, promoKeywords, promoProjects } from "./schema"
+import { promoAccounts, promoComments, promoFinds, promoKeywords } from "./schema"
 
 /**
- * The Today page: every project's best posts and every reply waiting for an
- * answer, in one list each, best first. With several projects, the morning
- * round is one list instead of opening each project in turn.
+ * The Today tab in a project's Reddit module: the project's best posts and
+ * every reply to its accounts' comments waiting for an answer, in one list
+ * each, best first. It was one page across every project until 14 Oct 2026,
+ * when Tyler folded Reddit's screens into the project.
  *
- * Nothing here posts. A post opens on its own project's dashboard, where the
- * account has to be one of that project's; a reply opens in its comment's
- * Replies window.
+ * Nothing here posts. A post opens beside the list, where the account has to
+ * be one of the project's; a reply opens in its comment's Replies window.
  */
 
 /** How many posts the list shows. More than a morning's work. */
@@ -27,7 +27,6 @@ export type TodayPost = {
   commentCount: number
   postedAt: Date | null
   reason: string
-  project: { id: string; name: string }
 }
 
 export type TodayReply = {
@@ -40,28 +39,25 @@ export type TodayReply = {
   /** The newest of those, to read before opening. */
   latest: { author: string; text: string }
   account: { id: string; handle: string }
-  project: { id: string; name: string } | null
 }
 
 export type TodayView = { posts: TodayPost[]; replies: TodayReply[] }
 
+/** One project's Strong fit posts and its replies waiting for an answer, for its Today tab. */
 export async function readToday(
   userId: string,
+  projectId: string,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<TodayView> {
   const posts = await db
-    .select({
-      find: promoFinds,
-      projectId: promoProjects.id,
-      projectName: promoProjects.name,
-    })
+    .select({ find: promoFinds })
     .from(promoFinds)
     .innerJoin(promoKeywords, eq(promoKeywords.id, promoFinds.keywordId))
-    .innerJoin(promoProjects, eq(promoProjects.id, promoKeywords.projectId))
     .where(
       and(
         eq(promoFinds.userId, userId),
+        eq(promoKeywords.projectId, projectId),
         inArray(promoFinds.status, ["new", "shortlisted"]),
         gte(promoFinds.rank, STRONG_FIT_FROM),
         shownFind(userId)
@@ -73,8 +69,8 @@ export async function readToday(
   // The same post can be found by two keywords; it is one post to answer.
   const seen = new Set<string>()
   const todayPosts: TodayPost[] = []
-  for (const { find, projectId, projectName } of posts) {
-    const key = `${projectId}:${find.redditId}`
+  for (const { find } of posts) {
+    const key = find.redditId
     if (seen.has(key)) continue
     seen.add(key)
     todayPosts.push({
@@ -87,7 +83,6 @@ export async function readToday(
         { position: find.redditPosition, commentCount: find.commentCount, postedAt: find.postedAt },
         now
       ),
-      project: { id: projectId, name: projectName },
     })
     if (todayPosts.length >= TODAY_POSTS) break
   }
@@ -100,16 +95,14 @@ export async function readToday(
       subreddit: promoFinds.subreddit,
       accountId: promoAccounts.id,
       handle: promoAccounts.handle,
-      projectId: promoProjects.id,
-      projectName: promoProjects.name,
     })
     .from(promoComments)
     .innerJoin(promoFinds, eq(promoFinds.id, promoComments.findId))
     .innerJoin(promoAccounts, eq(promoAccounts.id, promoComments.accountId))
-    .leftJoin(promoProjects, eq(promoProjects.id, promoAccounts.projectId))
     .where(
       and(
         eq(promoComments.userId, userId),
+        eq(promoAccounts.projectId, projectId),
         eq(promoComments.status, "posted"),
         isNull(promoComments.parentId),
         isNull(promoComments.deletedAt)
@@ -132,7 +125,6 @@ export async function readToday(
       toAnswer,
       latest: { author: newest?.author ?? "", text: newest?.text ?? "" },
       account: { id: comment.accountId, handle: comment.handle },
-      project: comment.projectId && comment.projectName !== null ? { id: comment.projectId, name: comment.projectName } : null,
     })
   }
 

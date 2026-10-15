@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { AlarmClockIcon, CheckCheckIcon, ListChecksIcon, Loader2Icon, SettingsIcon } from "lucide-react"
+import { AlarmClockIcon, CheckCheckIcon, ListChecksIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CatchUpDialog } from "@/components/project/catch-up-dialog"
@@ -11,11 +11,18 @@ import { MyCheckinTime } from "@/components/project/my-checkin-time"
 import { MyNoticeSwitches } from "@/components/project/my-notice-switches"
 import { SaveLine } from "@/components/project/save-line"
 import { MyTaskRows } from "@/components/project/my-task-rows"
+import { OptionCard } from "@/components/project/option-card"
+import { NewTaskWithProjectPicker } from "@/components/project/new-task-header"
 import { PanelCard } from "@/components/project/panel-card"
 import { SaveViewDialog, SavedViewsControls } from "@/components/project/saved-views"
 import { PersonPages } from "@/components/project/person-pages"
+import { ReasonDialog } from "@/components/project/reason-dialog"
+import { TaskBoard } from "@/components/project/task-board"
+import { TaskCalendar } from "@/components/project/task-calendar"
+import { TaskTimeline } from "@/components/project/task-timeline"
 import { PersonAvatar, TintChip } from "@/components/project/task-bits"
 import { TaskFilterPopover } from "@/components/project/task-filter-popover"
+import { DueFilterMenu, SearchToggle, UnderlineTabs } from "@/components/project/task-header-controls"
 import { TaskSidePanel } from "@/components/project/task-side-panel"
 import { TeamStart } from "@/components/project/team-start"
 import { ThreePanels } from "@/components/project/three-panels"
@@ -23,16 +30,15 @@ import { TimeOffSection } from "@/components/project/time-off-card"
 import { NotificationRow } from "@/components/shared/notification-row"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { orderMyPicks, type MyDashboard as MyDashboardData } from "@/lib/api/project/checkins"
-import { acceptTasks, type TaskCard } from "@/lib/api/project/tasks"
+import { orderMyPicks, saveMyStatusOrder, type MyDashboard as MyDashboardData } from "@/lib/api/project/checkins"
+import { acceptTasks, saveTask, setStatus, type TaskCard } from "@/lib/api/project/tasks"
 import {
   markAllNotificationsRead,
   markNotificationRead,
@@ -47,10 +53,11 @@ import { useAppNotificationDetails } from "@/lib/hooks/use-app-notification-deta
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { notificationAction } from "@/lib/notification-action"
-import { MY_DASHBOARD_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
+import { MY_DASHBOARD_PANEL_LAYOUT_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
+import { useRememberedChoice } from "@/lib/remembered-choice"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { clockIn, clockLabel } from "@/lib/project/days"
-import { LIMITS, TEAM_ROLE_LABEL, runsTheTeam } from "@/lib/project/rules"
+import { LIMITS, TEAM_ROLE_LABEL, runsTheTeam, type TaskStatus } from "@/lib/project/rules"
 import {
   DUE_GROUPS,
   dueGroupOf,
@@ -60,7 +67,6 @@ import {
 } from "@/lib/project/task-filters"
 import { todaysPicks } from "@/lib/project/todays-picks"
 import { useSaveLine } from "@/lib/project/use-save-line"
-import { useWidthAtLeast } from "@/lib/project/use-width-at-least"
 import { viewHasFilters } from "@/lib/project/saved-views"
 import { cn } from "@/lib/utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -74,7 +80,8 @@ export type MyDashboardSearch = Omit<TaskFilters, "person"> & {
   checkout?: true
 }
 
-type TaskTab = "today" | "open" | "done"
+const MY_VIEWS = ["board", "list", "calendar", "timeline"] as const
+type MyView = (typeof MY_VIEWS)[number]
 
 /**
  * My dashboard: me on the left with today's check-in, my tasks in the middle,
@@ -156,7 +163,14 @@ function Dashboard({
             <MyTasksPanel
               dashboard={dashboard}
               openTaskId={search.task}
-              filters={{ q: search.q, status: search.status, label: search.label, type: search.type }}
+              filters={{
+                q: search.q,
+                status: search.status,
+                priority: search.priority,
+                label: search.label,
+                type: search.type,
+                due: search.due,
+              }}
               onFilters={(patch) => go(patch, { replace: true })}
               onOpenTask={taskAddress.open}
             />
@@ -298,7 +312,7 @@ function MePanel({
           </PanelCard>
           <MyWeekSection reload={dashboard} />
           <PanelCard storageId="project-my-time-off" title="Time off">
-            <TimeOffSection idPrefix="my-time-off" compact />
+            <TimeOffSection idPrefix="my-time-off" compact initial={dashboard.timeOff} />
           </PanelCard>
         </div>
       </ScrollArea>
@@ -344,26 +358,39 @@ function MySettingsMenu({ dashboard }: { dashboard: MyDashboardData }) {
         className="w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
       >
         <ScrollArea className="min-h-0" viewportClassName="max-h-[min(75vh,44rem)]">
-          <div className="grid gap-4 p-4">
-            <p className="text-sm text-muted-foreground">
+          {/* Each setting a card that folds open, its answer on the right (Tyler, 14 Oct 2026). */}
+          <div className="grid gap-2 p-3">
+            <p className="px-1 pb-1 text-sm text-muted-foreground">
               {me.email} · joined {formatDate(me.joinedAt)}
             </p>
-            <MyJobTitle title={me.title} />
-          </div>
-          <div className="border-t p-4">
-            <MyCheckinTime clock={checkin.clock} />
-          </div>
-          <div className="border-t p-4">
-            <MyNoticeSwitches off={dashboard.noticesOff} runsTheTeam={runsTheTeam(me.role)} />
+            <OptionCard
+              id="my-settings-title"
+              title="Job title"
+              description="Shown beside your name to the rest of the team."
+              summary={me.title || "None"}
+            >
+              <MyJobTitle title={me.title} />
+            </OptionCard>
+            <OptionCard
+              id="my-settings-checkin"
+              title="Check-in time"
+              summary={`${clockLabel(checkin.clock.time)}, ${checkin.clock.zone.replaceAll("_", " ")}`}
+            >
+              <MyCheckinTime clock={checkin.clock} />
+            </OptionCard>
+            <OptionCard
+              id="my-settings-notices"
+              title="Bell notices"
+              summary={dashboard.noticesOff.length ? `${dashboard.noticesOff.length} off` : "All on"}
+            >
+              <MyNoticeSwitches off={dashboard.noticesOff} runsTheTeam={runsTheTeam(me.role)} />
+            </OptionCard>
           </div>
         </ScrollArea>
       </PopoverContent>
     </Popover>
   )
 }
-
-/** The middle panel's width from which the search box fits in its header beside the tabs. */
-const MY_SEARCH_ROOM_PX = 640
 
 function MyTasksPanel({
   dashboard,
@@ -381,7 +408,10 @@ function MyTasksPanel({
 }) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  const { tasks, checkin } = dashboard
+  const { checkin } = dashboard
+  // A status or date changed on the Board, Calendar or Timeline shows at once
+  // and is put back if the server refuses it.
+  const [tasks, setTasks] = useSyncedDraft(dashboard.tasks)
   // Today's picks can include a carried-over task since handed to someone else,
   // so they are read from the check-in rather than from my own tasks. They come
   // in my own order; a drag shows at once and goes back if the save fails.
@@ -400,15 +430,17 @@ function MyTasksPanel({
   const open = notDone.filter((task) => !task.snoozedUntil || task.snoozedUntil <= myDay)
   const snoozed = notDone.length - open.length
   const done = tasks.filter((task) => task.status === "done")
-  const [tab, setTab] = React.useState<TaskTab>(today.length ? "today" : "open")
+  const [view, setView] = useRememberedChoice<MyView>(MY_TASK_VIEW_KEY, "list", MY_VIEWS)
+  const [statusOrder, setStatusOrder] = useSyncedDraft(dashboard.statusOrder)
+  // The task waiting for its Stuck reason, from a Board drop.
+  const [stuck, setStuck] = React.useState<TaskCard | null>(null)
   const waitingTasks = open.filter((task) => task.waiting)
   const waiting = waitingTasks.length
-  // The same tasks as the Open tab's Overdue group, by my own day.
+  // The same tasks as the List's Overdue group, by my own day.
   const overdueTasks = open.filter((task) => dueGroupOf({ ...task, waiting: false }, myDay) === "overdue")
   const overdue = overdueTasks.length
   const [catchingUp, setCatchingUp] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
-  const [header, roomForSearch] = useWidthAtLeast<HTMLDivElement>(MY_SEARCH_ROOM_PX)
   const bulk = { people: checkin.people, projects: [] }
   const here = { projectId: null, labels: dashboard.labels, types: dashboard.taskTypes }
 
@@ -438,6 +470,35 @@ function MyTasksPanel({
     await router.invalidate()
   }
 
+  /** A Board drop in another column: the same status change as on the task. */
+  async function changeStatus(task: TaskCard, status: TaskStatus, stuckReason: string | null) {
+    if (task.status === status) return true
+    const before = tasks
+    setTasks((current) => current.map((t) => (t.id === task.id ? { ...t, status, stuckReason } : t)))
+    const ok = await run(() => setStatus({ taskId: task.id, status, stuckReason }), status === "stuck" ? "Marked Stuck." : undefined)
+    if (!ok) setTasks(before)
+    await router.invalidate()
+    return ok
+  }
+
+  /** A Board column dropped in a new place: my own order, shown at once, put back if refused. */
+  async function changeStatusOrder(next: TaskStatus[]) {
+    const before = statusOrder
+    setStatusOrder(next)
+    const ok = await run(() => saveMyStatusOrder(next))
+    if (!ok) setStatusOrder(before)
+    else await router.invalidate()
+  }
+
+  /** A day dropped on the Calendar, or a bar moved on the Timeline: the same save as on the task. */
+  async function changeDates(task: TaskCard, dates: { startDate?: string | null; dueDate?: string | null }) {
+    const before = tasks
+    setTasks((current) => current.map((t) => (t.id === task.id ? { ...t, ...dates } : t)))
+    const ok = await run(() => saveTask({ taskId: task.id, ...dates }))
+    if (!ok) setTasks(before)
+    await router.invalidate()
+  }
+
   function saveView() {
     if (!viewHasFilters(filters)) {
       showErrorToast("Search or pick a filter first, then save it as a view.")
@@ -446,45 +507,45 @@ function MyTasksPanel({
     setSavingView(true)
   }
 
-  const rows = filterTasks(tab === "today" ? today : tab === "open" ? open : done, filters)
   const filtered = hasTaskFilters(filters)
+  // The List: today's picks first, in my own order, then my open tasks by when
+  // they are due, then Done. A pick is listed once, under the picks.
+  const picked = new Set(today.map((task) => task.id))
+  const listRows = filterTasks(
+    [...today, ...open.filter((task) => !picked.has(task.id)).sort(byDueDate), ...done],
+    filters
+  )
+  // The Board, Calendar and Timeline: every task of mine they can show, snoozed ones still hidden.
+  const shown = filterTasks([...open, ...done], filters)
+  const projects = [...new Map(shown.map((task) => [task.projectId, task.projectName])).entries()].map(
+    ([key, label]) => ({ key, label })
+  )
 
   return (
     <>
-      <DashboardCardHeader ref={header}>
-        <Tabs value={tab} onValueChange={(value) => setTab(value as TaskTab)} className="min-w-0 flex-1">
-          <ScrollArea className="min-w-0">
-            <TabsList className="justify-start">
-              <TabsTrigger value="today">
-                Today <TabsCount>{today.length}</TabsCount>
-              </TabsTrigger>
-              <TabsTrigger value="open">
-                Open <TabsCount>{open.length}</TabsCount>
-              </TabsTrigger>
-              <TabsTrigger value="done">
-                Done <TabsCount>{done.length}</TabsCount>
-              </TabsTrigger>
-            </TabsList>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </Tabs>
-        <div className="flex shrink-0 items-center gap-2">
-          {roomForSearch ? (
-            <DashboardToolbarSearch
-              inputClassName="sm:w-44 lg:w-56"
-              name="my-task-search"
-              aria-label="Search my tasks by title and notes"
-              placeholder="Search tasks"
-              value={filters.q ?? ""}
-              onChange={(event) => onFilters({ q: event.target.value || undefined })}
-            />
-          ) : null}
+      {/* The project page's header, copied here (Tyler, 14 Oct 2026): underlined tabs,
+          then when it is due, search, Filter, Views and New task. No members
+          dropdown, since every task here is mine. */}
+      <DashboardCardHeader className="@container">
+        <UnderlineTabs
+          value={view}
+          onValueChange={(value) => setView(value as MyView)}
+          tabs={[
+            { value: "board", label: "Board" },
+            { value: "list", label: "List" },
+            { value: "calendar", label: "Calendar" },
+            { value: "timeline", label: "Timeline" },
+          ]}
+        />
+        <div className="flex shrink-0 items-center gap-1">
+          <DueFilterMenu value={filters.due} onChange={(due) => onFilters({ due })} />
+          <SearchToggle value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
           <TaskFilterPopover
             filters={filters}
             onChange={onFilters}
             labels={dashboard.labels}
             types={dashboard.taskTypes}
-            search={!roomForSearch}
+            buttonVariant="ghost"
             onSaveView={saveView}
           />
           <SavedViewsControls
@@ -493,19 +554,25 @@ function MyTasksPanel({
             onChange={onFilters}
             here={here}
             saveButton={false}
+            buttonVariant="ghost"
           />
+          <NewTaskWithProjectPicker align="end">
+            {(loading) => (
+              // Words where there is room; an icon with its name in a narrow panel.
+              <Button
+                type="button"
+                className="ml-1 @max-3xl:size-8 @max-3xl:px-0"
+                aria-label="New task"
+                disabled={loading}
+              >
+                {loading ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
+                <span className="@max-3xl:hidden">New task</span>
+              </Button>
+            )}
+          </NewTaskWithProjectPicker>
         </div>
       </DashboardCardHeader>
-      {!roomForSearch && filters.q?.trim() ? (
-        // The search box is inside Filter in a narrow panel, so the words being searched show here.
-        <p className="flex items-center gap-2 border-b px-4 py-2 text-sm text-muted-foreground">
-          Searching for "{filters.q.trim()}"
-          <Button type="button" variant="ghost" size="sm" onClick={() => onFilters({ q: undefined })}>
-            Clear search
-          </Button>
-        </p>
-      ) : null}
-      {tab === "open" && overdue && !filtered ? (
+      {overdue && !filtered ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-destructive/10 px-4 py-2 text-destructive">
           <p className="flex items-center gap-2 text-sm">
             <AlarmClockIcon className="size-4 shrink-0" aria-hidden />
@@ -522,7 +589,7 @@ function MyTasksPanel({
           </Button>
         </div>
       ) : null}
-      {tab === "open" && waiting && !filtered ? (
+      {waiting && !filtered ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-4 py-2">
           <p className="text-sm">
             {waiting === 1
@@ -537,37 +604,82 @@ function MyTasksPanel({
       ) : null}
       <CatchUpDialog open={catchingUp} tasks={overdueTasks} onClose={() => setCatchingUp(false)} />
       <SaveViewDialog open={savingView} filters={filters} here={here} onClose={() => setSavingView(false)} />
-      {tab === "open" && snoozed ? (
+      {snoozed ? (
         <p className="border-b px-4 py-2 text-sm text-muted-foreground">
           {snoozed === 1
             ? "1 snoozed task is hidden until its day."
             : `${snoozed} snoozed tasks are hidden until their day.`}
         </p>
       ) : null}
-      <MyTaskRows
-        key={tab}
-        openTaskId={openTaskId}
-        tasks={tab === "open" ? [...rows].sort(byDueDate) : rows}
-        bulk={bulk}
-        onReorder={tab === "today" && !filtered ? (next) => void reorder(next) : undefined}
-        onOpenTask={(task) => onOpenTask(task.id)}
-        groups={tab === "open" ? DUE_GROUPS : undefined}
-        groupOf={(task) => dueGroupOf(task, myDay)}
-        emptyText={
-          filtered
-            ? `No tasks match ${filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the filters to see them all.`
-            : tab === "today"
-              ? checkin.checkin
-                ? "You checked in with nothing picked."
-                : "Check in to pick today's tasks."
-              : tab === "open"
-                ? "Nothing assigned to you right now."
-                : "No finished tasks yet."
-        }
+      {view !== "list" && filtered && shown.length === 0 ? (
+        <p className="p-4 text-sm text-muted-foreground">
+          No tasks match {filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the filters to see
+          them all.
+        </p>
+      ) : view === "board" ? (
+        <TaskBoard
+          tasks={shown}
+          openTaskId={openTaskId}
+          readOnly={busy}
+          onOpenTask={onOpenTask}
+          onMove={(task, status) => (status === "stuck" ? setStuck(task) : void changeStatus(task, status, null))}
+          onReorder={() => undefined}
+          cardOrder="due"
+          showProject
+          statusOrder={statusOrder}
+          onStatusOrder={(next) => void changeStatusOrder(next)}
+        />
+      ) : view === "calendar" ? (
+        <TaskCalendar
+          tasks={shown}
+          readOnly={busy}
+          onOpenTask={onOpenTask}
+          onDueDate={(task, dueDate) => void changeDates(task, { dueDate })}
+        />
+      ) : view === "timeline" ? (
+        <TaskTimeline
+          tasks={shown}
+          groups={projects.length > 1 ? projects : undefined}
+          groupOf={(task) => task.projectId}
+          readOnly={busy}
+          onOpenTask={onOpenTask}
+          onDates={(task, dates) => void changeDates(task, dates)}
+        />
+      ) : (
+        <MyTaskRows
+          openTaskId={openTaskId}
+          tasks={listRows}
+          bulk={bulk}
+          onReorder={filtered ? undefined : (next) => void reorder(next)}
+          reorderGroup={PICKED_GROUP}
+          onOpenTask={(task) => onOpenTask(task.id)}
+          groups={LIST_GROUPS}
+          groupOf={(task) => (picked.has(task.id) ? PICKED_GROUP : task.status === "done" ? "done" : dueGroupOf(task, myDay))}
+          emptyText={
+            filtered
+              ? `No tasks match ${filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}. Clear the filters to see them all.`
+              : "Nothing assigned to you right now."
+          }
+        />
+      )}
+      <ReasonDialog
+        open={Boolean(stuck)}
+        title="Why is it stuck?"
+        description={stuck ? `"${stuck.title}" moves to Stuck, and whoever handed it out is told.` : ""}
+        label="Reason"
+        confirmLabel="Mark Stuck"
+        busy={busy}
+        onClose={() => setStuck(null)}
+        onConfirm={async (reason) => (stuck ? changeStatus(stuck, "stuck", reason) : false)}
       />
     </>
   )
 }
+
+const PICKED_GROUP = "picked"
+
+/** The List's groups: today's picks, then when the rest are due, then Done. */
+const LIST_GROUPS = [{ key: PICKED_GROUP, label: "Picked for today" }, ...DUE_GROUPS, { key: "done", label: "Done" }]
 
 /** Soonest first; tasks with no date last, then by title. */
 function byDueDate(a: TaskCard, b: TaskCard) {
@@ -730,11 +842,12 @@ function MyJobTitle({ title }: { title: string | null }) {
   }
 
   return (
+    // The card around it is named Job title, so the name is for screen readers only, and
+    // nothing sits above the box: an empty row there was a gap (Tyler, 14 Oct 2026).
     <div className="grid gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <Label htmlFor="my-job-title">Job title</Label>
-        <SaveLine state={saveState} />
-      </div>
+      <Label htmlFor="my-job-title" className="sr-only">
+        Job title
+      </Label>
       <Input
         id="my-job-title"
         value={draft}
@@ -746,6 +859,7 @@ function MyJobTitle({ title }: { title: string | null }) {
           if (event.key === "Enter") event.currentTarget.blur()
         }}
       />
+      <SaveLine state={saveState} className="empty:hidden" />
     </div>
   )
 }

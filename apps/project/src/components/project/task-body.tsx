@@ -9,6 +9,7 @@ import { TaskFileDrop, TaskFilesCard } from "@/components/project/task-files-car
 import { TaskHistoryCard } from "@/components/project/task-history-card"
 import { TaskNotesField } from "@/components/project/task-notes"
 import { MoveTaskCard, ReminderCard, TaskMoreMenu } from "@/components/project/task-more-menu"
+import { PanelCardFooter } from "@/components/project/panel-card"
 import { StepListActions } from "@/components/project/step-list-actions"
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { TaskPlanCard } from "@/components/project/task-plan-card"
@@ -31,6 +32,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
@@ -63,7 +65,10 @@ import {
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import type { WrittenPageNode } from "@/lib/pages/written-page-body"
+import { plural } from "@/lib/format/plural"
 import { localTimeOf, momentOnDay } from "@/lib/project/dates"
+import { clockLabel, dayLabel } from "@/lib/project/days"
+import { OptionCard } from "@/components/project/option-card"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import {
   BIN_DAYS,
@@ -87,6 +92,20 @@ const NOBODY = "nobody"
 /** The one question before deleting a task, in the window and in the right panel alike. */
 export const DELETE_TASK_QUESTION = "Delete this task?"
 export const DELETE_TASK_DETAIL = `It moves to the project's bin with its steps, chat and files, and can be brought back for ${BIN_DAYS} days.`
+
+/** "Task moved to the bin." with Undo, after a task is deleted from its panel or its Board card. */
+export function showBinnedToast(taskId: string, router: { invalidate: () => Promise<unknown> }) {
+  toast.success("Task moved to the bin.", {
+    action: {
+      label: "Undo",
+      onClick: () =>
+        void restoreProjectTask(taskId).then(
+          () => router.invalidate(),
+          (error: unknown) => showErrorToast(getProjectErrorMessage(error))
+        ),
+    },
+  })
+}
 
 /**
  * What a task shows, split into the pieces its frames place differently: the
@@ -117,6 +136,8 @@ export type TaskParts = {
  * of the fields in the cog's dropdown.
  */
 export type TaskSide = {
+  /** The title at the top of the panel, edited where it is written. */
+  title: React.ReactNode
   status: React.ReactNode
   /** A hand-over to accept, a review, the Stuck reason row, and the Move and Remind me cards. */
   notices: React.ReactNode
@@ -127,14 +148,16 @@ export type TaskSide = {
   }
   /** `meta` is "0 of 2 done", or null with no steps. */
   steps: { meta: string | null; content: React.ReactNode }
+  /** The chat; with no messages yet it is written in a dropdown from the header, as notes are. */
   chat: { count: number; content: React.ReactNode }
+  /** Follow or stop following, at the right of the cog dropdown's tabs. */
+  followButton: React.ReactNode
   files: { count: number; content: React.ReactNode }
-  /** The fields of the cog's Details tab: title, person, dates, priority, type, section, labels and review. */
-  details: React.ReactNode
-  /** The task type's own fields, as a card. Nothing when its type has none. */
-  typeFields: React.ReactNode
-  /** Repeat, snooze, waiting on and my reminder, as a card. */
-  plan: React.ReactNode
+  /**
+   * The cog's Details tab as cards that fold open: Person, Dates, Priority and
+   * type, Needs review, the type's own fields, and the Plan.
+   */
+  settings: React.ReactNode
   /** The cog's History tab, as a card. */
   history: React.ReactNode
   detail: TaskDetail
@@ -392,16 +415,7 @@ function TaskForm({
   async function remove() {
     const ok = await run(() => deleteProjectTask(task.id))
     if (!ok) return false
-    toast.success("Task moved to the bin.", {
-      action: {
-        label: "Undo",
-        onClick: () =>
-          void restoreProjectTask(task.id).then(
-            () => router.invalidate(),
-            (error: unknown) => showErrorToast(getProjectErrorMessage(error))
-          ),
-      },
-    })
+    showBinnedToast(task.id, router)
     await router.invalidate()
     return true
   }
@@ -602,7 +616,11 @@ function TaskForm({
       onValueChange={(value) => pickStatus(value as TaskStatus)}
       disabled={readOnly || busy}
     >
-      <SelectTrigger aria-label="Status" className="w-fit">
+      {/* No border or background in the panel's header, like the icons beside it (Tyler, 14 Oct 2026). */}
+      <SelectTrigger
+        aria-label="Status"
+        className="w-fit border-transparent bg-transparent shadow-none hover:bg-muted dark:bg-transparent dark:hover:bg-muted/50"
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -687,28 +705,16 @@ function TaskForm({
   const startField = (
     <div className="grid content-start gap-2">
       <Label htmlFor="task-start">Start day</Label>
-      <div className="flex flex-wrap items-center gap-2">
-        <DueDayPicker
-          id="task-start"
-          value={task.startDate}
-          placeholder="No start day"
-          disabled={readOnly || busy}
-          onChange={(startDate) => {
-            if (startDate !== task.startDate) void change(() => saveTask({ taskId: task.id, startDate }))
-          }}
-        />
-        {task.startDate && !readOnly ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-            onClick={() => void change(() => saveTask({ taskId: task.id, startDate: null }))}
-          >
-            Clear
-          </Button>
-        ) : null}
-      </div>
+      <DueDayPicker
+        id="task-start"
+        value={task.startDate}
+        placeholder="No start day"
+        disabled={readOnly || busy}
+        clearLabel="Clear the start day"
+        onChange={(startDate) => {
+          if (startDate !== task.startDate) void change(() => saveTask({ taskId: task.id, startDate }))
+        }}
+      />
     </div>
   )
 
@@ -721,21 +727,11 @@ function TaskForm({
           value={task.dueDate}
           placeholder="No due date"
           disabled={readOnly || busy}
+          clearLabel="Clear the due date"
           onChange={(dueDate) => {
             if (dueDate !== task.dueDate) void change(() => saveTask({ taskId: task.id, dueDate }))
           }}
         />
-        {task.dueDate && !readOnly ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-            onClick={() => void change(() => saveTask({ taskId: task.id, dueDate: null }))}
-          >
-            Clear
-          </Button>
-        ) : null}
         <DueMovesMark moves={task.dueMoves} status={task.status} />
       </div>
     </div>
@@ -879,6 +875,27 @@ function TaskForm({
   )
 
   const side: TaskSide = {
+    // Written as a heading, as Tyler drew it on 14 Oct 2026, and edited in place.
+    // Enter saves rather than starting a new line, as the Title field did.
+    title: readOnly ? (
+      <h2 className="text-base font-semibold break-words">{task.title}</h2>
+    ) : (
+      <Textarea
+        aria-label="Task title"
+        rows={1}
+        value={title}
+        maxLength={LIMITS.taskTitle}
+        onChange={(event) => setTitle(event.target.value.replace(/\n/g, " "))}
+        onBlur={commitTitle}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            event.currentTarget.blur()
+          }
+        }}
+        className="-mx-2 resize-none border-transparent px-2 py-1 text-base font-semibold shadow-none hover:border-input dark:bg-transparent"
+      />
+    ),
     status: statusPill,
     notices: (
       <>
@@ -908,7 +925,8 @@ function TaskForm({
       content: steps,
     },
     chat: {
-      count: detail.comments.length,
+      // A deleted message isn't one to count, so a chat holding only those is still empty.
+      count: detail.comments.filter((message) => !message.deleted).length,
       content: (
         <ChatThread
           chat={{ taskId: task.id }}
@@ -938,27 +956,104 @@ function TaskForm({
         />
       ),
     },
-    details: (
+    // Each group a card that folds open, with its answer on the right (Tyler, 14 Oct 2026).
+    settings: (
       <>
-        {titleField}
-        <div className="grid gap-4 sm:grid-cols-2">
+        <OptionCard
+          id="task-settings-person"
+          title="Person"
+          description="Who does it. Handing it to someone else waits for them to accept."
+          summary={task.assignee ? `${task.assignee.name}${task.waiting ? " · waiting" : ""}` : "Nobody"}
+        >
           {assigneeField}
+          {handoverRow}
+          {handBackButton}
+        </OptionCard>
+        <OptionCard
+          id="task-settings-dates"
+          title="Dates"
+          description="When it starts and when it's due. A time makes it overdue from that minute."
+          summary={datesSummary(task)}
+        >
           {startField}
           {dueField}
-          {priorityField}
           {dueByField}
+        </OptionCard>
+        <OptionCard
+          id="task-settings-sorting"
+          title="Priority and type"
+          description="How it's sorted and found: its priority, the kind of task, its section and labels."
+          summary={[
+            TASK_PRIORITY_LABEL[task.priority],
+            task.type?.name,
+            task.section?.name,
+            task.labels.length ? `${task.labels.length} ${plural(task.labels.length, "label")}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        >
+          {priorityField}
           {typeField}
           {sectionField}
           {labelsField}
-        </div>
-        {handoverRow}
-        {reviewField}
-        {handBackButton}
+        </OptionCard>
+        {detail.canAskForReview ? (
+          <OptionCard
+            id="task-needs-review"
+            title="Needs review"
+            hint="When it's marked Done, you get a notice and check it. It still counts as Done meanwhile."
+            toggle={{
+              checked: task.review.needed,
+              disabled: readOnly || busy,
+              onChange: (on) =>
+                void change(
+                  () => setTaskNeedsReview(task.id, on),
+                  on ? "You'll review it when it's Done." : "It no longer needs your review."
+                ),
+            }}
+          />
+        ) : task.review.needed && task.review.reviewer ? (
+          <OptionCard id="task-needs-review" title="Needs review" summary={task.review.reviewer.name} />
+        ) : null}
+        {detail.fields.type?.fields.length ? (
+          <OptionCard
+            id="task-settings-fields"
+            title={detail.fields.type.name}
+            description="What this kind of task asks for."
+            summary={`${detail.fields.type.fields.length} ${plural(detail.fields.type.fields.length, "field")}`}
+          >
+            <div className={INNER_CARD}>{fieldsCard}</div>
+          </OptionCard>
+        ) : null}
+        <OptionCard
+          id="task-settings-plan"
+          title="Plan"
+          description="What happens next: repeating, snoozing, what it waits on, and your own reminder."
+          summary={planSummary(detail)}
+        >
+          <div className={INNER_CARD}>{planCard}</div>
+        </OptionCard>
       </>
     ),
-    typeFields: detail.fields.type?.fields.length ? fieldsCard : null,
-    plan: planCard,
     history: historyCard,
+    followButton: (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-pressed={detail.following}
+        disabled={busy}
+        onClick={() =>
+          void change(
+            () => followProjectTask(task.id, !detail.following),
+            detail.following ? "You stopped following this task." : "You're following this task."
+          )
+        }
+      >
+        {detail.following ? <CheckIcon className="size-4" /> : <BellIcon className="size-4" />}
+        {detail.following ? "Following" : "Follow"}
+      </Button>
+    ),
     detail,
     readOnly,
     move: () => setMoving(true),
@@ -998,8 +1093,7 @@ function TaskForm({
         }
       >
         {detail.following ? <CheckIcon className="size-4" /> : <BellIcon className="size-4" />}
-        {/* The project page's narrow task panel keeps the bell and drops the word. */}
-        <span className="@max-lg/task-head:sr-only">{detail.following ? "Following" : "Follow"}</span>
+        {detail.following ? "Following" : "Follow"}
       </Button>
     ),
     more: readOnly ? null : (
@@ -1007,6 +1101,30 @@ function TaskForm({
     ),
     remove: detail.canDelete && !readOnly ? { busy, run: remove } : null,
   })
+}
+
+/** A card's own frame and heading, dropped inside an OptionCard that already names it. */
+const INNER_CARD =
+  "[&_[data-slot=card]]:rounded-none [&_[data-slot=card]]:bg-transparent [&_[data-slot=card]]:py-0 [&_[data-slot=card]]:ring-0 [&_[data-slot=card-content]]:!px-0 [&_[data-slot=card-header]]:hidden"
+
+/** "Oct 12 to Oct 19", "Due Oct 19 by 3:06 PM", or "No dates", for the Dates card. */
+function datesSummary(task: TaskDetail["task"]) {
+  const due = task.dueDate ? `${dayLabel(task.dueDate)}${task.dueAt ? ` by ${clockLabel(localTimeOf(task.dueAt))}` : ""}` : null
+  if (task.startDate && due) return `${dayLabel(task.startDate)} to ${due}`
+  if (due) return `Due ${due}`
+  if (task.startDate) return `Starts ${dayLabel(task.startDate)}`
+  return "No dates"
+}
+
+/** What the Plan holds, in a few words, or "Nothing set". */
+function planSummary(detail: TaskDetail) {
+  const parts = [
+    detail.task.repeat ? "Repeats" : null,
+    detail.task.snoozedUntil ? `Snoozed to ${dayLabel(detail.task.snoozedUntil)}` : null,
+    detail.waitingOn.length ? `Waits on ${detail.waitingOn.length} ${plural(detail.waitingOn.length, "task")}` : null,
+    detail.myReminder ? "Reminder set" : null,
+  ].filter(Boolean)
+  return parts.length ? parts.join(" · ") : "Nothing set"
 }
 
 /**
@@ -1140,7 +1258,12 @@ function StepsContent({
           </Button>
         </form>
       )}
-      {readOnly ? null : <StepListActions detail={detail} change={change} busy={busy} />}
+      {/* The Steps card's footer on the project page, behind its cog; a plain row in the window. */}
+      {readOnly ? null : (
+        <PanelCardFooter>
+          <StepListActions detail={detail} change={change} busy={busy} />
+        </PanelCardFooter>
+      )}
     </>
   )
 }

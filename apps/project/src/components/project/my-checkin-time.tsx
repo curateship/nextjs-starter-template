@@ -1,6 +1,5 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { ClockIcon } from "lucide-react"
 
 import { SaveLine } from "@/components/project/save-line"
 import { TimeZoneSelect } from "@/components/project/time-zone-select"
@@ -50,14 +49,9 @@ export function MyCheckinTime({ clock }: { clock: CheckinClock }) {
   const following = !clock.ownTime && !clock.ownZone
 
   return (
-    <section className="grid gap-4" aria-labelledby="my-checkin-time-heading">
-      <div className="flex items-center justify-between gap-2">
-        <h3 id="my-checkin-time-heading" className="flex items-center gap-2 text-sm font-medium">
-          <ClockIcon className="size-4 text-muted-foreground" aria-hidden />
-          My check-in time
-        </h3>
-        <SaveLine state={saveState} />
-      </div>
+    // Its name is the card around it in My settings, so only the save sign is here.
+    <section className="grid gap-4" aria-label="My check-in time">
+      <SaveLine state={saveState} className="justify-self-end empty:hidden" />
       <div className="grid gap-4">
         <p className="text-sm text-muted-foreground">
           The team checks in at {clockLabel(clock.teamTime)}, {clock.teamZone.replaceAll("_", " ")}{" "}

@@ -247,6 +247,13 @@ card in the rail on `/admin/settings`.
 - Tabs in a dashboard card header are these same pills, with words only and no
   icons. Tyler asked for this on 25 Sep 2026, and the underline tabs were
   deleted.
+- **One exception: the Project app's tasks headers** (the project page's
+  Board, List, Calendar, Timeline, More, My dashboard's same four views, and
+  the Team dashboard's right-panel Check-ins, Workload, Attention) are
+  underlined, because Tyler drew them that way and chose it over the pills
+  on 14 Oct 2026. It is `UnderlineTabs` in
+  `apps/project/src/components/project/task-header-controls.tsx`. No other
+  screen copies it without his say-so.
 
 ## Tables
 

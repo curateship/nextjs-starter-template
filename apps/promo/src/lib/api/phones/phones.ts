@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { PHONE_ACTIONS } from "@/lib/phones/options"
+import { MANUAL_PHONE_ACTIONS } from "@/lib/phones/options"
 import { adminGet, adminPost } from "@/server/guards"
 import { listFoldersAndLabels, type FolderView, type LabelView } from "@/server/browser/profiles"
 import { listProxies } from "@/server/browser/proxies"
@@ -23,15 +23,25 @@ import {
   disconnectRack,
   listRacks,
   phoneActions,
-  queuePhoneAction,
   type PhoneActionView,
   type RackView,
 } from "@/server/phones/rack"
+import { queuePhoneAction } from "@/server/phones/queue"
+import { queueSetupCheck } from "@/server/phones/setup"
+import { queueWipe } from "@/server/phones/wipe"
 import { RACK_VERSION, rackServerAddress } from "@/server/phones/release"
+import {
+  readPhoneSettings,
+  setRackPaused,
+  waitingPhoneJobs,
+  type WaitingPhoneJob,
+} from "@/server/phones/settings"
+import { cancelJobs } from "@/server/social/job-list"
+import { passReaderWritten } from "@/lib/social/refusal-words"
 
 import { createErrorMessage } from "../error-message"
 
-export type { BulkResult, FolderView, LabelView, PhoneActionView, PhoneRecord, RackView }
+export type { BulkResult, FolderView, LabelView, PhoneActionView, PhoneRecord, RackView, WaitingPhoneJob }
 
 /**
  * The Phones dashboard's endpoints. Every one is admin-only and scoped to the
@@ -39,7 +49,7 @@ export type { BulkResult, FolderView, LabelView, PhoneActionView, PhoneRecord, R
  * the rack program picks up, and the dashboard follows the rows.
  */
 
-export const getPhoneErrorMessage = createErrorMessage(
+export const getPhoneErrorMessage = passReaderWritten(createErrorMessage(
   {
     "does not exist": "That is not there any more. Refresh the list.",
     "serial number": "Another phone already has that serial number.",
@@ -52,13 +62,17 @@ export const getPhoneErrorMessage = createErrorMessage(
     ENCRYPTION_NOT_CONFIGURED: "This server has no encryption key set, so a rack's key cannot be kept.",
   },
   "That did not work. Please try again."
-)
+))
 
 export type PhonesPage = {
   phones: PhoneRecord[]
   racks: RackView[]
   /** The version Promo serves, so a rack on an older one can say so. */
   rackVersion: string
+  /** When every phone job was paused, or null while the rack runs. */
+  pausedAt: Date | null
+  /** The spare phone the daily self-test runs on, or null when none is picked. */
+  testPhoneId: string | null
   folders: FolderView[]
   labels: LabelView[]
   /** The proxies a phone on Wi-Fi can go out through, never a password. */
@@ -69,16 +83,19 @@ const listFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<PhonesPage> => {
     const userId = context.user.id
-    const [phones, racks, groups, proxies] = await Promise.all([
+    const [phones, racks, groups, proxies, settings] = await Promise.all([
       listPhones(userId),
       listRacks(userId),
       listFoldersAndLabels(userId),
       listProxies(userId),
+      readPhoneSettings(),
     ])
     return {
       phones,
       racks,
       rackVersion: RACK_VERSION,
+      pausedAt: settings.pausedAt,
+      testPhoneId: settings.testPhoneId,
       ...groups,
       proxies: proxies.map(({ id, label, host }) => ({ id, label, host })),
     }
@@ -168,13 +185,13 @@ export function loadPhoneActions(id: string) {
 
 const runFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(z.object({ id: z.string().min(1), action: z.enum(PHONE_ACTIONS) }))
+  .inputValidator(z.object({ id: z.string().min(1), action: z.enum(MANUAL_PHONE_ACTIONS) }))
   .handler(async ({ context, data }): Promise<{ id: string }> => ({
     id: await queuePhoneAction(context.user.id, data.id, data.action),
   }))
 
 /** Asks the rack to run one named action on the phone. */
-export function runPhoneAction(id: string, action: (typeof PHONE_ACTIONS)[number]) {
+export function runPhoneAction(id: string, action: (typeof MANUAL_PHONE_ACTIONS)[number]) {
   return runFn({ data: { id, action } })
 }
 
@@ -209,4 +226,64 @@ const disconnectFn = createServerFn({ method: "POST" })
 /** Cancels a rack's key at once. */
 export function disconnectPhoneRack(id: string) {
   return disconnectFn({ data: { id } })
+}
+
+const pauseFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .handler(async ({ context }): Promise<void> => setRackPaused(context.user.id, true))
+
+/** Pauses every phone job. Jobs already running finish. */
+export function pauseRack() {
+  return pauseFn()
+}
+
+const waitingFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }): Promise<WaitingPhoneJob[]> => waitingPhoneJobs(context.user.id))
+
+/** The phone jobs still waiting, for the question asked before resuming. */
+export function loadWaitingPhoneJobs() {
+  return waitingFn()
+}
+
+const resumeFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ drop: z.array(z.string().min(1)).max(200) }))
+  .handler(async ({ context, data }): Promise<{ dropped: number }> => {
+    // The stale ones go first, so none of them starts in the moment between.
+    const dropped = data.drop.length ? (await cancelJobs(context.user.id, data.drop)).completed.length : 0
+    await setRackPaused(context.user.id, false)
+    return { dropped }
+  })
+
+/** Drops the ticked waiting jobs, then resumes the rack. */
+export function resumeRack(drop: string[]) {
+  return resumeFn({ data: { drop } })
+}
+
+const setupFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<void> => {
+    await queueSetupCheck(context.user.id, data.id)
+  })
+
+/** Asks the rack to read the phone's setup and what the platform sees. */
+export function runSetupCheck(id: string) {
+  return setupFn({ data: { id } })
+}
+
+const wipeFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<void> => {
+    await queueWipe(context.user.id, data.id)
+  })
+
+/**
+ * Asks the rack to factory-reset the phone, after the person confirmed it.
+ * Refused while an account is on it or on its way to it.
+ */
+export function wipePhone(id: string) {
+  return wipeFn({ data: { id } })
 }

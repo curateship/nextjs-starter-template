@@ -1,22 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router"
-
-import { RedditAccountsDashboard } from "@/components/social/accounts/accounts-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getRedditAccountsErrorMessage,
-  loadRedditAccounts,
-} from "@/lib/api/social/reddit-accounts"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
 /**
- * Every Reddit account with its status, project, browser profile and proxy.
- * Under Projects in the left menu.
+ * The Reddit accounts dashboard's old address, which the bell's suspended
+ * account notice still leads to. Every platform's accounts are on the Accounts
+ * dashboard since 15 Oct 2026, so this opens it filtered to Reddit.
  */
 export const Route = createFileRoute("/_authenticated/admin/reddit-accounts")({
-  loader: () => loadRedditAccounts(false),
-  component: RedditAccountsRoute,
-  errorComponent: routeErrorComponent(getRedditAccountsErrorMessage),
+  beforeLoad: () => {
+    throw redirect({ to: "/admin/accounts", search: { platform: "reddit" }, replace: true })
+  },
 })
-
-function RedditAccountsRoute() {
-  return <RedditAccountsDashboard initial={Route.useLoaderData()} />
-}

@@ -92,6 +92,7 @@ describe("why posting is off", () => {
     blocked: false,
     reason: "",
     profile: { id: "p1", name: "Main" },
+    phone: null,
     posting: null,
   }
   const read = { thread: { body: "", replies: [] } }
@@ -119,13 +120,22 @@ describe("why posting is off", () => {
     )
   })
 
-  it("sends a person to the Reddit accounts dashboard when the account has no profile", () => {
+  it("sends a person to the Accounts dashboard when the account has no profile", () => {
     const reason = postingBlockedReason({ ...ready, profile: null }, read)
-    expect(reason?.text).toContain("on the Reddit accounts dashboard")
+    expect(reason?.text).toContain("on the Accounts dashboard")
   })
 
-  it("says to pick an account on the left before one is clicked", () => {
-    expect(postingBlockedReason(null, read)?.text).toBe("Pick an account on the left.")
+  it("sends a person to the phone's screen for an account on a phone", () => {
+    const phone = { id: "f1", name: "Pixel 8a", shelfSlot: "", status: "connected" as const, offlineReason: "", inUse: false, addressStop: "" }
+    const reason = postingBlockedReason({ ...ready, profile: null, phone, handle: null }, read)
+    expect(reason?.text).toBe(
+      "The phone is not signed in to Reddit. Open the screen of Pixel 8a on the Phones dashboard and sign in once."
+    )
+    expect(postingBlockedReason({ ...ready, profile: null, phone }, read)).toBeNull()
+  })
+
+  it("says to pick an account beside Post before one is picked", () => {
+    expect(postingBlockedReason(null, read)?.text).toBe("Pick an account beside Post comment.")
   })
 
   it("is off when everything is ready", () => {

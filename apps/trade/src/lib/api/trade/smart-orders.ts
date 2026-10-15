@@ -26,7 +26,6 @@ import {
 } from "@/server/trade/leadership"
 import {
   cancelLiveGridLevel,
-  cancelLiveGridRest,
   moveLiveGridExit,
   moveLiveGridRange,
   reshapeLiveGrid,
@@ -37,6 +36,7 @@ import {
   updateLiveGridStop,
 } from "@/server/trade/live-grid-orders"
 import { reverseGridOrder as reverseGridOrderRows } from "@/server/trade/grid-reversal"
+import { endGridByHand, type EndedGrid } from "@/server/trade/grid-hand-over"
 import {
   cancelLiveLadderRest,
   cancelLiveLadderRung,
@@ -47,7 +47,6 @@ import {
 } from "@/server/trade/live-smart-orders"
 import {
   cancelGridLevel as cancelGridLevelRow,
-  cancelGridRest as cancelGridRestRows,
   moveGridExit as moveGridExitRows,
   moveGridRange as moveGridRangeRows,
   reshapeGrid as reshapeGridRows,
@@ -760,22 +759,17 @@ const cancelGridLevelFn = createServerFn({ method: "POST" })
     )
   })
 
-const cancelGridRestFn = createServerFn({ method: "POST" })
+const endGridFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(gridSchema)
-  .handler(async ({ data, context }): Promise<{ cancelled: number }> => {
+  .handler(async ({ data, context }): Promise<EndedGrid> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
-    const result = await runWalletOrderAction(
+    return await runWalletOrderAction(
       context.user.id,
       wallet,
       "cancel",
-      async () =>
-        wallet.kind === "live"
-          ? await cancelLiveGridRest(context.user.id, wallet, data)
-          : await cancelGridRestRows(context.user.id, wallet, data)
+      async () => await endGridByHand(context.user.id, wallet, data)
     )
-    if (result.cancelled === 0) throw new Error("SMART_GRID_ALREADY_STOPPED")
-    return result
   })
 
 const reverseGridFn = createServerFn({ method: "POST" })
@@ -964,8 +958,9 @@ export function cancelGridLevel(input: z.infer<typeof gridLevelSchema>) {
   return cancelGridLevelFn({ data: input })
 }
 
-export function cancelGridRest(input: z.infer<typeof gridSchema>) {
-  return cancelGridRestFn({ data: input })
+/** The grid's × on the chart: ends it and hands its sells over as manual orders. */
+export function endGrid(input: z.infer<typeof gridSchema>) {
+  return endGridFn({ data: input })
 }
 
 export function moveGridRange(input: z.infer<typeof moveGridRangeSchema>) {
@@ -1105,8 +1100,8 @@ const baseSmartOrderErrorMessage = withLinkedGridStopMessage(createErrorMessage(
       "Another action is still updating this wallet. Your change was not made. Try again in a moment.",
     SMART_LADDER_ALREADY_STOPPED:
       "This ladder has no waiting buys left to stop. Its held coins and exits are unchanged.",
-    SMART_GRID_ALREADY_STOPPED:
-      "This grid has no new trades left to stop. Its open position and exits are unchanged.",
+    SMART_GRID_STOP_NOT_CANCELLED:
+      "The exchange would not take back the grid's stop, so the grid was not ended. It is still running as it was. Try again in a moment.",
     SMART_GRID_ADJUST_NO_PRICE:
       "The exchange would not give a current price, so your grid changes were not saved. The existing grid is still running.",
     SMART_GRID_TARGET_IN_RANGE:

@@ -821,6 +821,23 @@ describe("the names on a placed grid's range", () => {
     expect(shortHtml).not.toContain("theme-primary")
   })
 
+  it("draws the grid's × even when every level has filled", () => {
+    // Tyler, 14 Oct 2026: a grid with nothing waiting still has to end, and
+    // ending it turns its sells into manual orders.
+    const filled = grid("long")
+    expect(
+      filled.plan.levels.some((level) => level.status === "waiting")
+    ).toBe(false)
+    const box = document.createElement("div")
+    box.innerHTML = render(filled)
+    const bar = box.querySelector('button[aria-label="Move the whole grid"]')
+      ?.parentElement as HTMLElement
+    expect(bar.textContent).toContain("0/2")
+    expect(
+      box.querySelector('button[aria-label^="End the grid"]')
+    ).not.toBeNull()
+  })
+
   it("leaves a cancelled level out of the pill's count", () => {
     // Tyler, 8 Oct 2026: × on one of eight levels still read 6/8. The level
     // keeps its seat in the list but is no longer part of the grid.

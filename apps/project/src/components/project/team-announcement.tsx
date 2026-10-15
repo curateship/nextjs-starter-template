@@ -1,10 +1,17 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { EyeIcon, Loader2Icon, MegaphoneIcon, Trash2Icon, XIcon } from "lucide-react"
+import { EllipsisIcon, Loader2Icon, MegaphoneIcon, XIcon } from "lucide-react"
 
 import { PersonAvatar } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   DialogBody,
   DialogContent,
@@ -27,7 +34,7 @@ import {
   type Announcement,
 } from "@/lib/api/project/teams"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
+import { formatTimeAgo } from "@/lib/format/format-time"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -64,76 +71,73 @@ export function AnnouncementCard({
     return ok
   }
 
+  // One thin bar under the header, as Tyler drew it on 14 Oct 2026: the words,
+  // who and when, Read by, then "..." with Post a new one and Take down, and
+  // the cross that hides it for me.
   return (
-    <section aria-label="Team announcement" className="grid gap-2 rounded-lg border bg-muted/60 p-3">
-      <div className="flex items-start gap-3">
-        <MegaphoneIcon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-        <p className="min-w-0 flex-1 text-sm break-words whitespace-pre-wrap">{announcement.text}</p>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Hide the announcement for me"
-              disabled={busy}
-              onClick={() =>
-                void act(
-                  () => hideTeamAnnouncement(announcement.id),
-                  "Hidden for you. A new announcement will show again."
-                )
-              }
-            >
-              <XIcon className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Hide for me</TooltipContent>
-        </Tooltip>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 pl-7 text-xs text-muted-foreground">
-        <PersonAvatar name={by} avatarUrl={announcement.by?.avatarUrl} />
-        <span>
-          {by} ·{" "}
-          <time dateTime={announcement.postedAt} title={formatDateTime(announcement.postedAt)}>
-            {formatTimeAgo(announcement.postedAt)}
-          </time>
+    <section aria-label="Team announcement" className="flex items-center gap-3 border-b bg-muted/40 px-4 py-2">
+      <MegaphoneIcon className="size-4 shrink-0" aria-hidden />
+      <p className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 text-sm">
+        <span className="font-medium break-words whitespace-pre-wrap">{announcement.text}</span>
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          {by} · <time dateTime={announcement.postedAt}>{formatTimeAgo(announcement.postedAt)}</time>
+          {announcement.readers ? (
+            <>
+              {" · "}
+              <ReadBy readers={announcement.readers} />
+            </>
+          ) : null}
         </span>
-        {announcement.readers ? <ReadBy readers={announcement.readers} /> : null}
-        {canRun ? (
-          confirmTakeDown ? (
-            <span className="ml-auto flex flex-wrap items-center gap-2">
-              <span className="text-foreground">Take it down for everyone?</span>
-              <Button type="button" variant="outline" size="sm" onClick={() => setConfirmTakeDown(false)}>
-                Keep it
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                disabled={busy}
-                onClick={() =>
-                  void act(() => takeDownTeamAnnouncement(), "Announcement taken down.").then((ok) => {
-                    if (ok) setConfirmTakeDown(false)
-                  })
-                }
-              >
-                Take down
-              </Button>
-            </span>
-          ) : (
-            <span className="ml-auto flex items-center gap-1">
-              <Button type="button" variant="ghost" size="sm" onClick={onReplace}>
-                <MegaphoneIcon className="size-4" />
-                Post a new one
-              </Button>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmTakeDown(true)}>
-                <Trash2Icon className="size-4" />
-                Take down
-              </Button>
-            </span>
-          )
-        ) : null}
-      </div>
+      </p>
+      {canRun ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Announcement options" disabled={busy}>
+              <EllipsisIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onSelect={onReplace}>Post a new one</DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onSelect={() => setConfirmTakeDown(true)}>
+              Take down
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Hide the announcement for me"
+            disabled={busy}
+            onClick={() =>
+              void act(
+                () => hideTeamAnnouncement(announcement.id),
+                "Hidden for you. A new announcement will show again."
+              )
+            }
+          >
+            <XIcon className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Hide for me</TooltipContent>
+      </Tooltip>
+      <ConfirmDialog
+        open={confirmTakeDown}
+        onOpenChange={(open) => (open || busy ? undefined : setConfirmTakeDown(false))}
+        title="Take the announcement down?"
+        description="It goes for everyone on the team. Post a new one any time."
+        confirmLabel="Take down"
+        destructive
+        loading={busy}
+        onConfirm={() =>
+          void act(() => takeDownTeamAnnouncement(), "Announcement taken down.").then((ok) => {
+            if (ok) setConfirmTakeDown(false)
+          })
+        }
+      />
     </section>
   )
 }
@@ -146,10 +150,9 @@ function ReadBy({ readers }: { readers: Readers }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="xs">
-          <EyeIcon />
+        <button type="button" className="rounded hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
           Read by {readers.seen.length} of {total}
-        </Button>
+        </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 p-0">
         <ScrollArea viewportClassName="max-h-72">

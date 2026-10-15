@@ -23,18 +23,79 @@ export const PHONE_STATUS_WORDS: Record<PhoneStatus, string> = {
 }
 
 /**
- * The actions Promo may ask the rack for. Nothing else is written or run.
- * The network routines (`reddit/search` and the rest) join this list in the
- * later phone farm steps.
+ * The actions Promo may ask the rack for by name. Nothing else is written or
+ * run. The network routines (`reddit/search` and the rest) are written by a
+ * job's own steps (`src/server/phones/dispatch.ts`) and join the rack's list
+ * in the later phone farm steps.
  */
-export const PHONE_ACTIONS = ["phone/list", "phone/health", "phone/android-version"] as const
+export const PHONE_ACTIONS = [
+  "phone/list",
+  "phone/health",
+  "phone/android-version",
+  "phone/self-test",
+  "phone/check-updates",
+  "phone/update-app",
+  "phone/setup-check",
+  "phone/outside-address",
+  "phone/wipe",
+  // Who the Reddit app is signed in as, asked directly while an account is
+  // being moved onto the phone (part 31). A job's own Reddit steps are
+  // written by `dispatch.ts`, not from here.
+  "reddit/state",
+] as const
 
 export type PhoneAction = (typeof PHONE_ACTIONS)[number]
 
-export const PHONE_ACTION_WORDS: Record<PhoneAction, string> = {
+/** The checks a person may run from a phone's window. The rest are Promo's own. */
+export const MANUAL_PHONE_ACTIONS = ["phone/android-version", "phone/health"] as const
+
+const PHONE_ACTION_WORDS: Record<PhoneAction, string> = {
   "phone/list": "List the phones",
   "phone/health": "Health check",
   "phone/android-version": "Read the Android version from Settings",
+  "phone/self-test": "Daily self-test",
+  "phone/check-updates": "Look for app updates in the Play Store",
+  "phone/update-app": "Update an app",
+  "phone/setup-check": "Setup check",
+  "phone/outside-address": "Read the address apps see",
+  "phone/wipe": "Wipe the phone",
+  "reddit/state": "Read who Reddit is signed in as",
+}
+
+/** A job's Reddit steps, which the rack does in the Reddit app, in words. */
+const REDDIT_STEP_WORDS: Record<string, string> = {
+  "reddit/quick_state": "Read who Reddit is signed in as",
+  "reddit/health": "Reddit health reading",
+  "reddit/comment": "Post a Reddit comment",
+  "reddit/reply": "answering a reply",
+  "reddit/submit": "a post of your own",
+  "reddit/edit_comment": "editing a sent comment",
+  "reddit/delete_comment": "deleting a sent comment",
+  "reddit/warm_up": "the warm-up visit",
+}
+
+/** An action's name in words, for any action the rack ran, including a job's steps. */
+export function actionWords(action: string): string {
+  return PHONE_ACTION_WORDS[action as PhoneAction] ?? REDDIT_STEP_WORDS[action] ?? action
+}
+
+/**
+ * The Reddit steps the rack can do in the Reddit app (phone farm file 05).
+ * Searches and thread reads are not here: they run in the signed-out reader
+ * browser for every account, so an account's own history never shows a
+ * search (Tyler, 14 Oct 2026). Any other Reddit step on a phone account is
+ * refused before anything reaches the phone.
+ */
+export const PHONE_REDDIT_ROUTINES = ["reddit/state", "reddit/quick_state", "reddit/health", "reddit/comment"] as const
+
+/**
+ * Why a phone cannot do a Reddit step, in words, or null when it can. Said
+ * when the button is pressed for a phone account, and again where the step
+ * would reach the phone, so nothing is ever queued only to fail.
+ */
+export function phoneStepRefusal(routine: string, phoneName: string): string | null {
+  if (!routine.startsWith("reddit/") || (PHONE_REDDIT_ROUTINES as readonly string[]).includes(routine)) return null
+  return `${phoneName} cannot do ${actionWords(routine)} yet: on a phone, the Reddit app reads who is signed in, takes the health reading and posts comments. Nothing was sent.`
 }
 
 /**
@@ -51,17 +112,110 @@ export const RACK_CODE_MINUTES = 15
 /** How far a signed message's clock may be from the server's, either way. */
 export const RACK_CLOCK_WINDOW_SECONDS = 300
 
-/**
- * How long an action may sit running before Promo gives up on it. Reading a
- * Settings screen takes seconds; this covers a slow phone and a slow line.
- */
-export const PHONE_ACTION_TIMEOUT_MS = 5 * 60_000
-
-/** The bell notice's heading for a phone that needs a hand. */
-export const PHONE_NOTICE_PREFIX = "Phone needs a hand: "
-
 /** "slot 4", or empty when no slot was typed. */
 export function slotWords(shelfSlot: string): string {
   const slot = shelfSlot.trim()
   return slot ? `slot ${slot}` : ""
 }
+
+/** The bounds Settings → Phones allows. Here because the tab draws them too. */
+export const MAX_WORKING_RANGE = { min: 1, max: 50 } as const
+export const SCREENSHOT_DAYS_RANGE = { min: 1, max: 90 } as const
+
+/** A forgotten screen window with control on lets the phone go after this long without a tap. */
+export const CONTROL_HOLD_MS = 15 * 60_000
+
+/** A phone job's lane: `phone:` and the phone's id, so it never shares a profile's lane. */
+export const PHONE_LANE_PREFIX = "phone:"
+
+export function phoneLane(phoneId: string): string {
+  return `${PHONE_LANE_PREFIX}${phoneId}`
+}
+
+/** The bell notice's heading while the rack is paused. */
+export const RACK_PAUSED_NOTICE = "The rack is paused"
+
+/**
+ * The apps Promo keeps an eye on, by their Play Store package. The rack keeps
+ * the same list in `rack/promo_rack.py`. TikTok's package keeps its old
+ * Musical.ly name.
+ */
+export const TRACKED_APPS = ["reddit", "instagram", "tiktok"] as const
+
+export type TrackedApp = (typeof TRACKED_APPS)[number]
+
+export const APP_WORDS: Record<TrackedApp, string> = {
+  reddit: "Reddit",
+  instagram: "Instagram",
+  tiktok: "TikTok",
+}
+
+/**
+ * Where an app update stands. `available`: the Play Store on the test phone
+ * shows Update. `updating`: the test phone is updating. `testing`: the
+ * self-test is running on the new version. `passed`: the other phones may
+ * update. `failed`: the update or the self-test failed, and the rest of the
+ * rack stays where it is.
+ */
+export type RolloutStatus = "available" | "updating" | "testing" | "passed" | "failed"
+
+/** The lines of a phone's history (part 18 of the phone farm). */
+export type PhoneEventKind =
+  | "plugged_in"
+  | "unplugged"
+  | "restarted"
+  | "app_updated"
+  | "account_moved"
+  | "account_signed_in"
+  | "ran_hot"
+  | "notice_raised"
+  | "notice_cleared"
+  | "wiped"
+  | "setup_checked"
+
+export const PHONE_EVENT_WORDS: Record<PhoneEventKind, string> = {
+  plugged_in: "Plugged in",
+  unplugged: "Unplugged",
+  restarted: "Restarted",
+  app_updated: "App updated",
+  account_moved: "Account moved",
+  account_signed_in: "Account signed in",
+  ran_hot: "Ran hot",
+  notice_raised: "Notice raised",
+  notice_cleared: "Notice cleared",
+  wiped: "Wiped",
+  setup_checked: "Setup check",
+}
+
+/**
+ * When a phone's health rings the bell (part 14). Each problem has one notice
+ * per phone, which goes away when the problem does.
+ */
+export const OFFLINE_NOTICE_MS = 5 * 60_000
+/** The rack itself not checking in for this long rings once for the rack, not once per phone. */
+export const RACK_SILENT_NOTICE_MS = 5 * 60_000
+/** A battery hotter than this rings; it clears once it is back down to `COOL_AGAIN_C`. */
+export const HOT_C = 45
+/**
+ * Two degrees under the alarm, so a phone sitting right at 45 does not ring
+ * and clear over and over.
+ */
+export const COOL_AGAIN_C = 43
+export const NO_SIGNAL_NOTICE_MS = 10 * 60_000
+/** Storage more full than this, out of 100, rings. */
+export const STORAGE_FULL_PERCENT = 90
+
+/** Battery and heat are kept for the chart this often, and for this long. */
+export const READING_GAP_MS = 10 * 60_000
+export const READING_KEEP_DAYS = 28
+
+/** The self-test and the Play Store look run once a day. */
+export const SELF_TEST_GAP_MS = 24 * 60 * 60_000
+
+/**
+ * The rack mix warning (part 27): more than half the phones sharing one
+ * model, carrier or Android version, once the rack has four phones or more
+ * (Tyler, 14 Oct 2026). A rack of two or three never warns.
+ */
+export const MIX_WARN_SHARE = 0.5
+export const MIX_MIN_PHONES = 4

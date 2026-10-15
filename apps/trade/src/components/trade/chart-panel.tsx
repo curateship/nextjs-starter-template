@@ -2839,9 +2839,9 @@ export function ChartPanel({
         onOpenChange={(open) => {
           if (!open) setCancelGridFor(null)
         }}
-        title="Stop this grid buying?"
+        title="End this grid?"
         description={cancelGridFor ? stopGridWarning(cancelGridFor) : ""}
-        confirmLabel="Stop the grid"
+        confirmLabel="End the grid"
         onConfirm={() => {
           if (cancelGridFor) {
             void trading.cancelGrid(cancelGridFor.walletId, cancelGridFor.id)

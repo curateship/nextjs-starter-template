@@ -1,6 +1,7 @@
 # What happened to your comments
 
-The Comments screen lists every comment the app has sent, with its upvotes, how
+The Comments tab, in the middle column of a project's Reddit module, lists
+every comment the project's accounts have sent, with its upvotes, how
 many replies sit under it, and whether it is still there. Before it existed the
 app sent a comment and forgot it, so nothing showed whether a comment was read,
 upvoted, replied to, or removed by a moderator twenty minutes later. Without
@@ -9,24 +10,35 @@ that, neither the ranking nor the drafts can be judged.
 Three tabs since 12 Oct 2026: **Sent**, every comment that landed; **Posts**,
 every post of your own that landed ([Posts of your own](your-own-posts.md));
 and **Failed**, every comment, answer and post that did not reach Reddit (below).
-`?tab=posts` and `?tab=failed` open the other two.
+`?list=posts` and `?list=failed` open the other two.
 
-Each comment is counted against the account that sent it: the account clicked
+Each comment is counted against the account that sent it: the account picked
 on the [Projects dashboard](../projects-dashboard.md) when Post was pressed,
 stored on the comment as `promo_comments.account_id`. That is what makes an
-account Working on the [Reddit accounts dashboard](accounts-dashboard.md). A
-retired account's comments stay on this screen.
+account Working on the [Accounts dashboard](accounts-dashboard.md). A
+retired account's comments stay on this tab.
 
 ## Where it is
 
-`/admin/comments`, under Projects in the left menu since 12 Oct 2026, when
-`drizzle/0108_promo_projects.sql` turned the Reddit link into Projects and kept
-Comments under it. Before that it was under Reddit. The left menu is a saved list
-on each workspace, so `drizzle/0105_promo_comment_checks.sql` adds the link to
-the saved lists: under the Reddit link where there is one, and otherwise as a
-Reddit link with Comments under it at the end of the Administration section. A
-menu that already links to `/admin/comments`, or has never been saved, is left
-alone.
+A tab in each project's Reddit module, beside To look at, Replied, Skipped and
+Today, since 14 Oct 2026. Tyler: "Why would reddit comments be on the
+sidebar?" ([Networks as modules](../network-modules.md)). A comment is listed in
+the project its account is in now, the rule the Projects table counts by, so a
+comment from an account taken out of every project shows in no tab until the
+account is put back in one.
+
+- **The lists are read when the tab opens**, with a spinner until then.
+- **Narrower than 82rem** the account and when it was sent fold into a line
+  under the post's title, and **narrower than 68rem** the subreddit, whether it
+  is still there, its upvotes and its replies fold into a second line, so
+  nothing goes past the middle column's edge.
+- **The old address** `/admin/comments` still answers: with `?replies=<id>` or
+  `?comment=<id>` it opens the Comments tab of the comment's project, and
+  without one the only project's, or the Projects table.
+
+It was a page at `/admin/comments` under Projects in the left menu from 12 Oct
+2026, and under Reddit before that. `drizzle/0118_promo_project_networks.sql`
+took the link out of every saved left menu.
 
 ## What a row says
 
@@ -61,6 +73,12 @@ reply arrow opens.
 
 An answer the app sent to a reply is not a row of its own. It shows under the
 reply it answers, in the comment's Replies window.
+
+A comment a phone posted has no link at first, because the Reddit app does
+not show one. The reader browser finds it in the post's newest replies a
+minute or so later; until then the row has no link to open, and reading it
+again, editing it or answering its replies waits for the link
+([Reddit on phones](reddit-on-phones.md)).
 
 Only comments that landed are listed on Sent. A failed attempt never reached
 anybody, so it has no upvotes or replies to report; it is on the Failed tab.
@@ -199,8 +217,9 @@ worked out per account.
   the app itself wrote, starting `https://www.reddit.com/`, is handed to the
   browser.
 - `src/server/social/comments.ts`: the list, and queueing checks.
-- `src/components/social/comments/comments-dashboard.tsx` and
-  `src/routes/_authenticated/admin/comments.tsx`: the screen.
+- `src/components/social/comments/comments-dashboard.tsx`: the tab, which
+  reads every list and keeps this project's rows.
+  `src/routes/_authenticated/admin/comments.tsx` only sends the old address on.
 - The readings are five columns on `promo_comments`: `upvotes`, `reply_count`,
   `still_visible`, `checked_as` and `checked_at`, all null until the first
   reading.

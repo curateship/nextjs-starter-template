@@ -3,6 +3,7 @@ import { useRouter } from "@tanstack/react-router"
 import { ArchiveIcon, ArchiveRestoreIcon } from "lucide-react"
 
 import { ProjectColorSelect } from "@/components/project/project-form-fields"
+import { ProjectMembersCard } from "@/components/project/project-members-card"
 import { ProjectSectionsCard } from "@/components/project/project-sections-card"
 import { ProjectTaskTypesCard } from "@/components/project/project-task-types-card"
 import { Button } from "@/components/ui/button"
@@ -67,6 +68,7 @@ export function ProjectSettingsDialog({
         </DialogHeader>
         <DialogBody>
           <ProjectSettingsFields project={project} />
+          <ProjectMembersCard page={page} />
           <ProjectSectionsCard projectId={project.id} sections={sections} readOnly={project.archived} />
           <ProjectTaskTypesCard page={page} />
         </DialogBody>

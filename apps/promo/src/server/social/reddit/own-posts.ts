@@ -2,11 +2,13 @@ import { and, desc, eq, inArray } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
 import { redditSubmit, type CommandTarget } from "@/server/browser/command"
+import { phoneStepRefusal } from "@/lib/phones/options"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS, noBrowserMessage } from "@/lib/social/options"
+import { MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS, NO_PROFILE_MESSAGE } from "@/lib/social/options"
 import { postingRefusalText } from "@/lib/social/wording"
 
+import { refuseInteraction } from "../apart"
 import { queueJob } from "../jobs"
 import { readPostingState } from "../posting"
 import { cleanSubreddit } from "../keywords"
@@ -69,7 +71,9 @@ export async function queueOwnPost(
   if (account.projectId !== projectId) {
     throw new Refusal("That account is not in this project. Pick one of the project's accounts.")
   }
-  if (!account.profileId) throw new Refusal(noBrowserMessage(account))
+  if (!account.profileId && !account.phoneId) throw new Refusal(NO_PROFILE_MESSAGE)
+  const onPhone = account.phoneId ? phoneStepRefusal("reddit/submit", "This account's phone") : null
+  if (onPhone) throw new Refusal(onPhone)
 
   const [onItsWay] = await db
     .select({ id: promoJobs.id })
@@ -89,6 +93,7 @@ export async function queueOwnPost(
   const state = await readPostingState(userId, account, db, now)
   const refusal = postingRefusalText(state, now, state.timeZone)
   if (refusal) throw new Refusal(refusal)
+  await refuseInteraction(userId, account, { words: [title, body] }, db)
 
   const runAfter = state.nextWakeAt
   const jobId = await queueJob(

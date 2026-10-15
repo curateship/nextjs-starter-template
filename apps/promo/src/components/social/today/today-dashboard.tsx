@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Link, useNavigate } from "@tanstack/react-router"
 import { Loader2Icon, MessageCircleReplyIcon, RefreshCwIcon, SunIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -13,6 +12,7 @@ import {
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ErrorRow } from "@/components/ui/error-row"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { checkComments, getCommentsErrorMessage } from "@/lib/api/social/comments"
@@ -25,27 +25,28 @@ import { postedDateText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { Hint } from "../hint"
+import { IN_COLUMN_TABLE } from "../projects/project-columns"
 
-export type TodayTab = "posts" | "replies"
+type TodayTab = "posts" | "replies"
 
 type Post = TodayView["posts"][number]
 type Reply = TodayView["replies"][number]
 
-type PostColumn = "post" | "project" | "subreddit" | "posted" | "replies"
-type ReplyColumn = "post" | "project" | "account" | "toAnswer"
+type PostColumn = "post" | "subreddit" | "posted" | "replies"
+type ReplyColumn = "post" | "account" | "toAnswer"
 
 const POST_COLUMNS: TableHeaderColumn<PostColumn>[] = [
   { key: "post", label: "Post", column: "main" },
-  { key: "project", label: "Project", column: "meta" },
-  { key: "subreddit", label: "Subreddit", column: "meta", className: "hidden md:table-cell" },
-  { key: "posted", label: "Posted", column: "meta", className: "hidden md:table-cell" },
+  // By the middle column's width, not the window's: narrower than 56rem the
+  // subreddit and when it went up fold into the line under the title.
+  { key: "subreddit", label: "Subreddit", column: "meta", className: "hidden @4xl:table-cell" },
+  { key: "posted", label: "Posted", column: "meta", className: "hidden @4xl:table-cell" },
   { key: "replies", label: "Replies", column: "meta", className: "text-right" },
 ]
 
 const REPLY_COLUMNS: TableHeaderColumn<ReplyColumn>[] = [
   { key: "post", label: "Your comment on", column: "main" },
-  { key: "project", label: "Project", column: "meta", className: "hidden md:table-cell" },
-  { key: "account", label: "Account", column: "meta", className: "hidden md:table-cell" },
+  { key: "account", label: "Account", column: "meta", className: "hidden @4xl:table-cell" },
   { key: "toAnswer", label: "To answer", column: "meta", className: "text-right" },
 ]
 
@@ -54,8 +55,6 @@ const time = (value: Date | null) => (value ? new Date(value).getTime() : 0)
 /** The list's own order is the ranking, so "post" sorts by it rather than by title. */
 function comparePosts(a: Post, b: Post, column: PostColumn, order: Map<string, number>): number {
   switch (column) {
-    case "project":
-      return a.project.name.localeCompare(b.project.name)
     case "subreddit":
       return a.subreddit.localeCompare(b.subreddit)
     case "posted":
@@ -69,8 +68,6 @@ function comparePosts(a: Post, b: Post, column: PostColumn, order: Map<string, n
 
 function compareReplies(a: Reply, b: Reply, column: ReplyColumn): number {
   switch (column) {
-    case "project":
-      return (a.project?.name ?? "~").localeCompare(b.project?.name ?? "~")
     case "account":
       return (a.account.handle || "~").localeCompare(b.account.handle || "~")
     case "toAnswer":
@@ -81,38 +78,58 @@ function compareReplies(a: Reply, b: Reply, column: ReplyColumn): number {
 }
 
 /**
- * Today: every project's Strong fit posts and every reply waiting for an
- * answer, best first, so the morning round is one list rather than a visit to
- * each project.
+ * Today, a tab in a project's Reddit module: the project's Strong fit posts
+ * and its replies waiting for an answer, best first, so the morning round for
+ * one project is one list. Tyler, 14 Oct 2026: "Today and comments can be part
+ * of the views tabs".
  *
- * A post opens on its project's dashboard, where Post sends from one of that
- * project's accounts. A reply opens its comment's Replies window. Nothing
- * here sends anything; Skip only moves posts out of the way.
+ * A post opens beside the list, where Post sends from one of the project's
+ * accounts. A reply opens its comment's Replies window on the Comments tab.
+ * Nothing here sends anything; Skip only moves posts out of the way. The list
+ * is read when the tab opens, and a spinner holds its place until then.
  */
-export function TodayDashboard({ initial, tab }: { initial: TodayView; tab: TodayTab }) {
-  const navigate = useNavigate()
-  const [view, setView] = React.useState(initial)
+export function TodayDashboard({
+  projectId,
+  onOpenPost,
+  onOpenReplies,
+}: {
+  projectId: string
+  onOpenPost: (findId: string) => void
+  onOpenReplies: (commentId: string) => void
+}) {
+  const [tab, setTab] = React.useState<TodayTab>("posts")
+  const [view, setView] = React.useState<TodayView | null>(null)
   const [error, setError] = React.useState<string | null>(null)
 
   const refresh = React.useCallback(
     (): Promise<void> =>
-      loadToday().then(
+      loadToday(projectId).then(
         (next) => {
           setView(next)
           setError(null)
         },
         (failure: unknown) => setError(getTodayErrorMessage(failure))
       ),
-    []
+    [projectId]
   )
 
+  React.useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  if (!view) {
+    return error ? (
+      <ErrorRow message={error} onRetry={() => void refresh()} />
+    ) : (
+      <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+        <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+        Reading today&apos;s list
+      </p>
+    )
+  }
+
   const tabs = (
-    <Tabs
-      value={tab}
-      onValueChange={(value) =>
-        void navigate({ to: ".", search: value === "replies" ? { tab: "replies" } : {} })
-      }
-    >
+    <Tabs value={tab} onValueChange={(value) => setTab(value === "replies" ? "replies" : "posts")}>
       <TabsList>
         <TabsTrigger value="posts" aria-label={`Posts to answer, ${view.posts.length}`}>
           Posts
@@ -127,9 +144,9 @@ export function TodayDashboard({ initial, tab }: { initial: TodayView; tab: Toda
   )
 
   return tab === "replies" ? (
-    <RepliesTable tabs={tabs} rows={view.replies} error={error} onRefresh={refresh} />
+    <RepliesTable tabs={tabs} rows={view.replies} error={error} onRefresh={refresh} onOpen={onOpenReplies} />
   ) : (
-    <PostsTable tabs={tabs} rows={view.posts} error={error} onRefresh={refresh} />
+    <PostsTable tabs={tabs} rows={view.posts} error={error} onRefresh={refresh} onOpen={onOpenPost} />
   )
 }
 
@@ -161,13 +178,14 @@ function PostsTable({
   rows,
   error,
   onRefresh,
+  onOpen,
 }: {
   tabs: React.ReactNode
   rows: Post[]
   error: string | null
   onRefresh: () => Promise<void>
+  onOpen: (findId: string) => void
 }) {
-  const navigate = useNavigate()
   const { sort, direction, toggleSort } = useTableSort<PostColumn>("post", "desc")
   const selection = useSelection()
   const [skipping, setSkipping] = React.useState(false)
@@ -206,6 +224,8 @@ function PostsTable({
     <DashboardTable
       title="Today"
       icon={<SunIcon />}
+      fillHeight
+      className={IN_COLUMN_TABLE}
       tabs={tabs}
       count={rows.length}
       error={error ? { message: error, onRetry: () => void onRefresh() } : null}
@@ -241,7 +261,7 @@ function PostsTable({
         />
       }
       isEmpty={rows.length === 0}
-      emptyText="No Strong fit posts are waiting in any project. Keywords search again by themselves every few hours."
+      emptyText="No Strong fit posts are waiting in this project."
       emptyColSpan={POST_COLUMNS.length + 2}
       footer={footer}
     >
@@ -249,9 +269,7 @@ function PostsTable({
         <TableRow
           key={row.id}
           className="group"
-          rowAction={() =>
-            void navigate({ to: "/admin/projects/$projectId", params: { projectId: row.project.id }, search: { post: row.id } })
-          }
+          rowAction={() => onOpen(row.id)}
         >
           <TableCell column="select">
             <Checkbox
@@ -262,26 +280,25 @@ function PostsTable({
           </TableCell>
           <TableCell column="main" className="max-w-0">
             <Hint label={row.title}>
-              <Link
-                to="/admin/projects/$projectId"
-                params={{ projectId: row.project.id }}
-                search={{ post: row.id }}
-                className="block max-w-full truncate text-sm font-medium group-hover:underline"
+              <button
+                type="button"
+                onClick={() => onOpen(row.id)}
+                className="block max-w-full truncate text-left text-sm font-medium group-hover:underline"
               >
                 {row.title || "A post with no title"}
-              </Link>
+              </button>
             </Hint>
             <Hint label={row.reason}>
               <span className="block truncate text-xs text-muted-foreground">{row.reason}</span>
             </Hint>
+            <span className="block truncate text-xs text-muted-foreground @4xl:hidden">
+              r/{row.subreddit} · {postedDateText(row.postedAt ? new Date(row.postedAt) : null)}
+            </span>
           </TableCell>
-          <TableCell column="meta" className="max-w-32">
-            <span className="block truncate">{row.project.name}</span>
-          </TableCell>
-          <TableCell column="meta" className="hidden max-w-32 md:table-cell">
+          <TableCell column="meta" className="hidden max-w-32 @4xl:table-cell">
             <span className="block truncate text-muted-foreground">r/{row.subreddit}</span>
           </TableCell>
-          <TableCell column="meta" className="hidden text-muted-foreground md:table-cell">
+          <TableCell column="meta" className="hidden text-muted-foreground @4xl:table-cell">
             {postedDateText(row.postedAt ? new Date(row.postedAt) : null)}
           </TableCell>
           <TableCell column="meta" className="text-right tabular-nums">
@@ -312,13 +329,14 @@ function RepliesTable({
   rows,
   error,
   onRefresh,
+  onOpen,
 }: {
   tabs: React.ReactNode
   rows: Reply[]
   error: string | null
   onRefresh: () => Promise<void>
+  onOpen: (commentId: string) => void
 }) {
-  const navigate = useNavigate()
   const { sort, direction, toggleSort } = useTableSort<ReplyColumn>("toAnswer", "desc")
   const selection = useSelection()
   const sorted = React.useMemo(() => {
@@ -355,6 +373,8 @@ function RepliesTable({
     <DashboardTable
       title="Today"
       icon={<SunIcon />}
+      fillHeight
+      className={IN_COLUMN_TABLE}
       tabs={tabs}
       count={rows.length}
       error={error ? { message: error, onRetry: () => void onRefresh() } : null}
@@ -390,7 +410,7 @@ function RepliesTable({
         />
       }
       isEmpty={rows.length === 0}
-      emptyText="No replies are waiting for an answer. Replies show here once a check on the Comments screen has read them."
+      emptyText="No replies are waiting for an answer."
       emptyColSpan={REPLY_COLUMNS.length + 2}
       footer={footer}
     >
@@ -398,7 +418,7 @@ function RepliesTable({
         <TableRow
           key={row.commentId}
           className="group"
-          rowAction={() => void navigate({ to: "/admin/comments", search: { replies: row.commentId } })}
+          rowAction={() => onOpen(row.commentId)}
         >
           <TableCell column="select">
             <Checkbox
@@ -409,13 +429,13 @@ function RepliesTable({
           </TableCell>
           <TableCell column="main" className="max-w-0">
             <Hint label={row.postTitle}>
-              <Link
-                to="/admin/comments"
-                search={{ replies: row.commentId }}
-                className="block max-w-full truncate text-sm font-medium group-hover:underline"
+              <button
+                type="button"
+                onClick={() => onOpen(row.commentId)}
+                className="block max-w-full truncate text-left text-sm font-medium group-hover:underline"
               >
                 {row.postTitle || "A post with no title"}
-              </Link>
+              </button>
             </Hint>
             <Hint label={row.latest.text}>
               <span className="block truncate text-xs text-muted-foreground">
@@ -423,11 +443,11 @@ function RepliesTable({
                 {row.latest.text}
               </span>
             </Hint>
+            <span className="block truncate text-xs text-muted-foreground @4xl:hidden">
+              {row.account.handle ? `u/${row.account.handle}` : "An account not signed in"}
+            </span>
           </TableCell>
-          <TableCell column="meta" className="hidden max-w-32 md:table-cell">
-            <span className="block truncate text-muted-foreground">{row.project?.name ?? "No project"}</span>
-          </TableCell>
-          <TableCell column="meta" className="hidden max-w-32 md:table-cell">
+          <TableCell column="meta" className="hidden max-w-32 @4xl:table-cell">
             <span className="block truncate">{row.account.handle ? `u/${row.account.handle}` : "Not signed in"}</span>
           </TableCell>
           <TableCell column="meta" className="text-right tabular-nums">
@@ -435,10 +455,14 @@ function RepliesTable({
           </TableCell>
           <TableCell column="actions">
             <Hint label="Open the replies and answer them">
-              <Button type="button" variant="ghost" size="icon" asChild>
-                <Link to="/admin/comments" search={{ replies: row.commentId }} aria-label={`Answer the replies on ${row.postTitle}`}>
-                  <MessageCircleReplyIcon className="size-4" />
-                </Link>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onOpen(row.commentId)}
+                aria-label={`Answer the replies on ${row.postTitle}`}
+              >
+                <MessageCircleReplyIcon className="size-4" />
               </Button>
             </Hint>
           </TableCell>

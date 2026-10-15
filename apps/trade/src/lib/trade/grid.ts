@@ -1869,27 +1869,42 @@ export function gridHeldSz(
 }
 
 /**
- * What "Stop the grid" is about to do, said before it is pressed.
+ * What the grid's × is about to do, said before it is pressed.
  *
- * **A grid holding nothing ends when it is stopped.** Cancelling its waiting
- * levels leaves it with nothing to buy and nothing to sell, so the engine
- * writes it down as finished on its next pass and it leaves the chart. The
- * warning used to promise only that "its sells keep working", which is true
- * of a grid holding coins and quietly wrong of one that is not: Tyler stopped
- * a CASHCAT grid on 20 Sep 2026 and watched the whole grid vanish nine
- * seconds later, with nothing on screen saying that is what stopping it
- * meant.
+ * **Ending a grid hands its coin over.** Its waiting levels are cancelled, and
+ * each level still holding coin keeps its sell, at the same price, as a manual
+ * order (Tyler, 14 Oct 2026). The grid itself ends, its stop with it, so the
+ * warning names the stop: the coin has no stop afterwards unless one is set by
+ * hand. A grid holding nothing simply ends. Tyler stopped a CASHCAT grid on
+ * 20 Sep 2026 and watched it vanish with nothing on screen saying that is
+ * what stopping it meant, so every outcome is said out loud.
  */
 export function stopGridWarning(grid: {
-  plan: Pick<GridPlan, "levels" | "carriedLevels">
+  plan: Pick<GridPlan, "levels" | "carriedLevels" | "stopLoss">
 }): string {
   const waiting = grid.plan.levels.filter(
     (level) => level.status === "waiting"
   ).length
-  const levels = `${waiting} waiting ${waiting === 1 ? "level is" : "levels are"} cancelled and buy nothing. They do not come back.`
-  return gridHeldSz(grid.plan) > 0
-    ? `${levels} Whatever the grid is holding stays, and its sells keep working.`
-    : `${levels} This grid is holding nothing, so stopping it ends the grid.`
+  const sells = [...grid.plan.levels, ...grid.plan.carriedLevels].filter(
+    (level) => level.status === "holding" && level.heldSz > 0
+  ).length
+  const parts: string[] = []
+  if (waiting > 0) {
+    parts.push(
+      `${waiting} waiting ${waiting === 1 ? "level is" : "levels are"} cancelled. They do not come back.`
+    )
+  }
+  if (sells === 0) {
+    parts.push("This grid is holding nothing, so it ends.")
+    return parts.join(" ")
+  }
+  parts.push(
+    `The grid ends, and what it holds becomes yours. ${sells === 1 ? "Its sell stays at its price as a manual order." : `Its ${sells} sells stay at their prices as manual orders.`}`
+  )
+  if (grid.plan.stopLoss) {
+    parts.push("The grid's stop loss ends with it, so set your own if you want one.")
+  }
+  return parts.join(" ")
 }
 
 /**

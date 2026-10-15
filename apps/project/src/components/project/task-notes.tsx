@@ -1,9 +1,10 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import type { Editor } from "@tiptap/react"
-import { HistoryIcon, ListTodoIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react"
+import { HistoryIcon, ListTodoIcon, Loader2Icon, PencilIcon, PlusIcon, SettingsIcon } from "lucide-react"
 
 import { WrittenPageBody } from "@/components/pages/written-page-body"
+import { PanelCardFooter } from "@/components/project/panel-card"
 import {
   notesTaskLinks,
   type NotesLinkTyping,
@@ -147,49 +148,56 @@ export function TaskNotesField({
     onFinished?.()
   }
 
+  const versionsButton = (
+    <Button type="button" variant="ghost" size="sm" onClick={() => setVersionsOpen(true)}>
+      <HistoryIcon className="size-4" />
+      Earlier versions
+    </Button>
+  )
+  const doneOrEdit = readOnly ? null : editing ? (
+    <Button type="button" variant="outline" size="sm" disabled={finishing} onClick={() => void finish()}>
+      {finishing ? <Loader2Icon className="size-4 animate-spin" /> : null}
+      Done
+    </Button>
+  ) : (
+    <Button type="button" variant="ghost" size="sm" onClick={startEditing}>
+      {taskNotesAreEmpty(saved) ? (
+        <>
+          <PlusIcon className="size-4" />
+          Add notes
+        </>
+      ) : hideLabel ? (
+        // Tyler drew a pencil here, where the card's own cog already means settings.
+        <>
+          <PencilIcon className="size-4" />
+          Edit notes
+        </>
+      ) : (
+        <>
+          <SettingsIcon className="size-4" />
+          Edit notes
+        </>
+      )}
+    </Button>
+  )
+
   return (
     <div className="grid gap-2" role="group" aria-labelledby={labelId}>
-      {/* Under a Notes card the buttons are the card's footer, below the
-          notes (Tyler, 13 Oct 2026), so the formatting bar over the first
-          line also never sits on Done. */}
-      <div
-        className={cn(
-          "flex min-h-7 items-center justify-between gap-2",
-          hideLabel && "order-last justify-end"
-        )}
-      >
-        <Label id={labelId} asChild className={hideLabel ? "sr-only" : undefined}>
+      {hideLabel ? (
+        <Label id={labelId} asChild className="sr-only">
           <span>{label}</span>
         </Label>
-        <div className="flex items-center gap-1">
-          {task && !editing ? (
-            <Button type="button" variant="ghost" size="sm" onClick={() => setVersionsOpen(true)}>
-              <HistoryIcon className="size-4" />
-              Earlier versions
-            </Button>
-          ) : null}
-          {readOnly ? null : editing ? (
-            <Button type="button" variant="outline" size="sm" disabled={finishing} onClick={() => void finish()}>
-              {finishing ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Done
-            </Button>
-          ) : (
-            <Button type="button" variant="ghost" size="sm" onClick={startEditing}>
-              {taskNotesAreEmpty(saved) ? (
-                <>
-                  <PlusIcon className="size-4" />
-                  Add notes
-                </>
-              ) : (
-                <>
-                  <SettingsIcon className="size-4" />
-                  Edit notes
-                </>
-              )}
-            </Button>
-          )}
+      ) : (
+        <div className="flex min-h-7 items-center justify-between gap-2">
+          <Label id={labelId} asChild>
+            <span>{label}</span>
+          </Label>
+          <div className="flex items-center gap-1">
+            {task && !editing ? versionsButton : null}
+            {doneOrEdit}
+          </div>
         </div>
-      </div>
+      )}
       {editing ? (
         <div
           ref={editorBox}
@@ -246,6 +254,16 @@ export function TaskNotesField({
           )}
         </div>
       )}
+      {/* Under a Notes card the buttons are the card's footer, behind its cog
+          (Tyler, 14 Oct 2026): Edit notes at the left, Earlier versions at the
+          right, and Done while writing whatever the cog says. Below the notes,
+          so the formatting bar over the first line never sits on Done. */}
+      {hideLabel ? (
+        <PanelCardFooter always={editing} className={editing ? "justify-end" : undefined}>
+          {doneOrEdit}
+          {task && !editing ? <span className="ml-auto">{versionsButton}</span> : null}
+        </PanelCardFooter>
+      ) : null}
       {task ? (
         <NoteVersionsDialog
           open={versionsOpen}

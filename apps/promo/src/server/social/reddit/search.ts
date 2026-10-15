@@ -369,7 +369,7 @@ export async function loadFindThread(
   const answer = await redditThread(target, { permalink: find.permalink })
   const thread: FindThread = {
     body: answer.post?.body || find.body,
-    replies: answer.replies,
+    replies: answer.replies.map(({ author, text, score }) => ({ author, text, score })),
   }
 
   await db

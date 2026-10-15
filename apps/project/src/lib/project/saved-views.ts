@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { LIMITS, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/project/rules"
-import { hasTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
+import { DUE_FILTERS, hasTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
 
 /**
  * Saved views: a person's own named filters, on one project's Board and List
@@ -23,7 +23,10 @@ export const savedViewFiltersSchema = z.object({
   person: id.optional(),
   label: id.optional(),
   type: id.optional(),
+  due: z.enum(DUE_FILTERS.map((option) => option.key) as [DueKey, ...DueKey[]]).optional(),
 })
+
+type DueKey = (typeof DUE_FILTERS)[number]["key"]
 
 export const saveViewSchema = z.object({
   /** Null is My tasks. */
@@ -45,6 +48,7 @@ export function viewFilters(filters: TaskFilters): SavedViewFilters {
   if (filters.person) kept.person = filters.person
   if (filters.label) kept.label = filters.label
   if (filters.type) kept.type = filters.type
+  if (filters.due) kept.due = filters.due
   return kept
 }
 

@@ -26,7 +26,7 @@ const api = vi.hoisted(() => ({
   hidePaperTrade: vi.fn(),
   flattenWalletApi: vi.fn(),
   cancelLadderRest: vi.fn(),
-  cancelGridRest: vi.fn(),
+  endGrid: vi.fn(),
   placeGridOrder: vi.fn(),
   editWatch: vi.fn(),
   setLiveBrackets: vi.fn(),
@@ -82,7 +82,7 @@ vi.mock("@/lib/api/trade/paper", () => ({
 vi.mock("@/lib/api/trade/smart-orders", () => ({
   cancelAllSmartOrders: vi.fn(),
   cancelGridLevel: vi.fn(),
-  cancelGridRest: api.cancelGridRest,
+  endGrid: api.endGrid,
   cancelLadderRest: api.cancelLadderRest,
   cancelLadderRung: vi.fn(),
   cancelWatch: vi.fn(),
@@ -204,7 +204,7 @@ beforeEach(() => {
     sellRefused: [],
   })
   api.cancelLadderRest.mockReset()
-  api.cancelGridRest.mockReset()
+  api.endGrid.mockReset()
   api.placeGridOrder.mockReset()
   api.editWatch.mockReset().mockResolvedValue({ saved: true })
   api.setLiveBrackets.mockReset().mockResolvedValue(undefined)
@@ -1132,7 +1132,7 @@ describe("a grid edit that finishes before it saves", () => {
       ...emptyLiveAnswer,
       smartOrders: [gridOn("hyperliquid:mainnet:ENA", false)],
     })
-    api.cancelGridRest.mockRejectedValue(new Error(refusal))
+    api.endGrid.mockRejectedValue(new Error(refusal))
     await finishFirstRead()
     const grid = latest!.grids[0]
     await act(async () => {
@@ -1463,10 +1463,10 @@ describe("placing a grid during cancellation", () => {
         smartOrders: [grid],
       })
       let finishCancel!: () => void
-      api.cancelGridRest.mockImplementation(
+      api.endGrid.mockImplementation(
         () =>
-          new Promise<void>((resolve) => {
-            finishCancel = resolve
+          new Promise((resolve) => {
+            finishCancel = () => resolve({ cancelled: 2, kept: 0, dropped: 0 })
           })
       )
       api.placeGridOrder.mockRejectedValue(new Error(code))

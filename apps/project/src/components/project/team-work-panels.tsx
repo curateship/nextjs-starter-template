@@ -1,11 +1,12 @@
 import * as React from "react"
+import { CircleAlertIcon } from "lucide-react"
 
 import { PersonAvatar } from "@/components/project/task-bits"
+import { TeamSideCard } from "@/components/project/team-side-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   loadAttention,
   loadTeamWorkload,
@@ -40,77 +41,90 @@ function useLoaded<T>(load: () => Promise<T>, reload: unknown) {
   return { loaded, retry: () => setTries((n) => n + 1) }
 }
 
-const ATTENTION_GROUPS: { kind: AttentionKind; label: string }[] = [
-  { kind: "stuck", label: "Stuck" },
-  { kind: "not_accepted", label: "Handed over, not accepted" },
-  { kind: "picked_many", label: "Picked on 3 days or more" },
-  { kind: "overdue", label: "Overdue" },
+/**
+ * What needs attention, loaded with the right panel rather than when its tab
+ * opens, so the tab can carry the count (Tyler, 14 Oct 2026). Only the owner
+ * and admins load it; for anyone else it is an empty list.
+ */
+export function useAttention(enabled: boolean, reload: unknown) {
+  return useLoaded(enabled ? loadAttention : loadNothing, reload)
+}
+const loadNothing = async (): Promise<AttentionRow[]> => []
+
+/** Each kind's line, in Tyler's words: Stuck reads "blocked", as on the calendar. */
+const ATTENTION_GROUPS: { kind: AttentionKind; label: string; tint: string }[] = [
+  { kind: "overdue", label: "overdue", tint: "bg-red-500/10 text-red-600 dark:text-red-400" },
+  { kind: "stuck", label: "blocked", tint: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
+  { kind: "not_accepted", label: "handed over, not accepted", tint: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+  { kind: "picked_many", label: "picked on 3 days or more", tint: "bg-violet-500/10 text-violet-600 dark:text-violet-400" },
 ]
 
 /**
- * Every task that needs help, for the owner and admins: Stuck (from the day it's marked),
- * not accepted after a work day, picked on 3+ days and not Done, and overdue.
- * The numbers for the morning are in the bell; this gives the names.
+ * Every task that needs help, for the owner and admins, as Tyler drew it on
+ * 14 Oct 2026: one card with a line per kind, "1 task overdue" by a tinted
+ * mark, and under it each task with how long ("test · was due Oct 12"), which
+ * opens it. Stuck counts from the day it's marked, not accepted after a work
+ * day, picked on 3+ days and not Done, and overdue. The numbers for the
+ * morning are in the bell; this gives the names.
  */
 export function AttentionPanel({
-  reload,
+  attention,
   onOpenTask,
 }: {
-  reload: unknown
+  attention: ReturnType<typeof useAttention>
   onOpenTask: (taskId: string) => void
 }) {
-  const { loaded, retry } = useLoaded(loadAttention, reload)
+  const { loaded, retry } = attention
   if (loaded.state === "loading") return <LoadingRow label="Loading what needs attention…" />
   if (loaded.state === "error") return <ErrorRow message={loaded.message} onRetry={retry} />
   const rows = loaded.value
   return (
-    <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-      <h2 className="px-5 pt-4 text-sm font-medium">
-        Needs attention{rows.length ? ` · ${rows.length}` : ""}
-      </h2>
+    <TeamSideCard>
       {rows.length === 0 ? (
-        <p className="p-4 text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Nothing needs attention: no task is stuck, unanswered, dragging or overdue.
         </p>
       ) : (
-        <div className="grid gap-4 p-3">
+        <div className="grid gap-4">
           {ATTENTION_GROUPS.map((group) => {
             const mine = rows.filter((row) => row.kind === group.kind)
             if (mine.length === 0) return null
+            const heading = `${mine.length} ${mine.length === 1 ? "task" : "tasks"} ${group.label}`
             return (
-              <section key={group.kind} className="grid gap-1" aria-label={group.label}>
-                <h3 className="px-2 text-xs font-medium text-muted-foreground">
-                  {group.label} · {mine.length}
-                </h3>
-                <ul className="grid gap-1">
-                  {mine.map((row) => (
-                    <AttentionLine key={`${row.kind}-${row.taskId}`} row={row} onOpen={() => onOpenTask(row.taskId)} />
-                  ))}
-                </ul>
+              <section key={group.kind} className="flex gap-3" aria-label={heading}>
+                <span
+                  aria-hidden
+                  className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", group.tint)}
+                >
+                  <CircleAlertIcon className="size-4" />
+                </span>
+                <div className="grid min-w-0 flex-1 gap-0.5">
+                  <h4 className="text-sm font-medium">{heading}</h4>
+                  <ul className="grid">
+                    {mine.map((row) => (
+                      <AttentionLine key={`${row.kind}-${row.taskId}`} row={row} onOpen={() => onOpenTask(row.taskId)} />
+                    ))}
+                  </ul>
+                </div>
               </section>
             )
           })}
         </div>
       )}
-    </ScrollArea>
+    </TeamSideCard>
   )
 }
 
+/** "test · Admin · was due Oct 12", opening the task. */
 function AttentionLine({ row, onOpen }: { row: AttentionRow; onOpen: () => void }) {
   return (
     <li>
       <button
         type="button"
         onClick={onOpen}
-        className="grid w-full gap-0.5 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="w-full rounded text-left text-sm break-words text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
-        <span className="font-medium break-words">{row.title}</span>
-        <span className="text-xs text-muted-foreground">
-          {row.personName ?? "Nobody"} · {row.projectName} ·{" "}
-          <span className={cn(row.kind === "stuck" || row.kind === "overdue" ? "text-destructive" : undefined)}>
-            {row.howLong}
-          </span>
-        </span>
+        {row.title} · {row.personName ?? "Nobody"} · {row.howLong}
       </button>
     </li>
   )
@@ -140,8 +154,8 @@ export function WorkloadPanel({
   if (loaded.state === "loading") return <LoadingRow label="Loading the workload…" />
   if (loaded.state === "error") return <ErrorRow message={loaded.message} onRetry={retry} />
   return (
-    <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-      <ul className="divide-y">
+    <TeamSideCard>
+      <ul className="-mx-4 divide-y">
         {loaded.value.map((row) => (
           <WorkloadLine
             key={row.person.id}
@@ -158,7 +172,7 @@ export function WorkloadPanel({
           />
         ))}
       </ul>
-    </ScrollArea>
+    </TeamSideCard>
   )
 }
 

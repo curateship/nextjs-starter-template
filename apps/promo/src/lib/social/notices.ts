@@ -2,8 +2,16 @@ import {
   AlertTriangleIcon,
   BanIcon,
   CalendarClockIcon,
+  DownloadIcon,
   EyeOffIcon,
+  FlaskConicalIcon,
+  GlobeLockIcon,
+  HardDriveIcon,
   MessageCircleReplyIcon,
+  ServerOffIcon,
+  SignalZeroIcon,
+  SmartphoneIcon,
+  ThermometerIcon,
 } from "lucide-react"
 
 import type { AppNoticeDetail, NoticeToLink } from "@/lib/app-options"
@@ -27,6 +35,15 @@ const LOOKS: Record<PromoNoticeKind, Pick<AppNoticeDetail, "icon" | "toneClassNa
   suspended: { icon: BanIcon, toneClassName: "bg-destructive/10 text-destructive" },
   failed: { icon: AlertTriangleIcon, toneClassName: "bg-destructive/10 text-destructive" },
   proxy_renewal: { icon: CalendarClockIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  phone_offline: { icon: SmartphoneIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  phone_hot: { icon: ThermometerIcon, toneClassName: "bg-destructive/10 text-destructive" },
+  phone_signal: { icon: SignalZeroIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  phone_storage: { icon: HardDriveIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  rack_silent: { icon: ServerOffIcon, toneClassName: "bg-destructive/10 text-destructive" },
+  ban_screen: { icon: BanIcon, toneClassName: "bg-destructive/10 text-destructive" },
+  action_broken: { icon: FlaskConicalIcon, toneClassName: "bg-destructive/10 text-destructive" },
+  app_update: { icon: DownloadIcon, toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  phone_address: { icon: GlobeLockIcon, toneClassName: "bg-destructive/10 text-destructive" },
 }
 
 /** Which of Promo's kinds a notice is, read off its heading, or null. */

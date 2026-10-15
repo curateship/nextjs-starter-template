@@ -109,6 +109,24 @@ export const appServerOptions: AppServerOptions = {
         },
       },
       {
+        name: "promo-phone-health",
+        /**
+         * Rings the bell for a phone offline five minutes, a battery over
+         * 45°C, a SIM with no signal for ten minutes, storage over 90 out of
+         * 100 full, and the rack not checking in, one notice per phone per
+         * problem, and takes each away when it ends. Asks for the daily
+         * self-test and Play Store look on the test phone, and once an hour
+         * deletes old step pictures and chart readings.
+         */
+        tick: async () => {
+          const { tidyPhoneRecords, sweepPhoneHealth } = await import("@/server/phones/upkeep")
+          await sweepPhoneHealth()
+          const { queueDailySelfTest } = await import("@/server/phones/self-test")
+          await queueDailySelfTest()
+          await tidyPhoneRecords()
+        },
+      },
+      {
         name: "promo-browser-reaper",
         /**
          * Shuts down a browser nobody has used for an hour, marks one whose

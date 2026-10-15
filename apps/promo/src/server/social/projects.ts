@@ -2,11 +2,15 @@ import { and, asc, count, eq, isNull, max, notInArray } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import type { AccountImportance } from "@/lib/social/importance"
+import { postPhone, type PostPhone } from "@/server/phones/phones"
 import { promoProfiles } from "@/server/browser/schema"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { commentReadiness, type AccountStatusView } from "@/lib/social/account-status"
+import { isNetwork, NETWORK_NAMES, type Network } from "@/lib/social/networks"
 
 import { accountStatuses } from "./account-list"
+import { refuseMixedProject } from "./apart"
 import { jobCounts, type JobCounts } from "./jobs"
 import { shownFind } from "./keywords"
 import { readPostingState, type PostingState } from "./posting"
@@ -124,14 +128,88 @@ function cleanName(name: string): string {
   return cleaned
 }
 
+/**
+ * Makes a project using the networks ticked in the New project window. A
+ * project may start with none and have them added on its dashboard.
+ */
 export async function createProject(
   userId: string,
   name: string,
-  db: CustomShellDb = defaultDb
+  db: CustomShellDb = defaultDb,
+  networks: Network[] = []
 ): Promise<string> {
   const id = uuid()
-  await db.insert(promoProjects).values({ id, userId, name: cleanName(name) })
+  await db.insert(promoProjects).values({ id, userId, name: cleanName(name), networks: [...new Set(networks)] })
   return id
+}
+
+/** The networks a project uses, leaving out any Promo no longer offers. */
+function usedNetworks(project: typeof promoProjects.$inferSelect): Network[] {
+  return project.networks.filter(isNetwork)
+}
+
+/** Adds a network to a project, at the end of its list. */
+export async function addProjectNetwork(
+  userId: string,
+  projectId: string,
+  network: Network,
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  if (!isNetwork(network)) throw new Error("Promo cannot use that network yet.")
+  const project = await ownedProject(userId, projectId, db)
+  const networks = usedNetworks(project)
+  if (networks.includes(network)) {
+    throw new Error(`${project.name} already uses ${NETWORK_NAMES[network]}.`)
+  }
+  await db
+    .update(promoProjects)
+    .set({ networks: [...networks, network], updatedAt: new Date() })
+    .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
+}
+
+/**
+ * Takes a network off a project. Refused, with how many of each, while the
+ * project still holds that network's accounts or keywords, worded like
+ * deleting a project. Reddit's keywords are the only keywords there are.
+ */
+export async function removeProjectNetwork(
+  userId: string,
+  projectId: string,
+  network: Network,
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  const project = await ownedProject(userId, projectId, db)
+  const networks = usedNetworks(project)
+  if (!networks.includes(network)) return
+  const [accounts] = await db
+    .select({ n: count() })
+    .from(promoAccounts)
+    .where(
+      and(
+        eq(promoAccounts.projectId, projectId),
+        eq(promoAccounts.platform, network),
+        isNull(promoAccounts.retiredAt)
+      )
+    )
+  const [keywords] =
+    network === "reddit"
+      ? await db.select({ n: count() }).from(promoKeywords).where(eq(promoKeywords.projectId, projectId))
+      : [{ n: 0 }]
+  const held = [
+    accounts.n ? `${accounts.n} ${NETWORK_NAMES[network]} ${accounts.n === 1 ? "account" : "accounts"}` : "",
+    keywords.n ? `${keywords.n} ${keywords.n === 1 ? "keyword" : "keywords"}` : "",
+  ].filter(Boolean)
+  if (held.length) {
+    const steps = [accounts.n ? "take its accounts out" : "", keywords.n ? "remove its keywords" : ""].filter(Boolean)
+    const first = steps.join(" and ")
+    throw new Error(
+      `${project.name} still holds ${held.join(" and ")}. ${first.charAt(0).toUpperCase()}${first.slice(1)} first, then take ${NETWORK_NAMES[network]} off.`
+    )
+  }
+  await db
+    .update(promoProjects)
+    .set({ networks: networks.filter((item) => item !== network), updatedAt: new Date() })
+    .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
 }
 
 /**
@@ -240,14 +318,19 @@ export async function ownedProject(
   return project
 }
 
-/** One of the project's accounts, as its row on the left of the dashboard. */
+/** One of the project's accounts, as it is listed in the dropdown beside Post. */
 export type ProjectAccount = {
   id: string
   /** Empty when the browser was never seen signed in. */
   handle: string
   profile: { id: string; name: string } | null
-  /** True when it runs on a phone instead of a browser profile. */
-  onPhone: boolean
+  /**
+   * The phone it runs on instead of a browser profile, or null, with what
+   * Post needs to say about it (`postPhone`).
+   */
+  phone: PostPhone | null
+  /** Important or throwaway (part 22 of the phone farm). */
+  importance: AccountImportance
   voice: { id: string; name: string } | null
   /** Reddit is asking the browser something only a person can answer. */
   blocked: boolean
@@ -265,7 +348,15 @@ export type ProjectAccount = {
 
 export type ProjectView = {
   /** `pausedAt` is set while the whole project is paused. */
-  project: { id: string; name: string; description: string; imageUrl: string; pausedAt: Date | null }
+  project: {
+    id: string
+    name: string
+    description: string
+    imageUrl: string
+    pausedAt: Date | null
+    /** The networks it uses, each a row in its left column, in the order they were added. */
+    networks: Network[]
+  }
   /**
    * The project's accounts, best to comment from first: awake with room left
    * in today's pace, then awake with none, then asleep, then warming up, then
@@ -287,7 +378,11 @@ export async function readProjectView(
   const project = await ownedProject(userId, projectId, db)
 
   const rows = await db
-    .select({ account: promoAccounts, profileName: promoProfiles.name, voiceName: promoVoices.name })
+    .select({
+      account: promoAccounts,
+      profileName: promoProfiles.name,
+      voiceName: promoVoices.name,
+    })
     .from(promoAccounts)
     .leftJoin(promoProfiles, eq(promoProfiles.id, promoAccounts.profileId))
     .leftJoin(promoVoices, eq(promoVoices.id, promoAccounts.voiceId))
@@ -311,7 +406,8 @@ export async function readProjectView(
       id: account.id,
       handle: account.handle,
       profile: account.profileId && profileName !== null ? { id: account.profileId, name: profileName } : null,
-      onPhone: Boolean(account.phoneId),
+      phone: await postPhone(userId, account.phoneId, db, now),
+      importance: account.importance,
       voice: account.voiceId && voiceName !== null ? { id: account.voiceId, name: voiceName } : null,
       blocked: account.blocked,
       reason: account.blockedReason,
@@ -333,6 +429,7 @@ export async function readProjectView(
       description: project.description,
       imageUrl: project.imageUrl,
       pausedAt: project.pausedAt,
+      networks: usedNetworks(project),
     },
     accounts: accounts.map(({ rank: _rank, ...account }) => account),
     freeAccounts: rows
@@ -354,7 +451,14 @@ export async function addAccountToProject(
 ): Promise<void> {
   await ownedProject(userId, projectId, db)
   const [account] = await db
-    .select({ projectId: promoAccounts.projectId, retiredAt: promoAccounts.retiredAt })
+    .select({
+      id: promoAccounts.id,
+      handle: promoAccounts.handle,
+      importance: promoAccounts.importance,
+      movingToPhoneId: promoAccounts.movingToPhoneId,
+      projectId: promoAccounts.projectId,
+      retiredAt: promoAccounts.retiredAt,
+    })
     .from(promoAccounts)
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
     .limit(1)
@@ -363,6 +467,7 @@ export async function addAccountToProject(
   if (account.projectId) {
     throw new Error("That account is already in another project. An account belongs to one project only.")
   }
+  await refuseMixedProject(userId, account, projectId, db)
   await db
     .update(promoAccounts)
     .set({ projectId, updatedAt: new Date() })
@@ -442,7 +547,7 @@ export async function accountForFind(
     return account
   }
   if (account.projectId !== owner.projectId) {
-    throw new Error("That account is not in this post's project. Pick one of the project's accounts on the left.")
+    throw new Error("That account is not in this post's project. Pick one of the project's accounts beside Post comment.")
   }
   return account
 }
@@ -460,4 +565,44 @@ export async function projectDescription(
     .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
     .limit(1)
   return row?.description.trim() ?? ""
+}
+
+/** The screens that were in the left menu before Reddit moved inside the project. */
+export type OldScreen = "today" | "comments" | "jobs"
+
+/**
+ * Which project an old address now opens: `/admin/today`, `/admin/comments`
+ * and `/admin/jobs` were screens of their own until Tyler moved them inside
+ * the project's Reddit module on 14 Oct 2026. Bell
+ * notices already sent, and bookmarks, still carry those addresses.
+ *
+ * A comment opens in the project its account is in now, the rule its
+ * Comments tab lists it by. A failure with no comment named opens the project
+ * of the newest one. Jobs is the same list from any project, so it opens in
+ * the first. Anything else opens the only
+ * project when there is one. Null means the Projects table, which is where a
+ * person picks one.
+ */
+export async function projectForOldScreen(
+  userId: string,
+  screen: OldScreen,
+  commentId: string | null,
+  db: CustomShellDb = defaultDb
+): Promise<string | null> {
+  if (screen === "comments" && commentId) {
+    const [row] = await db
+      .select({ projectId: promoAccounts.projectId })
+      .from(promoComments)
+      .innerJoin(promoAccounts, eq(promoAccounts.id, promoComments.accountId))
+      .where(and(eq(promoComments.id, commentId), eq(promoComments.userId, userId)))
+      .limit(1)
+    if (row?.projectId) return row.projectId
+  }
+  const projects = await db
+    .select({ id: promoProjects.id })
+    .from(promoProjects)
+    .where(eq(promoProjects.userId, userId))
+    .orderBy(asc(promoProjects.createdAt), asc(promoProjects.id))
+  if (screen === "jobs") return projects[0]?.id ?? null
+  return projects.length === 1 ? projects[0].id : null
 }

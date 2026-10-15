@@ -44,6 +44,38 @@ export function cancelGridRestPlan(plan: GridPlan): number {
   return cancelled
 }
 
+/** One sell a grid hands over when it is ended by hand. */
+export type GridHandedSell = { px: number; sz: number }
+
+/**
+ * Ending a grid by hand: its × on the chart.
+ *
+ * Every waiting level is called off, and every level still holding coin gives
+ * its sell back to the caller instead of keeping it, so the coin becomes a
+ * position placed by hand with one manual order per sell, each at the price
+ * the level was going to sell at. Tyler, 14 Oct 2026: cancelling a grid turns
+ * it into manual orders, and the sells "stay at their prices but belong to
+ * you now".
+ *
+ * The grid keeps no coin afterwards and is written down as cancelled, so
+ * nothing is left for it to buy, sell or guard.
+ */
+export function endGridByHandPlan(plan: GridPlan): {
+  cancelled: number
+  sells: GridHandedSell[]
+} {
+  const cancelled = cancelGridRestPlan(plan)
+  const sells: GridHandedSell[] = []
+  for (const level of [...plan.levels, ...plan.carriedLevels]) {
+    if (level.status !== "holding") continue
+    if (level.heldSz > 0) sells.push({ px: level.sellPx, sz: level.heldSz })
+    level.heldSz = 0
+    level.status = "cancelled"
+  }
+  plan.closedReason = plan.closedReason ?? "cancelled"
+  return { cancelled, sells }
+}
+
 export function updateGridStopPlan(
   plan: GridPlan,
   stopLoss: GridStop | null,

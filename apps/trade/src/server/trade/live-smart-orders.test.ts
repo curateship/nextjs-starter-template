@@ -25,6 +25,7 @@ import {
   updateLiveGridEnd,
   updateLiveGridStop,
 } from "@/server/trade/live-grid-orders"
+import { endGridByHand } from "@/server/trade/grid-hand-over"
 import {
   createPlanPostgresDatabase,
   deferred,
@@ -562,6 +563,78 @@ describe("live Smart orders", () => {
       ])
       expect(results.map((result) => result.cancelled).sort()).toEqual([0, 2])
       await expectStopped()
+    })
+  })
+
+  describe("ending a grid by hand", () => {
+    /** Bought at $85 and selling at $90, with the $80 level still waiting. */
+    async function seedHoldingGrid(over: Partial<GridPlan> = {}) {
+      const plan = gridState(over)
+      plan.levels[1] = { ...plan.levels[1], status: "holding", heldSz: 1 }
+      await database.insert(tradeSmartLadders).values({
+        id: "held-grid",
+        userId,
+        walletId: wallet.id,
+        marketKey: MARKET,
+        kind: "grid",
+        status: "active",
+        plan,
+      })
+      prices.mockResolvedValue(new Map([["BTC", 88]]))
+      portfolio.mockResolvedValue({
+        positions: [{ ...chasePosition, szi: 1, entryPx: 85, slOrderId: "stop-1" }],
+        orders: [],
+      })
+    }
+
+    async function rows() {
+      return await database
+        .select()
+        .from(tradeSmartLadders)
+        .where(eq(tradeSmartLadders.userId, userId))
+    }
+
+    it("takes back the grid's resting stop and keeps its sell as a manual order", async () => {
+      await seedHoldingGrid({ fixedStopOrderId: "stop-1" })
+
+      const ended = await endGridByHand(userId, wallet, { gridId: "held-grid" })
+
+      expect(ended).toEqual({ cancelled: 1, kept: 1, dropped: 0 })
+      expect(cancel).toHaveBeenCalledWith(
+        "testnet",
+        expect.anything(),
+        expect.objectContaining({ orderId: "stop-1" })
+      )
+      const all = await rows()
+      const grid = all.find((row) => row.kind === "grid")
+      expect(grid?.status).toBe("done")
+      expect((grid?.plan as GridPlan).fixedStopOrderId).toBeNull()
+      const watches = all.filter((row) => row.kind === "watch")
+      expect(watches).toHaveLength(1)
+      expect(watches[0].plan).toMatchObject({
+        side: "sell",
+        triggerPx: 90,
+        triggerDirection: "up",
+        sz: 1,
+        reduceOnly: true,
+        phase: "waiting",
+      })
+      expect(place).not.toHaveBeenCalled()
+    })
+
+    it("changes nothing when the exchange will not take the stop back", async () => {
+      await seedHoldingGrid({ fixedStopOrderId: "stop-1" })
+      cancel.mockRejectedValue(new Error("busy"))
+
+      await expect(
+        endGridByHand(userId, wallet, { gridId: "held-grid" })
+      ).rejects.toThrow("SMART_GRID_STOP_NOT_CANCELLED")
+
+      const all = await rows()
+      expect(all.filter((row) => row.kind === "watch")).toHaveLength(0)
+      const grid = all.find((row) => row.kind === "grid")
+      expect(grid?.status).toBe("active")
+      expect((grid?.plan as GridPlan).levels[1].status).toBe("holding")
     })
   })
 
