@@ -23,6 +23,18 @@
 - **An empty Members card** says "Nobody is on this project." and adds
   "Invite a teammate so tasks can be handed to them." only when Invite is
   there to do it.
+- **Everyone on the team.** A switch in Project settings puts every
+  teammate on the project, and anyone who joins the team later, by invite or
+  by the join link, goes on it as they join. Turning it on first asks "Show
+  this project to everyone on the team?", because they all see its tasks,
+  chat and files. While it is on, Invite, Remove and Leave are gone from the
+  Members card and the server refuses them. Tyler left this choice to me on
+  15 Oct 2026, so it is the default: a project that says it includes
+  everyone really does. Turning it off keeps everyone on as an ordinary
+  member, who can then be taken off by hand. Leaving the team still takes
+  someone off every project, this one included. Saved in
+  `project_projects.whole_team`; the join step is `joinWholeTeamProjects` in
+  `src/server/project/whole-team.ts`.
 
 ## Copying, due dates and progress
 
@@ -30,9 +42,10 @@
   page has none, Tyler's choice, 11 Oct 2026), asks for a new name, starting as "Copy of Website launch", selected,
   so typing replaces it and Copy project works at once. It makes a project
   from the old one: its
-  description, colour, sections and every task not in the bin, in the same
-  order, with their labels, steps (unticked), types and field values, and the
-  project's own pick of task types. Every task starts To do with
+  description, colour, sections, milestones (with no dates) and every task
+  not in the bin, in the same order, with their labels, milestone, steps
+  (unticked), types and field values, and the project's own pick of task
+  types. The status, lead and client stay behind. Every task starts To do with
   nobody assigned and no due date (Tyler's choice, 10 Oct 2026). People,
   chat, files and history stay behind, and a Person field keeps only the
   person copying. The person copying is the new
@@ -45,6 +58,133 @@
   no task counts (Tyler removed them 11 Oct 2026). Done counts Done tasks;
   To do, Doing and Stuck are open; tasks in the bin don't count. Once the date
   passes with tasks still open it reads "Overdue" in red.
+
+## Project status
+
+So anyone scanning the Projects table sees which jobs are in trouble, and why.
+
+- **On track, At risk or Off track**, with one line of why, such as "Client
+  hasn't sent the photos". At risk and Off track need the line; On track
+  doesn't. "No status" takes it off. In the code it is called `health`, so
+  it never mixes with a task's four statuses.
+- **The date always shows.** Under the status: "Set by Priya, 2 days ago",
+  with the exact time on hover, because a status nobody has touched for weeks
+  shouldn't read as today's.
+- **Where it shows:** in a folding Status card at the bottom of the project
+  page's details panel, and in the Projects table's Status column. The
+  card's heading reads "Status  ● At risk", with a gap and no dot between,
+  so a folded card still says it. Its cog shows only while the card is
+  pointed at and opens a dropdown, not a window (Tyler, 15 Oct 2026). Sorting by Status puts
+  Off track first, then At risk, On track and no status. A project with no
+  status shows nothing in the column. On the panel, the card shows only to
+  someone who can set a status, saying "No status yet".
+- **Who sets it.** With no lead, anyone on the project. With a lead, only
+  the lead, the owner and admins (Tyler, 15 Oct 2026). A "Just me" list has
+  no status.
+- **Each change is a line on the Activity tab**: "Priya set the project's
+  status to At risk: Client hasn't sent the photos", or "took the project's
+  status off". These lines have no task to open.
+- **An archived project keeps its last status**, and it can't change until
+  the project is brought back.
+- **Saved** in `project_projects.health`, `health_note`, `health_by_user_id`
+  and `health_at`, and each change in `project_project_events`
+  (`drizzle/0117_project_more_for_projects.sql`). The rule is
+  `setProjectHealth` in `src/server/project/projects.ts`; the screens are in
+  `project-health.tsx`.
+
+## The lead
+
+So every project has one person answerable for it.
+
+- **One member is the lead.** The crown on a row of Project settings'
+  Members card names them, and pressing it on the lead's row takes it off.
+  The lead's row says "Lead". Their name shows on the details panel and in
+  the Projects table's Lead column.
+- **Anyone who can change the project picks the lead.** Members keep every
+  right they had; the only thing the lead adds is who sets the status.
+- **The lead hears every Stuck, unblocked and Done** on the project, as if
+  following every task, and not the chat (Tyler, 15 Oct 2026). Someone who
+  is the lead and also handed the task out, or follows it, still gets one
+  notice for one change.
+- **A lead who leaves the project, or the team, leaves it with no lead.**
+- **Saved** in `project_projects.lead_user_id`.
+
+## Milestones
+
+So a long project shows whether it's on time well before its end date.
+
+- **A name and a date**, such as "Design signed off, Nov 15", in a folding
+  Milestones card at the bottom of the details panel, under Status (Tyler,
+  15 Oct 2026), soonest first and the ones with no date last. The "+" in the
+  card's heading makes one and the cog on a row changes or deletes it. The
+  heading reads "Milestones  3", a gap and no dot, the same as Status.
+- **A milestone's tasks.** The list icon beside a row's cog, centred on the
+  row with it, opens a dropdown of every task in that milestone, in the
+  project's order, each with its status dot and status. Clicking one opens it
+  in the right panel. It shows on an archived project too, since it changes
+  nothing. Each task card carries `milestoneId` for this. Both
+  show only while pointed at, and open a dropdown, not a window. Anyone
+  who can change the project can do all three, up to 30 per project.
+- **Each reads "3 of 5 done, Nov 15"** with a bar, and turns red with
+  "Overdue" once its date has passed with tasks still open. Tasks in the bin
+  don't count, and a milestone with no tasks reads "No tasks yet".
+- **A task joins one from its Plan card** (the Milestone field, shown once
+  the project has milestones). A task belongs to at most one. Moving a task
+  to another project takes it off; Duplicate keeps it; a repeating task's
+  next copy doesn't carry it.
+- **Deleting a milestone** leaves its tasks where they are, counting toward
+  none.
+- **The Calendar tab marks milestone days** with a flag and the name.
+- **Copy project and templates** copy milestones with no date, the same rule
+  as tasks, and keep which tasks belong to each.
+- **A milestone is not a section.** A section is where a task sits; a
+  milestone is when a set of tasks must be finished (see
+  [Labels and sections](labels-and-sections.md)).
+- **Saved** in `project_milestones` and `project_tasks.milestone_id`. Rules
+  in `src/server/project/milestones.ts`; the panel's list is
+  `project-milestones.tsx`.
+
+## Clients
+
+So an agency with many projects for a few clients finds things fast.
+
+- **A Client field in Project settings**, picked from the clients already
+  used on projects I can see, or typed new ("Use "Hart Dental""). A name
+  differing only in capitals picks the one already used, so a client never
+  splits into two groups. It is a name, not a client record with contacts.
+- **The Projects table** shows the client under each project's name, has a
+  Client filter (All clients, each client, No client) once any project has
+  one, and a "Group by client" switch. Grouped, clients run A to Z with "No
+  client" last, each under its own heading row, and starred projects still
+  come first inside each group.
+- **Saved** in `project_projects.client`.
+
+## Templates
+
+So a team that runs the same kind of job starts each one in a click.
+
+- **"Save as template"** in Project settings, beside Archive, asks for a name
+  (the project's own, selected) and keeps the project's plan: its colour,
+  description, sections, milestones, tasks with their steps, labels, type,
+  field values and priority, and its pick of task types. That is what Copy
+  project carries (Tyler, 15 Oct 2026).
+- **A template is a copy taken when it was saved**, so changing the project
+  afterwards never changes the template.
+- **New project offers "Start from"**: an empty project or one of the
+  team's templates. A template brings its colour and description, so those
+  two fields hide once one is picked. Every task starts To do, with nobody
+  assigned and no dates, and the person starting it is the only member.
+- **A template never shows on the Projects page.** Team settings lists them
+  under Project templates; the owner and admins rename and delete them there,
+  everyone else reads the list. Deleting one leaves the projects already
+  started from it.
+- **Templates stay inside one team.** Another team's template answers as
+  gone.
+- **Anything a template names that the team has since deleted** (a label, a
+  type's field) is left out when a project starts from it.
+- **Saved** in `project_templates`, its plan as JSON. The rules are in
+  `src/server/project/templates.ts`, and the reading and writing of a plan,
+  shared with Copy project, in `src/server/project/project-plans.ts`.
 
 ## The project page
 
@@ -60,9 +200,14 @@ members moved to the left. On 14 Oct 2026 he redrew the tasks panel's header
 (`assets/pasted-image-1792006703561170000.png`) and moved picking whose tasks
 show out of the left panel and into that header.
 
-- **Left: description.** "Description" is a small capital heading. The star in the header stars the project for me
+- **Left: details.** From the top: "Description" as a small capital heading,
+  the lead and the client, then the Status card (see Project status) and the
+  Milestones card at the bottom. The two cards fold, and each remembers in this browser
+  whether it was left open. Tyler took Save as template off this panel on
+  15 Oct 2026; it is in Project settings. The star in the header stars the project for me
   (see Stars below). The cog opens Project settings, a window with the name,
-  colour, description, due date, Doing limit, Archive, its members and its sections. Tyler, 10 Oct 2026: "add a
+  colour, description, client, due date, Doing limit, Everyone on the team,
+  Save as template, Archive, its members and its sections. Tyler, 10 Oct 2026: "add a
   cog icon here and put all the project settings there". Each field saves when
   it is left, and the colour and due date the moment they are picked, so the window ends with
   Done. Closing it with Escape or a click outside saves the field being typed
@@ -185,6 +330,7 @@ So a crowded week is obvious at a glance.
   the same save as picking the date on the task, so a due-date reminder
   follows the new day. Dropping one on "No date" clears its date.
 - **The filters above apply**, the same as on the Board and List.
+- **Milestone days** carry a flag and the milestone's name above the tasks.
 - **Arrows and Today** move between months. The header says how many tasks
   are due in the month.
 - **It's the Team dashboard's month grid**, shared in
@@ -232,7 +378,9 @@ older". Each line says how long ago, with the exact time on hover.
 
 - **What it lists:** a task made, its status changed, handed over, accepted,
   handed back, commented on, put in the bin and brought back, a step made its
-  own task, and a task moved here. Each is a full sentence, worded the same
+  own task, a task moved here, and the project's own status set or taken
+  off (from 15 Oct 2026, read from `project_project_events` and merged in by
+  time). Each is a full sentence, worded the same
   as on the task's History card ("put Logo in the bin", "put it in the bin").
   A status the app doesn't know reads "changed the status of Logo".
 - **"Show older" says when it fails**, with Try again in its place. Each line opens its task, unless the task is
@@ -805,7 +953,7 @@ project page:
   member for their starter tasks.
 
 Stuck, unblocked and Done go to whoever handed the task out, or whoever made
-it when nobody did, and to the task's followers. That way the person who hands
+it when nobody did, to the task's followers, and to the project's lead. That way the person who hands
 work out hears when it's finished or moving again without asking. Marking
 several rows Done sends one notice per task.
 
@@ -910,7 +1058,9 @@ Projects, Team and Task types to the members' menu and to each admin menu.
   `project_task_reminders` and `project_step_lists` in
   `drizzle/0111_project_planning_tasks.sql`, described to the code in
   `src/server/project/schema.ts`. A task's `start_date` is in
-  `drizzle/0113_project_nine_features.sql`. The old single `waiting_on_task_id`
+  `drizzle/0113_project_nine_features.sql`. A project's status, lead,
+  client and "Everyone on the team", milestones, project events and
+  templates are in `drizzle/0117_project_more_for_projects.sql`. The old single `waiting_on_task_id`
   column is still in the database, unread, until the move to
   `project_task_waits` is proven on the live database; a later migration
   drops it.

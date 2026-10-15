@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { addTaskWait, removeTaskWait, setReminder } from "@/lib/api/project/planning"
+import { saveTaskMilestone } from "@/lib/api/project/projects"
 import {
   findTasksToWaitFor,
   saveTask,
@@ -37,8 +38,51 @@ import { cn } from "@/lib/utils"
 
 const NEVER = "never"
 
+const NO_MILESTONE = "none"
+
 /**
- * When a task happens: whether it repeats, whether it's snoozed until a
+ * The one milestone this task counts toward. Shown once the project has
+ * milestones; they are made on the project's details panel.
+ */
+function MilestoneField({
+  detail,
+  disabled,
+  change,
+}: {
+  detail: TaskDetail
+  disabled: boolean
+  change: Change
+}) {
+  if (detail.milestones.length === 0) return null
+  return (
+    <div className="grid content-start gap-2">
+      <Label htmlFor="task-milestone">Milestone</Label>
+      <Select
+        value={detail.milestoneId ?? NO_MILESTONE}
+        disabled={disabled}
+        onValueChange={(next) =>
+          void change(() => saveTaskMilestone(detail.task.id, next === NO_MILESTONE ? null : next))
+        }
+      >
+        <SelectTrigger id="task-milestone" className="w-full sm:w-fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NO_MILESTONE}>No milestone</SelectItem>
+          {detail.milestones.map((milestone) => (
+            <SelectItem key={milestone.id} value={milestone.id}>
+              {milestone.name}
+              {milestone.dueDate ? ` · ${dayLabel(milestone.dueDate)}` : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+/**
+ * When a task happens: its milestone, whether it repeats, whether it's snoozed until a
  * later day, what it waits on, and my own reminder. Each saves the moment it
  * changes.
  */
@@ -60,6 +104,7 @@ export function TaskPlanCard({
         <CardTitle>Plan</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
+        <MilestoneField detail={detail} disabled={readOnly || busy} change={change} />
         <RepeatField taskId={task.id} repeat={task.repeat} disabled={readOnly || busy} change={change} />
         <div className="grid content-start gap-2">
           <Label htmlFor="task-snooze">Snooze until</Label>

@@ -9,8 +9,18 @@ and do different jobs:
 - **Sections belong to one project.** They are its own headings, such as
   "Design" and "Build", and the List tab groups rows under them.
 
+A third way to group tasks looks like a section and isn't one:
+
+- **Milestones belong to one project too**, and say when a set of tasks
+  must be finished, such as "Design signed off, Nov 15". A section is
+  where a task sits; a milestone is when it must be done by. A task has at
+  most one of each, and they don't have to match: "Design signed off" can
+  hold tasks from the Design and Build sections. See
+  [Milestones](projects-and-tasks.md#milestones).
+
 Use a label when the same kind of work turns up in several projects. Use a
-section to split one big project into stages. Use priority, not a label, for
+section to split one big project into stages, and a milestone to put a
+date on a set of tasks. Use priority, not a label, for
 what to pick first: High, Normal or Low is on every task and sorts and
 filters on its own (see [Projects and tasks](projects-and-tasks.md#tasks)). Use a
 [task type](task-types.md) when a kind of work needs its own fields, such as
@@ -47,6 +57,8 @@ hold a link, a file or a number.
 - **Renaming one renames it everywhere**, since every task points at the one
   section.
 - **Deleting one moves its tasks to "No section".** The tasks stay.
+- **Copy project and templates** keep the sections and which task sits in
+  each.
 
 ## The project's own order
 

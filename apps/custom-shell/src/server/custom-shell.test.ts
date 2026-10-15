@@ -4886,6 +4886,33 @@ describe("member sidebar", () => {
     expect(parseShellGlobals({ topLeftNavLimit: "5" }).topLeftNavLimit).toBe(0)
   })
 
+  it("carries both Top left shows choices and the shortcuts through a save and back", () => {
+    const shortcuts = [
+      { id: "a", label: "Users", href: "/admin/users", icon: "users", visible: true },
+      { id: "b", label: "Home", href: "/home", icon: "home", visible: false },
+    ]
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      topLeftMode: "breadcrumb",
+      memberTopLeftMode: "shortcuts",
+      topLeftShortcuts: shortcuts,
+    })
+
+    const read = parseShellGlobals(saved)
+    expect(read.topLeftMode).toBe("breadcrumb")
+    expect(read.memberTopLeftMode).toBe("shortcuts")
+    expect(read.topLeftShortcuts).toEqual(shortcuts)
+    // A row from before these existed reads as Sidebar links and no
+    // shortcuts, so an existing top bar looks exactly as it did.
+    const old = parseShellGlobals({ appName: "x" })
+    expect(old.topLeftMode).toBe("sidebar")
+    expect(old.memberTopLeftMode).toBe("sidebar")
+    expect(old.topLeftShortcuts).toEqual([])
+    expect(parseShellGlobals({ topLeftMode: "tabs" }).topLeftMode).toBe(
+      "sidebar"
+    )
+  })
+
   it("still refuses to show a member an admin page put on their list", async () => {
     const { memberId } = await seedPeople()
 

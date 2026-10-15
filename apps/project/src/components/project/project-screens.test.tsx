@@ -53,6 +53,7 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     pickedDays: 0,
     labels: [],
     section: null,
+    milestoneId: null,
     position: 0,
     completedAt: new Date().toISOString(),
     notesText: "",
@@ -236,6 +237,7 @@ describe("before there is a team", () => {
 describe("the Projects dashboard", () => {
   it("lists active projects with open and Stuck counts", () => {
     const html = renderToStaticMarkup(
+      <TooltipProvider>
       <ProjectsDashboard
         page={{
           team: { id: "team", name: "Acme", myRole: "owner" },
@@ -250,6 +252,9 @@ describe("the Projects dashboard", () => {
               dueDate: "2020-01-01",
               memberCount: 3,
               counts: { todo: 2, doing: 1, done: 4, stuck: 1 },
+              health: { value: "at_risk", note: "Client hasn't sent the photos", byName: "Priya", at: new Date().toISOString() },
+              lead: { id: "u2", name: "Priya", avatarUrl: "" },
+              client: "Hart Dental",
             },
             {
               id: "p2",
@@ -260,12 +265,18 @@ describe("the Projects dashboard", () => {
               dueDate: null,
               memberCount: 1,
               counts: { todo: 0, doing: 0, done: 2, stuck: 0 },
+              health: null,
+              lead: null,
+              client: null,
             },
           ],
         }}
       />
+      </TooltipProvider>
     )
     expect(html).toContain("Website")
+    expect(html).toContain("At risk")
+    expect(html).toContain("Priya")
     expect(html).not.toContain("Old launch")
     expect(html).toContain("New project")
     expect(html).toMatch(/Archived.*1/)
@@ -297,8 +308,15 @@ describe("the project page", () => {
       hiddenTypeIds: [],
       defaultTypeId: null,
       statusOrder: ["todo", "doing", "done", "stuck"],
+      health: null,
+      leadUserId: null,
+      client: null,
+      wholeTeam: false,
+      canSetHealth: true,
     },
     sections: [{ id: "s1", name: "Design" }],
+    milestones: [{ id: "m1", name: "Design signed off", dueDate: "2020-01-01", done: 3, total: 5 }],
+    teamClients: ["Hart Dental"],
     taskTypes: [],
     labels: [{ id: "l1", name: "Client", color: "pink" }],
     myUserId: "me",

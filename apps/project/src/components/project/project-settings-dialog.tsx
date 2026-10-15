@@ -1,13 +1,16 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { ArchiveIcon, ArchiveRestoreIcon } from "lucide-react"
+import { ArchiveIcon, ArchiveRestoreIcon, LayoutTemplateIcon } from "lucide-react"
 
+import { ClientSelect } from "@/components/project/client-select"
 import { ProjectColorSelect } from "@/components/project/project-form-fields"
 import { ProjectMembersCard } from "@/components/project/project-members-card"
 import { ProjectSectionsCard } from "@/components/project/project-sections-card"
 import { ProjectTaskTypesCard } from "@/components/project/project-task-types-card"
+import { SaveTemplateDialog } from "@/components/project/save-template-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DatePicker } from "@/components/ui/date-picker"
 import {
   Dialog,
@@ -21,8 +24,15 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { archiveProject, saveProject, type ProjectPage } from "@/lib/api/project/projects"
+import {
+  archiveProject,
+  saveProject,
+  saveProjectClient,
+  saveWholeTeam,
+  type ProjectPage,
+} from "@/lib/api/project/projects"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { dateFromKey, keyFromDate } from "@/lib/project/dates"
@@ -33,7 +43,8 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 type Project = ProjectPage["project"]
 
 /**
- * The project's name, colour, description, due date, Doing limit, Archive, sections and task types, in a window
+ * The project's name, colour, description, client, due date, Doing limit,
+ * "Everyone on the team", Save as template, Archive, members (with the lead), sections and task types, in a window
  * opened from the cog on the project page's details panel. Each field saves when it
  * is left or Enter is pressed, and the colour and due date the moment they are picked, so the
  * window ends with Done.
@@ -67,7 +78,7 @@ export function ProjectSettingsDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <ProjectSettingsFields project={project} />
+          <ProjectSettingsFields project={project} teamClients={page.teamClients} />
           <ProjectMembersCard page={page} />
           <ProjectSectionsCard projectId={project.id} sections={sections} readOnly={project.archived} />
           <ProjectTaskTypesCard page={page} />
@@ -82,13 +93,15 @@ export function ProjectSettingsDialog({
   )
 }
 
-function ProjectSettingsFields({ project }: { project: Project }) {
+function ProjectSettingsFields({ project, teamClients }: { project: Project; teamClients: string[] }) {
   const router = useRouter()
   const [name, setName] = useSyncedDraft(project.name)
   const [description, setDescription] = useSyncedDraft(project.description)
   const [doingLimit, setDoingLimit] = useSyncedDraft(project.doingLimit ? String(project.doingLimit) : "")
   const [limitInvalid, setLimitInvalid] = React.useState(false)
   const [nameInvalid, setNameInvalid] = React.useState(false)
+  const [confirmingWholeTeam, setConfirmingWholeTeam] = React.useState(false)
+  const [savingTemplate, setSavingTemplate] = React.useState(false)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const readOnly = project.archived
 
@@ -131,6 +144,21 @@ function ProjectSettingsFields({ project }: { project: Project }) {
   function commitDescription() {
     if (description.trim() === project.description) return
     void save({ description: description.trim() })
+  }
+
+  async function saveClient(client: string | null) {
+    const ok = await run(() => saveProjectClient(project.id, client), "Saved.")
+    if (ok) await router.invalidate()
+  }
+
+  async function setWholeTeam(on: boolean) {
+    const ok = await run(
+      () => saveWholeTeam(project.id, on),
+      on ? "Everyone on the team is on this project." : "Everyone stays on as an ordinary member."
+    )
+    if (!ok) return
+    setConfirmingWholeTeam(false)
+    await router.invalidate()
   }
 
   async function toggleArchived() {
@@ -187,6 +215,21 @@ function ProjectSettingsFields({ project }: { project: Project }) {
           />
         </div>
         <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="project-client"
+            hint="Pick one of the team's clients or type a new name. The Projects table can group by it."
+          >
+            Client
+          </FieldLabel>
+          <ClientSelect
+            id="project-client"
+            value={project.client}
+            clients={teamClients}
+            disabled={readOnly || busy}
+            onChange={(client) => void saveClient(client)}
+          />
+        </div>
+        <div className="grid gap-2">
           <Label htmlFor="project-due">Due date</Label>
           <div className="flex flex-wrap items-center gap-2">
             <DatePicker
@@ -237,7 +280,37 @@ function ProjectSettingsFields({ project }: { project: Project }) {
             }}
           />
         </div>
-        <div>
+        <div className="flex items-center justify-between gap-4">
+          <FieldLabel
+            htmlFor="project-whole-team"
+            hint="Every teammate is on this project, including people who join later. Nobody can be taken off while it's on."
+          >
+            Everyone on the team
+          </FieldLabel>
+          <Switch
+            id="project-whole-team"
+            checked={project.wholeTeam}
+            disabled={readOnly || busy}
+            onCheckedChange={(on) => (on ? setConfirmingWholeTeam(true) : void setWholeTeam(false))}
+          />
+        </div>
+        {savingTemplate ? (
+          <SaveTemplateDialog project={project} open onClose={() => setSavingTemplate(false)} />
+        ) : null}
+        <ConfirmDialog
+          open={confirmingWholeTeam}
+          onOpenChange={setConfirmingWholeTeam}
+          title="Show this project to everyone on the team?"
+          description="Every teammate joins it and sees all its tasks, chat and files, and so does anyone who joins the team later. Nobody can leave it or be taken off until you turn this off."
+          confirmLabel="Add everyone"
+          loading={busy}
+          onConfirm={() => setWholeTeam(true)}
+        />
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" disabled={busy} onClick={() => setSavingTemplate(true)}>
+            <LayoutTemplateIcon className="size-4" />
+            Save as template
+          </Button>
           <Button type="button" variant="outline" disabled={busy} onClick={() => void toggleArchived()}>
             {project.archived ? (
               <ArchiveRestoreIcon className="size-4" />

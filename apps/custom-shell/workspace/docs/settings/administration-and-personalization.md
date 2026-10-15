@@ -165,15 +165,33 @@ one page. App settings → Members → Navigation combines the member sidebar an
 member top right menu separately, so editing one role's links does not change
 the other role's links. The former Sidebar and Top right menu tabs are no longer listed.
 
-Top left max items lives inside Your sidebar on Platform settings →
-Navigation. It controls how
-many links from the current sidebar section appear in the standard signed-in
-header before the remaining links move into the vertical three-dot menu.
-Choices are Show all, 3, 4, 5, 6, 7, and 8. Existing saved values are preserved;
-Show all remains the default for an installation with no saved limit.
-The limit is app-wide for standard admin and member headers. Phones keep their
-compact navigation menu, and an app-owned replacement header controls its own
-contents. Changes use the existing automatic save and survive a reload.
+Top left shows and Top left max items sit side by side at the top of Your
+sidebar on Platform settings → Navigation. Members → Navigation has its own Top
+left shows at the top of Member sidebar, because admins and members choose
+separately (Tyler, 13 Oct 2026). The three choices are Sidebar links (the
+default), Breadcrumb and Shortcuts. `../ui/app-shell-and-navigation.md`
+describes what each one draws.
+
+Top left max items controls how many links appear in the standard signed-in
+header before the remaining links move into the vertical three-dot menu. It
+applies to Sidebar links and Shortcuts, and is one number for admins and
+members. Choices are Show all, 3, 4, 5, 6, 7, and 8. Show all remains the
+default for an installation with no saved limit. Phones keep their compact
+navigation menu, and an app-owned replacement header controls its own contents.
+
+Top left shortcuts is its own card on Platform settings → Navigation, between
+Your sidebar and Your top right menu. It edits the one list both admins and
+members see when their choice is Shortcuts. It works like the top right menu
+editor: drag a chip to reorder, the + tile adds a link and opens its window
+(icon, name and page), the checkbox switches a link off and leaves it in the
+editor with a Hidden pill, and the trash can deletes it after asking. A link
+with no name or no page stays out of the header until it has both.
+
+All of these are app-wide and live in the global settings row, so no migration
+was needed. A row saved before they existed reads as Sidebar links for both
+roles and no shortcuts. A settings tab left open from before they existed
+saves without them, and the server keeps the saved values instead of wiping
+them. Changes use the existing automatic save and survive a reload.
 
 
 The header's colour-mode button is now a **settings cog**. It holds the three

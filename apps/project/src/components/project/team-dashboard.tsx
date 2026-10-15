@@ -451,6 +451,7 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
         team={team}
         labels={data.labels}
         stepLists={data.stepLists}
+        templates={data.templates}
         joinLink={data.joinLink}
         holidays={data.holidays}
         canEdit={canRun}

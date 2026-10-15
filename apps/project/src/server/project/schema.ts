@@ -19,6 +19,7 @@ import type {
   MeetingAnswer,
   MeetingRepeat,
   ProjectColor,
+  ProjectHealth,
   Reaction,
   RepeatEvery,
   TaskEventKind,
@@ -28,6 +29,7 @@ import type {
   TeamRole,
 } from "@/lib/project/rules"
 import type { SavedViewFilters, SavedViewNames } from "@/lib/project/saved-views"
+import type { TemplateContent } from "@/lib/project/templates"
 import type { FieldKind, FieldSettings, WhoCanChange } from "@/lib/project/task-fields"
 import { customShellNotifications, customShellUsers } from "@/server/schema"
 
@@ -165,6 +167,61 @@ export const projectProjects = pgTable("project_projects", {
   ),
   /** The Board's column order (`drizzle/0115_project_status_order.sql`); empty is the usual one. */
   statusOrder: text("status_order").array().$type<TaskStatus[]>().notNull().default([]),
+  /**
+   * The project's status, its line of why, and who set it when
+   * (`drizzle/0117_project_more_for_projects.sql`). Null is no status.
+   */
+  health: varchar("health", { length: 16 }).$type<ProjectHealth>(),
+  healthNote: varchar("health_note", { length: 200 }),
+  healthByUserId: varchar("health_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  healthAt: timestamp("health_at", { withTimezone: true }),
+  /** The one member answerable for it, who hears every Stuck, unblocked and Done. */
+  leadUserId: varchar("lead_user_id", { length: 36 }).references(userRef, { onDelete: "set null" }),
+  /** The client's name, a name and not a record. */
+  client: varchar("client", { length: 60 }),
+  /** Everyone on the team is a member, people who join later included. */
+  wholeTeam: boolean("whole_team").notNull().default(false),
+})
+
+/** A project's milestones: when a set of its tasks must be finished. */
+export const projectMilestones = pgTable("project_milestones", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  projectId: varchar("project_id", { length: 36 })
+    .notNull()
+    .references(() => projectProjects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  dueDate: date("due_date", { mode: "string" }),
+  createdAt: createdAt(),
+})
+
+/** Moments that belong to a project rather than a task, for its Activity tab. */
+export const projectProjectEvents = pgTable("project_project_events", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  projectId: varchar("project_id", { length: 36 })
+    .notNull()
+    .references(() => projectProjects.id, { onDelete: "cascade" }),
+  kind: varchar("kind", { length: 16 }).$type<"health_set">().notNull(),
+  actorUserId: varchar("actor_user_id", { length: 36 }).references(userRef, { onDelete: "set null" }),
+  /** The new status; null when it was taken off. */
+  health: varchar("health", { length: 16 }).$type<ProjectHealth>(),
+  note: varchar("note", { length: 200 }),
+  createdAt: createdAt(),
+})
+
+/** A saved project template: a copy of a project's plan, taken when it was saved. */
+export const projectTemplates = pgTable("project_templates", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  teamId: varchar("team_id", { length: 36 })
+    .notNull()
+    .references(() => projectTeams.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  content: jsonb("content").$type<TemplateContent>().notNull(),
+  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  createdAt: createdAt(),
 })
 
 export const projectProjectMembers = pgTable(
@@ -264,6 +321,10 @@ export const projectTasks = pgTable("project_tasks", {
   priority: varchar("priority", { length: 8 }).$type<TaskPriority>().notNull().default("normal"),
   /** An optional first day, drawn with the due date on the Timeline (`drizzle/0113_project_nine_features.sql`). */
   startDate: date("start_date", { mode: "string" }),
+  /** The one milestone it counts toward (`drizzle/0117_project_more_for_projects.sql`). */
+  milestoneId: varchar("milestone_id", { length: 36 }).references((): AnyPgColumn => projectMilestones.id, {
+    onDelete: "set null",
+  }),
 })
 
 /**

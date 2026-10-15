@@ -1,9 +1,12 @@
-import { and, asc, count, eq, inArray, isNull } from "drizzle-orm"
+import { and, asc, count, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm"
+import { alias } from "drizzle-orm/pg-core"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import {
   boardStatusOrder,
+  runsTheTeam,
   type ProjectColor,
+  type ProjectHealth,
   type TaskStatus,
   type TeamRole,
 } from "@/lib/project/rules"
@@ -11,15 +14,21 @@ import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
   findMembership,
+  isProjectMember,
   requireMembership,
   requireOpenProject,
   requireProjectAccess,
   visibleProjectsWhere,
+  type Membership,
   type ProjectDb,
+  type ProjectRow,
 } from "@/server/project/access"
 import { unreadInProjectChat } from "@/server/project/chat-reads"
 import { listTeamLabels, type Label } from "@/server/project/labels"
-import { copyFieldValues, listTeamTypes } from "@/server/project/task-types"
+import { listMilestones, type Milestone } from "@/server/project/milestones"
+import { readProjectPlan, writeProjectPlan } from "@/server/project/project-plans"
+import { listTeamTypes } from "@/server/project/task-types"
+import { loadTemplatePlan } from "@/server/project/templates"
 import type { TaskType } from "@/lib/project/task-types"
 import { requireSharedProject } from "@/server/project/personal"
 import { listSavedViews, type SavedView } from "@/server/project/saved-views"
@@ -27,13 +36,11 @@ import { listSections, type Section } from "@/server/project/sections"
 import { listTaskCards, withUnread, type TaskCard } from "@/server/project/tasks"
 import { clearAssignee, listTeamMembers } from "@/server/project/teams"
 import {
+  projectProjectEvents,
   projectProjectMembers,
   projectProjectStars,
   projectSavedViews,
   projectProjects,
-  projectSections,
-  projectTaskLabels,
-  projectTaskSteps,
   projectTasks,
   projectTeamMembers,
   projectTeams,
@@ -50,6 +57,17 @@ export type ProjectListRow = {
   starred: boolean
   memberCount: number
   counts: Record<TaskStatus, number>
+  health: ProjectHealthView | null
+  lead: { id: string; name: string; avatarUrl: string } | null
+  client: string | null
+}
+
+/** "At risk: Client hasn't sent the photos", set by Priya at that moment. */
+export type ProjectHealthView = {
+  value: ProjectHealth
+  note: string
+  byName: string
+  at: string
 }
 
 export type ProjectsPage = {
@@ -72,11 +90,22 @@ export async function loadProjectsPage(
     .limit(1)
 
   // A "Just me" list is reached from My dashboard, never listed as a project.
-  const visible = await database
-    .select()
-    .from(projectProjects)
-    .where(and(visibleProjectsWhere(membership), isNull(projectProjects.personalUserId)))
-    .orderBy(asc(projectProjects.name))
+  const lead = alias(customShellUsers, "lead")
+  const setter = alias(customShellUsers, "setter")
+  const visible = (
+    await database
+      .select({
+        project: projectProjects,
+        leadName: lead.name,
+        leadAvatar: lead.avatarUrl,
+        setterName: setter.name,
+      })
+      .from(projectProjects)
+      .leftJoin(lead, eq(lead.id, projectProjects.leadUserId))
+      .leftJoin(setter, eq(setter.id, projectProjects.healthByUserId))
+      .where(and(visibleProjectsWhere(membership), isNull(projectProjects.personalUserId)))
+      .orderBy(asc(projectProjects.name))
+  ).map((row) => ({ ...row.project, leadName: row.leadName, leadAvatar: row.leadAvatar, setterName: row.setterName }))
   const ids = visible.map((project) => project.id)
 
   const statusRows = ids.length
@@ -115,34 +144,75 @@ export async function loadProjectsPage(
         starred: starred.has(project.id),
         memberCount: memberRows.find((row) => row.projectId === project.id)?.total ?? 0,
         counts,
+        health: healthView(project, project.setterName),
+        lead:
+          project.leadUserId && project.leadName !== null
+            ? { id: project.leadUserId, name: project.leadName, avatarUrl: project.leadAvatar ?? "" }
+            : null,
+        client: project.client,
       }
     }),
   }
 }
 
+const FORMER_MEMBER = "A former member"
+
+function healthView(
+  project: Pick<ProjectRow, "health" | "healthNote" | "healthAt">,
+  setterName: string | null
+): ProjectHealthView | null {
+  if (!project.health || !project.healthAt) return null
+  return {
+    value: project.health,
+    note: project.healthNote ?? "",
+    byName: setterName ?? FORMER_MEMBER,
+    at: project.healthAt.toISOString(),
+  }
+}
+
+/**
+ * A new project, empty or started from one of the team's saved templates.
+ * A template brings its colour and description along with its plan.
+ */
 export async function createProject(
   userId: string,
-  input: { name: string; color: ProjectColor; description: string },
+  input: { name: string; color: ProjectColor; description: string; templateId?: string | null },
   database = db
 ): Promise<{ id: string }> {
   return database.transaction(async (tx) => {
     const membership = await requireMembership(userId, tx)
+    const plan = input.templateId ? await loadTemplatePlan(membership.teamId, input.templateId, tx) : null
     const at = now()
     const id = uuid()
     await tx.insert(projectProjects).values({
       id,
       teamId: membership.teamId,
       name: input.name,
-      color: input.color,
-      description: input.description,
+      color: plan?.color ?? input.color,
+      description: plan?.description ?? input.description,
       createdByUserId: userId,
       createdAt: at,
       updatedAt: at,
+      ...(plan ? await planTypeChoices(membership.teamId, plan, tx) : {}),
     })
     // Whoever creates a project is its first member.
     await tx.insert(projectProjectMembers).values({ projectId: id, userId, addedAt: at })
+    if (plan) await writeProjectPlan(tx, { id, teamId: membership.teamId }, plan, userId)
     return { id }
   })
+}
+
+/** The project's own pick of types, keeping only types the team still has. */
+async function planTypeChoices(
+  teamId: string,
+  plan: { hiddenTypeIds: string[]; defaultTypeId: string | null },
+  tx: ProjectDb
+) {
+  const types = new Set((await listTeamTypes(teamId, tx)).map((type) => type.id))
+  return {
+    hiddenTypeIds: plan.hiddenTypeIds.filter((typeId) => types.has(typeId)),
+    defaultTypeId: plan.defaultTypeId && types.has(plan.defaultTypeId) ? plan.defaultTypeId : null,
+  }
 }
 
 export type ProjectMemberRow = {
@@ -173,8 +243,19 @@ export type ProjectPage = {
     defaultTypeId: string | null
     /** The Board's columns, in the order the project's people dragged them into. */
     statusOrder: TaskStatus[]
+    health: ProjectHealthView | null
+    leadUserId: string | null
+    client: string | null
+    /** Everyone on the team is a member, people who join later included. */
+    wholeTeam: boolean
+    /** I may change the status: the lead, the owner and admins, or anyone on it when it has no lead. */
+    canSetHealth: boolean
   }
   sections: Section[]
+  /** The project's milestones, soonest first, each with its task counts. */
+  milestones: Milestone[]
+  /** Client names already used on projects I can see, for the Client field. */
+  teamClients: string[]
   /** The team's task types, archived ones included, for New task, the Type filter and field columns. */
   taskTypes: TaskType[]
   /** The team's labels, for the Label filter and a task's labels. */
@@ -243,8 +324,15 @@ export async function loadProjectPage(
       hiddenTypeIds: project.hiddenTypeIds,
       defaultTypeId: project.defaultTypeId,
       statusOrder: boardStatusOrder(project.statusOrder),
+      health: healthView(project, await nameOf(project.healthByUserId, database)),
+      leadUserId: project.leadUserId,
+      client: project.client,
+      wholeTeam: project.wholeTeam,
+      canSetHealth: canSetHealth(project, membership.role, userId),
     },
     sections: await listSections(project.id, database),
+    milestones: await listMilestones(project.id, database),
+    teamClients: await visibleClients(membership, database),
     taskTypes: await listTeamTypes(membership.teamId, database),
     labels: await listTeamLabels(membership.teamId, database),
     views: await listSavedViews(userId, membership.teamId, project.id, database),
@@ -320,6 +408,148 @@ export async function setStatusOrder(
     .update(projectProjects)
     .set({ statusOrder: input.statusOrder, updatedAt: now() })
     .where(eq(projectProjects.id, input.projectId))
+}
+
+/** The lead, the owner and admins set the status; with no lead, anyone on the project can. */
+export function canSetHealth(
+  project: Pick<ProjectRow, "leadUserId" | "personalUserId">,
+  role: TeamRole,
+  userId: string
+) {
+  if (project.personalUserId) return false
+  return !project.leadUserId || project.leadUserId === userId || runsTheTeam(role)
+}
+
+/**
+ * On track, At risk or Off track, with one line of why, or null to take the
+ * status off. At risk and Off track need the line. Each change is a line on
+ * the project's Activity tab.
+ */
+export async function setProjectHealth(
+  userId: string,
+  input: { projectId: string; health: ProjectHealth | null; note: string },
+  database = db
+) {
+  if ((input.health === "at_risk" || input.health === "off_track") && !input.note) {
+    throw new Error(PROJECT_ERRORS.healthNeedsNote)
+  }
+  await database.transaction(async (tx) => {
+    const { membership, project } = await requireOpenProject(userId, input.projectId, tx)
+    requireSharedProject(project)
+    if (!canSetHealth(project, membership.role, userId)) throw new Error(PROJECT_ERRORS.onlyLeadSetsHealth)
+    const at = now()
+    const note = input.health ? input.note || null : null
+    await tx
+      .update(projectProjects)
+      .set({
+        health: input.health,
+        healthNote: note,
+        healthByUserId: input.health ? userId : null,
+        healthAt: input.health ? at : null,
+        updatedAt: at,
+      })
+      .where(eq(projectProjects.id, project.id))
+    await tx.insert(projectProjectEvents).values({
+      id: uuid(),
+      projectId: project.id,
+      kind: "health_set",
+      actorUserId: userId,
+      health: input.health,
+      note,
+      createdAt: at,
+    })
+  })
+}
+
+/**
+ * Names one member as the project's lead, or nobody. Anyone who can change
+ * the project can pick the lead, so members keep every right they had.
+ */
+export async function setProjectLead(
+  actorId: string,
+  input: { projectId: string; userId: string | null },
+  database = db
+) {
+  const { project } = await requireOpenProject(actorId, input.projectId, database)
+  requireSharedProject(project)
+  if (input.userId && !(await isProjectMember(project.id, input.userId, database))) {
+    throw new Error(PROJECT_ERRORS.leadNotMember)
+  }
+  await database
+    .update(projectProjects)
+    .set({ leadUserId: input.userId, updatedAt: now() })
+    .where(eq(projectProjects.id, project.id))
+}
+
+export async function setProjectClient(
+  userId: string,
+  input: { projectId: string; client: string | null },
+  database = db
+) {
+  const { project } = await requireOpenProject(userId, input.projectId, database)
+  requireSharedProject(project)
+  await database
+    .update(projectProjects)
+    .set({ client: input.client, updatedAt: now() })
+    .where(eq(projectProjects.id, project.id))
+}
+
+/**
+ * "Everyone on the team": while on, every teammate is a member, and people who
+ * join later are added as they join. Turning it off keeps everyone on as an
+ * ordinary member.
+ */
+export async function setWholeTeam(
+  userId: string,
+  input: { projectId: string; wholeTeam: boolean },
+  database = db
+) {
+  await database.transaction(async (tx) => {
+    const { membership, project } = await requireOpenProject(userId, input.projectId, tx)
+    requireSharedProject(project)
+    await tx
+      .update(projectProjects)
+      .set({ wholeTeam: input.wholeTeam, updatedAt: now() })
+      .where(eq(projectProjects.id, project.id))
+    if (!input.wholeTeam) return
+    const teammates = await tx
+      .select({ userId: projectTeamMembers.userId })
+      .from(projectTeamMembers)
+      .where(eq(projectTeamMembers.teamId, membership.teamId))
+    const at = now()
+    await tx
+      .insert(projectProjectMembers)
+      .values(teammates.map((row) => ({ projectId: project.id, userId: row.userId, addedAt: at })))
+      .onConflictDoNothing()
+  })
+}
+
+async function nameOf(userId: string | null, database: ProjectDb) {
+  if (!userId) return null
+  const [row] = await database
+    .select({ name: customShellUsers.name })
+    .from(customShellUsers)
+    .where(eq(customShellUsers.id, userId))
+    .limit(1)
+  return row?.name ?? null
+}
+
+/** Client names on projects this person can see, so a hidden project's client never leaks. */
+async function visibleClients(membership: Membership, database: ProjectDb) {
+  const rows = await database
+    .selectDistinct({ client: projectProjects.client })
+    .from(projectProjects)
+    .where(
+      and(
+        visibleProjectsWhere(membership),
+        isNull(projectProjects.personalUserId),
+        isNotNull(projectProjects.client),
+        ne(projectProjects.client, "")
+      )
+    )
+  return rows
+    .map((row) => row.client as string)
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
 }
 
 export async function setProjectArchived(
@@ -416,7 +646,13 @@ export async function removeProjectMember(
   await database.transaction(async (tx) => {
     const { project } = await requireOpenProject(actorId, projectId, tx)
     requireSharedProject(project)
+    // Nobody leaves a project that includes everyone; the switch goes off first.
+    if (project.wholeTeam) throw new Error(PROJECT_ERRORS.wholeTeamProject)
     await clearAssignee(userId, eq(projectTasks.projectId, projectId), tx)
+    // A lead who leaves leaves the project with no lead.
+    if (project.leadUserId === userId) {
+      await tx.update(projectProjects).set({ leadUserId: null }).where(eq(projectProjects.id, projectId))
+    }
     await tx
       .delete(projectProjectStars)
       .where(
@@ -438,13 +674,11 @@ export async function removeProjectMember(
 
 /**
  * A new project made from an old one, for teams that do the same kind of job
- * again and again: its description, colour, sections, and every task not in
- * the bin, in the same order, with their labels, steps (unticked), types and
- * field values and priority, and the project's own pick of types. Every task starts To do
- * with nobody assigned and no due date (Tyler's choice), and a Person field
- * keeps only the person copying, the copy's one member.
- * People, chat, files and history stay with the original. The person copying
- * is the new project's only member.
+ * again and again: its description, colour, sections, milestones (without
+ * their dates) and every task not in the bin, in the same order, with their
+ * labels, steps (unticked), types, field values and priority, and the
+ * project's own pick of types. The rules are in `project-plans.ts`. The
+ * person copying is the new project's only member.
  */
 export async function copyProject(
   userId: string,
@@ -454,95 +688,23 @@ export async function copyProject(
   return database.transaction(async (tx) => {
     const { membership, project: source } = await requireProjectAccess(userId, input.projectId, tx)
     requireSharedProject(source)
+    const plan = await readProjectPlan(tx, source, userId)
     const at = now()
     const id = uuid()
     await tx.insert(projectProjects).values({
       id,
       teamId: membership.teamId,
       name: input.name,
-      color: source.color,
-      description: source.description,
+      color: plan.color,
+      description: plan.description,
       createdByUserId: userId,
       createdAt: at,
       updatedAt: at,
-      hiddenTypeIds: source.hiddenTypeIds,
-      defaultTypeId: source.defaultTypeId,
+      hiddenTypeIds: plan.hiddenTypeIds,
+      defaultTypeId: plan.defaultTypeId,
     })
     await tx.insert(projectProjectMembers).values({ projectId: id, userId, addedAt: at })
-
-    const sections = await tx
-      .select()
-      .from(projectSections)
-      .where(eq(projectSections.projectId, source.id))
-    const sectionIds = new Map(sections.map((section) => [section.id, uuid()]))
-    if (sections.length) {
-      await tx.insert(projectSections).values(
-        sections.map((section) => ({
-          id: sectionIds.get(section.id)!,
-          projectId: id,
-          name: section.name,
-          position: section.position,
-          createdAt: at,
-        }))
-      )
-    }
-
-    const tasks = await tx
-      .select()
-      .from(projectTasks)
-      .where(and(eq(projectTasks.projectId, source.id), isNull(projectTasks.deletedAt)))
-      .orderBy(asc(projectTasks.position), asc(projectTasks.createdAt))
-    const taskIds = new Map(tasks.map((task) => [task.id, uuid()]))
-    if (tasks.length) {
-      await tx.insert(projectTasks).values(
-        tasks.map((task, index) => ({
-          id: taskIds.get(task.id)!,
-          projectId: id,
-          title: task.title,
-          notes: task.notes,
-          status: "todo" as const,
-          sectionId: task.sectionId ? (sectionIds.get(task.sectionId) ?? null) : null,
-          position: index + 1,
-          createdByUserId: userId,
-          createdAt: at,
-          updatedAt: at,
-          typeId: task.typeId,
-          priority: task.priority,
-        }))
-      )
-      await copyFieldValues(
-        tx,
-        tasks.map((task) => ({ from: task.id, to: taskIds.get(task.id)! })),
-        userId,
-        (personId) => personId === userId
-      )
-      const oldIds = tasks.map((task) => task.id)
-      const steps = await tx
-        .select()
-        .from(projectTaskSteps)
-        .where(inArray(projectTaskSteps.taskId, oldIds))
-      if (steps.length) {
-        await tx.insert(projectTaskSteps).values(
-          steps.map((step) => ({
-            id: uuid(),
-            taskId: taskIds.get(step.taskId)!,
-            text: step.text,
-            done: false,
-            position: step.position,
-            createdAt: at,
-          }))
-        )
-      }
-      const labels = await tx
-        .select()
-        .from(projectTaskLabels)
-        .where(inArray(projectTaskLabels.taskId, oldIds))
-      if (labels.length) {
-        await tx.insert(projectTaskLabels).values(
-          labels.map((label) => ({ taskId: taskIds.get(label.taskId)!, labelId: label.labelId }))
-        )
-      }
-    }
+    await writeProjectPlan(tx, { id, teamId: membership.teamId }, plan, userId)
     return { id }
   })
 }

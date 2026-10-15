@@ -82,6 +82,7 @@ import {
   projectTeamMembers,
 } from "@/server/project/schema"
 import { customShellUsers } from "@/server/schema"
+import { listMilestones, type Milestone } from "@/server/project/milestones"
 
 /**
  * Tasks. The rules Tyler set, in `workspace/docs/what-this-app-is.md`:
@@ -141,6 +142,8 @@ export type TaskCard = {
   pickedDays: number
   labels: Label[]
   section: { id: string; name: string } | null
+  /** The milestone it counts toward, for the details panel's list of a milestone's tasks. */
+  milestoneId: string | null
   /** The task's place in its project's own order. */
   position: number
   /** When it last became Done. */
@@ -279,6 +282,7 @@ export async function listTaskCards(
         task.sectionId && row.sectionName !== null
           ? { id: task.sectionId, name: row.sectionName }
           : null,
+      milestoneId: task.milestoneId,
       position: task.position,
       completedAt: task.completedAt?.toISOString() ?? null,
       notesText: taskNotesText(task.notes),
@@ -384,6 +388,9 @@ export type TaskDetail = {
   thanked: boolean
   /** Its type, the fields as I may use them, their values and files, and the types it could have. */
   fields: TaskFields
+  /** The milestone it counts toward, and the project's milestones to pick from on the Plan card. */
+  milestoneId: string | null
+  milestones: Milestone[]
 }
 
 export async function loadTaskDetail(
@@ -488,6 +495,8 @@ export async function loadTaskDetail(
     canReview: canReview(task, membership.role, userId),
     thanked: await hasThanked(userId, taskId, database),
     fields: await loadTaskFields(viewer, task, project, archived, database),
+    milestoneId: task.milestoneId,
+    milestones: await listMilestones(project.id, database),
   }
 }
 
@@ -718,14 +727,15 @@ export async function setTaskStatus(
     }
 
     // Stuck, Done and leaving Stuck each tell whoever handed the task out (or
-    // made it, when nobody did) and its followers, once per change.
+    // made it, when nobody did), its followers and the project's lead, once
+    // per change: someone who is two of those still gets one notice.
     const kind = statusNoticeKind(task.status, input.status)
     if (kind === "task_done") await tellWaitingTasks(actor, task.id, tx)
     if (!kind) return
     const handedOutBy = task.assignedByUserId ?? task.createdByUserId
     const recipients = await whoCanStillSee(
       project,
-      [handedOutBy, ...(await followerIds(task.id, tx))],
+      [handedOutBy, project.leadUserId, ...(await followerIds(task.id, tx))],
       tx
     )
     await writeTaskNotices(tx, [

@@ -18,6 +18,7 @@ import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { WidgetSettings } from "@/components/settings/widget-settings"
 import { TopLeftNavigationSettings } from "@/components/settings/top-left-navigation-settings"
+import { TopLeftShortcutsSettings } from "@/components/settings/top-left-shortcuts-settings"
 import { CardGroup } from "@/components/ui/card"
 import { appHeaderRightActionsForRole, appSettingsTabs } from "@/lib/app-options"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
@@ -350,6 +351,7 @@ export function SettingsPage({
                 <TopLeftNavigationSettings
                   config={config}
                   onConfigChange={onConfigChange}
+                  audience="admin"
                 />
               }
               sections={config.sections}
@@ -376,6 +378,13 @@ export function SettingsPage({
                     publicThemePresets: config.publicThemePresets,
                   }),
               }}
+            />
+            <TopLeftShortcutsSettings
+              shortcuts={config.topLeftShortcuts}
+              onShortcutsChange={(topLeftShortcuts) =>
+                changeConfig({ topLeftShortcuts })
+              }
+              onSaveConfig={onSaveConfig}
             />
             <TopRightSettings
               items={config.topRightNavigation}

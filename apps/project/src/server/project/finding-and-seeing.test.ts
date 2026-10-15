@@ -29,6 +29,7 @@ import { loadTeamMonth } from "@/server/project/team-days"
 import { createTeam, leaveTeam } from "@/server/project/teams"
 import type { CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
+import type { TaskActivityEntry } from "@/server/project/project-activity"
 
 /*
  * More features task 04: search every project, saved views, the team's
@@ -204,12 +205,12 @@ describe("the team's Activity tab", () => {
     await setTaskStatus(ben, { taskId: logo, status: "doing", stuckReason: null }, database)
 
     const forBen = await loadTeamActivity(ben.id, {}, database)
-    expect(forBen.entries.map((entry) => [entry.task.title, entry.kind, entry.project.name])).toEqual([
+    expect((forBen.entries as TaskActivityEntry[]).map((entry) => [entry.task.title, entry.kind, entry.project.name])).toEqual([
       ["Logo", "status_changed", "Website"],
       ["Logo", "created", "Website"],
     ])
     const forAnna = await loadTeamActivity(anna.id, {}, database)
-    expect(new Set(forAnna.entries.map((entry) => entry.task.title))).toEqual(new Set(["Logo", "Surprise"]))
+    expect(new Set((forAnna.entries as TaskActivityEntry[]).map((entry) => entry.task.title))).toEqual(new Set(["Logo", "Surprise"]))
     // Carla is on no project.
     expect((await loadTeamActivity(carla.id, {}, database)).entries).toEqual([])
   })
