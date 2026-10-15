@@ -291,6 +291,11 @@ add up to.
 
 ## Grids
 
+- Tyler, 15 Oct 2026: **"Add a new rul in settingse to warn me if I'm in more
+  than certain amount of grid per protocol. I can enter the amount I want"**
+  Settings → Trading rules has "Grids on one exchange" with a number. Placing a
+  real-money grid that would go past it opens the rules window to confirm. It
+  never blocks. `../orders/rules-before-an-entry.md` has the details.
 - Tyler, 15 Oct 2026, after CHIP skipped two rungs because HL1 - GRID had no
   money free: **"2 and 3 (warm only)"**, meaning a bell notice when a rung is
   skipped for money, and a warning, never a refusal, when a new grid would

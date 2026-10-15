@@ -530,6 +530,8 @@ export type Trading = {
   ) => Promise<boolean>
   /** The grids still working, the same list filtered by kind. */
   grids: SmartGrid[]
+  /** The real-money wallets on this exchange, by id. */
+  liveWalletIds: ReadonlySet<string>
   /** Places a whole grid at once. */
   placeGrid: (input: {
     lineStop?: GridLineStop | null
@@ -1354,6 +1356,10 @@ export function useTrading(
     () =>
       smartOrders.filter((order): order is SmartGrid => order.kind === "grid"),
     [smartOrders]
+  )
+  const liveWalletIds = React.useMemo(
+    () => new Set((liveAnswer?.wallets ?? []).map((one) => one.id)),
+    [liveAnswer?.wallets]
   )
 
   // Live only: a practice wallet's orders are filled from our own numbers and
@@ -3198,6 +3204,7 @@ export function useTrading(
     resumeSmartOrder,
     ladders,
     grids,
+    liveWalletIds,
     busy: pending > 0,
     pendingAdditions,
     // Never both: an answered half is something to show, a failure with rows

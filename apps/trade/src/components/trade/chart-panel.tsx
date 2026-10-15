@@ -903,9 +903,17 @@ export function ChartPanel({
    * price, how long the coin has been open, and the last order on it.
    */
   const unmetRulesFor = React.useCallback(
-    (about: { side: TradeSide }): UnmetRule[] => {
+    (about: { side: TradeSide; grid?: boolean }): UnmetRule[] => {
       if (!rulesApply || !market) return []
       const now = Date.now()
+      // Every real-money grid still running on this exchange, whichever
+      // wallet it is on: the answers this page reads hold only this exchange.
+      const gridsOnExchange = about.grid
+        ? trading.grids.filter(
+            (one) =>
+              one.status === "active" && trading.liveWalletIds.has(one.walletId)
+          ).length
+        : null
       return checkTradingRules({
         rules: tradingRules,
         side: about.side,
@@ -913,10 +921,19 @@ export function ChartPanel({
         price: liveMarkOf(market.key) ?? market.price,
         onChartForMs: now - chartOpenedAtRef.current,
         lastOrderAt: lastOrderAt(market.key, seenLastOrderAt),
+        gridsOnExchange,
         now,
       })
     },
-    [rulesApply, market, tradingRules, paint.drawings, seenLastOrderAt]
+    [
+      rulesApply,
+      market,
+      tradingRules,
+      paint.drawings,
+      seenLastOrderAt,
+      trading.grids,
+      trading.liveWalletIds,
+    ]
   )
   /**
    * The position the open order window is adding to, resolved against the live
@@ -2669,7 +2686,10 @@ export function ChartPanel({
                 return placed
               }
               const direction = input.params.direction
-              const unmet = unmetRulesFor({ side: entrySide(direction) })
+              const unmet = unmetRulesFor({
+                side: entrySide(direction),
+                grid: true,
+              })
               if (unmet.length === 0) return send()
               return new Promise<boolean>((resolve) => {
                 setPendingEntry({

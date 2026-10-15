@@ -32,6 +32,7 @@ export const TRADING_RULE_KINDS = [
   "lines",
   "timeOnChart",
   "timeSinceLastOrder",
+  "gridsPerExchange",
 ] as const
 export type TradingRuleKind = (typeof TRADING_RULE_KINDS)[number]
 
@@ -58,6 +59,14 @@ export const tradingRulesSchema = z.object({
     minutes: minutesSchema,
     applies: sideSchema,
   }),
+  /**
+   * At most `count` real-money grids running on one exchange. Only a grid
+   * placement is checked (Tyler, 15 Oct 2026).
+   */
+  gridsPerExchange: z.object({
+    on: z.boolean(),
+    count: z.number().int().min(1).max(200),
+  }),
 })
 
 export type TradingRules = z.infer<typeof tradingRulesSchema>
@@ -67,6 +76,7 @@ export const DEFAULT_TRADING_RULES: TradingRules = {
   lines: { on: false, count: 2, kinds: "either", applies: "both" },
   timeOnChart: { on: false, minutes: 3, applies: "both" },
   timeSinceLastOrder: { on: false, minutes: 5, applies: "both" },
+  gridsPerExchange: { on: false, count: 10 },
 }
 
 /**
@@ -83,11 +93,18 @@ export function readTradingRules(value: unknown): TradingRules {
     timeSinceLastOrder:
       parsed.data.timeSinceLastOrder ??
       DEFAULT_TRADING_RULES.timeSinceLastOrder,
+    gridsPerExchange:
+      parsed.data.gridsPerExchange ?? DEFAULT_TRADING_RULES.gridsPerExchange,
   }
 }
 
 export function anyTradingRuleOn(rules: TradingRules): boolean {
-  return rules.lines.on || rules.timeOnChart.on || rules.timeSinceLastOrder.on
+  return (
+    rules.lines.on ||
+    rules.timeOnChart.on ||
+    rules.timeSinceLastOrder.on ||
+    rules.gridsPerExchange.on
+  )
 }
 
 /** The short name each rule goes by in the window and on the Journal row. */
@@ -95,6 +112,7 @@ export const TRADING_RULE_NAMES: Record<TradingRuleKind, string> = {
   lines: "lines on the chart",
   timeOnChart: "time on this chart",
   timeSinceLastOrder: "time since the last order",
+  gridsPerExchange: "grids on this exchange",
 }
 
 /** One rule that is not met, as the window says it. */
@@ -141,6 +159,12 @@ export type TradingRulesCheck = {
   onChartForMs: number
   /** When the last order was placed by hand on this coin, or null for never. */
   lastOrderAt: number | null
+  /**
+   * How many real-money grids are running on this exchange, when the entry
+   * being checked is a grid. Null for a Long, Short or DCA ladder, which the
+   * grid rule never looks at.
+   */
+  gridsOnExchange: number | null
   now: number
 }
 
@@ -289,6 +313,21 @@ export function checkTradingRules(check: TradingRulesCheck): UnmetRule[] {
     }
   }
 
+  if (rules.gridsPerExchange.on && check.gridsOnExchange !== null) {
+    const asked = rules.gridsPerExchange.count
+    const running = check.gridsOnExchange
+    if (running + 1 > asked) {
+      found.push(
+        unmet(
+          "gridsPerExchange",
+          "Grids on this exchange",
+          `at most ${plural(asked, "grid")} running on one exchange.`,
+          `You have ${running} running here, so this one makes ${running + 1}.`
+        )
+      )
+    }
+  }
+
   return found
 }
 
@@ -319,7 +358,7 @@ export function overrodeNames(note: string | null): string[] | null {
 
 /**
  * What the server accepts as the overridden rule names on an order: only the
- * four names this file knows, so nothing typed by hand can land on a Journal
+ * names this file knows, so nothing typed by hand can land on a Journal
  * row dressed as a rule.
  */
 const RULE_NAME_LIST = TRADING_RULE_KINDS.map(

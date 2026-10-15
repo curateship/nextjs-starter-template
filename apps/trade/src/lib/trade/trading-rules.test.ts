@@ -59,6 +59,7 @@ function met(overrides: Partial<TradingRulesCheck> = {}): TradingRulesCheck {
     price: 60_000,
     onChartForMs: HOUR,
     lastOrderAt: null,
+    gridsOnExchange: null,
     now: NOW,
     ...overrides,
   }
@@ -305,5 +306,45 @@ describe("the words around the check", () => {
     ])
     expect(overrodeNames("Resting on the exchange.")).toBeNull()
     expect(overrodeNames(null)).toBeNull()
+  })
+})
+
+describe("the grids-on-one-exchange rule", () => {
+  const atMostThree = rules({ gridsPerExchange: { on: true, count: 3 } })
+
+  it("starts off, at ten", () => {
+    expect(DEFAULT_TRADING_RULES.gridsPerExchange).toEqual({
+      on: false,
+      count: 10,
+    })
+  })
+
+  it("lets a grid through while it stays within the number", () => {
+    expect(
+      checkTradingRules(met({ rules: atMostThree, gridsOnExchange: 2 }))
+    ).toEqual([])
+  })
+
+  it("warns when this grid would go past the number", () => {
+    const [found] = checkTradingRules(
+      met({ rules: atMostThree, gridsOnExchange: 3 })
+    )
+    expect(found.kind).toBe("gridsPerExchange")
+    expect(found.asked).toBe("At most 3 grids running on one exchange.")
+    expect(found.now).toBe("You have 3 running here, so this one makes 4.")
+  })
+
+  it("never looks at a Long, Short or ladder", () => {
+    expect(
+      checkTradingRules(met({ rules: atMostThree, gridsOnExchange: null }))
+    ).toEqual([])
+  })
+
+  it("reads an older saved row without it as the rule switched off", () => {
+    const { gridsPerExchange: _dropped, ...older } = DEFAULT_TRADING_RULES
+    expect(
+      readTradingRules({ ...older, lines: { ...older.lines, on: true } })
+        .gridsPerExchange
+    ).toEqual(DEFAULT_TRADING_RULES.gridsPerExchange)
   })
 })

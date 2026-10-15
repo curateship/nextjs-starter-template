@@ -42,7 +42,7 @@ const LINE_KIND_LABELS: Record<RuleLineKind, string> = {
 }
 
 /**
- * The Trading rules tab: three rules a person sets for themselves before a
+ * The Trading rules tab: four rules a person sets for themselves before a
  * real-money entry, one card each. The switch sits to the left of the title,
  * and a rule that is on shows its number and choices in the strip along the
  * bottom of its card, saved as they change. None of them blocks a trade; an
@@ -192,6 +192,24 @@ function TradingRulesCards({ initial }: { initial: TradingRules }) {
           options={RULE_SIDES}
           labels={SIDE_LABELS}
           onChange={(applies) => setRule("timeSinceLastOrder", { applies })}
+        />
+      </RuleCard>
+
+      <RuleCard
+        id="rule-grids-per-exchange"
+        title="Grids on one exchange"
+        description="At most this many real-money grids running on one exchange, counting every wallet on it. Placing one more grid asks you to confirm first."
+        on={rules.gridsPerExchange.on}
+        onToggle={(on) => setRule("gridsPerExchange", { on })}
+      >
+        <NumberField
+          id="rule-grids-per-exchange-count"
+          label="Most grids at once"
+          value={rules.gridsPerExchange.count}
+          min={1}
+          max={200}
+          inputClassName="w-24"
+          onChange={(count) => setRule("gridsPerExchange", { count })}
         />
       </RuleCard>
     </CardGroup>

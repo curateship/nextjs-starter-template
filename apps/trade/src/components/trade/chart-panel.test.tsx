@@ -294,6 +294,7 @@ const trading = {
   placing: [],
   ladders: [],
   grids: [],
+  liveWalletIds: new Set<string>(),
   trades: [],
   fills: [],
   smartOrders: [],

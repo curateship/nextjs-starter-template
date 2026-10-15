@@ -9,10 +9,10 @@ back. It never stops the trade.
 Tyler, 4 Sep 2026: "This is not to completely block me from trading, it just
 gives me a warning and I have to confirm to enter the trade."
 
-## The three rules
+## The four rules
 
-Each rule has a switch, a number where one makes sense, and which side it
-applies to: longs, shorts, or both. Every rule starts off. The rules are per
+Each rule has a switch and a number. The first three also say which side they
+apply to: longs, shorts, or both. Every rule starts off. The rules are per
 account and the same on every exchange and coin.
 
 - **Lines on the chart.** At least N lines above the price and N below it on
@@ -32,6 +32,15 @@ account and the same on every exchange and coin.
   sent. After a reload it starts from the newest thing the chart can see for
   the coin: a fill, a finished trade, a resting order or a watched level. A
   first order on a coin never fires this rule. Default 5 minutes.
+- **Grids on one exchange.** At most N real-money grids running on one
+  exchange, counting every wallet on it. Only placing a grid is checked, never
+  a Long, Short or DCA ladder. With N at 10 and 10 grids running on
+  Hyperliquid, the next grid there opens the window: "Asked: At most 10 grids
+  running on one exchange. Now: You have 10 running here, so this one makes
+  11." The count is the grids the page has loaded for this exchange that are
+  still running on a real-money wallet. Practice grids are not counted.
+  Default 10. Tyler, 15 Oct 2026: "warn me if I'm in more than certain amount
+  of grid per protocol. I can enter the amount I want."
 
 ## What the screen does
 
@@ -108,7 +117,7 @@ ignored.
 - The rules arrive with the dashboard's opening answer and with the Settings
   tab's own loader, so neither screen flashes from the defaults.
 - `src/components/trade/chart-panel.tsx` runs the check in the three place
-  handlers and owns the one warning window. That window shows the red panel
+  handlers, and counts the running real-money grids for the grid one and owns the one warning window. That window shows the red panel
   from `src/components/trade/unmet-rules-panel.tsx`.
 - `src/components/trade/trading-rules-settings.tsx` is the Settings tab: one
   card per rule, the switch in the card's header, the number and choices in
