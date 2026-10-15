@@ -1,6 +1,13 @@
 import * as React from "react"
+import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core"
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
 import {
   CopyIcon,
+  GripVerticalIcon,
   PlusIcon,
   SettingsIcon,
   ShieldCheckIcon,
@@ -29,6 +36,11 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  createShellId,
+  useNavSensors,
+  useSortableRow,
+} from "@/components/settings/nav-editor-shared"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Dialog,
@@ -391,6 +403,60 @@ function TradingRulesTable({ initial }: { initial: TradingRules }) {
   )
 }
 
+/**
+ * One rule's settings window, opened from the cog on the dashboard's Rules
+ * box (Tyler, 15 Oct 2026). The same window as the table's, saving the same
+ * way, and it hands every change back so the box and the entry check use the
+ * new rule at once.
+ *
+ * Mounted only while it is open: the save state it reports goes to the page
+ * header, and the edit still settling is sent when it closes.
+ */
+export function TradingRuleEditor({
+  rules: initial,
+  ruleId,
+  onRulesChange,
+  onClose,
+}: {
+  rules: TradingRules
+  ruleId: string
+  onRulesChange: (rules: TradingRules) => void
+  onClose: () => void
+}) {
+  const { rules, updateRule, removeRules } = useTradingRules(initial)
+  const [confirmDelete, setConfirmDelete] = React.useState(false)
+  const rule = rules.list.find((one) => one.id === ruleId) ?? null
+
+  React.useEffect(() => {
+    onRulesChange(rules)
+  }, [rules, onRulesChange])
+
+  return (
+    <>
+      <TradingRuleDialog
+        rule={confirmDelete ? null : rule}
+        onChange={(update) => updateRule(ruleId, update)}
+        onDelete={() => setConfirmDelete(true)}
+        onClose={onClose}
+      />
+      <ConfirmDialog
+        open={confirmDelete && rule !== null}
+        onOpenChange={(next) => {
+          if (!next) setConfirmDelete(false)
+        }}
+        title={`Delete ${rule?.name ?? "this rule"}?`}
+        description="It stops checking your entries at once. Trades already placed are not touched, and Journal notes that name it stay as they are."
+        confirmLabel="Delete rule"
+        onConfirm={() => {
+          removeRules(new Set([ruleId]))
+          setConfirmDelete(false)
+          onClose()
+        }}
+      />
+    </>
+  )
+}
+
 function RowButton({
   label,
   tip,
@@ -609,13 +675,35 @@ function RuleNotesCard({
   onChange: (notes: string[]) => void
 }) {
   const full = notes.length >= MAX_RULE_NOTES
+  const sensors = useNavSensors()
+  // Notes are plain strings, so each row gets an id of its own that follows
+  // it when it moves. Two notes can say the same thing, and an index would
+  // swap the boxes' text under the pointer mid-drag.
+  const [ids, setIds] = React.useState(() =>
+    notes.map(() => createShellId("note"))
+  )
+  const rowIds =
+    ids.length === notes.length ? ids : notes.map((_, at) => ids[at] ?? `note-${at}`)
+  const change = (next: string[], nextIds: string[]) => {
+    setIds(nextIds)
+    onChange(next)
+  }
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const from = rowIds.indexOf(String(active.id))
+    const to = rowIds.indexOf(String(over.id))
+    if (from === -1 || to === -1) return
+    change(arrayMove(notes, from, to), arrayMove(rowIds, from, to))
+  }
   return (
     <Card size="sm">
       <CardHeader>
         <CardTitle>Notes to tick</CardTitle>
         <CardDescription>
           Your own bullet points. Each one is a box on the chart you tick before
-          an entry this rule covers can go out.
+          an entry this rule covers can go out. Drag the grip to change their
+          order.
         </CardDescription>
         <CardAction>
           <DisabledReason
@@ -626,7 +714,9 @@ function RuleNotesCard({
               type="button"
               variant="outline"
               disabled={full}
-              onClick={() => onChange([...notes, ""])}
+              onClick={() =>
+                change([...notes, ""], [...rowIds, createShellId("note")])
+              }
             >
               <PlusIcon className="size-4" />
               Add a note
@@ -640,33 +730,90 @@ function RuleNotesCard({
             No notes yet, so nothing needs ticking.
           </span>
         ) : null}
-        {notes.map((note, index) => (
-          <div key={index} className="flex items-center gap-2">
-            <Input
-              id={`rule-note-${index}`}
-              aria-label={`Note ${index + 1}`}
-              value={note}
-              maxLength={MAX_RULE_NOTE_LENGTH}
-              placeholder="Did I check the daily trend?"
-              onChange={(event) =>
-                onChange(
-                  notes.map((current, at) =>
-                    at === index ? event.target.value : current
+        <DndContext
+          id="trading-rule-notes"
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={onDragEnd}
+        >
+          <SortableContext
+            items={rowIds}
+            strategy={verticalListSortingStrategy}
+          >
+            {notes.map((note, index) => (
+              <SortableNoteRow
+                key={rowIds[index]}
+                id={rowIds[index]}
+                index={index}
+                note={note}
+                onText={(text) =>
+                  change(
+                    notes.map((current, at) => (at === index ? text : current)),
+                    rowIds
                   )
-                )
-              }
-            />
-            <RowButton
-              label={`Remove note ${index + 1}`}
-              tip="Remove this note"
-              onClick={() => onChange(notes.filter((_, at) => at !== index))}
-            >
-              <Trash2Icon className="size-4" />
-            </RowButton>
-          </div>
-        ))}
+                }
+                onRemove={() =>
+                  change(
+                    notes.filter((_, at) => at !== index),
+                    rowIds.filter((_, at) => at !== index)
+                  )
+                }
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * One note, picked up by its grip (Tyler, 15 Oct 2026: "I want to drag and
+ * drop the notes to reorder it"). Only the grip drags, because the rest of
+ * the row is a box to type in. The order here is the order of the boxes on
+ * the chart and in the window before an entry.
+ */
+function SortableNoteRow({
+  id,
+  index,
+  note,
+  onText,
+  onRemove,
+}: {
+  id: string
+  index: number
+  note: string
+  onText: (text: string) => void
+  onRemove: () => void
+}) {
+  const { attributes, listeners, setNodeRef, style } = useSortableRow(id, true)
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2">
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label={`Move note ${index + 1}`}
+        className="flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-muted active:cursor-grabbing"
+      >
+        <GripVerticalIcon className="size-4" />
+      </button>
+      <Input
+        id={`rule-note-${index}`}
+        aria-label={`Note ${index + 1}`}
+        value={note}
+        maxLength={MAX_RULE_NOTE_LENGTH}
+        placeholder="Did I check the daily trend?"
+        onChange={(event) => onText(event.target.value)}
+      />
+      <RowButton
+        label={`Remove note ${index + 1}`}
+        tip="Remove this note"
+        onClick={onRemove}
+      >
+        <Trash2Icon className="size-4" />
+      </RowButton>
+    </div>
   )
 }
 

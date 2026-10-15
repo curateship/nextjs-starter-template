@@ -226,7 +226,8 @@ describe("wallet management in the chart header", () => {
     const trigger = host.querySelector<HTMLElement>(
       '[aria-label="Manage wallets. Main is in use."]'
     )
-    expect(trigger?.textContent).toContain("Main- $5,100.00+$75.00")
+    // The button names the wallet and nothing else (Tyler, 15 Oct 2026).
+    expect(trigger?.textContent).toBe("Main")
     await act(async () => trigger?.click())
 
     expect(document.body.textContent).toContain("ActiveAllInactive")

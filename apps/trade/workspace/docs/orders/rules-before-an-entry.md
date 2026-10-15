@@ -5,8 +5,8 @@ stack of conditions, the way a contact segment is built in CMS, plus his own
 bullet-point notes that he ticks on the chart before an entry. Each condition
 is something that must hold before he trades. When he places a real-money
 Long, Short, DCA ladder or grid and a rule's conditions do not hold, the rule
-either warns him and lets him confirm, or blocks the entry. A small
-Rules box on the chart shows the same rules and the notes to tick before he
+either warns him and lets him confirm, or blocks the entry. The
+Rules box in the left panel shows the same rules and the notes to tick before he
 presses anything, and warns when a trade he already holds starts breaking one.
 
 Tyler, 4 Sep 2026: "This is not to completely block me from trading, it just
@@ -52,6 +52,11 @@ condition that holds gets a green tick, one that does not gets a red cross.
   200 letters. Every note on a switched-on rule must be ticked on the chart
   before an entry that rule covers can go out, whatever its conditions say. A
   blank note asks for nothing. A rule with only notes is a checklist.
+- **Notes reorder by dragging the grip** at the left of each note (Tyler,
+  15 Oct 2026: "I want to drag and drop the notes to reorder it"). Only the
+  grip drags, because the rest of the row is a box to type in. Space on the
+  grip picks the note up for the keyboard, and the arrows move it. The order
+  is the order of the boxes in the Rules box and the window before an entry.
 
 Tyler, 15 Oct 2026: "Note on each rule and also make it a checkbox on the
 trading chart that I must check off before I can place a trade".
@@ -144,15 +149,29 @@ With BTC at $70,000, both hold and the grid goes out with no window. With
 five grids already running, the sixth breaks the limit too. Set to Any, one
 condition holding would be enough.
 
-## The Rules box on the chart
+## The Rules box
 
-On a real-money wallet with a rule switched on, a box sits in the chart's top
-left corner, laid out the way Tyler drew it on 15 Oct 2026:
+The Rules box fills the dashboard's left panel, laid out the way Tyler drew
+it on 15 Oct 2026. Tyler moved it there from the chart's top left the same
+day, into the space the market scanner left when it became a button in the
+chart header.
+
+- **With nothing to check, the left panel still shows the box** and says why:
+  "No trading rules are switched on", or "Rules only check trades in a
+  real-money wallet" on a practice wallet.
+- **With the left panel shut, the box is not shown at all** (Tyler, 15 Oct
+  2026: "dont need to see this when collapsed"). It used to float over the
+  chart's top left. The window before an entry still checks every rule, so a
+  block still stops the order.
+- **Below the wide-screen line** the left panel is a sheet pulled out from the
+  side. The box shows in that sheet while it is out, and nowhere while it is
+  away.
 
 ```
-Rules                         [1 warning] [1 to tick]  v
--------------------------------------------------------
-Main Grid rule                                  2 rules
+Rules            [Main Grid rule  v]  (cog)
+-------------------------------------------------
+Main Grid rule     [1 warning] [1 to tick] 2 rules
+1 other rule also needs a look.
   ! Your PUMP grid on HL1 - GRID
       ✗ At most 5 grids in this wallet
       ✓ EMA 50 on 1 week timeframe is above
@@ -160,13 +179,25 @@ Main Grid rule                                  2 rules
   [ ] Must be 2 stocks and 2 trendy ALT and BTC
 ```
 
-- **The header** counts what needs attention: rules that would block an entry
-  placed now (red), rules that would warn or that a held trade breaks
-  (amber), rules that cannot tell yet, and notes still to tick. With nothing
-  to count it says All clear.
-- **One section per rule** with something to show, headed by the rule's name
-  and how many conditions it has, in amber when it warns and red when it
-  blocks.
+- **The box shows one switched-on rule at a time** (Tyler, 15 Oct 2026: "move
+  this to the panel body and replace it with a cog to edit currant rule and a
+  rule switcher to swith to a different rule").
+- **The header** holds the rule switcher and a cog. There is no fold arrow
+  (Tyler, 15 Oct 2026: "remove the toggle"), so the body always shows. The
+  switcher lists every switched-on rule, and this browser remembers the last
+  one picked. The cog opens the same rule window as Settings, Trading rules,
+  saving as it changes. The box and the check before an entry use the edit at
+  once.
+- **The counts sit in the body**, as chips on the rule's name row just before
+  how many conditions it has (Tyler, 15 Oct 2026: "move the 2 chip before the
+  rules"). They count the rule on screen: Blocking
+  (red) when it would stop an entry placed now, warnings (amber) for an entry
+  that breaks it and for each held trade that breaks it, Can't tell yet, and
+  notes still to tick. With nothing to count it says All clear.
+- **Other rules are never hidden silently.** When another switched-on rule
+  would block, warn, cannot tell or has notes to tick, a line under the counts
+  says how many, so he can pick it from the switcher. The window before an
+  entry still checks every rule, whichever one the box shows.
 - **An amber card per held trade that breaks the rule.** A real-money trade
   already held on the coin, a running grid, a running DCA ladder or a
   position that belongs to neither, is checked against the rules that cover
@@ -181,8 +212,7 @@ Main Grid rule                                  2 rules
   waits for the notes of the rules that cover it. Ticks belong to the coin on
   screen. Placing an order on the coin clears them, so the next entry asks
   again, and a reload starts with none.
-- **The arrow** folds everything under the header away, and opens it again.
-  The box starts open. Each condition line has a green tick when it holds, a
+- Each condition line has a green tick when it holds, a
   red cross when it does not, and a question mark with the reason when it
   cannot tell, with no prices: Tyler, 15 Oct 2026, "there is too much text and
   i dont care about the price".
@@ -222,7 +252,7 @@ not recorded.
 - Anything the engine places on its own: bots, running recipes, and the rungs
   and levels of a smart order already placed.
 - A practice wallet. It never warns, never blocks and never records, and the
-  Rules box is not shown.
+  Rules box only says that rules check real-money wallets.
 - An order placed on the exchange's own site. It never passes through Trade.
 
 There is no "don't ask again" box. A rule is on or off in Settings.

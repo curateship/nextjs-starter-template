@@ -9,6 +9,7 @@ import {
   FolderIcon,
   LayersIcon,
   ScrollTextIcon,
+  RadarIcon,
   SirenIcon,
 } from "lucide-react"
 
@@ -66,10 +67,11 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { CardFolds } from "@/components/trade/card-folds"
 import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
 import { useChartIndicators } from "@/components/trade/use-indicators"
-import { MarketScannerPanel } from "@/components/trade/market-scanner-panel"
+import { MarketScannerMenu } from "@/components/trade/market-scanner-panel"
 import { MarketFoldersManager } from "@/components/trade/market-folders-manager"
 import { MarketFoldersMenu } from "@/components/trade/market-folders-menu"
 import { PriceAlertsMenu } from "@/components/trade/price-alerts-menu"
+import { TradingRuleEditor } from "@/components/trade/trading-rules-settings"
 import { useLineAlerts } from "@/components/trade/use-line-alerts"
 import { usePriceAlerts } from "@/components/trade/use-price-alerts"
 import {
@@ -153,12 +155,17 @@ import { cn } from "@/lib/utils"
  */
 const NO_RING = "focus-visible:ring-0"
 /**
- * The Grid and DCA panels inside the collapsed-column menu: as tall as their
- * own rows, capped at half the menu less Manual orders' 9rem, with a line
- * above each one that has a panel on screen above it.
+ * Each panel inside the collapsed-column menu: as tall as its own rows and
+ * total line, giving up height only when the menu runs out of window, with a
+ * line above each one that has a panel on screen above it.
+ *
+ * Grid and DCA used to be capped at half the menu less 9rem, about five rows.
+ * The rest and the total line sat below the fold of a list whose scroll bar
+ * only shows on hover, so the menu looked as if it left trades out (Tyler,
+ * 15 Oct 2026: "the grid panel smart trades does not show all the trades").
  */
 const POPOVER_SMART_PANEL_CLASS =
-  "flex max-h-[calc((min(44rem,var(--radix-popover-content-available-height))-9rem)/2)] min-h-0 flex-none flex-col [:not([hidden])~&]:border-t"
+  "flex h-auto min-h-32 flex-[0_1_auto] flex-col [:not([hidden])~&]:border-t"
 
 /** Who is signed in, read the way the shell's own pages read it. */
 const authenticatedRoute = getRouteApi("/_authenticated")
@@ -975,21 +982,43 @@ export function TradeWorkspace({
     [trading.walletNames, account.wallets]
   )
 
-  // The left column is only market navigation. Hand-placed orders live with
-  // the other order controls in the right column.
+  // The left column holds the Rules box. Hand-placed orders live with the
+  // other order controls in the right column.
+  const [rulesSlot, setRulesSlot] = React.useState<HTMLElement | null>(null)
+  // The rules as edited from the Rules box's cog, so the box and the entry
+  // check follow an edit at once rather than after a reload.
+  const [tradingRules, setTradingRules] = React.useState(initialTradingRules)
+  const [editingRuleId, setEditingRuleId] = React.useState<string | null>(null)
+  const marketScanner = (
+    <MarketScannerMenu
+      accountId={user.id}
+      key={user.id}
+      catalogs={catalogs}
+      selectedMarketKey={selectedKey}
+      onSelectMarket={onSelectMarket}
+    />
+  )
+  // The Rules box is drawn by the chart into this panel, so React sends its
+  // clicks up through the chart, never reaching the panel's own double-click.
+  // A plain listener on the space itself goes by where the click landed on
+  // screen, so a double-click on the box's blank space shuts the panel too.
+  React.useEffect(() => {
+    if (!rulesSlot) return
+    const onDoubleClick = (event: MouseEvent) =>
+      marketsDoubleClick(event as unknown as React.MouseEvent)
+    rulesSlot.addEventListener("dblclick", onDoubleClick)
+    return () => rulesSlot.removeEventListener("dblclick", onDoubleClick)
+  }, [rulesSlot, marketsDoubleClick])
   const marketColumn = (
     <WorkspacePanel
       collapsed={marketsCollapsed}
       onDoubleClick={marketsDoubleClick}
       className="flex min-h-0 w-full min-w-0 flex-1 flex-col"
     >
-      <MarketScannerPanel
-        accountId={user.id}
-        key={user.id}
-        catalogs={catalogs}
-        selectedMarketKey={selectedKey}
-        onSelectMarket={onSelectMarket}
-      />
+      {/* The Rules box, drawn by the chart into this space (Tyler, 15 Oct
+          2026). The market scanner that used to fill it is now the radar
+          button after the siren in the chart header. */}
+      <div ref={setRulesSlot} className="flex min-h-0 flex-1 flex-col" />
       {folderManagerOpen ? (
         <MarketFoldersManager
           folders={folders}
@@ -1179,6 +1208,20 @@ export function TradeWorkspace({
           />
         )}
       />
+      <MarketScannerMenu
+        accountId={user.id}
+        key={user.id}
+        catalogs={catalogs}
+        selectedMarketKey={selectedKey}
+        onSelectMarket={onSelectMarket}
+        renderTrigger={(newCount) => (
+          <PhoneMenuRow
+            icon={<RadarIcon />}
+            label="Market scanner"
+            count={newCount}
+          />
+        )}
+      />
       {selection.kind === "market" ? (
         <PinnedMarketRow marketKey={selection.row.key} />
       ) : null}
@@ -1272,6 +1315,7 @@ export function TradeWorkspace({
                 lines={linesForPanel}
                 onCleared={onAlertsCleared}
               />
+              {marketScanner}
             </div>
           }
           // The chart's own controls live in the header row. The timeframe
@@ -1311,16 +1355,13 @@ export function TradeWorkspace({
               {walletManagement}
               {desktop && smartOrdersCollapsed && !chartFullscreen ? (
                 <SmartOrdersMenu>
-                  {/* Grid and DCA are as tall as their own rows and Manual
-                      orders takes the rest. A fixed share each meant four
-                      rows showed under a menu with empty space below it.
-                      Grid and DCA split all but 9rem between them, so long
-                      lists cannot squeeze Manual orders down to its heading.
-                      Unlike the docked column, an empty Manual orders does
-                      not hand its share to Grid here. A flex column rather
-                      than a three-row grid, so a panel hidden by Hide on
-                      empty leaves no row behind it. */}
-                  <div className="flex max-h-[min(44rem,var(--radix-popover-content-available-height))] flex-col overflow-hidden">
+                  {/* Every panel is as tall as its own rows, and the menu is
+                      as tall as the window allows. Only when they do not all
+                      fit does each give up height, in proportion to what it
+                      holds, never below its heading and a row. A flex column
+                      rather than a three-row grid, so a panel hidden by Hide
+                      on empty leaves no row behind it. */}
+                  <div className="flex max-h-(--radix-popover-content-available-height) flex-col overflow-hidden">
                     {/* The `hidden` attribute rather than the class: the
                         reset gives the attribute display none with priority,
                         so it beats each wrapper's own flex. The line above a
@@ -1340,7 +1381,7 @@ export function TradeWorkspace({
                     </div>
                     <div
                       hidden={panelHidden("manual")}
-                      className="flex min-h-0 flex-1 flex-col [:not([hidden])~&]:border-t"
+                      className={POPOVER_SMART_PANEL_CLASS}
                     >
                       {manualOrdersPanel}
                     </div>
@@ -1408,7 +1449,8 @@ export function TradeWorkspace({
             initialQuickOrder={initialQuickOrder}
             recentOrderScope={user.id}
             options={chartOptions.options}
-            tradingRules={initialTradingRules}
+            tradingRules={tradingRules}
+            onEditRule={setEditingRuleId}
             indicators={indicators.settings}
             market={selection.kind === "market" ? selection.row : null}
             trading={trading}
@@ -1418,6 +1460,14 @@ export function TradeWorkspace({
             shownTrade={shownTrade}
             onClearShownTrade={() => setShownTrade(null)}
             onOlderBars={setOlderBars}
+            // On a wide screen the box sits in the left panel while that
+            // panel is open. Narrower, the panel is a sheet that is only
+            // there while it is pulled out, and the box follows it.
+            rulesSlot={
+              desktop && (marketsCollapsed || chartFullscreen)
+                ? null
+                : rulesSlot
+            }
             cornerControl={
               <div className="flex items-center gap-2">
                 <ChartInvertButton
@@ -1692,6 +1742,15 @@ export function TradeWorkspace({
             )}
           </SheetContent>
         </Sheet>
+
+        {editingRuleId ? (
+          <TradingRuleEditor
+            rules={tradingRules}
+            ruleId={editingRuleId}
+            onRulesChange={setTradingRules}
+            onClose={() => setEditingRuleId(null)}
+          />
+        ) : null}
 
         {/* One instance of each wallet window beside the shared account state. */}
         <AddWalletDialog

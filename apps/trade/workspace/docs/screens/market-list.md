@@ -1,7 +1,8 @@
 # The market list
 
-The left column holds Market scanner. Its cog controls volume and volatility
-conditions. `market-scanner.md` explains the results and candle coverage.
+The market scanner opens from the radar button in the chart header, and the
+left column holds the Rules box. `market-scanner.md` explains the scanner's
+results and candle coverage.
 Saved folders remain in the chart header's folder menu.
 
 - **Searching lives in the market picker** — the market name at the top of

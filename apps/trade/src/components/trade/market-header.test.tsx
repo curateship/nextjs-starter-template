@@ -184,7 +184,7 @@ describe("the market header's star", () => {
     ).toBe("Smallest order now: $77.12")
   })
 
-  it("shows the market's daily dollar volume in its information tooltip", async () => {
+  it("shows the market's daily dollar volume when its information button is clicked", async () => {
     const host = document.createElement("div")
     document.body.append(host)
     const root = createRoot(host)
@@ -193,12 +193,11 @@ describe("the market header's star", () => {
     const info = host.querySelector<HTMLButtonElement>(
       'button[aria-label="About BTC market, Hyperliquid, Mainnet"]'
     )!
-    await act(async () => {
-      document.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
-      )
-      info.focus()
-    })
+    // Focus alone opens nothing now: the facts open on a click (Tyler,
+    // 15 Oct 2026, "make it click dropdown instead").
+    await act(async () => info.focus())
+    expect(document.body.textContent).not.toContain("Daily volume")
+    await act(async () => info.click())
 
     expect(document.body.textContent).toContain("Daily volume: $1.00m")
 
@@ -206,7 +205,7 @@ describe("the market header's star", () => {
     host.remove()
   })
 
-  it("shows the selected pool's liquidity in the keyboard-accessible tooltip", async () => {
+  it("shows the selected pool's liquidity in the information menu", async () => {
     const host = document.createElement("div")
     document.body.append(host)
     const root = createRoot(host)
@@ -218,14 +217,11 @@ describe("the market header's star", () => {
         )
       )
     )
-    await act(async () => {
-      document.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
-      )
+    await act(async () =>
       host
         .querySelector<HTMLButtonElement>('button[aria-label^="About "]')!
-        .focus()
-    })
+        .click()
+    )
     expect(document.body.textContent).toContain("Pool liquidity: $2.00m")
     await act(async () => root.unmount())
     host.remove()

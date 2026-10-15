@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { CandlestickChartIcon, ChevronDownIcon, StarIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -493,6 +494,8 @@ export function ChartPanel({
   onAddOpened,
   onOlderBars,
   cornerControl,
+  rulesSlot = null,
+  onEditRule,
 }: {
   selectedKey: string | null
   /**
@@ -600,6 +603,14 @@ export function ChartPanel({
   onOlderBars?: (status: OlderBarsStatus) => void
   /** A chart action pinned inside the plot, immediately left of the price axis. */
   cornerControl?: React.ReactNode
+  /**
+   * The left panel's space for the Rules box. Null while that panel is shut,
+   * and the box is then not drawn at all (Tyler, 15 Oct 2026: "dont need to
+   * see this when collapsed"). The check before an entry still runs.
+   */
+  rulesSlot?: HTMLElement | null
+  /** The Rules box's cog: opens that rule's settings window. */
+  onEditRule?: (ruleId: string) => void
 }) {
   const wide = useWideScreen()
   const barInterval = chartSourceInterval(interval)
@@ -2528,14 +2539,24 @@ export function ChartPanel({
         </div>
       )}
 
-      {rulesApply && market ? (
-        <RulesWatchPanel
-          marketKey={market.key}
-          rules={tradingRules}
-          holdings={ruleHoldings}
-          factsFor={ruleFacts}
-        />
-      ) : null}
+      {market && rulesSlot
+        ? createPortal(
+            <RulesWatchPanel
+              key={market.key}
+              marketKey={market.key}
+              rules={tradingRules}
+              holdings={ruleHoldings}
+              factsFor={ruleFacts}
+              onEditRule={onEditRule}
+              idleNote={
+                trading.wallet?.kind === "live"
+                  ? null
+                  : "Rules only check trades in a real-money wallet."
+              }
+            />,
+            rulesSlot
+          )
+        : null}
 
       {menu ? (
         <ChartOrderMenu

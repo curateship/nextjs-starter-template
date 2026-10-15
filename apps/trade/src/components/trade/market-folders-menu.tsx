@@ -65,7 +65,6 @@ export function MarketFoldersMenu({
   const [creating, setCreating] = React.useState(false)
   const [newName, setNewName] = React.useState("")
   const [busy, setBusy] = React.useState(false)
-  const closeTimer = React.useRef<number | null>(null)
   const markets = React.useMemo(
     () =>
       new Map(
@@ -87,21 +86,6 @@ export function MarketFoldersMenu({
       .sort(compareMarketChange24h)
   }, [markets, panelRows.hiddenMarketKeys])
 
-  const cancelClose = React.useCallback(() => {
-    if (closeTimer.current === null) return
-    window.clearTimeout(closeTimer.current)
-    closeTimer.current = null
-  }, [])
-  const openFromHover = React.useCallback(() => {
-    cancelClose()
-    setOpen(true)
-  }, [cancelClose])
-  const closeFromHover = React.useCallback(() => {
-    cancelClose()
-    closeTimer.current = window.setTimeout(() => setOpen(false), 120)
-  }, [cancelClose])
-
-  React.useEffect(() => cancelClose, [cancelClose])
 
   function submitNewFolder(event: React.FormEvent) {
     event.preventDefault()
@@ -127,8 +111,6 @@ export function MarketFoldersMenu({
             size="icon"
             className="bg-muted/60 dark:bg-muted/60"
             aria-label="Open folders"
-            onMouseEnter={openFromHover}
-            onMouseLeave={closeFromHover}
           >
             <FolderIcon className="size-4" />
           </Button>
@@ -142,8 +124,6 @@ export function MarketFoldersMenu({
         style={{
           maxHeight: "var(--radix-popover-content-available-height)",
         }}
-        onMouseEnter={openFromHover}
-        onMouseLeave={closeFromHover}
       >
         <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3 text-sm font-semibold">
           <FolderIcon className="size-4" />

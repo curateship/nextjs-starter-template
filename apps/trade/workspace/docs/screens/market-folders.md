@@ -25,7 +25,8 @@ The market picker uses the same control. Its Favorites view reads Fav only.
 ## Opening folders
 
 The chart header's folder menu holds saved folders and All markets. The left
-column now holds Market scanner, described in `market-scanner.md`. Folder data
+column now holds the Rules box, and the market scanner is a radar button in
+the chart header, described in `market-scanner.md`. Folder data
 is preserved. The menu's cog opens create, rename, reorder, hide and delete
 controls. The management window ends with a primary Done button.
 

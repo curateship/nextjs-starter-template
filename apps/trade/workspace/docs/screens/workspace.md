@@ -8,7 +8,7 @@ these as well as an admin, and sees only their own wallets and orders there —
 
 ```
 ┌────────────┬─────────────────────┬────────────┐
-│ Scanner    │ MARKET HEADER       │ Grid/DCA   │
+│ Rules      │ MARKET HEADER       │ Grid/DCA   │
 │            │ ─────────────────── ├────────────┤
 │            │ Chart               │ Manual     │
 │            │                     │            │
@@ -17,9 +17,16 @@ these as well as an admin, and sees only their own wallets and orders there —
 └───────────────────────────────────────────────┘
 ```
 
-- **Left, Market scanner.** The cog opens scan settings. Rows show ticker,
-  time since qualifying and signed candle price change. `market-scanner.md`
-  explains volume and volatility matching, coverage and testing.
+- **Left, the Rules box.** The trading rules that check the next real-money
+  entry, the notes to tick, and warnings about trades already held.
+  Double-clicking the panel's blank space shuts it, the same as every other
+  panel (Tyler, 15 Oct 2026). A double-click on words or a control does not.
+  `../orders/rules-before-an-entry.md` explains it. Until 15 Oct 2026 the left
+  panel held the market scanner.
+- **Market scanner, a radar button in the chart header** after the Folders
+  button and the Alerts siren. A red number on it counts matches found since
+  the scanner was last opened. `market-scanner.md` explains matching,
+  coverage and testing.
 - **Middle — the market you picked.** One header row, nothing more: the
   star for that market, the market's own logo (carried as data on the row,
   with a first-letter circle when an exchange has no art), its name, a Folders
@@ -34,12 +41,16 @@ these as well as an admin, and sees only their own wallets and orders there —
   far right inside the timeframe tabs, so choosing another timeframe never
   carries the arrow to that tab. A narrow header shows only the selected
   timeframe and that fixed arrow. The Indicators row's round count says how
-  many indicators are on. Hovering the folder button opens a compact second
+  many indicators are on. **The market name, the info button and the folder
+  button each open on a click, never a hover** (Tyler, 15 Oct 2026: "make it
+  click dropdown instead"). The info button's facts are a small menu now,
+  not a hover tooltip. Clicking the folder button opens a compact second
   view of the saved folders and the markets inside them. It grows with its
   contents until it reaches the available screen height, then scrolls. Picking
   a coin there changes the chart and leaves the menu open, so a folder can be
-  read one coin at a time; the menu closes when the pointer leaves it, or on
-  Escape. Its plus
+  read one coin at a time; the menu closes on a click outside it, or on
+  Escape. The market list likewise stays open until a click outside it,
+  Escape, or a pick. Its plus
   creates a folder there and its cog opens the full manager. The siren opens the account's Alert and Fired lists on a click, never on hover;
   a red badge counts fired price and drawing alerts, and each tab can clear all
   of its own rows from the dropdown footer after confirmation. The Folders and
@@ -116,8 +127,9 @@ these as well as an admin, and sees only their own wallets and orders there —
   and has never heard the word "indicator".
   Decided in `workspace/tasks/Platform/plain-price-chart.md`.
 - **Middle header, Wallets.** The wallet control sits after the chart controls.
-  It names the wallet in use, separates the name and total with " - ", then
-  shows the made-or-lost figure. On a phone it becomes a wallet icon with a
+  It names the wallet in use and nothing else (Tyler, 15 Oct 2026: "Show the
+  wallet name only"). The total and the made-or-lost figure are in the menu
+  it opens. On a phone it becomes a wallet icon with a
   Manage wallets tooltip, so the header does not scroll sideways.
   With no market on the chart, a fresh visit or an exchange with no market
   list yet, the header row is still drawn: the exchange's name sits where the
@@ -156,17 +168,18 @@ these as well as an admin, and sees only their own wallets and orders there —
   hand-placed prices still waiting. A draggable divider changes their heights and the account
   remembers the split. When the column is collapsed, a bot icon opens all
   three panels in one dropdown. Dragging the right divider open returns them.
-  The dropdown is as wide as the side panel and grows with what is in it, up
-  to 44rem or the screen height when that is smaller. Inside it, Grid and DCA
-  are each as tall as their own rows and Manual orders takes whatever is left.
-  Grid and DCA split all but the bottom 9rem between them, so long lists
-  cannot squeeze Manual orders down to its heading, and each panel scrolls on
-  its own once it runs out of room. Unlike the docked column, an empty Manual
-  orders keeps its 9rem here rather than handing it to Grid. A fixed
-  half each showed four rows under a dropdown with empty space below it
-  (Tyler, 3 Oct 2026); before that, a panel sized to its rows ran past the
-  bottom of the dropdown and the rows below the fold could not be reached
-  (Tyler, 29 Sep 2026). Hovering the bot icon opens the dropdown. The dropdown
+  The dropdown is as wide as the side panel and as tall as the screen allows.
+  Inside it, Grid, DCA and Manual orders are each as tall as their own rows
+  and total line. Only when they do not all fit does each give up height, in
+  proportion to what it holds, never below its heading and a row, and then
+  scrolls on its own. Until 15 Oct 2026 Grid and DCA were capped at half the
+  dropdown less 9rem, about five rows, and the rest of a long Grid list and
+  its total sat below a scroll bar that only shows on hover (Tyler: "the grid
+  panel smart trades does not show all the trades"). With 19 grids on a
+  1000px-tall window, 15 now show before scrolling. Before that, a fixed half
+  each showed four rows under a dropdown with empty space below it (Tyler,
+  3 Oct 2026), and a panel sized to its rows ran past the bottom of the
+  dropdown (Tyler, 29 Sep 2026). Hovering the bot icon opens the dropdown. The dropdown
   icon has no hover message.
 - **Bottom, what you are holding.** Positions, open orders and fills, as tabs.
 
@@ -203,7 +216,7 @@ from `src/components/trade/trade-workspace.tsx`.
   trading overview's Running bots card lists them now, and a run's own page
   has Pause and Stop.
 
-**A smaller window shrinks the chart, never the panels.** The Market scanner panel,
+**A smaller window shrinks the chart, never the panels.** The left Rules panel,
 the Smart orders column and the bottom Positions panel keep the pixel size they
 were dragged to when the window changes size; the chart absorbs the whole
 difference, both across and down. Before this every panel gave up its share,

@@ -177,6 +177,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   host.remove()
+  document.querySelectorAll("[data-rules-slot]").forEach((slot) => slot.remove())
   vi.useRealTimers()
   vi.clearAllMocks()
 })
@@ -1875,6 +1876,10 @@ describe("the rules before a real-money entry", () => {
       place,
     } as unknown as Trading
 
+    // Beside the host, not in it: React empties its own container on mount.
+    const rulesSlot = document.createElement("div")
+    rulesSlot.dataset.rulesSlot = ""
+    document.body.append(rulesSlot)
     await act(async () =>
       root.render(
         <TooltipProvider>
@@ -1887,6 +1892,8 @@ describe("the rules before a real-money entry", () => {
             initialQuickOrder={{ ...DEFAULT_QUICK_ORDER, size: "50" }}
             options={DEFAULT_CHART_OPTIONS}
             tradingRules={{ list: [rule] }}
+            // The left panel's space for the Rules box.
+            rulesSlot={rulesSlot}
             indicators={{}}
             market={
               {
@@ -1994,17 +2001,14 @@ describe("the rules before a real-money entry", () => {
 
     expect(place).toHaveBeenCalledOnce()
     expect(place.mock.calls[0][0].overrode).toBeUndefined()
-    const rulesBox = [...host.querySelectorAll("button")].find((one) =>
-      one.textContent?.startsWith("Rules")
-    )
+    const rulesBox = document.querySelector("[data-rules-box]")
     expect(rulesBox?.textContent).toContain("1 to tick")
   })
 
   it("shows the rules box on the chart with a cross for a rule that is true", async () => {
     await pressLong(timeGuard("block"))
-    const box = [...host.querySelectorAll("button")].find((one) =>
-      one.textContent?.startsWith("Rules")
-    )
-    expect(box?.textContent).toContain("1 blocking")
+    const box = document.querySelector("[data-rules-box]")
+    expect(box?.textContent).toContain("Blocking")
+    expect(box?.textContent).toContain("Time guard")
   })
 })

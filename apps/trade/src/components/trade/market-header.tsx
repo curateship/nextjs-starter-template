@@ -269,14 +269,19 @@ function marketInfoLabel(
   return `About ${selection.row.symbol} market, ${selection.protocolLabel}, ${selection.networkLabel}`
 }
 
+/**
+ * The market's facts, opened with a click (Tyler, 15 Oct 2026: "make it click
+ * dropdown instead"). It was a hover tooltip, which opened whenever the
+ * pointer crossed the header.
+ */
 function MarketInfo({
   selection,
 }: {
   selection: Extract<MarketSelection, { kind: "market" }>
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Popover>
+      <PopoverTrigger asChild>
         <Button
           type="button"
           variant="ghost"
@@ -286,13 +291,18 @@ function MarketInfo({
         >
           <InfoIcon className="size-4" />
         </Button>
-      </TooltipTrigger>
-      <TooltipContent className="grid gap-1">
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={8}
+        collisionPadding={12}
+        className="grid w-auto max-w-80 gap-1 p-3 text-sm"
+      >
         {marketInfoLines(selection).map((line) => (
           <span key={line}>{line}</span>
         ))}
-      </TooltipContent>
-    </Tooltip>
+      </PopoverContent>
+    </Popover>
   )
 }
 

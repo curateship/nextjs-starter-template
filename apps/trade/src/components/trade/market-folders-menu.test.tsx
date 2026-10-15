@@ -122,11 +122,17 @@ describe("the folders menu", () => {
       })
 
       expect(button("Open folders").dataset.slot).toBe("popover-trigger")
+      // A pointer passing over opens nothing; a click opens the menu
+      // (Tyler, 15 Oct 2026).
       await act(async () => {
         button("Open folders").dispatchEvent(
           new MouseEvent("mouseover", { bubbles: true })
         )
       })
+      expect(
+        document.body.querySelector('[data-slot="popover-content"]')
+      ).toBeNull()
+      await act(async () => button("Open folders").click())
       expect(document.body.textContent).toContain("Folders")
       expect(document.body.textContent).toContain("Majors")
       expect(document.body.textContent).not.toContain("Watched")

@@ -118,7 +118,7 @@ describe("the Solana list", () => {
     }
   )
 
-  it("keeps a pinned picker open outside the pointer and moves it with arrow keys", async () => {
+  it("keeps the picker open when the pointer leaves, and moves a pinned one with arrow keys", async () => {
     await openPicker()
     const panel = document.querySelector<HTMLElement>('[aria-label="Markets"]')!
     const bounds = vi
@@ -157,11 +157,13 @@ describe("the Solana list", () => {
         .querySelector<HTMLButtonElement>('button[aria-label="Unpin markets"]')!
         .click()
     )
+    // The list opens and shuts on a click only (Tyler, 15 Oct 2026), so the
+    // pointer leaving an unpinned list leaves it open too.
     await act(async () => {
       panel.dispatchEvent(leave)
       await new Promise((resolve) => setTimeout(resolve, 250))
     })
-    expect(document.querySelector('[aria-label="Markets"]')).toBeNull()
+    expect(document.querySelector('[aria-label="Markets"]')).toBe(panel)
     bounds.mockRestore()
   })
   it("prints the venue's warning beside a flagged coin and nowhere else", async () => {

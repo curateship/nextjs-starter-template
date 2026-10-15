@@ -45,7 +45,7 @@ screen: anything not written there has not been agreed yet.
   wallets or a fixed amount, what the header button says, what counts as money
   made today, and how often the exchanges are asked.
 
-- `market-scanner.md` — the chart's left scanner panel, account settings, rolling price-rise rules, retained detections, manual deletion, volume and volatility calculations, and testing steps.
+- `market-scanner.md` — the scanner behind the radar button in the chart header, its count of new matches, account settings, rolling price-rise rules, retained detections, manual deletion, volume and volatility calculations, and testing steps.
 - `market-explorer.md` — Markets across exchanges, live estimates, filters,
   standard table header, saved views, grouping, folder stars, discovery filters,
   pins, map, first-seen migration verification, audit coverage and the Moving now widget.
@@ -207,8 +207,8 @@ screen: anything not written there has not been agreed yet.
   stack of conditions (EMA on any timeframe, grid and position counts, lines,
   time) that warns or blocks a real-money Long, Short, DCA or Grid, and
   bullet-point notes ticked on the chart before the entry goes out; the
-  window that asks him to confirm, or only to go back; the Rules box on the
-  chart and its warning about trades already held; and the "Overrode" note
+  window that asks him to confirm, or only to go back; the Rules box in the
+  left panel and its warning about trades already held; and the "Overrode" note
   the Journal keeps.
 - `grid-orders.md` — chart stop removal, pending and refused saves, testing steps; Lighter resting stops, size reconciliation and the live testing roadmap; the wait message when replacing a grid during cancellation; drawing-alert stop losses with red chart lines and labels, linked-line protection and engine rollout requirements; how a grid recycles, whether it buys the dips or sells the
   rallies, where its range sits, how the money is split between levels, what a

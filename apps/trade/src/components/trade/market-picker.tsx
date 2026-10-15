@@ -176,36 +176,9 @@ export function MarketPicker({
     window.addEventListener("resize", resize)
     return () => window.removeEventListener("resize", resize)
   }, [pinnedAt, moveTo])
-  /**
-   * Opening by hovering, with a pause at each end.
-   *
-   * The pause going in stops the list flying open when the pointer only
-   * crosses the name on its way somewhere else; the pause coming out is what
-   * lets you travel the gap between the button and the panel without it
-   * shutting in your face. Mouse only — a tap has no hover, and on a phone
-   * this would open on the press that was meant to select.
-   */
+  // A click opens the list, never a hover (Tyler, 15 Oct 2026: "make it
+  // click dropdown instead").
   const searchRef = React.useRef<HTMLInputElement>(null)
-  const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  const openedByHover = React.useRef(false)
-  const clearHover = () => {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current)
-    hoverTimer.current = null
-  }
-  const hoverOpen = (event: React.PointerEvent) => {
-    if (event.pointerType !== "mouse") return
-    clearHover()
-    hoverTimer.current = setTimeout(() => {
-      openedByHover.current = true
-      setOpen(true)
-    }, 120)
-  }
-  const hoverClose = (event: React.PointerEvent) => {
-    if (event.pointerType !== "mouse" || pinnedAt || filtersOpen) return
-    clearHover()
-    hoverTimer.current = setTimeout(() => setOpen(false), 220)
-  }
-  React.useEffect(() => clearHover, [])
   const [query, setQuery] = React.useState("")
   /**
    * The lookup on the venue: not yet asked, asking, or what it said. Keyed
@@ -366,10 +339,8 @@ export function MarketPicker({
       onOpenChange={(next) => {
         setOpen(next)
         if (!next) {
-          clearHover()
           setPinnedAt(null)
           setQuery("")
-          openedByHover.current = false
         }
       }}
     >
@@ -378,18 +349,6 @@ export function MarketPicker({
           ref={triggerRef}
           type="button"
           aria-label="Choose market"
-          onPointerEnter={hoverOpen}
-          onPointerLeave={hoverClose}
-          // Pressing the name while hovering has already opened it must not
-          // shut it again — the press means "I want this", not "undo that".
-          // It keeps the list up and hands over the keyboard, which is the one
-          // thing a hover deliberately does not do.
-          onClick={(event) => {
-            if (!open || !openedByHover.current) return
-            event.preventDefault()
-            openedByHover.current = false
-            searchRef.current?.focus()
-          }}
           className={cn(
             "flex h-full max-w-full min-w-0 items-center gap-1.5 px-2.5 font-bold transition-colors hover:bg-muted",
             phone ? "rounded-r-lg" : "rounded-l-lg",
@@ -424,12 +383,9 @@ export function MarketPicker({
         onInteractOutside={(event) => {
           if (pinnedAt || filtersOpen) event.preventDefault()
         }}
-        onPointerEnter={clearHover}
-        onPointerLeave={hoverClose}
-        // A hover leaves keyboard focus alone; a click focuses the panel.
         onOpenAutoFocus={(event) => {
           event.preventDefault()
-          if (!openedByHover.current) contentRef.current?.focus()
+          contentRef.current?.focus()
         }}
         // Keep the catalogue compact on a desktop while still capping it to
         // the viewport on a narrow screen.
@@ -451,7 +407,6 @@ export function MarketPicker({
                 )}
                 onPointerDown={(event) => {
                   if (!pinnedAt || event.button !== 0) return
-                  clearHover()
                   drag.current = {
                     x: event.clientX - pinnedAt.x,
                     y: event.clientY - pinnedAt.y,
@@ -521,7 +476,6 @@ export function MarketPicker({
                 aria-label={pinnedAt ? "Unpin markets" : "Pin markets"}
                 aria-pressed={!!pinnedAt}
                 onClick={() => {
-                  clearHover()
                   const bounds = contentRef.current?.getBoundingClientRect()
                   setPinnedAt(
                     pinnedAt || !bounds ? null : { x: bounds.x, y: bounds.y }
@@ -552,7 +506,6 @@ export function MarketPicker({
             modal={false}
             open={filtersOpen}
             onOpenChange={(next) => {
-              clearHover()
               setFiltersOpen(next)
             }}
           >
@@ -571,7 +524,6 @@ export function MarketPicker({
             <DropdownMenuContent
               align="end"
               className="min-w-44"
-              onPointerEnter={clearHover}
             >
               <DropdownMenuCheckboxItem
                 checked={activeViews.length === 0}

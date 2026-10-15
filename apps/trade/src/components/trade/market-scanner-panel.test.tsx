@@ -23,7 +23,7 @@ vi.mock("@/lib/protocols/live-registry", () => ({
 }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: mocks.error }))
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
-import { MarketScannerPanel } from "./market-scanner-panel"
+import { MarketScannerMenu } from "./market-scanner-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let root: Root, host: HTMLDivElement
@@ -58,8 +58,26 @@ async function input(id: string, value: string) {
     node.dispatchEvent(new Event("input", { bubbles: true }))
   })
 }
+function radar() {
+  return document.querySelector<HTMLButtonElement>(
+    '[aria-label^="Open market scanner"]'
+  )!
+}
+/** The scanner lives in a menu behind the radar button, so open it first. */
+async function openMenu() {
+  if (radar().getAttribute("aria-expanded") !== "true") {
+    await act(async () => radar().click())
+  }
+}
+async function settingsCog() {
+  await openMenu()
+  return document.querySelector<HTMLButtonElement>(
+    '[aria-label="Market scanner settings"]'
+  )!
+}
 beforeEach(() => {
   vi.clearAllMocks()
+  window.localStorage.clear()
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -99,7 +117,7 @@ it("opens the real settings modal, validates, saves and restores the cog focus",
   await act(async () =>
     root.render(
       <TooltipProvider>
-        <MarketScannerPanel
+        <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={null}
@@ -108,9 +126,7 @@ it("opens the real settings modal, validates, saves and restores the cog focus",
       </TooltipProvider>
     )
   )
-  const cog = host.querySelector<HTMLButtonElement>(
-    '[aria-label="Market scanner settings"]'
-  )!
+  const cog = await settingsCog()
   await act(async () => cog.click())
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
     "Market scanner settings"
@@ -130,8 +146,10 @@ it("opens the real settings modal, validates, saves and restores the cog focus",
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 5))
   })
-  expect(document.activeElement).toBe(cog)
-  await act(async () => cog.click())
+  // The cog went with the menu, so focus comes back to the radar.
+  expect(document.activeElement).toBe(radar())
+  const again = await settingsCog()
+  await act(async () => again.click())
   expect(
     (document.getElementById("scanner-volumeMultiple") as HTMLInputElement)
       .value
@@ -141,7 +159,7 @@ it("keeps saved settings when edits are discarded and retains edits after save f
   await act(async () =>
     root.render(
       <TooltipProvider>
-        <MarketScannerPanel
+        <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={null}
@@ -150,15 +168,14 @@ it("keeps saved settings when edits are discarded and retains edits after save f
       </TooltipProvider>
     )
   )
-  const cog = host.querySelector<HTMLButtonElement>(
-    '[aria-label="Market scanner settings"]'
-  )!
+  const cog = await settingsCog()
   await act(async () => cog.click())
   await input("scanner-volumeMultiple", "9")
   await act(async () => button("Cancel").click())
   await act(async () => button("Discard changes").click())
   expect(mocks.save).not.toHaveBeenCalled()
-  await act(async () => cog.click())
+  const again = await settingsCog()
+  await act(async () => again.click())
   expect(
     (document.getElementById("scanner-volumeMultiple") as HTMLInputElement)
       .value
@@ -228,7 +245,7 @@ it("shows signed movement, unavailable values and exact chart navigation", async
   await act(async () =>
     root.render(
       <TooltipProvider>
-        <MarketScannerPanel
+        <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={market.key}
@@ -237,7 +254,8 @@ it("shows signed movement, unavailable values and exact chart navigation", async
       </TooltipProvider>
     )
   )
-  const rows = host.querySelectorAll("li a")
+  await openMenu()
+  const rows = document.querySelectorAll("li a")
   expect(rows[0].textContent).toBe("BTC2m ago+2.40%")
   expect(rows[0].lastElementChild?.className).toContain("text-emerald")
   expect(rows[1].lastElementChild?.className).toContain("text-destructive")
@@ -249,7 +267,7 @@ it("shows signed movement, unavailable values and exact chart navigation", async
   await act(async () => (rows[0] as HTMLAnchorElement).click())
   expect(select).toHaveBeenCalledWith(market.key)
   expect(
-    host.querySelector('[aria-label="Delete BTC from scanner"]')
+    document.querySelector('[aria-label="Delete BTC from scanner"]')
   ).toBeNull()
   const dismiss = mocks.scan.mock.results.at(-1)!.value.dismiss
   select.mockClear()
@@ -274,7 +292,7 @@ it("offers retry when settings cannot load", async () => {
   await act(async () =>
     root.render(
       <TooltipProvider>
-        <MarketScannerPanel
+        <MarketScannerMenu
           accountId="test-account"
           catalogs={[]}
           selectedMarketKey={null}
@@ -283,16 +301,19 @@ it("offers retry when settings cannot load", async () => {
       </TooltipProvider>
     )
   )
-  expect(host.textContent).toContain("Could not load scanner settings")
+  await openMenu()
+  expect(document.body.textContent).toContain("Could not load scanner settings")
   await act(async () => button("Retry").click())
-  expect(host.textContent).toContain("No markets meet your conditions yet")
+  expect(document.body.textContent).toContain(
+    "No markets meet your conditions yet"
+  )
 })
 
 it("offers the plain 5% one-minute preset and shows only its controls while preserving saved advanced values", async () => {
   await act(async () =>
     root.render(
       <TooltipProvider>
-        <MarketScannerPanel
+        <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={null}
@@ -301,13 +322,8 @@ it("offers the plain 5% one-minute preset and shows only its controls while pres
       </TooltipProvider>
     )
   )
-  await act(async () =>
-    host
-      .querySelector<HTMLButtonElement>(
-        '[aria-label="Market scanner settings"]'
-      )!
-      .click()
-  )
+  const cog = await settingsCog()
+  await act(async () => cog.click())
   await act(async () => button("Use 5% rise in 1 minute").click())
   expect(
     (document.getElementById("scanner-priceIncreasePct") as HTMLInputElement)
@@ -342,7 +358,7 @@ it("closes untouched older saved settings without asking to discard", async () =
   await act(async () =>
     root.render(
       <TooltipProvider>
-        <MarketScannerPanel
+        <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={null}
@@ -351,13 +367,8 @@ it("closes untouched older saved settings without asking to discard", async () =
       </TooltipProvider>
     )
   )
-  await act(async () =>
-    host
-      .querySelector<HTMLButtonElement>(
-        '[aria-label="Market scanner settings"]'
-      )!
-      .click()
-  )
+  const cog = await settingsCog()
+  await act(async () => cog.click())
   await act(async () => button("Cancel").click())
   expect(document.body.textContent).not.toContain("Discard changes?")
   expect(document.querySelector('[role="dialog"]')).toBeNull()
@@ -400,7 +411,7 @@ it("asks before it sweeps, and offers no broom with nothing to clear", async () 
   await act(async () =>
     root.render(
       <TooltipProvider>
-        <MarketScannerPanel
+        <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={null}
@@ -409,7 +420,8 @@ it("asks before it sweeps, and offers no broom with nothing to clear", async () 
       </TooltipProvider>
     )
   )
-  const clear = host.querySelector<HTMLButtonElement>(
+  await openMenu()
+  const clear = document.querySelector<HTMLButtonElement>(
     '[aria-label="Clear all scanner matches"]'
   )!
   expect(clear).not.toBeNull()
@@ -426,7 +438,14 @@ it("asks before it sweeps, and offers no broom with nothing to clear", async () 
   await act(async () => cancel.click())
   expect(dismissAll).not.toHaveBeenCalled()
 
-  await act(async () => clear.click())
+  await openMenu()
+  await act(async () =>
+    document
+      .querySelector<HTMLButtonElement>(
+        '[aria-label="Clear all scanner matches"]'
+      )!
+      .click()
+  )
   const confirm = [...document.querySelectorAll("button")].find(
     (node) => node.textContent === "Clear all"
   )!
@@ -442,7 +461,7 @@ it("asks before it sweeps, and offers no broom with nothing to clear", async () 
   await act(async () =>
     root.render(
       <TooltipProvider>
-        <MarketScannerPanel
+        <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={null}
@@ -451,7 +470,82 @@ it("asks before it sweeps, and offers no broom with nothing to clear", async () 
       </TooltipProvider>
     )
   )
+  await openMenu()
   expect(
-    host.querySelector('[aria-label="Clear all scanner matches"]')
+    document.querySelector('[aria-label="Clear all scanner matches"]')
   ).toBeNull()
+})
+
+/**
+ * **The radar counts what was found since the menu was last open** (Tyler,
+ * 15 Oct 2026), the same way the siren counts fired alerts.
+ */
+it("counts new matches on the radar and clears the count when opened", async () => {
+  const found = (key: string, since: number) => ({
+    market: { ...market, key, symbol: key.split(":").at(-1)! },
+    since,
+    updated: Date.now(),
+    change: 0.05,
+    rule: "price matched",
+    pace: 1,
+    traded: 1,
+  })
+  const scanWith = (rows: ReturnType<typeof found>[]) =>
+    mocks.scan.mockReturnValue({
+      snapshot: {
+        loaded: true,
+        total: 3,
+        candles: 0,
+        warming: 0,
+        unavailable: 0,
+        errors: [],
+        rows,
+      },
+      retry: mocks.retry,
+      dismiss: vi.fn(),
+      dismissAll: vi.fn(),
+    })
+  const draw = () =>
+    act(async () =>
+      root.render(
+        <TooltipProvider>
+          <MarketScannerMenu
+            accountId="test-account"
+            catalogs={[catalog]}
+            selectedMarketKey={null}
+            onSelectMarket={vi.fn()}
+          />
+        </TooltipProvider>
+      )
+    )
+  scanWith([found("hyperliquid:mainnet:BTC", 1), found("hyperliquid:mainnet:ETH", 2)])
+  await draw()
+  expect(radar().getAttribute("aria-label")).toBe(
+    "Open market scanner, 2 new"
+  )
+  expect(radar().textContent).toBe("2")
+
+  await openMenu()
+  expect(radar().getAttribute("aria-label")).toBe("Open market scanner")
+  await act(async () =>
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+  )
+
+  scanWith([
+    found("hyperliquid:mainnet:SOL", 3),
+    found("hyperliquid:mainnet:BTC", 1),
+    found("hyperliquid:mainnet:ETH", 2),
+  ])
+  await draw()
+  expect(radar().getAttribute("aria-label")).toBe(
+    "Open market scanner, 1 new"
+  )
+
+  // What was seen is kept in this browser, so a reload counts nothing old.
+  await act(async () => root.unmount())
+  root = createRoot(host)
+  await draw()
+  expect(radar().getAttribute("aria-label")).toBe(
+    "Open market scanner, 1 new"
+  )
 })
