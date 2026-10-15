@@ -116,12 +116,53 @@ fixed route title covers pages that are not in the saved navigation. Cards,
 tables, and dashboard panels then start at level two. A dialog title is level
 two, so cards inside account dialogs use level three.
 
-The standard top left navigation follows the active sidebar section. Settings →
-Platform settings → Navigation holds Top left max items and the sidebar and top right
-menu editors. Links beyond the saved limit appear in the vertical three-dot
-menu without changing the sidebar order. Show all removes that overflow limit.
-The vertical three-dot menu uses the same outlined light-gray button as the
-other header controls, so it remains visible as a control beside the links.
+## The top left of the header
+
+The top left shows one of three things, picked in "Top left shows". Admins and
+members each have their own choice. Tyler, 13 Oct 2026: admins and members get
+separate choices.
+
+- **Sidebar links** is the default, and what every install showed before the
+  choice existed. It is the active sidebar section's link and its children.
+- **Breadcrumb** shows where you are, built from the sidebar: the sidebar link
+  you are under, then its child link, then the record's name on a page that
+  shows one record (for example Automations › Welcome email). Every step but
+  the last is a link. A page outside the sidebar shows its own name alone. On
+  a phone a trail of three or more keeps the first and last steps and folds
+  the middle into a "…" menu.
+- **Shortcuts** shows one list of links an admin builds, in the same order on
+  every page. Tyler, 13 Oct 2026: the admin builds one list, members do not
+  build their own. A member never sees a shortcut to an admin page, and the
+  server leaves those out of the member's copy of the list. The link for the
+  page you are on is highlighted the way Sidebar links highlights it. When
+  nothing in the list is left to show this person, the top left falls back to
+  Sidebar links rather than an empty bar.
+
+The record's name comes from the page's loader. A page that shows one record
+returns its name as `recordTitle` alongside its data, and the shell reads it
+off the same route match the page draws from. The header and the page
+therefore change in the same frame, including between two records on one
+address (the page editor opens Home and About as `/admin/pages/edit?path=…`).
+While the next page is still loading, the old page's name is not used. The
+page editor, automation, automation template, newsletter and system email
+pages return a name today. A page that does not ends on its route's known
+title, or on the sidebar step.
+
+Top left max items applies to Sidebar links and Shortcuts, for admins and
+members alike. Links beyond the saved limit appear in the vertical three-dot
+menu without changing their order. Show all removes that overflow limit. The
+vertical three-dot menu uses the same outlined light-gray button as the other
+header controls, so it remains visible as a control beside the links.
+
+An app can replace the top left with its own component
+(`header.leftContent` in its options, read by `appHeaderLeftContentForRole`).
+That component wins over all three choices. While it loads, and whenever it
+draws its `fallback`, the top left shows whatever the choice says.
+
+The code: `getTopLeftContent` in `src/components/shell/shell-layout.tsx`
+picks by role, `src/lib/nav/header-breadcrumb.ts` builds the trail,
+`sticky-header-breadcrumb.tsx` draws it, and `shortcutsForRole` in
+`src/lib/custom-shell.tsx` decides which shortcuts a person sees.
 
 ## Responsive behavior
 

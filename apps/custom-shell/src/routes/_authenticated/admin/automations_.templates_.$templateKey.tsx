@@ -26,6 +26,7 @@ export const Route = createFileRoute(
     ])
     return {
       template,
+      recordTitle: template.name,
       favoriteNodeKeys: favorites.favoriteNodeKeys,
       blockDefaults: blockDefaults.defaults,
     }
