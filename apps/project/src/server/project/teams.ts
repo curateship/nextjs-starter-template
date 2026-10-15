@@ -17,6 +17,8 @@ import { requireKnownZone } from "@/server/project/checkins"
 import { listHolidays, type Holiday } from "@/server/project/holidays"
 import { listTeamLabels, type Label } from "@/server/project/labels"
 import { listStepLists, type StepList } from "@/server/project/step-lists"
+import { listTemplates } from "@/server/project/templates"
+import type { TemplateRow } from "@/lib/project/templates"
 import { clearPersonValues } from "@/server/project/task-types"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
 import {
@@ -85,6 +87,8 @@ export type TeamDashboard = {
   labels: Label[]
   /** The team's saved step lists, renamed and deleted in Team settings. */
   stepLists: StepList[]
+  /** The team's saved project templates, renamed and deleted in Team settings. */
+  templates: TemplateRow[]
   /** The join link's state, for the owner and admins; null for everyone else. */
   joinLink: JoinLinkState | null
   /** The team's holidays from today on. */
@@ -151,6 +155,7 @@ export async function loadTeamDashboard(
     invites,
     labels: await listTeamLabels(membership.teamId, database),
     stepLists: await listStepLists(membership.teamId, database),
+    templates: await listTemplates(membership.teamId, database),
     joinLink: runsTheTeam(membership.role) ? await joinLinkState(membership.teamId, database) : null,
     holidays: await listHolidays(
       membership.teamId,
@@ -357,6 +362,11 @@ async function takePersonOffTeam(teamId: string, userId: string, tx: ProjectDb) 
     .from(projectProjects)
     .where(eq(projectProjects.teamId, teamId))
   await clearAssignee(userId, inArray(projectTasks.projectId, teamProjectIds), tx)
+  // A lead who leaves the team leaves their projects with no lead.
+  await tx
+    .update(projectProjects)
+    .set({ leadUserId: null })
+    .where(and(eq(projectProjects.teamId, teamId), eq(projectProjects.leadUserId, userId)))
   await tx
     .delete(projectProjectStars)
     .where(

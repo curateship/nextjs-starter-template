@@ -460,6 +460,7 @@ export function ProjectTasksPanel({
       ) : view === "calendar" ? (
         <TaskCalendar
           tasks={filtered}
+          milestones={page.milestones}
           readOnly={readOnly || busy}
           onOpenTask={onOpenTask}
           onDueDate={(task, dueDate) => void changeDueDate(task, dueDate)}

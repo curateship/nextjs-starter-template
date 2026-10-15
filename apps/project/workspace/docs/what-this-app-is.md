@@ -256,6 +256,22 @@ were built. Each was the recommended option.
   each app choosing its start page. Project's opens My dashboard. Tyler
   allowed the shell edit this needed.
 
+## Choices for projects
+
+Tyler answered these on 15 Oct 2026, before More for projects (task 06) was
+built. Each was the recommended option.
+
+- **A project's status** is set by its lead, the owner and admins once it
+  has a lead, and by anyone on it while it has none.
+- **The lead hears Stuck, unblocked and Done** on every task in the
+  project, not its chat.
+- **A saved template keeps what Copy project keeps**: description, colour,
+  sections, milestones without dates, tasks with steps, labels, type, field
+  values and priority.
+- **A project with "Everyone on the team" on** can't be left, and nobody
+  can be taken off it, until the switch is off. Tyler didn't know the
+  feature and asked me to decide, so this is my call, open to change.
+
 ## The first version
 
 - Teams, email invites, projects and tasks.

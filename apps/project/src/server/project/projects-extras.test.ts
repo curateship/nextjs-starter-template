@@ -30,6 +30,7 @@ import {
 import { createTeam } from "@/server/project/teams"
 import type { CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
+import type { TaskActivityEntry } from "@/server/project/project-activity"
 
 let client: PGlite
 let database: CustomShellDb
@@ -158,7 +159,7 @@ describe("the Activity tab", () => {
     const times = activity.entries.map((e) => e.at)
     expect([...times].sort().reverse()).toEqual(times)
     expect(activity.entries[0].kind).toBe("restored")
-    expect(activity.entries.find((e) => e.kind === "status_changed")?.reason).toBe("doing")
+    expect((activity.entries as TaskActivityEntry[]).find((e) => e.kind === "status_changed")?.reason).toBe("doing")
     expect(activity.more).toBe(false)
     await expect(loadProjectActivity(carla.id, { projectId: website }, database)).rejects.toThrow(
       PROJECT_ERRORS.projectNotFound

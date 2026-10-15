@@ -19,6 +19,7 @@ import {
 } from "@/server/project/schema"
 import { giveStarterTasks } from "@/server/project/starter-tasks"
 import { customShellUsers } from "@/server/schema"
+import { joinWholeTeamProjects } from "@/server/project/whole-team"
 
 /**
  * Invites to a team. An invite is for one email address, and only an account
@@ -302,6 +303,7 @@ export async function acceptInvite(
     })
     await tx.delete(projectTeamInvites).where(eq(projectTeamInvites.id, invite.id))
     await giveStarterTasks(invite.teamId, user.id, tx)
+    await joinWholeTeamProjects(invite.teamId, user.id, tx)
     return { teamId: invite.teamId }
   })
 }

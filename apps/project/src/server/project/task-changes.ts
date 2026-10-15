@@ -113,6 +113,7 @@ export async function duplicateTask(actor: Actor, taskId: string, database = db)
       dueAt: task.dueAt,
       startDate: task.startDate,
       sectionId: task.sectionId,
+      milestoneId: task.milestoneId,
       position: await nextTaskPosition(task.projectId, tx),
       createdByUserId: actor.id,
       createdAt: at,
@@ -235,6 +236,7 @@ export async function moveTask(
       .set({
         projectId: to.id,
         sectionId: null,
+        milestoneId: null,
         position: await nextTaskPosition(to.id, tx),
         updatedAt: now(),
       })
