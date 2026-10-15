@@ -5,14 +5,16 @@ import { toast } from "sonner"
 
 import { CopyProjectDialog } from "@/components/project/copy-project-dialog"
 import { NewProjectDialog } from "@/components/project/new-project-dialog"
+import { HealthMark, HealthSetBy } from "@/components/project/project-health"
 import { ProjectProgress } from "@/components/project/project-progress"
 import { StarButton } from "@/components/project/star-button"
-import { ProjectDot } from "@/components/project/task-bits"
+import { PersonAvatar, ProjectDot } from "@/components/project/task-bits"
 import { InvitesForMe, TeamStart } from "@/components/project/team-start"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
+  DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
 import {
   SelectAllTableHead,
@@ -22,6 +24,9 @@ import {
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -40,18 +45,38 @@ import { pageGutter } from "@/lib/layout/shell-gutter"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-type Column = "name" | "progress" | "open" | "stuck" | "members"
+type Column = "name" | "progress" | "status" | "lead" | "open" | "stuck" | "members"
 type Group = "active" | "archived"
+
+/** Room for "Set by Priya, 2 days ago" on one line; the reason is cut with "…". */
+const STATUS_WIDTH = "w-60 max-w-60"
 
 const COLUMNS: SortableColumn<Column>[] = [
   { key: "name", label: "Project", column: "main", className: "min-w-0 md:min-w-72" },
   { key: "progress", label: "Progress", column: "preview" },
+  { key: "status", label: "Status", column: "preview", className: STATUS_WIDTH },
+  { key: "lead", label: "Lead", column: "preview" },
   { key: "open", label: "Open tasks", column: "preview" },
   { key: "stuck", label: "Stuck", column: "preview" },
   { key: "members", label: "Members", column: "preview" },
 ]
 
 const openTasks = (row: ProjectListRow) => row.counts.todo + row.counts.doing + row.counts.stuck
+
+/** Sorting by status puts the projects in most trouble first, and no status last. */
+const HEALTH_RANK = { off_track: 3, at_risk: 2, on_track: 1 } as const
+
+const ALL_CLIENTS = "all"
+const NO_CLIENT = "none"
+const NO_CLIENT_LABEL = "No client"
+
+/** Clients A to Z, then "No client" last. */
+function compareClients(a: string | null, b: string | null) {
+  if (a === b) return 0
+  if (a === null) return 1
+  if (b === null) return -1
+  return a.localeCompare(b, undefined, { sensitivity: "base" })
+}
 
 export function ProjectsDashboard({
   page,
@@ -75,6 +100,8 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
   const [query, setQuery] = React.useState("")
   const [creating, setCreating] = React.useState(false)
   const [copyingRow, setCopyingRow] = React.useState<ProjectListRow | null>(null)
+  const [client, setClient] = React.useState<string>(ALL_CLIENTS)
+  const [byClient, setByClient] = React.useState(false)
   const { sort, direction, toggleSort } = useTableSort<Column>("name")
   const selection = useSelection()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
@@ -84,35 +111,56 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
     archived: projects.filter((p) => p.archived).length,
   }
 
+  const clients = React.useMemo(
+    () =>
+      [...new Set(projects.map((row) => row.client).filter((name): name is string => Boolean(name)))].sort(
+        compareClients
+      ),
+    [projects]
+  )
+
   const rows = React.useMemo(() => {
     const sign = direction === "asc" ? 1 : -1
     const needle = query.trim().toLowerCase()
     const valueOf = (row: ProjectListRow) =>
       sort === "progress"
         ? row.counts.done / Math.max(1, openTasks(row) + row.counts.done)
-        : sort === "open"
-          ? openTasks(row)
-          : sort === "stuck"
-            ? row.counts.stuck
-            : row.memberCount
+        : sort === "status"
+          ? row.health ? HEALTH_RANK[row.health.value] : 0
+          : sort === "open"
+            ? openTasks(row)
+            : sort === "stuck"
+              ? row.counts.stuck
+              : row.memberCount
     return projects
       .filter((row) => row.archived === (group === "archived"))
       .filter((row) => !needle || row.name.toLowerCase().includes(needle))
+      .filter((row) =>
+        client === ALL_CLIENTS ? true : client === NO_CLIENT ? !row.client : row.client === client
+      )
       .sort((a, b) => {
+        // Grouped by client, the groups come first, then stars inside each.
+        if (byClient) {
+          const byGroup = compareClients(a.client, b.client)
+          if (byGroup) return byGroup
+        }
         // Starred projects come first whatever the sort, as each person's own shortcut.
         if (a.starred !== b.starred) return a.starred ? -1 : 1
         if (sort === "name") return a.name.localeCompare(b.name) * sign
+        if (sort === "lead") {
+          return (a.lead?.name ?? "").localeCompare(b.lead?.name ?? "") * sign || a.name.localeCompare(b.name)
+        }
         return (valueOf(a) - valueOf(b)) * sign || a.name.localeCompare(b.name)
       })
-  }, [direction, group, projects, query, sort])
+  }, [byClient, client, direction, group, projects, query, sort])
 
   const { visible, footer } = useClientPage(
     rows,
     config.dashboardRowsPerPage,
-    `${group}|${query}|${sort}|${direction}`
+    `${group}|${query}|${client}|${byClient}|${sort}|${direction}`
   )
   const visibleIds = visible.map((row) => row.id)
-  useClearSelectionOnListChange(selection.setSelected, `${group}|${query}`)
+  useClearSelectionOnListChange(selection.setSelected, `${group}|${query}|${client}`)
 
   async function setArchived(ids: string[], archived: boolean) {
     let result = { done: [] as string[], kept: [] as string[] }
@@ -178,6 +226,28 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
+            {clients.length ? (
+              <Select value={client} onValueChange={setClient}>
+                <DashboardToolbarSelectTrigger aria-label="Client">
+                  <SelectValue />
+                </DashboardToolbarSelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_CLIENTS}>All clients</SelectItem>
+                  {clients.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={NO_CLIENT}>{NO_CLIENT_LABEL}</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : null}
+            <div className="flex h-8 items-center gap-2">
+              <Switch id="projects-group-by-client" checked={byClient} onCheckedChange={setByClient} />
+              <Label htmlFor="projects-group-by-client" className="font-normal whitespace-nowrap">
+                Group by client
+              </Label>
+            </div>
             <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
               <PlusIcon className="size-4" />
               New project
@@ -208,14 +278,24 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
               ? "No archived projects."
               : "No projects yet. Make one with New project."
         }
-        emptyColSpan={7}
+        emptyColSpan={COLUMNS.length + 2}
         footer={footer}
       >
-        {visible.map((row) => {
+        {visible.map((row, index) => {
           const open = () =>
             void navigate({ to: "/projects/$projectId", params: { projectId: row.id } })
+          // A heading row starts each client's group, and the top of each page.
+          const groupStarts = byClient && (index === 0 || visible[index - 1].client !== row.client)
           return (
-            <TableRow key={row.id} className="group" rowAction={open}>
+            <React.Fragment key={row.id}>
+            {groupStarts ? (
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableCell colSpan={COLUMNS.length + 2} className="py-1.5 text-xs font-medium text-muted-foreground">
+                  {row.client ?? NO_CLIENT_LABEL}
+                </TableCell>
+              </TableRow>
+            ) : null}
+            <TableRow className="group" rowAction={open}>
               <TableCell column="select">
                 <Checkbox
                   checked={selection.selected.has(row.id)}
@@ -226,11 +306,33 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
               <TableCell column="main">
                 <span className="flex min-w-0 items-center gap-2">
                   <ProjectDot color={row.color} />
-                  <span className="truncate font-medium">{row.name}</span>
+                  <span className="grid min-w-0">
+                    <span className="truncate font-medium">{row.name}</span>
+                    {row.client && !byClient ? (
+                      <span className="truncate text-xs text-muted-foreground">{row.client}</span>
+                    ) : null}
+                  </span>
                 </span>
               </TableCell>
               <TableCell column="preview">
                 <ProjectProgress counts={row.counts} dueDate={row.dueDate} />
+              </TableCell>
+              <TableCell column="preview" className={STATUS_WIDTH}>
+                {row.health ? (
+                  <span className="grid w-52 min-w-0 gap-0.5">
+                    <HealthMark health={row.health.value} className="text-foreground" />
+                    {row.health.note ? <span className="truncate">{row.health.note}</span> : null}
+                    <HealthSetBy health={row.health} className="truncate" />
+                  </span>
+                ) : null}
+              </TableCell>
+              <TableCell column="preview">
+                {row.lead ? (
+                  <span className="flex min-w-0 items-center gap-2">
+                    <PersonAvatar name={row.lead.name} avatarUrl={row.lead.avatarUrl} />
+                    <span className="truncate">{row.lead.name}</span>
+                  </span>
+                ) : null}
               </TableCell>
               <TableCell column="preview">{openTasks(row)}</TableCell>
               <TableCell column="preview">{row.counts.stuck}</TableCell>
@@ -262,6 +364,7 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
                 </Button>
               </TableCell>
             </TableRow>
+            </React.Fragment>
           )
         })}
       </DashboardTable>

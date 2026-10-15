@@ -1028,7 +1028,7 @@ function TaskForm({
         <OptionCard
           id="task-settings-plan"
           title="Plan"
-          description="What happens next: repeating, snoozing, what it waits on, and your own reminder."
+          description="What happens next: its milestone, repeating, snoozing, what it waits on, and your own reminder."
           summary={planSummary(detail)}
         >
           <div className={INNER_CARD}>{planCard}</div>
@@ -1118,7 +1118,9 @@ function datesSummary(task: TaskDetail["task"]) {
 
 /** What the Plan holds, in a few words, or "Nothing set". */
 function planSummary(detail: TaskDetail) {
+  const milestone = detail.milestones.find((one) => one.id === detail.milestoneId)
   const parts = [
+    milestone ? milestone.name : null,
     detail.task.repeat ? "Repeats" : null,
     detail.task.snoozedUntil ? `Snoozed to ${dayLabel(detail.task.snoozedUntil)}` : null,
     detail.waitingOn.length ? `Waits on ${detail.waitingOn.length} ${plural(detail.waitingOn.length, "task")}` : null,

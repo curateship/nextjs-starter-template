@@ -36,6 +36,7 @@ import { giveStarterTasks } from "@/server/project/starter-tasks"
 import { assignTask, listTaskCards, type Actor, type TaskCard } from "@/server/project/tasks"
 import { clearAssignee } from "@/server/project/teams"
 import { customShellUsers } from "@/server/schema"
+import { joinWholeTeamProjects } from "@/server/project/whole-team"
 
 /**
  * What the person running the team needs: tasks that need help, who has room
@@ -515,6 +516,7 @@ export async function joinTeamByLink(
     await tx.insert(projectTeamMembers).values({ teamId: team.id, userId: user.id, role: "member", joinedAt: at })
     await tx.insert(projectTeamJoins).values({ teamId: team.id, userId: user.id, tokenHash: hash, joinedAt: at })
     await giveStarterTasks(team.id, user.id, tx)
+    await joinWholeTeamProjects(team.id, user.id, tx)
     const runners = await tx
       .select({ userId: projectTeamMembers.userId })
       .from(projectTeamMembers)

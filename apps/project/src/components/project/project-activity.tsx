@@ -15,11 +15,12 @@ import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { dayLabel } from "@/lib/project/days"
 import { readDueMove } from "@/lib/project/due-moves"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { isTaskStatus, TASK_STATUS_LABEL } from "@/lib/project/rules"
+import { isTaskStatus, PROJECT_HEALTH_LABEL, TASK_STATUS_LABEL } from "@/lib/project/rules"
 
 /**
  * The project's Activity tab: who changed what, newest first, 50 at a time.
- * Each line opens its task, unless the task is in the bin.
+ * Each line opens its task, unless the task is in the bin. A change to the
+ * project's own status has no task to open.
  */
 export function ProjectActivity({
   projectId,
@@ -93,7 +94,7 @@ function ActivityFeed({
       {shown.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">
           Nothing yet. Tasks made, moved between statuses, handed over, commented on, put in the bin
-          or brought back show here as they happen.
+          or brought back, and the project's status changing, show here as they happen.
         </p>
       ) : (
         <ol className="grid gap-1 p-3">
@@ -157,7 +158,17 @@ function Line({
   onOpenTask: (taskId: string) => void
   showProject: boolean
 }) {
-
+  if (entry.kind === "health_set") {
+    const who = <span className="text-muted-foreground">{entry.actorName}</span>
+    return entry.health ? (
+      <>
+        {who} set the project's status to {PROJECT_HEALTH_LABEL[entry.health]}
+        {entry.note ? `: ${entry.note}` : ""}
+      </>
+    ) : (
+      <>{who} took the project's status off</>
+    )
+  }
   const task = entry.task.inBin ? (
     <span className="font-medium">{entry.task.title}</span>
   ) : (

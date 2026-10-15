@@ -30,7 +30,10 @@ export function PanelCard({
   storageId,
   title,
   meta,
+  after,
   badge,
+  action,
+  actionOpen = false,
   settings = false,
   quiet = false,
   className,
@@ -41,8 +44,14 @@ export function PanelCard({
   title: string
   /** Muted, after a dot: "0 of 2 done", "4", "Oct 12 to 13". */
   meta?: React.ReactNode
+  /** After the title with a gap and no dot, such as a status: "Status   ● At risk". */
+  after?: React.ReactNode
   /** Beside the arrow, such as Late. */
   badge?: React.ReactNode
+  /** A button of the card's own beside the arrow, such as a cog that opens a dropdown. */
+  action?: React.ReactNode
+  /** The action's dropdown is open, so a `quiet` card keeps it in view. */
+  actionOpen?: boolean
   /** A cog that opens the footer of buttons. */
   settings?: boolean
   /** The cog and arrow only on hover or focus. */
@@ -77,11 +86,13 @@ export function PanelCard({
               <span className="min-w-0 flex-1 truncate">
                 {title}
                 {meta ? <span className="font-normal text-muted-foreground"> · {meta}</span> : null}
+                {after ? <span className="ml-2">{after}</span> : null}
               </span>
             </button>
           </CollapsibleTrigger>
         </h2>
         {badge}
+        {action ? <span className={cn("flex", !actionOpen && quietClass)}>{action}</span> : null}
         {settings ? (
           <Tooltip>
             <TooltipTrigger asChild>

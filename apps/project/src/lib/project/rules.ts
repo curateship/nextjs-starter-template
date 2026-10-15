@@ -42,6 +42,20 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   stuck: "Stuck",
 }
 
+/**
+ * A project's status, which says whether the job is in trouble and why. It is
+ * called "health" in the code so it never mixes with a task's four statuses.
+ * Null is no status, and shows nothing.
+ */
+export const PROJECT_HEALTHS = ["on_track", "at_risk", "off_track"] as const
+export type ProjectHealth = (typeof PROJECT_HEALTHS)[number]
+
+export const PROJECT_HEALTH_LABEL: Record<ProjectHealth, string> = {
+  on_track: "On track",
+  at_risk: "At risk",
+  off_track: "Off track",
+}
+
 export function isTaskStatus(value: unknown): value is TaskStatus {
   return (TASK_STATUSES as readonly unknown[]).includes(value)
 }
@@ -290,6 +304,13 @@ export const LIMITS = {
   waitsPerTask: 10,
   stepListName: 60,
   stepListsPerTeam: 100,
+  /** A project status's one line of why. */
+  healthNote: 200,
+  clientName: 60,
+  milestoneName: 80,
+  milestonesPerProject: 30,
+  templateName: 80,
+  templatesPerTeam: 50,
 } as const
 
 /** The five fixed reactions under a chat message, in the order they are offered. */
@@ -455,6 +476,8 @@ export const createProjectSchema = z.object({
   name: trimmed(LIMITS.projectName, "The project name"),
   color: projectColorSchema,
   description: z.string().trim().max(LIMITS.projectDescription).default(""),
+  /** Start from a saved template: its colour and description win over the two above. */
+  templateId: id.nullable().default(null),
 })
 
 /** Every Board column once, in a new order. */
@@ -486,6 +509,57 @@ export const updateProjectSchema = z.object({
   color: projectColorSchema.optional(),
   description: z.string().trim().max(LIMITS.projectDescription).optional(),
 })
+
+/** The client's name; empty takes it off. */
+export const projectClientSchema = z.object({
+  projectId: id,
+  client: z
+    .string()
+    .trim()
+    .max(LIMITS.clientName, `A client's name can be at most ${LIMITS.clientName} characters.`)
+    .transform((value) => value || null)
+    .nullable(),
+})
+
+/** A status with its line of why, or null to take the status off. */
+export const projectHealthSchema = z.object({
+  projectId: id,
+  health: z.enum(PROJECT_HEALTHS).nullable(),
+  note: z
+    .string()
+    .trim()
+    .max(LIMITS.healthNote, `The reason can be at most ${LIMITS.healthNote} characters.`)
+    .default(""),
+})
+
+export const projectLeadSchema = z.object({ projectId: id, userId: id.nullable() })
+
+export const wholeTeamSchema = z.object({ projectId: id, wholeTeam: z.boolean() })
+
+const milestoneNameSchema = trimmed(LIMITS.milestoneName, "The milestone's name")
+const milestoneDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date from the calendar.")
+  .nullable()
+
+export const createMilestoneSchema = z.object({
+  projectId: id,
+  name: milestoneNameSchema,
+  dueDate: milestoneDateSchema,
+})
+
+export const updateMilestoneSchema = z.object({
+  milestoneId: id,
+  name: milestoneNameSchema,
+  dueDate: milestoneDateSchema,
+})
+
+export const taskMilestoneSchema = z.object({ taskId: id, milestoneId: id.nullable() })
+
+const templateNameSchema = trimmed(LIMITS.templateName, "The template's name")
+
+export const saveTemplateSchema = z.object({ projectId: id, name: templateNameSchema })
+export const renameTemplateSchema = z.object({ templateId: id, name: templateNameSchema })
 
 export const reasonSchema = trimmed(LIMITS.reason, "The reason")
 

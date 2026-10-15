@@ -10,11 +10,12 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core"
-import { ChevronLeftIcon, ChevronRightIcon, CircleAlertIcon } from "lucide-react"
+import { ChevronLeftIcon, ChevronRightIcon, CircleAlertIcon, FlagIcon } from "lucide-react"
 
 import { DayNumber, MonthGrid } from "@/components/project/month-grid"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import type { Milestone } from "@/lib/api/project/projects"
 import type { TaskCard } from "@/lib/api/project/tasks"
 import { formatMonthAndYear } from "@/lib/format/format-time"
 import { todayKey } from "@/lib/project/dates"
@@ -45,15 +46,19 @@ const STATUS_CHIP: Record<TaskStatus, string> = {
  * task to another day saves that day as its due date, the same change as
  * picking it on the task, so it sends the same notices; dropping it on "No
  * date" clears it. The filters above the tab apply. It reuses the Team
- * dashboard's month grid rather than drawing a second one.
+ * dashboard's month grid rather than drawing a second one. A project's
+ * milestones mark their days with a flag and their name, above the tasks.
  */
 export function TaskCalendar({
   tasks,
+  milestones = [],
   readOnly,
   onOpenTask,
   onDueDate,
 }: {
   tasks: TaskCard[]
+  /** The project's milestones; My dashboard has none. */
+  milestones?: Milestone[]
   readOnly: boolean
   onOpenTask: (taskId: string) => void
   /** Saves the new date, or null for none. */
@@ -76,6 +81,13 @@ export function TaskCalendar({
     return { byDay: days, undated: none }
   }, [tasks])
   const byId = React.useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
+  const milestonesByDay = React.useMemo(() => {
+    const days = new Map<string, Milestone[]>()
+    for (const milestone of milestones) {
+      if (milestone.dueDate) days.set(milestone.dueDate, [...(days.get(milestone.dueDate) ?? []), milestone])
+    }
+    return days
+  }, [milestones])
   const [year, monthNumber] = month.split("-").map(Number)
   const inThisMonth = [...byDay.entries()]
     .filter(([day]) => day.startsWith(month))
@@ -146,6 +158,7 @@ export function TaskCalendar({
                 today={today}
                 inMonth={inMonth}
                 tasks={inMonth ? (byDay.get(date) ?? []) : []}
+                milestones={inMonth ? (milestonesByDay.get(date) ?? []) : []}
                 readOnly={readOnly}
                 onOpenTask={onOpenTask}
               />
@@ -167,6 +180,7 @@ function DayCell({
   today,
   inMonth,
   tasks,
+  milestones,
   readOnly,
   onOpenTask,
 }: {
@@ -174,11 +188,12 @@ function DayCell({
   today: string
   inMonth: boolean
   tasks: TaskCard[]
+  milestones: Milestone[]
   readOnly: boolean
   onOpenTask: (taskId: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `${DAY_PREFIX}${date}`, disabled: readOnly || !inMonth })
-  const label = `${longDayLabel(date)}: ${tasks.length === 0 ? "nothing due" : tasks.length === 1 ? "1 task due" : `${tasks.length} tasks due`}`
+  const label = `${longDayLabel(date)}: ${tasks.length === 0 ? "nothing due" : tasks.length === 1 ? "1 task due" : `${tasks.length} tasks due`}${milestones.map((milestone) => `, milestone ${milestone.name}`).join("")}`
   return (
     <section
       ref={setNodeRef}
@@ -187,6 +202,16 @@ function DayCell({
       className={cn(dayCellClassName(inMonth), isOver && "ring-2 ring-ring")}
     >
       <DayNumber date={date} today={today} />
+      {milestones.map((milestone) => (
+        <p
+          key={milestone.id}
+          aria-hidden
+          className="flex w-full min-w-0 items-center gap-1 text-xs font-medium text-violet-700 dark:text-violet-300"
+        >
+          <FlagIcon className="size-3 shrink-0" />
+          <span className="truncate">{milestone.name}</span>
+        </p>
+      ))}
       {tasks.length ? (
         <ul className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)] gap-1">
           {tasks.map((task) => (
