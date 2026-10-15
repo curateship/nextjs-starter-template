@@ -1,14 +1,11 @@
 // @vitest-environment jsdom
 import { act } from "react"
 import { createRoot } from "react-dom/client"
-import { afterEach, beforeEach, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, expect, it } from "vitest"
 import type {
   AppHeaderLeftContent as AppHeaderLeftContentOption,
 } from "@/lib/app-options"
 
-vi.mock("@/components/shell/sticky-header/sticky-header-left-nav", () => ({
-  StickyHeaderLeftNav: () => <a>Home</a>,
-}))
 import { AppHeaderLeftContent } from "@/components/shell/sticky-header/app-header-left-content"
 
 let host: HTMLDivElement
@@ -22,19 +19,19 @@ afterEach(async () => {
   await act(async () => root.unmount())
 })
 
-it("hands empty app content the original sidebar navigation", async () => {
+it("hands empty app content the chosen top left", async () => {
   const action: AppHeaderLeftContentOption = {
     component: async () => ({ default: ({ fallback }) => <>{fallback}</> }),
   }
   await act(async () =>
     root.render(
-      <AppHeaderLeftContent action={action} role="member" navLinks={[]} />
+      <AppHeaderLeftContent action={action} role="member" fallback={<a>Home</a>} />
     )
   )
   expect(host.textContent).toBe("Home")
 })
 
-it("keeps the sidebar navigation visible while app content loads", async () => {
+it("keeps the chosen top left visible while app content loads", async () => {
   let finishLoading!: (
     value: Awaited<ReturnType<AppHeaderLeftContentOption["component"]>>
   ) => void
@@ -47,7 +44,7 @@ it("keeps the sidebar navigation visible while app content loads", async () => {
 
   await act(async () =>
     root.render(
-      <AppHeaderLeftContent action={action} role="member" navLinks={[]} />
+      <AppHeaderLeftContent action={action} role="member" fallback={<a>Home</a>} />
     )
   )
   expect(host.textContent).toBe("Home")
@@ -66,7 +63,7 @@ it("replaces the links with loaded app content", async () => {
   }
   await act(async () =>
     root.render(
-      <AppHeaderLeftContent action={action} role="member" navLinks={[]} />
+      <AppHeaderLeftContent action={action} role="member" fallback={<a>Home</a>} />
     )
   )
   expect(host.textContent).toBe("member pins")

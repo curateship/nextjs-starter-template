@@ -18,6 +18,7 @@ export const FRONT_PAGE_ROW_KINDS = [
   "faq",
   "logos",
   "screenshots",
+  "pages",
   "divider",
 ] as const
 
@@ -32,6 +33,7 @@ export const FRONT_PAGE_ROW_KIND_LABELS: Record<FrontPageRowKind, string> = {
   faq: "FAQ",
   logos: "Logo strip",
   screenshots: "Screenshots",
+  pages: "Pages list",
   divider: "Divider",
 }
 
@@ -44,6 +46,7 @@ export const FRONT_PAGE_ROW_KIND_HINTS: Record<FrontPageRowKind, string> = {
   faq: "Questions and answers shown together.",
   logos: "Customer or partner logos with accessible names.",
   screenshots: "Product images with short captions.",
+  pages: "A grid of cards for the pages you pick, each with its picture, name and description.",
   divider: "A break between the rows around it: a line, a row of dots, or a gap.",
 }
 
@@ -172,6 +175,14 @@ export const MAX_FRONT_PAGE_TESTIMONIALS = 6
 export const MAX_FRONT_PAGE_FAQ_ITEMS = 12
 export const MAX_FRONT_PAGE_LOGOS = 12
 export const MAX_FRONT_PAGE_SCREENSHOTS = 6
+/**
+ * How many pages one Pages list block may show. Two dozen cards is three
+ * screens of them on a phone, which is a list somebody scrolls past rather than
+ * reads.
+ */
+export const MAX_FRONT_PAGE_LISTED_PAGES = 24
+/** A page's id is a uuid, 36 characters. */
+export const MAX_FRONT_PAGE_LISTED_PAGE_ID_LENGTH = 36
 export const MAX_FRONT_PAGE_ITEM_NAME_LENGTH = 120
 export const MAX_FRONT_PAGE_ITEM_ROLE_LENGTH = 160
 export const MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH = 1_000
@@ -399,6 +410,30 @@ export type FrontPageScreenshot = {
 }
 
 /**
+ * The longest description a page an admin added may carry. Here rather than
+ * beside the page's other limits on the server, because the two forms that
+ * edit it are in the browser and read it too.
+ */
+export const MAX_WRITTEN_PAGE_DESCRIPTION = 300
+
+/**
+ * One card in a Pages list block: what the page is called, what it says about
+ * itself and its picture, read from the page's own row when the page is drawn.
+ *
+ * Never stored on the block. The block keeps only which pages it lists, so a
+ * page renamed or given a new picture shows the new one on every list it is on
+ * without anybody opening those blocks again.
+ */
+export type FrontPageListedPage = {
+  id: string
+  path: string
+  title: string
+  description: string
+  image: string
+  imageAlt: string
+}
+
+/**
  * The stored kind of a row an app added, as opposed to one of the shell's own.
  *
  * One value for all of them, with the app's own key beside it, so the shell's
@@ -503,6 +538,16 @@ export type FrontPageRow =
       items: FrontPageScreenshot[]
     })
   | (FrontPageRowBase & {
+      kind: "pages"
+      /**
+       * The pages this block lists, by id, in the order the cards are drawn.
+       * An id and not an address, so a page whose address changes stays on the
+       * list. A page that has since been deleted is skipped when the block is
+       * drawn rather than taken off here.
+       */
+      pageIds: string[]
+    })
+  | (FrontPageRowBase & {
       kind: "divider"
       /** A line, dots, or nothing at all. */
       dividerStyle: FrontPageDividerStyle
@@ -601,6 +646,9 @@ export function createFrontPageRowDraft(
     kind === "screenshots"
   ) {
     return { ...base, kind, items: [] }
+  }
+  if (kind === "pages") {
+    return { ...base, kind, pageIds: [] }
   }
   return { ...base, kind }
 }
@@ -891,6 +939,32 @@ function normalizeScreenshots(value: unknown): FrontPageScreenshot[] {
 }
 
 /**
+ * The ids a Pages list block names: unique, in the order they were saved, and
+ * only ones shaped like a page's id. Nothing here checks the pages exist,
+ * because a page can be deleted after the block was saved; the read that draws
+ * the block skips the ones that are gone.
+ */
+export function normalizeFrontPageListedPageIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const ids: string[] = []
+  for (const raw of value) {
+    if (ids.length >= MAX_FRONT_PAGE_LISTED_PAGES) break
+    if (typeof raw !== "string") continue
+    const id = raw.trim()
+    if (
+      !id ||
+      id.length > MAX_FRONT_PAGE_LISTED_PAGE_ID_LENGTH ||
+      !/^[A-Za-z0-9-]+$/.test(id) ||
+      ids.includes(id)
+    ) {
+      continue
+    }
+    ids.push(id)
+  }
+  return ids
+}
+
+/**
  * An app row's settings, or null when they are not a plain object this app
  * could have written. Kept as they are — the shell has no idea what they mean —
  * but bounded, because they travel to every visitor inside the page's data.
@@ -1041,6 +1115,14 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
         kind,
         items: normalizeScreenshots(source.items),
       })
+    } else if (kind === "pages") {
+      // An empty list is kept, like the four list kinds above: the block draws
+      // its heading and fills up once pages are picked.
+      rows.push({
+        ...rowBase(),
+        kind,
+        pageIds: normalizeFrontPageListedPageIds(source.pageIds),
+      })
     } else if (kind === "words") {
       rows.push({ ...rowBase(), kind, body: cleanWrittenPageBody(source.body) })
     } else if (kind === "divider") {
@@ -1100,6 +1182,11 @@ export function frontPageHeroRunsUnderMenu(rows: readonly FrontPageRow[]) {
 
 export function frontPageHasPlans(rows: readonly FrontPageRow[]) {
   return rows.some((row) => row.kind === "plans")
+}
+
+/** True when the page has a Pages list block, so its cards need reading. */
+export function frontPageHasListedPages(rows: readonly FrontPageRow[]) {
+  return rows.some((row) => row.kind === "pages")
 }
 
 /**

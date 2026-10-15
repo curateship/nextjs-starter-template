@@ -55,6 +55,8 @@ export type AppOptions = {
   workspaces?: WorkspaceOptions
   settings?: SettingsOptions
   notifications?: NotificationOptions
+  signIn?: SignInOptions
+  homeScreen?: HomeScreenOptions
 }
 
 /** What the shell hands an app-owned control in the signed-in header. */
@@ -584,6 +586,47 @@ type AutomationOptions = {
   }
 }
 
+/**
+ * How the app opens once someone adds it to a phone's home screen. Every app
+ * can be added, with the name and logo set in Settings; these only say where
+ * it opens and what the home screen calls it (`src/lib/home-screen.ts`).
+ */
+type HomeScreenOptions = {
+  /**
+   * The page the home-screen icon opens, such as "/dashboard". Unset opens
+   * the front page. A signed-out visitor is sent to sign in from there as
+   * usual, then lands on it.
+   */
+  startPath?: `/${string}`
+  /**
+   * The name under the icon, when the app's name is too long for it. Phones
+   * cut it after about 12 characters. Unset uses the app's name.
+   */
+  shortName?: string
+}
+
+type SignInOptions = {
+  /**
+   * The frame drawn around the shell's signed-out pages, in place of the
+   * public site's header and footer: sign in, register, forgot and reset
+   * password, verify email, the sign-in link, change email and its undo,
+   * reporting an unwanted sign-in, and maintenance.
+   *
+   * The form stays the shell's: its fields, Google, passkeys, the checks and
+   * every redirect are unchanged. Only what surrounds the card is the app's,
+   * for an app whose product has a look of its own that a visitor should not
+   * see break at the sign-in page. The frame is handed the card as children
+   * and decides where it sits.
+   *
+   * Loaded on demand, because a frame draws the app's own chrome and that
+   * reaches server functions; imported from here it would be built while the
+   * options module is still loading. Unset keeps the public site's frame.
+   */
+  frame?: () => Promise<{
+    default: ComponentType<{ children: ReactNode }>
+  }>
+}
+
 type LandingOptions = {
   /**
    * Replaces `/` outright.
@@ -680,6 +723,13 @@ export function defineCatchAllPage<TData>(page: {
  *      level of a module. Route files are the exception — nothing imports them
  *      back, so the circle cannot reach them.
  */
+
+/** The app's frame for the signed-out pages, or null to keep the public one. */
+export function signInFrameLoader(
+  options: AppOptions = appOptions
+): SignInOptions["frame"] | null {
+  return options.signIn?.frame ?? null
+}
 
 /**
  * The app's replacement front page, or null to keep the shell's.
@@ -1085,4 +1135,12 @@ export function appNoticeCategories(
 /** App-wide branding stays the default unless the app builds distinct sites. */
 export function appUsesSiteBranding(options: AppOptions = appOptions) {
   return options.workspaces?.siteBranding ?? false
+}
+
+/** Where the home-screen icon opens, and the name under it. */
+export function appHomeScreen(options: AppOptions = appOptions) {
+  return {
+    startPath: options.homeScreen?.startPath ?? "/",
+    shortName: options.homeScreen?.shortName?.trim() || null,
+  }
 }

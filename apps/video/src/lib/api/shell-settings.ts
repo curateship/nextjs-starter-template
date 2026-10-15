@@ -7,6 +7,7 @@ import { appPublicTheme } from "@/lib/app-options"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   SHELL_ROLES,
+  TOP_LEFT_MODES,
   TOP_LEFT_NAV_LIMIT_OPTIONS,
   TOP_RIGHT_NAVIGATION_ITEM_IDS,
   type ShellConfig,
@@ -201,6 +202,15 @@ const shellTopRightItemSchema = z.discriminatedUnion("type", [
     icon: shellIconSchema,
   }),
 ])
+
+/** One link in the top-left shortcuts row. */
+const shellTopLeftShortcutSchema = z.object({
+  id: z.string().min(1).max(64),
+  label: z.string().max(80),
+  href: z.string().max(2048),
+  icon: shellIconSchema,
+  visible: z.boolean(),
+})
 
 const shellBackgroundSchema = z.object({
   mode: z.enum(["default", "muted", "custom"]),
@@ -426,6 +436,11 @@ const shellConfigSchema = z.object({
       value as (typeof TOP_LEFT_NAV_LIMIT_OPTIONS)[number]
     )
   ),
+  // Optional, and the saved value is kept when one is missing, so a settings
+  // tab opened before these existed cannot wipe them on its next save.
+  topLeftMode: z.enum(TOP_LEFT_MODES).optional(),
+  memberTopLeftMode: z.enum(TOP_LEFT_MODES).optional(),
+  topLeftShortcuts: z.array(shellTopLeftShortcutSchema).max(50).optional(),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
   workspaceLogo: z.string().trim().max(2048),
@@ -717,6 +732,11 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
                 : "",
           publicTheme: nextPublicTheme,
           automationPause: existingGlobals.automationPause,
+          topLeftMode: data.topLeftMode ?? existingGlobals.topLeftMode,
+          memberTopLeftMode:
+            data.memberTopLeftMode ?? existingGlobals.memberTopLeftMode,
+          topLeftShortcuts:
+            data.topLeftShortcuts ?? existingGlobals.topLeftShortcuts,
         }),
         publicTheme: publicThemeOverrides(nextPublicTheme, appPublicTheme()),
         maintenance: {

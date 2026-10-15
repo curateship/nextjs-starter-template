@@ -4,28 +4,26 @@ import {
   type AppHeaderLeftContent as AppHeaderLeftContentOption,
   type AppHeaderLeftContentProps,
 } from "@/lib/app-options"
-import {
-  StickyHeaderLeftNav,
-  type StickyHeaderLeftNavLink,
-} from "@/components/shell/sticky-header/sticky-header-left-nav"
 
 const components = new Map<
   AppHeaderLeftContentOption["component"],
   React.LazyExoticComponent<React.ComponentType<AppHeaderLeftContentProps>>
 >()
 
+/**
+ * An app's own top left. It wins over every Top left shows choice; the
+ * chosen content is what it shows while it loads, and what it is handed as
+ * `fallback` to draw when it has nothing of its own.
+ */
 export function AppHeaderLeftContent({
   action,
   role,
-  navLinks,
-  limit,
+  fallback,
 }: {
   action: AppHeaderLeftContentOption
   role: string
-  navLinks: StickyHeaderLeftNavLink[]
-  limit?: number
+  fallback: React.ReactNode
 }) {
-  const fallback = <StickyHeaderLeftNav navLinks={navLinks} limit={limit} />
   let Component = components.get(action.component)
   if (!Component) {
     Component = React.lazy(action.component)

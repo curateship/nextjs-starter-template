@@ -48,10 +48,18 @@ const ROUTE_TITLES: Record<string, string> = {
   "/_authenticated/changelog/whats-new": "What's new",
 }
 
+/** The route's own name, or undefined when this list does not know it. */
+export function knownRoutePageTitle(
+  routeId: string | undefined,
+  workspacesTitle: string
+): string | undefined {
+  if (routeId === "/_authenticated/workspaces") return workspacesTitle
+  return routeId ? ROUTE_TITLES[routeId] : undefined
+}
+
 export function routePageTitle(
   routeId: string | undefined,
   workspacesTitle: string
 ) {
-  if (routeId === "/_authenticated/workspaces") return workspacesTitle
-  return (routeId && ROUTE_TITLES[routeId]) || "Page"
+  return knownRoutePageTitle(routeId, workspacesTitle) ?? "Page"
 }

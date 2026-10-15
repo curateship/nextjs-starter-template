@@ -21,6 +21,7 @@ import type { CustomShellDb } from "@/server/db"
  * than a quiet fork.
  */
 export type AppServerOptions = {
+  billing?: BillingServerOptions
   pages?: PagesServerOptions
   automations?: AutomationServerOptions
   background?: BackgroundServerOptions
@@ -29,6 +30,33 @@ export type AppServerOptions = {
   sitemap?: SitemapServerOptions
   search?: SearchServerOptions
   workspaces?: WorkspaceServerOptions
+}
+
+/** Where Stripe sends people back to, as paths on this app. */
+export type BillingReturnPaths = {
+  /**
+   * After a paid checkout. The shell adds `session_id={CHECKOUT_SESSION_ID}`
+   * to it, so the page there can confirm the purchase with
+   * `confirmCheckoutSession` instead of waiting for the webhook.
+   */
+  checkoutSuccess: string
+  /** After backing out of Stripe's checkout page. */
+  checkoutCancel: string
+  /** After the Stripe billing portal's "return" link. */
+  portalReturn: string
+}
+
+type BillingServerOptions = {
+  /**
+   * The three places Stripe hands people back to.
+   *
+   * The shell's own are its success page, its `/pricing` page and the account
+   * dialog's Billing tab. An app with its own plans screen names that instead,
+   * so nobody paying for the product lands on a page the product never links
+   * to. Paths only, on this app: the public address in front of them is
+   * `CUSTOM_SHELL_APP_URL`, never something the browser sent.
+   */
+  returnPaths?: Partial<BillingReturnPaths>
 }
 
 export type WorkspaceCopyChoice = {
@@ -302,6 +330,25 @@ export function appBackgroundWorkers(
   options: AppServerOptions = appServerOptions
 ): readonly AppBackgroundWorker[] {
   return options.background?.workers ?? []
+}
+
+/**
+ * Where Stripe sends people back to, with the shell's own pages for anything
+ * the app did not name.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export function appBillingReturnPaths(
+  options: AppServerOptions = appServerOptions
+): BillingReturnPaths {
+  return {
+    checkoutSuccess: "/account/billing/success",
+    checkoutCancel: "/pricing",
+    portalReturn: "/?account=billing",
+    ...options.billing?.returnPaths,
+  }
 }
 
 /** App-owned choices shown on the workspace copy form, or none. */

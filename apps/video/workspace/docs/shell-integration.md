@@ -254,3 +254,33 @@ keys. The live site gets its keys from the deploy, which copies them from
 expects a page entry without the `blocks: false` field the registry now
 writes. It fails the same way in `apps/custom-shell` and the merge did not
 touch either file.
+
+## Shell merge, 15 October 2026
+
+Every shell change since the 12 Oct merge is in Video. 23 shell files were
+replaced and 8 added, all unmodified older shell copies by the same check as
+before. Nothing was deleted, and there are no new migrations.
+
+**What arrived.**
+
+- **The top left of the signed-in header can show a breadcrumb or shortcuts**
+  instead of the left menu's links. "Top left shows" sits on Platform settings
+  → Navigation for admins and on Members → Navigation for members. Sidebar
+  links stays the default, so nothing changes until someone picks another.
+- **Adding the app to a phone's home screen works properly.** A web app
+  manifest is served at `/manifest.webmanifest`, built from the app's name and
+  logo, with the `homeScreen` app option to change where the icon opens.
+- **A table's heading row is underlined with the divider colour** from
+  Settings → Styling, so it no longer reads as a double line under a panel
+  header.
+- **Smaller fix:** the rich text editor picked up the shell's latest copy.
+
+**Merged by hand.** `src/theme.css` took the shell's new table heading line
+on top of Video's six font faces, with no conflicts. `src/routeTree.gen.ts`
+took `/manifest.webmanifest` the same way. `scripts/setup-database.mjs` and
+`package.json` stay Video's own.
+
+**Tests.** The type check is clean. Eight tests failed only when three apps'
+suites ran at once, and pass alone. **One test fails in the shell too.** `public-branding.test.ts` expects the
+public header settings without the `menuFontSize` field the shell now writes.
+It fails the same way in `apps/custom-shell`.

@@ -135,24 +135,35 @@ function SortableFixedChip({
   )
 }
 
-function SortableLinkChip({
+/**
+ * A link chip: name and icon (opening its editor), and a trash can. The
+ * top-left shortcuts row reuses it, with `visibility` adding the same
+ * show-or-hide checkbox a built-in wears.
+ */
+export function SortableLinkChip({
   item,
   dialogOpen,
   onDialogOpenChange,
   onChange,
   onDelete,
   onSaveConfig,
+  linkNoun = "Menu link",
+  dialogDescription = "Edit this top-right menu link.",
+  visibility,
 }: {
-  item: ShellTopRightLink
+  item: Pick<ShellTopRightLink, "id" | "label" | "href" | "icon">
   dialogOpen: boolean
   onDialogOpenChange: (open: boolean) => void
   onChange: (patch: Partial<ShellTopRightLink>) => void
   onDelete: () => void
   onSaveConfig: () => Promise<boolean>
+  linkNoun?: string
+  dialogDescription?: string
+  visibility?: { visible: boolean; onVisibleChange: (visible: boolean) => void }
 }) {
   const labelInputRef = React.useRef<HTMLInputElement>(null)
   const isNamed = isShellEntryNamed(item)
-  const itemName = isNamed ? item.label : "menu link"
+  const itemName = isNamed ? item.label : linkNoun.toLowerCase()
   const addressCheck = useCheckedAddress(item.href, isNamed)
   const chip = useSortableChip(item.id, itemName)
 
@@ -168,7 +179,6 @@ function SortableLinkChip({
           onClick={() => onDialogOpenChange(true)}
           className="max-w-56 justify-start gap-2 px-3 text-sm font-medium"
           aria-label={`Edit settings for ${itemName}`}
-          title={isNamed ? `${item.label} settings` : "Menu link settings"}
         >
           <span className="shrink-0">{renderShellIcon(item.icon, "h-4 w-4")}</span>
           {/* An unnamed link reads as a placeholder, the same muted grey an
@@ -181,7 +191,23 @@ function SortableLinkChip({
           >
             {isNamed ? item.label : "Name this link"}
           </span>
+          {visibility && !visibility.visible ? (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              Hidden
+            </span>
+          ) : null}
         </Button>
+        {visibility ? (
+          <label className="flex size-8 shrink-0 items-center justify-center rounded-md">
+            <Checkbox
+              checked={visibility.visible}
+              onCheckedChange={(checked) =>
+                visibility.onVisibleChange(checked === true)
+              }
+            />
+            <span className="sr-only">Show {itemName}</span>
+          </label>
+        ) : null}
         <Button
           type="button"
           variant="ghost"
@@ -208,14 +234,12 @@ function SortableLinkChip({
           }}
         >
           <DialogHeader>
-            <DialogTitle>{isNamed ? item.label : "Menu link"}</DialogTitle>
-            <DialogDescription>
-              Edit this top-right menu link.
-            </DialogDescription>
+            <DialogTitle>{isNamed ? item.label : linkNoun}</DialogTitle>
+            <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
           <DialogBody>
             <NavLinkDestinationCard
-              linkNoun="Menu link"
+              linkNoun={linkNoun}
               icon={item.icon}
               label={item.label}
               href={item.href}

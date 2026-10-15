@@ -192,3 +192,55 @@ app was exactly seven files behind and gained one new file.
 Nothing was deleted and nothing forked. CMS's `lib/format/bulk-result.ts` is no
 longer a fork at all: the previous merge folded its "already that way" count
 into the shell's own copy, and this merge confirms the two are identical again.
+
+## Shell merge, 15 October 2026
+
+Every shell change since the 5 Oct merges is in Trade. 71 shell files were
+replaced and 14 added. Each replaced file was first matched against every
+version of that file in custom-shell's history, and all 71 were unmodified
+older shell copies. Nothing was deleted.
+
+**What arrived.**
+
+- **A page an admin adds has its own picture and a description**, and the
+  Pages list block shows chosen pages as cards with both.
+- **AI has its own row in Settings**, at Platform settings → AI
+  (`/admin/settings/ai`), below Payments.
+- **"Test this key" says why a key failed**, in the provider's own words, and
+  Gemini runs on its current models instead of the retired 2.5 ones.
+- **A Passkeys switch in Settings → General** turns passkey sign-in off for the
+  whole app while keeping saved passkeys.
+- **Three billing fixes.** The checkout return page asks Stripe itself, a
+  monthly to yearly switch starts a new paid period that day, and the
+  `billing.returnPaths` app option names where Stripe sends people back to.
+- **The top left of the signed-in header can show a breadcrumb or shortcuts**
+  instead of the left menu's links. "Top left shows" sits on Platform settings
+  → Navigation for admins and on Members → Navigation for members. Sidebar
+  links stays the default, so nothing changes until someone picks another.
+- **Adding the app to a phone's home screen works properly.** A web app
+  manifest is served at `/manifest.webmanifest`, built from the app's name and
+  logo, with the `homeScreen` app option to change where the icon opens.
+- **A table's heading row is underlined with the divider colour** from
+  Settings → Styling, so it no longer reads as a double line under a panel
+  header.
+- **Smaller fixes:** the date picker, the rich text editor and the AI model
+  list picked up the shell's latest copies.
+
+**Two migrations owed**, under Trade's next free numbers:
+`0212_custom_shell_written_page_picture.sql` (shell 0092) and
+`0213_custom_shell_written_page_description.sql` (shell 0093). Neither is
+applied, because Trade's local database is the live one.
+
+**Kept as Trade's own.** `scripts/setup-database.mjs` stays the shell's file
+without the CRM sample step, and the three CRM sample scripts are still not
+carried, as "What stays Trade's own" explains. `package.json` was left alone:
+it already has every script and package the shell added, and its test command
+runs only `scripts/worker-*.test.mjs` on purpose. `src/routeTree.gen.ts` took
+the one new route, `/manifest.webmanifest`, by a three-way merge with no
+conflicts.
+
+**Tests.** The type check is clean. 41 tests across 18 files fail, in the
+trading screens and the exchange code, and the same 41 fail on the tree from
+before this merge. **One test fails in the shell too.** `public-branding.test.ts` expects the
+public header settings without the `menuFontSize` field the shell now writes.
+It fails the same way in `apps/custom-shell`.

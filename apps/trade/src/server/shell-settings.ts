@@ -9,7 +9,10 @@ import {
   normalizeAutomationPause,
   normalizeMaintenance,
   normalizeSessionPolicy,
+  normalizeTopLeftMode,
   normalizeTopLeftNavLimit,
+  normalizeTopLeftShortcuts,
+  shortcutsForRole,
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
@@ -408,6 +411,11 @@ export async function readShellSettings(
       ? workspaceSettings.topRightNavigation
       : globals.memberTopRightNavigation,
     sections: isAdmin(user) ? workspaceSettings.sections : globals.memberSections,
+    // A member's header never draws an admin shortcut, so their copy of the
+    // list never carries one either.
+    topLeftShortcuts: isAdmin(user)
+      ? globals.topLeftShortcuts
+      : shortcutsForRole(globals.topLeftShortcuts, user.role),
     styling: workspaceSettings.styling,
     dashboardWidgets: workspaceSettings.dashboardWidgets,
     // Which pages are hidden is a per-site decision — Alpha closing its
@@ -500,6 +508,11 @@ export function parseShellGlobals(value: unknown) {
     // Rows saved before this setting existed have no value, and the fallback is
     // no limit — so an existing install's top bar looks exactly as it did.
     topLeftNavLimit: normalizeTopLeftNavLimit(settings.topLeftNavLimit),
+    // Rows saved before these existed read as Sidebar links and no shortcuts,
+    // so an existing install's top bar looks exactly as it did.
+    topLeftMode: normalizeTopLeftMode(settings.topLeftMode),
+    memberTopLeftMode: normalizeTopLeftMode(settings.memberTopLeftMode),
+    topLeftShortcuts: normalizeTopLeftShortcuts(settings.topLeftShortcuts),
     adminRoute:
       typeof settings.adminRoute === "string"
         ? settings.adminRoute
@@ -522,6 +535,9 @@ export function parseShellGlobals(value: unknown) {
     // Rows saved before this setting existed have no value, and the feature is
     // meant to be on — so only an explicit `false` turns it off.
     liveNotifications: settings.liveNotifications !== false,
+    // Same rule as liveNotifications: passkeys were on before this switch
+    // existed, so only an explicit `false` turns them off.
+    passkeySignIn: settings.passkeySignIn !== false,
     notificationTypes: normalizeNotificationTypeVisibility(
       settings.notificationTypes
     ),
@@ -580,11 +596,15 @@ export function pickShellGlobals(
     | "dashboardRowsPerPage"
     | "toastSeconds"
     | "topLeftNavLimit"
+    | "topLeftMode"
+    | "memberTopLeftMode"
+    | "topLeftShortcuts"
     | "adminRoute"
     | "memberHomeRoute"
     | "memberSections"
     | "memberTopRightNavigation"
     | "liveNotifications"
+    | "passkeySignIn"
     | "notificationTypes"
     | "maintenance"
     | "automationPause"
@@ -626,11 +646,15 @@ export function pickShellGlobals(
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
     topLeftNavLimit: settings.topLeftNavLimit,
+    topLeftMode: settings.topLeftMode,
+    memberTopLeftMode: settings.memberTopLeftMode,
+    topLeftShortcuts: settings.topLeftShortcuts,
     adminRoute: settings.adminRoute,
     memberHomeRoute: settings.memberHomeRoute,
     memberSections: settings.memberSections,
     memberTopRightNavigation: settings.memberTopRightNavigation,
     liveNotifications: settings.liveNotifications,
+    passkeySignIn: settings.passkeySignIn,
     notificationTypes: settings.notificationTypes,
     maintenance: settings.maintenance,
     automationPause: settings.automationPause,

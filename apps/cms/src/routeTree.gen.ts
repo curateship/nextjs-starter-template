@@ -23,6 +23,7 @@ import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
+import { Route as ManifestDotwebmanifestRouteImport } from './routes/manifest[.]webmanifest'
 import { Route as PostsRouteImport } from './routes/posts'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as RegisterRouteImport } from './routes/register'
@@ -181,6 +182,11 @@ const LoginRoute = LoginRouteImport.update({
 const MaintenanceRoute = MaintenanceRouteImport.update({
   id: '/maintenance',
   path: '/maintenance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManifestDotwebmanifestRoute = ManifestDotwebmanifestRouteImport.update({
+  id: '/manifest.webmanifest',
+  path: '/manifest.webmanifest',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PostsRoute = PostsRouteImport.update({
@@ -690,6 +696,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/posts': typeof PostsRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
@@ -795,6 +802,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/posts': typeof PostsRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
@@ -900,6 +908,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/posts': typeof PostsRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
@@ -1007,6 +1016,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/maintenance'
+    | '/manifest.webmanifest'
     | '/posts'
     | '/pricing'
     | '/register'
@@ -1112,6 +1122,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/maintenance'
+    | '/manifest.webmanifest'
     | '/posts'
     | '/pricing'
     | '/register'
@@ -1216,6 +1227,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/maintenance'
+    | '/manifest.webmanifest'
     | '/posts'
     | '/pricing'
     | '/register'
@@ -1323,6 +1335,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   MaintenanceRoute: typeof MaintenanceRoute
+  ManifestDotwebmanifestRoute: typeof ManifestDotwebmanifestRoute
   PostsRoute: typeof PostsRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
@@ -1459,6 +1472,13 @@ declare module '@tanstack/react-router' {
       path: '/maintenance'
       fullPath: '/maintenance'
       preLoaderRoute: typeof MaintenanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manifest.webmanifest': {
+      id: '/manifest.webmanifest'
+      path: '/manifest.webmanifest'
+      fullPath: '/manifest.webmanifest'
+      preLoaderRoute: typeof ManifestDotwebmanifestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/posts': {
@@ -2290,6 +2310,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   MaintenanceRoute: MaintenanceRoute,
+  ManifestDotwebmanifestRoute: ManifestDotwebmanifestRoute,
   PostsRoute: PostsRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,

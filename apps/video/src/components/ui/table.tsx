@@ -119,9 +119,8 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      // The heading row's own top and bottom hairlines are drawn in `theme.css`
-      // from the same variables the card's border uses, so a change in the
-      // Styling settings moves both together.
+      // The heading row's own top and bottom lines are drawn in `theme.css`
+      // in the Divider lines colour, like every other dividing line.
       className={cn("[&_tr]:bg-muted/50", className)}
       {...props}
     />

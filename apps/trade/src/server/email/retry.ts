@@ -1,3 +1,4 @@
+import { createServerOnlyFn } from "@tanstack/react-start"
 import { and, eq, inArray, isNull, lte, or } from "drizzle-orm"
 import { z } from "zod"
 
@@ -351,11 +352,20 @@ export async function drainPendingEmailSends(
   return rows.length
 }
 
-/** The shared background pass's entry point; the dynamic import avoids a cycle. */
-export async function processPendingEmailRetries(
-  database: CustomShellDb = db,
-  at: Date = now()
-) {
-  const { sendAuthEmail } = await import("@/server/email/send")
-  return drainPendingEmailSends(database, at, sendAuthEmail)
-}
+/**
+ * The shared background pass's entry point; the dynamic import avoids a cycle.
+ *
+ * Server-only for the same reason as `startWorkspaceFor` in
+ * `src/lib/api/auth/auth.ts`: this file is reachable from the browser build,
+ * and a dynamic import left in it becomes a browser file holding the email
+ * sender, the database and the session cookie code.
+ */
+export const processPendingEmailRetries = createServerOnlyFn(
+  async function processPendingEmailRetries(
+    database: CustomShellDb = db,
+    at: Date = now()
+  ) {
+    const { sendAuthEmail } = await import("@/server/email/send")
+    return drainPendingEmailSends(database, at, sendAuthEmail)
+  }
+)

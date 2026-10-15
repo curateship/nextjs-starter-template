@@ -286,7 +286,9 @@ export type ShellItem = {
 }
 
 export function isAdminHref(href: string | undefined) {
-  return Boolean(href && (href === "/admin" || href.startsWith("/admin/")))
+  // The page alone: `/admin?tab=x` and `/admin#top` are still the admin page.
+  const path = href?.trim().split(/[?#]/)[0]
+  return Boolean(path && (path === "/admin" || path.startsWith("/admin/")))
 }
 
 /**
@@ -451,6 +453,15 @@ export type ShellConfig = {
    * means no limit, which is what every install had before this setting.
    */
   topLeftNavLimit: number
+  /** What the top left of an admin's header shows. See ShellTopLeftMode. */
+  topLeftMode: ShellTopLeftMode
+  /** The same choice for members, made separately (Tyler, 13 Oct 2026). */
+  memberTopLeftMode: ShellTopLeftMode
+  /**
+   * The one shortcuts row an admin builds. Admins and members whose choice is
+   * Shortcuts both see it, members without its admin links.
+   */
+  topLeftShortcuts: ShellTopLeftShortcut[]
   // Draggable, per-workspace sidebar width in px. See lib/layout/sidebar-width.ts.
   sidebarWidth: number
   /** Route the home page (/) and /admin open for an admin; empty = Settings. */
@@ -593,6 +604,93 @@ export function normalizeTopLeftNavLimit(value: unknown): number {
   )
     ? (value as number)
     : DEFAULT_TOP_LEFT_NAV_LIMIT
+}
+
+/**
+ * What the top left of the signed-in header shows.
+ *
+ * - `sidebar`: the current sidebar section's links, which is all it ever
+ *   showed before this choice existed, so it is the default.
+ * - `breadcrumb`: where you are, built from the sidebar.
+ * - `shortcuts`: the admin's one fixed row of links, the same on every page.
+ */
+export const TOP_LEFT_MODES = ["sidebar", "breadcrumb", "shortcuts"] as const
+export type ShellTopLeftMode = (typeof TOP_LEFT_MODES)[number]
+export const DEFAULT_TOP_LEFT_MODE: ShellTopLeftMode = "sidebar"
+
+export const topLeftModeLabels: Record<ShellTopLeftMode, string> = {
+  sidebar: "Sidebar links",
+  breadcrumb: "Breadcrumb",
+  shortcuts: "Shortcuts",
+}
+
+/** A row saved before this choice existed has no value: Sidebar links. */
+export function normalizeTopLeftMode(value: unknown): ShellTopLeftMode {
+  return TOP_LEFT_MODES.includes(value as ShellTopLeftMode)
+    ? (value as ShellTopLeftMode)
+    : DEFAULT_TOP_LEFT_MODE
+}
+
+/** One link in the shortcuts row. Switched off, it stays in the editor. */
+export type ShellTopLeftShortcut = {
+  id: string
+  label: string
+  href: string
+  icon: ShellIcon
+  visible: boolean
+}
+
+/**
+ * Reads the saved row back, keeping its order. Anything that is not a
+ * well-formed link is dropped, and a link saved without `visible` reads as on.
+ */
+export function normalizeTopLeftShortcuts(
+  value: unknown
+): ShellTopLeftShortcut[] {
+  if (!Array.isArray(value)) return []
+
+  const seenIds = new Set<string>()
+  const kept: ShellTopLeftShortcut[] = []
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue
+    const item = raw as Partial<ShellTopLeftShortcut>
+    if (
+      typeof item.id !== "string" ||
+      !item.id ||
+      seenIds.has(item.id) ||
+      typeof item.label !== "string" ||
+      typeof item.href !== "string" ||
+      typeof item.icon !== "string"
+    ) {
+      continue
+    }
+    seenIds.add(item.id)
+    kept.push({
+      id: item.id,
+      label: item.label,
+      href: item.href,
+      icon: item.icon,
+      visible: item.visible !== false,
+    })
+  }
+  return kept
+}
+
+/**
+ * The shortcuts this person sees: switched on, finished (a name and an
+ * address), and never an admin page for a member, whatever is saved.
+ */
+export function shortcutsForRole(
+  shortcuts: ShellTopLeftShortcut[],
+  role: string
+): ShellTopLeftShortcut[] {
+  return shortcuts.filter(
+    (shortcut) =>
+      shortcut.visible &&
+      isShellEntryNamed(shortcut) &&
+      Boolean(shortcut.href.trim()) &&
+      canSeeShellEntry(shortcut, role)
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -784,6 +882,9 @@ export function createDefaultShellConfig(): ShellConfig {
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
     toastSeconds: DEFAULT_TOAST_SECONDS,
     topLeftNavLimit: DEFAULT_TOP_LEFT_NAV_LIMIT,
+    topLeftMode: DEFAULT_TOP_LEFT_MODE,
+    memberTopLeftMode: DEFAULT_TOP_LEFT_MODE,
+    topLeftShortcuts: [],
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     adminRoute: "",
     memberHomeRoute: "",

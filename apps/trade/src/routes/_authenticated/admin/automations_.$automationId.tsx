@@ -55,6 +55,7 @@ export const Route = createFileRoute(
     ])
     return {
       automation,
+      recordTitle: automation.name,
       favoriteNodeKeys: favorites.favoriteNodeKeys,
       runs,
       blockDefaults: blockDefaults.defaults,
