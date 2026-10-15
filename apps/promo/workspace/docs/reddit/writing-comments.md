@@ -79,11 +79,11 @@ app waits 15.5, so the app hears the browser's own answer.
   their upvotes. This is the part that earns its place: without it a draft
   confidently repeats whatever the top reply already said.
 - **The subreddit's name.**
-- **Your voice**, in your words, from the voice of the account clicked on the
+- **Your voice**, in your words, from the voice of the account picked on the
   Projects dashboard. Voices are kept on the
   [Voices dashboard](../voices-dashboard.md).
-- **What you make**: the description of the clicked account's project, and
-  only when it genuinely answers what was asked. Before an account is clicked,
+- **What you make**: the description of the picked account's project, and
+  only when it genuinely answers what was asked. Before an account is picked,
   the post's own project's description. An account in no project, or an empty
   description, means no draft will ever mention a product. Until 12 Oct 2026
   this came from a box on the voice;
@@ -98,10 +98,10 @@ A post found for one account's everyday subreddits is a help-only post
 told what you make, and is told never to mention a product or link to
 anything.
 
-An account with no voice, or no account clicked yet, is told no voice and no
+An account with no voice, or no account picked yet, is told no voice and no
 rules, and Write with AI's tooltip on the Projects dashboard says "No voice
-picked for this account, so drafts are plain". The example comments below are the clicked account's own,
-so before one is clicked there are none.
+picked for this account, so drafts are plain". The example comments below are the picked account's own,
+so before one is picked there are none.
 
 ### Your sent comments as examples
 
@@ -118,7 +118,7 @@ their substance, because they answered other posts.
   words change. Those come before ones the AI wrote and you sent as they were,
   then the newest.
 - **A weak one can be left out.** Each row of the
-  [Comments screen](sent-comments.md) has a Voice example switch. Switch one
+  [Comments tab](sent-comments.md) has a Voice example switch. Switch one
   off and the next draft stops using it. The comment itself is kept. "Next
   draft" beside the switch marks the ones the next draft will carry.
 - **The voice still counts.** Before anything has been sent there are no
@@ -126,7 +126,7 @@ their substance, because they answered other posts.
   examples sit beside the voice's words rather than replacing them.
 
 The switch used to be a tick on Settings → Reddit account, because there was no
-screen of sent comments. It moved to the Comments screen when that was built,
+screen of sent comments. It moved to the Comments tab when that was built,
 and the settings card was deleted, so there is one place to change it.
 
 ### The subreddit's own rules
@@ -266,7 +266,7 @@ No key saved means the draft button says so and names the screen to fix it on.
 
 The button names the device the comment goes from: **Post from browser** for
 an account on a browser profile, **Post from phone · slot 4** for one on a
-phone in shelf slot 4, and **Post comment** with no account clicked. Clicking
+phone in shelf slot 4, and **Post comment** with no account picked. Clicking
 another account changes it. [Reddit on phones](reddit-on-phones.md) has how a
 phone posts.
 
@@ -280,9 +280,9 @@ first. The reasons:
   repeat one of them. The best few posts of every search have theirs read
   ahead, so this mostly applies to Possible and Low fit posts.
   [Finding posts](finding-posts.md) has how.
-- **No account is clicked.** "Pick an account on the left." A comment always
-  goes out from the account clicked on the Projects dashboard, and every reason
-  below is about that account.
+- **No account is picked.** "Pick an account beside Post comment." A comment
+  always goes out from the account picked in the **Comment as** dropdown above
+  the box, and every reason below is about that account.
 - **The account's phone is offline, held, or stopped** for showing the wrong
   address. The tooltip names the phone and its shelf slot and says why.
 - **The browser is not signed in to Reddit.** Open it in Settings and sign in
@@ -291,7 +291,7 @@ first. The reasons:
   clear it by hand.
 - **The account is still warming up.** The tooltip says when its first comment
   is allowed. An account whose age has never been read is off too, until Check
-  now on the Reddit accounts dashboard reads it.
+  now on the Accounts dashboard reads it.
 - **A young account is at its pace limit.** The tooltip says when the next one
   is allowed. The server refuses the same comment with the same words.
 - **A comment on this post is already waiting** for the account's morning.

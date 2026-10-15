@@ -207,6 +207,13 @@ describe("Promo's bell notices", () => {
     expect(failure.projectId).not.toBeNull()
     expect(await failedWords(userId, jobId, db)).toEqual({ findId, text: "Try a kanban board.", accountId })
     expect((await notices())[0].message).toBe("Did not go out: a comment")
+    // It opens the Failed list on the Comments tab of the account's project,
+    // or the Projects table for an account in none.
+    const [account] = await db.select({ projectId: promoAccounts.projectId }).from(promoAccounts).where(eq(promoAccounts.id, accountId))
+    const [link] = await db.select().from(promoNotices).where(eq(promoNotices.id, noticeId("failed", jobId)))
+    expect(link.href).toBe(
+      account.projectId ? `/admin/projects/${account.projectId}?view=comments&list=failed` : "/admin/projects"
+    )
 
     expect(await dismissFailures(userId, [jobId], db)).toEqual({ completed: [jobId], skipped: [] })
     expect(await listFailures(userId, db)).toEqual([])

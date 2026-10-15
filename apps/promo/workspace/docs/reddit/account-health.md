@@ -2,7 +2,7 @@
 
 Settings → Reddit account has a card called "How Reddit sees the account", for
 the oldest account in use. Every account's readings also feed its status and
-its age and karma on the [Reddit accounts dashboard](accounts-dashboard.md). It
+its age and karma on the [Accounts dashboard](accounts-dashboard.md). It
 shows four readings: who the browser is signed in as, the karma, how old the
 account is, and whether the profile loads for somebody who is not signed in.
 Each one says when it was read. A reading nobody has taken says "Not read yet"
@@ -69,7 +69,7 @@ one it was.
 - **Check now** on the card asks the browser program for a reading at once. The
   card shows "Checking" and asks again every three seconds until it is done.
   One check waits at a time, so a second press adds nothing.
-- **Check now on the Reddit accounts dashboard** asks the same for each ticked
+- **Check now on the Accounts dashboard** asks the same for each ticked
   account, or one row's, in one request, and says how many were queued. One
   already being checked, or retired, is skipped and counted.
 - **Once a day on its own.** The ticker job `promo-account-health` asks for a

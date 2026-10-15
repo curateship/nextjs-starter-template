@@ -1,13 +1,13 @@
 # Answering the people who reply to you
 
 When somebody replies to a comment the app sent, you can answer them from the
-Comments screen: draft with AI, read it, press Reply. One comment becomes a
+Comments tab: draft with AI, read it, press Reply. One comment becomes a
 short back and forth, which is what people read and what keeps a comment near
 the top of a thread instead of folded away.
 
 ## Where it is
 
-The reply arrow on each row of the [Comments screen](sent-comments.md) opens
+The reply arrow on each row of the [Comments tab](sent-comments.md) opens
 the comment's Replies window. Under the row's reply count, "2 to answer" says
 how many replies directly under it have no answer from the app yet.
 
@@ -107,9 +107,9 @@ attempt is a row too, with the words that were tried and the reason.
 Because an answer is a comment the account sent, it counts in the Projects
 table's comments sent, toward the account's pace, and toward the account
 showing as Working on the
-[Reddit accounts dashboard](accounts-dashboard.md).
+[Accounts dashboard](accounts-dashboard.md).
 
-Answers are not rows of their own on the Comments screen. They show under the
+Answers are not rows of their own on the Comments tab. They show under the
 reply they answer, in the Replies window. For the same reason they are never
 used as voice examples: there would be no switch to turn one off.
 

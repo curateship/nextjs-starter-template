@@ -106,8 +106,8 @@ export async function queueWipe(
     const who = onIt.handle ? `u/${onIt.handle}` : "An account"
     throw new Error(
       onIt.phoneId === phoneId
-        ? `${who} runs on this phone. Move it to another phone or a browser profile on the Reddit accounts dashboard before wiping, or its sign-in goes with everything else.`
-        : `${who} is being moved onto this phone. Cancel the move on the Reddit accounts dashboard before wiping.`
+        ? `${who} runs on this phone. Move it to another phone or a browser profile on the Accounts dashboard before wiping, or its sign-in goes with everything else.`
+        : `${who} is being moved onto this phone. Cancel the move on the Accounts dashboard before wiping.`
     )
   }
   return queuePhoneAction(userId, phoneId, "phone/wipe", db, now, { timeoutSeconds: WIPE_TIMEOUT_SECONDS })

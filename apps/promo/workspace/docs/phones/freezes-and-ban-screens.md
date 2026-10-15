@@ -60,9 +60,9 @@ and a comment or post is never tried twice."
   with the reason. A later sign-in look does not clear it.
 - **Letting it run again** is a person's call: sort it out on the phone
   through its screen window, then press **Let it run again** in the account's
-  settings on the Reddit accounts dashboard. That clears the block and the
+  settings on the Accounts dashboard. That clears the block and the
   notice.
-- **The Reddit accounts dashboard** shows "Stopped by a ban screen" under the
+- **The Accounts dashboard** shows "Stopped by a ban screen" under the
   account's status, with the words on hover.
 
 The known phrases are each app's published wording, and the saved screens the

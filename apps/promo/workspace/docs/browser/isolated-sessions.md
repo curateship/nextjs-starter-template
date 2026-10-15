@@ -306,8 +306,8 @@ background loop fires every fifteen and runs every other job in turn, so a
 browser search sitting on it would hold up everything else.
 
 So the browser has a process of its own, started with `npm run social:browser`,
-and the two talk through a job table. The Jobs dashboard shows whether that process is
-running and lists the table ([The Jobs dashboard](jobs-dashboard.md)). Pressing Search writes a row and returns;
+and the two talk through a job table. The Jobs window shows whether that process is
+running and lists the table ([The Jobs window](jobs-dashboard.md)). Pressing Search writes a row and returns;
 the browser process picks it up. Two copies of that process are safe: a job is
 claimed before any work starts, and a claim that goes stale is handed back after
 ten minutes and given up after three tries. Ten, because opening a cold browser

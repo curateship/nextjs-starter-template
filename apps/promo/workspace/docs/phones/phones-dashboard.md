@@ -79,7 +79,7 @@ An account runs on a browser profile or a phone, never both. The database
 refuses the two at once (`ck_promo_accounts_one_device`), and one Reddit
 account per phone is a unique index, the same rule as profiles.
 
-- **Add account** on the Reddit accounts dashboard has one "Runs on" list of
+- **Add account** on the Accounts dashboard has one "Runs on" list of
   profiles and phones with no Reddit account yet.
 - **The settings button on an account's row** moves it to another profile or
   phone. Whatever it ran on before is cleared in the same save. Sign-ins do

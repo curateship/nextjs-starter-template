@@ -4,13 +4,17 @@ import { z } from "zod"
 import { adminGet, adminPost } from "@/server/guards"
 import {
   addAccountToProject,
+  addProjectNetwork,
   createProject,
   deleteProject,
   deleteProjects,
   listProjectRows,
+  projectForOldScreen,
   readProjectView,
   removeAccountFromProject,
+  removeProjectNetwork,
   updateProject,
+  type OldScreen,
   type ProjectAccount,
   type ProjectRow,
   type ProjectView,
@@ -21,6 +25,7 @@ import {
   queuePromoThreadReads,
   type PromoThreadRow,
 } from "@/server/social/reddit/promo-threads"
+import { NETWORKS, type Network } from "@/lib/social/networks"
 import { passReaderWritten } from "@/lib/social/refusal-words"
 
 import { createErrorMessage } from "../error-message"
@@ -43,6 +48,7 @@ export const getProjectErrorMessage = passReaderWritten(createErrorMessage(
     "already in another project": "That account is already in another project. An account belongs to one project only.",
     "found no posts yet": "This project has found no posts yet, so there are no subreddits to look in. Run a keyword first.",
     "There is no reader browser": "Pick a reader browser in Settings → Behaviour first. The look runs in it.",
+    "cannot use that network": "Promo cannot use that network yet.",
   },
   "That did not work. Please try again."
 ))
@@ -54,6 +60,16 @@ export const getProjectErrorMessage = passReaderWritten(createErrorMessage(
 export function getDeleteProjectErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : ""
   return message.includes("still holds") ? message : getProjectErrorMessage(error)
+}
+
+/**
+ * Adding a network the project already uses, or taking one off that still
+ * holds accounts or keywords, names the project and the network, so those
+ * pass through as they are.
+ */
+export function getNetworkErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : ""
+  return message.includes("still holds") || message.includes("already uses") ? message : getProjectErrorMessage(error)
 }
 
 const rowsFn = createServerFn({ method: "GET" })
@@ -89,13 +105,28 @@ export function loadProject(projectId: string) {
 
 const createFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(z.object({ name: z.string().max(120) }))
+  .inputValidator(z.object({ name: z.string().max(120), networks: z.array(z.enum(NETWORKS)).max(NETWORKS.length) }))
   .handler(async ({ context, data }): Promise<{ id: string }> => ({
-    id: await createProject(context.user.id, data.name),
+    id: await createProject(context.user.id, data.name, undefined, data.networks),
   }))
 
-export function makeProject(name: string) {
-  return createFn({ data: { name } })
+/** Makes a project using the networks ticked in the New project window. */
+export function makeProject(name: string, networks: Network[]) {
+  return createFn({ data: { name, networks } })
+}
+
+const networkFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: z.string().min(1), network: z.enum(NETWORKS), use: z.boolean() }))
+  .handler(async ({ context, data }): Promise<void> =>
+    data.use
+      ? addProjectNetwork(context.user.id, data.projectId, data.network)
+      : removeProjectNetwork(context.user.id, data.projectId, data.network)
+  )
+
+/** Adds a network to a project, or with `use` false takes it off. */
+export function setProjectNetwork(projectId: string, network: Network, use: boolean) {
+  return networkFn({ data: { projectId, network, use } })
 }
 
 const updateFn = createServerFn({ method: "POST" })
@@ -185,4 +216,25 @@ const removeAccountFn = createServerFn({ method: "POST" })
 
 export function takeAccountOutOfProject(accountId: string) {
   return removeAccountFn({ data: { accountId } })
+}
+
+const oldScreenFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(
+    z.object({
+      screen: z.enum(["today", "comments", "jobs"]),
+      commentId: z.string().min(1).max(40).nullable(),
+    })
+  )
+  .handler(async ({ context, data }): Promise<{ projectId: string | null }> => ({
+    projectId: await projectForOldScreen(context.user.id, data.screen, data.commentId),
+  }))
+
+/**
+ * Which project an old screen's address opens now, or null for the Projects
+ * table. Used by `/admin/today`, `/admin/comments` and `/admin/jobs`, which
+ * only send on.
+ */
+export function findProjectForOldScreen(screen: OldScreen, commentId: string | null = null) {
+  return oldScreenFn({ data: { screen, commentId } })
 }

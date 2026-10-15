@@ -40,9 +40,9 @@ twice.
 
 ## Where it shows
 
-- **Landed:** the Comments screen's **Posts** tab, with its account, project,
+- **Landed:** the Comments tab's **Posts** tab, with its account, project,
   subreddit and when. A row opens it on Reddit.
-- **Did not land:** the Comments screen's **Failed** tab, with the reason, and
+- **Did not land:** the Comments tab's **Failed** tab, with the reason, and
   Try again, which opens New post on its project with the words filled in. The
   bell rings for it too.
 

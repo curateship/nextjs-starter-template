@@ -128,14 +128,14 @@ export type ProfileCheck = {
  * the settings tab's error lookup needs the same words at runtime.
  */
 export const NO_PROFILE_MESSAGE =
-  "This Reddit account has no browser profile or phone, so it cannot post. Pick where it runs with its settings button on the Reddit accounts dashboard."
+  "This Reddit account has no browser profile or phone, so it cannot post. Pick where it runs with its settings button on the Accounts dashboard."
 
 /**
- * Why Post is off on the Projects dashboard before an account is clicked. A
- * comment always goes out from the account clicked on the left, so there is
- * never a default one to fall back to.
+ * Why Post is off on the Projects dashboard before an account is picked. A
+ * comment always goes out from the account picked in the dropdown beside
+ * Post, so there is never a default one to fall back to.
  */
-export const PICK_AN_ACCOUNT = "Pick an account on the left."
+export const PICK_AN_ACCOUNT = "Pick an account beside Post comment."
 
 /**
  * What a search, a reply read or a stranger's check says when no reader

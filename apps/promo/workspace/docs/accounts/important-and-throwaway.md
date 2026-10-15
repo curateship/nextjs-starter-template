@@ -24,7 +24,7 @@ to, so nothing may link the two groups.
   voice and project rules still hold then.
 - **Bringing a retired account back** is refused when its project or voice
   now holds the other group.
-- **The Reddit accounts dashboard** shows "Important" under an important
+- **The Accounts dashboard** shows "Important" under an important
   account's status, and a menu filters the list to either group.
 - **The Projects dashboard** lists a project's accounts under an Important or a
   Throwaway heading.

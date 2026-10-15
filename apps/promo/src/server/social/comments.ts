@@ -226,7 +226,7 @@ export async function queueCommentChange(
   }
   const handle = account.handle ? `u/${account.handle}` : "The account that sent it"
   if (account.retiredAt) {
-    throw new Refusal(`${handle} is retired, so it no longer changes anything on Reddit. Bring it back on the Reddit accounts dashboard first.`)
+    throw new Refusal(`${handle} is retired, so it no longer changes anything on Reddit. Bring it back on the Accounts dashboard first.`)
   }
   if (!account.profileId && !account.phoneId) throw new Refusal(NO_PROFILE_MESSAGE)
   const onPhone = account.phoneId
@@ -237,7 +237,7 @@ export async function queueCommentChange(
   if (paused) {
     throw new Refusal(
       paused === "account"
-        ? `${handle} is paused. Resume it on the Reddit accounts dashboard first.`
+        ? `${handle} is paused. Resume it on the Accounts dashboard first.`
         : `${handle}'s project is paused. Resume the project first.`
     )
   }

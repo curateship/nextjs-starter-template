@@ -21,8 +21,10 @@ import { queueHealthCheck } from "./health"
 import { promoAccounts, promoComments, promoProjects, promoVoices } from "./schema"
 
 /**
- * Every Reddit account as a list: the Reddit accounts dashboard, and the
- * status the Projects dashboard shows beside each account.
+ * Every account as a list, on every platform: the Accounts dashboard, with
+ * its Platform filter, and the status the Projects dashboard shows beside each
+ * account. Tyler, 15 Oct 2026: "I think accounts should be on its own
+ * dashboard with platform filtering". Only Reddit accounts exist so far.
  *
  * The browser profile and its proxy stay app-wide records. This reads them to
  * show what each account is plugged into, and never copies them onto the
@@ -78,6 +80,8 @@ export async function accountStatuses(
 
 export type RedditAccountRow = {
   id: string
+  /** The network it is an account on, "reddit" for every account so far. */
+  platform: string
   /** Without the u/ prefix. Empty when no name has been read. */
   handle: string
   status: AccountStatusView
@@ -129,7 +133,7 @@ export type RedditAccountRow = {
   } | null
 }
 
-/** The accounts in use, or with `retired` the retired ones too, oldest first. */
+/** The accounts in use on every platform, or with `retired` the retired ones too, oldest first. */
 export async function listRedditAccounts(
   userId: string,
   options: { retired: boolean },
@@ -172,7 +176,6 @@ export async function listRedditAccounts(
     .where(
       and(
         eq(promoAccounts.userId, userId),
-        eq(promoAccounts.platform, "reddit"),
         ...(options.retired ? [] : [isNull(promoAccounts.retiredAt)])
       )
     )
@@ -196,6 +199,7 @@ export async function listRedditAccounts(
     const { account } = row
     return {
       id: account.id,
+      platform: account.platform,
       handle: account.handle,
       status: statuses.get(account.id) ?? { status: null, byHand: false, warning: null },
       project:

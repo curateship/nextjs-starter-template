@@ -449,7 +449,7 @@ export async function stopForBanScreen(
         detail: [
           `${appName} showed it ${BAN_KIND_WORDS[ban.kind] ?? "stopped"}: "${words}".`,
           `Promo stopped the account${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}.`,
-          "The picture is on the phone's Actions tab. Let it run again from its settings on the Reddit accounts dashboard once it is sorted.",
+          "The picture is on the phone's Actions tab. Let it run again from its settings on the Accounts dashboard once it is sorted.",
         ].join(" "),
         href: phoneHref(phoneId),
       },

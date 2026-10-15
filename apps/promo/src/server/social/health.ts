@@ -218,8 +218,8 @@ export async function recordStrangerCheck(
         kind: "suspended",
         targetId: accountId,
         message: `${NOTICE_HEADINGS.suspended} u/${handle}`,
-        detail: "Reddit marks the account suspended. Nothing it posts will be seen. It is on the Reddit accounts dashboard.",
-        href: "/admin/reddit-accounts",
+        detail: "Reddit marks the account suspended. Nothing it posts will be seen. It is on the Accounts dashboard.",
+        href: "/admin/accounts?platform=reddit",
       },
       db,
       now

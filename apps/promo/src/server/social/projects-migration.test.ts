@@ -55,4 +55,89 @@ describe("the projects migration", () => {
     // Every migration is replayed by hand, which outran the 5 second default
     // while the whole suite was running beside it.
   }, 30_000)
+
+  it("gives every older project Reddit and takes Reddit's four screens out of each saved left menu", async () => {
+    client = new PGlite()
+    const folder = new URL("../../../drizzle/", import.meta.url)
+    const files = (await readdir(folder)).filter((file) => file.endsWith(".sql")).sort()
+    const target = "0118_promo_project_networks.sql"
+    for (const file of files.filter((name) => name < target)) {
+      await client.exec(await readFile(new URL(file, folder), "utf8"))
+    }
+
+    await insertUser(drizzle(client, { schema }) as unknown as CustomShellDb, { id: "u1", role: "admin" })
+    const link = (href: string, label: string) => ({ id: `item-${label}`, href, label, visible: true })
+    const menu = {
+      sections: [
+        {
+          id: "s1",
+          entries: [
+            {
+              ...link("/admin/projects", "Projects"),
+              children: [
+                link("/admin/today", "Today"),
+                link("/admin/comments", "Comments"),
+                link("/admin/voices", "Voices"),
+                link("/admin/reddit-accounts", "Reddit accounts"),
+                link("/admin/jobs", "Jobs"),
+              ],
+            },
+            link("/admin/comments", "Comments again"),
+            link("/admin/phones", "Phones"),
+          ],
+        },
+      ],
+    }
+    await client.query(
+      `INSERT INTO "workspaces" ("id", "name", "subdomain", "settings", "created_at", "updated_at") VALUES ('w1', 'Promo', 'promo', $1::jsonb, now(), now())`,
+      [JSON.stringify(menu)]
+    )
+    await client.exec(`INSERT INTO promo_projects (id, user_id, name) VALUES ('p1', 'u1', 'Older project');`)
+    await client.exec(await readFile(new URL(target, folder), "utf8"))
+
+    const projects = await client.query<{ networks: string[] }>("SELECT networks FROM promo_projects")
+    expect(projects.rows[0].networks).toEqual(["reddit"])
+
+    const saved = await client.query<{ settings: typeof menu }>(`SELECT settings FROM "workspaces" WHERE id = 'w1'`)
+    const entries = saved.rows[0].settings.sections[0].entries as Array<{ href: string; children?: Array<{ href: string }> }>
+    // Voices stays under Projects; the other four go, wherever they sat.
+    expect(entries.map((entry) => entry.href)).toEqual(["/admin/projects", "/admin/phones"])
+    expect(entries[0].children?.map((child) => child.href)).toEqual(["/admin/voices"])
+  }, 30_000)
+
+  it("puts Accounts under Projects right after Voices, or last when Voices is not there, once", async () => {
+    client = new PGlite()
+    const folder = new URL("../../../drizzle/", import.meta.url)
+    const files = (await readdir(folder)).filter((file) => file.endsWith(".sql")).sort()
+    const target = "0119_promo_accounts_menu.sql"
+    for (const file of files.filter((name) => name < target)) {
+      await client.exec(await readFile(new URL(file, folder), "utf8"))
+    }
+    const link = (href: string, label: string) => ({ id: `item-${label}`, href, label, visible: true })
+    const menu = (children: ReturnType<typeof link>[]) => ({
+      sections: [{ id: "s1", entries: [{ ...link("/admin/projects", "Projects"), children }, link("/admin/phones", "Phones")] }],
+    })
+    await client.query(
+      `INSERT INTO "workspaces" ("id", "name", "subdomain", "settings", "created_at", "updated_at") VALUES
+        ('w1', 'One', 'one', $1::jsonb, now(), now()),
+        ('w2', 'Two', 'two', $2::jsonb, now(), now())`,
+      [
+        JSON.stringify(menu([link("/admin/voices", "Voices"), link("/admin/other", "Other")])),
+        JSON.stringify(menu([link("/admin/other", "Other")])),
+      ]
+    )
+    await client.exec(await readFile(new URL(target, folder), "utf8"))
+    // Run twice: the second does nothing, since the link is already there.
+    await client.exec(await readFile(new URL(target, folder), "utf8"))
+
+    type Saved = { sections: Array<{ entries: Array<{ href: string; children?: Array<{ href: string }> }> }> }
+    const saved = await client.query<{ id: string; settings: Saved }>(
+      `SELECT id, settings FROM "workspaces" ORDER BY id`
+    )
+    const children = (row: { settings: Saved }) =>
+      (row.settings.sections[0].entries[0].children ?? []).map((child) => child.href)
+    expect(children(saved.rows[0])).toEqual(["/admin/voices", "/admin/accounts", "/admin/other"])
+    expect(children(saved.rows[1])).toEqual(["/admin/other", "/admin/accounts"])
+    expect(saved.rows[0].settings.sections[0].entries.map((entry) => entry.href)).toEqual(["/admin/projects", "/admin/phones"])
+  }, 30_000)
 })

@@ -63,6 +63,7 @@ import {
   type AccountStatus,
 } from "@/lib/social/account-status"
 import { ACCOUNT_IMPORTANCE, IMPORTANCE_WORDS } from "@/lib/social/importance"
+import { isNetwork, NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
 import { accountAgeText, postedDateText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -119,9 +120,18 @@ const APP_DECIDES = "app"
 /** The voice menu's value for "no voice". */
 const NO_VOICE = "none"
 
+/** A network's name, or the stored word for one Promo no longer offers. */
+function platformName(platform: string): string {
+  return isNetwork(platform) ? NETWORK_NAMES[platform] : platform
+}
+
 /**
- * Every Reddit account: its status, the project it comments for, the browser
- * profile or phone it runs on and how that goes online.
+ * Every account, on every platform: its status, the project it comments for,
+ * the browser profile or phone it runs on and how that goes online. Tyler, 15
+ * Oct 2026: "I think accounts should be on its own dashboard with platform
+ * filtering". The Platform filter is the address's `?platform=`, which Manage
+ * accounts in a project's Comment as dropdown sets to Reddit, and each row
+ * names its platform beside the account.
  *
  * Copied from the Comments dashboard and built from the shell's table. The
  * status is worked out by the app each time the list is read (Warming up,
@@ -134,8 +144,21 @@ const NO_VOICE = "none"
  * never warms up again, and its comments stay. "Show retired" brings the
  * retired ones back into the list, with Bring back on each.
  */
-export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPage }) {
+export function RedditAccountsDashboard({
+  initial,
+  platform,
+  onPlatformChange,
+}: {
+  initial: RedditAccountsPage
+  /** The platform filtered to, read from the address, or null for every one. */
+  platform: Network | null
+  /** Puts a platform in the address, or null for every one. */
+  onPlatformChange: (platform: Network | null) => void
+}) {
   const [page, setPage] = React.useState(initial)
+  // The address holds the filter, so a link to the page, a reload or the left
+  // menu's own link always shows what the address says.
+  const platformFilter: string = platform ?? ALL
   const [showRetired, setShowRetired] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [search, setSearch] = React.useState("")
@@ -178,6 +201,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
     const factor = direction === "asc" ? 1 : -1
     return accounts
       .filter((row) => {
+        if (platformFilter !== ALL && row.platform !== platformFilter) return false
         if (statusFilter !== ALL && row.status.status !== statusFilter) return false
         if (kindFilter !== ALL && row.importance !== kindFilter) return false
         if (tagFilter !== ALL && !(row.profile?.tags ?? row.phone?.tags ?? []).includes(tagFilter)) return false
@@ -187,7 +211,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
           .some((value) => String(value).toLowerCase().includes(query))
       })
       .sort((a, b) => factor * compare(a, b, sort))
-  }, [accounts, direction, kindFilter, search, sort, statusFilter, tagFilter])
+  }, [accounts, direction, kindFilter, platformFilter, search, sort, statusFilter, tagFilter])
 
   /**
    * The rows under their profile's or phone's folder, folders by name and "No folder"
@@ -252,7 +276,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
   return (
     <>
       <DashboardTable
-        title="Reddit accounts"
+        title="Accounts"
         icon={<UsersIcon />}
         count={shown.length}
         error={error ? { message: error, onRetry: () => void refresh(showRetired) } : null}
@@ -355,6 +379,22 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
+            <Select
+              value={platformFilter}
+              onValueChange={(value) => onPlatformChange(isNetwork(value) ? value : null)}
+            >
+              <DashboardToolbarSelectTrigger aria-label="Filter by platform" className="hidden sm:flex">
+                <SelectValue />
+              </DashboardToolbarSelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All platforms</SelectItem>
+                {NETWORKS.map((network) => (
+                  <SelectItem key={network} value={network}>
+                    {NETWORK_NAMES[network]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <DashboardToolbarSelectTrigger aria-label="Filter by status" className="hidden sm:flex">
                 <SelectValue />
@@ -436,7 +476,7 @@ export function RedditAccountsDashboard({ initial }: { initial: RedditAccountsPa
         emptyText={
           accounts.length
             ? "No accounts match that."
-            : "No Reddit accounts yet. Press Add account, pick a browser profile or a phone, then sign in to Reddit there."
+            : "No accounts yet. Press Add account, pick a browser profile or a phone, then sign in to Reddit there."
         }
         emptyColSpan={columnCount}
         footer={{ type: "summary", count: shown.length, label: "accounts" }}
@@ -567,6 +607,7 @@ function AccountRow({
       <TableCell column="main" className="max-w-0">
         <span className={row.handle ? "block truncate text-sm font-medium" : "block truncate text-sm text-muted-foreground"}>
           {name}
+          <span className="font-normal text-muted-foreground"> · {platformName(row.platform)}</span>
         </span>
         <span className="block truncate text-xs text-muted-foreground 2xl:hidden">
           {[age, karma, lastComment].join(" · ")}

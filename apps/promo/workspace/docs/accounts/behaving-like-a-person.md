@@ -108,7 +108,7 @@ An account Reddit made fewer than 3 days ago (the setting) is warming up.
 
 - **Post is refused** with the day and time the warm-up ends. An account whose
   age Promo has never read is refused too, with how to read it (Check now on
-  the Reddit accounts dashboard), because nobody can tell when its warm-up ends.
+  the Accounts dashboard), because nobody can tell when its warm-up ends.
 - **Once a day,** at a time picked at random within the next four hours of its
   waking day, a signed-in warming account visits Reddit: 3 to 7 minutes of
   feed, two to four posts opened, and one or two subreddits joined in the middle
@@ -133,7 +133,7 @@ posts give it a life beyond the product: the newest posts in the subreddits it
 has joined, answered with help and never a word about what you make. Its
 comments then read like a person's, get removed less, and earn the karma some
 subreddits ask for before anyone may post. Tyler picked this on 12 Oct 2026, and
-said where it lives: on the Reddit accounts dashboard, the hand button on each
+said where it lives: on the Accounts dashboard, the hand button on each
 row.
 
 - **Read new posts** reads up to five of the account's joined subreddits

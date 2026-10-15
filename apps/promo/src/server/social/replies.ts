@@ -173,7 +173,7 @@ export async function queueReply(
   const handle = account.handle ? `u/${account.handle}` : "This account"
   if (account.retiredAt) {
     throw new Refusal(
-      `${handle} sent this comment and is retired, so it no longer posts. Bring it back on the Reddit accounts dashboard first.`
+      `${handle} sent this comment and is retired, so it no longer posts. Bring it back on the Accounts dashboard first.`
     )
   }
   if (!account.profileId && !account.phoneId) throw new Refusal(NO_PROFILE_MESSAGE)

@@ -1,8 +1,34 @@
-# The Reddit accounts dashboard
+# The Accounts dashboard
 
-Every Reddit account in one list, with its status, the project it comments for,
-the browser profile or phone it runs on, and how that goes online.
-It is at `/admin/reddit-accounts`, under **Projects** in the left menu.
+Every account on every platform in one list, with its status, the project it
+comments for, the browser profile or phone it runs on, and how that goes
+online. It is at `/admin/accounts`, under **Projects** in the left menu, right
+after Voices.
+
+Tyler, 15 Oct 2026: "I think accounts should be on its own dashboard with
+platform filtering". It had been a window inside each project for a day, after
+the Reddit accounts page left the left menu on 14 Oct 2026
+([Networks as modules](../network-modules.md)).
+
+- **Platform** is a filter in the toolbar, "All platforms" or one network, and
+  each row names its platform after the account ("u/name · Reddit"). Only
+  Reddit accounts exist so far, and the list reads every platform's.
+- **The filter lives in the address** as `?platform=reddit`, so a reload, a
+  link or the left menu's own link always shows what the address says.
+  **Manage accounts**, the last item in the **Comment as** dropdown above a
+  project's comment box, comes here that way. A platform Promo does not offer
+  is ignored and the filter shows All platforms.
+- **The old address** `/admin/reddit-accounts`, which the bell's suspended
+  account notice used, sends here filtered to Reddit. New suspended notices
+  open `/admin/accounts?platform=reddit` straight away.
+- **An account's own windows** (its settings, Add account, help-only posts)
+  open over this page, one window at a time.
+- **The left menu link** is added by `drizzle/0119_promo_accounts_menu.sql`
+  to every saved left menu with a Projects entry: after Voices, or last under
+  Projects where Voices is not there.
+- **Every action still speaks Reddit.** Add account makes a Reddit account,
+  and Check now reads Reddit. When Instagram is built, its accounts need their
+  own Add and Check (`workspace/tasks/Phone farm/06-instagram-and-tiktok.md`).
 
 Tyler's words, 12 Oct 2026: "build a dashboard for reddit profiles with status
 (like warming up, ready etc...) show what profile and proxy as currantly

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { matchesFindSearch } from "@/lib/social/find-search"
+import { isFindsTab, type FindsTab, type RedditView } from "@/lib/social/reddit/options"
 import { emptyFindsWords, postedDateText } from "@/lib/social/wording"
 import { cn } from "@/lib/utils"
 import { Hint } from "@/components/social/hint"
@@ -41,14 +42,14 @@ import { FIT_BAND_LABELS, FIT_BANDS, type FitBand } from "@/server/social/reddit
  * the same day, so posts under To look at can still be skipped several at once.
  */
 
-/** The three tabs across the top, and which stored status each one means. */
-const TABS = [
+/** The tabs across the top: which stored status each of posts means, then Today and Comments. */
+const TABS: Array<{ id: RedditView; label: string }> = [
   { id: "new", label: "To look at" },
   { id: "commented", label: "Replied" },
   { id: "skipped", label: "Skipped" },
-] as const
-
-export type FindsTab = (typeof TABS)[number]["id"]
+  { id: "today", label: "Today" },
+  { id: "comments", label: "Comments" },
+]
 
 /** Each band's dot. The band's name is always written beside it. */
 const BAND_DOTS: Record<FitBand, string> = {
@@ -66,8 +67,9 @@ export function FindsPanel({
   loading,
   error,
   selectedId,
-  tab,
+  tab: view,
   onTabChange,
+  otherView,
   onSelect,
   onBlock,
   onSkip,
@@ -93,8 +95,10 @@ export function FindsPanel({
   loading: boolean
   error: string | null
   selectedId: string | null
-  tab: FindsTab
-  onTabChange: (tab: FindsTab) => void
+  tab: RedditView
+  onTabChange: (tab: RedditView) => void
+  /** What Today and Comments show under the tabs, in place of the posts. */
+  otherView: React.ReactNode
   onSelect: (findId: string) => void
   /**
    * Blocks the subreddit a row came from, across every keyword. Its stored
@@ -111,6 +115,10 @@ export function FindsPanel({
   const [rawTicked, setTicked] = React.useState<Set<string>>(new Set())
   const [skipping, setSkipping] = React.useState(false)
   const nameKeywords = everything && keywordNames.size > 1
+  const showsPosts = isFindsTab(view)
+  // Today and Comments list no posts, so the posts' figures stay on the
+  // first tab underneath them.
+  const tab: FindsTab = showsPosts ? view : "new"
 
   /** The posts the search box lets through, whatever their status. */
   const matched = React.useMemo(
@@ -153,7 +161,7 @@ export function FindsPanel({
    * Only posts still to look at can be ticked: a skipped post is skipped
    * already, and one replied to is never skipped.
    */
-  const tickable = tab === "new"
+  const tickable = showsPosts && tab === "new"
 
   /**
    * A tick only counts while its row is on screen, so "Skip 20" can never mean
@@ -213,33 +221,38 @@ export function FindsPanel({
       {/* The status tabs on the left; on the right the ticked posts' buttons,
           then the sort buttons, each above its own column of figures. */}
       <div className="flex shrink-0 flex-wrap items-end gap-x-4 border-b px-3">
-        <div role="tablist" aria-label="Which posts" className="flex items-end gap-4">
+        {/* Wraps on a phone, where five tabs are wider than the screen. */}
+        <div role="tablist" aria-label="Which list" className="flex flex-wrap items-end gap-x-4">
           {TABS.map((item) => (
             <button
               key={item.id}
               type="button"
               role="tab"
-              aria-selected={tab === item.id}
+              aria-selected={view === item.id}
               onClick={() => onTabChange(item.id)}
               className={cn(
                 "-mb-px flex h-11 items-center gap-1.5 border-b-2 text-sm whitespace-nowrap focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-                tab === item.id
+                view === item.id
                   ? "border-foreground font-medium text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
               {item.label}
-              <span className="font-normal text-muted-foreground tabular-nums">
-                {loading && !finds.length ? "" : counts[item.id]}
-              </span>
+              {/* Today and Comments count nothing here; their lists do. */}
+              {isFindsTab(item.id) ? (
+                <span className="font-normal text-muted-foreground tabular-nums">
+                  {loading && !finds.length ? "" : counts[item.id]}
+                </span>
+              ) : null}
             </button>
           ))}
-          {loading && finds.length ? (
+          {showsPosts && loading && finds.length ? (
             <Loader2Icon className="mb-3.5 size-4 animate-spin text-muted-foreground" aria-label="Reading the posts again" />
           ) : null}
         </div>
         {/* Ticking a post brings these in on the right of the tabs: tick
             them all, start over, or skip them. Tyler, 13 Oct 2026. */}
+        {showsPosts ? (
         <div className="ml-auto flex h-11 items-center gap-3">
         {ticked.size ? (
           <div className="flex items-center gap-3">
@@ -294,8 +307,14 @@ export function FindsPanel({
             <span className="size-8 shrink-0" aria-hidden="true" />
           )}
         </div>
+        ) : null}
       </div>
 
+      {/* A container, so the tables in Today and Comments fold their columns
+          by this column's width rather than the window's. */}
+      {showsPosts ? null : <div className="@container flex min-h-0 flex-1 flex-col">{otherView}</div>}
+
+      {showsPosts ? (
       <ScrollArea className="min-h-0 flex-1">
         {error ? (
           <div className="grid justify-items-start gap-3 p-4">
@@ -372,6 +391,7 @@ export function FindsPanel({
           </div>
         )}
       </ScrollArea>
+      ) : null}
     </div>
   )
 }
