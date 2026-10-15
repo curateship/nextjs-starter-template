@@ -1,125 +1,262 @@
 # Rules before an entry
 
-Tyler sets a short list of rules for himself in Settings, under Trading rules.
-When he clicks Long, Short, DCA or Grid on a real-money wallet and a rule is
-not met, one window opens. It names every rule that is not met, puts the
-number he asked for beside the number he has, and asks him to confirm or go
-back. It never stops the trade.
+Tyler builds his own rules in Settings, under Trading rules. Each rule is a
+stack of conditions, the way a contact segment is built in CMS, plus his own
+bullet-point notes that he ticks on the chart before an entry. Each condition
+is something that must hold before he trades. When he places a real-money
+Long, Short, DCA ladder or grid and a rule's conditions do not hold, the rule
+either warns him and lets him confirm, or blocks the entry. A small
+Rules box on the chart shows the same rules and the notes to tick before he
+presses anything, and warns when a trade he already holds starts breaking one.
 
 Tyler, 4 Sep 2026: "This is not to completely block me from trading, it just
-gives me a warning and I have to confirm to enter the trade."
+gives me a warning and I have to confirm to enter the trade." That is Warn.
 
-## The four rules
+Tyler, 15 Oct 2026: "the flow rule would be like timeframe 1 week > ema 50 >
+trade grid 5 > trigger modal alert", and "if I enter a trade that does not
+fit the currant rule, it would block me". He chose a table of rules with
+stacked conditions over a node canvas, and chose Warn or Block per rule.
 
-Each rule has a switch and a number. The first three also say which side they
-apply to: longs, shorts, or both. Every rule starts off. The rules are per
-account and the same on every exchange and coin.
+## A rule
 
-- **Lines on the chart.** At least N lines above the price and N below it on
-  this coin. A dropdown says what counts: trendlines only, levels only, or
-  either. Above or below is read from the line's price right now, so a sloping
-  trendline is read where it is today, not where it was drawn. A vertical line
-  has no price and counts for neither side. A line exactly on the price also
-  counts for neither, and the window says so: "1 line sits on the price".
-  Drawings belong to a coin, not to a timeframe, so the rule is per coin too.
-  Default 2.
-- **Time on this chart.** At least N minutes since this coin was opened on this
-  page. The clock starts when the coin changes and starts again on a reload, so
-  a reload just before a short makes the rule fire. Leaving for another coin
-  and coming back starts it again. Default 3 minutes.
-- **Time since the last order.** At least N minutes since the last order Tyler
-  placed by hand on this coin. The browser remembers the moment each entry is
-  sent. After a reload it starts from the newest thing the chart can see for
-  the coin: a fill, a finished trade, a resting order or a watched level. A
-  first order on a coin never fires this rule. Default 5 minutes.
-- **Grids on one exchange.** At most N real-money grids running on one
-  exchange, counting every wallet on it. Only placing a grid is checked, never
-  a Long, Short or DCA ladder. With N at 10 and 10 grids running on
-  Hyperliquid, the next grid there opens the window: "Asked: At most 10 grids
-  running on one exchange. Now: You have 10 running here, so this one makes
-  11." The count is the grids the page has loaded for this exchange that are
-  still running on a real-money wallet. Practice grids are not counted.
-  Default 10. Tyler, 15 Oct 2026: "warn me if I'm in more than certain amount
-  of grid per protocol. I can enter the amount I want."
+Settings, Trading rules is a table. Each row is one rule, with its name, its
+conditions as one sentence, what it covers, Warns or Blocks, and a switch.
+New rule adds one and opens it. The row's buttons copy it (the copy starts
+switched off, so one condition never warns twice), open it, or delete it.
+Everything saves 700ms after the last change, with no Save button.
 
-## What the screen does
+A rule's window has:
 
-- **Before the click.** The Long, Short, DCA and Grid windows do not show the
-  rules. Their button stays enabled.
-- **On the click.** The rules are checked before anything is sent or drawn.
-  Nothing is met: the order goes out exactly as it did before. Something is
-  unmet: one window opens, titled with the action and the size, "Short $12.00?",
-  with one red panel inside it. The panel is headed "3 rules not met", and each
-  rule under it has its name, an "Asked" line with the number asked for, and a
-  red "Now" line with the number at the moment of the click. There is one
-  window for every unmet rule, never one window per rule.
-- **Go back** sends nothing and draws nothing. For a Long or Short the order
-  window opens again on the size it just remembered. The DCA and grid windows
-  were never closed, so they are simply back on top.
-- **The other button** repeats the action and the size, so what is confirmed
-  is the trade: "Short $500 anyway", "Long $500 in 7 rungs anyway", "Buy
-  $500 in 5 levels anyway". Pressing it sends the order as normal.
+- **Name.** Shown in the window and on the Journal row. 1 to 40 letters, with
+  no comma or full stop, because the Journal lists rule names after commas. A
+  name that does not fit stays in the box, marked, and the rule keeps its last
+  good name.
+- **Switched on.**
+- **When I place.** A long or short order, a DCA ladder, a grid. Tick any. A
+  rule with nothing ticked never checks anything.
+- **Which way.** Longs and shorts, longs only, or shorts only. A DCA ladder is
+  always a long. A grid counts by the way it trades.
+- **When it is not met.** Warn me and let me confirm, or block the trade.
+- **Conditions.** "Add a condition" stacks a card under the last one, up to 20.
+  "Fine to trade when" is All of these are true, or Any of these is true. With
+  All, one condition that does not hold breaks the rule; with Any, one that
+  holds is enough. Each card has a bin. There are no groups inside groups.
 
-A worked example. BTC is at $60,000. One trendline is drawn above it at
-$62,000 and nothing below. The coin was opened 40 seconds ago. Short for $500
-opens the window with:
+A condition is something that must hold before Tyler trades. A rule with no
+conditions never warns or blocks, but its notes are still asked for. Tyler, 15
+Oct 2026, shown a tick beside "At least 5 grids in this wallet" with 18
+running: "this should be an x", and "It should be max 5 grid running". A
+condition that holds gets a green tick, one that does not gets a red cross.
+
+- **Notes to tick.** "Add a note" adds a bullet point, up to 10, each up to
+  200 letters. Every note on a switched-on rule must be ticked on the chart
+  before an entry that rule covers can go out, whatever its conditions say. A
+  blank note asks for nothing. A rule with only notes is a checklist.
+
+Tyler, 15 Oct 2026: "Note on each rule and also make it a checkbox on the
+trading chart that I must check off before I can place a trade".
+
+## The conditions
+
+- **EMA.** Price is above or under EMA N on a timeframe, from 1 minute to 1
+  month. It reads the price now, the last closed candle's close, or the whole
+  last closed candle (its high under the line, or its low above it). The EMA is
+  built from closed candles only, with the same `ema()` the chart draws. A week
+  and a month are built from day bars, the way the chart builds them
+  (`chart-history.ts` `groupCandles`). The chart reads three times N candles so
+  the average has settled, and a coin with fewer than N closed candles says
+  so: "EMA 50 needs 50 closed weekly candles. This coin has 30."
+- **Price and a line.** Price is within X% of the nearest line, or above,
+  under or within X% of a line by its name. A name is matched on whichever
+  coin is open, so one rule can mean "Weekly support" on BTC and on ETH. A
+  trendline is read where it is today.
+- **Grids on this exchange.** At most N real-money grids running on this
+  exchange, every wallet on it. Before an entry the new grid is counted, so
+  with N at 5 and 5 running, a sixth breaks it.
+- **Grids in this wallet.** At most N grids running in the wallet the order
+  goes to.
+- **Grids on this coin.** At most N real-money grids running on this coin.
+- **Open positions on this exchange.** At most N real-money positions open.
+- **Lines on the chart.** At least N lines above the price and N below it.
+  Trendlines, levels or either. A line exactly on the price counts for neither
+  side, and a vertical line has no price.
+- **Time on this chart.** At least N minutes since this coin was opened on
+  this page. Changing coin or reloading starts the clock again.
+- **Time since the last order.** At least N minutes since the last order
+  placed by hand on this coin. A first order on a coin always holds.
+
+The counts are what the page has loaded for this exchange, the same as the
+grid count always was.
+
+## Before an entry
+
+The check runs when Long, Short, DCA or Grid is pressed on a real-money
+wallet, before anything is sent or drawn. A rule is broken when it is
+switched on, covers what is being placed, and its conditions do not hold (one
+of them fails, with All; none holds, with Any).
+
+- **Nothing is broken and every note is ticked.** The order goes out as it
+  always did.
+- **A note is not ticked.** The window lists the covering rules' notes as
+  boxes, the same boxes as on the chart, and says "Tick every note before
+  this goes out". The send button appears once every one is ticked, and
+  reads "Long $500", or "Long $500 anyway" when a Warn rule is also broken.
+- **A Warn rule is broken.** One window, titled with the action and the size,
+  "Short $500?", holds a red panel headed "1 rule not met". Each rule shows
+  its name, then every condition as a line with no prices: a green tick when
+  it holds, a red cross when it does not. Go back sends nothing. "Short $500
+  anyway" sends it.
+- **A Block rule is broken.** The same window and panel, headed "Blocked by" the
+  rule's name, with only Go back. Changing that is a choice made in Settings,
+  not in the moment.
+- **A condition cannot tell yet.** Candles still loading, a named line not on
+  this coin, or a condition saved by a different version of Trade. The rule
+  shows "Can't tell yet" in grey and warns. A Block rule never blocks on a
+  condition it cannot read.
+
+Go back on a Long or Short reopens the order window on the size it just
+remembered. The DCA and grid windows were never closed.
+
+A worked example, Tyler's own rule:
 
 ```
-Short $500?
-  2 RULES NOT MET
-  Lines on the chart
-    Asked  2 above and 2 below.
-    Now    You have 1 above and 0 below.
-  Time on this chart
-    Asked  3 minutes before a short.
-    Now    You have been here 40 seconds.
-[Go back]   [Short $500 anyway]
+Weekly trend guard                                  on
+When I place   A grid
+Fine to trade when   All of these are true
+  EMA                     Price is above EMA 50 on 1 week
+  Grids on this exchange  At most 5 real-money grids running on this exchange
+When it is not met   Block the trade
 ```
+
+BTC is at $60,000 and its 50-week EMA is at $64,000. Four grids are running on
+Hyperliquid, so this grid makes five. Grid for $500 opens:
+
+```
+Buy $500 in 5 levels?
+  BLOCKED BY WEEKLY TREND GUARD
+  Weekly trend guard                         Blocks
+    ✗ EMA 50 on 1 week timeframe is above
+    ✓ At most 5 grids on this exchange
+[Go back]
+```
+
+With BTC at $70,000, both hold and the grid goes out with no window. With
+five grids already running, the sixth breaks the limit too. Set to Any, one
+condition holding would be enough.
+
+## The Rules box on the chart
+
+On a real-money wallet with a rule switched on, a box sits in the chart's top
+left corner, laid out the way Tyler drew it on 15 Oct 2026:
+
+```
+Rules                         [1 warning] [1 to tick]  v
+-------------------------------------------------------
+Main Grid rule                                  2 rules
+  ! Your PUMP grid on HL1 - GRID
+      ✗ At most 5 grids in this wallet
+      ✓ EMA 50 on 1 week timeframe is above
+  TICK BEFORE YOU TRADE
+  [ ] Must be 2 stocks and 2 trendy ALT and BTC
+```
+
+- **The header** counts what needs attention: rules that would block an entry
+  placed now (red), rules that would warn or that a held trade breaks
+  (amber), rules that cannot tell yet, and notes still to tick. With nothing
+  to count it says All clear.
+- **One section per rule** with something to show, headed by the rule's name
+  and how many conditions it has, in amber when it warns and red when it
+  blocks.
+- **An amber card per held trade that breaks the rule.** A real-money trade
+  already held on the coin, a running grid, a running DCA ladder or a
+  position that belongs to neither, is checked against the rules that cover
+  that kind of entry. The card names the coin and the wallet in bold and
+  lists the rule's conditions, failed ones first. It only warns. An entry
+  that already happened cannot be undone, and nothing here closes or cancels
+  anything. For a held trade the count includes the trade itself once, so a
+  fifth grid under "at most 5" is the limit reached, not passed. The
+  conditions about preparing an entry (lines on the chart, time on this
+  chart, time since the last order) are skipped for held trades.
+- **Tick before you trade** lists the rule's notes as boxes. An entry only
+  waits for the notes of the rules that cover it. Ticks belong to the coin on
+  screen. Placing an order on the coin clears them, so the next entry asks
+  again, and a reload starts with none.
+- **The arrow** folds everything under the header away, and opens it again.
+  The box starts open. Each condition line has a green tick when it holds, a
+  red cross when it does not, and a question mark with the reason when it
+  cannot tell, with no prices: Tyler, 15 Oct 2026, "there is too much text and
+  i dont care about the price".
+
+It follows the price as it moves and the clock every second.
+
+The box remembers whether it is open only while the page is open.
+
+The EMA conditions read their candles once per coin and timeframe, and again
+when that timeframe's candle closes, so a weekly EMA asks the exchange once a
+week per coin on screen. A week needs the store's older day bars. On a stock
+whose older history is still being filled, the weekly EMA can sit at "still
+loading" until the store answers.
 
 ## What is recorded
 
-A confirmed entry carries the names of the rules it broke. A Long or Short
-writes them on the Journal row the exchange answer creates: "Overrode: lines on
-the chart, time on this chart. Resting on the exchange." A DCA ladder or grid
-writes its own row at placement, because the engine sends their orders later,
-one pass at a time.
+A confirmed Warn entry carries the names of the rules it went against. A Long
+or Short writes them on the Journal row the exchange answer creates:
+"Overrode: Weekly trend guard. Resting on the exchange." A DCA ladder or grid
+writes its own row at placement, because the engine sends their orders later.
 
-The Journal tab reads those rows back and shows "Overrode: lines on the
-chart" under How it ended on the trade the entry became part of. The row is
-written before the fill, so it belongs to the earliest trade on that wallet and
-coin that had a fill at or after it was written. A confirmed entry that was
-then cancelled without filling leaves its note on the next trade of that coin
-instead. Saying it once too often is the safe side.
+The Journal tab reads those rows back and shows "Overrode: Weekly trend guard"
+under How it ended on the trade the entry became part of: the earliest trade
+on that wallet and coin with a fill at or after the row. A confirmed entry
+that was cancelled without filling leaves its note on the next trade of that
+coin instead. Saying it once too often is the safe side. Rows written before
+15 Oct 2026 carry the old names, such as "lines on the chart", and still read.
+
+A blocked entry records nothing, because nothing was sent. Ticked notes are
+not recorded.
 
 ## What is never asked
 
 - Closing, partial close, Turn around, Close all, Flatten, moving a stop or a
-  target, and resuming a paused smart order. An exit is never slowed.
-- Anything the engine places on its own: bots, running flows and the rungs and
-  levels of a smart order already placed.
-- A practice wallet. It never warns and never records.
+  target, and resuming a paused smart order. An exit is never slowed or
+  blocked.
+- Anything the engine places on its own: bots, running recipes, and the rungs
+  and levels of a smart order already placed.
+- A practice wallet. It never warns, never blocks and never records, and the
+  Rules box is not shown.
+- An order placed on the exchange's own site. It never passes through Trade.
 
-There is no "don't ask again" box. A rule is on or off in Settings, nowhere
-else.
+There is no "don't ask again" box. A rule is on or off in Settings.
 
-There is no "a stop loss is set" rule. One existed for a few hours on 4 Sep
-2026 and Tyler had it removed: "How can I have a stoploss if I didn't even
-place an order." A saved row from those hours still reads; the extra key is
-ignored.
+## Rules saved before 15 Oct 2026
+
+`trade_prefs.trading_rules` used to hold four fixed rules. A row still in
+that shape is read as one Warn rule for each one that was switched on, with
+the same numbers: Lines on the chart, Time on this chart and Time since the
+last order cover every entry on their old side; Grids on one exchange covers
+grids only, as "At most N real-money grids running on this exchange", which is
+exactly what it was. The
+first save writes the new shape, `{ list: [...] }`. No migration: the column
+is the same jsonb.
+
+**Until this is deployed,** the deployed site reads a saved list as all four
+old rules switched off, and saving rules on the deployed site writes the old
+shape over the list. Build rules here after the deploy, not before.
 
 ## Where it lives
 
-- `src/lib/trade/trading-rules.ts` holds the saved shape, the defaults, the
-  check itself and the words of every sentence. `trading-rules.test.ts` sits
-  beside it.
-- `trade_prefs.trading_rules` is the column, added by migration 0162. Never
-  rename a field once saved.
-- The rules arrive with the dashboard's opening answer and with the Settings
-  tab's own loader, so neither screen flashes from the defaults.
-- `src/components/trade/chart-panel.tsx` runs the check in the three place
-  handlers, and counts the running real-money grids for the grid one and owns the one warning window. That window shows the red panel
-  from `src/components/trade/unmet-rules-panel.tsx`.
-- `src/components/trade/trading-rules-settings.tsx` is the Settings tab: one
-  card per rule, the switch in the card's header, the number and choices in
-  one short row under it. Rules save as they change, half a second after the
-  last edit, with no save button.
+- `src/lib/trade/trading-rules.ts` holds the saved shape, reading old rows,
+  the words for each condition, the check (`judgeRule`, `checkTradingRules`)
+  and the Journal note. `trading-rules.test.ts` sits beside it.
+- `src/components/trade/trading-rules-settings.tsx` is the table and the
+  rule's window. `trading-rule-builder.tsx` is the stacked conditions, a
+  Trade-owned copy of the anatomy of the shell's `segment-rule-builder.tsx`.
+  `use-trading-rules.ts` keeps the list and saves it.
+- `src/components/trade/chart-panel.tsx` gathers what the conditions read
+  (`ruleFacts`), runs the check in the three place handlers, and owns the Warn
+  and Block windows. `unmet-rules-panel.tsx` is the red panel.
+  `rules-watch-panel.tsx` is the Rules box. `use-rule-candles.ts` reads the EMA
+  candles. `last-order-memory.ts` remembers the last order per coin.
+- `entry-rules-window.tsx` is the window before an entry: Block, notes to
+  tick, and Warn. `rule-note-checklist.tsx` draws the boxes, and
+  `note-ticks.ts` remembers the ticks per coin. Rules saved before notes
+  existed read with none.

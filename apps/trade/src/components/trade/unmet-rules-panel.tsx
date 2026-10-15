@@ -1,22 +1,31 @@
+import { RuleConditionLine } from "@/components/trade/rule-condition-line"
 import { LOST_MONEY } from "@/lib/trade/money-tone"
-import { unmetRulesHeading, type UnmetRule } from "@/lib/trade/trading-rules"
+import {
+  blockedHeading,
+  unmetRulesHeading,
+  type RuleResult,
+} from "@/lib/trade/trading-rules"
 import { cn } from "@/lib/utils"
 
 /**
- * The person's own rules an entry does not meet, one block each: the rule's
- * name, what was asked for, and in red what is true right now. Sits inside the
- * warning window that asks "anyway?". Renders nothing when every rule is met.
+ * The person's own rules an entry runs into, one block per rule: its name,
+ * then every condition with a tick when it holds and a cross when it does
+ * not, with no prices. A condition that cannot tell yet has a question mark
+ * and says why. Sits
+ * inside the window that asks "anyway?" or, for a rule set to Block, the
+ * window that only goes back. Renders nothing when no rule counts.
  */
 export function UnmetRulesPanel({
   id,
-  rules,
+  results,
   className,
 }: {
   id?: string
-  rules: readonly UnmetRule[]
+  results: readonly RuleResult[]
   className?: string
 }) {
-  if (rules.length === 0) return null
+  if (results.length === 0) return null
+  const blocked = results.some((result) => result.blocks)
   return (
     <div
       id={id}
@@ -33,18 +42,24 @@ export function UnmetRulesPanel({
         )}
       >
         <span aria-hidden className="size-2 rounded-full bg-current" />
-        {unmetRulesHeading(rules.length)}
+        {blocked ? blockedHeading(results) : unmetRulesHeading(results.length)}
       </div>
       <div className="divide-y">
-        {rules.map((rule) => (
-          <div key={rule.kind} className="grid gap-1 px-3 py-2">
-            <div className="font-medium">{rule.title}</div>
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-              <span className="text-muted-foreground">Asked</span>
-              <span>{rule.asked}</span>
-              <span className="text-muted-foreground">Now</span>
-              <span className={LOST_MONEY}>{rule.now}</span>
+        {results.map((result) => (
+          <div key={result.rule.id} className="grid gap-2 px-3 py-2">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-medium">{result.rule.name}</span>
+              <span className="text-xs text-muted-foreground">
+                {result.blocks
+                  ? "Blocks"
+                  : result.rule.then === "block"
+                    ? "Warns until it can tell"
+                    : "Warns"}
+              </span>
             </div>
+            {result.allCards.map((card, index) => (
+              <RuleConditionLine key={index} card={card} />
+            ))}
           </div>
         ))}
       </div>

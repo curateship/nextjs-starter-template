@@ -203,10 +203,13 @@ screen: anything not written there has not been agreed yet.
   ladder summary, red DCA exit lines and labels, the DCA exit choices and draggable exit gap, the base stop,
   and the grid window.
   Manual market orders require confirmation before submission.
-- `rules-before-an-entry.md` — the three rules Tyler sets for himself before a
-  real-money Long, Short, DCA or Grid, the one warning window that names what
-  is unmet and asks him to confirm or go back, and the "Overrode" note the
-  Journal keeps.
+- `rules-before-an-entry.md` — the rules Tyler builds for himself, each a
+  stack of conditions (EMA on any timeframe, grid and position counts, lines,
+  time) that warns or blocks a real-money Long, Short, DCA or Grid, and
+  bullet-point notes ticked on the chart before the entry goes out; the
+  window that asks him to confirm, or only to go back; the Rules box on the
+  chart and its warning about trades already held; and the "Overrode" note
+  the Journal keeps.
 - `grid-orders.md` — chart stop removal, pending and refused saves, testing steps; Lighter resting stops, size reconciliation and the live testing roadmap; the wait message when replacing a grid during cancellation; drawing-alert stop losses with red chart lines and labels, linked-line protection and engine rollout requirements; how a grid recycles, whether it buys the dips or sells the
   rallies, where its range sits, how the money is split between levels, what a
   sell is worth, what following price up and down does, and pairing an old buy

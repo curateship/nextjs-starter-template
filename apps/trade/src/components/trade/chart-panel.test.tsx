@@ -16,7 +16,10 @@ import { loadCandles, loadOlderCandlesFor } from "@/lib/api/trade/candles"
 import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
 import type { ChartInterval } from "@/lib/trade/chart-interval"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
-import { DEFAULT_TRADING_RULES } from "@/lib/trade/trading-rules"
+import {
+  DEFAULT_TRADING_RULES,
+  type TradingRule,
+} from "@/lib/trade/trading-rules"
 import { CHART_INTERVAL_FAVORITES_STORAGE_KEY } from "@/lib/trade/chart-interval"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
@@ -34,6 +37,7 @@ vi.mock("@/lib/api/trade/candles", async (importOriginal) => {
 
 vi.mock("@/lib/trade/live-market", () => ({
   liveMarkOf: vi.fn(() => null),
+  useLiveFigures: vi.fn(() => null),
   watchLiveCandle: vi.fn(() => () => {}),
   useLiveCatchUp: vi.fn(),
 }))
@@ -1825,5 +1829,182 @@ describe("removing a DCA ladder from the chart", () => {
     )
     await act(async () => confirm?.click())
     expect(cancelLadder).toHaveBeenCalledWith("wallet-1", "ladder-1")
+  })
+})
+
+describe("the rules before a real-money entry", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  /** Broken on every entry: nobody has been on a chart for a whole day. */
+  function timeGuard(then: TradingRule["then"]): TradingRule {
+    return {
+      id: "rule-time",
+      name: "Time guard",
+      on: true,
+      places: ["order"],
+      sides: "both",
+      match: "all",
+      then,
+      cards: [{ type: "timeOnChart", minutes: 1440 }],
+      notes: [],
+    }
+  }
+
+  async function pressLong(rule: TradingRule) {
+    // The floating order window measures itself; jsdom has nothing to measure.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    vi.useFakeTimers()
+    vi.mocked(loadCandles).mockResolvedValue({
+      candles: [
+        { openTime: 0, open: 100, high: 101, low: 89, close: 90, volume: 1 },
+      ],
+    })
+    const place = vi.fn()
+    const liveTrading = {
+      ...trading,
+      wallet: { id: "wallet-1", kind: "live", label: "HL1" },
+      liveWalletIds: new Set(["wallet-1"]),
+      walletNames: new Map([["wallet-1", "HL1"]]),
+      place,
+    } as unknown as Trading
+
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <ChartPanel
+            selectedKey="hyperliquid:BTC"
+            interval="15m"
+            initialChartView={null}
+            initialChart={null}
+            initialDrawings={{ marketKey: null, rows: [], error: null }}
+            initialQuickOrder={{ ...DEFAULT_QUICK_ORDER, size: "50" }}
+            options={DEFAULT_CHART_OPTIONS}
+            tradingRules={{ list: [rule] }}
+            indicators={{}}
+            market={
+              {
+                key: "hyperliquid:BTC",
+                symbol: "BTC",
+                price: 100,
+                sizeDecimals: 5,
+                minSize: null,
+                maxLeverage: 10,
+              } as never
+            }
+            trading={liveTrading}
+            free={1000}
+            equity={1000}
+            shownTrade={null}
+            addTo={null}
+            onAddOpened={() => {}}
+          />
+        </TooltipProvider>
+      )
+    )
+    await act(async () => vi.advanceTimersByTimeAsync(0))
+    await act(async () => {
+      host.firstElementChild?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 40,
+          clientY: 100,
+        })
+      )
+    })
+    const buttons = () => [...document.querySelectorAll<HTMLButtonElement>("button")]
+    await act(async () =>
+      buttons()
+        .find((one) => one.textContent === "Manual order")!
+        .click()
+    )
+    await act(async () =>
+      buttons()
+        .find((one) => one.textContent === "Long")!
+        .click()
+    )
+    await act(async () =>
+      buttons()
+        .find((one) => one.textContent === "Long BTC")!
+        .click()
+    )
+    return { place, buttons }
+  }
+
+  it("blocks with only Go back, sends nothing, and reopens the order window", async () => {
+    const { place, buttons } = await pressLong(timeGuard("block"))
+
+    const dialog = document.querySelector('[role="dialog"]')
+    expect(dialog?.textContent).toContain("Blocked by Time guard")
+    expect(dialog?.textContent).toContain("At least 1440 minutes on this chart")
+    expect(buttons().some((one) => one.textContent?.includes("anyway"))).toBe(
+      false
+    )
+    expect(place).not.toHaveBeenCalled()
+
+    await act(async () =>
+      buttons()
+        .find((one) => one.textContent === "Go back")!
+        .click()
+    )
+    expect(place).not.toHaveBeenCalled()
+    expect(buttons().some((one) => one.textContent === "Long BTC")).toBe(true)
+  })
+
+  it("warns, and a confirmed entry names the rule for the Journal", async () => {
+    const { place, buttons } = await pressLong(timeGuard("warn"))
+
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+      "1 rule not met"
+    )
+    expect(place).not.toHaveBeenCalled()
+    await act(async () =>
+      buttons()
+        .find((one) => one.textContent?.endsWith("anyway"))!
+        .click()
+    )
+    expect(place).toHaveBeenCalledOnce()
+    expect(place.mock.calls[0][0]).toMatchObject({ overrode: ["Time guard"] })
+  })
+
+  it("holds an entry until every note is ticked, then sends it and asks again next time", async () => {
+    const { place, buttons } = await pressLong({
+      ...timeGuard("warn"),
+      cards: [],
+      notes: ["Did I check the daily trend?"],
+    })
+
+    const dialog = () => document.querySelector('[role="dialog"]')
+    expect(dialog()?.textContent).toContain("Tick every note before this goes out")
+    expect(buttons().some((one) => one.textContent === "Long $50.00")).toBe(false)
+    expect(place).not.toHaveBeenCalled()
+
+    const box = dialog()?.querySelector<HTMLButtonElement>('[role="checkbox"]')
+    await act(async () => box?.click())
+    const send = buttons().find((one) => one.textContent === "Long $50.00")
+    expect(send).toBeDefined()
+    await act(async () => send!.click())
+
+    expect(place).toHaveBeenCalledOnce()
+    expect(place.mock.calls[0][0].overrode).toBeUndefined()
+    const rulesBox = [...host.querySelectorAll("button")].find((one) =>
+      one.textContent?.startsWith("Rules")
+    )
+    expect(rulesBox?.textContent).toContain("1 to tick")
+  })
+
+  it("shows the rules box on the chart with a cross for a rule that is true", async () => {
+    await pressLong(timeGuard("block"))
+    const box = [...host.querySelectorAll("button")].find((one) =>
+      one.textContent?.startsWith("Rules")
+    )
+    expect(box?.textContent).toContain("1 blocking")
   })
 })

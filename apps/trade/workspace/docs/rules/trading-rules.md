@@ -224,11 +224,37 @@ add up to.
   So an arrow says "Rung 6 - level 4 bought $253.58" and "Rung 6 - level 4
   sold - made $8.01". The rung on its own is still what the grid card shows,
   because the seat order top to bottom is what that card is for.
-- **A rule Tyler sets for himself warns and asks; it never blocks.** Tyler,
-  4 Sep 2026: "This is not to completely block me from trading, it just gives
-  me a warning and I have to confirm to enter the trade." The three rules, the
-  window and the Journal note are in `orders/rules-before-an-entry.md`. Real
-  money only, entries only; an exit is never slowed.
+- **A rule Tyler sets for himself warns or blocks, and he chooses which, rule
+  by rule.** Tyler, 4 Sep 2026: "This is not to completely block me from
+  trading, it just gives me a warning and I have to confirm to enter the
+  trade." That is still what Warn does. Tyler, 15 Oct 2026: "if I enter a
+  trade that does not fit the currant rule, it would block me", and when asked
+  whether every rule blocks, he chose that each rule picks Warn or Block. A
+  Block rule refuses the entry with only Go back. A Block rule that cannot tell
+  yet, because a condition is still loading or cannot be read, warns instead.
+  Real money only, entries only; an exit is never slowed or blocked. The
+  rules, the windows, the box on the chart and the Journal note are in
+  `orders/rules-before-an-entry.md`.
+- Tyler, 15 Oct 2026: **"I want to rebuild the trading rules setting into
+  nodes style automation... the flow rule would be like timeframe 1 week > ema
+  50 > trade grid 5 > trigger modal alert"**, then, after talking it through,
+  a rules table with the conditions stacked the way CMS stacks a segment's
+  rules, not a node canvas. Recipes keeps its own canvas.
+- Tyler, 15 Oct 2026: **"I also want to add a small window on the chart that
+  monitor the currant trade."** The Rules box on the chart watches the next
+  entry and the real-money trades already held on the coin. A held trade that
+  breaks a rule is only warned about, because an entry that happened cannot be
+  undone.
+- Tyler, 15 Oct 2026: **"Note on each rule and also make it a checkbox on the
+  trading chart that I must check off before I can place a trade"**. Every
+  note on a switched-on rule that covers an entry must be ticked before that
+  entry goes out, whatever the rule's conditions say. Ticks clear once an order
+  is placed on the coin.
+- Tyler, 15 Oct 2026, shown a tick beside "At least 5 grids in this wallet"
+  with 18 running: **"this should be an x"** and **"It should be max 5 grid
+  running"**. A rule's conditions are what must hold before he trades. One
+  that holds gets a tick, one that does not gets a cross, and the rule warns
+  or blocks when they do not hold. Grid and position counts are "at most".
 
 ## Ladders
 
@@ -293,9 +319,9 @@ add up to.
 
 - Tyler, 15 Oct 2026: **"Add a new rul in settingse to warn me if I'm in more
   than certain amount of grid per protocol. I can enter the amount I want"**
-  Settings → Trading rules has "Grids on one exchange" with a number. Placing a
-  real-money grid that would go past it opens the rules window to confirm. It
-  never blocks. `../orders/rules-before-an-entry.md` has the details.
+  A rule can hold the condition "At most N real-money grids running on this
+  exchange", and a saved "Grids on one exchange" rule reads as exactly that,
+  covering grids only. `../orders/rules-before-an-entry.md` has the details.
 - Tyler, 15 Oct 2026, after CHIP skipped two rungs because HL1 - GRID had no
   money free: **"2 and 3 (warm only)"**, meaning a bell notice when a rung is
   skipped for money, and a warning, never a refusal, when a new grid would

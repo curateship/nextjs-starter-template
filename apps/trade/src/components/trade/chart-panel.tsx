@@ -46,11 +46,20 @@ import { JournalMarksLayer } from "@/components/trade/journal-marks-layer"
 import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
 import { useLongPress } from "@/components/trade/use-long-press"
 import type { Trading } from "@/components/trade/use-trading"
-import { UnmetRulesPanel } from "@/components/trade/unmet-rules-panel"
+import {
+  RulesWatchPanel,
+  type RuleHolding,
+} from "@/components/trade/rules-watch-panel"
+import {
+  EntryRulesWindow,
+  type PendingEntry,
+} from "@/components/trade/entry-rules-window"
+import { clearNoteTicks, noteTicksOf } from "@/components/trade/note-ticks"
+import { useRuleCandles } from "@/components/trade/use-rule-candles"
 import {
   lastOrderAt,
   rememberLastOrder,
-} from "@/components/trade/use-trading-rules"
+} from "@/components/trade/last-order-memory"
 import { useRememberedChartView } from "@/components/trade/use-chart-view"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
@@ -142,12 +151,15 @@ import {
   type RecentOrderType,
 } from "@/lib/trade/recent-order-types"
 import type { Drawing } from "@/lib/trade/drawings"
-import type { TradeOrder, TradePosition, TradeSide } from "@/lib/trade/paper"
+import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import {
   anyTradingRuleOn,
   checkTradingRules,
+  emaCandleNeeds,
+  notesToTick,
+  type RuleEntry,
+  type RuleFacts,
   type TradingRules,
-  type UnmetRule,
 } from "@/lib/trade/trading-rules"
 import type { PriceAlert } from "@/lib/trade/price-alerts"
 import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
@@ -438,19 +450,6 @@ export type OlderBarsStatus = {
  * answer — one that lands after another market was picked — is dropped on the
  * floor rather than drawn over the wrong chart.
  */
-/**
- * An entry held back by the person's own trading rules, until the warning
- * window is answered. `send` places it with the overridden rule names for
- * the Journal; `goBack` sends nothing and puts the order window back.
- */
-type PendingEntry = {
-  /** The action and the size, "Short $500": the title and, with "anyway", the button. */
-  action: string
-  unmet: UnmetRule[]
-  send: (overrode: string[]) => void
-  goBack: () => void
-}
-
 /** Whether this market's exchange fills every order as a swap (Solana). */
 function ordersAreSwaps(marketKey: string): boolean {
   const ref = parseMarketKey(marketKey)
@@ -558,8 +557,9 @@ export function ChartPanel({
   /** Which supporting parts of the chart are visible. */
   options: ChartOptions
   /**
-   * The person's own rules, checked before a real-money entry leaves. An
-   * unmet rule opens one warning window; it never stops the trade.
+   * The person's own rules, checked before a real-money entry leaves. A broken
+   * rule or an unticked note opens one window: notes to tick, a warning to
+   * confirm, or, for a rule set to Block, a refusal with only Go back.
    */
   tradingRules: TradingRules
   /** Which indicators are on and what each is set to, owned by the workspace. */
@@ -897,44 +897,166 @@ export function ChartPanel({
   const rulesApply =
     trading.wallet?.kind === "live" && anyTradingRuleOn(tradingRules)
 
+  // The candles the switched-on EMA conditions read, for this coin. Nothing
+  // is read on a practice wallet or with every rule off.
+  const ruleCandleNeeds = React.useMemo(
+    () => emaCandleNeeds(tradingRules),
+    [tradingRules]
+  )
+  const ruleCandles = useRuleCandles(
+    rulesApply ? (market?.key ?? null) : null,
+    ruleCandleNeeds
+  )
+
   /**
-   * Which of the person's own rules an entry would break right now. Read
-   * straight off what is on screen: the lines drawn on this coin, the live
-   * price, how long the coin has been open, and the last order on it.
+   * What the rule conditions read, straight off what is on screen: the lines
+   * drawn on this coin, the price, how long the coin has been open, the last
+   * order on it, the running grids and open positions this page holds for
+   * this exchange, and the EMA candles. For a held trade the counts leave out
+   * the trade itself.
    */
-  const unmetRulesFor = React.useCallback(
-    (about: { side: TradeSide; grid?: boolean }): UnmetRule[] => {
-      if (!rulesApply || !market) return []
-      const now = Date.now()
+  const ruleFacts = React.useCallback(
+    (price: number | null, now: number, held: RuleHolding | null): RuleFacts => {
+      const walletId = held?.walletId ?? trading.wallet?.id ?? null
       // Every real-money grid still running on this exchange, whichever
       // wallet it is on: the answers this page reads hold only this exchange.
-      const gridsOnExchange = about.grid
-        ? trading.grids.filter(
-            (one) =>
-              one.status === "active" && trading.liveWalletIds.has(one.walletId)
-          ).length
-        : null
-      return checkTradingRules({
-        rules: tradingRules,
-        side: about.side,
+      const liveGrids = trading.grids.filter(
+        (one) =>
+          one.status === "active" && trading.liveWalletIds.has(one.walletId)
+      )
+      const livePositions = trading.positions.filter(
+        (one) => one.szi !== 0 && trading.liveWalletIds.has(one.walletId)
+      )
+      const less = (count: number, self: boolean | undefined) =>
+        Math.max(0, count - (self ? 1 : 0))
+      return {
+        moment: held ? "holding" : "entry",
+        price,
         drawings: paint.drawings,
-        price: liveMarkOf(market.key) ?? market.price,
         onChartForMs: now - chartOpenedAtRef.current,
-        lastOrderAt: lastOrderAt(market.key, seenLastOrderAt),
-        gridsOnExchange,
+        lastOrderAt: market ? lastOrderAt(market.key, seenLastOrderAt) : null,
+        gridsOnExchange: less(liveGrids.length, held?.grid),
+        gridsInWallet: less(
+          liveGrids.filter((one) => one.walletId === walletId).length,
+          held?.grid
+        ),
+        gridsOnCoin: less(
+          liveGrids.filter((one) => one.marketKey === market?.key).length,
+          held?.grid
+        ),
+        positionsOnExchange: less(livePositions.length, held?.position),
+        candles: ruleCandles,
         now,
-      })
+      }
     },
     [
-      rulesApply,
       market,
-      tradingRules,
       paint.drawings,
       seenLastOrderAt,
+      ruleCandles,
+      trading.wallet?.id,
       trading.grids,
+      trading.positions,
       trading.liveWalletIds,
     ]
   )
+
+  /**
+   * What holds an entry placed right now back: the rules it runs into, and
+   * the notes of every rule that covers it, each of which must be ticked.
+   * Null sends it straight out.
+   */
+  const heldBack = React.useCallback(
+    (
+      entry: RuleEntry
+    ): Pick<PendingEntry, "marketKey" | "results" | "notes"> | null => {
+      if (!rulesApply || !market) return null
+      const results = checkTradingRules(
+        tradingRules,
+        entry,
+        ruleFacts(liveMarkOf(market.key) ?? market.price, Date.now(), null)
+      )
+      const notes = notesToTick(tradingRules, entry)
+      const ticked = noteTicksOf(market.key)
+      if (results.length === 0 && notes.every((note) => ticked.has(note.key))) {
+        return null
+      }
+      return { marketKey: market.key, results, notes }
+    },
+    [rulesApply, market, tradingRules, ruleFacts]
+  )
+
+  /**
+   * The real-money trades already held on the coin on screen: each running
+   * grid, each running DCA ladder, and each position that belongs to
+   * neither, judged by the rules that cover that kind of entry.
+   */
+  const ruleHoldings = React.useMemo((): RuleHolding[] => {
+    if (!rulesApply || !market) return []
+    const coin = market.symbol
+    const named = (walletId: string) => trading.walletNames.get(walletId) ?? null
+    const live = (walletId: string) => trading.liveWalletIds.has(walletId)
+    const positionOn = (walletId: string) =>
+      trading.positions.find(
+        (one) =>
+          one.walletId === walletId && one.marketKey === market.key && one.szi !== 0
+      ) ?? null
+    const held: RuleHolding[] = []
+    const covered = new Set<string>()
+    for (const grid of trading.grids) {
+      if (grid.marketKey !== market.key || grid.status !== "active") continue
+      if (!live(grid.walletId)) continue
+      covered.add(grid.walletId)
+      held.push({
+        id: grid.id,
+        coin,
+        kind: "grid",
+        wallet: named(grid.walletId),
+        entry: { place: "grid", side: entrySide(grid.plan.direction) },
+        walletId: grid.walletId,
+        grid: true,
+        position: positionOn(grid.walletId) !== null,
+      })
+    }
+    for (const ladder of trading.ladders) {
+      if (ladder.marketKey !== market.key || ladder.status !== "active") continue
+      if (!live(ladder.walletId) || covered.has(ladder.walletId)) continue
+      covered.add(ladder.walletId)
+      held.push({
+        id: ladder.id,
+        coin,
+        kind: "DCA ladder",
+        wallet: named(ladder.walletId),
+        entry: { place: "dca", side: "buy" },
+        walletId: ladder.walletId,
+        grid: false,
+        position: positionOn(ladder.walletId) !== null,
+      })
+    }
+    for (const position of trading.positions) {
+      if (position.marketKey !== market.key || position.szi === 0) continue
+      if (!live(position.walletId) || covered.has(position.walletId)) continue
+      held.push({
+        id: position.id,
+        coin,
+        kind: position.szi > 0 ? "long" : "short",
+        wallet: named(position.walletId),
+        entry: { place: "order", side: position.szi > 0 ? "buy" : "sell" },
+        walletId: position.walletId,
+        grid: false,
+        position: true,
+      })
+    }
+    return held
+  }, [
+    rulesApply,
+    market,
+    trading.grids,
+    trading.ladders,
+    trading.positions,
+    trading.walletNames,
+    trading.liveWalletIds,
+  ])
   /**
    * The position the open order window is adding to, resolved against the live
    * list on every render rather than held as a copy.
@@ -2406,6 +2528,15 @@ export function ChartPanel({
         </div>
       )}
 
+      {rulesApply && market ? (
+        <RulesWatchPanel
+          marketKey={market.key}
+          rules={tradingRules}
+          holdings={ruleHoldings}
+          factsFor={ruleFacts}
+        />
+      ) : null}
+
       {menu ? (
         <ChartOrderMenu
           menu={menu}
@@ -2498,10 +2629,11 @@ export function ChartPanel({
               // anything is sent — a paused entry must draw nothing.
               trading.place({ marketKey: market.key, ...input, overrode })
               rememberLastOrder(market.key)
+              clearNoteTicks(market.key)
               if (!input.market) rememberRecentOrderType(input.side)
             }
-            const unmet = unmetRulesFor({ side: input.side })
-            if (unmet.length === 0) {
+            const held = heldBack({ place: "order", side: input.side })
+            if (!held) {
               send()
               return
             }
@@ -2515,7 +2647,7 @@ export function ChartPanel({
             const reopen = quick
             setPendingEntry({
               action: `${action} ${formatUsd(input.sz * input.px)}`,
-              unmet,
+              ...held,
               send,
               goBack: () => setQuick(reopen),
             })
@@ -2590,18 +2722,19 @@ export function ChartPanel({
                 })
                 if (placed) {
                   rememberLastOrder(market.key)
+                  clearNoteTicks(market.key)
                   rememberRecentOrderType("dca")
                 }
                 return placed
               }
-              const unmet = unmetRulesFor({ side: "buy" })
-              if (unmet.length === 0) return send()
+              const held = heldBack({ place: "dca", side: "buy" })
+              if (!held) return send()
               // The window stays open behind the question and closes itself
               // once a confirmed ladder is really placed.
               return new Promise<boolean>((resolve) => {
                 setPendingEntry({
                   action: `Long ${dollars === null ? "" : `${formatUsd(dollars)} `}in ${count} ${count === 1 ? "rung" : "rungs"}`,
-                  unmet,
+                  ...held,
                   send: (overrode) => void send(overrode).then(resolve),
                   goBack: () => resolve(false),
                 })
@@ -2681,20 +2814,21 @@ export function ChartPanel({
                   // draw both copies on top of each other for one frame.
                   setGridPreview(null)
                   rememberLastOrder(market.key)
+                  clearNoteTicks(market.key)
                   rememberRecentOrderType("grid")
                 }
                 return placed
               }
               const direction = input.params.direction
-              const unmet = unmetRulesFor({
+              const held = heldBack({
+                place: "grid",
                 side: entrySide(direction),
-                grid: true,
               })
-              if (unmet.length === 0) return send()
+              if (!held) return send()
               return new Promise<boolean>((resolve) => {
                 setPendingEntry({
                   action: `${direction === "long" ? "Buy" : "Short"} ${dollars === null ? "" : `${formatUsd(dollars)} `}in ${count} ${count === 1 ? "level" : "levels"}`,
-                  unmet,
+                  ...held,
                   send: (overrode) => void send(overrode).then(resolve),
                   goBack: () => resolve(false),
                 })
@@ -2703,31 +2837,12 @@ export function ChartPanel({
           />
         </React.Suspense>
       ) : null}
-      {/* The one warning window for every rule an entry breaks. Nothing has
-          been sent or drawn while it is open. Go back leaves it that way;
-          the other button repeats the action and the size, so what is
-          confirmed is the trade and not an abstract yes. */}
-      <ConfirmDialog
-        open={pendingEntry !== null}
-        onOpenChange={(open) => {
-          if (open || !pendingEntry) return
-          pendingEntry.goBack()
-          setPendingEntry(null)
-        }}
-        title={pendingEntry ? `${pendingEntry.action}?` : ""}
-        description="Nothing has been sent. Go back changes nothing."
-        cancelLabel="Go back"
-        confirmLabel={pendingEntry ? `${pendingEntry.action} anyway` : ""}
-        destructive={false}
-        onConfirm={() => {
-          if (!pendingEntry) return
-          const entry = pendingEntry
-          setPendingEntry(null)
-          entry.send(entry.unmet.map((rule) => rule.name))
-        }}
-      >
-        {pendingEntry ? <UnmetRulesPanel rules={pendingEntry.unmet} /> : null}
-      </ConfirmDialog>
+      {/* Always drawn: an entry waiting here keeps its coin, so changing the
+          coin on screen cannot leave a DCA or grid window waiting forever. */}
+      <EntryRulesWindow
+        entry={pendingEntry}
+        onClose={() => setPendingEntry(null)}
+      />
       <ConfirmDialog
         open={reverseGridFor !== null}
         onOpenChange={(open) => {
