@@ -729,6 +729,11 @@ export type SwapQuote = {
   /** Null when the order could go out; otherwise the sentence saying why not. */
   refusal: string | null
   /**
+   * The chain's own fee for sending this swap, in dollars, when the router
+   * estimates it. Paid in the fee coin, never taken out of `usd`.
+   */
+  networkFeeUsd?: number
+  /**
    * One sentence the venue wants read before this swap, which never blocks
    * it: Robinhood Chain says who may hold Stock Tokens on a stock-token buy.
    */

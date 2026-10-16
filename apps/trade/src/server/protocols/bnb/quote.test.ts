@@ -34,6 +34,8 @@ describe("KyberSwap quote and unsigned transaction", () => {
     expect(r.quote.route).toContain("pancake")
     expect(r.quote.provider).toBe("KyberSwap")
     expect(r.quote.refusal).toBeNull()
+    // KyberSwap's own estimate of the chain fee, which the leftover sweep counts.
+    expect(r.quote.networkFeeUsd).toBeCloseTo(0.2165461857434367, 12)
     expect(validateBnbBuild(fixture.build, r, wallet, 0.005).router).toBe(
       r.router
     )

@@ -198,6 +198,14 @@ describe("reading Jupiter's order answer", () => {
     expect(order.price).toBeCloseTo(101.885, 2)
     expect(order.priceImpact).toBeCloseTo(0.0000808619757525235, 12)
     expect(order.route).toBe("JupiterZ")
+    // Jupiter pays this one's network fee, so the wallet pays none.
+    expect(order.networkFeeSol).toBe(0)
+    expect(
+      readSwapOrder(
+        { ...fixture.order, gasless: false },
+        { side: "buy", coinDecimals: 9 }
+      ).networkFeeSol
+    ).toBeCloseTo(0.00001005, 12)
     expect(order.transaction).toBe(fixture.order.transaction)
     expect(order.requestId).toBe(fixture.order.requestId)
     expect(order.error).toBeNull()
