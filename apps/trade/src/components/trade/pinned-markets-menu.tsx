@@ -24,5 +24,11 @@ export default function PinnedMarketsMenu(_props: AppHeaderActionProps) {
       </p>
     )
   }
-  return <PinnedMarketChips alwaysShowChange className="max-w-full min-w-0" />
+  return (
+    <PinnedMarketChips
+      alwaysShowChange
+      spread
+      className="max-w-full min-w-0"
+    />
+  )
 }

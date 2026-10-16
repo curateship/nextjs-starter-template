@@ -91,8 +91,9 @@ export type AppHeaderAction = {
   /** Unset means admins and members may both see it. */
   roles?: readonly string[]
   /**
-   * Folds into the three-dot button after the settings cog on a phone,
-   * instead of staying in the header row.
+   * Folds into the three-dot button at the end of the header row on a phone,
+   * instead of staying in the row. Once anything folds, the settings cog
+   * folds in with it, its rows drawn under the app's controls.
    *
    * Unset means it keeps its place in the row at every width, which is what
    * every control did before the dropdown existed. An app marks the controls
@@ -101,13 +102,15 @@ export type AppHeaderAction = {
    */
   foldsOnPhone?: boolean
   /**
-   * A line of its own, with a divider, inside the phone's three-dot dropdown.
+   * A line of its own, under its `label` as a heading, at the top of the
+   * phone's three-dot dropdown.
    *
-   * The dropdown packs the app's controls into a wrapped row, which is right
-   * for buttons that are all about the same size. A control that is a list of
-   * its own — a row of pinned markets, say — reads as part of the buttons
-   * beside it there. Unset leaves it in the row with the rest, and the option
-   * does nothing at all on a wide screen, where the controls are not folded.
+   * The dropdown puts the app's controls on one line that slides sideways,
+   * which is right for buttons that are all about the same size. A control
+   * that is a list of its own — a row of pinned markets, say — reads as part
+   * of the buttons beside it there, so it lays out its own line instead.
+   * Unset leaves it in the line with the rest, and the option does nothing at
+   * all on a wide screen, where the controls are not folded.
    */
   ownSection?: boolean
   component: () => Promise<{

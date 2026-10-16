@@ -193,19 +193,24 @@ the guess that one might:
   it. A component loads only when the header draws. Two controls sharing an id
   are refused out loud. Unset leaves the header and its settings unchanged.
   **On a phone the ones marked `foldsOnPhone` fold into a three-dot button
-  drawn after the settings cog**, which opens them in a dropdown; the rest keep
+  drawn at the end of the row**, which opens them in a dropdown; the rest keep
   their place in the row at every width. The controls inside are the
   real ones, not copies, so each still opens its own panel. A phone header has
   room for about four controls, so an app marks the ones it can live without at
   a glance and leaves the ones somebody opens the page to read in the row. The
-  fold happens below 768px, the same width the sidebar collapses at. Everything in the dropdown is
-  packed to the left. The buttons share a wrapped row at the top; a control
-  that sets `ownSection: true` is drawn under them instead, on a line of its
-  own under its own `label` as a heading. It is for a control that is a list
-  rather than a button — Trade's row of pinned markets, where the heading is
-  the only thing saying what the chips are. The buttons stay nearest the thumb
-  and nearest the three dots that opened the dropdown. The flag does nothing on
-  a wide screen, where nothing is folded.
+  fold happens below 768px, the same width the sidebar collapses at.
+  **Once anything folds, the settings cog folds in with it.** The cog is not
+  drawn in the row, and its rows sit at the bottom of the dropdown with colour
+  mode last. An app that folds nothing keeps its cog, and a cog switched off in
+  the Top right menu stays off in the dropdown too. The dropdown is the phone's
+  width less a 0.5rem gutter each side, and everything in it is packed to the
+  left. A control that sets `ownSection: true` goes at the top, on a line of
+  its own under its own `label` as a heading. It is for a control that is a
+  list rather than a button, Trade's row of pinned markets, where the heading
+  is the only thing saying what the chips are. The buttons share one line
+  under that, which slides sideways and fades out under the right edge rather
+  than wrapping onto a second line, then the cog's rows. The flag does nothing on a wide screen,
+  where nothing is folded.
 - `header.quickSettings` — the app's own switches inside the header's settings
   cog, in the order the app writes them. The cog, its place in the Top right
   menu, the panel and the colour-mode pill at the top belong to the shell; each
