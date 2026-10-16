@@ -68,6 +68,7 @@ import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './r
 import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
+import { Route as AuthenticatedAppsAppSplatRouteImport } from './routes/_authenticated/apps.$app.$'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
 import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
@@ -393,6 +394,12 @@ const AuthenticatedAdminSystemEmailsKindRoute =
     path: '/system-emails/$kind',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAppsAppSplatRoute =
+  AuthenticatedAppsAppSplatRouteImport.update({
+    id: '/apps/$app/$',
+    path: '/apps/$app/$',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   id: '/api/auth/google_/callback',
   path: '/api/auth/google/callback',
@@ -485,6 +492,7 @@ export interface FileRoutesByFullPath {
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/apps/$app/$': typeof AuthenticatedAppsAppSplatRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
@@ -549,6 +557,7 @@ export interface FileRoutesByTo {
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/apps/$app/$': typeof AuthenticatedAppsAppSplatRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
@@ -617,6 +626,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/_authenticated/apps/$app/$': typeof AuthenticatedAppsAppSplatRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
@@ -685,6 +695,7 @@ export interface FileRouteTypes {
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
+    | '/apps/$app/$'
     | '/api/auth/google/callback'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
@@ -749,6 +760,7 @@ export interface FileRouteTypes {
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
+    | '/apps/$app/$'
     | '/api/auth/google/callback'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
@@ -816,6 +828,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pages_/edit'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
+    | '/_authenticated/apps/$app/$'
     | '/api/auth/google_/callback'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
@@ -1270,6 +1283,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSystemEmailsKindRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/apps/$app/$': {
+      id: '/_authenticated/apps/$app/$'
+      path: '/apps/$app/$'
+      fullPath: '/apps/$app/$'
+      preLoaderRoute: typeof AuthenticatedAppsAppSplatRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/auth/google_/callback': {
       id: '/api/auth/google_/callback'
       path: '/api/auth/google/callback'
@@ -1433,6 +1453,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
+  AuthenticatedAppsAppSplatRoute: typeof AuthenticatedAppsAppSplatRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -1441,6 +1462,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
+  AuthenticatedAppsAppSplatRoute: AuthenticatedAppsAppSplatRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
