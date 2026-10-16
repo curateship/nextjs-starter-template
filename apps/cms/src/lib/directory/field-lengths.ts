@@ -20,3 +20,9 @@ export const LISTING_META_DESCRIPTION_MAX = 300
 
 /** A visitor's note on the "Report a problem" form, on a listing's page. */
 export const LISTING_REPORT_NOTE_MAX = 1000
+
+/** A visitor's name on the "Message the owner" form, on a listing's page. */
+export const OWNER_MESSAGE_NAME_MAX = 120
+
+/** A visitor's message on the "Message the owner" form. */
+export const OWNER_MESSAGE_MAX = 2000

@@ -98,6 +98,7 @@ function ListingRoute() {
     primaryCategory,
     nearby,
     claim,
+    ownerMessage,
     whatsOn,
     dealsHere,
     follow,
@@ -183,6 +184,7 @@ function ListingRoute() {
         listing={listing}
         coordinates={coordinates}
         claim={claim}
+        ownerMessage={ownerMessage}
         startClaimOpen={search.claim === "start"}
       />
       <ListingHoursCard hours={listing.hours} />

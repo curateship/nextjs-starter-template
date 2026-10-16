@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import type { PublicListingCard } from "@/lib/api/directory/public"
 import { formatDirectoryDistance } from "@/lib/directory/public-search"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 
 /**
  * "Also nearby": the other places under a listing, as rows rather than cards.
@@ -50,6 +51,9 @@ export function NearbyListings({
                 {listing.featuredImage ? (
                   <img
                     src={listing.featuredImage}
+                    srcSet={mediaImageSrcSet(listing.featuredImage)}
+                    // `size-20` on a phone, `size-28` above it.
+                    sizes="(min-width: 768px) 112px, 80px"
                     alt=""
                     loading="lazy"
                     className="size-full object-cover"

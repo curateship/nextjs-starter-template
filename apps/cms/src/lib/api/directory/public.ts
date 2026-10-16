@@ -592,5 +592,6 @@ export type {
   PublicClaimState,
   PublicDirectoryMap,
   PublicListingCard,
+  PublicListingPage,
   PublicMapPin,
 } from "@/server/directory/public"

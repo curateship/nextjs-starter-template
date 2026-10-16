@@ -29,6 +29,7 @@ import {
   saveBrowseSettings,
   saveMapEnabled,
   saveNeighbourhoodCategory,
+  saveOwnerMessagesEnabled,
   savePostCoverImage,
   saveTimeZone,
   type DirectoryBrowseSettingsInput,
@@ -133,6 +134,17 @@ export function DirectorySettings() {
     (postCoverImage: boolean) => {
       const queued = saveQueue.current.then(() =>
         save(() => savePostCoverImage(postCoverImage))
+      )
+      saveQueue.current = queued
+      return queued
+    },
+    [save]
+  )
+
+  const persistOwnerMessages = React.useCallback(
+    (ownerMessagesEnabled: boolean) => {
+      const queued = saveQueue.current.then(() =>
+        save(() => saveOwnerMessagesEnabled(ownerMessagesEnabled))
       )
       saveQueue.current = queued
       return queued
@@ -600,6 +612,26 @@ export function DirectorySettings() {
             </SelectContent>
           </Select>
         </div>
+        <SettingsSwitchRow
+          id="directory-owner-messages"
+          checked={settings.ownerMessagesEnabled}
+          disabled={saving}
+          label="Let visitors message owners"
+          hint="Adds “Message the owner” to every listing with an approved claim. The message is emailed to the owner, who replies straight to the visitor. The owner's address is never shown, and the visitor's name, address and words are kept for 30 days."
+          onCheckedChange={(ownerMessagesEnabled) => {
+            const previous = settings.ownerMessagesEnabled
+            setSettings({ ...settings, ownerMessagesEnabled })
+            void persistOwnerMessages(ownerMessagesEnabled).then((saved) => {
+              if (!saved) {
+                setSettings((current) =>
+                  current
+                    ? { ...current, ownerMessagesEnabled: previous }
+                    : current
+                )
+              }
+            })
+          }}
+        />
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard

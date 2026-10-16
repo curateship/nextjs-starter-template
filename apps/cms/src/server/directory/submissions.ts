@@ -11,6 +11,10 @@ import {
 } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
+  fireSubmissionApproved,
+  fireSubmissionArrived,
+} from "@/server/directory/automation-events"
+import {
   categories,
   directoryListings,
   directorySubmissions,
@@ -203,6 +207,10 @@ export async function verifySubmission(
       updatedAt: at,
     })
     .where(eq(directorySubmissions.id, row.id))
+
+  // Now it is in the review queue. Never throws: a flow that cannot start
+  // must not stand between the sender and "thanks, we have it".
+  await fireSubmissionArrived(row, database)
 
   return {
     outcome: "verified",
@@ -540,6 +548,10 @@ export async function reviewSubmission(
     if (!updated) throw new Error("Somebody has already dealt with this one.")
     return { submission: toSubmission(updated), listingId: listing.id }
   })
+
+  // After the listing is saved, never inside the transaction, and it never
+  // throws, so a flow that cannot start cannot undo the approval.
+  await fireSubmissionApproved(row, result.listingId, database)
 
   return result
 }
