@@ -14,6 +14,7 @@ import {
   CMS_FRONT_PAGE_ROW_KEYS,
   CMS_FRONT_PAGE_ROW_LABELS,
 } from "@/lib/directory/front-page-kinds"
+import { DIRECTORY_AUTOMATION_NODES } from "@/lib/directory/automation-nodes"
 import { draftEventsNode } from "@/lib/events/draft-events-step"
 
 /**
@@ -148,7 +149,10 @@ export const appOptions: AppOptions = {
   automations: {
     // What it does is `server/events/ai-drafts.ts`, registered under the same
     // kind in `server-options.ts`.
-    nodes: [draftEventsNode],
+    // The directory's four triggers and its email step are
+    // `lib/directory/automation-nodes.ts`; what they do is
+    // `server/directory/automation-events.ts`.
+    nodes: [draftEventsNode, ...DIRECTORY_AUTOMATION_NODES],
   },
   settings: {
     tabs: [

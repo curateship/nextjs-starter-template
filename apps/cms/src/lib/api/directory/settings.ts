@@ -18,6 +18,7 @@ import {
   directoryGeocodingKeyStatus,
   directoryMapDisplayKeyStatus,
   saveDirectoryMapEnabled,
+  saveDirectoryOwnerMessagesEnabled,
   saveDirectoryTimeZone,
   type DirectorySettings,
 } from "@/server/directory/settings"
@@ -199,6 +200,21 @@ const savePostCoverImageFn = createServerFn({ method: "POST" })
 /** Turns the cover image at the top of a post's page on or off. */
 export function savePostCoverImage(postCoverImage: boolean) {
   return savePostCoverImageFn({ data: { postCoverImage } })
+}
+
+const saveOwnerMessagesEnabledFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ownerMessagesEnabled: z.boolean() }))
+  .handler(async ({ data, context }) =>
+    saveDirectoryOwnerMessagesEnabled(
+      await workspaceIdForRequest(context.user.id),
+      data.ownerMessagesEnabled
+    )
+  )
+
+/** Turns "Message the owner" on or off for this site's owned listings. */
+export function saveOwnerMessagesEnabled(ownerMessagesEnabled: boolean) {
+  return saveOwnerMessagesEnabledFn({ data: { ownerMessagesEnabled } })
 }
 
 export type { DirectorySettings }

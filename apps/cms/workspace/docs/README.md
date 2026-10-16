@@ -35,6 +35,12 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - `listing-problem-reports.md` — the "Report a problem" link on a listing, what
   stops it being used for spam, and the admin queue that listing and event
   reports land in.
+- `directory-automations.md` — the four directory triggers on the automation
+  canvas, the "Email about the listing" step, the details each run carries,
+  and why each one starts a flow only once and only on its own site.
+- `message-the-owner.md` — the "Message the owner" form on a listing with an
+  approved owner, the two emails it sends, what the site keeps for 30 days, and
+  what stops it being used for spam.
 - `public-image-sizes.md` — the smaller copies each public picture is offered
   in, which pictures load at once and which wait for a scroll.
 - `recently-viewed-listings.md` — the "Recently viewed" row on the browse page

@@ -339,7 +339,8 @@ pages.
   the top, the map, and the search by town or postcode. The map and the search
   each need their own Google key, and each section says which.
 - **Listing pages** — the category that names this site's neighbourhoods, which
-  is the small label on a listing's card.
+  is the small label on a listing's card, and whether a listing with an
+  approved owner shows "Message the owner" (`message-the-owner.md`).
 - **Post pages** — whether a post's own page draws its cover image at the top.
   Off takes the picture off that page alone; every card that leads to the post
   still has it. `posts.md` describes the page.

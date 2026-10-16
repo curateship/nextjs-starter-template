@@ -40,6 +40,12 @@ export type DirectoryEmail = {
   unsubscribeUrl?: string
   /** The words on that link. Claim invitations are the first mail that had one. */
   unsubscribeLabel?: string
+  /**
+   * Where a press of Reply goes. A message to a listing's owner sets it to the
+   * visitor, so the owner answers them straight back and the site never sees
+   * the reply.
+   */
+  replyTo?: string
 }
 
 /**
@@ -110,6 +116,7 @@ export async function sendDirectoryEmail(
     to: email.to,
     subject: email.subject,
     html: renderEmail(email),
+    ...(email.replyTo ? { replyTo: email.replyTo } : {}),
     ...(email.unsubscribeUrl
       ? {
           headers: {

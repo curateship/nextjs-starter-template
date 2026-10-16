@@ -73,6 +73,11 @@ export type DirectorySettings = {
    * the post draw it whatever this says.
    */
   postCoverImage: boolean
+  /**
+   * Whether a listing that somebody looks after shows "Message the owner".
+   * Off until an admin switches it on.
+   */
+  ownerMessagesEnabled: boolean
 }
 
 /** The wording a site gets before anybody changes it. */
@@ -100,6 +105,8 @@ export const DIRECTORY_SETTING_DEFAULTS: DirectorySettings = {
   timeZone: DEFAULT_SITE_TIME_ZONE,
   // On, because that is what every post page did before this setting existed.
   postCoverImage: true,
+  // Off: a site starts passing strangers' messages on only when an admin says so.
+  ownerMessagesEnabled: false,
 }
 
 /**
@@ -193,6 +200,7 @@ export async function directorySettingsFor(
     hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
     timeZone: row.timeZone,
     postCoverImage: row.postCoverImage,
+    ownerMessagesEnabled: row.ownerMessagesEnabled,
   }
 }
 
@@ -363,6 +371,7 @@ export async function savedDirectorySettings(
         hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
         timeZone: row.timeZone,
         postCoverImage: row.postCoverImage,
+        ownerMessagesEnabled: row.ownerMessagesEnabled,
       }
     : {
         claimsEnabled: DIRECTORY_SETTING_DEFAULTS.claimsEnabled,
@@ -386,6 +395,7 @@ export async function savedDirectorySettings(
         hasMapKey: DIRECTORY_SETTING_DEFAULTS.hasMapKey,
         timeZone: DIRECTORY_SETTING_DEFAULTS.timeZone,
         postCoverImage: DIRECTORY_SETTING_DEFAULTS.postCoverImage,
+        ownerMessagesEnabled: DIRECTORY_SETTING_DEFAULTS.ownerMessagesEnabled,
       }
 }
 
@@ -622,6 +632,30 @@ export async function saveDirectoryPostCoverImage(
   // stay up after the switch went off.
   clearPublicDirectoryCache(workspaceId)
   return { postCoverImage }
+}
+
+/**
+ * Changes only whether listings that somebody looks after show "Message the
+ * owner".
+ */
+export async function saveDirectoryOwnerMessagesEnabled(
+  workspaceId: string,
+  ownerMessagesEnabled: boolean,
+  database: CustomShellDb = db
+) {
+  const at = now()
+  await database
+    .insert(directorySettings)
+    .values({ workspaceId, ownerMessagesEnabled, createdAt: at, updatedAt: at })
+    .onConflictDoUpdate({
+      target: directorySettings.workspaceId,
+      set: { ownerMessagesEnabled, updatedAt: at },
+    })
+
+  // A listing page is remembered for two minutes, so the line would otherwise
+  // stay up, or stay missing, after the switch moved.
+  clearPublicDirectoryCache(workspaceId)
+  return { ownerMessagesEnabled }
 }
 
 /** The zone this site's event times are read in. */

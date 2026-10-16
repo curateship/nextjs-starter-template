@@ -12,6 +12,7 @@ import {
   readPostsRow,
 } from "@/server/directory/front-page-row-readers"
 import { runFeaturedRenewalReminders } from "@/server/directory/featured"
+import { ownerMessageTextSweep } from "@/server/directory/owner-messages"
 import { followMailTick } from "@/server/promotions/follow-mail"
 import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
 import { executeDraftEventsStep } from "@/server/events/ai-drafts"
@@ -20,6 +21,15 @@ import { runRepeatTopUps } from "@/server/events/repeats"
 import { runWaitingListPass } from "@/server/events/waiting-list"
 import { postSearchResults, postSitemapEntries } from "@/server/posts/public"
 import { DRAFT_EVENTS_KIND } from "@/lib/events/draft-events-step"
+import {
+  DIRECTORY_EMAIL_KIND,
+  DIRECTORY_TRIGGER_KINDS,
+} from "@/lib/directory/automation-nodes"
+import {
+  directoryTriggerExecutor,
+  executeDirectoryEmailStep,
+  featuredEndingTick,
+} from "@/server/directory/automation-events"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -56,7 +66,13 @@ export const appServerOptions: AppServerOptions = {
     },
   },
   automations: {
-    executors: { [DRAFT_EVENTS_KIND]: executeDraftEventsStep },
+    executors: {
+      [DRAFT_EVENTS_KIND]: executeDraftEventsStep,
+      [DIRECTORY_EMAIL_KIND]: executeDirectoryEmailStep,
+      ...Object.fromEntries(
+        DIRECTORY_TRIGGER_KINDS.map((kind) => [kind, directoryTriggerExecutor])
+      ),
+    },
   },
   workspaces: {
     copyChoices: [{ key: "listings", label: "Copy listings" }],
@@ -100,6 +116,18 @@ export const appServerOptions: AppServerOptions = {
         // anyway, so a minute late is nothing.
         name: "deal emails to listing followers",
         tick: followMailTick,
+      },
+      {
+        // One look every ten minutes across every server, and none at all
+        // while no live flow starts from a featured spot ending.
+        name: "featured spot ending automations",
+        tick: featuredEndingTick,
+      },
+      {
+        // At most once an hour: a message's words are emptied 30 days after
+        // it was sent, and an hour late is nothing.
+        name: "owner message text after 30 days",
+        tick: ownerMessageTextSweep,
       },
     ],
   },

@@ -565,6 +565,13 @@ export const directorySettings = pgTable(
      */
     postCoverImage: boolean("post_cover_image").notNull().default(true),
     /**
+     * Whether a listing that somebody looks after shows "Message the owner".
+     * Off until an admin switches it on, from migration 0127.
+     */
+    ownerMessagesEnabled: boolean("owner_messages_enabled")
+      .notNull()
+      .default(false),
+    /**
      * The zone an event's clock times are read in, like 'America/Toronto'.
      * Events store "Saturday 6pm", and this says where that 6pm is.
      */
@@ -1025,3 +1032,46 @@ export const directoryListingReports = pgTable(
 
 export type DirectoryListingReportRow =
   typeof directoryListingReports.$inferSelect
+
+/**
+ * One message a visitor sent to a listing's owner through the site, from
+ * migration 0127.
+ *
+ * The site passes the message on by email and keeps this row as the record
+ * that it did. The visitor's name, address and words are emptied 30 days after
+ * the message was sent, and `textClearedAt` says when; the row stays.
+ */
+export const directoryOwnerMessages = pgTable(
+  "directory_owner_messages",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    senderName: varchar("sender_name", { length: 120 }).notNull().default(""),
+    senderEmail: varchar("sender_email", { length: 255 })
+      .notNull()
+      .default(""),
+    message: varchar("message", { length: 2000 }).notNull().default(""),
+    /** 'sent' or 'failed'. */
+    status: varchar("status", { length: 10 }).notNull(),
+    /** The email provider's own words when the send failed. Never shown to the visitor. */
+    error: varchar("error", { length: 500 }).notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    textClearedAt: timestamp("text_cleared_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("ix_directory_owner_messages_workspace_created").on(
+      table.workspaceId,
+      table.createdAt
+    ),
+    index("ix_directory_owner_messages_listing").on(table.listingId),
+    check(
+      "directory_owner_messages_status_check",
+      sql`${table.status} IN ('sent', 'failed')`
+    ),
+  ]
+)
