@@ -9,6 +9,7 @@ import { DirectoryHero } from "@/components/directory/public/directory-hero"
 import { DirectoryResultsHeader } from "@/components/directory/public/directory-results-header"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { ListingMap } from "@/components/directory/public/listing-map"
+import { RecentlyViewedListings } from "@/components/directory/public/recently-viewed-listings"
 import {
   loadDirectoryBrowse,
   loadDirectoryMap,
@@ -364,6 +365,11 @@ function DirectoryRoute() {
           </>
         )}
       </div>
+
+      {/* At the foot rather than above the results: the row is drawn after
+          the page loads, and above the results it would shove them down the
+          screen a moment after they appeared. */}
+      <RecentlyViewedListings />
     </DirectoryFrame>
   )
 }

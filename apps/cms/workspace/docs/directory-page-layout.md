@@ -37,6 +37,8 @@ page is 1152px at its widest.
   headline, like "20% off", while one of its deals is on. `promotions.md`
   says how it is read.
 - **Business hours** is a card of its own under the narrow column.
+- **"Recently viewed" runs under both columns**, at the page's full width.
+  `recently-viewed-listings.md` covers it.
 - **On a phone the narrow column comes first.** Somebody opening a listing
   wants the photo, the name and the phone number, not the write-up. The wide
   column moves above it only once both fit side by side.

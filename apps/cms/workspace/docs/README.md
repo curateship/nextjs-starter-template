@@ -35,6 +35,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - `listing-problem-reports.md` — the "Report a problem" link on a listing, what
   stops it being used for spam, and the admin queue that listing and event
   reports land in.
+- `recently-viewed-listings.md` — the "Recently viewed" row on the browse page
+  and listing pages, what the browser keeps, and why its cards are always
+  fresh.
 - `directory-search-suggestions.md` — the listings and categories the public
   search box offers as a visitor types, its keyboard, and how often it asks the
   server.
