@@ -147,7 +147,8 @@ export function HealthForm({
         </div>
       )}
       <p className="text-xs text-muted-foreground">
-        Everyone on the project sees it, with your name and when you set it.
+        Everyone on the project sees it, with your name and when you set it. At risk, Off track and
+        coming back from them also reach their bell.
       </p>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onDone} disabled={saving}>

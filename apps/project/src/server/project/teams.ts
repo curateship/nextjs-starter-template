@@ -27,6 +27,7 @@ import {
   requireTeamRunner,
   type ProjectDb,
 } from "@/server/project/access"
+import { visibleClients } from "@/server/project/clients"
 import {
   projectProjectMembers,
   projectProjectStars,
@@ -95,6 +96,8 @@ export type TeamDashboard = {
   holidays: Holiday[]
   /** The pinned announcement, unless there is none or I hid it. */
   announcement: Announcement | null
+  /** Clients of the projects I can see, for the Client choice on the calendar and Workload. */
+  clients: string[]
 }
 
 export async function createTeam(
@@ -163,6 +166,7 @@ export async function loadTeamDashboard(
       database
     ),
     announcement: await loadAnnouncement(membership, database),
+    clients: await visibleClients(membership, database),
   }
 }
 

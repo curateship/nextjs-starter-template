@@ -1,8 +1,10 @@
-import { and, asc, count, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm"
+import { and, asc, count, eq, gt, inArray, isNull, ne } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
+import { projectHealthHeading, projectHref } from "@/lib/project/notices"
 import {
+  PROJECT_HEALTH_LABEL,
   boardStatusOrder,
   runsTheTeam,
   type ProjectColor,
@@ -19,11 +21,11 @@ import {
   requireOpenProject,
   requireProjectAccess,
   visibleProjectsWhere,
-  type Membership,
   type ProjectDb,
   type ProjectRow,
 } from "@/server/project/access"
 import { unreadInProjectChat } from "@/server/project/chat-reads"
+import { visibleClients } from "@/server/project/clients"
 import { listTeamLabels, type Label } from "@/server/project/labels"
 import { listMilestones, type Milestone } from "@/server/project/milestones"
 import { readProjectPlan, writeProjectPlan } from "@/server/project/project-plans"
@@ -32,10 +34,12 @@ import { loadTemplatePlan } from "@/server/project/templates"
 import type { TaskType } from "@/lib/project/task-types"
 import { requireSharedProject } from "@/server/project/personal"
 import { listSavedViews, type SavedView } from "@/server/project/saved-views"
+import { writeAppNotices } from "@/server/project/notices"
 import { listSections, type Section } from "@/server/project/sections"
 import { listTaskCards, withUnread, type TaskCard } from "@/server/project/tasks"
 import { clearAssignee, listTeamMembers } from "@/server/project/teams"
 import {
+  projectNoticeLinks,
   projectProjectEvents,
   projectProjectMembers,
   projectProjectStars,
@@ -45,7 +49,7 @@ import {
   projectTeamMembers,
   projectTeams,
 } from "@/server/project/schema"
-import { customShellUsers } from "@/server/schema"
+import { customShellNotifications, customShellUsers } from "@/server/schema"
 
 export type ProjectListRow = {
   id: string
@@ -439,6 +443,7 @@ export async function setProjectHealth(
     if (!canSetHealth(project, membership.role, userId)) throw new Error(PROJECT_ERRORS.onlyLeadSetsHealth)
     const at = now()
     const note = input.health ? input.note || null : null
+    const from = project.health
     await tx
       .update(projectProjects)
       .set({
@@ -458,7 +463,77 @@ export async function setProjectHealth(
       note,
       createdAt: at,
     })
+    if (healthNeedsTelling(from, input.health)) {
+      await tellProjectAboutHealth(tx, project, userId, { from, to: input.health, note })
+    }
   })
+}
+
+const TROUBLE: readonly (ProjectHealth | null)[] = ["at_risk", "off_track"]
+
+/**
+ * Going into trouble is news, and so is coming out of it (Tyler, 16 Oct
+ * 2026). Saying the same status again, or On track from no status, is not.
+ */
+function healthNeedsTelling(from: ProjectHealth | null, to: ProjectHealth | null) {
+  if (from === to) return false
+  return TROUBLE.includes(to) || TROUBLE.includes(from)
+}
+
+/** One bell row per project per hour for each person, holding the latest status. */
+const HEALTH_NOTICE_WINDOW_MS = 60 * 60 * 1000
+
+/**
+ * Tells everyone on the project except whoever changed it. A project's
+ * status changed again within the hour replaces the earlier row rather than
+ * adding one, so a status set and unset by mistake never stacks up in the
+ * bell.
+ */
+async function tellProjectAboutHealth(
+  tx: ProjectDb,
+  project: ProjectRow,
+  actorId: string,
+  change: { from: ProjectHealth | null; to: ProjectHealth | null; note: string | null }
+) {
+  const members = await tx
+    .select({ userId: projectProjectMembers.userId })
+    .from(projectProjectMembers)
+    .where(and(eq(projectProjectMembers.projectId, project.id), ne(projectProjectMembers.userId, actorId)))
+  if (members.length === 0) return
+  const recipients = members.map((row) => row.userId)
+  const href = projectHref(project.id)
+  const earlier = await tx
+    .select({ id: projectNoticeLinks.noticeId })
+    .from(projectNoticeLinks)
+    .innerJoin(customShellNotifications, eq(customShellNotifications.id, projectNoticeLinks.noticeId))
+    .where(
+      and(
+        eq(projectNoticeLinks.kind, "project_health"),
+        eq(projectNoticeLinks.href, href),
+        inArray(customShellNotifications.recipientUserId, recipients),
+        gt(customShellNotifications.createdAt, new Date(Date.now() - HEALTH_NOTICE_WINDOW_MS))
+      )
+    )
+  if (earlier.length) {
+    await tx.delete(customShellNotifications).where(inArray(customShellNotifications.id, earlier.map((row) => row.id)))
+  }
+  const [actor] = await tx
+    .select({ name: customShellUsers.name })
+    .from(customShellUsers)
+    .where(eq(customShellUsers.id, actorId))
+  const label = change.to ? PROJECT_HEALTH_LABEL[change.to] : null
+  const was = change.from ? `Was ${PROJECT_HEALTH_LABEL[change.from]}.` : null
+  await writeAppNotices(
+    tx,
+    recipients.map((recipientUserId) => ({
+      kind: "project_health" as const,
+      recipientUserId,
+      actorUserId: actorId,
+      message: projectHealthHeading(actor?.name ?? "Someone", label),
+      detail: [project.name, change.note ?? was].filter(Boolean).join(": "),
+      href,
+    }))
+  )
 }
 
 /**
@@ -532,24 +607,6 @@ async function nameOf(userId: string | null, database: ProjectDb) {
     .where(eq(customShellUsers.id, userId))
     .limit(1)
   return row?.name ?? null
-}
-
-/** Client names on projects this person can see, so a hidden project's client never leaks. */
-async function visibleClients(membership: Membership, database: ProjectDb) {
-  const rows = await database
-    .selectDistinct({ client: projectProjects.client })
-    .from(projectProjects)
-    .where(
-      and(
-        visibleProjectsWhere(membership),
-        isNull(projectProjects.personalUserId),
-        isNotNull(projectProjects.client),
-        ne(projectProjects.client, "")
-      )
-    )
-  return rows
-    .map((row) => row.client as string)
-    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
 }
 
 export async function setProjectArchived(

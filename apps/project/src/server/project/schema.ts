@@ -729,6 +729,22 @@ export const projectDueReminders = pgTable(
   (table) => [primaryKey({ columns: [table.taskId, table.kind, table.dueDate] })]
 )
 
+/** "Milestone due tomorrow", once per person per milestone per date (`drizzle/0118_project_features_16_oct.sql`). */
+export const projectMilestoneReminders = pgTable(
+  "project_milestone_reminders",
+  {
+    milestoneId: varchar("milestone_id", { length: 36 })
+      .notNull()
+      .references(() => projectMilestones.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    dueDate: date("due_date", { mode: "string" }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.milestoneId, table.userId, table.dueDate] })]
+)
+
 /** One morning notice per team per day, written before the bell notices. */
 export const projectTeamMorningNotices = pgTable(
   "project_team_morning_notices",

@@ -1,3 +1,4 @@
+import type * as React from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
@@ -8,6 +9,7 @@ import { ProjectMembersCard } from "@/components/project/project-members-card"
 import { ProjectWorkspace } from "@/components/project/project-workspace"
 import { ProjectsDashboard } from "@/components/project/projects-dashboard"
 import { TaskBoard } from "@/components/project/task-board"
+import type { FieldRule } from "@/lib/project/task-fields"
 import { TaskList } from "@/components/project/task-list"
 import { TeamStart } from "@/components/project/team-start"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -33,6 +35,7 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     id: "t1",
     projectId: "p1",
     projectName: "Website",
+    projectClient: null,
     title: "Write the brief",
     status: "todo",
     stuckReason: null,
@@ -153,6 +156,57 @@ describe("the board", () => {
   it("says what a comment count is to a screen reader", () => {
     expect(html).toContain(`3<span class="sr-only">comments</span>`)
     expect(html).toContain(`1<span class="sr-only">comment</span>`)
+  })
+})
+
+describe("the board's field lines (Features 16 Oct, part 8)", () => {
+  const rule = (id: string, name: string, kind: FieldRule["kind"], settings: FieldRule["settings"] = {}): FieldRule => ({
+    id,
+    name,
+    kind,
+    neededBeforeDone: false,
+    neededWhenMade: false,
+    whoCanChange: "anyone",
+    settings,
+  })
+  const platform = rule("f1", "Platform", "dropdown", {
+    choices: [
+      { id: "yt", name: "YouTube" },
+      { id: "tt", name: "TikTok" },
+    ],
+  })
+  // Shown only for YouTube.
+  const thumbnail = rule("f2", "Thumbnail", "text", { showWhen: { fieldId: "f1", choiceId: "yt" } })
+  const finalCut = rule("f3", "Final cut", "file")
+  const fields = [platform, thumbnail, finalCut]
+  const type = { id: "ty1", name: "Video editing", icon: "video" as const, color: "red" as const }
+  const board = (cardFields?: React.ComponentProps<typeof TaskBoard>["cardFields"]) =>
+    renderToStaticMarkup(
+      <TaskBoard
+        tasks={[
+          card({ id: "v1", title: "TikTok cut", type, fieldValues: { f1: "tt", f2: "Hidden words", f3: 2 } }),
+          card({ id: "v2", title: "YouTube cut", type, fieldValues: { f1: "yt", f2: "Big smile" } }),
+        ]}
+        readOnly={false}
+        onOpenTask={() => {}}
+        onMove={() => {}}
+        onReorder={() => {}}
+        cardFields={cardFields}
+      />
+    )
+  const people = new Map<string, string>()
+
+  it("draws the List's chosen fields as lines, hiding a field its dropdown hides and an empty one", () => {
+    const html = board({ columns: fields.map((field) => ({ field, people })), fields })
+    expect(html).toContain("Platform:</span> TikTok")
+    expect(html).toContain("Final cut:</span> 2 files")
+    expect(html).toContain("Thumbnail:</span> Big smile")
+    expect(html).not.toContain("Hidden words")
+  })
+
+  it("draws no lines when no field is chosen", () => {
+    expect(board()).not.toContain("Platform:")
+    expect(board({ columns: [], fields })).not.toContain("Platform:")
   })
 })
 

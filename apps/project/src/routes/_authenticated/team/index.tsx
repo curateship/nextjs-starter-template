@@ -4,6 +4,7 @@ import { TeamDashboardScreen, type TeamSearch } from "@/components/project/team-
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { loadTeamCheckins } from "@/lib/api/project/checkins"
 import { loadMeetings } from "@/lib/api/project/meetings"
+import { readClientFilter } from "@/lib/project/clients"
 import { isRealDay } from "@/lib/project/days"
 import { loadFigures, loadMyTeamInvites, loadTeamDashboardPage } from "@/lib/api/project/teams"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -17,6 +18,8 @@ function readSearch(search: Record<string, unknown>): TeamSearch {
   if (typeof search.month === "string" && MONTH.test(search.month)) result.month = search.month
   if (typeof search.day === "string" && isRealDay(search.day)) result.day = search.day
   if (typeof search.task === "string" && ID.test(search.task)) result.task = search.task
+  const client = readClientFilter(search.client)
+  if (client) result.client = client
   return result
 }
 

@@ -8,6 +8,8 @@ import {
   CircleCheckIcon,
   ClipboardCheckIcon,
   ClipboardListIcon,
+  FlagIcon,
+  GaugeIcon,
   HeartIcon,
   ListChecksIcon,
   MegaphoneIcon,
@@ -15,6 +17,7 @@ import {
   MessageSquareReplyIcon,
   PlayIcon,
   UndoIcon,
+  UserCheckIcon,
   UserPlusIcon,
   UsersIcon,
   VideoIcon,
@@ -43,6 +46,7 @@ const TASK_NOTICE_KINDS = [
   "task_review",
   "task_sent_back",
   "task_thanks",
+  "task_field_person",
 ] as const
 export type TaskNoticeKind = (typeof TASK_NOTICE_KINDS)[number]
 
@@ -60,6 +64,8 @@ const APP_NOTICE_KINDS = [
   "chat_reply",
   "team_announcement",
   "task_reminder",
+  "project_health",
+  "milestone_due",
 ] as const
 
 const PROJECT_NOTICE_KINDS = [...TASK_NOTICE_KINDS, ...APP_NOTICE_KINDS] as const
@@ -86,6 +92,7 @@ const HEADING_ENDING: Record<Exclude<TaskNoticeKind, "tasks_handed">, string> = 
   task_review: " finished a task for your review",
   task_sent_back: " sent a task back to you",
   task_thanks: " thanked you for a task",
+  task_field_person: " named you on a task",
 }
 
 /** "Anna gave you a task", or "Anna gave you 9 tasks" for a hand-over of many. */
@@ -139,6 +146,14 @@ export function announcementHeading(name: string) {
   return `${name}${ANNOUNCEMENT_ENDING}`
 }
 
+const PROJECT_HEALTH_WORDS = / marked a project (On track|At risk|Off track)$/
+const HEALTH_CLEARED_ENDING = " cleared a project's status"
+
+/** "Sam marked a project At risk", or "Sam cleared a project's status" with no status left. */
+export function projectHealthHeading(name: string, healthLabel: string | null) {
+  return healthLabel ? `${name} marked a project ${healthLabel}` : `${name}${HEALTH_CLEARED_ENDING}`
+}
+
 const TASK_REMINDER_START = "Reminder: "
 
 /** "Reminder: Write the About page", a person's own "Remind me". */
@@ -166,6 +181,11 @@ export function dueSoonHeading(daysAway: number, weekday: number, count = 1) {
   return count > 1 ? `${count} tasks due ${when}` : `Due ${when}`
 }
 
+/** "Milestone due tomorrow", or "Milestone due Monday" when the next work day is further off. */
+export function milestoneDueHeading(daysAway: number, weekday: number) {
+  return `Milestone due ${daysAway === 1 ? "tomorrow" : WEEKDAY_NAMES[weekday]}`
+}
+
 export function overdueHeading(count = 1) {
   return count > 1 ? `${count} tasks overdue` : "Overdue"
 }
@@ -187,6 +207,7 @@ export function teamMorningDetail(notYet: string[]) {
 
 const DUE_SOON_WORDS = new RegExp(`^(\\d+ tasks due|Due) (tomorrow|${WEEKDAY_NAMES.join("|")})$`)
 const OVERDUE_WORDS = /^(Overdue|\d+ tasks overdue)$/
+const MILESTONE_DUE_WORDS = new RegExp(`^Milestone due (tomorrow|${WEEKDAY_NAMES.join("|")})$`)
 // Notices sent before 11 Oct 2026 always said ", 0 blocked"; both still match.
 const TEAM_MORNING_WORDS = /^\d+ of \d+ checked in(, \d+ blocked)?$/
 
@@ -199,6 +220,9 @@ export function noticeKindFromWords(
   if (notice.message.startsWith(TASK_REMINDER_START)) return "task_reminder"
   if (DUE_SOON_WORDS.test(notice.message)) return "due_soon"
   if (OVERDUE_WORDS.test(notice.message)) return "overdue"
+  if (MILESTONE_DUE_WORDS.test(notice.message)) return "milestone_due"
+  if (PROJECT_HEALTH_WORDS.test(notice.message)) return "project_health"
+  if (notice.message.endsWith(HEALTH_CLEARED_ENDING)) return "project_health"
   if (TEAM_MORNING_WORDS.test(notice.message)) return "team_morning"
   if (notice.message.endsWith(TEAM_JOINED_ENDING)) return "team_joined"
   if (notice.message.endsWith(MEETING_INVITE_ENDING)) return "meeting_invite"
@@ -352,6 +376,21 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
     toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     categoryId: "tasks",
   },
+  task_field_person: {
+    icon: UserCheckIcon,
+    toneClassName: "bg-primary/10 text-primary",
+    categoryId: "tasks",
+  },
+  project_health: {
+    icon: GaugeIcon,
+    toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    categoryId: "tasks",
+  },
+  milestone_due: {
+    icon: FlagIcon,
+    toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    categoryId: "tasks",
+  },
 }
 
 export function noticeLook(kind: ProjectNoticeKind): AppNoticeDetail {
@@ -363,6 +402,11 @@ export const MY_DASHBOARD_HREF = "/dashboard"
 
 /** The team's Members page. */
 export const MEMBERS_HREF = "/team/members"
+
+/** A project's page. */
+export function projectHref(projectId: string) {
+  return `/projects/${encodeURIComponent(projectId)}`
+}
 
 /** A project's page with its Chat tab open. */
 export function projectChatHref(projectId: string) {

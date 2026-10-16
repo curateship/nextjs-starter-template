@@ -84,6 +84,15 @@ So anyone scanning the Projects table sees which jobs are in trouble, and why.
 - **Each change is a line on the Activity tab**: "Priya set the project's
   status to At risk: Client hasn't sent the photos", or "took the project's
   status off". These lines have no task to open.
+- **Everyone on the project hears it in the bell** when it goes At risk or
+  Off track, and again when it goes back to On track or the status is taken
+  off (Tyler, 16 Oct 2026): "Sam marked a project At risk", with "Website:
+  Client hasn't sent the photos" under it, opening the project. Whoever set
+  it isn't told. Saying the same status again tells nobody, and nor does On
+  track set where there was no status. A whole-team project tells the whole
+  team. Within an hour, a new change replaces the earlier row in each
+  person's bell, so a status set and taken back by mistake never stacks up.
+  Each person can switch it off ("Changed a project's status").
 - **An archived project keeps its last status**, and it can't change until
   the project is brought back.
 - **Saved** in `project_projects.health`, `health_note`, `health_by_user_id`
@@ -131,10 +140,23 @@ So a long project shows whether it's on time well before its end date.
 - **A task joins one from its Plan card** (the Milestone field, shown once
   the project has milestones). A task belongs to at most one. Moving a task
   to another project takes it off; Duplicate keeps it; a repeating task's
-  next copy doesn't carry it.
+  next copy keeps it, unless the milestone's date has already passed (see
+  [Repeating tasks](repeating-tasks.md)).
 - **Deleting a milestone** leaves its tasks where they are, counting toward
   none.
 - **The Calendar tab marks milestone days** with a flag and the name.
+- **The Team calendar shows them too**, with "Due dates" on, beside the
+  project's own due date (see [Meetings](meetings.md), "Due dates on the
+  calendar"). A milestone whose tasks are all Done leaves it.
+- **"Milestone due tomorrow" reaches the lead** in the bell, at their own
+  check-in time on the work day before ("Milestone due Monday" before a
+  weekend), with "Launch · Website" under it, opening the project. With no
+  lead it goes to the owner and admins (Tyler, 16 Oct 2026). A milestone
+  whose tasks are all Done, or in an archived project, sends nothing. Moving
+  the date sends a fresh one. Time off and team holidays wait, as for tasks.
+  Each send is claimed in `project_milestone_reminders`
+  (`drizzle/0118_project_features_16_oct.sql`) by `sendMilestoneReminders`
+  in `src/server/project/reminder-jobs.ts`.
 - **Copy project and templates** copy milestones with no date, the same rule
   as tasks, and keep which tasks belong to each.
 - **A milestone is not a section.** A section is where a task sits; a
@@ -157,6 +179,17 @@ So an agency with many projects for a few clients finds things fast.
   one, and a "Group by client" switch. Grouped, clients run A to Z with "No
   client" last, each under its own heading row, and starred projects still
   come first inside each group.
+- **Narrowing to one client** (Features 16 Oct). A Client choice in My
+  dashboard's Filter, on the Team dashboard's Workload tab and in the Team
+  calendar's view menu (with Due dates on) shows only that client's projects,
+  or those with "No client". Names match ignoring capitals and spaces at the
+  ends, and only clients of projects the person can see are listed. The
+  choice lives in the page's address (`?client=`), so a pasted link keeps it,
+  and on the Team dashboard one choice covers both the calendar and
+  Workload. A saved view on My dashboard keeps it (Tyler, 16 Oct 2026). A
+  project page has no Client filter, since all its tasks share one client.
+  The matching is `src/lib/project/clients.ts`; the list of names is
+  `visibleClients` in `src/server/project/clients.ts`.
 - **Saved** in `project_projects.client`.
 
 ## Templates

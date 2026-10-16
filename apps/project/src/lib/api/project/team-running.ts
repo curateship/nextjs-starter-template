@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { handOverAllSchema, holidaySchema, memberTitleSchema } from "@/lib/project/rules"
+import { LIMITS, handOverAllSchema, holidaySchema, memberTitleSchema } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
 import { addHoliday, removeHoliday } from "@/server/project/holidays"
 import {
@@ -50,7 +50,8 @@ const loadNeedsAttentionFn = createServerFn({ method: "GET" })
 
 const loadWorkloadFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => loadWorkload(context.user.id))
+  .inputValidator(z.object({ client: z.string().trim().min(1).max(LIMITS.clientName).optional() }))
+  .handler(async ({ data, context }) => loadWorkload(context.user.id, undefined, undefined, data.client))
 
 const handOverAllFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -83,8 +84,9 @@ const setTitleFn = createServerFn({ method: "POST" })
 export function loadAttention() {
   return loadNeedsAttentionFn()
 }
-export function loadTeamWorkload() {
-  return loadWorkloadFn()
+/** Everyone's open work, or one client's when `client` is a name or "No client". */
+export function loadTeamWorkload(client?: string) {
+  return loadWorkloadFn({ data: { client } })
 }
 export function handOverAll(fromUserId: string, toUserId: string, note: string | null = null) {
   return handOverAllFn({ data: { fromUserId, toUserId, note } })

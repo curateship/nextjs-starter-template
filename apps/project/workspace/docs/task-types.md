@@ -64,6 +64,14 @@ tasks.
 - **Nine kinds:** Text, Long text, Number, Link (https addresses only, so a
   link can never run anything), Date, Dropdown (one choice from the field's
   list), Checkbox, Person (someone on the task's project) and File.
+- **Naming someone in a Person field tells them**, in the bell: "Ben named
+  you on a task", with "Reviewer on Edit the trailer" under it, opening the
+  task. They also follow the task from then on, so its chat and its Done
+  reach them (Tyler, 16 Oct 2026). Naming yourself, or the task's own
+  person, tells nobody, and saving the same person again says nothing new.
+  A task made with the field filled tells them too. Each person can switch
+  it off ("Named you in a task's field"). The rule is `tellPeopleNamed` in
+  `src/server/project/task-types.ts`.
 - **Drag a field by its handle** to change the order (Tyler, 12 Oct 2026:
   "the field order should be draggable"). A task's card and New task list the
   fields in that order. The new order shows at once and goes back if the save
@@ -203,6 +211,14 @@ Each field's cog holds four settings:
   blanks last either way, and a task that left the field empty shows a blank
   cell. A File field's column shows "2 files". The chosen columns are
   remembered in this browser for each type.
+- **The same fields show on Board cards** (Features 16 Oct). Filtered to one
+  type, the Board's Filter has the same menu, called "Fields on cards", and
+  each card shows a "Platform: YouTube" line for each chosen field, under its
+  chips. It is one choice for both: picking on the Board changes the List's
+  columns too (Tyler, 16 Oct 2026). An empty field, and one hidden by "shown
+  only when", draws nothing; a File field shows "2 files", never names.
+  Phones leave the lines off, for room. Drawn by `FieldLines` in
+  `src/components/project/task-board.tsx`.
 - **The search box doesn't look inside field values** in this version.
 
 ## Left out

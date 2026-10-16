@@ -1,10 +1,14 @@
 import { and, asc, eq, isNotNull, lt, sql } from "drizzle-orm"
 
+import { addDays, daysBetween, localNow, momentOf } from "@/lib/project/days"
 import { BIN_DAYS } from "@/lib/project/rules"
 import { uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
+import type { ProjectDb } from "@/server/project/access"
 import { purgeTask } from "@/server/project/planning"
 import {
+  projectMilestones,
+  projectProjectMembers,
   projectRepeatRuns,
   projectTaskLabels,
   projectTaskSteps,
@@ -27,14 +31,22 @@ export async function runPlanningJobs(database: CustomShellDb = db, at = new Dat
   await emptyOldBins(database, at)
 }
 
-type DueCopy = { taskId: string; seriesId: string; day: string }
+type DueCopy = { taskId: string; seriesId: string; day: string; zone: string }
 
 /**
  * Once a new day starts in the team's time zone, a fresh copy of each
  * repeating task whose rule falls on that day: title, notes, labels, section,
- * type and field values (files stay behind), priority, steps unticked, the
- * same person, To do. The rule moves to the copy,
- * so deleting the newest copy stops the repeat.
+ * type and field values (files stay behind), priority, the same person, To
+ * do. The rule moves to the copy, so deleting the newest copy stops the
+ * repeat.
+ *
+ * The copy keeps its whole setup (Tyler, 16 Oct 2026). Its due date is the
+ * day it is made for, and every other date moves by the same number of days:
+ * each step's date, and the start day. A due time keeps its clock time in the
+ * team's zone. Steps come unticked with their own person, unless that person
+ * has left the project. The milestone stays, unless its date has already
+ * passed. With no due date to move from, step dates are dropped and a start
+ * day becomes the day the copy is made for.
  *
  * Tyler's rule: when the newest copy isn't Done, no new one appears. The next
  * copy comes on the first repeat day after it is Done.
@@ -49,7 +61,7 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
     WITH holders AS MATERIALIZED (
       SELECT t.id, t.repeat_every, t.repeat_week_days, t.repeat_month_day, t.repeat_from, t.created_at,
         coalesce(t.repeat_series_id, t.id) AS series_id,
-        tm.work_days,
+        tm.work_days, tm.time_zone AS zone,
         (${at.toISOString()}::timestamptz AT TIME ZONE tm.time_zone)::date AS day,
         (t.created_at AT TIME ZONE tm.time_zone)::date AS made_day
       FROM project_tasks t
@@ -60,7 +72,7 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
         AND t.status = 'done'
         AND tm.time_zone IN (SELECT name FROM pg_timezone_names)
     )
-    SELECT h.id AS "taskId", h.series_id AS "seriesId", h.day::text AS "day"
+    SELECT h.id AS "taskId", h.series_id AS "seriesId", h.day::text AS "day", h.zone
     FROM holders h
     WHERE h.made_day < h.day
       AND CASE h.repeat_every
@@ -116,6 +128,7 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
       const [holder] = await tx.select().from(projectTasks).where(eq(projectTasks.id, copy.taskId))
       if (!holder?.repeatEvery || holder.deletedAt) return
       const id = uuid()
+      const shift = holder.dueDate ? daysBetween(holder.dueDate, copy.day) : null
       await tx.insert(projectTasks).values({
         id,
         projectId: holder.projectId,
@@ -129,6 +142,9 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
         acceptedAt: holder.assigneeUserId ? at : null,
         // A copy with a date is due on the day it is made for.
         dueDate: holder.dueDate ? copy.day : null,
+        dueAt: holder.dueAt && holder.dueDate ? momentOf(copy.day, localNow(holder.dueAt, copy.zone).time, copy.zone) : null,
+        startDate: holder.startDate ? (shift === null ? copy.day : addDays(holder.startDate, shift)) : null,
+        milestoneId: await milestoneStillAhead(tx, holder.milestoneId, copy.day),
         sectionId: holder.sectionId,
         position: await nextTaskPosition(holder.projectId, tx),
         createdByUserId: holder.createdByUserId,
@@ -148,11 +164,24 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
         .set({ repeatEvery: null, repeatWeekDays: null, repeatMonthDay: null, repeatFrom: null })
         .where(eq(projectTasks.id, holder.id))
       const steps = await tx
-        .select({ text: projectTaskSteps.text, position: projectTaskSteps.position })
+        .select({
+          text: projectTaskSteps.text,
+          position: projectTaskSteps.position,
+          assigneeUserId: projectTaskSteps.assigneeUserId,
+          dueDate: projectTaskSteps.dueDate,
+        })
         .from(projectTaskSteps)
         .where(eq(projectTaskSteps.taskId, holder.id))
         .orderBy(asc(projectTaskSteps.position))
       if (steps.length) {
+        const members = new Set(
+          (
+            await tx
+              .select({ userId: projectProjectMembers.userId })
+              .from(projectProjectMembers)
+              .where(eq(projectProjectMembers.projectId, holder.projectId))
+          ).map((row) => row.userId)
+        )
         await tx.insert(projectTaskSteps).values(
           steps.map((step) => ({
             id: uuid(),
@@ -161,6 +190,8 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
             done: false,
             position: step.position,
             createdAt: at,
+            assigneeUserId: step.assigneeUserId && members.has(step.assigneeUserId) ? step.assigneeUserId : null,
+            dueDate: step.dueDate && shift !== null ? addDays(step.dueDate, shift) : null,
           }))
         )
       }
@@ -173,6 +204,17 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
       }
     })
   }
+}
+
+/** The milestone, unless its date is already behind the copy's day (Tyler, 16 Oct 2026). */
+async function milestoneStillAhead(tx: ProjectDb, milestoneId: string | null, day: string) {
+  if (!milestoneId) return null
+  const [milestone] = await tx
+    .select({ dueDate: projectMilestones.dueDate })
+    .from(projectMilestones)
+    .where(eq(projectMilestones.id, milestoneId))
+  if (!milestone) return null
+  return milestone.dueDate && milestone.dueDate < day ? null : milestoneId
 }
 
 /**

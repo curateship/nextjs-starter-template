@@ -1,5 +1,6 @@
-import { and, count, eq, gt, gte, inArray, isNull, lte, max, ne } from "drizzle-orm"
+import { and, count, eq, gt, gte, inArray, isNotNull, isNull, lte, max, ne } from "drizzle-orm"
 
+import { matchesClient } from "@/lib/project/clients"
 import { addDays, localNow, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { teamJoinedHeading, MEMBERS_HREF } from "@/lib/project/notices"
@@ -46,17 +47,36 @@ import { joinWholeTeamProjects } from "@/server/project/whole-team"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/** The team's shared, open projects that this person can see. */
+function sharedOpenProjects(membership: Membership) {
+  return and(
+    visibleProjectsWhere(membership),
+    isNull(projectProjects.personalUserId),
+    isNull(projectProjects.archivedAt)
+  )
+}
+
 /** Open tasks in the team's shared, open projects that this person can see. */
 async function openTeamTasks(membership: Membership, database: ProjectDb) {
-  return listTaskCards(
-    and(
-      visibleProjectsWhere(membership),
-      isNull(projectProjects.personalUserId),
-      isNull(projectProjects.archivedAt),
-      ne(projectTasks.status, "done")
-    ),
+  return listTaskCards(and(sharedOpenProjects(membership), ne(projectTasks.status, "done")), database)
+}
+
+/** Done tasks still waiting for their reviewer, with when the wait began. */
+async function tasksWaitingForReview(membership: Membership, database: ProjectDb) {
+  const cards = await listTaskCards(
+    and(sharedOpenProjects(membership), eq(projectTasks.status, "done"), isNotNull(projectTasks.reviewWaitingSince)),
     database
   )
+  if (cards.length === 0) return []
+  const since = new Map(
+    (
+      await database
+        .select({ id: projectTasks.id, since: projectTasks.reviewWaitingSince })
+        .from(projectTasks)
+        .where(inArray(projectTasks.id, cards.map((card) => card.id)))
+    ).map((row) => [row.id, row.since!])
+  )
+  return cards.map((card) => ({ card, since: since.get(card.id)! }))
 }
 
 async function teamToday(teamId: string, database: ProjectDb, at: Date) {
@@ -93,7 +113,7 @@ async function latestEvents(
   return new Map(rows.filter((row) => row.at).map((row) => [row.taskId, row.at as Date]))
 }
 
-export type AttentionKind = "stuck" | "not_accepted" | "picked_many" | "overdue"
+export type AttentionKind = "stuck" | "not_accepted" | "review_waiting" | "picked_many" | "overdue"
 
 export type AttentionRow = {
   kind: AttentionKind
@@ -101,7 +121,7 @@ export type AttentionRow = {
   title: string
   projectName: string
   personName: string | null
-  /** "Stuck for 3 days", "Waiting since Monday", "Picked on 5 days", "4 days overdue". */
+  /** "Stuck for 3 days", "Not accepted for 2 work days", "Picked on 5 days", "4 days overdue". */
   howLong: string
   /** How many days, for ordering the longest first. */
   days: number
@@ -109,8 +129,9 @@ export type AttentionRow = {
 
 /**
  * Every task that needs help, in one list, for the owner and admins: Stuck
- * for 2 or more days, handed over and not accepted after a work day, picked
- * on 3 or more days and not Done, and overdue. A task that is fixed leaves
+ * (from the day it is marked), handed over and not accepted after a work
+ * day, Done and waiting for its review after a work day, picked on 3 or more
+ * days and not Done, and overdue. A task that is fixed leaves
  * the list, because it is worked out again on every read.
  *
  * How long a task has been Stuck or waiting is read from its history rows.
@@ -183,6 +204,13 @@ export async function loadNeedsAttention(
       rows.push(row(task, "overdue", `${plural(days, "day")} overdue`, days))
     }
   }
+  // Shown after a work day of waiting, like a task not accepted (Tyler, 16 Oct 2026).
+  for (const { card, since } of await tasksWaitingForReview(membership, database)) {
+    const waited = workDaysAfter(dayOf(since))
+    if (waited < 1) continue
+    const reviewer = card.review.reviewer ? `${card.review.reviewer.name}'s review` : "review"
+    rows.push(row(card, "review_waiting", `Waiting for ${reviewer} for ${plural(waited, "work day")}`, waited))
+  }
   return rows.sort((a, b) => b.days - a.days)
 }
 
@@ -200,11 +228,19 @@ export type WorkloadRow = {
  * Each member's open work across every project the viewer can see: open,
  * Doing, Stuck, overdue and due in the next seven days (today included).
  * The owner and admins see everything, as elsewhere; everyone else sees only
- * what's in their own projects. "Just me" tasks never count.
+ * what's in their own projects. "Just me" tasks never count. With a client
+ * picked, only that client's projects count.
  */
-export async function loadWorkload(viewerId: string, database = db, at = new Date()): Promise<WorkloadRow[]> {
+export async function loadWorkload(
+  viewerId: string,
+  database = db,
+  at = new Date(),
+  client?: string
+): Promise<WorkloadRow[]> {
   const membership = await requireMembership(viewerId, database)
-  const tasks = await openTeamTasks(membership, database)
+  const all = await openTeamTasks(membership, database)
+  // One client's work only, when one is picked (Features 16 Oct, part 9).
+  const tasks = client ? all.filter((task) => matchesClient(task.projectClient, client)) : all
   const { today } = await teamToday(membership.teamId, database, at)
   const weekEnd = addDays(today, 7)
   const people = await database

@@ -29,7 +29,9 @@ import { TaggedWords } from "@/components/project/tag-textarea"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskDialog } from "@/components/project/task-dialog"
 import { TeamFiguresGrid, TeamPhoto } from "@/components/project/team-figures"
-import { DayDueTasks, DueChips } from "@/components/project/team-due-dates"
+import { ClientFilterSelect } from "@/components/project/client-filter-select"
+import { AwayChip } from "@/components/project/team-away"
+import { DayDueTasks, DeadlineChips, DueChips } from "@/components/project/team-due-dates"
 import { MeetingChips, MeetingsCard } from "@/components/project/team-meetings"
 import { InviteResentDialog } from "@/components/project/team-members"
 import { PanelCard } from "@/components/project/panel-card"
@@ -53,9 +55,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   showDueDatesOnCalendar,
+  type AwayDay,
   type TeamDay,
   type TeamDayPerson,
   type TeamDayTask,
+  type TeamDeadline,
   type TeamDueTask,
   type TeamMonth,
 } from "@/lib/api/project/checkins"
@@ -74,8 +78,10 @@ import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { addDays, clockIn, dayLabel, longDayLabel, shortDayLabel, zoneCity } from "@/lib/project/days"
+import { matchesClient } from "@/lib/project/clients"
+import { useMyLive } from "@/lib/project/use-my-live"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { dueByDay, dueWords } from "@/lib/project/due-days"
+import { awayWords, deadlineWords, dueByDay, dueWords } from "@/lib/project/due-days"
 import {
   dayCellClassName,
   meetingWords,
@@ -98,6 +104,8 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { TEAM_ROLE_LABEL, runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
 
+const TEAM_ROUTE_ID = "/_authenticated/team/"
+
 export type TeamSearch = {
   /** "YYYY-MM" shown in the calendar. Left out, the current month. */
   month?: string
@@ -108,6 +116,11 @@ export type TeamSearch = {
   day?: string
   /** The task whose window is open. */
   task?: string
+  /**
+   * A client's name, or "No client": the calendar's due dates and Workload
+   * show only that client's projects (Features 16 Oct, part 9).
+   */
+  client?: string
 }
 
 /**
@@ -163,6 +176,19 @@ function Dashboard({
   search: TeamSearch
 }) {
   const navigate = useNavigate()
+  const router = useRouter()
+  // Check-ins, meetings, time off and tasks changed by others show without a
+  // reload (Features 16 Oct, part 5). Only this page's own data loads again;
+  // an open task window loads its own.
+  // Attention and Workload load apart from the page, so they count changes too.
+  const [liveChanges, setLiveChanges] = React.useState(0)
+  useMyLive(
+    () => true,
+    () => {
+      setLiveChanges((n) => n + 1)
+      void router.invalidate({ filter: (match) => match.routeId === TEAM_ROUTE_ID })
+    }
+  )
   const go = React.useCallback(
     (patch: Partial<TeamSearch>) =>
       void navigate({
@@ -179,7 +205,22 @@ function Dashboard({
   const [dayPicks, setDayPicks] = React.useState(0)
   const selected = search.day ?? month.today
   const meetingDays = React.useMemo(() => meetingsByDay(meetings), [meetings])
-  const dueDays = React.useMemo(() => dueByDay(month.dueDates.tasks), [month.dueDates.tasks])
+  const client = search.client
+  const dueDays = React.useMemo(
+    () =>
+      dueByDay(client ? month.dueDates.tasks.filter((task) => matchesClient(task.projectClient, client)) : month.dueDates.tasks),
+    [month.dueDates.tasks, client]
+  )
+  const deadlineDays = React.useMemo(
+    () =>
+      dueByDay(
+        client
+          ? month.dueDates.deadlines.filter((deadline) => matchesClient(deadline.projectClient, client))
+          : month.dueDates.deadlines
+      ),
+    [month.dueDates.deadlines, client]
+  )
+  const awayOf = React.useMemo(() => new Map(month.away.map((away) => [away.day, away])), [month.away])
   const holidayOf = React.useMemo(() => new Map(month.holidays.map((h) => [h.day, h.name])), [month.holidays])
   // The calendar's New meeting and the right panel's "+ Add" open the same windows.
   const meetingWindows = useMeetingWindows({ meetings, data, day: selected < month.today ? month.today : selected })
@@ -201,9 +242,13 @@ function Dashboard({
             selected={selected}
             meetingDays={meetingDays}
             dueDays={dueDays}
+            deadlineDays={deadlineDays}
+            awayOf={awayOf}
             holidayOf={holidayOf}
             viewerZone={meetings.viewerZone}
             data={data}
+            client={client}
+            onClient={(next) => go({ client: next })}
             // A new month starts on its 1st, or on today in today's month, so
             // the calendar, its meetings and the check-ins name one day.
             onMonth={(next) =>
@@ -249,11 +294,19 @@ function Dashboard({
             }
             due={
               month.dueDates.on ? (
-                <DayDueTasks tasks={dueDays.get(day.day) ?? []} onOpenTask={(taskId) => go({ task: taskId })} />
+                <DayDueTasks
+                  tasks={dueDays.get(day.day) ?? []}
+                  deadlines={deadlineDays.get(day.day) ?? []}
+                  onOpenTask={(taskId) => go({ task: taskId })}
+                />
               ) : null
             }
             openTask={search.task}
+            liveChanges={liveChanges}
             onOpenTask={(taskId) => go({ task: taskId })}
+            clients={data.clients}
+            client={client}
+            onClient={(next) => go({ client: next })}
           />
         ),
       }}
@@ -483,9 +536,13 @@ function CalendarPanel({
   selected,
   meetingDays,
   dueDays,
+  deadlineDays,
+  awayOf,
   holidayOf,
   viewerZone,
   data,
+  client,
+  onClient,
   onMonth,
   onWeek,
   onToday,
@@ -497,9 +554,14 @@ function CalendarPanel({
   selected: string
   meetingDays: Map<string, DayMeeting[]>
   dueDays: Map<string, TeamDueTask[]>
+  /** Each day's milestones and projects due; empty while "Due dates" is off. */
+  deadlineDays: Map<string, TeamDeadline[]>
+  awayOf: Map<string, AwayDay>
   holidayOf: Map<string, string>
   viewerZone: string
   data: TeamDashboardData
+  client: string | undefined
+  onClient: (client: string | undefined) => void
   onMonth: (month: string) => void
   /** A week's arrow: the same weekday in the week before or after. */
   onWeek: (day: string) => void
@@ -584,6 +646,9 @@ function CalendarPanel({
               showDue={showDue}
               savingDue={savingSwitch}
               onShowDue={(on) => void switchDueDates(on)}
+              clients={data.clients}
+              client={client}
+              onClient={onClient}
             />
           ) : null}
           {canRun && !data.announcement ? (
@@ -632,6 +697,8 @@ function CalendarPanel({
               meetingDays={meetingDays}
               holidays={holidayOf}
               dueDays={dueDays}
+              deadlineDays={deadlineDays}
+              awayOf={awayOf}
               viewerZone={viewerZone}
               onSelect={onSelect}
             />
@@ -645,10 +712,14 @@ function CalendarPanel({
                   : null
                 const holiday = inMonth ? holidayOf.get(date) : undefined
                 const dayDue = inMonth ? (dueDays.get(date) ?? []) : []
+                const dayDeadlines = inMonth ? (deadlineDays.get(date) ?? []) : []
+                const away = inMonth ? awayOf.get(date) : undefined
                 const words = [
                   holiday ? `${holiday}, a team holiday` : null,
                   checkinWords,
+                  awayWords(away),
                   meetingWords(dayMeetings, viewerZone),
+                  deadlineWords(dayDeadlines),
                   dueWords(dayDue),
                 ].filter(Boolean)
                 return (
@@ -691,7 +762,9 @@ function CalendarPanel({
                         <span className="max-sm:hidden">&nbsp;blocked</span>
                       </span>
                     ) : null}
+                    <AwayChip away={away} />
                     <MeetingChips meetings={dayMeetings} />
+                    <DeadlineChips deadlines={dayDeadlines} />
                     <DueChips tasks={dayDue} />
                   </button>
                 )
@@ -720,12 +793,18 @@ function CalendarViewMenu({
   showDue,
   savingDue,
   onShowDue,
+  clients,
+  client,
+  onClient,
 }: {
   view: CalendarView
   onView: (view: CalendarView) => void
   showDue: boolean
   savingDue: boolean
   onShowDue: (on: boolean) => void
+  clients: string[]
+  client: string | undefined
+  onClient: (client: string | undefined) => void
 }) {
   return (
     <Popover>
@@ -758,6 +837,14 @@ function CalendarViewMenu({
             onCheckedChange={onShowDue}
           />
         </div>
+        {showDue && (clients.length || client) ? (
+          <div className="grid gap-2">
+            <Label htmlFor="team-calendar-client" className="font-normal">
+              Client
+            </Label>
+            <ClientFilterSelect id="team-calendar-client" value={client} clients={clients} onChange={onClient} />
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   )
@@ -859,7 +946,11 @@ function RightPanel({
   meetings,
   due,
   openTask,
+  liveChanges,
   onOpenTask,
+  clients,
+  client,
+  onClient,
 }: {
   canRun: boolean
   day: TeamDay
@@ -869,11 +960,17 @@ function RightPanel({
   due: React.ReactNode
   /** The task whose window is open: the lists load again when it closes, so a fixed task leaves them. */
   openTask: string | undefined
+  /** How many live changes have come in; each one loads Attention and Workload again. */
+  liveChanges: number
   onOpenTask: (taskId: string) => void
+  clients: string[]
+  client: string | undefined
+  onClient: (client: string | undefined) => void
 }) {
   const [chosen, setTab] = useRememberedChoice<RightTab>(TEAM_RIGHT_TAB_KEY, "checkins", RIGHT_TABS)
   const tab = chosen === "attention" && !canRun ? "checkins" : chosen
-  const attention = useAttention(canRun, openTask)
+  const reload = `${openTask ?? ""}:${liveChanges}`
+  const attention = useAttention(canRun, reload)
   const attentionCount = attention.loaded.state === "ready" ? attention.loaded.value.length : 0
   return (
     <>
@@ -927,7 +1024,13 @@ function RightPanel({
           {tab === "checkins" ? (
             checkins
           ) : tab === "workload" ? (
-            <WorkloadPanel reload={openTask} onOpenTask={onOpenTask} />
+            <WorkloadPanel
+              reload={reload}
+              onOpenTask={onOpenTask}
+              clients={clients}
+              client={client}
+              onClient={onClient}
+            />
           ) : (
             <AttentionPanel attention={attention} onOpenTask={onOpenTask} />
           )}

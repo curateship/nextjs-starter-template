@@ -53,6 +53,15 @@ page.
 - **Days still to come can be clicked**, so next week's meetings can be read.
   The Check-ins tab on the right keeps showing today for a day still to come,
   and says "Wed, Oct 14 hasn't happened yet. Showing today."
+- **Who is away.** Each of the team's work days names whoever is on time
+  off with a palm-tree mark: "Leo Hart away", or "3 away" when more than
+  one is. A phone's square shows the mark and the count. It is always shown,
+  to everyone on the team, with no switch (Tyler, 16 Oct 2026), and never
+  says why, because no reason is kept. A day the team doesn't work, and
+  anyone who has left the team, isn't named. The Week view's day headings
+  carry the same mark. Read with the month by `awayBetween` in
+  `src/server/project/time-off.ts`; the mark is
+  `src/components/project/team-away.tsx`.
 - **Moving to another month picks its 1st**, or today in today's month, so
   the calendar, the meetings under it and the Check-ins tab all name the same
   day.
@@ -104,11 +113,25 @@ So an owner sees a crowded week coming.
   their project's colour, then "+4 more". A phone's square has room for a
   count and a list icon only. The Week view adds "3 due" to each day's
   heading.
-- **Under the calendar, "Due this day"** lists the chosen day's due tasks
-  with their project, who has them and their status. Each row opens the
-  task's window.
-- **What counts:** tasks not Done, with a due date, in the shared projects I
-  can see. The bin, archived projects and "Just me" lists are left out.
+- **Milestones and whole projects due show too**, drawn apart from the
+  tasks as a filled chip with a flag (a milestone) or a case (a project's
+  own due date), named first, then "+1 more". A phone's square shows the
+  flag and a count. The Week view's heading names one, or says "2 due"
+  (Features 16 Oct). A milestone whose tasks are all Done leaves the
+  calendar; one with no tasks yet stays.
+- **Under the calendar, "Due this day"** lists the chosen day's milestones
+  and projects due, each opening its project, then its due tasks with their
+  project, who has them and their status. Each task row opens the task's
+  window. The right panel shows today for a day still to come, as the
+  Check-ins tab does.
+- **One client's dates.** The view menu holds a Client choice while Due
+  dates is on. Picked, the squares and "Due this day" show only that
+  client's projects. The choice is in the page's address and also narrows
+  the Workload tab (see Clients in
+  [Projects and tasks](projects-and-tasks.md#clients)).
+- **What counts:** tasks not Done, with a due date, and milestones not yet
+  reached and project due dates, in the shared projects I can see. The bin,
+  archived projects and "Just me" lists are left out.
 - **Where it lives:** `src/server/project/team-due-dates.ts` (read with the
   month by `loadTeamMonth`, the switch saved in
   `project_team_members.calendar_due_dates` from

@@ -108,6 +108,8 @@ export type TaskCard = {
   id: string
   projectId: string
   projectName: string
+  /** The project's client, for the client filter (Features 16 Oct, part 9). */
+  projectClient: string | null
   title: string
   status: TaskStatus
   stuckReason: string | null
@@ -181,6 +183,7 @@ export async function listTaskCards(
     .select({
       task: projectTasks,
       projectName: projectProjects.name,
+      projectClient: projectProjects.client,
       assigneeName: assignee.name,
       assigneeAvatar: assignee.avatarUrl,
       assignerName: assigner.name,
@@ -236,6 +239,7 @@ export async function listTaskCards(
       id: task.id,
       projectId: task.projectId,
       projectName: row.projectName,
+      projectClient: row.projectClient,
       title: task.title,
       status: task.status,
       stuckReason: task.stuckReason,
@@ -581,10 +585,10 @@ export async function createTask(
       await writeNewTaskFields(tx, {
         membership,
         project,
-        taskId: task.id,
+        task,
         typeId: input.typeId,
         values: input.fieldValues ?? {},
-        actorId: actor.id,
+        actor,
       })
     }
     await recordTaskEvent(tx, { taskId: task.id, kind: "created", actorUserId: actor.id })

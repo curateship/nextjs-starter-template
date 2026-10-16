@@ -44,7 +44,8 @@ export type {
   TeamMonth,
   TeamMonthDay,
 } from "@/server/project/team-days"
-export type { TeamDueDates, TeamDueTask } from "@/server/project/team-due-dates"
+export type { TeamDeadline, TeamDueDates, TeamDueTask } from "@/server/project/team-due-dates"
+export type { AwayDay } from "@/server/project/time-off"
 
 const id = z.string().min(1).max(36)
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Pick a month like 2026-10.")

@@ -53,6 +53,7 @@ import { useAppNotificationDetails } from "@/lib/hooks/use-app-notification-deta
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { notificationAction } from "@/lib/notification-action"
+import { clientChoices } from "@/lib/project/clients"
 import { MY_DASHBOARD_PANEL_LAYOUT_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -68,6 +69,7 @@ import {
 import { todaysPicks } from "@/lib/project/todays-picks"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { viewHasFilters } from "@/lib/project/saved-views"
+import { useMyLive } from "@/lib/project/use-my-live"
 import { cn } from "@/lib/utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -89,6 +91,8 @@ type MyView = (typeof MY_VIEWS)[number]
  * project page, and closing it brings the inbox back (Tyler, 13 Oct 2026).
  * The check-in opens as a window from here.
  */
+const MY_DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
+
 export function MyDashboardScreen({
   dashboard,
   invites,
@@ -126,6 +130,12 @@ function Dashboard({
       if (tasksRef.current.some((task) => task.id === taskId && task.unread > 0)) void router.invalidate()
     },
     [router]
+  )
+  // A task handed to me, or changed on a project I'm on, shows without a
+  // reload (Features 16 Oct, part 5). Only this page's own data loads again.
+  useMyLive(
+    (change) => change === "mine",
+    () => void router.invalidate({ filter: (match) => match.routeId === MY_DASHBOARD_ROUTE_ID })
   )
   const go = React.useCallback(
     (patch: Partial<MyDashboardSearch>, options: { replace?: boolean } = {}) =>
@@ -170,6 +180,7 @@ function Dashboard({
                 label: search.label,
                 type: search.type,
                 due: search.due,
+                client: search.client,
               }}
               onFilters={(patch) => go(patch, { replace: true })}
               onOpenTask={taskAddress.open}
@@ -547,6 +558,7 @@ function MyTasksPanel({
             types={dashboard.taskTypes}
             buttonVariant="ghost"
             onSaveView={saveView}
+            clients={clientChoices([...open, ...done].map((task) => task.projectClient))}
           />
           <SavedViewsControls
             views={dashboard.views}

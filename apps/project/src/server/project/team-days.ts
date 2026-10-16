@@ -15,7 +15,7 @@ import { clockOf, isLate, loadClock, notesOf, personDay } from "@/server/project
 import { holidayOn, holidaysBetween, type Holiday } from "@/server/project/holidays"
 import { thanksBetween, type ThanksLine } from "@/server/project/task-thanks"
 import { loadTeamDueDates, type TeamDueDates } from "@/server/project/team-due-dates"
-import { awayOn } from "@/server/project/time-off"
+import { awayBetween, awayOn, type AwayDay } from "@/server/project/time-off"
 import {
   projectCheckinItems,
   projectCheckins,
@@ -51,6 +51,8 @@ export type TeamMonth = {
   holidays: Holiday[]
   /** My "Due dates" switch, and the due tasks across the month's grid while it is on. */
   dueDates: TeamDueDates
+  /** Who is on time off on each of the team's work days in the month's grid. */
+  away: AwayDay[]
 }
 
 export async function loadTeamMonth(
@@ -119,6 +121,7 @@ export async function loadTeamMonth(
     days,
     holidays,
     dueDates: await loadTeamDueDates(membership, first, last, database),
+    away: await awayBetween(membership.teamId, workDays, first, last, database),
   }
 }
 

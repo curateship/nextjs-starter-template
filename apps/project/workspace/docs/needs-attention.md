@@ -13,16 +13,19 @@ panel at its usual width, so the team's Activity went beside Calendar in the
 middle panel instead (Tyler, 12 Oct 2026; see
 [Teams and invites](teams-and-invites.md#the-teams-activity)).
 
-- **Four kinds, grouped:**
+- **Five kinds, grouped:**
   - **Stuck**, from the day it is marked Stuck, because someone can't carry
     on. Tyler's rule (11 Oct 2026), replacing the first version's 2-day wait.
   - **Handed over, not accepted** after at least one of the team's work days.
+  - **Waiting for review**: Done, and still waiting for its reviewer to
+    confirm it or send it back, after at least one of the team's work days
+    (Tyler, 16 Oct 2026). Confirming or sending it back takes it off.
   - **Picked on 3 days or more** and still not Done (the same mark as
     "Picked on 4 days" on the task).
   - **Overdue**: past its due date and not Done.
 - **Each row** names the task, the person, the project and how long ("Stuck
-  since today", "Stuck for 3 days", "Not accepted for 1 work day", "Picked on 5 days", "4 days
-  overdue"), longest first, and opens the task as a window.
+  since today", "Stuck for 3 days", "Not accepted for 1 work day", "Waiting
+  for Sam's review for 2 work days", "Picked on 5 days", "4 days overdue"), longest first, and opens the task as a window.
 - **A fixed task leaves the list**, because it is worked out again every time
   the tab opens and every time a task window opened from it closes. The old
   rows stay on screen until the new ones arrive. Workload reloads the same
@@ -30,7 +33,7 @@ middle panel instead (Tyler, 12 Oct 2026; see
 - **How long, for older tasks.** It reads each task's history rows. A task
   marked Stuck or handed over before those were written down (11 Oct 2026)
   counts from its last change or from when it was made.
-- **What it leaves out:** Done tasks, archived projects, the bin, and "Just me"
+- **What it leaves out:** Done tasks (except those waiting for review), archived projects, the bin, and "Just me"
   tasks, which only their person can see.
 - **The bell gives the numbers, this gives the names.** The owner's morning
   notice ("5 of 6 checked in, 1 blocked") is in
@@ -47,6 +50,14 @@ For everyone, to see who has room before handing out more work.
   project, as everywhere else; a member sees counts and tasks from their own
   projects only. "Just me" tasks never count.
 - **Busiest first**, by open tasks.
+- **One client's work.** With a client picked in the Client choice at the
+  top of the tab, only that client's projects count, or those with no client
+  (Features 16 Oct; see Clients in
+  [Projects and tasks](projects-and-tasks.md#clients)). The same choice
+  narrows the calendar's due dates.
+- **Both tabs keep up by themselves.** A change anywhere on the team loads
+  Attention and Workload again (see Live updates in
+  [Task chat](task-chat.md#live-updates)).
 - **The same Open count shows in every hand-to picker**, beside each name,
   with "Away until Dec 4" for anyone on time off today, so nobody hands work
   to someone on holiday or already swamped (`loadPeopleRoom` in

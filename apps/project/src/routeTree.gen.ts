@@ -65,6 +65,7 @@ import { Route as AuthenticatedProjectsProjectIdRouteImport } from './routes/_au
 import { Route as AuthenticatedTeamIndexRouteImport } from './routes/_authenticated/team/index'
 import { Route as AuthenticatedTeamMembersRouteImport } from './routes/_authenticated/team/members'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
+import { Route as ApiProjectMyLiveRouteImport } from './routes/api/project/my-live'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
@@ -384,6 +385,11 @@ const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   path: '/api/auth/google',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProjectMyLiveRoute = ApiProjectMyLiveRouteImport.update({
+  id: '/api/project/my-live',
+  path: '/api/project/my-live',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWebhooksResendRoute = ApiWebhooksResendRouteImport.update({
   id: '/api/webhooks/resend',
   path: '/api/webhooks/resend',
@@ -544,6 +550,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/team/members': typeof AuthenticatedTeamMembersRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/project/my-live': typeof ApiProjectMyLiveRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -618,6 +625,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/team/members': typeof AuthenticatedTeamMembersRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/project/my-live': typeof ApiProjectMyLiveRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -696,6 +704,7 @@ export interface FileRoutesById {
   '/_authenticated/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/_authenticated/team/members': typeof AuthenticatedTeamMembersRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/project/my-live': typeof ApiProjectMyLiveRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -774,6 +783,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/team/members'
     | '/api/auth/google'
+    | '/api/project/my-live'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin/'
@@ -848,6 +858,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/team/members'
     | '/api/auth/google'
+    | '/api/project/my-live'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin'
@@ -925,6 +936,7 @@ export interface FileRouteTypes {
     | '/_authenticated/projects/$projectId'
     | '/_authenticated/team/members'
     | '/api/auth/google'
+    | '/api/project/my-live'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/_authenticated/admin/'
@@ -972,6 +984,7 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
+  ApiProjectMyLiveRoute: typeof ApiProjectMyLiveRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
@@ -1377,6 +1390,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthGoogleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/project/my-live': {
+      id: '/api/project/my-live'
+      path: '/api/project/my-live'
+      fullPath: '/api/project/my-live'
+      preLoaderRoute: typeof ApiProjectMyLiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/webhooks/resend': {
       id: '/api/webhooks/resend'
       path: '/api/webhooks/resend'
@@ -1683,6 +1703,7 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
+  ApiProjectMyLiveRoute: ApiProjectMyLiveRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,

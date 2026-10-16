@@ -79,6 +79,45 @@ the code. If the code disagrees with a line here, the code is wrong.
   a missing figure reads "None", and a time range reads "10:00 to 10:45 AM".
 - **Price.** Project will become its own paid subscription product. It is free
   for now, and there is no billing work until Tyler decides on pricing.
+- **Not a SaaS yet.** Tyler, 16 Oct 2026: "we're not building a sass for this
+  app yet so you're confusing this app with a sass product." Nobody signs up
+  and starts a team of their own. Nothing is designed for that until Tyler
+  says the subscription work has started.
+
+## Who runs the app
+
+Tyler's rules, 16 Oct 2026. Decided, not built yet: the work is in
+`workspace/tasks/Admin/01-employees-and-the-site-admin.md`. Until it is
+built, Project's people are still shell accounts, anyone with no team can
+start one, and team owners and admins still run their team.
+
+- **Employees are not shell users.** Tyler: "Because employees are NOT users
+  of shell and all those features like stripe etc... their accounts is
+  completely separate from users accounts. They're employees and NOT
+  users." An employee's account is Project's own. They sign in on Project's
+  page with a password they set from their invite, and never get the
+  shell's account window, Billing, AI usage, Feedback or Changelog. They can
+  change their own name, photo and password, nothing else.
+- **The site admin oversees and does no work in a team.** Tyler: "What
+  tasks? if i only overseeas the team, why would I get tasks?" He isn't a
+  member of the teams he creates, never checks in and gets no tasks. Only he
+  sees every project in a team, and only he gets the morning "5 of 6
+  checked in" notice.
+
+- **The site admin runs every team.** Tyler: "Im admin, I should be able to
+  see everything." The site admin creates teams, changes their settings,
+  invites people and makes task types.
+- **Invited people are members and nothing more.** Tyler: "A member that is
+  invited to the app does not have any features like creating any team or
+  workspace or change settings like a shell user would. Their account is not
+  the same as a user's shell account." A team's owner and admin roles stop
+  giving extra powers.
+- **The site admin moves between teams with a team picker**, and sees each
+  one as its owner would.
+- **The site admin sees everything, private things included**: each
+  person's My week, check-out notes, check-in record and "Just me" tasks.
+- **The site admin stays invisible** in a team they look at: not a member,
+  not in any picker or count, and sent none of its notices.
 
 ## Choices for the next features
 
@@ -271,6 +310,29 @@ built. Each was the recommended option.
 - **A project with "Everyone on the team" on** can't be left, and nobody
   can be taken off it, until the switch is off. Tyler didn't know the
   feature and asked me to decide, so this is my call, open to change.
+
+## Choices for the 16 Oct features
+
+Tyler answered these on 16 Oct 2026, before Features 16 Oct task 01 was
+built. Each was the recommended option.
+
+- **A project's status reaches the bell** when it goes At risk or Off track,
+  and again when it goes back to On track or the status is taken off.
+- **"Milestone due tomorrow" goes to the project's lead**, or to the owner
+  and admins when it has no lead.
+- **A task waiting for review shows in Needs attention after one work day**
+  of waiting, the same as a task not accepted.
+- **A repeating task whose milestone has already passed** makes its next
+  copy with no milestone.
+- **My dashboard and the Team dashboard update by themselves.** The Projects
+  table doesn't; a reload is fine there.
+- **Time off is always shown on the Team calendar**, to everyone on the
+  team, with no switch.
+- **Someone named in a Person field follows the task**, so its chat and its
+  Done reach them too.
+- **Board cards show the fields picked for the List**, with no separate
+  choice.
+- **A saved view on My dashboard keeps its client.**
 
 ## The first version
 

@@ -134,10 +134,16 @@ and opening it reads them (see [Task chat](task-chat.md#new-messages)).
 The magnifying glass opens the search box, which stays open while it holds
 words; Escape empties and closes it. The due-date dropdown is the project
 page's: All time, Overdue, Today, This week, Next week, No date. Filter holds
-Status, Priority, Label and Type, then Clear and Save as view. All of it lives
-in the address like the project page's, and a saved view keeps the due date.
-Priority used to change the address without narrowing the list; it narrows it
-now.
+Status, Priority, Label, Type and Client, then Clear and Save as view. All of
+it lives in the address like the project page's, and a saved view keeps the
+due date and the client (Tyler, 16 Oct 2026). Priority used to change the
+address without narrowing the list; it narrows it now. Client lists the
+clients of my tasks' projects, then "No client", and shows only that client's
+tasks (see Clients in [Projects and tasks](projects-and-tasks.md#clients)).
+
+My tasks keep up by themselves: a task handed to me, or changed by someone
+else on a project I'm on, shows within about a second, with no reload (see
+Live updates in [Task chat](task-chat.md#my-dashboard-and-the-team-dashboard)).
 
 A tick in a round box selects the task without opening it. Ticked rows can be marked Done together, or changed with the same bar as a
 project's List tab: Status, Hand to (with one optional note for them all) and

@@ -403,11 +403,12 @@ export function ProjectTasksPanel({
                     : undefined
                 }
                 extra={
-                  view === "list" && filteredType?.fields.length ? (
+                  (view === "list" || view === "board") && filteredType?.fields.length ? (
                     <FieldColumnsMenu
                       fields={filteredType.fields}
                       chosen={fieldColumns.map((column) => column.field.id)}
                       onChange={setColumnIds}
+                      label={view === "board" ? "Fields on cards" : "Columns"}
                     />
                   ) : null
                 }
@@ -516,6 +517,8 @@ export function ProjectTasksPanel({
           }}
           // Counted from every task, so a filter never hides who is over the limit.
           doingWarnings={overDoingLimit(tasks, page.project.doingLimit)}
+          // The List's chosen fields, as lines on the cards (Tyler, 16 Oct 2026).
+          cardFields={filteredType ? { columns: fieldColumns, fields: filteredType.fields } : undefined}
         />
       ) : (
         <TaskList
