@@ -5,6 +5,7 @@ import {
   addLink,
   addSection,
   appUrlFromPersonalPath,
+  clampSidebarWidth,
   defaultMenu,
   frameSrc,
   menuSchema,
@@ -13,6 +14,7 @@ import {
   removeLink,
   removeSection,
   renameSection,
+  subLinksOf,
   updateLink,
   type MenuLink,
 } from "@/lib/menu"
@@ -57,6 +59,16 @@ describe("addresses", () => {
     const withLogin = { ...defaultMenu(), top: [{ ...posts, url: "http://me:pw@localhost:3015/" }] }
     expect(menuSchema.safeParse(withLogin).success).toBe(false)
     expect(menuSchema.safeParse(defaultMenu()).success).toBe(true)
+  })
+})
+
+describe("the left menu's width", () => {
+  it("is kept between the shell's limits", () => {
+    expect(clampSidebarWidth(50)).toBe(144)
+    expect(clampSidebarWidth(300.4)).toBe(300)
+    expect(clampSidebarWidth(9000)).toBe(420)
+    expect(menuSchema.safeParse({ ...defaultMenu(), sidebarWidth: 300 }).success).toBe(true)
+    expect(menuSchema.safeParse({ ...defaultMenu(), sidebarWidth: 600 }).success).toBe(false)
   })
 })
 
@@ -130,5 +142,55 @@ describe("editing the menu", () => {
   it("leaves the menu alone when a place does not exist", () => {
     const menu = defaultMenu()
     expect(addLink(menu, { kind: "section", sectionId: "gone" }, posts)).toBe(menu)
+  })
+})
+
+describe("sub-links", () => {
+  const under = { kind: "under", linkId: "link-cms-dashboard" } as const
+  const withPosts = () => addLink(defaultMenu(), under, posts)
+
+  it("adds a sub-link under a left-menu link, and the file rules accept it", () => {
+    const menu = withPosts()
+    expect(menu.sections[1].links[0].children).toEqual([posts])
+    expect(menuSchema.safeParse(menu).success).toBe(true)
+  })
+
+  it("opens the sub-link's own screen and shows the family in the top bar", () => {
+    const menu = withPosts()
+    const active = activeLinkId(menu, "http://localhost:3015/admin/posts")
+    expect(active).toBe("link-posts")
+    expect(subLinksOf(menu, active)?.map((l) => l.id)).toEqual(["link-cms-dashboard", "link-posts"])
+    expect(subLinksOf(menu, "link-cms-dashboard")?.map((l) => l.id)).toEqual([
+      "link-cms-dashboard",
+      "link-posts",
+    ])
+    // A link with no sub-links leaves the top bar's left end empty.
+    expect(subLinksOf(menu, "link-cms-listings")).toBeNull()
+  })
+
+  it("goes one level deep only", () => {
+    const menu = withPosts()
+    const parent = menu.sections[1].links[0]
+    // Under one of its own sub-links, under another link, or in the top bar:
+    // a link that holds sub-links is refused all three.
+    expect(updateLink(menu, parent, { kind: "under", linkId: "link-posts" })).toBe(menu)
+    expect(updateLink(menu, parent, { kind: "under", linkId: "link-cms-listings" })).toBe(menu)
+    expect(updateLink(menu, parent, { kind: "top" })).toBe(menu)
+    // Nothing can be added under a sub-link.
+    expect(addLink(menu, { kind: "under", linkId: "link-posts" }, { ...posts, id: "x" })).toBe(menu)
+  })
+
+  it("moves a sub-link out to a section, which leaves its link plain", () => {
+    const menu = updateLink(withPosts(), posts, { kind: "section", sectionId: "section-project" })
+    expect(menu.sections[1].links[0]).not.toHaveProperty("children")
+    expect(menu.sections[0].links.map((l) => l.id)).toEqual(["link-project-dashboard", "link-posts"])
+  })
+
+  it("deletes a link with its sub-links, and a sub-link on its own", () => {
+    expect(removeLink(withPosts(), "link-cms-dashboard").sections[1].links.map((l) => l.id)).toEqual([
+      "link-cms-listings",
+    ])
+    const menu = removeLink(withPosts(), "link-posts")
+    expect(menu.sections[1].links[0]).not.toHaveProperty("children")
   })
 })

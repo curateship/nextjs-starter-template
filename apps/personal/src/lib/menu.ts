@@ -26,6 +26,15 @@ export const LINK_ICONS = [
 
 export type LinkIcon = (typeof LINK_ICONS)[number]
 
+/** The left menu's width in pixels: the same limits and start as Custom Shell's. */
+export const DEFAULT_SIDEBAR_WIDTH = 218
+export const MIN_SIDEBAR_WIDTH = 144
+export const MAX_SIDEBAR_WIDTH = 420
+
+export function clampSidebarWidth(value: number) {
+  return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(value)))
+}
+
 const appUrl = z
   .string()
   .trim()
@@ -41,24 +50,54 @@ const linkSchema = z.object({
   icon: z.enum(LINK_ICONS),
 })
 
+/**
+ * A left-menu link may hold sub-links, one level deep, as Custom Shell's menu
+ * items do. They fold under it, and the top bar's left end shows them while
+ * the link or one of them is open. Top-bar links have none.
+ */
+const sectionLinkSchema = linkSchema.extend({
+  children: z.array(linkSchema).max(50).optional(),
+})
+
 const sectionSchema = z.object({
   id: z.string().min(1).max(64),
   title: z.string().trim().max(60),
-  links: z.array(linkSchema).max(100),
+  links: z.array(sectionLinkSchema).max(100),
 })
 
 export const menuSchema = z.object({
   version: z.literal(1),
   top: z.array(linkSchema).max(30),
   sections: z.array(sectionSchema).max(30),
+  /** Missing until the menu is first dragged wider or narrower. */
+  sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH).optional(),
 })
 
-export type MenuLink = z.infer<typeof linkSchema>
+export type MenuLink = z.infer<typeof sectionLinkSchema>
 export type MenuSection = z.infer<typeof sectionSchema>
 export type Menu = z.infer<typeof menuSchema>
 
-/** Where a link sits: the top bar, or one of the left menu's sections. */
-export type Place = { kind: "top" } | { kind: "section"; sectionId: string }
+/** Where a link sits: the top bar, a left-menu section, or under a left-menu link. */
+export type Place =
+  | { kind: "top" }
+  | { kind: "section"; sectionId: string }
+  | { kind: "under"; linkId: string }
+
+export function placeKey(place: Place) {
+  if (place.kind === "top") return "top"
+  return place.kind === "section" ? `section:${place.sectionId}` : `under:${place.linkId}`
+}
+
+/**
+ * Whether a link may go to a place. Sub-links go one level deep only, so a
+ * link that has its own sub-links stays a left-menu link: it can't go under
+ * another link, nor into the top bar, which has no sub-links.
+ */
+export function canPlace(link: MenuLink, place: Place) {
+  if (place.kind === "section") return true
+  if (link.children?.length) return false
+  return place.kind === "top" || place.linkId !== link.id
+}
 
 /** The menu a fresh Mac starts with: the screens wired on 16 Oct 2026. */
 export function defaultMenu(): Menu {
@@ -174,29 +213,74 @@ export function activeLinkId(menu: Menu, openUrl: string | null) {
   return best?.id ?? null
 }
 
+/** Every link, sub-links included. */
 export function allLinks(menu: Menu) {
-  return [...menu.top, ...menu.sections.flatMap((section) => section.links)]
+  return [
+    ...menu.top,
+    ...menu.sections.flatMap((section) =>
+      section.links.flatMap((link) => [link, ...(link.children ?? [])])
+    ),
+  ]
+}
+
+function sectionLinks(menu: Menu) {
+  return menu.sections.flatMap((section) => section.links)
 }
 
 export function placeOf(menu: Menu, linkId: string): Place | null {
   if (menu.top.some((link) => link.id === linkId)) return { kind: "top" }
   const section = menu.sections.find((s) => s.links.some((l) => l.id === linkId))
-  return section ? { kind: "section", sectionId: section.id } : null
+  if (section) return { kind: "section", sectionId: section.id }
+  const parent = sectionLinks(menu).find((l) => l.children?.some((c) => c.id === linkId))
+  return parent ? { kind: "under", linkId: parent.id } : null
 }
 
-function linksAt(menu: Menu, place: Place) {
+function linksAt(menu: Menu, place: Place): MenuLink[] | null {
   if (place.kind === "top") return menu.top
-  return menu.sections.find((section) => section.id === place.sectionId)?.links ?? null
+  if (place.kind === "section") {
+    return menu.sections.find((section) => section.id === place.sectionId)?.links ?? null
+  }
+  const parent = sectionLinks(menu).find((link) => link.id === place.linkId)
+  return parent ? (parent.children ?? []) : null
 }
 
 function withLinksAt(menu: Menu, place: Place, links: MenuLink[]): Menu {
   if (place.kind === "top") return { ...menu, top: links }
+  if (place.kind === "section") {
+    return {
+      ...menu,
+      sections: menu.sections.map((section) =>
+        section.id === place.sectionId ? { ...section, links } : section
+      ),
+    }
+  }
   return {
     ...menu,
-    sections: menu.sections.map((section) =>
-      section.id === place.sectionId ? { ...section, links } : section
-    ),
+    sections: menu.sections.map((section) => ({
+      ...section,
+      links: section.links.map((link) => {
+        if (link.id !== place.linkId) return link
+        // The last sub-link gone leaves a plain link, not an empty list.
+        const { children: _gone, ...plain } = link
+        return links.length ? { ...link, children: links } : plain
+      }),
+    })),
   }
+}
+
+/**
+ * The top bar's left end, as Custom Shell's mirrors its menu: the open
+ * left-menu link and its sub-links, when the open screen is that link or one
+ * of them. Null when the open screen has no sub-links around it.
+ */
+export function subLinksOf(menu: Menu, activeId: string | null) {
+  if (!activeId) return null
+  const parent = sectionLinks(menu).find(
+    (link) =>
+      link.children?.length &&
+      (link.id === activeId || link.children.some((child) => child.id === activeId))
+  )
+  return parent ? [parent, ...(parent.children ?? [])] : null
 }
 
 /** Adds a link at the end of a place. */
@@ -211,11 +295,8 @@ export function addLink(menu: Menu, place: Place, link: MenuLink): Menu {
  */
 export function updateLink(menu: Menu, link: MenuLink, place: Place): Menu {
   const from = placeOf(menu, link.id)
-  if (!from) return menu
-  const same =
-    from.kind === place.kind &&
-    (from.kind === "top" || (place.kind === "section" && from.sectionId === place.sectionId))
-  if (same) {
+  if (!from || !canPlace(link, place)) return menu
+  if (placeKey(from) === placeKey(place)) {
     const links = linksAt(menu, from) ?? []
     return withLinksAt(menu, from, links.map((l) => (l.id === link.id ? link : l)))
   }
@@ -223,15 +304,12 @@ export function updateLink(menu: Menu, link: MenuLink, place: Place): Menu {
   return addLink(removeLink(menu, link.id), place, link)
 }
 
+/** Removes a link, and its sub-links with it. */
 export function removeLink(menu: Menu, linkId: string): Menu {
-  return {
-    ...menu,
-    top: menu.top.filter((link) => link.id !== linkId),
-    sections: menu.sections.map((section) => ({
-      ...section,
-      links: section.links.filter((link) => link.id !== linkId),
-    })),
-  }
+  const place = placeOf(menu, linkId)
+  const links = place ? linksAt(menu, place) : null
+  if (!place || !links) return menu
+  return withLinksAt(menu, place, links.filter((link) => link.id !== linkId))
 }
 
 /** Moves a link to where another link in the same place was dropped. */

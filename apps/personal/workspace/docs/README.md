@@ -26,6 +26,7 @@ the sidebars or top nav".
 - [App panels](app-panels.md): how another app's screen fills the middle
   panel, how Personal's address follows it, signing in once per app, and why it
   only works on this Mac today.
-- [The menu](menu.md): adding, editing, dragging and deleting links and
-  sections from the left menu and the top bar, and the file the menu is kept
-  in.
+- [The menu](menu.md): the edit switch, folding sections, sub-links and the
+  top bar row that mirrors them, resizing the menu,
+  adding, editing, dragging and deleting links and sections, and the file the
+  menu is kept in.
