@@ -16,6 +16,13 @@ import {
 } from "@/lib/public-theme"
 import type { AppFrontPageRowSettings } from "@/lib/pages/front-page"
 import type { AppSettingsTab } from "@/lib/settings-tab"
+import type { ShellSection } from "@/lib/custom-shell"
+import {
+  isShellRole,
+  ROLE_ID_PATTERN,
+  type RoleFeature,
+} from "@/lib/role-id"
+import { roleMay } from "@/lib/roles"
 
 /**
  * Everything an app built from this shell is allowed to change about it.
@@ -57,6 +64,46 @@ export type AppOptions = {
   notifications?: NotificationOptions
   signIn?: SignInOptions
   homeScreen?: HomeScreenOptions
+  /**
+   * The app's own kinds of account, beside the shell's admin and member.
+   *
+   * Everyone signs in on the one `/login`. What an app role sees is only what
+   * its `features` list gives it, and an app role starts with none: no billing,
+   * plan or Upgrade, no AI usage, no Feedback, no Changelog, no workspaces, and
+   * an Account window holding a name, a photo and a password. The server
+   * refuses the same things, not just the screen. Unset means the app has no
+   * roles of its own, so every account is an admin or a member, as before.
+   */
+  roles?: readonly AppRole[]
+}
+
+/**
+ * One kind of account an app adds, such as Project's `employee` or CMS's
+ * `venue_owner`.
+ *
+ * Nobody signs themselves up into one. The app's own invite makes the account
+ * through `inviteAccount` (`src/server/people/invite.ts`), and the site admin
+ * can move an existing account onto it from Admin → Users.
+ */
+export type AppRole = {
+  /**
+   * Stored in `users.role`. Lower-case letters, numbers and underscores,
+   * starting with a letter, at most 50 characters. `admin` and `member` are
+   * the shell's own and are refused.
+   */
+  id: string
+  /** What the shell calls it on screen, such as "Employee". */
+  label: string
+  /** Where this role lands after sign-in, such as "/dashboard". Never /admin. */
+  landing: `/${string}`
+  /** What of the shell this role gets. Unset or empty gets none of it. */
+  features?: readonly RoleFeature[]
+  /**
+   * The left menu a fresh install gives this role. Settings → Navigation edits
+   * it from there, under the role's own heading, and once saved the saved one
+   * wins, an empty one included.
+   */
+  menu: ShellSection[]
 }
 
 /** What the shell hands an app-owned control in the signed-in header. */
@@ -69,7 +116,7 @@ export type AppHeaderLeftContentProps = {
 }
 
 export type AppHeaderLeftContent = {
-  /** Unset means admins and members may both see it. */
+  /** Unset means admins and members. An app role sees it only when named. */
   roles?: readonly string[]
   component: () => Promise<{
     default: ComponentType<AppHeaderLeftContentProps>
@@ -88,7 +135,7 @@ export type AppHeaderAction = {
   id: string
   label: string
   icon: ComponentType<{ className?: string }>
-  /** Unset means admins and members may both see it. */
+  /** Unset means admins and members. An app role sees it only when named. */
   roles?: readonly string[]
   /**
    * Folds into the three-dot button at the end of the header row on a phone,
@@ -140,7 +187,7 @@ export type AppQuickSettingProps = { role: string }
  */
 export type AppQuickSetting = {
   id: string
-  /** Unset means admins and members may both see it. */
+  /** Unset means admins and members. An app role sees it only when named. */
   roles?: readonly string[]
   component: () => Promise<{
     default: ComponentType<AppQuickSettingProps>
@@ -757,13 +804,22 @@ export function appPublicTheme(options: AppOptions = appOptions): PublicTheme {
   return normalizePublicTheme(options.publicTheme)
 }
 
+/**
+ * Whether a header item with this `roles` list is for this role. Unset means
+ * admins and members, as it always has. An app role sees an item only when
+ * the app names it, so a new role never inherits a control by accident.
+ */
+function roleListed(roles: readonly string[] | undefined, role: string) {
+  return roles ? roles.includes(role) : isShellRole(role)
+}
+
 /** Left navigation for this role, or null to keep the shell's usual links. */
 export function appHeaderLeftContentForRole(
   role: string,
   options: AppOptions = appOptions
 ): AppHeaderLeftContent | null {
   const action = options.header?.leftContent
-  if (!action || (action.roles && !action.roles.includes(role))) return null
+  if (!action || !roleListed(action.roles, role)) return null
   return action
 }
 
@@ -838,8 +894,8 @@ export function appHeaderRightActionsForRole(
   role: string,
   options: AppOptions = appOptions
 ): readonly AppHeaderAction[] {
-  return appHeaderRightActions(options).filter(
-    (action) => !action.roles || action.roles.includes(role)
+  return appHeaderRightActions(options).filter((action) =>
+    roleListed(action.roles, role)
   )
 }
 
@@ -872,7 +928,7 @@ export function appQuickSettingsForRole(
     seen.add(row.id)
   }
 
-  return rows.filter((row) => !row.roles || row.roles.includes(role))
+  return rows.filter((row) => roleListed(row.roles, role))
 }
 
 /**
@@ -1072,7 +1128,9 @@ export function mayHaveWorkspace(
 
   const who = whoMayHaveWorkspaces(options)
   if (who === "off") return false
-  if (who === "everyone") return true
+  // Everyone means admins and members. An app role has a workspace only when
+  // its app gave it the switcher too.
+  if (who === "everyone") return roleMay(user.role, "workspaces", options)
   return user.role === "admin"
 }
 
@@ -1138,6 +1196,40 @@ export function appNoticeCategories(
 /** App-wide branding stays the default unless the app builds distinct sites. */
 export function appUsesSiteBranding(options: AppOptions = appOptions) {
   return options.workspaces?.siteBranding ?? false
+}
+
+/**
+ * The app's own roles, checked once on every read.
+ *
+ * A role that reuses the shell's `admin` or `member`, or another role's id,
+ * would quietly change what those accounts see, so it is refused out loud. An
+ * id outside the stored pattern could never be saved, and a landing page
+ * inside `/admin` would send the role to a door that refuses it.
+ */
+export function appRoles(options: AppOptions = appOptions): readonly AppRole[] {
+  const roles = options.roles ?? []
+
+  const seen = new Set<string>(["admin", "member"])
+  for (const role of roles) {
+    if (!ROLE_ID_PATTERN.test(role.id)) {
+      throw new Error(
+        `"${role.id}" is not a role id. Use lower-case letters, numbers and underscores, starting with a letter.`
+      )
+    }
+    if (seen.has(role.id)) {
+      throw new Error(
+        `The role "${role.id}" is declared twice, or is one of the shell's own. Each role needs its own id.`
+      )
+    }
+    if (role.landing === "/admin" || role.landing.startsWith("/admin/")) {
+      throw new Error(
+        `The role "${role.id}" lands on ${role.landing}, which only admins may open.`
+      )
+    }
+    seen.add(role.id)
+  }
+
+  return roles
 }
 
 /** Where the home-screen icon opens, and the name under it. */

@@ -12,3 +12,8 @@ The Security tab follows these rules:
   names the number of other devices and explains that the current device stays
   signed in.
 - The confirmation window cannot close while the request runs.
+
+An app role sees only the password card and the devices card, unless its app
+gives it `security`. Passkeys and Delete my account are left out, and the
+server refuses both. Tyler chose this on 16 Oct 2026: the site admin removes
+app-role people, they don't delete themselves. See [App roles](app-roles.md).

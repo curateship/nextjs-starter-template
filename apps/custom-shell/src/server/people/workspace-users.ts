@@ -54,6 +54,8 @@ export async function listActiveWorkspaceMembers(
     .where(
       and(
         await userBelongsToWorkspaceCondition(workspaceId, database),
+        // Members only: an admin or an app role's account is never the
+        // person a member flow is tested on.
         eq(customShellUsers.role, "member"),
         eq(customShellUsers.status, "active"),
         match
@@ -80,6 +82,8 @@ export async function findActiveWorkspaceMember(
       and(
         await userBelongsToWorkspaceCondition(workspaceId, database),
         eq(customShellUsers.id, userId),
+        // Members only: an admin or an app role's account is never the
+        // person a member flow is tested on.
         eq(customShellUsers.role, "member"),
         eq(customShellUsers.status, "active")
       )

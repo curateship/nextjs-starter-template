@@ -7,7 +7,7 @@ import {
   getSystemEmail,
   getSystemEmailLoadErrorMessage,
 } from "@/lib/api/email/system-emails"
-import { isSystemEmailKind } from "@/lib/system-emails/kinds"
+import { isSystemEmailKind, SYSTEM_EMAIL_META } from "@/lib/system-emails/kinds"
 
 export const Route = createFileRoute(
   "/_authenticated/admin/system-emails_/$kind"
@@ -26,7 +26,11 @@ export const Route = createFileRoute(
       getSystemEmail(params.kind),
       loadBroadcastBlockDefaults().catch(() => ({ defaults: {} })),
     ])
-    return { email, blockDefaults: blockDefaults.defaults }
+    return {
+      email,
+      recordTitle: SYSTEM_EMAIL_META[params.kind].name,
+      blockDefaults: blockDefaults.defaults,
+    }
   },
   component: AdminSystemEmailEditorRoute,
   errorComponent: routeErrorComponent(getSystemEmailLoadErrorMessage),

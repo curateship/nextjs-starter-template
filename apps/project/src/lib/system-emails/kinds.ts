@@ -308,7 +308,8 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
   "new-account": {
     kind: "new-account",
     name: "An account was made for you",
-    whenSent: "When an admin creates somebody's account for them.",
+    whenSent:
+      "When an admin creates somebody's account for them, or the app invites somebody into one of its own roles.",
     defaults: {
       subject: "Set your password",
       heading: "An account was created for you",

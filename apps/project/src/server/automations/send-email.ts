@@ -182,6 +182,8 @@ async function testSubjectRecipient(
       and(
         await userBelongsToWorkspaceCondition(workspaceId, database),
         eq(customShellUsers.id, userId),
+        // Members only: member emails never go to an admin or to an app
+        // role's account.
         eq(customShellUsers.role, "member"),
         eq(customShellUsers.status, "active")
       )

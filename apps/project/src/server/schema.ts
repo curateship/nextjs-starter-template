@@ -130,7 +130,9 @@ export const customShellUsers = pgTable(
       .where(
         sql`${table.status} = 'active' and ${table.passwordHash} is not null and ${table.emailVerifiedAt} is null and ${table.verificationReminderSentAt} is null`
       ),
-    check("users_role_check", sql`${table.role} in ('admin', 'member')`),
+    // The shape of a role only. Which roles exist is the app's list, checked
+    // on every write by requireKnownRole (src/server/people/roles.ts).
+    check("users_role_check", sql`${table.role} ~ '^[a-z][a-z0-9_]{0,49}$'`),
     check(
       "users_status_check",
       sql`${table.status} in ('active', 'suspended', 'pending_deletion')`

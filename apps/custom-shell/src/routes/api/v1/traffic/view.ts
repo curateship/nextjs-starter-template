@@ -7,7 +7,6 @@ import { enforceRateLimit } from "@/server/auth/rate-limit"
 import {
   describeRequestOrigin,
   findSessionContext,
-  isAdmin,
   now,
 } from "@/server/auth/security"
 import {
@@ -98,9 +97,11 @@ async function countView(request: Request) {
   // above.
   await enforceRateLimit(`traffic:${visitorHash}`, RATE_LIMIT)
 
-  // Admins never count — neither as themselves nor while viewing as a member.
+  // Only visitors and members count. Admins never do, neither as themselves
+  // nor while viewing as somebody, and nor do the app's own roles, such as
+  // employees, who work the app rather than read it.
   const session = await findSessionContext()
-  if (session && (session.viewedBy || isAdmin(session.user))) return
+  if (session && (session.viewedBy || session.user.role !== "member")) return
   const audience = session ? "member" : "visitor"
 
   // Which site was being read, from the domain the browser asked for — the same

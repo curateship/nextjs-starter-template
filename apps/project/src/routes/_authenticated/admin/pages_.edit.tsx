@@ -36,8 +36,11 @@ function readEditSearch(search: Record<string, unknown>) {
 
 export const Route = createFileRoute("/_authenticated/admin/pages_/edit")({
   validateSearch: readEditSearch,
-  loader: async ({ location }) => {
-    const { path } = readEditSearch(location.search as Record<string, unknown>)
+  // The page's address is what this screen loads, so it keys the cached data.
+  // Without it, Home and About shared one cache entry, and opening About drew
+  // Home's blocks (and Home in the breadcrumb) for a moment before swapping.
+  loaderDeps: ({ search }) => ({ path: search.path }),
+  loader: async ({ deps: { path } }) => {
     const overview = await loadPagesOverview()
     const page = overview.rows.find((row) => row.path === path)
     // A page that is not built from blocks has nothing to edit here, and the
@@ -71,7 +74,7 @@ export const Route = createFileRoute("/_authenticated/admin/pages_/edit")({
           ]
         : []
     )
-    return { page, blocks, writtenPage, pageChoices }
+    return { page, recordTitle: page.name, blocks, writtenPage, pageChoices }
   },
   component: AdminFrontPageEditorRoute,
   errorComponent: routeErrorComponent(getPagesErrorMessage),
