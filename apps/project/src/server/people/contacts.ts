@@ -15,9 +15,16 @@ import {
   type CustomShellContact,
 } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
+import { allRoles } from "@/lib/roles"
 
-/** The tags the sync owns. Anything else on a contact was added by hand. */
-const ROLE_TAGS = ["admin", "member"] as const
+/**
+ * The tags the sync owns: one per role this app has, the app's own included.
+ * Anything else on a contact was added by hand. Read on each sync rather than
+ * at import, because the list is the app's.
+ */
+function roleTags(): ReadonlySet<string> {
+  return new Set(allRoles().map((role) => role.id))
+}
 
 /** An account's name split the way an email greeting wants it. */
 function splitName(name: string) {
@@ -77,6 +84,7 @@ export async function syncContactsFromUsers(
     )
 
   if (users.length === 0) return { added: 0, updated: 0 }
+  const ownedTags = roleTags()
 
   const existing = await database
     .select()
@@ -107,9 +115,10 @@ export async function syncContactsFromUsers(
   for (const user of users) {
     const email = user.email.trim().toLowerCase()
     const { firstName, lastName } = splitName(user.name)
-    const roleTag = ROLE_TAGS.includes(user.role as (typeof ROLE_TAGS)[number])
-      ? user.role
-      : "member"
+    // The account's own role, an employee's included. It used to fall back to
+    // "member" for anything that was not admin, which would have filed an
+    // app role's people among the members.
+    const roleTag = user.role
 
     // An address added by hand before its owner had an account, or before this
     // ran, is adopted rather than duplicated.
@@ -135,9 +144,7 @@ export async function syncContactsFromUsers(
     // Its own role tag, plus every tag somebody put there themselves.
     const tags = [
       roleTag,
-      ...row.tags.filter(
-        (tag) => !ROLE_TAGS.includes(tag as (typeof ROLE_TAGS)[number])
-      ),
+      ...row.tags.filter((tag) => tag !== roleTag && !ownedTags.has(tag)),
     ]
     const same =
       row.userId === user.id &&

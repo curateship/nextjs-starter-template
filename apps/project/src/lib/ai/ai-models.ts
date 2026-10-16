@@ -57,6 +57,9 @@ export const AI_MODEL_OPTIONS: Record<AiProvider, readonly AiModelOption[]> = {
     { id: "eleven_multilingual_v2", label: "Multilingual v2" },
     { id: "eleven_turbo_v2_5", label: "Turbo v2.5" },
     { id: "eleven_flash_v2_5", label: "Flash v2.5" },
+    { id: "eleven_v3", label: "Eleven v3" },
+    { id: "eleven_v4", label: "Eleven v4" },
+    { id: "eleven_v4_turbo", label: "Eleven v4 Turbo" },
   ],
 }
 
@@ -155,6 +158,12 @@ export const AI_UNIT_PRICES: Record<
   eleven_multilingual_v2: { dollarsPerUnit: 0.00015, unit: "character" },
   eleven_turbo_v2_5: { dollarsPerUnit: 0.000075, unit: "character" },
   eleven_flash_v2_5: { dollarsPerUnit: 0.000075, unit: "character" },
+  // The models that follow [whispering]-style directions. List prices from
+  // elevenlabs.io/pricing/api on 2026-10-12: v3 and v4 $0.08 per 1,000
+  // characters, v4 Turbo $0.04. v4's launch price of $0.022 ended that day.
+  eleven_v3: { dollarsPerUnit: 0.00008, unit: "character" },
+  eleven_v4: { dollarsPerUnit: 0.00008, unit: "character" },
+  eleven_v4_turbo: { dollarsPerUnit: 0.00004, unit: "character" },
   // Whisper is billed by the minute of sound it listens to, at $0.006.
   "whisper-1": { dollarsPerUnit: 0.006, unit: "minute" },
   // Reading text aloud is billed by the character, at roughly $0.015 per

@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { DataCleanupCard } from "@/components/settings/data-cleanup-card"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import {
@@ -20,7 +21,11 @@ import {
 import { plural } from "@/lib/format/plural"
 
 /**
- * The Sessions and Old data cards on General settings.
+ * The Passkeys, Sessions and Old data cards on General settings.
+ *
+ * The passkey switch rides the page's auto-save like any other setting. It asks
+ * nothing first: switched off, nobody is locked out, because the password form
+ * and the emailed sign-in link are still there.
  *
  * The session policy saves through its own confirmed write (see
  * server/auth/session-policy.ts), not the page's auto-save: making a limit
@@ -29,10 +34,12 @@ import { plural } from "@/lib/format/plural"
  */
 export function SecuritySettings({
   config,
+  onConfigChange,
   onSessionPolicyChange,
   sessionPolicyBusy,
 }: {
   config: ShellConfig
+  onConfigChange: (config: ShellConfig) => void
   onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
   sessionPolicyBusy: boolean
 }) {
@@ -53,6 +60,22 @@ export function SecuritySettings({
 
   return (
     <>
+      <CollapsibleSettingsCard
+        storageId="passkeys"
+        title="Passkeys"
+        description="Whether people can sign in with a passkey: the fingerprint, face or PIN their phone or computer already uses to unlock."
+      >
+        <SettingsSwitchRow
+          id="passkey-sign-in"
+          checked={config.passkeySignIn}
+          onCheckedChange={(passkeySignIn) =>
+            onConfigChange({ ...config, passkeySignIn })
+          }
+          label="Offer “Sign in with a passkey”"
+          hint="Off, the sign-in page has no passkey button and Account → Security has no Passkeys card. Passkeys people already added are kept, and work again the moment this is back on."
+        />
+      </CollapsibleSettingsCard>
+
       <CollapsibleSettingsCard
         storageId="session-policy"
         title="Sessions"

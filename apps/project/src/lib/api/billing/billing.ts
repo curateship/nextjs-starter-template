@@ -32,7 +32,7 @@ import { enforceRateLimit } from "@/server/auth/rate-limit"
 import type { CustomShellUser } from "@/server/schema"
 import type { PlanFeatures } from "@/lib/billing/plan-features"
 import type { MemberSubscriptionEvent } from "@/lib/billing/subscription-events"
-import { userGet, userPost } from "@/server/guards"
+import { featureGet, featurePost } from "@/server/guards"
 import { changePlan, previewPlanChange } from "@/server/billing/plan-change"
 
 export type PlanOption = {
@@ -162,7 +162,7 @@ async function buildBillingOverview(
 }
 
 const loadBillingOverviewFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([featureGet("billing")])
   .handler(async ({ context }): Promise<BillingOverview> => {
     return (await buildBillingOverview(context.user)).overview
   })
@@ -194,7 +194,7 @@ const loadPublicPricingFn = createServerFn({ method: "GET" }).handler(
 )
 
 const openPlanChangeFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([featurePost("billing")])
   .inputValidator(
     z.object({
       planSlug: z.string().trim().min(1).max(50),
@@ -225,7 +225,7 @@ const openPlanChangeFn = createServerFn({ method: "POST" })
   })
 
 const confirmCheckoutFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([featurePost("billing")])
   .inputValidator(z.object({ sessionId: z.string().trim().min(1).max(255) }))
   .handler(async ({ data, context }) => {
     await enforceRateLimit(`checkout-confirm:${context.user.id}`, {
@@ -236,7 +236,7 @@ const confirmCheckoutFn = createServerFn({ method: "POST" })
   })
 
 const changePlanFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([featurePost("billing")])
   .inputValidator(z.object({ token: z.string().min(1).max(4096) }))
   .handler(async ({ data, context }) => {
     await enforceRateLimit(`plan-change:${context.user.id}`, {
@@ -247,7 +247,7 @@ const changePlanFn = createServerFn({ method: "POST" })
   })
 
 const openBillingPortalFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([featurePost("billing")])
   .handler(async ({ context }) => {
     return createPortalSession(context.user.id)
   })
@@ -261,7 +261,7 @@ const openBillingPortalFn = createServerFn({ method: "POST" })
  * from the browser.
  */
 const setOwnPauseFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([featurePost("billing")])
   .inputValidator(z.object({ paused: z.boolean() }))
   .handler(async ({ data, context }) => {
     requireBilling()
@@ -269,7 +269,7 @@ const setOwnPauseFn = createServerFn({ method: "POST" })
   })
 
 const cancelOwnSubscriptionFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([featurePost("billing")])
   .validator(
     z.object({
       // An outdated or altered answer is treated as a skip. Survey data must
@@ -304,7 +304,7 @@ const cancelOwnSubscriptionFn = createServerFn({ method: "POST" })
  * warning when the saved card runs out before the next renewal.
  */
 const loadBillingPageFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([featureGet("billing")])
   .handler(
     async ({
       context,
