@@ -35,6 +35,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - `listing-problem-reports.md` — the "Report a problem" link on a listing, what
   stops it being used for spam, and the admin queue that listing and event
   reports land in.
+- `public-image-sizes.md` — the smaller copies each public picture is offered
+  in, which pictures load at once and which wait for a scroll.
 - `recently-viewed-listings.md` — the "Recently viewed" row on the browse page
   and listing pages, what the browser keeps, and why its cards are always
   fresh.

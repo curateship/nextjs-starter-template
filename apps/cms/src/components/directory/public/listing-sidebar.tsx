@@ -16,6 +16,7 @@ import {
   type ListingCoordinates,
 } from "@/lib/directory/listing-details"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import type { ContactLinks } from "@/lib/directory/contact-links"
 import type { PublicClaimState } from "@/lib/api/directory/public"
 
@@ -72,6 +73,10 @@ export function ListingSidebar({
         <div className="relative overflow-hidden">
           <img
             src={listing.featuredImage}
+            srcSet={mediaImageSrcSet(listing.featuredImage)}
+            // The narrow column on a wide screen, the whole width on a phone.
+            // Not lazy: it is the first thing on the page.
+            sizes="(min-width: 1024px) 400px, 100vw"
             alt=""
             className="aspect-[4/3] w-full object-cover"
           />

@@ -7,6 +7,7 @@ import {
 import { DirectoryFilterBar } from "@/components/directory/public/directory-filter-bar"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { PublicTitleBand } from "@/components/shared/public-title-band"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
 import { JsonLd } from "@/components/directory/public/json-ld"
@@ -154,6 +155,9 @@ function CategoryRoute() {
             category.featuredImage ? (
               <img
                 src={category.featuredImage}
+                srcSet={mediaImageSrcSet(category.featuredImage)}
+                // `max-w-xs`: never wider than 320px.
+                sizes="320px"
                 alt=""
                 className="aspect-[4/3] w-full max-w-xs rounded-xl object-cover"
               />

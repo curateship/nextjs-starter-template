@@ -4,6 +4,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router"
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { PostBody } from "@/components/posts/public/post-body"
 import { PostContents } from "@/components/posts/public/post-contents"
@@ -63,6 +64,14 @@ function PostRoute() {
       {showCoverImage && post.coverImage ? (
         <img
           src={post.coverImage}
+          srcSet={mediaImageSrcSet(post.coverImage)}
+          // The page's column, 1152px at most, or about two thirds of it
+          // beside a contents list. Not lazy: it opens the page.
+          sizes={
+            headings.length > 0
+              ? "(min-width: 1184px) 784px, (min-width: 1024px) 68vw, 100vw"
+              : "(min-width: 1184px) 1152px, 100vw"
+          }
           alt=""
           className="aspect-[3/1] w-full rounded-xl object-cover"
         />

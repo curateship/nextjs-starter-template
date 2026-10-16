@@ -5,6 +5,7 @@ import { CalendarIcon, ClockIcon, MapPinIcon } from "lucide-react"
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { ClaimBox } from "@/components/promotions/public/claim-box"
 import { ShowCode } from "@/components/promotions/public/show-code"
 import { ReportProblemButton } from "@/components/directory/public/report-problem-button"
@@ -98,6 +99,9 @@ function DealRoute() {
         {photo ? (
           <img
             src={photo}
+            srcSet={mediaImageSrcSet(photo)}
+            // The page's column, 1152px at most. Not lazy: it opens the page.
+            sizes="(min-width: 1184px) 1152px, 100vw"
             alt=""
             className="aspect-[3/1] w-full object-cover"
           />
