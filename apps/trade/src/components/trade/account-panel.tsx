@@ -9,6 +9,7 @@ import {
   LayersIcon,
   PlusIcon,
   SettingsIcon,
+  BrushCleaningIcon,
   ListXIcon,
 } from "lucide-react"
 
@@ -50,6 +51,7 @@ import {
 } from "@/components/ui/tooltip"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { marketSymbol } from "@/lib/protocols/contracts"
+import { sweepDollarCoin } from "@/lib/trade/dust-sweep"
 import { readWalletPanelCache } from "@/lib/trade/dashboard-cache"
 import {
   formatAway,
@@ -507,6 +509,7 @@ export function WalletDetailsDialog({
   onClose,
   onOpenWallet,
   onFlattenWallet,
+  onSweepLeftovers,
   onRetry,
   walletButtonRef,
 }: {
@@ -517,6 +520,7 @@ export function WalletDetailsDialog({
   onClose: () => void
   onOpenWallet: (wallet: TradeWallet) => void
   onFlattenWallet: (wallet: TradeWallet) => void
+  onSweepLeftovers: (wallet: TradeWallet) => void
   onRetry: () => void
   walletButtonRef?: React.RefObject<HTMLButtonElement | null>
 }) {
@@ -688,6 +692,19 @@ export function WalletDetailsDialog({
             <ListXIcon className="size-4" />
             Empty wallet
           </Button>
+          {sweepDollarCoin(wallet) ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                onClose()
+                onSweepLeftovers(wallet)
+              }}
+            >
+              <BrushCleaningIcon className="size-4" />
+              Sweep leftovers
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"

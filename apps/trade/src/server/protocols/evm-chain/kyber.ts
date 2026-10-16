@@ -216,6 +216,7 @@ export function kyberSwap(chain: KyberChain) {
         amountOut: BigInt(summary.amountOut),
         inUsd: Number(summary.amountInUsd),
         outUsd: Number(summary.amountOutUsd),
+        networkFeeUsd: Number(summary.gasUsd),
       }),
     }
   }

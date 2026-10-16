@@ -18,6 +18,7 @@ import {
   WalletDetailsDialog,
   WalletManagement,
 } from "@/components/trade/account-panel"
+import { DustSweepDialog } from "@/components/trade/dust-sweep-dialog"
 import { FlattenWalletDialog } from "@/components/trade/flatten-wallet-dialog"
 import {
   allowed,
@@ -450,6 +451,9 @@ export function TradeWorkspace({
     account.wallets.find((wallet) => wallet.id === walletDetailsId) ?? null
   const flattening =
     account.wallets.find((wallet) => wallet.id === flatteningId) ?? null
+  const [sweepingId, setSweepingId] = React.useState<string | null>(null)
+  const sweeping =
+    account.wallets.find((wallet) => wallet.id === sweepingId) ?? null
 
   // ----- Trading: one owner for the chart's lines and the panel ------------
   // Practice and real wallets flow through the same hook; it is the wallet a
@@ -1785,7 +1789,14 @@ export function TradeWorkspace({
           onClose={() => setWalletDetailsId(null)}
           onOpenWallet={(wallet) => setEditingWalletId(wallet.id)}
           onFlattenWallet={(wallet) => setFlatteningId(wallet.id)}
+          onSweepLeftovers={(wallet) => setSweepingId(wallet.id)}
           onRetry={() => void account.refresh()}
+        />
+        <DustSweepDialog
+          wallet={sweeping}
+          markets={marketsByKey}
+          onClose={() => setSweepingId(null)}
+          onSwept={() => void account.refresh()}
         />
         <WalletSettingsDialog
           wallet={editingWallet}

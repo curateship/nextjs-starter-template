@@ -84,6 +84,7 @@ has its own × on the chart and in Open orders. Close all can take them off.
 ## Wallet details actions
 
 The details window ends with Empty wallet on the left, then Edit wallet and
-Done on the right. Empty wallet uses a crossed-list icon because the action
+Done on the right. A real Solana or BNB Chain wallet also has Sweep leftovers
+just before Edit wallet, described in `dust-sweeper.md`. Empty wallet uses a crossed-list icon because the action
 closes positions and cancels orders. Empty wallet does not delete the wallet.
 Edit wallet is an outline button. Done closes the details window.

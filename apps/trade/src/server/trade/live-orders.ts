@@ -815,7 +815,7 @@ export async function closeLivePosition(
     beforeSubmit: (requestedSz: number) => Promise<void>
     afterSubmit: (filledSz: number, requestedSz: number) => Promise<void>
   }
-): Promise<void> {
+): Promise<{ avgPx: number | null; filledSz: number | null }> {
   const row = await liveWallet(userId, input.walletId)
   const protocol = getProtocol(row.protocol)
   let side: TradeSide | null = null
@@ -876,8 +876,9 @@ export async function closeLivePosition(
           ? "The exchange accepted the close but reported no fill yet — check the position."
           : null),
     })
+    return { avgPx: closed.avgPx, filledSz: closed.filledSz }
   } catch (error) {
-    await refuse(userId, row.id, input.marketKey, side, error)
+    return await refuse(userId, row.id, input.marketKey, side, error)
   }
 }
 

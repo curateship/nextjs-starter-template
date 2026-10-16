@@ -258,6 +258,9 @@ screen: anything not written there has not been agreed yet.
 - `flatten-wallet.md` — Empty wallet: why the waiting orders come off before
   anything is sold, what a refused cancel stops, and how it differs from Close
   all. The details footer includes Done and a separate Empty wallet action.
+- `dust-sweeper.md` - Sweep leftovers on a real Solana or BNB Chain wallet:
+  what counts as a leftover, the fee-over-half rule, why BNB Chain sweeps into
+  USDT, the one-coin-at-a-time run, and the real-money switches.
 - `position-margin.md` — changing leverage and the cash behind an open
   position, Lighter signed changes and testing steps, ApeX Omni's per-market
   leverage and its one margin pool, exchange limits,

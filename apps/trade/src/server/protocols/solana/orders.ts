@@ -155,6 +155,10 @@ const orderAnswerSchema = z.object({
   inAmount: z.string().optional(),
   outAmount: z.string().optional(),
   priceImpactPct: z.union([z.string(), z.number()]).optional(),
+  gasless: z.boolean().optional(),
+  signatureFeeLamports: z.number().optional(),
+  prioritizationFeeLamports: z.number().optional(),
+  rentFeeLamports: z.number().optional(),
   routePlan: z
     .array(
       z.object({
@@ -177,6 +181,12 @@ export type SwapOrder = {
   price: number
   /** As a fraction: 0.0002 is two hundredths of a percent. */
   priceImpact: number
+  /**
+   * SOL the wallet pays the network to send this swap: the signature, the
+   * priority fee and any new token account. Zero when Jupiter pays it
+   * (`gasless`).
+   */
+  networkFeeSol: number
   route: string
   /** The unsigned swap, base64, when Jupiter could build one. */
   transaction: string | null
@@ -218,6 +228,12 @@ export function readSwapOrder(
     usd,
     price: coins > 0 ? usd / coins : 0,
     priceImpact: Number.isFinite(impact) ? Math.abs(impact) : 0,
+    networkFeeSol: order.gasless
+      ? 0
+      : ((order.signatureFeeLamports ?? 0) +
+          (order.prioritizationFeeLamports ?? 0) +
+          (order.rentFeeLamports ?? 0)) /
+        10 ** SOL_DECIMALS,
     route: labels.length > 0 ? labels.join(" → ") : "Jupiter",
     transaction: order.transaction ? order.transaction : null,
     requestId: order.requestId ?? null,
@@ -362,12 +378,19 @@ export async function quoteSolanaSwap(
     price: order.price,
     priceImpact: order.priceImpact,
     route: order.route,
+    ...networkFeeUsd(order.networkFeeSol),
     refusal: swapRefusal(order, {
       side: params.side,
       px: params.px,
       slippage: params.slippage,
     }),
   }
+}
+
+/** The SOL fee in dollars at the last price read, or nothing without one. */
+function networkFeeUsd(sol: number): { networkFeeUsd?: number } {
+  const price = lastKnownSolanaPrices().get(SOL_MINT)
+  return price && price > 0 ? { networkFeeUsd: sol * price } : {}
 }
 
 // ---------------------------------------------------------------------------

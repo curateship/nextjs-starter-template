@@ -23,6 +23,7 @@ beforeEach(() => {
   vi.mocked(closeLivePosition).mockImplementation(async (_user, _input, progress) => {
     await progress?.beforeSubmit(2)
     await progress?.afterSubmit(2, 2)
+    return { avgPx: 100, filledSz: 2 }
   })
   vi.mocked(placeLiveOrder).mockResolvedValue({ status: "filled", filledSz: 2, avgPx: 100, orderId: "entry", protection: null, protectionNote: null })
 })
@@ -44,7 +45,7 @@ describe("flipping a live position", () => {
   })
 
   it.each([0, 1, NaN])("does not open after an unconfirmed or partial close of %s", async (filledSz) => {
-    vi.mocked(closeLivePosition).mockImplementation(async (_user, _input, progress) => { await progress?.afterSubmit(filledSz, 2) })
+    vi.mocked(closeLivePosition).mockImplementation(async (_user, _input, progress) => { await progress?.afterSubmit(filledSz, 2); return { avgPx: 100, filledSz } })
     await expect(flipLivePosition("user", input)).rejects.toThrow("LIVE_FLIP_CLOSE_UNCONFIRMED")
     expect(placeLiveOrder).not.toHaveBeenCalled()
   })

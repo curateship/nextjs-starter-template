@@ -279,6 +279,7 @@ describe("the wallet details window", () => {
             onClose={onClose}
             onOpenWallet={onOpenWallet}
             onFlattenWallet={onFlattenWallet}
+            onSweepLeftovers={() => {}}
             onRetry={() => {}}
           />
         </TooltipProvider>
@@ -311,6 +312,7 @@ describe("the wallet details window", () => {
             onClose={onClose}
             onOpenWallet={onOpenWallet}
             onFlattenWallet={onFlattenWallet}
+            onSweepLeftovers={() => {}}
             onRetry={() => {}}
           />
         </TooltipProvider>
@@ -341,6 +343,7 @@ describe("the wallet details window", () => {
             onClose={() => {}}
             onOpenWallet={() => {}}
             onFlattenWallet={() => {}}
+            onSweepLeftovers={() => {}}
             onRetry={() => {}}
           />
         </TooltipProvider>
@@ -460,6 +463,7 @@ describe("wallet position mode", () => {
               onClose={() => {}}
               onOpenWallet={() => {}}
               onFlattenWallet={() => {}}
+              onSweepLeftovers={() => {}}
               onRetry={() => {}}
             />
           </TooltipProvider>

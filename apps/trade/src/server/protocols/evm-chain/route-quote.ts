@@ -19,6 +19,8 @@ export function routeQuote(input: {
   /** The router's own dollar valuations of each side. */
   inUsd: number
   outUsd: number
+  /** The router's estimate of the chain fee in dollars, when it gives one. */
+  networkFeeUsd?: number
 }): SwapQuote {
   const { swap } = input
   const buy = swap.side === "buy"
@@ -52,5 +54,8 @@ export function routeQuote(input: {
     priceImpact,
     route: [...new Set(input.pools)].join(" → ") || input.provider,
     refusal,
+    ...(Number.isFinite(input.networkFeeUsd) && input.networkFeeUsd! >= 0
+      ? { networkFeeUsd: input.networkFeeUsd }
+      : {}),
   }
 }
