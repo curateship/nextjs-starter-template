@@ -250,6 +250,10 @@ add up to.
   note on a switched-on rule that covers an entry must be ticked before that
   entry goes out, whatever the rule's conditions say. Ticks clear once an order
   is placed on the coin.
+- Tyler, 15 Oct 2026, later the same day: **"the trading rule modal warn me
+  but dont let me ignore it"**. Asked whether "anyway" should also go past
+  unticked notes, he chose "Anyway skips notes too". A Warn rule never stops
+  an entry, its notes included. Only a Block rule's notes must be ticked.
 - Tyler, 15 Oct 2026, shown a tick beside "At least 5 grids in this wallet"
   with 18 running: **"this should be an x"** and **"It should be max 5 grid
   running"**. A rule's conditions are what must hold before he trades. One

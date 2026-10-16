@@ -49,9 +49,11 @@ running: "this should be an x", and "It should be max 5 grid running". A
 condition that holds gets a green tick, one that does not gets a red cross.
 
 - **Notes to tick.** "Add a note" adds a bullet point, up to 10, each up to
-  200 letters. Every note on a switched-on rule must be ticked on the chart
-  before an entry that rule covers can go out, whatever its conditions say. A
-  blank note asks for nothing. A rule with only notes is a checklist.
+  200 letters. A Block rule's notes must all be ticked on the chart before an
+  entry that rule covers can go out, whatever its conditions say. A Warn
+  rule's notes are asked for the same way, but the entry can go past them
+  "anyway", like a broken Warn condition. A blank note asks for nothing. A
+  rule with only notes is a checklist.
 - **Notes reorder by dragging the grip** at the left of each note (Tyler,
   15 Oct 2026: "I want to drag and drop the notes to reorder it"). Only the
   grip drags, because the rest of the row is a box to type in. Space on the
@@ -103,9 +105,15 @@ of them fails, with All; none holds, with Any).
 - **Nothing is broken and every note is ticked.** The order goes out as it
   always did.
 - **A note is not ticked.** The window lists the covering rules' notes as
-  boxes, the same boxes as on the chart, and says "Tick every note before
-  this goes out". The send button appears once every one is ticked, and
-  reads "Long $500", or "Long $500 anyway" when a Warn rule is also broken.
+  boxes, the same boxes as on the chart.
+  - A Block rule's note holds the entry. The window says "Tick every note of
+    a blocking rule before this goes out", and the send button appears once
+    every one of those is ticked.
+  - A Warn rule's note never holds it. The window says "you can still go
+    ahead", and "Long $500 anyway" sends it. The Journal row names the rule,
+    "Overrode: Main Grid rule", the same as for a broken condition.
+  - Until 15 Oct 2026 every note held the entry, whatever the rule was set to.
+    Tyler: "the trading rule modal warn me but dont let me ignore it".
 - **A Warn rule is broken.** One window, titled with the action and the size,
   "Short $500?", holds a red panel headed "1 rule not met". Each rule shows
   its name, then every condition as a line with no prices: a green tick when
@@ -209,7 +217,7 @@ Main Grid rule     [1 warning] [1 to tick] 2 rules
   conditions about preparing an entry (lines on the chart, time on this
   chart, time since the last order) are skipped for held trades.
 - **Tick before you trade** lists the rule's notes as boxes. An entry only
-  waits for the notes of the rules that cover it. Ticks belong to the coin on
+  waits for the notes of Block rules that cover it. Ticks belong to the coin on
   screen. Placing an order on the coin clears them, so the next entry asks
   again, and a reload starts with none.
 - Each condition line has a green tick when it holds, a

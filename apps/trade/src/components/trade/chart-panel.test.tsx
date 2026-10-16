@@ -1981,15 +1981,36 @@ describe("the rules before a real-money entry", () => {
     expect(place.mock.calls[0][0]).toMatchObject({ overrode: ["Time guard"] })
   })
 
-  it("holds an entry until every note is ticked, then sends it and asks again next time", async () => {
+  it("lets a Warn rule's unticked note be gone past, and names the rule", async () => {
     const { place, buttons } = await pressLong({
       ...timeGuard("warn"),
       cards: [],
       notes: ["Did I check the daily trend?"],
     })
 
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+      "you can still go ahead"
+    )
+    await act(async () =>
+      buttons()
+        .find((one) => one.textContent === "Long $50.00 anyway")!
+        .click()
+    )
+    expect(place).toHaveBeenCalledOnce()
+    expect(place.mock.calls[0][0]).toMatchObject({ overrode: ["Time guard"] })
+  })
+
+  it("holds an entry until every note of a Block rule is ticked, then sends it and asks again next time", async () => {
+    const { place, buttons } = await pressLong({
+      ...timeGuard("block"),
+      cards: [],
+      notes: ["Did I check the daily trend?"],
+    })
+
     const dialog = () => document.querySelector('[role="dialog"]')
-    expect(dialog()?.textContent).toContain("Tick every note before this goes out")
+    expect(dialog()?.textContent).toContain(
+      "Tick every note of a blocking rule before this goes out"
+    )
     expect(buttons().some((one) => one.textContent === "Long $50.00")).toBe(false)
     expect(place).not.toHaveBeenCalled()
 

@@ -40,11 +40,13 @@ export type PendingEntry = {
  *   entry with only Go back. Changing that is a choice made in Settings, not
  *   in the moment.
  * - Otherwise each note still unticked is a box here, the same box as on the
- *   chart, and the send button appears once every one is ticked. Tyler, 15
- *   Oct 2026: notes are "a checkbox on the trading chart that I must check off
- *   before I can place a trade".
+ *   chart. A Block rule's notes must all be ticked before the send button
+ *   appears. A Warn rule never stops the entry, its notes included: Tyler,
+ *   15 Oct 2026, "the trading rule modal warn me but dont let me ignore it",
+ *   then chose "Anyway skips notes too". Until then every note held it.
  * - A Warn rule's button repeats the action and the size with "anyway", so
- *   what is confirmed is the trade and not an abstract yes.
+ *   what is confirmed is the trade and not an abstract yes. Going past an
+ *   unticked note names its rule in the Journal, the same as a broken one.
  */
 export function EntryRulesWindow({
   entry,
@@ -56,8 +58,9 @@ export function EntryRulesWindow({
   const ticked = useNoteTicks(entry?.marketKey ?? null)
   const blocked = entry?.results.some((result) => result.blocks) ?? false
   const notes = blocked ? [] : (entry?.notes ?? [])
-  const allTicked = notes.every((note) => ticked.has(note.key))
-  const warned = (entry?.results.length ?? 0) > 0
+  const unticked = notes.filter((note) => !ticked.has(note.key))
+  const held = unticked.some((note) => note.holds)
+  const warned = (entry?.results.length ?? 0) > 0 || unticked.length > 0
 
   const goBack = () => {
     if (!entry) return
@@ -81,9 +84,11 @@ export function EntryRulesWindow({
             <DialogDescription>
               {blocked
                 ? "Your rule blocks this entry, so nothing has been sent. Change the rule in Settings, Trading rules, to trade it."
-                : !allTicked
-                  ? "Tick every note before this goes out. Nothing has been sent."
-                  : "Nothing has been sent. Go back changes nothing."}
+                : held
+                  ? "Tick every note of a blocking rule before this goes out. Nothing has been sent."
+                  : unticked.length > 0
+                    ? "Some notes are not ticked. Nothing has been sent, and you can still go ahead."
+                    : "Nothing has been sent. Go back changes nothing."}
             </DialogDescription>
             {notes.length > 0 ? (
               <div className="grid gap-2 rounded-lg border p-3 text-sm">
@@ -99,12 +104,17 @@ export function EntryRulesWindow({
             <Button type="button" variant="outline" onClick={goBack}>
               Go back
             </Button>
-            {!blocked && allTicked ? (
+            {!blocked && !held ? (
               <Button
                 type="button"
                 onClick={() => {
                   const sending = entry
-                  const names = sending.results.map((result) => result.rule.name)
+                  const names = [
+                    ...new Set([
+                      ...sending.results.map((result) => result.rule.name),
+                      ...unticked.map((note) => note.ruleName),
+                    ]),
+                  ]
                   onClose()
                   sending.send(names.length > 0 ? names : undefined)
                 }}

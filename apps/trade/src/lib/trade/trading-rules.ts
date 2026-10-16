@@ -371,6 +371,12 @@ export type RuleNote = {
   ruleId: string
   ruleName: string
   text: string
+  /**
+   * The note's rule is set to Block, so the entry waits until it is ticked.
+   * A Warn rule's note is a reminder the entry can go past "anyway" (Tyler,
+   * 15 Oct 2026).
+   */
+  holds: boolean
 }
 
 /** A rule's notes that have words in them. */
@@ -385,6 +391,7 @@ export function notesOf(rule: TradingRule): RuleNote[] {
             ruleId: rule.id,
             ruleName: rule.name,
             text: trimmed,
+            holds: rule.then === "block",
           },
         ]
   })
