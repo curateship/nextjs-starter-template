@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { requireUser, isAdmin } from "@/server/auth/security"
-import { adminPost, userGet } from "@/server/guards"
+import { adminPost, featureGet } from "@/server/guards"
 import {
   findWorkspaceIdForRequest,
   workspaceIdForRequest,
@@ -46,7 +46,7 @@ export type ChangelogEntryFormInput = z.input<typeof entryInputSchema>
  * everyone — an admin reading it sees exactly what their users see.
  */
 const listFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([featureGet("changelog")])
   .handler(async ({ context }): Promise<{ entries: ChangelogEntry[] }> => {
     const workspaceId = await findWorkspaceIdForRequest(context.user.id)
     if (!workspaceId) return { entries: [] }

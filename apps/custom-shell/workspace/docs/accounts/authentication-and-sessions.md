@@ -11,10 +11,17 @@ Custom Shell supports several account access and email-ownership actions:
 Platform settings can turn individual methods on or off without changing the
 routes.
 
-Registration creates a member account. Admins can also create accounts from the
-Users dashboard and assign a role or plan. Email verification, password reset,
+Registration and Google create a member account. Admins can also create
+accounts from the Users dashboard and assign a role or plan, and an app can
+invite people into one of its own roles ([App roles](app-roles.md)). Email verification, password reset,
 email change, unwanted sign-in reports, and sign-in links use short-lived tokens.
 The server stores token hashes rather than the original token.
+
+An account made for somebody, by an admin or by an app's invite, has no
+password until its emailed link sets one. Setting that first password signs the
+person in and sends them to `/home`, which forwards them to where their role
+lands. A reset of a password that already existed signs the person out
+everywhere and asks them to sign in again.
 
 ## Sessions and devices
 

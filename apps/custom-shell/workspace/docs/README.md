@@ -15,6 +15,7 @@ local setup docs.
 
 - [Authentication and sessions](accounts/authentication-and-sessions.md)
 - [Account security](accounts/security.md)
+- [App roles](accounts/app-roles.md), an app's own kinds of account such as employees
 
 ## AI
 

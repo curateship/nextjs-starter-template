@@ -219,6 +219,21 @@ the guess that one might:
   look. A row names roles when it is not for everybody. Unset leaves the menu
   holding colour mode alone, which is what the old standalone theme button was.
   Two rows sharing an id are refused out loud.
+- `roles` — the app's own kinds of account beside admin and member, such as
+  Project's `employee` or CMS's `venue_owner`. Each has an id (stored in
+  `users.role`), a label, a `landing` page, the `features` of the shell it
+  gets, and the left `menu` a fresh install gives it. An app role starts with
+  none of billing, AI usage, Feedback, Changelog, workspaces, the full Security
+  tab or email change, and the server refuses those to it through `featureGet`
+  and `featurePost`. Everyone signs in on the one `/login`; `/home` sends an
+  app role to its landing page. The app's invite endpoint makes the account
+  with `inviteAccount` (`src/server/people/invite.ts`), and the site admin can
+  also pick the role on Admin → Users. Settings → Navigation edits each role's
+  menu under its own name. A header control, quick setting or left header
+  content that names no `roles` is for admins and members only, so an app role
+  sees one only when the app names it. Unset declares no roles, and every
+  account is an admin or a member as before. The app's doc lives in
+  `apps/custom-shell/workspace/docs/accounts/app-roles.md`.
 
 An app adds a step; it never replaces one of the shell's. A `kind` or a palette
 key the shell already uses is refused out loud.
