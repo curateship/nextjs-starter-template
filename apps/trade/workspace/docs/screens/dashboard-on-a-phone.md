@@ -11,39 +11,42 @@ at, so a tablet keeps the fuller row it has always had.
 
 ## The top row
 
-The sidebar toggle, the exchange's name, the bell, the settings cog, and then
-three dots.
-
-Today's goal and the active-trades figure stay in the row, because they are
-numbers somebody opens the page to read and a press to see them is a press too
-many. The three dots hold the two controls that are not: the market search and
-the pinned markets. Which of an app's controls fold is the app's own choice,
-through `foldsOnPhone` on each one.
-
-- **The search is the field itself**, a whole row of the dropdown, rather than
-  a magnifier you press to get a field. The dropdown is a list, so there is
-  room for it, and the results open under it as you type. They are the real
-controls rather than copies, so each one still opens its own panel. This fold
-belongs to the shell and happens in every app built on it, so it is written
-down once in the repo's `docs/shell/shell-and-apps.md`.
+The sidebar toggle, the exchange's name, the market search as a magnifier, the
+bell, and then three dots. Every other Trade header control and the settings
+cog fold into those three dots, because Tyler drew it that way on 16 Oct 2026.
+A control switched off in Settings → Top right menu is drawn nowhere, so with
+the search switched off the row is just the name, the bell and the dots. Before that, today's goal and
+the active-trades figure stayed in the row and squeezed the sidebar toggle to
+14px. Which controls fold is the app's own choice, through `foldsOnPhone` on
+each one in `src/app/options.ts`. The cog folding with them is the shell's, and
+it is written down once in the repo's `docs/shell/shell-and-apps.md`.
 
 - **The exchange's name is never cut short.** The button takes the room the
-  name needs and gives way only when the row genuinely runs out. It used to be
-  capped at 112px, which left "Hyper Li…" on a header with room to spare.
-- **The pinned markets sit at the bottom**, on a line of their own under the
-  heading "Pinned markets". They are a list rather than a button, and in the
-  row with the buttons they read as one more of them. The heading is the
-  control's own label, drawn by the shell because `ownSection: true` is set on
-  it in `src/app/options.ts`.
-- **With nothing pinned the section says so**, rather than leaving the heading
-  over a gap. The shell draws the heading whether or not the control under it
-  has anything to show.
-- **Everything in the dropdown is packed to the left.**
-- **A pinned market shows its day's change in here**, which it only does above
-  1280px along the header itself. The dropdown is a list rather than a row, so
-  it has the width.
+  name needs and gives way only when the row genuinely runs out.
+
+## What the top three dots hold
+
+A panel the width of the phone less a small gutter each side, top to bottom:
+
+1. **Pinned markets**, under that heading. Each pin is its own grey pill with
+   the day's change and a cross to unpin it. The row slides sideways and fades
+   out under the right edge where it carries on, and there is blank room after
+   the last pin so it reads in full once slid to the end. With nothing pinned
+   the section says so rather than leaving the heading over a gap.
+2. **Today's goal and the active-trades figure**, on one line. They are the
+   real buttons, so each still opens its own panel. The line never wraps: when
+   the buttons are wider than the phone it slides sideways and fades out under
+   the right edge, the same as the pins.
+3. **Hide profit and loss, Public profile and Following**, the cog's own rows.
+4. **Colour mode**, last.
+
+The market search is not in here. Tyler's drawing leaves it out, and its field
+is wider than a phone's line of buttons, so it stays in the row as a magnifier
+that opens the results with a field on top, the way it does on a tablet.
+
 - **The pins are read once, not twice.** Both places read the same store, and
   the clock that refreshes them stays mounted in the header at every width.
+- **Everything in the dropdown is packed to the left.**
 
 ## The market row
 
@@ -128,9 +131,11 @@ Open `/protocols/hyper-liquid` at 390×844 and check:
    Indicators and Contract info each open a panel without the sheet closing.
 3. Open orders opens the table over the chart, with Close all beside the tabs
    and no words sitting on top of each other.
-4. The three dots after the settings cog hold the search field and, under a
-   "Pinned markets" heading, the pinned markets. Typing three letters in the
-   field lists markets from every exchange.
+4. The top row is the sidebar toggle, the exchange's name, the search
+   magnifier if it is switched on, the bell and three dots, with no cog. The
+   three dots hold, in order, the pinned markets under their heading, the goal
+   and active-trades buttons on one line, the three settings rows and colour
+   mode. Nothing in there wraps onto a second line.
 5. Open the Journal: its tab reads in full with its count, and Close all sits
    clear of it.
 6. Nothing is drawn under the chart.
