@@ -27,3 +27,6 @@ dist-ssr
 .env.*
 !.env.example
 .scaffold-database.json
+
+# The menu Personal keeps on this Mac (server/menu-file.ts).
+data/

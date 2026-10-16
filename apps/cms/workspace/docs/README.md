@@ -17,6 +17,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   rejecting a submission, and why a failed email never undoes the decision.
 - `embeddable-listing-badge.md` — the badge a listing owner can put on another
   website, and the setting that allows it.
+- `who-may-frame-cms.md` — CMS refuses other sites' frames, except Personal
+  on this Mac in development and the listing badge everywhere.
 - `directory-radius.md` — when the directory distance picker becomes usable
   and how to check location-dependent filtering.
 - `listing-view-counts.md` — where a listing's view figures come from and what

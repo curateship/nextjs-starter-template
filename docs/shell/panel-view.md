@@ -56,7 +56,7 @@ browser does not send it into another site's frame.
 
 A page that reads the note must check `event.origin` against the app's address
 and `event.source` against its own frame, since any page can post a message to
-any window. Personal's `readPanelReport` in `src/lib/personal/app-panels.ts`
+any window. Personal's `readPanelReport` in `apps/personal/src/lib/panel.ts`
 does both.
 
 ## Sign-in

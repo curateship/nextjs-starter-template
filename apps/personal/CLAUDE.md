@@ -1,80 +1,35 @@
 # CLAUDE.md
 
-This file is a map. It holds no rules of its own. Everything it points at is
-the rule, and the file it points at is the one to read before you start.
-
-Two folders hold everything. **The repo's `docs/`** covers what is true of every
-app, and **this app's `workspace/docs/`** covers what is true of this one.
-Paths below say which is which.
+Personal is a small app, not a copy of Custom Shell. It is one page: a left
+menu, a top bar, and a frame in the middle that shows another app's real
+screen. Tyler rebuilt it this way on 16 Oct 2026: "We dont want a 200k LOC for a
+simple iframe app."
 
 ## How to reply
 
-**Re-read `.agents/skills/unslop/SKILL.md` before every reply**, not once a
-session, and check your draft against it before sending. It also covers every
-summary of finished work and every doc you write. Tyler is smart
-and is not a programmer or a trader, so the plainest true sentence always wins.
-
-The monorepo's root `CLAUDE.md` adds the banned-word list, the rule about
-leading with the answer, and how to talk about money. It is part of the unslop
-skill and gets re-read on the same terms.
+**Re-read `.agents/skills/unslop/SKILL.md` before every reply**, and check your
+draft against it. Tyler is smart and is not a programmer, so the plainest true
+sentence wins.
 
 ## Before you write code
 
-1. `workspace/docs/README.md` lists this app's own docs. Read the ones that
-   cover what you are about to change.
-2. The repo's `docs/shell/what-lives-where.md` says which folder a new file
-   belongs in.
-3. The repo's `docs/shell/shell-and-apps.md` is the rulebook for the shell and
-   the apps built on it. Read it before touching any file outside `src/app/`
-   and the app's own files, because an edited shell file is a fork that
-   conflicts forever.
-4. The repo's `docs/shell/working-rules.md` says how to scope the change and how
-   to prove it.
-5. For anything drawn on screen, `.agents/skills/Ui-standards/SKILL.md` is the
-   single UI standard. There is no app-local copy.
+- `workspace/docs/README.md` says what the app is for and lists its docs.
+- `.agents/skills/Ui-standards/SKILL.md` is the UI standard. The files in
+  `src/components/ui/`, `src/theme.css`, `src/border-first.css`,
+  `src/styles.css`, `src/lib/utils.ts` and `src/lib/plural.ts` are copies of
+  Custom Shell's. Change them in Custom Shell first and copy them over, so the
+  frames keep matching the apps they show.
+- The shell rules in the repo's `docs/shell/` do not apply here. There is no
+  database, no sign-in, no worker and no `src/app/` options.
 
-The repo's `docs/README.md` indexes the rest: architecture, accounts and
-billing, security, the UI rules, the performance rules, deployment and local
-setup. If the work came from a task, the task files are in `workspace/tasks/`.
+## After you write code
 
-## After you write code, write the doc
-
-Every change that a person could later ask about leaves a doc behind. This is
-part of the work, not a favour, and it happens in the same turn as the code.
-
-- **New behaviour gets a new file** in `workspace/docs/`, named after the thing
-  it explains, plus one line in `workspace/docs/README.md`.
-- **Changed behaviour edits the file that already describes it.** Search
-  `workspace/docs/` first. Two docs describing one thing is worse than none,
-  because the reader cannot tell which one is current.
-- **Write what the app does and why, not what you did.** A doc is not a
-  changelog entry. Dates belong in a line only when the behaviour changed on
-  that date and older records still show the old behaviour.
-- **A rule Tyler stated out loud goes in the doc that holds the rules**, in his
-  words. That file outranks the code.
-- **Behaviour that belongs to the shell is documented in the repo's
-  `docs/shell/`**, one copy for every app. Never copy a shell doc into an app.
-
-## Skills
-
-Repo skills live in `.agents/skills/`. Read the whole `SKILL.md` before acting
-on it.
-
-- `unslop` — how to write. Always on.
-- `Ui-standards` — the one UI standard for every app.
-- `plan-change` — turn a request into a spec and an ordered plan.
-- `implement-change` — build a focused change or bug fix.
-- `validate-app` — open the change in a real browser and read the console.
-- `audit-change` — check a change for correctness, security and bloat.
-- `check-yourself` — when Tyler says an answer is wrong, or asks if you are
-  sure. Stop and prove it instead of defending it.
-- `commit-change` — only when Tyler asks for a commit.
-- `ship-release` — only when Tyler asks for a deploy.
-- `migrate-legacy-code`, `new-features-suggestion`, `polish-app-suggestions` —
-  as their descriptions say.
+Write the doc in the same turn, in `workspace/docs/`, with a line in
+`workspace/docs/README.md`.
 
 ## Verifying
 
-The repo's `docs/shell/working-rules.md` has the commands. Two of them are
-absolute: never start a dev server, and never call browser work done without
-opening it in a real browser through the `validate-app` skill.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+  `npx vitest run`.
+- Never start a dev server. Use the one on port 3021 from `local-apps.json`,
+  and run the `validate-app` skill for anything a browser shows.

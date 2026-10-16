@@ -21,6 +21,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
+    "resolveJsonModule": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
@@ -28,5 +29,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "worker/src", "vite.config.ts"]
+  "include": ["src", "server", "vite.config.ts", "vitest.config.ts", "app-port.ts"]
 }
