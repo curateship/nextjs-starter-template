@@ -12,15 +12,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { LINK_ICONS, parseAppUrl, placeKey, type LinkIcon, type Place } from "@/lib/menu"
+import { Switch } from "@/components/ui/switch"
+import {
+  LINK_ICONS,
+  LINK_OPENS,
+  parseAppUrl,
+  placeKey,
+  type LinkIcon,
+  type LinkOpens,
+  type Place,
+} from "@/lib/menu"
 
-export type LinkDraft = { label: string; url: string; icon: LinkIcon }
+export type LinkDraft = {
+  label: string
+  url: string
+  icon: LinkIcon
+  opens: LinkOpens
+  /** Whether Personal opens on this link's screen. */
+  start: boolean
+}
+
+const OPENS_LABELS: Record<LinkOpens, string> = {
+  panel: "The middle panel",
+  tab: "Its own tab",
+}
 
 export type PlaceChoice = { place: Place; label: string }
 
 /**
  * The form inside a link's pop-up: its name, the address of the screen it
- * opens, its icon, and where it sits. The same form adds a link and edits one.
+ * opens, its icon, where it sits, where it opens, and whether Personal opens
+ * on it. The same form adds a link and edits one.
  */
 export function LinkEditor({
   initial,
@@ -139,6 +161,38 @@ export function LinkEditor({
           </Select>
         </div>
       </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor={`${id}-opens`}>Opens in</Label>
+          <Select
+            value={draft.opens}
+            onValueChange={(opens) => setDraft({ ...draft, opens: opens as LinkOpens })}
+          >
+            <SelectTrigger id={`${id}-opens`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LINK_OPENS.map((opens) => (
+                <SelectItem key={opens} value={opens}>
+                  {OPENS_LABELS[opens]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {/* A link that opens in its own tab never fills the panel, so it can't
+          be the screen Personal opens on. */}
+      {draft.opens === "panel" ? (
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor={`${id}-start`}>Personal opens here</Label>
+          <Switch
+            id={`${id}-start`}
+            checked={draft.start}
+            onCheckedChange={(start) => setDraft({ ...draft, start })}
+          />
+        </div>
+      ) : null}
       <div className="flex items-center gap-2">
         {onDelete ? (
           <Button type="button" variant="ghost" size="sm" onClick={onDelete}>

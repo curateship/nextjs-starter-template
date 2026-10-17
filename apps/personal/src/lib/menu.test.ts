@@ -8,12 +8,18 @@ import {
   clampSidebarWidth,
   defaultMenu,
   frameSrc,
+  hasLinkTo,
   menuSchema,
   moveLink,
+  moveLinkTo,
+  moveSection,
   personalPath,
   removeLink,
   removeSection,
   renameSection,
+  screenName,
+  setStartLink,
+  startLink,
   subLinksOf,
   updateLink,
   type MenuLink,
@@ -192,5 +198,144 @@ describe("sub-links", () => {
     ])
     const menu = removeLink(withPosts(), "link-posts")
     expect(menu.sections[1].links[0]).not.toHaveProperty("children")
+  })
+})
+
+describe("links that open in their own tab", () => {
+  const ign: MenuLink = { id: "link-ign", label: "IGN", url: "https://ign.com/", icon: "link", opens: "tab" }
+
+  it("are accepted by the file rules, and a link without the field opens in the panel", () => {
+    expect(menuSchema.safeParse(addLink(defaultMenu(), { kind: "top" }, ign)).success).toBe(true)
+    const bad = addLink(defaultMenu(), { kind: "top" }, { ...ign, opens: "window" } as never)
+    expect(menuSchema.safeParse(bad).success).toBe(false)
+  })
+
+  it("never show as the open link, and don't count as a pinned copy", () => {
+    const menu = addLink(defaultMenu(), { kind: "top" }, ign)
+    expect(activeLinkId(menu, "https://ign.com/")).toBeNull()
+    expect(hasLinkTo(menu, "https://ign.com/")).toBe(false)
+  })
+})
+
+describe("pinning the open screen", () => {
+  it("knows when a panel link already goes to exactly that screen", () => {
+    const menu = defaultMenu()
+    expect(hasLinkTo(menu, "http://localhost:3015/admin/listings")).toBe(true)
+    expect(hasLinkTo(menu, "http://localhost:3015/admin/listings/abc")).toBe(false)
+  })
+})
+
+describe("the open screen's name", () => {
+  it("is the section, then the page name the app sent, else the link's label", () => {
+    const menu = addLink(defaultMenu(), { kind: "top" }, posts)
+    const listings = "http://localhost:3015/admin/listings"
+    expect(screenName(menu, listings, "All listings")).toBe("CMS · All listings")
+    expect(screenName(menu, listings, "")).toBe("CMS · Listings")
+    expect(screenName(menu, `${listings}/abc`, "Pasta night")).toBe("CMS · Pasta night")
+    // A top-bar link has no section, so the host stands in for it.
+    expect(screenName(menu, posts.url, "")).toBe("localhost:3015 · Posts")
+    // A screen no link matches, before or without a page name: the host alone.
+    expect(screenName(menu, "http://localhost:3099/x", "")).toBe("localhost:3099")
+    expect(screenName(menu, null, "")).toBeNull()
+  })
+
+  it("names a sub-link's screen after its parent's section", () => {
+    const menu = addLink(defaultMenu(), { kind: "under", linkId: "link-cms-dashboard" }, posts)
+    expect(screenName(menu, posts.url, "")).toBe("CMS · Posts")
+  })
+})
+
+describe("the start screen", () => {
+  it("is one link at a time, and turning it off clears it", () => {
+    let menu = setStartLink(defaultMenu(), "link-cms-dashboard", true)
+    expect(startLink(menu)?.id).toBe("link-cms-dashboard")
+    menu = setStartLink(menu, "link-cms-listings", true)
+    expect(startLink(menu)?.id).toBe("link-cms-listings")
+    expect(setStartLink(menu, "link-cms-dashboard", false)).toBe(menu)
+    menu = setStartLink(menu, "link-cms-listings", false)
+    expect(menu).not.toHaveProperty("startLinkId")
+    expect(menuSchema.safeParse(setStartLink(menu, "link-cms-listings", true)).success).toBe(true)
+  })
+
+  it("is cleared when its link, its link's parent or its section is deleted", () => {
+    const start = setStartLink(defaultMenu(), "link-cms-listings", true)
+    expect(removeLink(start, "link-cms-listings")).not.toHaveProperty("startLinkId")
+    expect(removeSection(start, "section-cms")).not.toHaveProperty("startLinkId")
+    expect(removeLink(start, "link-cms-dashboard").startLinkId).toBe("link-cms-listings")
+
+    const sub = setStartLink(
+      addLink(defaultMenu(), { kind: "under", linkId: "link-cms-dashboard" }, posts),
+      "link-posts",
+      true
+    )
+    expect(removeLink(sub, "link-cms-dashboard")).not.toHaveProperty("startLinkId")
+  })
+
+  it("is skipped when the link opens in its own tab", () => {
+    const menu = updateLink(
+      setStartLink(defaultMenu(), "link-cms-listings", true),
+      { ...defaultMenu().sections[1].links[1], opens: "tab" },
+      { kind: "section", sectionId: "section-cms" }
+    )
+    expect(startLink(menu)).toBeNull()
+  })
+})
+
+describe("dragging sections", () => {
+  it("moves a section to where another was dropped", () => {
+    const menu = addSection(defaultMenu(), { id: "section-dating", title: "Dating", links: [] })
+    expect(moveSection(menu, "section-dating", "section-project").sections.map((s) => s.id)).toEqual([
+      "section-dating",
+      "section-project",
+      "section-cms",
+    ])
+    expect(moveSection(menu, "section-project", "section-dating").sections.map((s) => s.id)).toEqual([
+      "section-cms",
+      "section-dating",
+      "section-project",
+    ])
+    expect(moveSection(menu, "section-project", "gone")).toBe(menu)
+  })
+})
+
+describe("dragging a link to another list", () => {
+  const project = { kind: "section", sectionId: "section-project" } as const
+
+  it("drops it into another section before a link, or at the end", () => {
+    const withTwo = addLink(defaultMenu(), project, posts)
+    const before = moveLinkTo(withTwo, "link-cms-listings", project, "link-posts")
+    expect(before.sections[0].links.map((l) => l.id)).toEqual([
+      "link-project-dashboard",
+      "link-cms-listings",
+      "link-posts",
+    ])
+    expect(before.sections[1].links.map((l) => l.id)).toEqual(["link-cms-dashboard"])
+    const end = moveLinkTo(withTwo, "link-cms-listings", project, null)
+    expect(end.sections[0].links.at(-1)?.id).toBe("link-cms-listings")
+  })
+
+  it("drops it into the top bar, and back into a section", () => {
+    let menu = moveLinkTo(defaultMenu(), "link-cms-listings", { kind: "top" }, null)
+    expect(menu.top.map((l) => l.id)).toEqual(["link-cms-listings"])
+    menu = moveLinkTo(menu, "link-cms-listings", project, "link-project-dashboard")
+    expect(menu.top).toEqual([])
+    expect(menu.sections[0].links[0].id).toBe("link-cms-listings")
+  })
+
+  it("makes a sub-link, and the last sub-link dragged out leaves a plain link", () => {
+    const under = { kind: "under", linkId: "link-project-dashboard" } as const
+    let menu = moveLinkTo(defaultMenu(), "link-cms-listings", under, null)
+    expect(menu.sections[0].links[0].children?.map((l) => l.id)).toEqual(["link-cms-listings"])
+    menu = moveLinkTo(menu, "link-cms-listings", { kind: "section", sectionId: "section-cms" }, null)
+    expect(menu.sections[0].links[0]).not.toHaveProperty("children")
+  })
+
+  it("refuses a link that holds sub-links in the top bar or under another link", () => {
+    const menu = addLink(defaultMenu(), { kind: "under", linkId: "link-cms-dashboard" }, posts)
+    expect(moveLinkTo(menu, "link-cms-dashboard", { kind: "top" }, null)).toBe(menu)
+    expect(
+      moveLinkTo(menu, "link-cms-dashboard", { kind: "under", linkId: "link-cms-listings" }, null)
+    ).toBe(menu)
+    expect(moveLinkTo(menu, "gone", { kind: "top" }, null)).toBe(menu)
   })
 })

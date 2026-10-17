@@ -26,6 +26,10 @@ export const LINK_ICONS = [
 
 export type LinkIcon = (typeof LINK_ICONS)[number]
 
+/** Where a link opens: the middle panel, or a tab of its own. */
+export const LINK_OPENS = ["panel", "tab"] as const
+export type LinkOpens = (typeof LINK_OPENS)[number]
+
 /** The left menu's width in pixels: the same limits and start as Custom Shell's. */
 export const DEFAULT_SIDEBAR_WIDTH = 218
 export const MIN_SIDEBAR_WIDTH = 144
@@ -48,6 +52,11 @@ const linkSchema = z.object({
   label: z.string().trim().min(1).max(60),
   url: appUrl,
   icon: z.enum(LINK_ICONS),
+  /**
+   * Where the link opens: the middle panel, or a tab of its own for a site
+   * that refuses to be framed. Missing means the panel.
+   */
+  opens: z.enum(LINK_OPENS).optional(),
 })
 
 /**
@@ -71,6 +80,8 @@ export const menuSchema = z.object({
   sections: z.array(sectionSchema).max(30),
   /** Missing until the menu is first dragged wider or narrower. */
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH).optional(),
+  /** The link Personal opens on a visit to its bare address. Missing means the empty start page. */
+  startLinkId: z.string().min(1).max(64).optional(),
 })
 
 export type MenuLink = z.infer<typeof sectionLinkSchema>
@@ -191,15 +202,21 @@ export function frameSrc(appUrl: string) {
   return url.href
 }
 
+export function opensInTab(link: Pick<MenuLink, "opens">) {
+  return link.opens === "tab"
+}
+
 /**
  * The link that matches the open screen: the same address, or else the
- * longest link on the same app whose path the screen sits under.
+ * longest link on the same app whose path the screen sits under. A link that
+ * opens in its own tab never matches, since it never fills the panel.
  */
 export function activeLinkId(menu: Menu, openUrl: string | null) {
   const open = openUrl ? parseAppUrl(openUrl) : null
   if (!open) return null
   let best: { id: string; length: number } | null = null
   for (const link of allLinks(menu)) {
+    if (opensInTab(link)) continue
     const url = parseAppUrl(link.url)
     if (!url || url.origin !== open.origin) continue
     const path = url.pathname.replace(/\/$/, "")
@@ -211,6 +228,59 @@ export function activeLinkId(menu: Menu, openUrl: string | null) {
     if (!best || length > best.length) best = { id: link.id, length }
   }
   return best?.id ?? null
+}
+
+/** Whether a panel link goes to exactly this screen, so pinning it again would add a copy. */
+export function hasLinkTo(menu: Menu, openUrl: string) {
+  const open = parseAppUrl(openUrl)
+  if (!open) return false
+  return allLinks(menu).some(
+    (link) => !opensInTab(link) && parseAppUrl(link.url)?.href === open.href
+  )
+}
+
+/**
+ * The open screen's name for the top bar: the section its link sits in, or
+ * the app's host when no section link matches, then the page's own name. The
+ * page name is the one the framed app reported, else the link's label; with
+ * neither, the host stands alone.
+ */
+export function screenName(menu: Menu, openUrl: string | null, title: string) {
+  const open = openUrl ? parseAppUrl(openUrl) : null
+  if (!open) return null
+  const id = activeLinkId(menu, openUrl)
+  const link = id ? allLinks(menu).find((l) => l.id === id) : undefined
+  const section = id
+    ? menu.sections.find((s) =>
+        s.links.some((l) => l.id === id || l.children?.some((c) => c.id === id))
+      )
+    : undefined
+  const where = section?.title || open.host
+  const page = title || link?.label
+  return page ? `${where} · ${page}` : where
+}
+
+/** The link Personal opens on its bare address, if it still exists and fills the panel. */
+export function startLink(menu: Menu) {
+  const link = allLinks(menu).find((l) => l.id === menu.startLinkId)
+  return link && !opensInTab(link) ? link : null
+}
+
+/** Makes a link the start screen, or stops it being one. There is only ever one. */
+export function setStartLink(menu: Menu, linkId: string, start: boolean): Menu {
+  if (start) return menu.startLinkId === linkId ? menu : { ...menu, startLinkId: linkId }
+  if (menu.startLinkId !== linkId) return menu
+  const { startLinkId: _off, ...rest } = menu
+  return rest
+}
+
+/** Forgets the start link once it is no longer in the menu. */
+function withoutLostStart(menu: Menu): Menu {
+  if (!menu.startLinkId || allLinks(menu).some((link) => link.id === menu.startLinkId)) {
+    return menu
+  }
+  const { startLinkId: _gone, ...rest } = menu
+  return rest
 }
 
 /** Every link, sub-links included. */
@@ -235,7 +305,8 @@ export function placeOf(menu: Menu, linkId: string): Place | null {
   return parent ? { kind: "under", linkId: parent.id } : null
 }
 
-function linksAt(menu: Menu, place: Place): MenuLink[] | null {
+/** A place's links, or null when the place doesn't exist. */
+export function linksAt(menu: Menu, place: Place): MenuLink[] | null {
   if (place.kind === "top") return menu.top
   if (place.kind === "section") {
     return menu.sections.find((section) => section.id === place.sectionId)?.links ?? null
@@ -309,7 +380,7 @@ export function removeLink(menu: Menu, linkId: string): Menu {
   const place = placeOf(menu, linkId)
   const links = place ? linksAt(menu, place) : null
   if (!place || !links) return menu
-  return withLinksAt(menu, place, links.filter((link) => link.id !== linkId))
+  return withoutLostStart(withLinksAt(menu, place, links.filter((link) => link.id !== linkId)))
 }
 
 /** Moves a link to where another link in the same place was dropped. */
@@ -323,6 +394,41 @@ export function moveLink(menu: Menu, place: Place, fromId: string, toId: string)
   const [moved] = next.splice(from, 1)
   next.splice(to, 0, moved)
   return withLinksAt(menu, place, next)
+}
+
+/**
+ * Moves a link to any place, before `beforeId` there or at its end when that
+ * is null, which is a drop from another list. A place the link may not go
+ * leaves the menu as it was.
+ */
+export function moveLinkTo(
+  menu: Menu,
+  linkId: string,
+  place: Place,
+  beforeId: string | null
+): Menu {
+  const from = placeOf(menu, linkId)
+  const fromLinks = from ? linksAt(menu, from) : null
+  const link = fromLinks?.find((l) => l.id === linkId)
+  if (!from || !fromLinks || !link || !canPlace(link, place)) return menu
+  const without = withLinksAt(menu, from, fromLinks.filter((l) => l.id !== linkId))
+  const links = linksAt(without, place)
+  if (!links) return menu
+  const at = beforeId ? links.findIndex((l) => l.id === beforeId) : -1
+  const next = [...links]
+  next.splice(at === -1 ? next.length : at, 0, link)
+  return withLinksAt(without, place, next)
+}
+
+/** Moves a section to where another section was dropped. */
+export function moveSection(menu: Menu, fromId: string, toId: string): Menu {
+  const from = menu.sections.findIndex((section) => section.id === fromId)
+  const to = menu.sections.findIndex((section) => section.id === toId)
+  if (from === -1 || to === -1 || from === to) return menu
+  const sections = [...menu.sections]
+  const [moved] = sections.splice(from, 1)
+  sections.splice(to, 0, moved)
+  return { ...menu, sections }
 }
 
 export function addSection(menu: Menu, section: MenuSection): Menu {
@@ -339,5 +445,8 @@ export function renameSection(menu: Menu, sectionId: string, title: string): Men
 }
 
 export function removeSection(menu: Menu, sectionId: string): Menu {
-  return { ...menu, sections: menu.sections.filter((section) => section.id !== sectionId) }
+  return withoutLostStart({
+    ...menu,
+    sections: menu.sections.filter((section) => section.id !== sectionId),
+  })
 }

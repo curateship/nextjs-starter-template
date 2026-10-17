@@ -1,16 +1,29 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
+import type { PlaceChoice } from "@/components/link-editor"
+import { MenuDrag } from "@/components/menu-drag"
 import { MenuActionsContext } from "@/components/menu-links"
-import { PanelFrame } from "@/components/panel-frame"
+import { PanelFrames } from "@/components/panel-frame"
 import { Sidebar } from "@/components/sidebar"
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle"
-import { TopBar } from "@/components/top-bar"
+import { TopBar, type PanelControls } from "@/components/top-bar"
 import { Button } from "@/components/ui/button"
-import type { PlaceChoice } from "@/components/link-editor"
-import { activeLinkId, DEFAULT_SIDEBAR_WIDTH, subLinksOf, type Menu } from "@/lib/menu"
+import {
+  activeLinkId,
+  addLink,
+  DEFAULT_SIDEBAR_WIDTH,
+  hasLinkTo,
+  newId,
+  parseAppUrl,
+  screenName,
+  startLink,
+  subLinksOf,
+  type Menu,
+} from "@/lib/menu"
 import { useMenu } from "@/lib/use-menu"
 import { useOpenScreen } from "@/lib/use-open-screen"
+import { usePanelView } from "@/lib/use-panel-view"
 import { cn } from "@/lib/utils"
 
 /** Where a link can be put: the top bar, each section, and under each left-menu link. */
@@ -36,11 +49,6 @@ function placesOf(menu: Menu): PlaceChoice[] {
  */
 export function App() {
   const { loaded, reload, update, saveStatus, retrySave } = useMenu()
-  const { screen, open, goHome, report } = useOpenScreen()
-  const [menuOpen, setMenuOpen] = React.useState(false)
-  // Adding, editing and dragging links only show while this is on. It starts
-  // off on every visit, so the menu reads as a plain menu.
-  const [editing, setEditing] = React.useState(false)
 
   if (loaded.state !== "ready") {
     return (
@@ -63,92 +71,149 @@ export function App() {
     )
   }
 
-  const menu = loaded.menu
+  return (
+    <Personal menu={loaded.menu} update={update} saveStatus={saveStatus} retrySave={retrySave} />
+  )
+}
+
+/**
+ * The page once the menu has loaded. It waits for the menu so a visit to the
+ * bare address can open the start screen straight away.
+ */
+function Personal({
+  menu,
+  update,
+  saveStatus,
+  retrySave,
+}: {
+  menu: Menu
+  update: (change: (menu: Menu) => Menu) => void
+} & Pick<ReturnType<typeof useMenu>, "saveStatus" | "retrySave">) {
+  const screens = useOpenScreen(startLink(menu)?.url ?? null)
+  const { frames, screen, open, goHome, report } = screens
+  const view = usePanelView()
+  const [menuOpen, setMenuOpen] = React.useState(false)
+  // Adding, editing and dragging links only show while this is on. It starts
+  // off on every visit, so the menu reads as a plain menu.
+  const [editing, setEditing] = React.useState(false)
+
   const sidebarWidth = menu.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH
-  const activeId = activeLinkId(menu, screen.url)
+  const activeId = activeLinkId(menu, screen?.url ?? null)
+  const places = placesOf(menu)
+  const openAt = (url: string, linkId?: string) => {
+    setMenuOpen(false)
+    open(url, linkId ? (frameUrl) => activeLinkId(menu, frameUrl) === linkId : undefined)
+  }
   const actions = {
     editing,
-    places: placesOf(menu),
-    openUrl: screen.url,
+    places,
+    openUrl: screen?.url ?? null,
     activeId,
-    open: (url: string) => {
-      setMenuOpen(false)
-      open(url)
-    },
+    startLinkId: menu.startLinkId ?? null,
+    open: openAt,
     update,
+  }
+  const panel: PanelControls = {
+    screen,
+    name: screenName(menu, screen?.url ?? null, screen?.title ?? ""),
+    canGoBack: screens.canGoBack,
+    canGoForward: screens.canGoForward,
+    back: screens.back,
+    forward: screens.forward,
+    reload: screens.reload,
+    recent: screens.recent,
+    openRecent: (url) => openAt(url),
+    canPin: screen !== null && !hasLinkTo(menu, screen.url),
+    places,
+    // Pinning works with editing off: it is the one quick menu change that
+    // doesn't need the switch, or asking for it first defeats the point.
+    pin: (place) => {
+      if (!screen) return
+      const label = (screen.title.trim() || parseAppUrl(screen.url)?.host || "Screen")
+        .slice(0, 60)
+        .trim()
+      update((m) => addLink(m, place, { id: newId("link"), label, url: screen.url, icon: "link" }))
+    },
+    zoom: view.zoom,
+    setZoom: view.setZoom,
+    phone: view.phone,
+    setPhone: view.setPhone,
   }
 
   return (
     <MenuActionsContext.Provider value={actions}>
-      <div
-        data-sidebar-root=""
-        className="flex h-svh bg-sidebar text-sidebar-foreground"
-        style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
-      >
-        {menuOpen ? (
-          <button
-            type="button"
-            aria-label="Close the menu"
-            className="fixed inset-0 z-30 bg-black/40 md:hidden"
-            onClick={() => setMenuOpen(false)}
-          />
-        ) : null}
-        <aside
-          className={cn(
-            // The menu's edge, and the top bar's below it, are the theme's
-            // line at half strength: Tyler asked for them fainter on 16 Oct
-            // 2026. The theme file is Custom Shell's, so it stays as it is.
-            "w-(--sidebar-width) shrink-0 border-r border-sidebar-border/50 bg-sidebar",
-            // On a phone the menu opens over the page; from 768px it always
-            // sits in its own column, even if it was left open on a phone.
-            menuOpen ? "fixed inset-y-0 left-0 z-40 block md:static md:z-auto" : "hidden md:block"
-          )}
-        >
-          <div className="relative h-full">
-            <Sidebar
-              menu={menu}
-              update={update}
-              editing={editing}
-              onHome={() => {
-                setMenuOpen(false)
-                goHome()
-              }}
-            />
-            <SidebarResizeHandle
-              width={sidebarWidth}
-              onCommit={(width) => update((m) => ({ ...m, sidebarWidth: width }))}
-            />
-          </div>
-        </aside>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar
-            menu={menu}
-            subLinks={subLinksOf(menu, activeId)}
-            saveStatus={saveStatus}
-            onRetrySave={retrySave}
-            onOpenMenu={() => setMenuOpen(true)}
-            editing={editing}
-            onEditingChange={setEditing}
-          />
-          <main id="main-content" className="shell-canvas flex min-h-0 flex-1 flex-col">
-            {screen.url && screen.frameUrl ? (
-              <PanelFrame
-                url={screen.frameUrl}
-                load={screen.load}
-                title={screen.title}
-                onReport={report}
+      <MenuDrag menu={menu} update={update}>
+        {(shown) => (
+          <div
+            data-sidebar-root=""
+            className="flex h-svh bg-sidebar text-sidebar-foreground"
+            style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+          >
+            {menuOpen ? (
+              <button
+                type="button"
+                aria-label="Close the menu"
+                className="fixed inset-0 z-30 bg-black/40 md:hidden"
+                onClick={() => setMenuOpen(false)}
               />
-            ) : (
-              <div className="flex flex-1 items-center justify-center p-4">
-                <p className="max-w-sm text-center text-sm text-muted-foreground">
-                  Pick a screen from the left menu. To add one, open the cog at the
-                  top right and turn on Edit the menu.
-                </p>
+            ) : null}
+            <aside
+              className={cn(
+                // The menu's edge, and the top bar's below it, are the theme's
+                // line at half strength: Tyler asked for them fainter on 16 Oct
+                // 2026. The theme file is Custom Shell's, so it stays as it is.
+                "w-(--sidebar-width) shrink-0 border-r border-sidebar-border/50 bg-sidebar",
+                // On a phone the menu opens over the page; from 768px it always
+                // sits in its own column, even if it was left open on a phone.
+                menuOpen ? "fixed inset-y-0 left-0 z-40 block md:static md:z-auto" : "hidden md:block"
+              )}
+            >
+              <div className="relative h-full">
+                <Sidebar
+                  menu={shown}
+                  update={update}
+                  editing={editing}
+                  onHome={() => {
+                    setMenuOpen(false)
+                    goHome()
+                  }}
+                />
+                <SidebarResizeHandle
+                  width={sidebarWidth}
+                  onCommit={(width) => update((m) => ({ ...m, sidebarWidth: width }))}
+                />
               </div>
-            )}
-          </main>
-        </div>
-      </div>
+            </aside>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <TopBar
+                menu={shown}
+                subLinks={subLinksOf(shown, activeId)}
+                saveStatus={saveStatus}
+                onRetrySave={retrySave}
+                onOpenMenu={() => setMenuOpen(true)}
+                editing={editing}
+                onEditingChange={setEditing}
+                panel={panel}
+              />
+              <main id="main-content" className="shell-canvas flex min-h-0 flex-1 flex-col">
+                <PanelFrames
+                  frames={frames.kept}
+                  openId={frames.openId}
+                  view={{ zoom: view.zoom, phone: view.phone }}
+                  onReport={report}
+                >
+                  <div className="absolute inset-0 flex items-center justify-center p-4">
+                    <p className="max-w-sm text-center text-sm text-muted-foreground">
+                      Pick a screen from the left menu. To add one, open the cog at the
+                      top right and turn on Edit the menu.
+                    </p>
+                  </div>
+                </PanelFrames>
+              </main>
+            </div>
+          </div>
+        )}
+      </MenuDrag>
     </MenuActionsContext.Provider>
   )
 }

@@ -24,9 +24,11 @@ the sidebars or top nav".
 ## Docs
 
 - [App panels](app-panels.md): how another app's screen fills the middle
-  panel, how Personal's address follows it, signing in once per app, and why it
-  only works on this Mac today.
+  panel, how Personal's address follows it, keeping the last three screens
+  loaded, the top bar's name, Back, Forward, Reload, pop-out, recent screens,
+  pin, zoom and phone view, signing in once per app, and why it only works on
+  this Mac today.
 - [The menu](menu.md): the edit switch, folding sections, sub-links and the
-  top bar row that mirrors them, resizing the menu,
-  adding, editing, dragging and deleting links and sections, and the file the
-  menu is kept in.
+  top bar row that mirrors them, resizing the menu, adding, editing, renaming
+  in place, dragging links between lists and sections into order, links that
+  open in their own tab, the start screen, and the file the menu is kept in.

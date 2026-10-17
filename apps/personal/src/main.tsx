@@ -2,6 +2,7 @@ import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 
 import { App } from "@/app"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import "@/styles.css"
 
 // Light or dark follows the Mac's own setting, live.
@@ -12,6 +13,8 @@ dark.addEventListener("change", applyColourMode)
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <TooltipProvider>
+      <App />
+    </TooltipProvider>
   </StrictMode>
 )

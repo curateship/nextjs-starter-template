@@ -85,15 +85,49 @@ Everything here needs editing switched on.
   top bar or "Under" for it, since the top bar has no sub-links. Moving the
   last sub-link out leaves a plain link. Deleting a link that holds sub-links
   asks first, because they go with it.
-- **Reorder:** drag a link by its handle within its section, its sub-links or
-  the top bar. The
-  keyboard works too: focus the handle, press Space, use the arrow keys, press
-  Space again.
+- **Rename a link in place:** double-click its name, in the left menu, under a
+  link or in the top bar. Enter or clicking away keeps the new name, Escape
+  drops it, an empty name keeps the old one, and names are up to 60
+  characters. Turning editing off closes a half-done rename. The first click
+  of the double-click still opens the screen; the second doesn't open it
+  again.
+- **Drag a link anywhere:** drag it by its handle into a new spot in its own
+  list, into another section, into the top bar, or into an open link's
+  sub-links, where it becomes a sub-link. A copy follows the pointer and a
+  faint placeholder shows where it will land. While a link is dragged, an
+  empty section or an empty top bar is outlined with a dashed line: drop the
+  link on its Add link row, or on the top bar's +. The outline takes no room,
+  so nothing moves under the pointer when a drag starts.
+  Dragging the last sub-link out leaves a plain link.
+- **A drop that isn't allowed snaps back:** a link that holds sub-links can't
+  go into the top bar or under another link, and a drop away from every list
+  changes nothing.
+- **The keyboard drags within a list:** focus the handle, press Space, use the
+  arrow keys, press Space again. To move a link to another list from the
+  keyboard, use "Shows in" in its form.
+- **The whole menu is one drag area** (`src/components/menu-drag.tsx`), around
+  the left menu and the top bar. Each list of links, and the list of
+  sections, is a list inside it. The menu shown while dragging is a draft:
+  it is saved on the drop and thrown away on Escape. `moveLinkTo` and
+  `moveSection` in `src/lib/menu.ts` make the moves.
 - **Sections:** "Add section" at the bottom of the left menu makes one and puts
-  the cursor in its name. Hover a section's name to rename it (Enter or
-  clicking away keeps the new name, Escape drops it) or delete it. Deleting a
-  section that still holds links asks first, and its count includes sub-links.
-  An empty one goes at once.
+  the cursor in its name. Hover a section's name to drag it, rename it (Enter
+  or clicking away keeps the new name, Escape drops it) or delete it. Deleting
+  a section that still holds links asks first, and its count includes
+  sub-links. An empty one goes at once.
+- **Drag a section into a new order** by the handle on its name row. The
+  keyboard works the same way as for links. A folded section moves as its
+  name alone; an open one moves with its links.
+- **Opens in:** a link opens in "The middle panel" or "Its own tab". A site
+  that refuses to be framed, such as ign.com, can still live in the menu as a
+  tab link. It is a real link to the site with a small arrow after its name,
+  it never changes the panel, and it never shows as the open link. Saved as
+  `"opens": "tab"`; a link without the field opens in the panel.
+- **Personal opens here:** a switch in a panel link's form. Turned on, a visit
+  to `http://localhost:3021/` opens that link's screen. Only one link can be
+  the start: turning it on for one turns it off for the one before. Saved as
+  `startLinkId` on the menu, and cleared when that link, the link it sits
+  under, or its section is deleted. A tab link has no switch.
 - **A wrong address is refused in the form:** it must start with http:// or
   https://. Names are up to 60 characters.
 - **A full top bar shrinks each name and cuts it short** rather than scrolling.

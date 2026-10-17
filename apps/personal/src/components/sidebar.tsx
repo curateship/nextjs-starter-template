@@ -1,6 +1,15 @@
 import * as React from "react"
-import { ChevronRightIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import {
+  ChevronRightIcon,
+  GripVerticalIcon,
+  PlusIcon,
+  SettingsIcon,
+  Trash2Icon,
+} from "lucide-react"
 
+import { sectionDragId, SECTIONS_LIST_ID, type SectionDragData } from "@/components/menu-drag"
 import { AddLinkButton, SortableLinks } from "@/components/menu-links"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,6 +30,7 @@ import {
 } from "@/lib/menu"
 import { plural } from "@/lib/plural"
 import { useRememberedOpen } from "@/lib/use-remembered-open"
+import { cn } from "@/lib/utils"
 
 /** A section's links, sub-links counted too. */
 function linkCount(section: MenuSection) {
@@ -35,6 +45,7 @@ function SectionTitle({
   onRenamingChange,
   onRename,
   onDelete,
+  dragHandle,
 }: {
   section: MenuSection
   editing: boolean
@@ -42,6 +53,8 @@ function SectionTitle({
   onRenamingChange: (renaming: boolean) => void
   onRename: (title: string) => void
   onDelete: () => void
+  /** The drag handle's own props, from the section's sortable. */
+  dragHandle: React.ButtonHTMLAttributes<HTMLButtonElement>
 }) {
   const [draft, setDraft] = React.useState(section.title)
   const name = section.title || "Untitled section"
@@ -83,6 +96,14 @@ function SectionTitle({
       </h2>
       {editing ? (
         <div className="flex opacity-0 group-hover/section:opacity-100 focus-within:opacity-100">
+          <button
+            type="button"
+            aria-label={`Drag ${name}`}
+            className="flex size-6 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:cursor-grabbing"
+            {...dragHandle}
+          >
+            <GripVerticalIcon className="size-3.5" />
+          </button>
           <Button
             variant="ghost"
             size="icon-xs"
@@ -103,28 +124,46 @@ function SectionTitle({
   )
 }
 
-/** One section: its name, which folds it, then its links and Add link. */
+/**
+ * One section: its name, which folds it, then its links and Add link. While
+ * editing, its name row has a drag handle that moves the whole section; a
+ * folded one moves as its name alone.
+ */
 function SidebarSection({
   section,
   ...title
-}: Omit<React.ComponentProps<typeof SectionTitle>, "section"> & {
+}: Omit<React.ComponentProps<typeof SectionTitle>, "section" | "dragHandle"> & {
   section: MenuSection
 }) {
   const [open, setOpen] = useRememberedOpen(`personal-sidebar-section-${section.id}`)
+  const data: SectionDragData = { kind: "section", sectionId: section.id }
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: sectionDragId(section.id),
+    data,
+  })
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} asChild>
-      <section className="flex flex-col gap-0.5">
-        <SectionTitle section={section} {...title} />
+      <section
+        ref={setNodeRef}
+        style={{ transform: CSS.Translate.toString(transform), transition }}
+        className={cn(
+          "relative flex flex-col gap-0.5",
+          isDragging && "z-10 rounded-md bg-sidebar opacity-80 shadow-sm"
+        )}
+      >
+        <SectionTitle section={section} dragHandle={{ ...attributes, ...listeners }} {...title} />
         {/* The room under a section belongs to its open links, as in Custom
             Shell, so folded sections stack name under name. */}
-        <CollapsibleContent className="flex flex-col gap-0.5 pb-2">
+        <CollapsibleContent className="pb-2">
           <SortableLinks
             links={section.links}
             place={{ kind: "section", sectionId: section.id }}
             orientation="vertical"
-          />
-          <AddLinkButton place={{ kind: "section", sectionId: section.id }} label="Add link" />
+            dropClassName="flex flex-col gap-0.5"
+          >
+            <AddLinkButton place={{ kind: "section", sectionId: section.id }} label="Add link" />
+          </SortableLinks>
         </CollapsibleContent>
       </section>
     </Collapsible>
@@ -181,20 +220,26 @@ export function Sidebar({
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <nav aria-label="Screens" className="flex flex-col p-2">
-          {menu.sections.map((section) => (
-            <SidebarSection
-              key={section.id}
-              section={section}
-              editing={editing}
-              renaming={editing && renamingId === section.id}
-              onRenamingChange={(renaming) => setRenamingId(renaming ? section.id : null)}
-              onRename={(title) => update((m) => renameSection(m, section.id, title))}
-              onDelete={() => {
-                if (section.links.length) setDeleting(section)
-                else update((m) => removeSection(m, section.id))
-              }}
-            />
-          ))}
+          <SortableContext
+            id={SECTIONS_LIST_ID}
+            items={menu.sections.map((section) => sectionDragId(section.id))}
+            strategy={verticalListSortingStrategy}
+          >
+            {menu.sections.map((section) => (
+              <SidebarSection
+                key={section.id}
+                section={section}
+                editing={editing}
+                renaming={editing && renamingId === section.id}
+                onRenamingChange={(renaming) => setRenamingId(renaming ? section.id : null)}
+                onRename={(title) => update((m) => renameSection(m, section.id, title))}
+                onDelete={() => {
+                  if (section.links.length) setDeleting(section)
+                  else update((m) => removeSection(m, section.id))
+                }}
+              />
+            ))}
+          </SortableContext>
           {menu.sections.length === 0 ? (
             <p className="px-2 py-1 text-sm text-muted-foreground">
               {editing
