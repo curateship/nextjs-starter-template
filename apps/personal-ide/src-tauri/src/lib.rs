@@ -30,7 +30,10 @@ const TERMINAL_AGENT_IDLE_TIMEOUT: Duration = Duration::from_millis(2500);
 const TERMINAL_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(16);
 const WORKSPACE_DIR: &str = "workspace";
 const SHARED_SKILLS_DIR: &str = ".agents/skills";
-const CUSTOM_SHELL_APP_DIR: &str = "custom-shell";
+// The shell's folder under apps/. It was "custom-shell" until 17 Oct 2026, and
+// older worktrees and branches still have it under that name, so both are
+// looked for, the new name first.
+const CUSTOM_SHELL_APP_DIRS: [&str; 2] = ["shell", "custom-shell"];
 const LOCAL_APPS_FILE: &str = "local-apps.json";
 const DATABASE_SETUP_SCRIPT: &str = "scripts/setup-database.mjs";
 const SCAFFOLD_DATABASE_EXPORT_SCRIPT: &str = "scripts/export-scaffold-database.mjs";
@@ -2161,12 +2164,11 @@ fn find_custom_shell_scaffold_dir(
 ) -> Result<PathBuf, String> {
     for root in [current_root, manifest_root] {
         for ancestor in root.ancestors() {
-            for candidate in [
-                ancestor.join(CUSTOM_SHELL_APP_DIR),
-                ancestor.join("apps").join(CUSTOM_SHELL_APP_DIR),
-            ] {
-                if candidate.join("package.json").is_file() && candidate.join("src").is_dir() {
-                    return fs::canonicalize(candidate).map_err(|error| error.to_string());
+            for dir in CUSTOM_SHELL_APP_DIRS {
+                for candidate in [ancestor.join(dir), ancestor.join("apps").join(dir)] {
+                    if candidate.join("package.json").is_file() && candidate.join("src").is_dir() {
+                        return fs::canonicalize(candidate).map_err(|error| error.to_string());
+                    }
                 }
             }
         }
@@ -2180,9 +2182,11 @@ fn find_custom_shell_scaffold_dir(
 // Older workspaces drift far behind develop, so scaffolding from the active
 // worktree produced apps missing most of the shell.
 fn primary_custom_shell_dir(git_root: &Path) -> Result<PathBuf, String> {
-    let candidate = git_root.join("apps").join(CUSTOM_SHELL_APP_DIR);
-    if candidate.join("package.json").is_file() && candidate.join("src").is_dir() {
-        return fs::canonicalize(candidate).map_err(|error| error.to_string());
+    for dir in CUSTOM_SHELL_APP_DIRS {
+        let candidate = git_root.join("apps").join(dir);
+        if candidate.join("package.json").is_file() && candidate.join("src").is_dir() {
+            return fs::canonicalize(candidate).map_err(|error| error.to_string());
+        }
     }
 
     Err("Custom Shell was not found in the primary checkout.".to_string())
@@ -3062,7 +3066,7 @@ mod tests {
             .as_nanos();
         let root = std::env::temp_dir().join(format!("personal-ide-scaffold-test-{unique}"));
         let manifest_root = root.join("apps/personal-ide/src-tauri");
-        let scaffold_root = root.join("apps/custom-shell");
+        let scaffold_root = root.join("apps/shell");
         let outside_root = std::env::temp_dir().join(format!("personal-ide-outside-test-{unique}"));
 
         fs::create_dir_all(&manifest_root).expect("create manifest dir");

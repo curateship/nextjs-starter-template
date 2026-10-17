@@ -1,7 +1,12 @@
 import localAppPorts from "../../../../local-apps.json"
+import appPackage from "../../package.json"
 
 // local-apps.json is the only place an app's port is assigned; never restate it.
-const LOCAL_APP_URL = `http://localhost:${localAppPorts["custom-shell"]}`
+// Looked up by this app's own package name, the same way `app-port.ts` does, so
+// every copy of the shell falls back to its own port and not the shell's.
+const LOCAL_APP_URL = `http://localhost:${
+  (localAppPorts as Record<string, number | undefined>)[appPackage.name]
+}`
 
 type AppUrlEnvironment = Partial<
   Pick<

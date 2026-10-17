@@ -5,8 +5,8 @@
 # An app is two things running side by side, and this file builds both from the
 # same commit:
 #
-#   docker build --target web    --build-arg APP=custom-shell -t custom-shell-web .
-#   docker build --target worker --build-arg APP=custom-shell -t custom-shell-worker .
+#   docker build --target web    --build-arg APP=shell -t shell-web .
+#   docker build --target worker --build-arg APP=shell -t shell-worker .
 #
 # Build from the REPO ROOT, not from the app folder — this is a pnpm workspace
 # and the lockfile lives at the top.
@@ -22,7 +22,7 @@
 # from this file share nothing: separate images, separate containers, separate
 # databases, separate settings.
 
-ARG APP=custom-shell
+ARG APP=shell
 ARG NODE_IMAGE=node:24-alpine
 
 # --- Common ground ---

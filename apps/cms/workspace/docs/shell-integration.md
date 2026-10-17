@@ -320,7 +320,7 @@ uses the full filename, so the two `0077` filenames do not conflict.
 
 ## Shell merge, 5 October 2026
 
-The shell was merged in again on 5 Oct 2026, from `apps/custom-shell` in ws-4.
+The shell was merged in again on 5 Oct 2026, from `apps/shell` in ws-4.
 Shell-origin files were replaced wholesale after each one was proved to be an
 unmodified older shell version: the app's copy was hashed and matched against
 every version of that file in the repository's history. A file with no match is
@@ -437,4 +437,4 @@ and the diff is additions only.
 **Tests.** The type check is clean. Two `broadcast-send.test.ts` tests failed
 only when three apps' suites ran at once, and pass alone. **One test fails in the shell too.** `public-branding.test.ts` expects the
 public header settings without the `menuFontSize` field the shell now writes.
-It fails the same way in `apps/custom-shell`.
+It fails the same way in `apps/shell`.

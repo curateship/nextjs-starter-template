@@ -14,28 +14,28 @@ name: Custom Shell CI
 on:
   pull_request:
     paths:
-      - "apps/custom-shell/**"
+      - "apps/shell/**"
       - "Dockerfile"
       - ".dockerignore"
       - "local-apps.json"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
-      - ".github/workflows/custom-shell-ci.yml"
+      - ".github/workflows/shell-ci.yml"
   push:
     branches: [main]
     paths:
-      - "apps/custom-shell/**"
+      - "apps/shell/**"
       - "Dockerfile"
       - ".dockerignore"
       - "local-apps.json"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
-      - ".github/workflows/custom-shell-ci.yml"
+      - ".github/workflows/shell-ci.yml"
 
 concurrency:
-  group: custom-shell-${{ github.ref }}
+  group: shell-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -58,15 +58,15 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Lint
-        run: pnpm --filter custom-shell lint
+        run: pnpm --filter shell lint
       - name: Typecheck
-        run: pnpm --filter custom-shell typecheck
+        run: pnpm --filter shell typecheck
       - name: Tests
-        run: pnpm --filter custom-shell test
+        run: pnpm --filter shell test
       - name: Web build
-        run: pnpm --filter custom-shell build
+        run: pnpm --filter shell build
       - name: Worker build
-        run: pnpm --filter custom-shell build:worker
+        run: pnpm --filter shell build:worker
 
   images:
     needs: quality
@@ -75,9 +75,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Web image
-        run: docker build --target web --build-arg APP=custom-shell -t custom-shell-web:ci .
+        run: docker build --target web --build-arg APP=shell -t shell-web:ci .
       - name: Worker image
-        run: docker build --target worker --build-arg APP=custom-shell -t custom-shell-worker:ci .
+        run: docker build --target worker --build-arg APP=shell -t shell-worker:ci .
       # A worker image whose health check cannot even run is a container that
       # will be marked unhealthy forever. It is expected to *fail* here — there
       # is no database and no heartbeat — so what is checked is that it fails
@@ -86,7 +86,7 @@ jobs:
         run: |
           # Not named `status`: some shells make that read-only and the
           # assignment fails silently in a way that reads as a passing step.
-          docker run --rm custom-shell-worker:ci node worker/dist/health.mjs > health.txt 2>&1 && code=0 || code=$?
+          docker run --rm shell-worker:ci node worker/dist/health.mjs > health.txt 2>&1 && code=0 || code=$?
           cat health.txt
           test "$code" = "1"
           grep -q "Worker unhealthy" health.txt

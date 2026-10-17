@@ -329,7 +329,7 @@ The addresses the shell keeps, and why they are the exception:
 
 Closing the seam for good needs a shell option that lets an app wrap the
 signed-out pages in its own frame, which would mean changing
-`apps/custom-shell`. That has not been done.
+`apps/shell`. That has not been done.
 
 ## Pages an admin added
 

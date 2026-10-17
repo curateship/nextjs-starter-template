@@ -19,7 +19,7 @@ with a single dash." Text a member or admin reads in Pomoder's own files uses a
 plain dash: "Public - listed for everyone", "Dashboard - Pomoder", and a lone
 "-" where a table has no value. Code comments are not shown, so they keep
 theirs. Em dashes in the shell's own files (most of them on the admin and
-Settings screens) are a shell change, made in `apps/custom-shell` and merged
+Settings screens) are a shell change, made in `apps/shell` and merged
 in, never edited here.
 
 ## The name and the tab icon

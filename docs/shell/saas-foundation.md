@@ -435,7 +435,7 @@ in `.env.local`, which is git-ignored.
 ## 11. Running it locally
 
 ```bash
-pnpm --filter custom-shell dev --port 3002     # port comes from local-apps.json
+pnpm --filter shell dev --port 3002     # port comes from local-apps.json
 ```
 
 With no `CUSTOM_SHELL_RESEND_API_KEY`, verification and reset links print to the
@@ -462,8 +462,8 @@ plan lookup by Stripe price, webhook replay, and the admin guards including
 last-admin protection.
 
 ```bash
-pnpm --filter custom-shell test
-pnpm --filter custom-shell exec tsc -p tsconfig.app.json --noEmit
+pnpm --filter shell test
+pnpm --filter shell exec tsc -p tsconfig.app.json --noEmit
 ```
 
 **Browser.** Drive the real app with Playwright: sign-up, the verification link

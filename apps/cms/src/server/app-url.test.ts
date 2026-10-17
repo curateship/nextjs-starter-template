@@ -2,15 +2,23 @@ import { describe, expect, it } from "vitest"
 
 import { appUrl, getAppLinkStatus } from "@/server/app-url"
 
+import localAppPorts from "../../../../local-apps.json"
+import appPackage from "../../package.json"
+
+// This app's own local address, found the same way app-url.ts finds it.
+const localAddress = `http://localhost:${
+  (localAppPorts as Record<string, number | undefined>)[appPackage.name]
+}`
+
 describe("the address used in emailed links", () => {
   it("keeps the localhost fallback in development", () => {
     const status = getAppLinkStatus({})
 
-    expect(status.address).toBe("http://localhost:3002")
+    expect(status.address).toBe(localAddress)
     expect(status.configured).toBe(false)
     expect(status.production).toBe(false)
     expect(status.usableForLinks).toBe(false)
-    expect(appUrl({})).toBe("http://localhost:3002")
+    expect(appUrl({})).toBe(localAddress)
   })
 
   it.each([
@@ -58,7 +66,7 @@ describe("the address used in emailed links", () => {
     expect(
       getAppLinkStatus({ CUSTOM_SHELL_API_ENV: "production" })
     ).toMatchObject({
-      address: "http://localhost:3002",
+      address: localAddress,
       production: true,
       usableForLinks: false,
     })
