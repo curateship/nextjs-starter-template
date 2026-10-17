@@ -21,6 +21,18 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
+
+// The header asks the window how wide it is through `use-mobile.ts`. jsdom has
+// no `matchMedia`, and the hook's server answer, a desktop, is the layout
+// these tests are about.
+window.matchMedia = ((query: string) =>
+  ({
+    matches: false,
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }) as unknown as MediaQueryList) as typeof window.matchMedia
+
 import PinnedMarketsHeader from "@/components/trade/pinned-markets-header"
 import { PinnedMarketButton } from "@/components/trade/pinned-market-button"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -189,14 +201,12 @@ describe("header market pins", () => {
       "ml-auto"
     )
   })
-  it("names five existing pins when a sixth is attempted without saving", async () => {
+  it("saves a sixth pin instead of refusing it", async () => {
     pins = ["BTC", "ETH", "SOL", "DOGE", "AVAX"].map(key)
     await mount("XRP")
     await click("Pin to header")
-    expect(api.save).not.toHaveBeenCalled()
-    expect(showErrorToast).toHaveBeenCalledWith(
-      expect.stringContaining("BTC, ETH, SOL, DOGE, AVAX")
-    )
+    expect(api.save).toHaveBeenCalled()
+    expect(showErrorToast).not.toHaveBeenCalled()
   })
   it("replaces a failed figure with a dash and stops polling while hidden", async () => {
     pins = [key("BTC")]

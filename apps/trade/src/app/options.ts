@@ -85,6 +85,9 @@ export const appOptions: AppOptions = {
         // exchange's name, the search, the bell and the three dots. The
         // figures sit just under the pinned markets in there.
         foldsOnPhone: true,
+        // Tyler, 17 Oct 2026: an option to bring it out of the dropdown into
+        // the row on a phone, set in Settings → Top right menu.
+        phoneChoice: true,
         component: () => import("@/components/trade/active-trades-header"),
       },
       {
@@ -97,6 +100,7 @@ export const appOptions: AppOptions = {
         label: "Goal",
         icon: TargetIcon,
         foldsOnPhone: true,
+        phoneChoice: true,
         component: () => import("@/components/trade/goal-header"),
       },
     ],

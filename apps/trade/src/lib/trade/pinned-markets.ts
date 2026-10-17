@@ -1,10 +1,7 @@
 import {
   marketChartHref,
-  marketSymbol,
   parseMarketKey,
 } from "@/lib/protocols/contracts"
-
-export const MAX_PINNED_MARKETS = 5
 
 /** Discard malformed and unsupported keys while preserving pin order. */
 export function normalizePinnedMarkets(value: unknown): string[] {
@@ -20,7 +17,7 @@ export function normalizePinnedMarkets(value: unknown): string[] {
           marketChartHref(key) !== null
       )
     ),
-  ].slice(0, MAX_PINNED_MARKETS)
+  ]
 }
 
 export function changePinnedMarkets(
@@ -33,11 +30,6 @@ export function changePinnedMarkets(
   if (!normalizePinnedMarkets([key]).length)
     throw new Error("That market cannot be pinned to the header.")
   if (current.includes(key)) return current
-  if (current.length === MAX_PINNED_MARKETS) {
-    throw new Error(
-      `You already pinned ${current.map(marketSymbol).join(", ")}. Unpin one before adding another market.`
-    )
-  }
   return [...current, key]
 }
 

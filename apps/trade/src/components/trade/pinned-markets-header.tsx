@@ -72,7 +72,7 @@ export default function PinnedMarketsHeader({
     `ml-auto` is what carries the chips across to the right, against the
     equity figure and the bell. The links then start at the same place on
     every screen and the chips end at the same place, so neither moves when
-    the other changes length — pinning a sixth market, or a section with more
+    the other changes length — pinning another market, or a section with more
     links, no longer slides everything else along the row.
 
     `mr-2` is the gap the header keeps between its own controls. Nothing sets

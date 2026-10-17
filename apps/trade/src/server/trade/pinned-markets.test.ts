@@ -26,23 +26,20 @@ afterEach(async () => {
 const key = (symbol: string) => `hyperliquid:mainnet:${symbol}`
 
 describe("account header pins", () => {
-  it("persists ordered pins, enforces the cap and keeps other accounts separate", async () => {
+  it("persists ordered pins with no limit and keeps other accounts separate", async () => {
     const user = await insertUser(database)
     const other = await insertUser(database)
     expect(await loadPinnedMarkets(user.id, database)).toEqual([])
-    for (const symbol of ["BTC", "ETH", "SOL", "DOGE", "AVAX"]) {
+    for (const symbol of ["BTC", "ETH", "SOL", "DOGE", "AVAX", "XRP"]) {
       expect(
         (await savePinnedMarket(user.id, key(symbol), true, database)).error
       ).toBeNull()
     }
-    const refused = await savePinnedMarket(user.id, key("XRP"), true, database)
-    expect(refused.error).toContain("BTC, ETH, SOL, DOGE, AVAX")
     expect(await loadPinnedMarkets(user.id, database)).toEqual(
-      ["BTC", "ETH", "SOL", "DOGE", "AVAX"].map(key)
+      ["BTC", "ETH", "SOL", "DOGE", "AVAX", "XRP"].map(key)
     )
     expect(await loadPinnedMarkets(other.id, database)).toEqual([])
     await savePinnedMarket(user.id, key("ETH"), false, database)
-    await savePinnedMarket(user.id, key("XRP"), true, database)
     expect(await loadPinnedMarkets(user.id, database)).toEqual(
       ["BTC", "SOL", "DOGE", "AVAX", "XRP"].map(key)
     )

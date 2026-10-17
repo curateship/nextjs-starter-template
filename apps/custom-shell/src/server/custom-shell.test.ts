@@ -5071,6 +5071,21 @@ describe("top right menu", () => {
     })
   })
 
+  it("keeps a saved phone place for an app control and drops anything else", () => {
+    expect(
+      normalizeTopRightNavigation(
+        [
+          { type: "app", id: "goal", visible: true, foldsOnPhone: false },
+          { type: "app", id: "trades", visible: true, foldsOnPhone: "yes" },
+        ],
+        ["goal", "trades"]
+      ).slice(0, 2)
+    ).toEqual([
+      { type: "app", id: "goal", visible: true, foldsOnPhone: false },
+      { type: "app", id: "trades", visible: true },
+    ])
+  })
+
   it("gives a member the admin-built menu and an admin their own", async () => {
     const { adminId, memberId } = await seedPeople()
     const testDb = database as unknown as CustomShellDb

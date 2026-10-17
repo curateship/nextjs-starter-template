@@ -23,22 +23,18 @@ describe("pinned markets", () => {
       ])
     ).toEqual([key("BTC"), key("ETH")])
   })
-  it("keeps the first five in their original order", () => {
-    expect(
-      normalizePinnedMarkets(
-        ["BTC", "ETH", "SOL", "DOGE", "AVAX", "XRP"].map(key)
-      )
-    ).toEqual(["BTC", "ETH", "SOL", "DOGE", "AVAX"].map(key))
+  it("keeps every pin in its original order, with no limit", () => {
+    const symbols = ["BTC", "ETH", "SOL", "DOGE", "AVAX", "XRP", "LINK"]
+    expect(normalizePinnedMarkets(symbols.map(key))).toEqual(symbols.map(key))
   })
-  it("refuses a sixth pin by naming all five and permits removal and replacement", () => {
+  it("adds a sixth pin at the end and permits removal", () => {
     const pins = ["BTC", "ETH", "SOL", "DOGE", "AVAX"].map(key)
-    expect(() => changePinnedMarkets(pins, key("XRP"), true)).toThrow(
-      "You already pinned BTC, ETH, SOL, DOGE, AVAX."
+    expect(changePinnedMarkets(pins, key("XRP"), true)).toEqual(
+      ["BTC", "ETH", "SOL", "DOGE", "AVAX", "XRP"].map(key)
     )
     expect(changePinnedMarkets(pins, key("BTC"), true)).toEqual(pins)
-    const removed = changePinnedMarkets(pins, key("ETH"), false)
-    expect(changePinnedMarkets(removed, key("XRP"), true)).toEqual(
-      ["BTC", "SOL", "DOGE", "AVAX", "XRP"].map(key)
+    expect(changePinnedMarkets(pins, key("ETH"), false)).toEqual(
+      ["BTC", "SOL", "DOGE", "AVAX"].map(key)
     )
     expect(pins).toHaveLength(5)
   })

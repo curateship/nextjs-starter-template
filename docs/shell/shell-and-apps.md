@@ -199,6 +199,13 @@ the guess that one might:
   room for about four controls, so an app marks the ones it can live without at
   a glance and leaves the ones somebody opens the page to read in the row. The
   fold happens below 768px, the same width the sidebar collapses at.
+  **A control with `phoneChoice: true` lets the person pick.** Its chip in
+  Settings → Top right menu gets a phone button reading "Dropdown" or "Menu
+  bar", and a press moves it to the other one. The choice saves with the rest
+  of that row, as `foldsOnPhone` on the saved item, and wins over the app's
+  own `foldsOnPhone`. Unset follows the app, and Reset puts it back. The
+  admin's own menu and the members' menu each keep their own choice. Trade
+  offers it on Goal and Active trades.
   **Once anything folds, the settings cog folds in with it.** The cog is not
   drawn in the row, and its rows sit at the bottom of the dropdown with colour
   mode last. An app that folds nothing keeps its cog, and a cog switched off in
