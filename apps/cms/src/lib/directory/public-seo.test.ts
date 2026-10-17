@@ -52,7 +52,7 @@ describe("titles and descriptions", () => {
     expect(head.links).toContainEqual({
       rel: "alternate",
       type: "application/rss+xml",
-      title: "New listings, posts and events",
+      title: "New listings, posts, events and guides",
       href: "/feed.xml",
     })
   })
@@ -165,6 +165,54 @@ describe("the block a search engine reads", () => {
 
     expect(graph[1]).not.toHaveProperty("description")
     expect(graph[1]).not.toHaveProperty("image")
+  })
+
+  it("writes a day open all day as 00:00 to 23:59, never as closed", () => {
+    const graph = listingJsonLd({
+      ...listing,
+      hours: { monday: { open: "00:00", close: "00:00" } },
+      latitude: 43.6532,
+      longitude: -79.3832,
+    })["@graph"] as Record<string, unknown>[]
+
+    expect(graph[1]?.openingHoursSpecification).toEqual([
+      {
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: "https://schema.org/Monday",
+        opens: "00:00",
+        closes: "23:59",
+      },
+    ])
+  })
+
+  it("says a closed listing is closed on every day, and drops its own hours", () => {
+    for (const pinned of [true, false]) {
+      const graph = listingJsonLd({
+        ...listing,
+        hours: { monday: { open: "09:00", close: "17:00" } },
+        latitude: pinned ? 43.6532 : null,
+        longitude: pinned ? -79.3832 : null,
+        closed: true,
+      })["@graph"] as Record<string, unknown>[]
+
+      expect(graph[1]?.["@type"]).toBe("LocalBusiness")
+      expect(graph[1]?.openingHoursSpecification).toEqual([
+        {
+          "@type": "OpeningHoursSpecification",
+          dayOfWeek: [
+            "https://schema.org/Monday",
+            "https://schema.org/Tuesday",
+            "https://schema.org/Wednesday",
+            "https://schema.org/Thursday",
+            "https://schema.org/Friday",
+            "https://schema.org/Saturday",
+            "https://schema.org/Sunday",
+          ],
+          opens: "00:00",
+          closes: "00:00",
+        },
+      ])
+    }
   })
 
   it("upgrades a pinned listing to LocalBusiness with hours and photos", () => {

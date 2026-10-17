@@ -558,6 +558,11 @@ async function pointerToListing(
     )
     .limit(1)
   if (!listing) throw new Error("That listing no longer exists.")
+  if (listing.status === "closed") {
+    throw new Error(
+      `${listing.title} is closed for good, so it cannot be claimed. Reject without pointing to it.`
+    )
+  }
   if (listing.status !== "published") {
     throw new Error(
       `${listing.title} is a draft, so there is no page to send the sender to. Publish it first, or reject without pointing to it.`

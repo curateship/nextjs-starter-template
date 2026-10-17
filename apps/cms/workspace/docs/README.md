@@ -29,9 +29,13 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - `directory-page-layout.md` — how the browse page, a category page and a
   listing are laid out, which card in Settings → Directory holds each page's
   settings, the search band and the Filters panel above the listings,
-  the site's own fields as filters, what ticking two boxes means, what a
+  the site's own fields as filters, the Open now chip and the clock it reads, what ticking two boxes means, what a
   day with two services stores, where neighbourhood labels come from, and how the "Also nearby" row
   at the foot of a listing page is filled.
+- `guides.md` — the guides an editor writes in Admin → Listings → Guides: the
+  window and its drag-to-order list, what happens to a listing that is
+  deleted or unpublished, the Guides page and a guide's own page, and where
+  guides appear in the sitemap, the feed, search and a shared link.
 - `import-eatdrinktoronto.md` — the one-off command that copies one old
   Directory site into one CMS site, and the second command that loads the
   fields it left behind.
@@ -72,10 +76,16 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   reporting a problem on an event, free sign-ups with a seat limit, the
   waiting list that offers a freed seat to the front of the queue by email,
   and the view counts on Admin → Events and on an owner's own events.
+- `closed-listings.md` — marking a listing permanently closed: what its page
+  keeps and hides, the lists it leaves, why it stays in the sitemap, and how
+  closing ends a featured spot with no refund.
 - `changing-many-records.md` — the Change button beside Delete on Listings,
   Events, Posts and Promotions: which of the four actions each screen offers and
   why, what "add" and "replace" do to a record's categories, how a part-done
   batch is counted and reported, and why featuring a listing is not among them.
+- `old-addresses.md` — why a renamed listing, event, post, deal or guide still opens
+  at its old address: the permanent forward, one hop, reuse, and what deleting
+  does to it.
 - `the-root-address.md` — what `/` is on a site's address and on the
   deployment's own, and why "no page" never means "send them to sign in".
 - `record-windows.md` — what the listing, event, post and deal windows share:

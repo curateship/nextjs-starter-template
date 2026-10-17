@@ -288,7 +288,11 @@ function DuplicateWarning({
                   {match.title}
                 </Link>
                 , already listed
-                {match.status === "published" ? "." : " as a draft."}
+                {match.status === "published"
+                  ? "."
+                  : match.status === "closed"
+                    ? " and marked permanently closed."
+                    : " as a draft."}
               </p>
               <p className="text-xs text-muted-foreground">
                 {describeDuplicateMatch(match.matched)}

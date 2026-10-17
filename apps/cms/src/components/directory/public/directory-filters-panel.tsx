@@ -48,6 +48,12 @@ export type DirectoryFiltersPanelProps = {
   /** The ticked field filter tokens, from the address. */
   selectedFields: string[]
   onToggleField: (token: string) => void
+  /**
+   * The "Open now" chip, on the browse page only. Left out, the panel draws no
+   * Hours block, which is how a category page keeps the panel it had.
+   */
+  openNow?: boolean
+  onOpenNowChange?: (on: boolean) => void
   /** Empties every filter in the panel, and nothing outside it. */
   onClearFilters: () => void
 }
@@ -107,11 +113,16 @@ export function DirectoryFiltersPanel({
   fieldFilters,
   selectedFields,
   onToggleField,
+  openNow,
+  onOpenNowChange,
   onClearFilters,
 }: DirectoryFiltersPanelProps) {
   const [open, setOpen] = React.useState(false)
   const active =
-    selected.length + selectedFields.length + (minRating === undefined ? 0 : 1)
+    selected.length +
+    selectedFields.length +
+    (minRating === undefined ? 0 : 1) +
+    (openNow ? 1 : 0)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -152,6 +163,32 @@ export function DirectoryFiltersPanel({
                 onToggle={onToggleCategory}
               />
             ))}
+
+            {onOpenNowChange ? (
+              <section className="flex flex-col gap-2.5" aria-label="Hours">
+                <h3 className="text-sm font-semibold">Hours</h3>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <button
+                    type="button"
+                    aria-pressed={Boolean(openNow)}
+                    aria-describedby="directory-filter-open-now-note"
+                    onClick={() => onOpenNowChange(!openNow)}
+                    className={filterChipClass(Boolean(openNow))}
+                  >
+                    Open now
+                  </button>
+                  {/* Said beside the chip, because "open now" could just as
+                      well mean "not known to be closed". Tyler chose on 17 Oct
+                      2026 to leave out places with no hours listed. */}
+                  <p
+                    id="directory-filter-open-now-note"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Leaves out places with no hours listed.
+                  </p>
+                </div>
+              </section>
+            ) : null}
 
             <section className="flex flex-col gap-2.5">
               <h3 id="directory-filter-rating" className="text-sm font-semibold">

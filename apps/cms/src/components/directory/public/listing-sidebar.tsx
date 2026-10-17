@@ -37,6 +37,12 @@ import type {
  * The rating is the chip over the photo, where a listing card in the directory
  * puts it. A card with no photo has nowhere to hang it and shows the stars on
  * its top line instead — one copy either way.
+ *
+ * A closed listing's card keeps its photo, address, website and profiles, and
+ * drops everything that would send somebody to a locked door or act on a page
+ * that is in no list: the phone, directions, Save, claiming and messaging the
+ * owner. "Report a problem" stays, because "it has reopened" is a problem
+ * somebody should be able to report.
  */
 export function ListingSidebar({
   listing,
@@ -44,6 +50,7 @@ export function ListingSidebar({
   claim,
   ownerMessage,
   startClaimOpen,
+  closed,
 }: {
   listing: {
     id: string
@@ -63,8 +70,17 @@ export function ListingSidebar({
   claim: PublicClaimState
   ownerMessage: PublicListingPage["ownerMessage"]
   startClaimOpen: boolean
+  closed: boolean
 }) {
-  const hasDirectionsLink = listing.contactLinks.menuLinks.some(
+  const links: ContactLinks = closed
+    ? {
+        ...listing.contactLinks,
+        menuLinks: listing.contactLinks.menuLinks.filter(
+          (link) => link.type !== "phone" && link.type !== "directions"
+        ),
+      }
+    : listing.contactLinks
+  const hasDirectionsLink = links.menuLinks.some(
     (link) => link.type === "directions" && link.value.trim()
   )
 
@@ -96,13 +112,15 @@ export function ListingSidebar({
               className="absolute top-3 left-3"
             />
           )}
-          <SaveDropdown
-            listingId={listing.id}
-            overlay
-            className="absolute top-3 right-3"
-          />
+          {closed ? null : (
+            <SaveDropdown
+              listingId={listing.id}
+              overlay
+              className="absolute top-3 right-3"
+            />
+          )}
           <ListingSocialLinks
-            links={listing.contactLinks}
+            links={links}
             className="absolute right-3 bottom-3 flex flex-wrap items-center justify-end gap-2"
           />
         </div>
@@ -115,21 +133,23 @@ export function ListingSidebar({
         <CardContent className="flex flex-wrap items-center gap-2">
           <ListingRating rating={listing.rating} />
           <ListingSocialLinks
-            links={listing.contactLinks}
+            links={links}
             className="flex flex-wrap items-center gap-2"
           />
           {/* `ml-auto` rather than the row's own spacing: a listing with no
               social links leaves the button alone on the line, and it belongs
               at the end of it either way. */}
-          <SaveDropdown listingId={listing.id} className="ml-auto" />
+          {closed ? null : (
+            <SaveDropdown listingId={listing.id} className="ml-auto" />
+          )}
         </CardContent>
       )}
 
       {/* Full-bleed rows: each one highlights across the whole card when the
           pointer is over it, so the padding lives on the row and not here. */}
       <div className="grid">
-        <ListingContactLinks links={listing.contactLinks} />
-        {coordinates && !hasDirectionsLink ? (
+        <ListingContactLinks links={links} />
+        {coordinates && !closed && !hasDirectionsLink ? (
           <a
             href={googleMapsDirectionsUrl(coordinates)}
             target="_blank"
@@ -140,21 +160,23 @@ export function ListingSidebar({
             Get directions
           </a>
         ) : null}
-        {ownerMessage.open ? (
+        {ownerMessage.open && !closed ? (
           <MessageOwnerButton
             listingId={listing.id}
             title={listing.title}
             humanCheckSiteKey={ownerMessage.humanCheckSiteKey}
           />
         ) : null}
-        <ClaimButton
-          asRow
-          listingId={listing.id}
-          listingSlug={listing.slug}
-          listingTitle={listing.title}
-          claim={claim}
-          startOpen={startClaimOpen}
-        />
+        {closed ? null : (
+          <ClaimButton
+            asRow
+            listingId={listing.id}
+            listingSlug={listing.slug}
+            listingTitle={listing.title}
+            claim={claim}
+            startOpen={startClaimOpen}
+          />
+        )}
         {/* Last line of the card. Somebody who has just read the hours and
             knows they are wrong is looking here, not at the foot of the
             page. */}

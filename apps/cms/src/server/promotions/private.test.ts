@@ -128,6 +128,17 @@ const everyPublicRead: Record<
     }
     return found
   },
+  // The forward from an old address asks this, so it must refuse exactly the
+  // deals the deal's own page refuses.
+  dealPageExists: async () => {
+    const found: string[] = []
+    for (const slug of [listed, ...hidden]) {
+      if (await publicReads.dealPageExists(site.id, slug, database)) {
+        found.push(slug)
+      }
+    }
+    return found
+  },
   readListingDeals: async () =>
     (
       await Promise.all(

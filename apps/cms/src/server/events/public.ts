@@ -14,6 +14,10 @@ import {
   type SQL,
 } from "drizzle-orm"
 
+import {
+  LISTING_PAGE_STATUSES,
+  readListingStatus,
+} from "@/lib/directory/listing-status"
 import { listingShareImageVersion } from "@/lib/directory/listing-share-image"
 import {
   DIRECTORY_SUGGESTION_EVENT_LIMIT,
@@ -291,6 +295,24 @@ function publishedEventsOnSite(siteId: string) {
 }
 
 /**
+ * Whether an event's page opens at this address, through the same filter the
+ * page itself uses. Asked when an old address is followed, so a forward never
+ * lands on a draft.
+ */
+export async function eventPageExists(
+  siteId: string,
+  slug: string,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  const [row] = await database
+    .select({ id: siteEvents.id })
+    .from(siteEvents)
+    .where(and(publishedEventsOnSite(siteId), eq(siteEvents.slug, slug)))
+    .limit(1)
+  return Boolean(row)
+}
+
+/**
  * Published, on this site, and not private: what a visitor may find without
  * the link. Every list of events goes through this one filter.
  */
@@ -405,8 +427,10 @@ async function readPublicEventUncached(
       categories: categoryRows,
       isPrivate: event.visibility === "private",
       // A draft listing, or a directory kept from visitors, is never linked.
+      // A closed one is: its page says it has closed.
       placeListingSlug:
-        found.listingStatus === "published" &&
+        found.listingStatus !== null &&
+        LISTING_PAGE_STATUSES.includes(readListingStatus(found.listingStatus)) &&
         directoryVisibility === "everyone"
           ? found.listingSlug
           : null,

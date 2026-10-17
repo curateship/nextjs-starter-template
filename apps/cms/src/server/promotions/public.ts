@@ -145,6 +145,25 @@ function listedDealsOnSite(siteId: string) {
   )
 }
 
+/**
+ * Whether a deal's page opens at this address, through the one filter every
+ * public read uses. Asked when an old address is followed, so a forward never
+ * lands on a draft or on a deal at a draft listing.
+ */
+export async function dealPageExists(
+  siteId: string,
+  slug: string,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  const [row] = await database
+    .select({ id: sitePromotions.id })
+    .from(sitePromotions)
+    .innerJoin(directoryListings, listingOfPromotion)
+    .where(and(listedDealsOnSite(siteId), eq(sitePromotions.slug, slug)))
+    .limit(1)
+  return Boolean(row)
+}
+
 const dealCardColumns = {
   id: sitePromotions.id,
   title: sitePromotions.title,

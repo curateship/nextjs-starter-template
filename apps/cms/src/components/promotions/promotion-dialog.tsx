@@ -371,7 +371,7 @@ export function PromotionDialog({
                       <div className="grid gap-2 sm:flex-1">
                         <FieldLabel
                           htmlFor="promotion-slug"
-                          hint="The part after /deals/ in the deal's address. Changing it changes the address, and old links stop working."
+                          hint="The part after /deals/ in the deal's address. Changing it changes the address. Old links forward to the new one."
                         >
                           Address part
                         </FieldLabel>
@@ -423,6 +423,11 @@ export function PromotionDialog({
                         <p className="text-sm text-muted-foreground" role="status">
                           This listing is a draft, so the deal stays off the
                           Deals page until the listing is published.
+                        </p>
+                      ) : picked?.status === "closed" ? (
+                        <p className="text-sm text-muted-foreground" role="status">
+                          This listing is closed for good, so the deal stays
+                          off the Deals page.
                         </p>
                       ) : null}
                     </div>

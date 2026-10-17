@@ -21,6 +21,7 @@ import {
   cleanListingCoordinates,
   cleanListingGallery,
   cleanListingHours,
+  wallClockWeekdays,
   type ListingHours,
 } from "@/lib/directory/listing-details"
 import {
@@ -82,6 +83,7 @@ import {
   directorySettingsFor,
 } from "@/server/directory/settings"
 import { DIRECTORY_MAP_LISTING_LIMIT } from "@/lib/directory/listing-map"
+import { LISTING_PAGE_STATUSES } from "@/lib/directory/listing-status"
 import {
   MAX_DIRECTORY_CATEGORY_CARDS,
   type DirectoryCategoryCard,
@@ -287,6 +289,11 @@ export type PublicListing = {
   updatedAt: Date
   createdAt: Date
   featured: boolean
+  /**
+   * The place has shut for good. The page stays up and says so, without its
+   * hours or a way to call or get there. No list ever holds a closed listing.
+   */
+  closed: boolean
 }
 
 /** One page of the browse list, plus the filters the toolbar draws. */
@@ -433,11 +440,22 @@ export type PublicCategoryPage = {
   posts: PublicPostCard[]
 }
 
-/** Published, on this site. The whole of what a visitor may see. */
+/**
+ * Published, on this site. The whole of what a visitor may see in a list. A
+ * closed listing is not here: it keeps its page and leaves every list.
+ */
 function publishedOnSite(siteId: string) {
   return and(
     eq(directoryListings.workspaceId, siteId),
     eq(directoryListings.status, "published")
+  )
+}
+
+/** A listing whose own page opens: published, or closed and saying so. */
+function hasPageOnSite(siteId: string) {
+  return and(
+    eq(directoryListings.workspaceId, siteId),
+    inArray(directoryListings.status, [...LISTING_PAGE_STATUSES])
   )
 }
 
@@ -888,6 +906,11 @@ type BrowseQuery = {
   minRating?: number
   /** The site's own fields, ticked. Each one narrows; see `field-filters.ts`. */
   fieldConditions?: FieldFilterCondition[]
+  /**
+   * Only places open at this moment, as the site's wall clock reads it:
+   * "2026-10-20T21:30". Absent is no filter.
+   */
+  openAt?: string
   sort: DirectorySort
   featuredFirst: boolean
   /**
@@ -944,6 +967,8 @@ function browseQuery(
     filters.push(fieldFilterWhere(condition))
   }
 
+  if (options.openAt) filters.push(openAtWhere(options.openAt))
+
   const where = and(...filters)
   const distanceKm = options.near
     ? distanceKmFrom(
@@ -976,6 +1001,50 @@ function browseQuery(
         : ordinaryOrder
 
   return { where: nearWhere, ordered, distanceKm }
+}
+
+/** A time as the hours store it, "09:30". Anything else is not a time. */
+const STORED_TIME = "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+
+/**
+ * Open at this wall-clock moment, worked out in the query from the `hours`
+ * column, so the count and the pages match what the grid shows.
+ *
+ * The same two questions `listingHoursStatus` asks on a listing's page:
+ *
+ * - **Yesterday's stretch ran past midnight** and has not closed yet. A bar
+ *   open 20:00 to 02:00 on Monday is open at 01:30 on Tuesday.
+ * - **Today's stretch holds this time.** A stretch that closes earlier than it
+ *   opens runs past midnight, so tonight it holds everything after it opens.
+ *   One that opens and closes at the same time is open all day.
+ *
+ * A day with no hours, or times that are not times, answers no rather than
+ * maybe, so a listing with no hours set is left out. The chip says so.
+ * "HH:MM" text compares in the same order as the times it holds, with the
+ * plain "C" ordering so no language rule can reorder digits and colons.
+ */
+function openAtWhere(wallClock: string): SQL {
+  const { today, yesterday, time } = wallClockWeekdays(wallClock)
+  const at = sql`${time}::text COLLATE "C"`
+  const opens = (day: string) =>
+    sql`(${directoryListings.hours} -> ${day}::text ->> 'open') COLLATE "C"`
+  const closes = (day: string) =>
+    sql`(${directoryListings.hours} -> ${day}::text ->> 'close') COLLATE "C"`
+  const hasTimes = (day: string) =>
+    sql`(${opens(day)} ~ ${STORED_TIME} AND ${closes(day)} ~ ${STORED_TIME})`
+
+  return sql`(
+    (${hasTimes(yesterday)}
+      AND ${opens(yesterday)} >= ${closes(yesterday)}
+      AND ${at} < ${closes(yesterday)})
+    OR
+    (${hasTimes(today)}
+      AND CASE
+        WHEN ${opens(today)} < ${closes(today)}
+          THEN ${at} >= ${opens(today)} AND ${at} < ${closes(today)}
+        ELSE ${at} >= ${opens(today)} OR ${at} < ${closes(today)}
+      END)
+  ) IS TRUE`
 }
 
 /**
@@ -1162,6 +1231,8 @@ async function readPublicBrowseUncached(
     minRating?: number
     /** The ticked field filter tokens, from `readDirectoryFieldFilters`. */
     fields?: string[]
+    /** Only places open at this wall-clock moment. */
+    openAt?: string
     sort?: DirectorySort
     page: number
     near?: DirectoryNearPoint
@@ -1186,6 +1257,7 @@ async function readPublicBrowseUncached(
     radius: options.radius,
     minRating: options.minRating,
     fieldConditions: fieldFilterConditions(sections, options.fields ?? []),
+    openAt: options.openAt,
     sort: resolvedSort,
     categoryGroups: groupCategorySlugs(allCategories, options.categories ?? []),
     pageSize: settings.pageSize,
@@ -1235,6 +1307,7 @@ export function readPublicBrowse(
     categories?: string[]
     minRating?: number
     fields?: string[]
+    openAt?: string
     sort?: DirectorySort
     page: number
     near?: DirectoryNearPoint
@@ -1261,6 +1334,9 @@ export function readPublicBrowse(
       categories: [...(resolvedOptions.categories ?? [])].sort().join(","),
       minRating: resolvedOptions.minRating ?? null,
       fields: [...(resolvedOptions.fields ?? [])].sort().join(","),
+      // The minute, so an "Open now" answer is never older than the clock
+      // it was read by.
+      openAt: resolvedOptions.openAt ?? null,
       sort: resolvedOptions.sort ?? "",
       page: resolvedOptions.page,
       near: resolvedOptions.near ?? null,
@@ -1288,6 +1364,7 @@ async function readDirectoryMapUncached(
     categories?: string[]
     minRating?: number
     fields?: string[]
+    openAt?: string
     sort?: DirectorySort
     near?: DirectoryNearPoint
     radius?: number
@@ -1319,6 +1396,7 @@ async function readDirectoryMapUncached(
       categoryGroups: groupCategorySlugs(placements, options.categories ?? []),
       minRating: options.minRating,
       fieldConditions: fieldFilterConditions(sections, options.fields ?? []),
+      openAt: options.openAt,
       sort: options.sort ?? (options.near ? "distance" : settings.defaultSort),
       featuredFirst: settings.featuredFirst,
       near: options.near,
@@ -1380,6 +1458,7 @@ export async function readDirectoryMap(
     categories?: string[]
     minRating?: number
     fields?: string[]
+    openAt?: string
     sort?: DirectorySort
     near?: DirectoryNearPoint
     radius?: number
@@ -1401,6 +1480,7 @@ export async function readDirectoryMap(
       categories: [...(resolvedOptions.categories ?? [])].sort().join(","),
       minRating: resolvedOptions.minRating ?? null,
       fields: [...(resolvedOptions.fields ?? [])].sort().join(","),
+      openAt: resolvedOptions.openAt ?? null,
       sort: resolvedOptions.sort ?? "",
       near: resolvedOptions.near ?? null,
       radius: resolvedOptions.radius ?? null,
@@ -1549,7 +1629,8 @@ async function sameNeighbourhood(
 }
 
 /**
- * One listing by its address, or null.
+ * One listing by its address, or null. A closed listing is found, and says it
+ * is closed.
  *
  * Null covers all three ways this misses — no such address, a draft, another
  * site's listing — on purpose. A visitor is told the same thing in each case,
@@ -1572,10 +1653,11 @@ async function readPublicListingUncached(
   const [row] = await database
     .select()
     .from(directoryListings)
-    .where(and(publishedOnSite(site.id), eq(directoryListings.slug, slug)))
+    .where(and(hasPageOnSite(site.id), eq(directoryListings.slug, slug)))
     .limit(1)
 
   if (!row) return null
+  const closed = row.status === "closed"
   const coordinates = cleanListingCoordinates(row.latitude, row.longitude)
 
   const links = await database
@@ -1615,6 +1697,8 @@ async function readPublicListingUncached(
     ? (links.find((link) => link.parentId === settings.neighbourhoodCategoryId)
         ?.id ?? "")
     : ""
+  // The other places nearby stay on a closed listing's page. Somebody who
+  // came for a bakery that has shut is the one most likely to want another.
   const nearby = await nearbyListings(
     site.id,
     row.id,
@@ -1653,6 +1737,7 @@ async function readPublicListingUncached(
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       featured: featured.has(row.id),
+      closed,
     },
     shareImageVersion: listingShareImageVersion({
       title: row.title,

@@ -30,6 +30,7 @@ import {
   readDirectoryCategories,
   readDirectoryMinRating,
   readDirectoryNearRadius,
+  readDirectoryOpenNow,
   toggleDirectoryCategory,
   type DirectoryBrowseSearch,
   type DirectorySort,
@@ -85,6 +86,7 @@ export const Route = createFileRoute("/directory")({
       radius: readDirectoryNearRadius(search.radius),
       view: readOneOf(search.view, DIRECTORY_VIEWS),
       deals: readOneOf(search.deals, DIRECTORY_DEAL_FILTERS),
+      open: readDirectoryOpenNow(search.open),
     }
   },
   loaderDeps: ({ search }) => search,
@@ -110,6 +112,7 @@ export const Route = createFileRoute("/directory")({
         near: deps.near,
         place: deps.place,
         radius: deps.radius,
+        open: deps.open,
       }),
       deps.view === "map"
         ? loadDirectoryMap({
@@ -121,6 +124,7 @@ export const Route = createFileRoute("/directory")({
             near: deps.near,
             radius: deps.radius,
             deals: deps.deals,
+            open: deps.open,
           })
         : Promise.resolve(null),
     ])
@@ -185,7 +189,8 @@ function DirectoryRoute() {
       ticked.length ||
       tickedFields.length ||
       current.near ||
-      current.minRating
+      current.minRating ||
+      current.open
   )
 
   /*
@@ -207,6 +212,7 @@ function DirectoryRoute() {
   const searchSummary = anythingApplied ? (
     <>
       {counted}
+      {current.open ? <> open now</> : null}
       {current.q ? <> matching “{current.q}”</> : null}
       {tickedNames.length ? <> in {tickedNames.join(", ")}</> : null}
       {current.minRating ? (
@@ -225,6 +231,7 @@ function DirectoryRoute() {
       category: undefined,
       minRating: undefined,
       filter: undefined,
+      open: undefined,
       near: undefined,
       place: undefined,
       radius: undefined,
@@ -256,11 +263,16 @@ function DirectoryRoute() {
           page: undefined,
         })
       }
+      openNow={current.open === "now"}
+      onOpenNowChange={(on) =>
+        setListSearch({ open: on ? "now" : undefined, page: undefined })
+      }
       onClearFilters={() =>
         setListSearch({
           category: undefined,
           minRating: undefined,
           filter: undefined,
+          open: undefined,
           page: undefined,
         })
       }
@@ -418,6 +430,7 @@ function directoryPageHref(search: DirectoryBrowseSearch, page: number) {
   if (search.category) parameters.set("category", search.category)
   if (search.minRating) parameters.set("minRating", String(search.minRating))
   if (search.filter) parameters.set("filter", search.filter)
+  if (search.open) parameters.set("open", search.open)
   if (search.sort) parameters.set("sort", search.sort)
   if (search.near) parameters.set("near", search.near)
   if (search.place) parameters.set("place", search.place)

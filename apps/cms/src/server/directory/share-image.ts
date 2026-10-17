@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm"
+import { and, asc, desc, eq, inArray } from "drizzle-orm"
 
 import {
   listingShareImagePath,
@@ -6,6 +6,7 @@ import {
   renderListingShareImage,
 } from "@/lib/directory/listing-share-image"
 import { slugProblem } from "@/lib/directory/slugs"
+import { LISTING_PAGE_STATUSES } from "@/lib/directory/listing-status"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { db, type CustomShellDb } from "@/server/db"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
@@ -66,7 +67,8 @@ async function drawPublishedListing(
       and(
         eq(directoryListings.workspaceId, site.id),
         eq(directoryListings.slug, slug),
-        eq(directoryListings.status, "published")
+        // A closed listing's page still names this picture in its preview.
+        inArray(directoryListings.status, [...LISTING_PAGE_STATUSES])
       )
     )
     .limit(1)

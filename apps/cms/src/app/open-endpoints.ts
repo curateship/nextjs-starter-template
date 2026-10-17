@@ -45,6 +45,12 @@ export const appOpenEndpoints: Record<string, string> = {
     "The search box on the public directory offers a few matches as a visitor types, so it has to answer without an account. It reads published listings and non-empty categories on the visited site only, returns names and addresses that are already on the public pages, and is rate limited per address.",
   "directory/public.ts:readRecentlyViewedFn":
     "The Recently viewed row on the public directory asks for fresh cards for up to eight listing ids the visitor's own browser remembers. It answers with published listings on the visited site only, in the shape the browse page already shows, and nothing at all while the directory is switched off or kept for members and the reader is signed out.",
+  "directory/old-addresses.ts:findCurrentAddressFn":
+    "An address a listing, event, post, deal or guide used to have has to keep working for anyone holding the old link, signed in or not. It answers for the visited site only, follows the kind's own page switch (nothing while the page is off, or kept for members and the reader is signed out), and returns an address only when a record with a public page sits there now.",
+  "directory/public.ts:readGuideFn":
+    "A guide's own page is public. It answers with a published guide on the visited site only, so a draft is missing rather than hidden, and returns nothing while the Guides page is switched off, or kept for members and the reader is signed out. The listings in it are the published cards the browse page already shows.",
+  "directory/public.ts:readGuidesFn":
+    "The Guides page is a public page, so its list of published guides has to be readable without an account. It answers for the visited site only, and returns nothing while the Guides page is switched off, or kept for members and the reader is signed out.",
   "directory/public.ts:geocodeDirectoryPlaceFn":
     "A visitor may type a town when browser location is unavailable; this lookup is rate limited, cached, and returns no private site data.",
   "posts/public.ts:readPostsFn":

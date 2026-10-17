@@ -54,6 +54,11 @@ import {
   requireFreeSlug as requireFreeSlugRule,
 } from "@/server/directory/slug-rules"
 import {
+  forgetAddressesOf,
+  releaseAddress,
+  saveKeepingOldAddress,
+} from "@/server/directory/old-addresses"
+import {
   siteEvents,
   EVENT_CONTENT_TYPE,
   type EventRow,
@@ -662,6 +667,7 @@ export async function createEvent(
     .returning()
 
   if (!row) throw new Error("The event was not created.")
+  await releaseAddress(database, workspaceId, "event", [row.slug])
   return toEvent(row)
 }
 
@@ -746,11 +752,34 @@ export async function updateEvent(
     }
   }
 
-  const [row] = await database
-    .update(siteEvents)
-    .set(values)
-    .where(and(eq(siteEvents.id, id), eq(siteEvents.workspaceId, workspaceId)))
-    .returning()
+  const thisEvent = and(
+    eq(siteEvents.id, id),
+    eq(siteEvents.workspaceId, workspaceId)
+  )
+  // A new address leaves the old one forwarding to it, in the same save.
+  const row = await saveKeepingOldAddress(
+    database,
+    {
+      siteId: workspaceId,
+      kind: "event",
+      changesAddress: values.slug !== undefined,
+    },
+    async (tx) => {
+      const [before] = await tx
+        .select({ slug: siteEvents.slug })
+        .from(siteEvents)
+        .where(thisEvent)
+      return before?.slug ?? null
+    },
+    async (tx) => {
+      const [updated] = await tx
+        .update(siteEvents)
+        .set(values)
+        .where(thisEvent)
+        .returning()
+      return updated
+    }
+  )
 
   if (!row) throw new Error("That event no longer exists.")
   const event = toEvent(row)
@@ -860,6 +889,7 @@ export async function duplicateEvent(
       })
       .returning()
     if (!created) throw new Error("The event was not copied.")
+    await releaseAddress(tx, workspaceId, "event", [created.slug])
 
     if (categoryIds.length) {
       await tx.insert(categoryRelationships).values(
@@ -894,7 +924,7 @@ export async function deleteEvents(
 
   const done = await database.transaction(async (tx) => {
     const dates = await tx
-      .select({ id: siteEvents.id })
+      .select({ id: siteEvents.id, slug: siteEvents.slug })
       .from(siteEvents)
       .where(
         and(
@@ -918,9 +948,16 @@ export async function deleteEvents(
           inArray(siteEvents.id, ids)
         )
       )
-      .returning({ id: siteEvents.id })
+      .returning({ id: siteEvents.id, slug: siteEvents.slug })
     const removed = deleted.map((row) => row.id)
     await deleteCategoryRowsFor(workspaceId, EVENT_CONTENT_TYPE, removed, tx)
+    // A deleted event's old addresses, and its dates', stop forwarding.
+    await forgetAddressesOf(
+      tx,
+      workspaceId,
+      "event",
+      [...deleted, ...dates].map((row) => row.slug)
+    )
     return removed
   })
 

@@ -3,11 +3,13 @@ import { z } from "zod"
 
 import {
   LISTING_SORT_COLUMNS,
-  LISTING_STATUS_FILTERS,
   type ListingSortColumn,
-  type ListingStatusFilter,
   type ListingViewRange,
 } from "@/lib/directory/listing-sort"
+import {
+  DIRECTORY_LISTING_STATUSES,
+  type ListingStatus,
+} from "@/lib/directory/listing-status"
 import {
   bulkIdsInput,
   categoryChangeInput,
@@ -23,6 +25,7 @@ import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 import { claimImpactForListings } from "@/server/directory/claims"
 import {
   featuredImpactForListings,
+  featuredSpotEndsAt,
   pendingFeaturedImpactForListings,
   prepareFeaturedListingsForDeletion,
 } from "@/server/directory/featured"
@@ -38,9 +41,9 @@ import {
   listingDeleteImpact,
   listListings,
   MAX_LISTING_TITLE,
+  saveListingAsAdmin,
   setListingCategories,
   setListingsStatus,
-  updateListing,
   type DirectoryListing,
   type ListingSummary,
 } from "@/server/directory/listings"
@@ -87,7 +90,7 @@ const loadListingsPageFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({
       search: z.string().max(120).optional(),
-      status: z.enum(LISTING_STATUS_FILTERS).optional(),
+      status: z.enum(DIRECTORY_LISTING_STATUSES).optional(),
       sort: z.enum(LISTING_SORT_COLUMNS).optional(),
       direction: z.enum(["asc", "desc"]).optional(),
       days: z
@@ -120,7 +123,7 @@ const loadListingsPageFn = createServerFn({ method: "GET" })
 
 export function loadListingsPage(input: {
   search?: string
-  status?: ListingStatusFilter
+  status?: ListingStatus
   sort?: ListingSortColumn
   direction?: "asc" | "desc"
   days?: ListingViewRange
@@ -162,6 +165,25 @@ export function loadListingForEdit(id: string) {
   return loadListingForEditFn({ data: { id } })
 }
 
+const loadFeaturedSpotEndFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ id: z.string().min(1).max(36) }))
+  .handler(async ({ data, context }): Promise<Date | null> => {
+    return featuredSpotEndsAt(
+      await workspaceIdForRequest(context.user.id),
+      data.id
+    )
+  })
+
+/**
+ * When this listing's paid spot runs out, or null when it holds none. Asked
+ * the moment Closed is picked rather than when the window opens: the window
+ * can open on a copy fetched minutes earlier, before a spot was bought.
+ */
+export function loadFeaturedSpotEnd(id: string) {
+  return loadFeaturedSpotEndFn({ data: { id } })
+}
+
 const createListingFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(
@@ -193,7 +215,7 @@ const updateListingFn = createServerFn({ method: "POST" })
           message: LISTING_RATING_ERROR,
         })
         .optional(),
-      status: z.enum(["draft", "published"]).optional(),
+      status: z.enum(DIRECTORY_LISTING_STATUSES).optional(),
       displayOrder: z.number().int().min(-1_000_000).max(1_000_000).optional(),
       featuredImage: z.string().max(600).optional(),
       gallery: z.unknown().optional(),
@@ -213,7 +235,7 @@ const updateListingFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<DirectoryListing> => {
     const { id, categoryIds, primaryCategoryId, ...rest } = data
     const site = await workspaceIdForRequest(context.user.id)
-    const listing = await updateListing(site, id, rest)
+    const listing = await saveListingAsAdmin(site, id, rest, context.user.id)
     if (categoryIds !== undefined) {
       await setListingCategories(
         site,
@@ -231,7 +253,7 @@ export function saveListing(input: {
   slug?: string
   metaDescription?: string
   rating?: number | null
-  status?: "draft" | "published"
+  status?: ListingStatus
   displayOrder?: number
   featuredImage?: string
   gallery?: unknown

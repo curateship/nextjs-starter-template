@@ -1,5 +1,5 @@
 import * as React from "react"
-import { createFileRoute, Link, notFound } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 import { CalendarIcon, MapPinIcon, NavigationIcon } from "lucide-react"
 
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import { loadEvent } from "@/lib/api/events/public"
+import { forwardOldAddress } from "@/lib/api/directory/old-addresses"
 import { eventDirectionsUrl } from "@/lib/events/directions"
 import {
   directoryDescription,
@@ -39,7 +40,8 @@ export const Route = createFileRoute("/events_/$slug")({
       requirePageVisible("/events"),
       loadEvent(params.slug),
     ])
-    if (!page) throw notFound()
+    // An address the record used to have forwards to the one it has now.
+    if (!page) return forwardOldAddress("event", params.slug)
     return page
   },
   head: ({ loaderData }) => {

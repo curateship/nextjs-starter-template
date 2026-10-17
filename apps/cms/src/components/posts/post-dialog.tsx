@@ -326,7 +326,7 @@ export function PostDialog({
                     <div className="grid gap-2 sm:flex-1">
                       <FieldLabel
                         htmlFor="post-slug"
-                        hint="The part after /posts/ in the post's address. Changing it changes the address, and old links stop working."
+                        hint="The part after /posts/ in the post's address. Changing it changes the address. Old links forward to the new one."
                       >
                         Address part
                       </FieldLabel>

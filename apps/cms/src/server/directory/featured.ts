@@ -1532,6 +1532,75 @@ export async function featuredImpactForListings(
   return { activeFeatured: row?.count ?? 0 }
 }
 
+/** The words a closed listing's ended spot carries on Admin → Featured. */
+export const CLOSED_LISTING_REVOKE_NOTE =
+  "Ended because the listing was marked permanently closed. No refund."
+
+/**
+ * When this listing's paid spot runs out, or null when it holds none.
+ *
+ * Read for the listing window, which says before the save that closing the
+ * listing ends the spot. A spot bought to start later counts too, because
+ * closing ends that one as well.
+ */
+export async function featuredSpotEndsAt(
+  workspaceId: string,
+  listingId: string,
+  database: CustomShellDb = db
+): Promise<Date | null> {
+  const [row] = await database
+    .select({
+      endsAt: sql<Date | null>`max(${directoryFeaturedEntitlements.endsAt})`,
+    })
+    .from(directoryFeaturedEntitlements)
+    .where(
+      and(
+        eq(directoryFeaturedEntitlements.workspaceId, workspaceId),
+        eq(directoryFeaturedEntitlements.listingId, listingId),
+        eq(directoryFeaturedEntitlements.status, "active"),
+        gt(directoryFeaturedEntitlements.endsAt, now())
+      )
+    )
+  return row?.endsAt ? new Date(row.endsAt) : null
+}
+
+/**
+ * Ends every paid spot a listing holds, because it has closed for good.
+ *
+ * A closed listing is in no list, so a spot left running would keep charging
+ * for a place nobody can see. Tyler's call on 17 Oct 2026: it ends with no
+ * refund, and the admin is told in the listing window before saving. The
+ * spot stays on Admin → Featured as revoked, with this note on it.
+ */
+export async function endFeaturedSpotsOfClosedListing(
+  workspaceId: string,
+  listingId: string,
+  adminId: string,
+  database: CustomShellDb = db
+): Promise<number> {
+  const at = now()
+  const ended = await database
+    .update(directoryFeaturedEntitlements)
+    .set({
+      status: "revoked",
+      revokedByUserId: adminId,
+      revokedAt: at,
+      revokeNote: CLOSED_LISTING_REVOKE_NOTE,
+      updatedAt: at,
+    })
+    .where(
+      and(
+        eq(directoryFeaturedEntitlements.workspaceId, workspaceId),
+        eq(directoryFeaturedEntitlements.listingId, listingId),
+        eq(directoryFeaturedEntitlements.status, "active"),
+        gt(directoryFeaturedEntitlements.endsAt, at)
+      )
+    )
+    .returning({ id: directoryFeaturedEntitlements.id })
+  if (ended.length) clearPublicDirectoryCache(workspaceId)
+  return ended.length
+}
+
 export async function pendingFeaturedImpactForListings(
   workspaceId: string,
   listingIds: string[],

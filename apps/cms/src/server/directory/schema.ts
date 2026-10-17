@@ -47,7 +47,10 @@ export const directoryListings = pgTable(
       .default(""),
     /** An optional admin-set score. Null means the listing has no rating. */
     rating: numeric("rating", { precision: 2, scale: 1, mode: "number" }),
-    /** 'draft' or 'published'. Drafts never reach a visitor. */
+    /**
+     * 'draft', 'published' or 'closed'. Drafts never reach a visitor. A closed
+     * listing keeps its page and is in no list; see `listing-status.ts`.
+     */
     status: varchar("status", { length: 20 }).notNull().default("draft"),
     /** Hand-set ordering for the public list. Ties fall back to newest-first. */
     displayOrder: integer("display_order").notNull().default(0),
@@ -115,7 +118,7 @@ export const directoryListings = pgTable(
     index("ix_directory_listings_title").on(table.title),
     check(
       "directory_listings_status_check",
-      sql`${table.status} IN ('draft', 'published')`
+      sql`${table.status} IN ('draft', 'published', 'closed')`
     ),
     check(
       "directory_listings_rating_check",
@@ -1073,5 +1076,120 @@ export const directoryOwnerMessages = pgTable(
       "directory_owner_messages_status_check",
       sql`${table.status} IN ('sent', 'failed')`
     ),
+  ]
+)
+
+/**
+ * An address a listing, event, post or deal used to have, and the one it has
+ * now. Written by `server/directory/old-addresses.ts` whenever a record's
+ * address changes; read by the four public pages only after the address they
+ * were asked for found nothing. Migration 0129.
+ */
+export const oldAddresses = pgTable(
+  "old_addresses",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** 'listing', 'event', 'post', 'promotion' or 'guide'. */
+    kind: varchar("kind", { length: 20 }).notNull(),
+    oldSlug: varchar("old_slug", { length: 160 }).notNull(),
+    /** The record's address today, so every old address is one hop away. */
+    currentSlug: varchar("current_slug", { length: 160 }).notNull(),
+    changedAt: timestamp("changed_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_old_addresses_site_kind_old").on(
+      table.workspaceId,
+      table.kind,
+      table.oldSlug
+    ),
+    index("ix_old_addresses_site_kind_current").on(
+      table.workspaceId,
+      table.kind,
+      table.currentSlug
+    ),
+    check(
+      "old_addresses_kind_check",
+      sql`${table.kind} IN ('listing', 'event', 'post', 'promotion', 'guide')`
+    ),
+    check(
+      "old_addresses_not_itself_check",
+      sql`${table.oldSlug} <> ${table.currentSlug}`
+    ),
+  ]
+)
+
+/**
+ * A guide the site's editor writes: a named, ordered list of listings with a
+ * cover and an intro, published at /guides/<address>. Migration 0130.
+ */
+export const directoryGuides = pgTable(
+  "directory_guides",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    /** The address part after /guides/, unique per guide on its site. */
+    slug: varchar("slug", { length: 160 }).notNull(),
+    /** A sentence or two under the title. Plain text. */
+    intro: varchar("intro", { length: 1000 }).notNull().default(""),
+    /** A media-library URL, or empty. */
+    coverImage: varchar("cover_image", { length: 600 }).notNull().default(""),
+    /** 'draft' or 'published'. A draft is in no list and has no page. */
+    status: varchar("status", { length: 20 }).notNull().default("draft"),
+    /** The first publish, which the feed orders by. Later ones keep it. */
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_guides_workspace_slug").on(
+      table.workspaceId,
+      table.slug
+    ),
+    index("ix_directory_guides_workspace_status").on(
+      table.workspaceId,
+      table.status,
+      table.publishedAt
+    ),
+    check(
+      "directory_guides_status_check",
+      sql`${table.status} IN ('draft', 'published')`
+    ),
+    check(
+      "directory_guides_published_at_check",
+      sql`${table.status} <> 'published' OR ${table.publishedAt} IS NOT NULL`
+    ),
+  ]
+)
+
+/**
+ * One listing in a guide, at its place in the guide's order. Deleting the
+ * listing deletes the row, so a deleted listing leaves every guide.
+ */
+export const directoryGuideItems = pgTable(
+  "directory_guide_items",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    guideId: varchar("guide_id", { length: 36 })
+      .notNull()
+      .references(() => directoryGuides.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    /** Zero first. The guide's own order, as the editor dragged it. */
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_guide_items_guide_listing").on(
+      table.guideId,
+      table.listingId
+    ),
+    index("ix_directory_guide_items_listing").on(table.listingId),
+    check("directory_guide_items_position_check", sql`${table.position} >= 0`),
   ]
 )

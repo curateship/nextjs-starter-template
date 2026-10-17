@@ -1,6 +1,17 @@
-import { and, asc, desc, eq, ilike, isNotNull, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  or,
+  sql,
+} from "drizzle-orm"
 
 import { LISTING_REPORT_NOTE_MAX } from "@/lib/directory/field-lengths"
+import { LISTING_PAGE_STATUSES } from "@/lib/directory/listing-status"
 import { looksLikeEmail } from "@/lib/directory/submission-fields"
 import {
   EVENT_REPORT_REASONS,
@@ -234,7 +245,9 @@ async function findSubject(
       and(
         eq(directoryListings.id, id),
         eq(directoryListings.workspaceId, workspaceId),
-        eq(directoryListings.status, "published")
+        // A closed listing's page keeps the link, so "it has reopened" can
+        // be reported.
+        inArray(directoryListings.status, [...LISTING_PAGE_STATUSES])
       )
     )
     .limit(1)

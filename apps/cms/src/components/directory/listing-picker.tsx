@@ -15,6 +15,7 @@ import {
   getPostErrorMessage,
   type ListingChoice,
 } from "@/lib/api/posts/posts"
+import { DIRECTORY_LISTING_STATUS_LABELS } from "@/lib/directory/listing-status"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { SEARCH_SETTLE_MS } from "@/lib/nav/list-search"
 import { cn } from "@/lib/utils"
@@ -22,8 +23,8 @@ import { cn } from "@/lib/utils"
 /**
  * A button that opens a search-as-you-type list of this site's listings. The
  * post editor's "Listing card" and the event window's "Pick a listing" both
- * use it. A draft listing is offered and marked, so the admin knows a visitor
- * will not see it yet.
+ * use it. A draft or closed listing is offered and marked, so the admin knows
+ * a visitor will not see it in a list.
  */
 export function ListingPicker({
   label,
@@ -120,11 +121,11 @@ export function ListingPicker({
                       }}
                     >
                       <span className="truncate">{listing.title}</span>
-                      {listing.status === "draft" ? (
+                      {listing.status === "published" ? null : (
                         <span className="shrink-0 text-xs text-muted-foreground">
-                          Draft
+                          {DIRECTORY_LISTING_STATUS_LABELS[listing.status]}
                         </span>
-                      ) : null}
+                      )}
                     </button>
                   </li>
                 ))}

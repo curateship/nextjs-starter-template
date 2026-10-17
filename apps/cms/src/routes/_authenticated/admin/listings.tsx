@@ -11,12 +11,14 @@ import {
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import {
   LISTING_SORT_COLUMNS,
-  LISTING_STATUS_FILTERS,
   readListingViewRange,
   type ListingSortColumn,
-  type ListingStatusFilter,
   type ListingViewRange,
 } from "@/lib/directory/listing-sort"
+import {
+  DIRECTORY_LISTING_STATUSES,
+  type ListingStatus,
+} from "@/lib/directory/listing-status"
 import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import {
   readDirection,
@@ -27,7 +29,7 @@ import {
 
 type ListingsSearch = {
   q?: string
-  status?: ListingStatusFilter
+  status?: ListingStatus
   sort?: ListingSortColumn
   direction?: "asc" | "desc"
   days?: ListingViewRange
@@ -45,7 +47,7 @@ type ListingsSearch = {
 function readListingsSearch(search: Record<string, unknown>): ListingsSearch {
   return {
     q: readSearchText(search.q),
-    status: readOneOf(search.status, LISTING_STATUS_FILTERS),
+    status: readOneOf(search.status, DIRECTORY_LISTING_STATUSES),
     sort: readOneOf(search.sort, LISTING_SORT_COLUMNS),
     direction: readDirection(search.direction),
     days: readListingViewRange(search.days),

@@ -238,7 +238,9 @@ function ListingCardView({
             ? "It was deleted. The post skips this card."
             : listing.status === "draft"
               ? "Listing card · a draft, so the post skips it until it is published"
-              : "Listing card"}
+              : listing.status === "closed"
+                ? "Listing card · closed for good, so the post skips it"
+                : "Listing card"}
         </p>
       </div>
       {editor.isEditable ? (

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { createFileRoute, Link, notFound } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 import { CalendarIcon, ClockIcon, MapPinIcon } from "lucide-react"
 
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
@@ -12,6 +12,7 @@ import { ReportProblemButton } from "@/components/directory/public/report-proble
 import { Card, CardContent } from "@/components/ui/card"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import { countDealView, loadDeal } from "@/lib/api/promotions/public"
+import { forwardOldAddress } from "@/lib/api/directory/old-addresses"
 import {
   directoryDescription,
   directoryHead,
@@ -35,7 +36,8 @@ export const Route = createFileRoute("/deals_/$slug")({
       requirePageVisible("/deals"),
       loadDeal(params.slug),
     ])
-    if (!page) throw notFound()
+    // An address the record used to have forwards to the one it has now.
+    if (!page) return forwardOldAddress("promotion", params.slug)
     return page
   },
   head: ({ loaderData }) => {
