@@ -10,6 +10,20 @@ export const MAX_GUIDE_LISTINGS = 100
 
 export type GuideStatus = "draft" | "published"
 
+/**
+ * A published guide as a card: on the Guides page and in a front page row of
+ * the newest guides.
+ */
+export type PublicGuideCard = {
+  id: string
+  title: string
+  slug: string
+  intro: string
+  coverImage: string
+  /** The published listings a visitor will find in it. */
+  places: number
+}
+
 /** The Guides screen's sortable columns, in the order the table draws them. */
 export const GUIDE_SORT_COLUMNS = [
   "title",

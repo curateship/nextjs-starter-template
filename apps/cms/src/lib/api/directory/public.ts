@@ -38,9 +38,9 @@ import { answerForRequest } from "@/server/workspaces/host"
 import {
   readPublicGuide,
   readPublicGuides,
-  type PublicGuideCard,
   type PublicGuidePage,
 } from "@/server/directory/guides"
+import type { PublicGuideCard } from "@/lib/directory/guides"
 import { geocodeDirectoryPlace } from "@/server/directory/geocode"
 import { requireAppOrigin, requestIp } from "@/server/auth/origin"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
@@ -678,7 +678,6 @@ export function loadGuides() {
  * step with nothing reading it.
  */
 export type { DirectoryFrontPageAnswer } from "@/lib/directory/front-page"
-export type { PublicGuideCard } from "@/server/directory/guides"
 export type {
   PublicCategory,
   PublicClaimState,

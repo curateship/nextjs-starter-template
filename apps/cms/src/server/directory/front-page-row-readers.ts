@@ -7,6 +7,7 @@ import {
 } from "@/lib/directory/front-page"
 import {
   cleanCategoriesRowSettings,
+  cleanGuidesRowSettings,
   cleanListingsRowSettings,
   cleanPickedRowSettings,
 } from "@/lib/directory/front-page-kinds"
@@ -14,9 +15,11 @@ import type {
   CategoriesRowData,
   DealsRowData,
   EventsRowData,
+  GuidesRowData,
   ListingsRowData,
   PostsRowData,
 } from "@/lib/directory/front-page-row-data"
+import { guidesAccessFor, newestGuideCards } from "@/server/directory/guides"
 import { timeZoneLabel, wallClockAt } from "@/lib/events/event-time"
 import {
   readCategoryCardsForChoices,
@@ -423,4 +426,26 @@ export async function readPostsRow(
     posts,
     siteName: site.name,
   }
+}
+
+export async function readGuidesRow(
+  workspaceId: string,
+  settings: Record<string, unknown>,
+  database: CustomShellDb = db
+): Promise<GuidesRowData | null> {
+  const row = cleanGuidesRowSettings(settings)
+  // Every card leads to a guide's page, so a visitor who may not open the
+  // Guides page is shown no row rather than a set of closed doors.
+  if ((await guidesAccessFor(workspaceId, isSignedIn, database)) === null) {
+    return null
+  }
+  const guides = await cachedPublicDirectoryRead(
+    workspaceId,
+    "front-page-guides-row",
+    { count: row.count },
+    () => newestGuideCards(workspaceId, row.count, database)
+  )
+  if (guides.length === 0) return null
+
+  return { action: { label: "Browse guides", href: "/guides" }, guides }
 }

@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router"
 
 import { Card, CardContent } from "@/components/ui/card"
-import type { PublicGuideCard } from "@/lib/api/directory/public"
-import { guidePlacesText } from "@/lib/directory/guides"
+import { guidePlacesText, type PublicGuideCard } from "@/lib/directory/guides"
+import { publicGridColumnsClassName } from "@/lib/layout/grid-columns"
 import { publicCardHover } from "@/lib/layout/card-hover"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { pageGutter } from "@/lib/layout/shell-gutter"
@@ -10,16 +10,19 @@ import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { cn } from "@/lib/utils"
 
 /**
- * The cards on the Guides page: the cover, the title, the first lines of the
- * intro and how many places a visitor will find in it. The whole card is the
- * link, the way a post card is.
+ * The cards on the Guides page and in a front page row of the newest guides:
+ * the cover, the title, the first lines of the intro and how many places a
+ * visitor will find in it. The whole card is the link, the way a post card is.
  */
 export function GuideGrid({
   guides,
   emptyMessage,
+  columns,
 }: {
   guides: PublicGuideCard[]
   emptyMessage: string
+  /** A home page row's own column count. The Guides page names none. */
+  columns?: number
 }) {
   if (guides.length === 0) {
     return (
@@ -35,7 +38,11 @@ export function GuideGrid({
 
   return (
     <ul
-      className="grid w-full sm:grid-cols-2 lg:grid-cols-3"
+      // `w-full` because a home page row lines its children up from the left.
+      className={cn(
+        "grid w-full",
+        publicGridColumnsClassName(columns, "sm:grid-cols-2 lg:grid-cols-3")
+      )}
       // The site's own gutter from Settings → Styling, like every public grid.
       style={{ gap: pageGutter }}
     >

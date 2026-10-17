@@ -17,6 +17,7 @@ import {
   MAX_GUIDE_TITLE,
   type GuideSortColumn,
   type GuideStatus,
+  type PublicGuideCard,
 } from "@/lib/directory/guides"
 import {
   readListingStatus,
@@ -491,6 +492,24 @@ export async function deleteGuides(
 // only while the page is open to everyone.
 // ---------------------------------------------------------------------------
 
+/**
+ * Whether this visitor may open the Guides page: "everyone" when it is open to
+ * all, "members" when it is kept for members and they are signed in, and null
+ * otherwise. The same shape as `postsAccessFor`, for the same reason: a front
+ * page row of guides leads to their pages, so it is left off when the Guides
+ * page is shut to this visitor.
+ */
+export async function guidesAccessFor(
+  siteId: string,
+  isSignedIn: () => Promise<boolean>,
+  database: CustomShellDb = db
+): Promise<"everyone" | "members" | null> {
+  const visibility = await readPageVisibility(siteId, "/guides", database)
+  if (visibility === "everyone") return "everyone"
+  if (visibility === "members" && (await isSignedIn())) return "members"
+  return null
+}
+
 /** Whether guides may be advertised to somebody who is not signed in. */
 export async function guidesArePublic(
   siteId: string,
@@ -613,18 +632,33 @@ export function readPublicGuide(
   )
 }
 
-export type PublicGuideCard = {
-  id: string
-  title: string
-  slug: string
-  intro: string
-  coverImage: string
-  /** The published listings a visitor will find in it. */
-  places: number
-}
-
 /** The most guides the Guides page draws. No site writes this many. */
 const GUIDES_ON_THE_PAGE = 120
+
+/**
+ * This site's published guides as cards, newest first: the Guides page reads
+ * up to 120 and a front page row its own count.
+ */
+export async function newestGuideCards(
+  siteId: string,
+  limit: number,
+  database: CustomShellDb = db
+): Promise<PublicGuideCard[]> {
+  const rows = await database
+    .select({ guide: directoryGuides, places: itemCounts().shown })
+    .from(directoryGuides)
+    .where(publishedGuidesOnSite(siteId))
+    .orderBy(desc(directoryGuides.publishedAt), asc(directoryGuides.id))
+    .limit(limit)
+  return rows.map((row) => ({
+    id: row.guide.id,
+    title: row.guide.title,
+    slug: row.guide.slug,
+    intro: row.guide.intro,
+    coverImage: row.guide.coverImage,
+    places: row.places,
+  }))
+}
 
 /** Every published guide on the site, newest first, for the Guides page. */
 export function readPublicGuides(
@@ -635,25 +669,10 @@ export function readPublicGuides(
     site.id,
     "guides",
     { site: { name: site.name, url: site.url } },
-    async () => {
-      const rows = await database
-        .select({ guide: directoryGuides, places: itemCounts().shown })
-        .from(directoryGuides)
-        .where(publishedGuidesOnSite(site.id))
-        .orderBy(desc(directoryGuides.publishedAt), asc(directoryGuides.id))
-        .limit(GUIDES_ON_THE_PAGE)
-      return {
-        site: { name: site.name, url: site.url },
-        guides: rows.map((row) => ({
-          id: row.guide.id,
-          title: row.guide.title,
-          slug: row.guide.slug,
-          intro: row.guide.intro,
-          coverImage: row.guide.coverImage,
-          places: row.places,
-        })),
-      }
-    }
+    async () => ({
+      site: { name: site.name, url: site.url },
+      guides: await newestGuideCards(site.id, GUIDES_ON_THE_PAGE, database),
+    })
   )
 }
 

@@ -8,6 +8,7 @@ import {
   readCategoriesRow,
   readDealsRow,
   readEventsRow,
+  readGuidesRow,
   readListingsRow,
   readPostsRow,
 } from "@/server/directory/front-page-row-readers"
@@ -67,6 +68,8 @@ export const appServerOptions: AppServerOptions = {
         readEventsRow(workspaceId, settings),
       deals: ({ settings, workspaceId }) => readDealsRow(workspaceId, settings),
       posts: ({ settings, workspaceId }) => readPostsRow(workspaceId, settings),
+      guides: ({ settings, workspaceId }) =>
+        readGuidesRow(workspaceId, settings),
     },
   },
   automations: {

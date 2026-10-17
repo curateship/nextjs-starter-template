@@ -1,4 +1,5 @@
 import { CategoryGrid } from "@/components/directory/public/category-grid"
+import { GuideGrid } from "@/components/directory/public/guide-grid"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { ListingMap } from "@/components/directory/public/listing-map"
 import { EventCardGrid } from "@/components/events/public/event-card"
@@ -6,6 +7,7 @@ import { PostGrid } from "@/components/posts/public/post-grid"
 import { DealGrid } from "@/components/promotions/public/deal-grid"
 import type { AppFrontPageRowProps } from "@/lib/app-options"
 import {
+  cleanGuidesRowSettings,
   cleanListingsRowSettings,
   cleanPickedRowSettings,
 } from "@/lib/directory/front-page-kinds"
@@ -13,6 +15,7 @@ import type {
   CategoriesRowData,
   DealsRowData,
   EventsRowData,
+  GuidesRowData,
   ListingsRowData,
   PostsRowData,
 } from "@/lib/directory/front-page-row-data"
@@ -119,6 +122,21 @@ export function PostsRowContent({ data, settings }: AppFrontPageRowProps) {
       posts={row.posts}
       siteName={row.siteName}
       emptyMessage="Nothing has been posted yet."
+      columns={columns}
+    />
+  )
+}
+
+export function GuidesRowContent({ data, settings }: AppFrontPageRowProps) {
+  if (noData(data)) return null
+  const row = data as GuidesRowData
+  const { columns } = cleanGuidesRowSettings(settings)
+
+  return (
+    <GuideGrid
+      guides={row.guides}
+      // Never seen: a row with no guides is left off the page.
+      emptyMessage="No guides have been published yet."
       columns={columns}
     />
   )

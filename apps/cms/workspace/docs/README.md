@@ -58,7 +58,7 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - `directory-search-suggestions.md` — the listings and categories the public
   search box offers as a visitor types, its keyboard, and how often it asks the
   server.
-- `home-page-rows.md` — the five kinds of row this app adds to the shell's front
+- `home-page-rows.md` — the six kinds of row this app adds to the shell's front
   page builder, and the rules that hold for every one of them.
 - `image-fields.md` — what happens when an image field is clicked, and why the
   picker opens as a window inside an editing window.

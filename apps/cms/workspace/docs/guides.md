@@ -68,8 +68,9 @@ lives in `directory_save_collections`, and is left exactly as it was.
   `/guides/share-image/<slug>`.
 - **Search-engine details:** `CollectionPage`, the way a category page is,
   with the listings as an `ItemList` in the guide's order.
-- **Not a front page row yet.** Tyler chose on 17 Oct 2026 to make that its
-  own task: `workspace/tasks/directory/47-a-guide-as-a-front-page-row.md`.
+- **Front page row:** the front page builder's **Latest guides** block shows
+  the newest published guides as these same cards, with a "Browse guides"
+  button. `home-page-rows.md` has the rules.
 
 ## Where it lives
 
