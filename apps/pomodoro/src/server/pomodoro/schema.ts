@@ -626,9 +626,10 @@ export const pomodoroProfiles = pgTable(
      */
     handle: varchar("handle", { length: 30 }),
     /**
-     * Whether `/u/<handle>` answers at all. Off by default, so a handle
-     * reserved today publishes nothing until its owner says so, and switching
-     * it off makes the page 404 exactly as an unknown handle does.
+     * Whether `/u/<handle>` answers at all. The column default is off, but
+     * `loadOrCreateProfile` makes every new row with it on, and migration
+     * 0158 switched every older row on (Tyler, 17 Oct 2026). Switching it
+     * off makes the page 404 exactly as an unknown handle does.
      */
     profilePublic: boolean("profile_public").notNull().default(false),
     /** A few lines about the person. Drawn as text, never as markup. */
@@ -660,7 +661,9 @@ export const pomodoroProfiles = pgTable(
       .notNull()
       .default([]),
     /**
-     * One switch per publishable section, each off by default. The server
+     * One switch per publishable section. The column defaults are off, and
+     * new and existing rows were switched on the same way as `profilePublic`
+     * above. The server
      * reads a section only when its switch is on, so a section that is off is
      * never in the page's data for anybody to find in the network tab.
      *

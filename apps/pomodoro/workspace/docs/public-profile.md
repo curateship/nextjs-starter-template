@@ -1,14 +1,44 @@
 # The public profile
 
-One page about one person, at `/u/<handle>`, off until they switch it on.
+One page about one person, at `/u/<handle>`. A new account's page is on from
+the start, and its owner can switch it off.
 
 Somebody who has focused for 300 hours has nowhere to point at. They put
 `focusapp.com/u/sarah` in their X bio, and a stranger who clicks it sees a
 face, two lines, four links and a year of green squares.
 
-Everything on the page is published because its owner pressed a switch. There
-is no part of it that is on by default, and an account that has never opened
-the card publishes nothing at all.
+## What a new account starts with
+
+Tyler, 17 Oct 2026: "Make profile public and all details checked and
+leaderboard on by default. username can be there first name".
+
+- The page is on, and so is every section under "What your page shows".
+- "List me on /users" is on, so the page is in the directory and offered to
+  search engines. "Let people cheer me on" was already on.
+- The handle is the first word of the account's name, lowercased, with
+  accents dropped and anything a handle cannot hold cut out. Tyler Pham gets
+  `tyler`.
+- A second Tyler gets `tyler2`, then `tyler3`. A first name that is too short
+  or that the app keeps for itself starts at the number: Al gets `al2`. A name
+  with nothing usable in it gets `member`.
+- The display name is the first name as typed, so `Tyler`.
+- If no handle could be had, the row is still made with none. The timer keeps
+  working, and the page simply does not open until a handle is picked.
+
+All of this happens once, when the profile row is first made, in
+`loadOrCreateProfile` (`src/server/pomodoro/profile.ts`). The row is made the
+first time the person opens a screen that needs it, such as the timer.
+The database column defaults are still off, so a row made any other way
+publishes nothing.
+
+Accounts that already existed were switched on the same way. Tyler, 17 Oct
+2026: "yes switch existing accounts on too". Migration
+`drizzle/0158_pomodoro_profiles_public_for_everyone.sql` turned on every
+switch above for every profile row, made-up members included. It filled in a
+handle or display name only where there was none, with the same first-name
+rules, so a handle someone picked was kept. An operator's hide was left
+alone, so a hidden page still answers 404 and a member taken off the board
+stays off. Someone who switches a section off after that keeps it off.
 
 A profile can also be [found](following.md), [followed](following.md), and
 [reported or blocked](reporting-and-blocking.md).

@@ -6,7 +6,7 @@ off with no segment picked. It starts sending when Tyler picks a segment on its
 first step and switches it on.
 
 How the two steps it is built from behave, for every app, is in the shell's
-automations doc (`apps/custom-shell/workspace/docs/automations/overview.md`,
+automations doc (`apps/shell/workspace/docs/automations/overview.md`,
 "Sequences").
 
 ## What it sends, and when

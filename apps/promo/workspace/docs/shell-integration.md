@@ -1,12 +1,12 @@
 # What promo changes about the shell
 
-Promo is a copy of `apps/custom-shell`, and shell improvements reach it by
+Promo is a copy of `apps/shell`, and shell improvements reach it by
 copying the shell's files over again. That only works while promo never edits
 one of them, so this file records exactly what promo does instead.
 
 ## It forks no shell file
 
-As of 5 October 2026, the only files that differ from `apps/custom-shell` are the
+As of 5 October 2026, the only files that differ from `apps/shell` are the
 three every app differs on:
 
 - `package.json` — the app's name, its two extra dependencies, and its two extra
@@ -174,7 +174,7 @@ erased at compile time and are safe to import from anywhere.
 
 ## Applying a shell update
 
-Copy the shell-owned files from `apps/custom-shell`. Keep promo's `src/app/`,
+Copy the shell-owned files from `apps/shell`. Keep promo's `src/app/`,
 everything under `src/server/social/`, `src/server/browser/`,
 `src/components/social/`, `src/lib/social/`, `src/lib/api/social/`,
 `docker/browser/`, `worker/src/social-browser.ts`,
@@ -187,7 +187,7 @@ browser on port 3018.
 
 ## Two shell tests that already fail
 
-Both fail in `apps/custom-shell` itself and came across with the merge on 5
+Both fail in `apps/shell` itself and came across with the merge on 5
 October 2026. Neither is promo's doing and neither can be fixed from here.
 
 - `src/server/guards.test.ts` names `content/page-blocks.ts:loadPublicPageBlocksFn`
@@ -197,7 +197,7 @@ October 2026. Neither is promo's doing and neither can be fixed from here.
 
 ## Shell merge, 5 October 2026
 
-The shell was merged in again on 5 Oct 2026, from `apps/custom-shell` in ws-4.
+The shell was merged in again on 5 Oct 2026, from `apps/shell` in ws-4.
 Shell-origin files were replaced wholesale after each one was proved to be an
 unmodified older shell version: the app's copy was hashed and matched against
 every version of that file in the repository's history. A file with no match is

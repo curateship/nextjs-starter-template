@@ -1,7 +1,11 @@
 # Focus history
 
-The report page at `/history`, over four ranges: 7 days, 30 days, 12 months
-and this year. Drawn to Tyler's design of 7 Oct 2026
+The report page at `/history`. The left menu and the browser tab call it
+Stats (Tyler, 17 Oct 2026), and so does every sentence that sends a member
+to it. The address stays `/history`, so old links keep working, and the
+heading on the page still reads "Focus history".
+
+It covers four ranges: 7 days, 30 days, 12 months and this year. Drawn to Tyler's design of 7 Oct 2026
 (`assets/pasted-image-1791402090336300000.png`), top to bottom:
 
 - **The header:** the title and the dates, with the range tabs and Export CSV

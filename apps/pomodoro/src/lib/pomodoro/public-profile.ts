@@ -115,11 +115,59 @@ export function normalizeHandle(value: string) {
   return value.trim().toLowerCase()
 }
 
+/** The first word of an account's name, as typed. Empty when there is none. */
+export function firstNameOf(name: string) {
+  return name.trim().split(/\s+/)[0] ?? ""
+}
+
+/**
+ * The handles a new account is offered, best first: its first name, then the
+ * first name with 2, 3, 4 and so on after it. `José Ríos` gives `jose`,
+ * `jose2`, `jose3`. Accents are dropped and anything a handle cannot hold is
+ * cut, and a candidate that is too short or reserved is skipped, so `Al`
+ * starts at `al2` and `Admin` at `admin2`. A name with nothing usable in it
+ * falls back to `member`.
+ */
+export function handleCandidatesFor(name: string, count = 50) {
+  const cleaned = firstNameOf(name)
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "")
+    // Room for the number on the end, so every candidate fits in 30.
+    .slice(0, HANDLE_MAX_LENGTH - String(count).length)
+  const base = cleaned || "member"
+  const candidates = [base]
+  for (let n = 2; n <= count; n += 1) candidates.push(`${base}${n}`)
+  return candidates.filter(isHandleAvailableShape)
+}
+
+/**
+ * What a brand-new profile row starts with. Tyler, 17 Oct 2026: "Make profile
+ * public and all details checked and leaderboard on by default. username can
+ * be there first name". The handle and the display name are added from the
+ * account's name when the row is made, in `loadOrCreateProfile`.
+ */
+export const NEW_PROFILE_DEFAULTS = {
+  profilePublic: true,
+  leaderboardOptIn: true,
+  listed: true,
+  showFigures: true,
+  showBadges: true,
+  showHeatmap: true,
+  showProjects: true,
+  showFocusingNow: true,
+  showRoom: true,
+  showSharedMedia: true,
+} as const
+
 /**
  * The sections of a profile that each have their own switch, and what each
  * switch's label says.
  *
- * Every one is off by default. The bio, the links and the picture are not
+ * Every one is on for a new account (`NEW_PROFILE_DEFAULTS`). The database
+ * column defaults stay off, so a row made any other way publishes nothing
+ * until its owner says so. The bio, the links and the picture are not
  * here: they ride on the one `profilePublic` switch, because they are the
  * profile rather than a record published on it.
  */

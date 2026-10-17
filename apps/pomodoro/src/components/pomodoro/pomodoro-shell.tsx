@@ -95,7 +95,7 @@ const NAV_LINKS = [
   // Beside the leaderboard, because both are about other members. Rooms
   // already holds the two-person icon, so this one takes the single figure.
   { to: "/users", label: "Users", icon: UserIcon },
-  { to: "/history", label: "History", icon: HistoryIcon },
+  { to: "/history", label: "Stats", icon: HistoryIcon },
   { to: "/tasks", label: "Tasks", icon: CheckSquareIcon },
 ] as const
 

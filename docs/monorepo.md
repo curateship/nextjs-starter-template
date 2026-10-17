@@ -26,11 +26,28 @@ Root `package.json` registers:
 
 Four apps are live, and they are the only ones worked on:
 
-- `apps/custom-shell` - the template every app is copied from, and a running app
+- `apps/shell` - the template every app is copied from, and a running app
   in its own right
 - `apps/trade` - the trading app
 - `apps/cms` - the CMS and directory app
 - `apps/video` - the video app
+
+The shell's folder was `apps/custom-shell`, and its package name was
+`custom-shell`, until 17 Oct 2026. Both are `shell` now, on the same port 3002.
+Older commits, tasks and notes that say `apps/custom-shell` mean `apps/shell`.
+These names stayed as they were on purpose, because changing them would lose
+saved data or settings, or would rewrite every app for no gain:
+
+- The `CUSTOM_SHELL_*` settings names in every app's `.env` files.
+- The file `src/lib/custom-shell.tsx` and every `@/lib/custom-shell` import.
+- The shell's local database, still named `custom_shell` in the same Docker
+  container. `scripts/setup-database.mjs`, `src/server/database-url.ts` and
+  `drizzle.config.ts` all name it.
+- Storage bucket names such as `custom-shell-media`, and browser-saved keys
+  such as `custom-shell-settings-card-`.
+
+The Personal IDE looks for the shell under `apps/shell` first and then under
+`apps/custom-shell`, so it still finds the shell in older worktrees.
 
 `apps/personal-ide` is the Tauri desktop tool that creates workspaces for those
 apps. Everything else under `apps/` is an older app on its way out: not worked
@@ -104,8 +121,8 @@ The single UI standard lives in `.agents/skills/Ui-standards/SKILL.md`, and ever
 The root `Dockerfile` is one reusable recipe for any app built on Custom Shell. It has two targets — `web` and `worker` — and takes the app's folder name as a build argument:
 
 ```sh
-docker build --target web    --build-arg APP=custom-shell -t custom-shell-web .
-docker build --target worker --build-arg APP=custom-shell -t custom-shell-worker .
+docker build --target web    --build-arg APP=shell -t shell-web .
+docker build --target worker --build-arg APP=shell -t shell-worker .
 ```
 
 An app is those two things running side by side: the website, which brings the database up to date on the way in and then serves on port 3000, and a background worker, which runs automations, scheduled newsletters and the app's own registered jobs whether or not anyone is on the site. Both carry their own health checks.

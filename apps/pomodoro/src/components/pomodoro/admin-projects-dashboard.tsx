@@ -362,7 +362,7 @@ export function AdminProjectsDashboard({
 
 /**
  * "2 projects will be deleted. Their 14 tasks are kept with no project, and
- * the focus time stays in each person's History." The task count is the one
+ * the focus time stays in each person's Stats." The task count is the one
  * the Tasks column shows, so the window and the row agree.
  */
 function describeProjectDeletion(asked: AskedProject[], count: number, me: string) {
@@ -372,7 +372,7 @@ function describeProjectDeletion(asked: AskedProject[], count: number, me: strin
     const [project] = asked
     return `${project.name} will be deleted. ${
       tasks ? `Its ${tasks} ${plural(tasks, "task is", "tasks are")} kept with no project, and the` : "It has no tasks. The"
-    } focus time stays in ${project.ownerName}'s History.${toldLine(project, me)} This cannot be undone.`
+    } focus time stays in ${project.ownerName}'s Stats.${toldLine(project, me)} This cannot be undone.`
   }
   const taskLine = !known
     ? "Their tasks are kept with no project"
@@ -381,7 +381,7 @@ function describeProjectDeletion(asked: AskedProject[], count: number, me: strin
       : "They have no tasks"
   const mine = asked.filter((project) => project.ownerId === me).length
   const told = !known || mine === 0 ? " Each owner is told in the bell." : mine < count ? " Every owner but you is told in the bell." : ""
-  return `${count} ${plural(count, "project", "projects")} will be deleted. ${taskLine}, and the focus time stays in each person's History.${told} This cannot be undone.`
+  return `${count} ${plural(count, "project", "projects")} will be deleted. ${taskLine}, and the focus time stays in each person's Stats.${told} This cannot be undone.`
 }
 
 type Draft = { name: string; hours: string; period: TargetPeriod }
