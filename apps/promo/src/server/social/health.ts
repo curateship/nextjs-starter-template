@@ -109,7 +109,7 @@ export async function queueHealthCheck(
     .from(promoAccounts)
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
     .limit(1)
-  if (!account) throw new Error("Set up a Reddit account first.")
+  if (!account) throw new Error("That account is not there any more.")
   if (await pendingHealthJob(userId, accountId, db)) return false
   await queueJob(userId, "health", { accountId }, db)
   return true
@@ -258,7 +258,9 @@ export function accountFigures(
 }
 
 /**
- * Queues a reading for every Reddit account whose last one is a day old.
+ * Queues a reading for every account whose last one is a day old, on Reddit,
+ * Instagram and TikTok. An Instagram or TikTok reading is taken and stored by
+ * `phone-apps/health.ts`.
  *
  * Only accounts on a browser profile or a phone that were signed in when last seen,
  * since anything else would be refused, and never a retired account, which
@@ -282,10 +284,16 @@ export async function queueDueHealthChecks(
     .from(promoAccounts)
     .where(
       and(
-        eq(promoAccounts.platform, "reddit"),
-        // On a browser profile, or since phone farm file 05 on a phone,
-        // where the Reddit app reads it.
-        or(isNotNull(promoAccounts.profileId), isNotNull(promoAccounts.phoneId)),
+        or(
+          // Reddit on a browser profile, or since phone farm file 05 on a
+          // phone, where the Reddit app reads it.
+          and(
+            eq(promoAccounts.platform, "reddit"),
+            or(isNotNull(promoAccounts.profileId), isNotNull(promoAccounts.phoneId))
+          ),
+          // Instagram and TikTok on their phone, since file 06.
+          and(ne(promoAccounts.platform, "reddit"), isNotNull(promoAccounts.phoneId))
+        ),
         ne(promoAccounts.handle, ""),
         isNull(promoAccounts.retiredAt)
       )

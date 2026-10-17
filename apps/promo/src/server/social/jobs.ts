@@ -40,7 +40,10 @@ const CLAIM_TIMEOUT_MINUTES = 10
  * browser allows the visit 15 minutes (`docker/browser/launch.py`), and a cold
  * browser can take five to open, so their claims last 25. Shorter, a comment
  * still being typed could be called abandoned and reported as failed after it
- * posted.
+ * posted. A health reading and a read of an inbox get the same: on a phone each
+ * may wait five minutes behind the phone's other actions, then take six, and
+ * a read is followed by a sign-in look, so ten minutes could run out while the
+ * phone is still reading.
  */
 const VISIT_CLAIM_TIMEOUT_MINUTES = 25
 
@@ -53,6 +56,18 @@ const WRITES = sql.raw(WRITE_JOB_KINDS.map((kind) => `'${kind}'`).join(", "))
 /** What an abandoned delete or edit says, since it is never tried again either. */
 const CHANGE_ABANDONED =
   "The browser stopped part-way through changing the comment. It is not tried again. Open the comment on Reddit to see whether the change went through."
+
+/** What an abandoned Instagram or TikTok post says, since it is never tried again. */
+const POST_ABANDONED =
+  "The phone stopped part-way through posting. It is not tried again, because the post may already be up. Open the account in the app before posting again."
+
+/** What an abandoned profile change says. */
+const PROFILE_ABANDONED =
+  "The phone stopped part-way through changing the profile. It is not tried again. Open the profile in the app to see what changed."
+
+/** What an abandoned answer to a message or comment says. */
+const INBOX_REPLY_ABANDONED =
+  "The phone stopped part-way through sending the answer. It is not tried again, because it may already have gone. Open the conversation in the app before sending again."
 
 /** What an abandoned comment says, since it is never tried again. */
 const COMMENT_ABANDONED =
@@ -99,9 +114,10 @@ export async function queueJob(
   kind: JobKind,
   payload: Record<string, unknown>,
   db: CustomShellDb = defaultDb,
-  runAfter: Date | null = null
+  runAfter: Date | null = null,
+  /** Given when a record names its job before the job exists, so the two never disagree. */
+  id: string = uuid()
 ): Promise<string> {
-  const id = uuid()
   const lane = await laneFor(userId, kind, payload, db)
   await db.insert(promoJobs).values({ id, userId, kind, payload, lane, runAfter })
   return id
@@ -272,6 +288,9 @@ export async function failExpiredClaims(
         "last_error" = CASE
           WHEN "promo_jobs"."kind" IN ('delete_comment', 'edit_comment')
             THEN ${CHANGE_ABANDONED}
+          WHEN "promo_jobs"."kind" = 'app_post' THEN ${POST_ABANDONED}
+          WHEN "promo_jobs"."kind" = 'app_profile' THEN ${PROFILE_ABANDONED}
+          WHEN "promo_jobs"."kind" = 'inbox_reply' THEN ${INBOX_REPLY_ABANDONED}
           WHEN "promo_jobs"."kind" IN (${WRITES})
             THEN ${COMMENT_ABANDONED}
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS}
@@ -285,7 +304,7 @@ export async function failExpiredClaims(
         END
     WHERE "promo_jobs"."status" = 'running'
       AND "promo_jobs"."claimed_at" < now() - CASE
-        WHEN "promo_jobs"."kind" IN (${WRITES}, 'warm_up')
+        WHEN "promo_jobs"."kind" IN (${WRITES}, 'warm_up', 'health', 'inbox_read')
           THEN ${sql.raw(`interval '${VISIT_CLAIM_TIMEOUT_MINUTES} minutes'`)}
         ELSE ${sql.raw(`interval '${CLAIM_TIMEOUT_MINUTES} minutes'`)}
       END

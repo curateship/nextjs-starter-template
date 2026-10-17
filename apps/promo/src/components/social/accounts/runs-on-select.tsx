@@ -9,8 +9,9 @@ import { NO_DEVICE } from "@/lib/social/runs-on"
  * The value is `runsOnValue` from `@/lib/social/runs-on`. `NO_DEVICE` is
  * "nothing", which only the settings tab offers. A phone that is not ready
  * for an account says why beside its name, such as "needs wiping"; picking
- * it is refused with what to do. An important account is offered phones
- * only, since it never runs on a browser profile.
+ * it is refused with what to do. An important account, and an Instagram or
+ * TikTok one, is offered phones only, since it never runs on a browser
+ * profile.
  */
 export function RunsOnSelect({
   id,
@@ -33,7 +34,7 @@ export function RunsOnSelect({
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger id={id} className="w-full sm:w-fit sm:min-w-64" aria-invalid={invalid || undefined}>
-        <SelectValue placeholder="Pick a browser profile or a phone" />
+        <SelectValue placeholder={profiles.length ? "Pick a browser profile or a phone" : "Pick a phone"} />
       </SelectTrigger>
       <SelectContent>
         {noneLabel ? <SelectItem value={NO_DEVICE}>{noneLabel}</SelectItem> : null}

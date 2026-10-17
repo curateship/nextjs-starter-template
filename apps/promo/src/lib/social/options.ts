@@ -50,6 +50,10 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  * `forget` closes a browser profile and deletes its saved sign-in, after its
  * account moved to a phone, and `comment_link` finds the address of a
  * comment a phone posted, which the Reddit app does not show.
+ * `app_post` posts a photo or video on Instagram or TikTok, `app_profile`
+ * changes an account's profile there, `inbox_read` reads the messages or
+ * comments a phone's notification said arrived, and `inbox_reply` answers
+ * one, each from the account's own phone (phone farm file 06).
  *
  * `READER_JOB_KINDS` run in the signed-out reader browser, never in the
  * account's own: the account Reddit sees commenting never searches.
@@ -77,6 +81,10 @@ export type JobKind =
   | "promo_threads"
   | "forget"
   | "comment_link"
+  | "app_post"
+  | "app_profile"
+  | "inbox_read"
+  | "inbox_reply"
 
 /** The kinds that run in the reader browser, signed in to nobody. */
 export const READER_JOB_KINDS: readonly JobKind[] = [
@@ -91,8 +99,8 @@ export const READER_JOB_KINDS: readonly JobKind[] = [
 ]
 
 /**
- * The kinds that write to Reddit from an account's own browser, each because
- * a person pressed a button. Every one is tried once and never handed back
+ * The kinds that write to a network from an account's own browser or phone,
+ * each because a person pressed a button. Every one is tried once and never handed back
  * after its browser stopped part-way, because a second go could post twice.
  */
 export const WRITE_JOB_KINDS: readonly JobKind[] = [
@@ -101,6 +109,9 @@ export const WRITE_JOB_KINDS: readonly JobKind[] = [
   "submit",
   "delete_comment",
   "edit_comment",
+  "app_post",
+  "app_profile",
+  "inbox_reply",
 ]
 
 /**

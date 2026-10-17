@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
+import { NETWORK_NAMES, type Network } from "@/lib/social/networks"
 
 import { ringBell } from "./notices"
 import { promoAccounts, promoComments, promoFinds, promoJobs, promoKeywords } from "./schema"
@@ -199,6 +200,10 @@ export async function ringForFailure(
   reason: string,
   db: CustomShellDb = defaultDb
 ): Promise<void> {
+  if ((APP_WRITE_KINDS as readonly string[]).includes(job.kind)) {
+    await ringForAppFailure(job, reason, db)
+    return
+  }
   if (!(WRITE_KINDS as readonly string[]).includes(job.kind)) return
   const what = job.kind === "submit" ? "a post of yours" : job.kind === "reply" ? "an answer to a reply" : "a comment"
   // It opens on the Comments tab of the project the account is in, under
@@ -224,6 +229,50 @@ export async function ringForFailure(
     },
     db
   )
+}
+
+/** The phone-only writes: a post, a profile change, an answer to a message or comment. */
+const APP_WRITE_KINDS = ["app_post", "app_profile", "inbox_reply"] as const
+
+/**
+ * Rings the bell for an Instagram or TikTok post, a profile change, or an
+ * answer to a message or comment that did not go out. Each opens where it
+ * was pressed: the project's network for a post or a comment's answer, the
+ * Messages dashboard for a message's, the Accounts dashboard for a profile.
+ */
+async function ringForAppFailure(
+  job: { id: string; userId: string; kind: string },
+  reason: string,
+  db: CustomShellDb
+): Promise<void> {
+  const [row] = await db
+    .select({ payload: promoJobs.payload, projectId: promoAccounts.projectId, platform: promoAccounts.platform })
+    .from(promoJobs)
+    .innerJoin(promoAccounts, eq(promoAccounts.id, sql`${promoJobs.payload}->>'accountId'`))
+    .where(and(eq(promoJobs.id, job.id), eq(promoJobs.userId, job.userId)))
+    .limit(1)
+  if (!row) return
+  const network = NETWORK_NAMES[row.platform as Network] ?? row.platform
+  const inModule = (view = "") =>
+    row.projectId
+      ? `/admin/projects/${encodeURIComponent(row.projectId)}?network=${encodeURIComponent(row.platform)}${view}`
+      : "/admin/projects"
+  const kind = text(row.payload?.inboxKind)
+  const [what, href] =
+    job.kind === "app_post"
+      ? [`a post on ${network}`, inModule()]
+      : job.kind === "app_profile"
+        ? [`a profile change on ${network}`, `/admin/accounts?platform=${encodeURIComponent(row.platform)}`]
+        : kind === "comment"
+          ? [`an answer to a comment on ${network}`, inModule("&view=comments")]
+          : [`an answer to a message on ${network}`, "/admin/messages"]
+  // A message's reason can name who wrote, and the notice outlives the
+  // conversation, so the reason stays on the conversation's own row.
+  const detail =
+    job.kind === "inbox_reply" && kind !== "comment"
+      ? "Why is on the conversation in the Messages dashboard. It is never sent again by itself."
+      : reason
+  await ringBell(job.userId, { kind: "failed", targetId: job.id, message: `${NOTICE_HEADINGS.failed} ${what}`, detail, href }, db)
 }
 
 function text(value: unknown): string {

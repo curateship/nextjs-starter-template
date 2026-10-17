@@ -478,20 +478,22 @@ export async function ownsPhone(
 }
 
 /**
- * The phones a Reddit account could move to: every phone with no other
- * Reddit account on it, by name, except the self-test phone, which carries
- * only its test account. `accountId` is the account asking, whose own phone
- * stays on the list.
+ * The phones an account on `platform` could move to: every phone with no
+ * other account of that network on it, by name, except the self-test phone,
+ * which carries only its test account. One phone may carry a Reddit, an
+ * Instagram and a TikTok account, as one person's phone would. `accountId`
+ * is the account asking, whose own phone stays on the list.
  *
  * A phone that needs wiping, or was wiped and has not passed its setup check
  * since, is listed with a note saying so, and picking it is refused with how
  * to get it ready (`wipe.ts`); the note is empty for a ready phone. So is a
  * phone that held an important account, which only an important one may take.
  */
-export async function phonesFreeForReddit(
+export async function phonesFreeFor(
   userId: string,
   accountId: string | null,
-  db: CustomShellDb = defaultDb
+  db: CustomShellDb = defaultDb,
+  platform: string = "reddit"
 ): Promise<Array<{ id: string; name: string; note: string }>> {
   const phones = await db
     .select({
@@ -516,7 +518,7 @@ export async function phonesFreeForReddit(
     .filter(
       (phone) =>
         phone.id !== settings?.testPhoneId &&
-        (holders.get(phone.id) ?? []).every((other) => other.platform !== "reddit" || other.id === accountId)
+        (holders.get(phone.id) ?? []).every((other) => other.platform !== platform || other.id === accountId)
     )
     .map((phone) => {
       const own = (holders.get(phone.id) ?? []).some((other) => other.id === accountId)

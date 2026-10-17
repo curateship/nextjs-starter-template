@@ -8,7 +8,9 @@ import type { PhoneConnection } from "@/lib/phones/options"
 import type { AccountImportance } from "@/lib/social/importance"
 import {
   accountStatus,
+  ACCOUNT_STATUSES,
   ACCOUNT_STATUS_LABELS,
+  WORKING_DAYS,
   type AccountStatus,
   type AccountStatusView,
 } from "@/lib/social/account-status"
@@ -43,7 +45,9 @@ const movingPhone = alias(promoPhones, "moving_phone")
  */
 export async function accountStatuses(
   userId: string,
-  accounts: ReadonlyArray<Pick<AccountRow, "id" | "statusOverride" | "profileCheck" | "redditCreatedAt">>,
+  accounts: ReadonlyArray<
+    Pick<AccountRow, "id" | "statusOverride" | "profileCheck" | "redditCreatedAt" | "platform" | "lastPostedAt" | "banScreenAt" | "shadowbanned">
+  >,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<Map<string, AccountStatusView>> {
@@ -64,6 +68,10 @@ export async function accountStatuses(
   const lastAt = new Map(last.map((row) => [row.accountId, row.at]))
 
   for (const account of accounts) {
+    if (account.platform !== "reddit") {
+      out.set(account.id, appAccountStatus(account, now))
+      continue
+    }
     out.set(
       account.id,
       accountStatus({
@@ -76,6 +84,25 @@ export async function accountStatuses(
     )
   }
   return out
+}
+
+/**
+ * An Instagram or TikTok account's status. There is no warm-up or karma
+ * here, so it is Banned once a ban screen stopped it, Working when it posted
+ * in the last week, and Ready otherwise. A shadowban the app reports is the
+ * warning beside it.
+ */
+function appAccountStatus(
+  account: Pick<AccountRow, "statusOverride" | "lastPostedAt" | "banScreenAt" | "shadowbanned">,
+  now: Date
+): AccountStatusView {
+  const warning = account.shadowbanned ? "Shadowbanned: the app says its posts are hidden from people who do not follow it" : null
+  if (account.statusOverride && ACCOUNT_STATUSES.includes(account.statusOverride)) {
+    return { status: account.statusOverride, byHand: true, warning }
+  }
+  if (account.banScreenAt) return { status: "banned", byHand: false, warning }
+  const working = account.lastPostedAt !== null && now.getTime() - account.lastPostedAt.getTime() < WORKING_DAYS * 86_400_000
+  return { status: working ? "working" : "ready", byHand: false, warning }
 }
 
 export type RedditAccountRow = {
@@ -110,6 +137,19 @@ export type RedditAccountRow = {
   voice: { id: string; name: string } | null
   redditCreatedAt: Date | null
   karma: number | null
+  /**
+   * Instagram's and TikTok's daily reading: followers, following, posts, and
+   * whether the app's Account status page says its posts are hidden from
+   * non-followers, with the page's words. All null on Reddit and until read.
+   */
+  followers: number | null
+  following: number | null
+  postCount: number | null
+  shadowbanned: boolean | null
+  shadowbanWords: string
+  appHealthReadAt: Date | null
+  /** When its phone first read it signed in, which holds back a profile change for a day. */
+  signedInAt: Date | null
   lastPostedAt: Date | null
   /** When it was retired, or null while in use. */
   retiredAt: Date | null
@@ -233,6 +273,13 @@ export async function listRedditAccounts(
       voice: account.voiceId && row.voiceName !== null ? { id: account.voiceId, name: row.voiceName } : null,
       redditCreatedAt: account.redditCreatedAt,
       karma: account.karma,
+      followers: account.followers,
+      following: account.following,
+      postCount: account.postCount,
+      shadowbanned: account.shadowbanned,
+      shadowbanWords: account.shadowbanWords,
+      appHealthReadAt: account.appHealthReadAt,
+      signedInAt: account.signedInAt,
       lastPostedAt: account.lastPostedAt,
       retiredAt: account.retiredAt,
       paused: account.pausedAt ? "account" : row.projectPausedAt ? "project" : null,

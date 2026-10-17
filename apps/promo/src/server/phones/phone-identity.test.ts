@@ -35,7 +35,7 @@ import {
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
 
 import { phoneHistory } from "./history"
-import { listPhones, phonesFreeForReddit, updatePhone } from "./phones"
+import { listPhones, phonesFreeFor, updatePhone } from "./phones"
 import { checkIn, createPairingCode, finishAction, nextAction, pairRack, type VerifiedRack } from "./rack"
 import { RACK_VERSION } from "./release"
 import { promoPhoneActionChecks, promoPhoneActions, promoPhones } from "./schema"
@@ -326,7 +326,7 @@ describe("phone farm files 04 and 05", () => {
       await expect(addAccount(userId, { profileId: null, phoneId: A1, voiceId: null }, db)).rejects.toThrow(
         "The phone Phone A1 needs wiping"
       )
-      expect((await phonesFreeForReddit(userId, null, db)).find((phone) => phone.id === A1)?.note).toBe("needs wiping")
+      expect((await phonesFreeFor(userId, null, db)).find((phone) => phone.id === A1)?.note).toBe("needs wiping")
 
       // The wipe goes through the rack; the phone is held while it is set up by hand.
       await queueWipe(userId, A1, db)

@@ -16,9 +16,13 @@ import { promoPhoneActionChecks } from "./schema"
 /**
  * Actions that never run on a phone until the self-test has walked them and
  * passed at least once: the comment goes live only once the self-test covers
- * it (phone farm file 05).
+ * it (phone farm file 05), and so do an Instagram or TikTok post and profile
+ * change (file 06), each walked up to its last button with a picture the
+ * rack makes for the purpose. Answers to messages and comments are not on
+ * this list: the test account may have nothing in its inbox to rehearse on,
+ * so they are refused only when the self-test finds them broken.
  */
-const NEEDS_A_PASS = new Set(["reddit/comment"])
+const NEEDS_A_PASS = new Set(["reddit/comment", "instagram/post", "tiktok/post", "instagram/profile", "tiktok/profile"])
 
 /** Refuses a job's step when the self-test last found its action broken, or has never passed it where that is required. */
 export async function refuseBrokenAction(

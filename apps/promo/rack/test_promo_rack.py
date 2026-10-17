@@ -1,3 +1,4 @@
+import collections
 """Tests for the rack program and its launcher. Run from apps/promo:
 
     python3 -m unittest discover -s rack -p "test_*.py"
@@ -844,6 +845,330 @@ class RedditCommentTest(unittest.TestCase):
             self.assertIn(name, promo_rack.REHEARSALS)
             self.assertIn(name, promo_rack.ACTIONS)
         self.assertIn("reddit/quick_state", promo_rack.ACTIONS)
+
+
+INSTAGRAM_FIXTURES = os.path.join(HERE, "fixtures", "instagram")
+TIKTOK_FIXTURES = os.path.join(HERE, "fixtures", "tiktok")
+NOTIFICATION_FIXTURES = os.path.join(HERE, "fixtures", "notifications")
+
+
+class AppScreensTest(unittest.TestCase):
+    """File 06, part 32: what Instagram's and TikTok's own screens say about the account."""
+
+    def test_the_instagram_profile_gives_handle_and_figures(self):
+        self.assertEqual(
+            promo_rack.app_profile_from_screen(fixture(INSTAGRAM_FIXTURES, "profile.xml"), "instagram"),
+            {"handle": "quiet.maple", "followers": 1234, "following": 56, "posts": 12},
+        )
+
+    def test_the_tiktok_profile_gives_handle_and_figures_and_no_post_count(self):
+        self.assertEqual(
+            promo_rack.app_profile_from_screen(fixture(TIKTOK_FIXTURES, "profile.xml"), "tiktok"),
+            {"handle": "quiet.maple", "followers": 12300, "following": 56, "posts": None},
+        )
+
+    def test_a_log_in_screen_is_signed_out_and_a_profile_is_not(self):
+        self.assertTrue(promo_rack.signed_out(fixture(INSTAGRAM_FIXTURES, "signed-out.xml"), "instagram"))
+        self.assertFalse(promo_rack.signed_out(fixture(INSTAGRAM_FIXTURES, "profile.xml"), "instagram"))
+
+    def test_the_account_status_page_reads_hidden_clear_or_not_read(self):
+        hidden = promo_rack.shadowban_from_screen(fixture(INSTAGRAM_FIXTURES, "account-status-hidden.xml"), "instagram")
+        self.assertEqual((hidden["read"], hidden["hidden"]), (True, True))
+        self.assertIn("can't be recommended to people who don't follow you", hidden["words"])
+        clear = promo_rack.shadowban_from_screen(fixture(INSTAGRAM_FIXTURES, "account-status-clear.xml"), "instagram")
+        self.assertEqual((clear["read"], clear["hidden"]), (True, False))
+        # The menu's own "What can't be recommended" says nothing either way.
+        menu = promo_rack.shadowban_from_screen(fixture(INSTAGRAM_FIXTURES, "account-status-menu-only.xml"), "instagram")
+        self.assertEqual(menu, {"read": False, "hidden": False, "words": ""})
+        tiktok = promo_rack.shadowban_from_screen(fixture(TIKTOK_FIXTURES, "account-status.xml"), "tiktok")
+        self.assertEqual((tiktok["read"], tiktok["hidden"]), (True, True))
+
+    def test_a_posts_numbers_are_read_off_its_own_screen(self):
+        self.assertEqual(
+            promo_rack.post_numbers_from_screen(fixture(INSTAGRAM_FIXTURES, "post.xml"), "instagram"),
+            {"views": 2345, "likes": 321, "comments": 18},
+        )
+        self.assertEqual(
+            promo_rack.post_numbers_from_screen(fixture(TIKTOK_FIXTURES, "post.xml"), "tiktok"),
+            {"views": None, "likes": 1200, "comments": 45},
+        )
+
+    def test_a_conversation_has_its_name_and_whose_line_is_whose(self):
+        conversation = promo_rack.conversation_from_screen(fixture(INSTAGRAM_FIXTURES, "conversation.xml"), "instagram")
+        self.assertEqual(conversation["thread"], "sam.reads")
+        self.assertEqual(conversation["lines"], [
+            {"from": "sam.reads", "text": "hey, is the night mode free?", "mine": False},
+            {"from": "", "text": "Yes, it is in the free plan.", "mine": True},
+            {"from": "sam.reads", "text": "thanks! does it work offline too?", "mine": False},
+        ])
+
+    def test_comments_leave_out_the_accounts_own_caption_which_names_the_post(self):
+        comments = promo_rack.comments_from_screen(fixture(INSTAGRAM_FIXTURES, "comments.xml"), "instagram", "quiet.maple")
+        self.assertEqual(comments, [
+            {"author": "sam.reads", "text": "where do I find it?", "thread": "Our new night mode is out. #studytok"},
+            {"author": "night_owl_99", "text": "love this, using it tonight", "thread": "Our new night mode is out. #studytok"},
+        ])
+
+
+class AppAlertsTest(unittest.TestCase):
+    """File 06, parts 37 and 38: notifications say a message or a comment arrived, never what it says."""
+
+    def test_each_apps_messages_and_comments_are_told_from_likes_and_reddit_replies(self):
+        alerts = promo_rack.new_alerts(fixture(NOTIFICATION_FIXTURES, "dumpsys.txt"), collections.OrderedDict())
+        self.assertEqual(alerts, [
+            {"app": "instagram", "kind": "message"},
+            {"app": "instagram", "kind": "comment"},
+            {"app": "tiktok", "kind": "message"},
+            {"app": "reddit", "kind": "message"},
+        ])
+        # Another phone app's texts are never read as one of these.
+        self.assertNotIn("com.google.android.apps.messaging", [item["app"] for item in promo_rack.parse_app_notifications(fixture(NOTIFICATION_FIXTURES, "dumpsys.txt"))])
+
+    def test_a_notification_is_reported_once_and_carries_no_words(self):
+        seen = collections.OrderedDict()
+        output = fixture(NOTIFICATION_FIXTURES, "dumpsys.txt")
+        first = promo_rack.new_alerts(output, seen)
+        self.assertEqual(promo_rack.new_alerts(output, seen), [])
+        for alert in first:
+            self.assertEqual(sorted(alert), ["app", "kind"])
+
+    def test_a_check_in_carries_the_alerts_and_keeps_them_when_promo_did_not_hear(self):
+        promo_rack.take_alerts("A1")
+        promo_rack.keep_alerts("A1", [{"app": "instagram", "kind": "message"}])
+        sent = []
+        phones = [{"serial": "A1", "state": "device", "usb": "", "model": "", "android": ""}]
+
+        def refuse(config, path, payload):
+            sent.append(payload)
+            raise promo_rack.CallFailed("down")
+
+        with mock.patch.object(promo_rack, "list_phones", lambda: [dict(phone) for phone in phones]), \
+                mock.patch.object(promo_rack, "take_reading", lambda serial: None), \
+                mock.patch.object(promo_rack, "call", refuse):
+            with self.assertRaises(promo_rack.CallFailed):
+                promo_rack.check_in({})
+        self.assertEqual(sent[0]["phones"][0]["alerts"], [{"app": "instagram", "kind": "message"}])
+        self.assertEqual(promo_rack.take_alerts("A1"), [{"app": "instagram", "kind": "message"}])
+
+
+def app_screen(package, texts):
+    """A screen of the app's own lines, one under another."""
+    nodes = "".join(
+        '<node text="%s" package="%s" bounds="[60,%d][1040,%d]" />' % (text, package, 400 + index * 120, 480 + index * 120)
+        for index, text in enumerate(texts)
+    )
+    return '<hierarchy><node text="" package="%s" bounds="[0,0][1080,2400]">%s</node></hierarchy>' % (package, nodes)
+
+
+class ScriptedAppPhone(FakeDevice):
+    """An app on a fake screen: one screen before the last button, another after."""
+
+    def __init__(self, package, texts, last, after, clipboard=""):
+        FakeDevice.__init__(self, texts)
+        self.package, self.last, self.after, self.clipboard = package, last, after, clipboard
+        self.before = sorted(texts)
+
+    def dump_hierarchy(self):
+        return app_screen(self.package, self.after if self.last in self.pressed else self.before)
+
+    def __call__(self, **selector):
+        # uiautomator2's textContains: the first line on screen holding the words.
+        if "textContains" in selector:
+            words = selector["textContains"]
+            return FakeElement(self, {"text": next((text for text in sorted(self.texts) if words and words in text), words)})
+        return FakeElement(self, selector)
+
+
+class AppActionsTest(unittest.TestCase):
+    """File 06, parts 33, 34, 37 and 38: the last button is pressed once in a real run and never in a rehearsal."""
+
+    def run_action(self, handler, device, args, rehearse=False):
+        sent = []
+        home = tempfile.mkdtemp()
+        walk = promo_rack.Walk("A1", rehearse=rehearse, connect=lambda serial: device)
+        shell = lambda serial, command, timeout=30: sent.append(command) or ("Row: 0 _id=55" if "content query" in command else "")
+        with mock.patch.object(promo_rack, "shell", shell), \
+                mock.patch.object(promo_rack, "adb", lambda args, serial=None, timeout=30: sent.append(" ".join(args)) or ""), \
+                mock.patch.object(promo_rack, "HOME", home), \
+                mock.patch.object(promo_rack, "download_media", lambda url, fetch=None: (b"jpeg", ".jpg")), \
+                mock.patch.object(promo_rack, "rehearsal_picture", lambda: (b"jpeg", ".jpg")), \
+                mock.patch.object(promo_rack, "APP_FEED_AFTER_SECONDS", (0, 0)), \
+                mock.patch.object(promo_rack, "APP_READ_FEED_SECONDS", (0, 0)), \
+                mock.patch.object(promo_rack, "POST_LANDED_APP_SECONDS", 0.05), \
+                mock.patch.object(promo_rack, "POST_LANDED_SECONDS", 0.05), \
+                mock.patch.object(promo_rack, "go_home", lambda serial: None), \
+                mock.patch("time.sleep"):
+            try:
+                return handler("A1", args, walk), sent
+            except Exception as failure:  # Handed back with what was sent.
+                return failure, sent
+
+    def post_phone(self, after):
+        return ScriptedAppPhone(
+            promo_rack.INSTAGRAM,
+            ["Feed", "Write a caption...", "Share", "Profile", "Photo at row 1, column 1", "More", "Copy link"],
+            "Share",
+            after,
+            clipboard="https://www.instagram.com/p/ABC123/",
+        )
+
+    def test_a_real_post_types_the_caption_presses_share_once_and_reads_its_link(self):
+        device = self.post_phone(["Your post has been shared"])
+        result, sent = self.run_action(promo_rack.action_app_post("instagram"), device, {"mediaUrl": "https://media.example/a.jpg", "mediaKind": "photo", "caption": "Hi. Ok"})
+        self.assertEqual(result, {"postUrl": "https://www.instagram.com/p/ABC123/"})
+        self.assertEqual(device.pressed.count("Share"), 1)
+        self.assertEqual(len([command for command in sent if command.startswith("input text")]), len("Hi. Ok"))
+        self.assertTrue(any("android.intent.action.SEND" in command and "-p com.instagram.android" in command for command in sent))
+        self.assertTrue(any(command.startswith("push ") and "/sdcard/DCIM/Camera/IMG_" in command for command in sent))
+
+    def test_a_post_the_app_refuses_fails_without_a_second_press(self):
+        device = self.post_phone(["Couldn't post. Try again."])
+        failure, _ = self.run_action(promo_rack.action_app_post("instagram"), device, {"mediaUrl": "https://media.example/a.jpg", "mediaKind": "photo", "caption": "Hi"})
+        self.assertIn("could not post", str(failure))
+        self.assertEqual(device.pressed.count("Share"), 1)
+
+    def test_a_post_that_never_says_posted_is_failed_and_not_pressed_again(self):
+        device = self.post_phone(["Uploading"])
+        failure, _ = self.run_action(promo_rack.action_app_post("instagram"), device, {"mediaUrl": "https://media.example/a.jpg", "mediaKind": "photo", "caption": "Hi"})
+        self.assertIn("did not say it was posted", str(failure))
+        self.assertEqual(device.pressed.count("Share"), 1)
+
+    def test_a_rehearsed_post_finds_share_never_presses_it_and_deletes_its_picture(self):
+        device = self.post_phone(["Your post has been shared"])
+        result, sent = self.run_action(promo_rack.action_app_post("instagram"), device, {"mediaUrl": "", "mediaKind": "photo", "caption": ""}, rehearse=True)
+        self.assertEqual(result, {"postUrl": ""})
+        self.assertNotIn("Share", device.pressed)
+        self.assertFalse([command for command in sent if command.startswith("input text")])
+        self.assertTrue(any(command.startswith("rm -f '/sdcard/DCIM/Camera/") for command in sent))
+
+    def test_a_reply_to_a_conversation_presses_send_once(self):
+        device = ScriptedAppPhone(promo_rack.INSTAGRAM, ["Direct", "sam.reads", "Message...", "Send"], "Send", ["sam.reads", "Yes, offline too."])
+        result, sent = self.run_action(
+            promo_rack.action_app_reply("instagram"),
+            device,
+            {"kind": "message", "thread": "sam.reads", "author": "sam.reads", "quote": "does it work offline too?", "text": "Yes, offline too."},
+        )
+        self.assertEqual(result, {"sent": True})
+        self.assertEqual(device.pressed.count("Send"), 1)
+        self.assertEqual(len([command for command in sent if command.startswith("input text")]), len("Yes, offline too."))
+
+    def test_a_conversation_is_found_by_its_whole_name(self):
+        package = promo_rack.INSTAGRAM
+        screen = app_screen(package, ["samantha_x", "ask sam about it", "sam", "Sam"])
+        self.assertEqual(promo_rack.rows_named(screen, package, "samantha_x"), [(60, 400, 1040, 480)])
+        # "sam" is two rows, so the answer goes to neither.
+        self.assertEqual(len(promo_rack.rows_named(screen, package, "sam")), 2)
+        self.assertEqual(promo_rack.rows_named(screen, package, "nobody"), [])
+
+    def test_a_reply_with_two_conversations_of_one_name_sends_nothing(self):
+        device = ScriptedAppPhone(promo_rack.INSTAGRAM, ["Direct", "sam", "Sam", "Message...", "Send"], "Send", ["Hi"])
+        failure, sent = self.run_action(
+            promo_rack.action_app_reply("instagram"),
+            device,
+            {"kind": "message", "thread": "sam", "author": "sam", "quote": "hey", "text": "Hi"},
+        )
+        self.assertIn("same name", str(failure))
+        self.assertNotIn("Send", device.pressed)
+        self.assertFalse([command for command in sent if command.startswith("input text")])
+
+    def test_the_reply_pressed_is_the_one_under_the_comment(self):
+        package = promo_rack.INSTAGRAM
+        screen = app_screen(package, ["ana", "first comment", "Reply", "ben", "the one to answer", "Reply"])
+        # Lines are 120 apart from 400: the second Reply is the sixth line.
+        self.assertEqual(promo_rack.reply_under(screen, package, "the one to answer", 2400), (60, 1000, 1040, 1080))
+        self.assertIsNone(promo_rack.reply_under(screen, package, "not there", 2400))
+        far = app_screen(package, ["the one to answer"] + ["filler %d" % index for index in range(5)] + ["Reply"])
+        self.assertIsNone(promo_rack.reply_under(far, package, "the one to answer", 2400))
+
+    def test_words_left_in_the_box_are_not_an_answer_that_went_out(self):
+        package = promo_rack.INSTAGRAM
+        unsent = (
+            '<hierarchy><node package="%s" text="thanks!" class="android.widget.TextView" bounds="[0,400][500,480]" />'
+            '<node package="%s" text="thanks!" class="android.widget.EditText" bounds="[0,2200][1080,2300]" /></hierarchy>'
+        ) % (package, package)
+        sent = unsent.replace("android.widget.EditText", "android.widget.TextView")
+        # "thanks!" said earlier in the chat counts once; the box never counts.
+        self.assertEqual(promo_rack.times_shown(unsent, package, "thanks!"), 1)
+        self.assertEqual(promo_rack.times_shown(sent, package, "thanks!"), 2)
+
+    def test_the_notification_tapped_is_the_apps_and_of_the_kind_asked(self):
+        shade = (
+            '<hierarchy>'
+            '<node package="com.android.systemui" text="TikTok" bounds="[0,100][1080,160]" />'
+            '<node package="com.android.systemui" text="ana sent you a message" bounds="[0,160][1080,240]" />'
+            '<node package="com.android.systemui" text="Instagram" bounds="[0,300][1080,360]" />'
+            '<node package="com.android.systemui" text="ben liked your photo" bounds="[0,360][1080,440]" />'
+            '<node package="com.android.systemui" text="cat commented: nice" bounds="[0,440][1080,520]" />'
+            '<node package="com.android.systemui" text="are you open sunday?" bounds="[0,520][1080,600]" />'
+            '</hierarchy>'
+        )
+        self.assertEqual(promo_rack.notification_for(shade, "instagram", "comment"), (0, 440, 1080, 520))
+        # A direct message shows only its words: the first that is no like, follow or comment.
+        self.assertEqual(promo_rack.notification_for(shade, "instagram", "message"), (0, 520, 1080, 600))
+        self.assertEqual(promo_rack.notification_for(shade, "tiktok", "message"), (0, 160, 1080, 240))
+        self.assertIsNone(promo_rack.notification_for(shade, "tiktok", "comment"))
+
+    def test_the_oldest_remembered_notification_is_forgotten_first(self):
+        seen = collections.OrderedDict()
+        with mock.patch.object(promo_rack, "ALERT_KEEP", 2):
+            for index in range(3):
+                seen["mark %d" % index] = True
+                promo_rack.new_alerts("", seen)
+        self.assertEqual(list(seen), ["mark 1", "mark 2"])
+
+    def test_a_rehearsed_reply_never_presses_send(self):
+        device = ScriptedAppPhone(promo_rack.INSTAGRAM, ["Direct", "Message...", "Send"], "Send", [])
+        result, _ = self.run_action(
+            promo_rack.action_app_reply("instagram"),
+            device,
+            {"kind": "message", "thread": "", "author": "", "quote": "", "text": ""},
+            rehearse=True,
+        )
+        # The fake inbox has no conversation row to open, so the rehearsal stops at the inbox.
+        self.assertEqual(result, {"sent": False})
+        self.assertNotIn("Send", device.pressed)
+
+    def test_a_rehearsed_profile_change_finds_save_and_never_presses_it(self):
+        device = ScriptedAppPhone(promo_rack.INSTAGRAM, ["Profile", "Edit profile", "Bio", "Done"], "Done", [])
+        device.texts.add("")  # The bio's box, found by its kind rather than its words.
+        device.before = ["quiet.maple"]
+        with mock.patch.object(promo_rack, "profile_handle", lambda hierarchy, app: "quiet.maple"):
+            result, sent = self.run_action(promo_rack.action_app_profile("instagram"), device, {}, rehearse=True)
+        self.assertEqual(result, {"applied": [], "bioAfter": None})
+        self.assertNotIn("Done", device.pressed)
+        self.assertFalse([command for command in sent if command.startswith("input text")])
+
+    def test_a_real_bio_change_presses_save_once_and_reads_it_back(self):
+        device = ScriptedAppPhone(promo_rack.INSTAGRAM, ["Profile", "Edit profile", "Bio", "Done"], "Done", ["quiet.maple", "Night timers."])
+        device.texts.add("")
+        with mock.patch.object(promo_rack, "profile_handle", lambda hierarchy, app: "quiet.maple"):
+            result, sent = self.run_action(
+                promo_rack.action_app_profile("instagram"),
+                device,
+                {"displayName": None, "bio": "Night timers.", "link": None, "pictureUrl": None},
+            )
+        self.assertEqual(result, {"applied": ["bio"], "bioAfter": "Night timers."})
+        self.assertEqual(device.pressed.count("Done"), 1)
+
+    def test_a_file_is_only_fetched_from_https_and_only_a_photo_or_video(self):
+        with self.assertRaises(RuntimeError):
+            promo_rack.download_media("http://media.example/a.jpg", fetch=lambda url: b"x")
+        with self.assertRaises(RuntimeError):
+            promo_rack.download_media("https://media.example/a.exe", fetch=lambda url: b"x")
+        with self.assertRaises(RuntimeError):
+            promo_rack.download_media("https://media.example/a.mp4", fetch=lambda url: b"")
+        self.assertEqual(promo_rack.download_media("https://media.example/a.MP4?v=1", fetch=lambda url: b"x"), (b"x", ".mp4"))
+        self.assertTrue(promo_rack.camera_name(".mp4", 1_800_000_000).startswith("VID_"))
+
+    def test_instagram_and_tiktok_actions_are_known_and_rehearsed(self):
+        for app in ("instagram", "tiktok"):
+            for step in ("health", "profile", "post", "inbox", "reply"):
+                self.assertIn("%s/%s" % (app, step), promo_rack.REHEARSALS)
+                self.assertIn("%s/%s" % (app, step), promo_rack.ACTIONS)
+            self.assertIn("%s/quick_state" % app, promo_rack.ACTIONS)
+        for name in ("reddit/inbox", "reddit/reply_message"):
+            self.assertIn(name, promo_rack.ACTIONS)
+            self.assertIn(name, promo_rack.REHEARSALS)
 
 
 class LauncherRollbackTest(unittest.TestCase):

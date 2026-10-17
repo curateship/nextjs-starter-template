@@ -22,7 +22,10 @@ what is tried twice and a comment never is. After any app action the screen
 is checked for the app's suspended, locked and "confirm it's you" screens.
 
 Reddit runs through the Reddit app itself: who is signed in, the account's
-health and the comment, answering in the browser's own shapes. Taps land a
+health and the comment, answering in the browser's own shapes. Instagram and
+TikTok run only here, in their apps: who is signed in, the daily reading with
+the Account status page, the profile, a post, and reading and answering
+messages and comments, which the phones' own notifications say have arrived. Taps land a
 little off the middle of a button, swipes bend, and typing keeps a person's
 rhythm. The setup check reads what a platform could notice about a phone
 (Wi-Fi beside a SIM, location allowed, a clock or language from another
@@ -46,6 +49,7 @@ is: Promo reads it out of the same file it serves.
 
 import argparse
 import base64
+import collections
 import hashlib
 import hmac
 import io
@@ -65,7 +69,7 @@ import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ElementTree
 
-VERSION = "2026.10.14.3"
+VERSION = "2026.10.16.1"
 
 # The launcher restarts the program when it exits with this code: a new
 # version was written, or someone switched versions on disk.
@@ -1639,6 +1643,1176 @@ def action_reddit_comment(serial, args, walk):
     return {"commentUrl": "", "visit": visit}
 
 
+# ---------------------------------------------------------------------------
+# Instagram and TikTok (phone farm file 06), and the direct messages every
+# phone account reads, Reddit's included. The same steps in two apps, so one
+# set of actions reads each app's own buttons from APP_SCREENS.
+#
+# Nothing here posts, answers or changes a profile unless Promo sent the
+# action because a person pressed the button, and the last button (Share,
+# Post, Send, Save) is pressed once, through final_first, so a rehearsal
+# never presses it. Like Reddit's, every screen here was written from how
+# the apps are known to look, not dumped from a real phone (16 Oct 2026); the
+# self-test walks them first, and a step that does not find its button stops
+# with a picture of the screen.
+
+INSTAGRAM = APP_PACKAGES["instagram"]
+TIKTOK = APP_PACKAGES["tiktok"]
+
+
+def shapes(package, *patterns):
+    """A button looked for by its words or its description, in each pattern given."""
+    found = []
+    for pattern in patterns:
+        found.append({"textMatches": pattern, "packageName": package})
+        found.append({"descriptionMatches": pattern, "packageName": package})
+    return found
+
+
+def field_in(package):
+    return [{"className": "android.widget.EditText", "packageName": package}]
+
+
+APP_SCREENS = {
+    "instagram": {
+        "package": INSTAGRAM,
+        "profile_tab": shapes(INSTAGRAM, "(?i)^(profile|your profile)$") + [{"resourceIdMatches": "(?i).*profile_tab.*", "packageName": INSTAGRAM}],
+        "settings": shapes(INSTAGRAM, "(?i)^(options|menu|settings and activity|settings)$"),
+        "account_status": shapes(INSTAGRAM, "(?i)^account status$"),
+        "status_detail": shapes(INSTAGRAM, "(?i)^what can.?t be recommended$"),
+        "edit_profile": shapes(INSTAGRAM, "(?i)^edit profile$"),
+        "rows": {
+            "displayName": shapes(INSTAGRAM, "(?i)^name$"),
+            "bio": shapes(INSTAGRAM, "(?i)^bio$"),
+            "link": shapes(INSTAGRAM, "(?i)^(links|add link|add links|website)$"),
+        },
+        "link_add": shapes(INSTAGRAM, "(?i)^add external link$"),
+        "picture_row": shapes(INSTAGRAM, "(?i)^(edit picture or avatar|change profile photo|edit picture)$"),
+        "picture_library": shapes(INSTAGRAM, "(?i)^(choose from library|new profile picture|choose from gallery)$"),
+        "gallery_first": [{"resourceIdMatches": "(?i).*(gallery_grid_item|media_picker_item|thumbnail).*", "packageName": INSTAGRAM}],
+        "save": shapes(INSTAGRAM, "(?i)^(done|save)$"),
+        "next": shapes(INSTAGRAM, "(?i)^next$"),
+        "share_to": shapes(INSTAGRAM, "(?i)^(feed|reel|reels)$"),
+        "caption": shapes(INSTAGRAM, "(?i)^(write a caption|add a caption)( ?(…|\\.\\.\\.))?$"),
+        "share": shapes(INSTAGRAM, "(?i)^share$"),
+        "posted": ("your post has been shared", "your reel has been shared", "post shared", "reel shared", "your post is live"),
+        "post_failed": ("couldn't post", "couldn't share", "upload failed", "couldn't upload", "post failed"),
+        "grid_first": [
+            {"descriptionMatches": "(?i).*row 1, column 1.*", "packageName": INSTAGRAM},
+            {"resourceIdMatches": "(?i).*(image_button|grid_card_layout_container).*", "packageName": INSTAGRAM},
+        ],
+        "more": shapes(INSTAGRAM, "(?i)^(more|more options|options)$"),
+        "copy_link": shapes(INSTAGRAM, "(?i)^(copy link|link)$"),
+        "inbox": shapes(INSTAGRAM, "(?i)^(direct|messenger|messages|message|direct messages)$") + [{"resourceIdMatches": "(?i).*(direct_tab|action_bar_inbox_button).*", "packageName": INSTAGRAM}],
+        "activity": shapes(INSTAGRAM, "(?i)^(notifications|activity)$"),
+        "message_box": shapes(INSTAGRAM, "(?i)^message( ?(…|\\.\\.\\.))?$") + field_in(INSTAGRAM),
+        "send": shapes(INSTAGRAM, "(?i)^send$"),
+        "reply": shapes(INSTAGRAM, "(?i)^reply$"),
+        "comment_box": field_in(INSTAGRAM),
+        "comment_send": shapes(INSTAGRAM, "(?i)^(post|send)$"),
+        "handle_id": "(?i).*(action_bar_title|action_bar_large_title|profile_header_username|username).*",
+        "figures": {"posts": "posts", "followers": "followers", "following": "following"},
+        "hidden": (
+            "your account can't be recommended",
+            "can't be recommended to people who don't follow you",
+            "isn't eligible to be recommended",
+            "not eligible to be recommended",
+            "some of your content isn't eligible",
+            "your content may not be recommended",
+        ),
+        "clear": (
+            "your account can be recommended",
+            "you haven't posted anything that",
+            "no content is affected",
+            "nothing is affecting",
+            "eligible to be recommended",
+        ),
+        "link_shape": re.compile(r"^https://(www\.)?instagram\.com/(p|reel|tv)/[A-Za-z0-9_-]+/?(\?\S*)?$"),
+    },
+    "tiktok": {
+        "package": TIKTOK,
+        "profile_tab": shapes(TIKTOK, "(?i)^(profile|me)$"),
+        "settings": shapes(TIKTOK, "(?i)^(menu|settings and privacy|profile menu)$"),
+        "account_status": shapes(TIKTOK, "(?i)^account status$"),
+        "status_detail": shapes(TIKTOK, "(?i)^(for you feed eligibility|recommendation eligibility)$"),
+        "edit_profile": shapes(TIKTOK, "(?i)^edit profile$"),
+        "rows": {
+            "displayName": shapes(TIKTOK, "(?i)^name$"),
+            "bio": shapes(TIKTOK, "(?i)^bio$"),
+            "link": shapes(TIKTOK, "(?i)^(links|website|add link)$"),
+        },
+        "link_add": shapes(TIKTOK, "(?i)^(add link|website)$"),
+        "picture_row": shapes(TIKTOK, "(?i)^(change photo|edit photo|photo)$"),
+        "picture_library": shapes(TIKTOK, "(?i)^(select from gallery|upload photo|choose from gallery)$"),
+        "gallery_first": [{"resourceIdMatches": "(?i).*(media_item|gallery_item|thumbnail|cover).*", "packageName": TIKTOK}],
+        "save": shapes(TIKTOK, "(?i)^(save|confirm|done)$"),
+        "next": shapes(TIKTOK, "(?i)^next$"),
+        "share_to": [],
+        "caption": shapes(TIKTOK, "(?i)^(add description|describe your post|add a description).*$") + field_in(TIKTOK),
+        "share": shapes(TIKTOK, "(?i)^post$"),
+        "posted": ("your video is now posted", "posted", "your post is live", "upload complete"),
+        "post_failed": ("couldn't post", "upload failed", "couldn't upload", "post failed"),
+        "grid_first": [{"resourceIdMatches": "(?i).*(cover|video_cover|aweme_cover).*", "packageName": TIKTOK}],
+        "more": shapes(TIKTOK, "(?i)^(share|more)$"),
+        "copy_link": shapes(TIKTOK, "(?i)^copy link$"),
+        "inbox": shapes(TIKTOK, "(?i)^(inbox)$"),
+        "activity": shapes(TIKTOK, "(?i)^(activities|activity|comments)$"),
+        "message_box": shapes(TIKTOK, "(?i)^send a message( ?(…|\\.\\.\\.))?$") + field_in(TIKTOK),
+        "send": shapes(TIKTOK, "(?i)^send$"),
+        "reply": shapes(TIKTOK, "(?i)^reply$"),
+        "comment_box": field_in(TIKTOK),
+        "comment_send": shapes(TIKTOK, "(?i)^(post|send)$"),
+        "handle_id": "",
+        "figures": {"posts": "", "followers": "followers", "following": "following"},
+        "hidden": (
+            "not eligible for the for you feed",
+            "ineligible for the for you feed",
+            "not eligible for recommendation",
+            "your account isn't eligible",
+            "may not be recommended",
+        ),
+        "clear": ("eligible for the for you feed", "good standing", "no violations", "your account is in good standing"),
+        "link_shape": re.compile(r"^https://((www|vm|vt)\.)?tiktok\.com/\S+$"),
+    },
+}
+
+# Words a signed-out app's first screen shows.
+LOG_IN_WORDS = ("log in", "log into another account", "sign up", "create new account", "use phone or email")
+COUNT_TEXT = re.compile(r"^\d[\d,]*(\.\d+)?\s*[kKmM]?$")
+COUNT_LINE = re.compile(r"^(\d[\d,]*(?:\.\d+)?\s*[kKmM]?)\s+([A-Za-z]+)$")
+AT_HANDLE = re.compile(r"^@([A-Za-z0-9._]{2,30})$")
+PLAIN_HANDLE = re.compile(r"^[A-Za-z0-9._]{1,30}$")
+# Lines a conversation shows that nobody wrote: times, days, Seen and Sent.
+NOT_A_LINE = re.compile(r"(?i)^(today|yesterday|seen|sent|delivered|active now|active \d+\w* ago|\d{1,2}:\d{2}( ?[ap]m)?|(today|yesterday|mon|tue|wed|thu|fri|sat|sun)\w* \d{1,2}:\d{2}.*|\d+[smhdw])$")
+POST_LANDED_APP_SECONDS = 180
+APP_FEED_AFTER_SECONDS = (20, 60)
+APP_READ_FEED_SECONDS = (30, 90)
+MEDIA_DOWNLOAD_LIMIT = 300 * 1024 * 1024
+MEDIA_DOWNLOAD_SECONDS = 120
+
+
+def open_app(serial, app):
+    shell(serial, "monkey -p %s -c android.intent.category.LAUNCHER 1" % APP_PACKAGES[app])
+    time.sleep(4)
+
+
+def signed_out(hierarchy_xml, app):
+    """True on a sign-in screen: a short screen offering Log in."""
+    lines = [plain(line) for line in screen_lines(hierarchy_xml, APP_PACKAGES[app])]
+    return len(lines) < 40 and any(line in LOG_IN_WORDS for line in lines)
+
+
+def parse_count(text):
+    """1,234 or 12.3K as a number, or None."""
+    return parse_karma(text)
+
+
+def profile_handle(hierarchy_xml, app):
+    """The account's name on its own profile: the title bar on Instagram, the @name line on TikTok."""
+    root = ElementTree.fromstring(hierarchy_xml)
+    package = APP_PACKAGES[app]
+    pattern = APP_SCREENS[app]["handle_id"]
+    for node in root.iter("node"):
+        if node.get("package") not in (None, "", package):
+            continue
+        words = node_words(node).strip().rstrip("⌄▾").strip()
+        found = AT_HANDLE.match(words)
+        if found:
+            return found.group(1)
+        if pattern and re.match(pattern, node.get("resource-id") or "") and PLAIN_HANDLE.match(words):
+            return words
+    return None
+
+
+def app_profile_from_screen(hierarchy_xml, app):
+    """The handle and the figures on the account's own profile. None where one is not shown."""
+    handle = profile_handle(hierarchy_xml, app)
+    figures = {}
+    lines = screen_lines(hierarchy_xml, APP_PACKAGES[app])
+    for key, label in APP_SCREENS[app]["figures"].items():
+        if not label:
+            figures[key] = None
+            continue
+        value = value_beside_label(hierarchy_xml, label, COUNT_TEXT)
+        if value is None:
+            for line in lines:
+                found = COUNT_LINE.match(line)
+                if found and plain(found.group(2)) == label:
+                    value = found.group(1)
+                    break
+        figures[key] = parse_count(value) if value else None
+    return {"handle": handle, "followers": figures["followers"], "following": figures["following"], "posts": figures["posts"]}
+
+
+def read_app_profile(serial, walk, app):
+    """Opens the app on the account's own profile and reads it. Leaves it there."""
+    open_app(serial, app)
+    walk.shot("Opened %s" % APP_NAMES[app])
+    device = walk.screen()
+    if signed_out(device.dump_hierarchy(), app):
+        return {"handle": None, "followers": None, "following": None, "posts": None}
+    walk.tap_first("Open the profile", selectors=APP_SCREENS[app]["profile_tab"])
+    time.sleep(2)
+    reading = app_profile_from_screen(device.dump_hierarchy(), app)
+    walk.shot("Read the profile")
+    return reading
+
+
+def action_app_quick_state(app):
+    def action(serial, args, walk):
+        """Who the app is signed in as, read after every job. An app that cannot
+        be read says "not checked", so a failed look is never written down as
+        signed out."""
+        try:
+            walk.screen().screen_on()
+            reading = read_app_profile(serial, walk, app)
+            walk.home()
+        except Cancelled:
+            raise
+        except Exception as failure:  # Not checked rather than signed out.
+            log("Could not read who is signed in to %s on %s: %s" % (APP_NAMES[app], serial, failure))
+            return {"checked": False, "handle": None}
+        return {"checked": True, "handle": reading["handle"]}
+    return action
+
+
+def shadowban_from_screen(hierarchy_xml, app):
+    """What the Account status page says about being shown to people who do not
+    follow the account: hidden, clear, or not read when neither is said.
+    Hidden is looked for first, since "can't be recommended" also holds
+    "be recommended"."""
+    screens = APP_SCREENS[app]
+    labels = [selector["textMatches"] for selector in screens["status_detail"] if "textMatches" in selector]
+    # The menu's own label ("What can't be recommended") is not an answer.
+    lines = [line for line in screen_lines(hierarchy_xml, APP_PACKAGES[app]) if not any(re.match(label, line) for label in labels)]
+    words = [plain(line) for line in lines]
+    for line in words:
+        if any(phrase in line for phrase in screens["hidden"]):
+            return {"read": True, "hidden": True, "words": next(text for text in lines if plain(text) == line)[:300]}
+    for line in words:
+        if any(phrase in line for phrase in screens["clear"]):
+            return {"read": True, "hidden": False, "words": next(text for text in lines if plain(text) == line)[:300]}
+    return {"read": False, "hidden": False, "words": ""}
+
+
+def read_account_status(serial, walk, app):
+    """Settings, then Account status, then the part about recommendations,
+    read without pressing anything else. A step that is not found leaves it
+    unread rather than failing the reading."""
+    screens = APP_SCREENS[app]
+    try:
+        walk.tap_first("Open the menu", selectors=screens["settings"])
+        time.sleep(1.5)
+        scroll_to_first(walk, "Find Account status", screens["account_status"])
+        walk.tap_first("Open Account status", selectors=screens["account_status"])
+        time.sleep(2)
+        reading = shadowban_from_screen(walk.screen().dump_hierarchy(), app)
+        if not reading["read"]:
+            try:
+                walk.tap_first("Open what can't be recommended", timeout=3, selectors=screens["status_detail"])
+                time.sleep(2)
+                reading = shadowban_from_screen(walk.screen().dump_hierarchy(), app)
+            except StepFailed:
+                pass
+        walk.shot("Read Account status")
+        return reading
+    except StepFailed:
+        if walk.rehearse:
+            raise
+        return {"read": False, "hidden": False, "words": ""}
+
+
+def post_numbers_from_screen(hierarchy_xml, app):
+    """Views, likes and comments as one post's own screen shows them, each None when not shown."""
+    lines = screen_lines(hierarchy_xml, APP_PACKAGES[app])
+    found = {"views": None, "likes": None, "comments": None}
+    words = {"views": ("views", "plays", "view", "play"), "likes": ("likes", "like"), "comments": ("comments", "comment")}
+    for line in lines:
+        text = line.replace(",", "")
+        for key, names in words.items():
+            if found[key] is not None:
+                continue
+            match = re.match(r"(?i)^([\d.]+\s*[km]?)\s+(%s)$" % "|".join(names), text.strip())
+            if match:
+                found[key] = parse_count(match.group(1))
+    # TikTok writes the counts under their icons, described by the button: "Like, 1.2K".
+    for line in lines:
+        match = re.match(r"(?i)^(like|likes|comment|comments|views?|plays?)\W+([\d.,]+\s*[km]?)\b", line.strip())
+        if match:
+            key = "likes" if match.group(1).lower().startswith("like") else "comments" if match.group(1).lower().startswith("comment") else "views"
+            if found[key] is None:
+                found[key] = parse_count(match.group(2).replace(",", ""))
+    return found
+
+
+def open_link(serial, app, url):
+    shell(serial, "am start -a android.intent.action.VIEW -d '%s' -p %s" % (url.replace("'", ""), APP_PACKAGES[app]))
+    time.sleep(4)
+
+
+def unread_in_inbox(hierarchy_xml, app):
+    """True when the inbox button says something is unread: "Messenger, 2 unread", "Inbox, 3"."""
+    for line in screen_lines(hierarchy_xml, APP_PACKAGES[app]):
+        text = plain(line)
+        if re.match(r"^(direct|messenger|messages|inbox)\W+\d+", text) or re.search(r"\b\d+ (unread|new)\b", text):
+            return True
+    return False
+
+
+def action_app_health(app):
+    def action(serial, args, walk):
+        """The daily reading: the profile, the Account status page, and the
+        numbers of each post named, opened by its link. A post that will not
+        open is left out, and its numbers stay as they were."""
+        walk.screen().screen_on()
+        reading = read_app_profile(serial, walk, app)
+        result = dict(reading, shadowban={"read": False, "hidden": False, "words": ""}, numbers=[], inboxWaiting=False)
+        if not reading["handle"]:
+            walk.home()
+            return result
+        result["shadowban"] = read_account_status(serial, walk, app)
+        go_back(serial)
+        go_back(serial)
+        urls = [str(url) for url in (args.get("postUrls") or []) if APP_SCREENS[app]["link_shape"].match(str(url))]
+        for url in urls[:12]:
+            walk.check()
+            try:
+                open_link(serial, app, url)
+                numbers = post_numbers_from_screen(walk.screen().dump_hierarchy(), app)
+                walk.shot("Read a post's numbers")
+                result["numbers"].append(dict(numbers, url=url))
+            except StepFailed:
+                continue
+        try:
+            open_app(serial, app)
+            result["inboxWaiting"] = unread_in_inbox(walk.screen().dump_hierarchy(), app)
+        except Exception as failure:  # A glance that fails is only a glance.
+            log("Could not glance at the %s inbox on %s: %s" % (APP_NAMES[app], serial, failure))
+        walk.home()
+        return result
+    return action
+
+
+# ---------------------------------------------------------------------------
+# Files for a post or a profile picture: downloaded from Promo's own media
+# address, put in the phone's camera folder under a camera-like name, and
+# scanned so the gallery shows it.
+
+MEDIA_TYPES = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
+    ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm",
+}
+
+
+def media_extension(url):
+    path = url.split("?", 1)[0].lower()
+    for extension in MEDIA_TYPES:
+        if path.endswith(extension):
+            return extension
+    return ""
+
+
+def download_media(url, fetch=None):
+    """The file's bytes and its extension, or a failure saying why. Only an https address is fetched."""
+    if not url.startswith("https://"):
+        raise RuntimeError("post: the file's address is not an https address")
+    extension = media_extension(url)
+    if not extension:
+        raise RuntimeError("post: the file is not a photo or video the apps take")
+    if fetch is None:
+        def fetch(address):
+            with urllib.request.urlopen(address, timeout=MEDIA_DOWNLOAD_SECONDS) as response:
+                data = response.read(MEDIA_DOWNLOAD_LIMIT + 1)
+            return data
+    data = fetch(url)
+    if len(data) > MEDIA_DOWNLOAD_LIMIT:
+        raise RuntimeError("post: the file is larger than 300 MB")
+    if not data:
+        raise RuntimeError("post: the file came back empty")
+    return data, extension
+
+
+def camera_name(extension, now=None):
+    """IMG_20261016_142233.jpg or VID_..., the way the phone's own camera names a file."""
+    stamp = time.strftime("%Y%m%d_%H%M%S", time.localtime(now or time.time()))
+    return "%s_%s%s" % ("VID" if MEDIA_TYPES[extension].startswith("video/") else "IMG", stamp, extension)
+
+
+def put_in_gallery(serial, data, extension):
+    """Puts the file in the camera folder and has the gallery read it. Returns its path on the phone."""
+    name = camera_name(extension)
+    folder = os.path.join(HOME, "media")
+    os.makedirs(folder, exist_ok=True)
+    local = os.path.join(folder, name)
+    with open(local, "wb") as handle:
+        handle.write(data)
+    remote = "/sdcard/DCIM/Camera/%s" % name
+    try:
+        adb(["push", local, remote], serial=serial, timeout=MEDIA_DOWNLOAD_SECONDS)
+    finally:
+        try:
+            os.remove(local)
+        except OSError:
+            pass
+    shell(serial, "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d 'file://%s'" % remote, timeout=15)
+    time.sleep(2)
+    return remote
+
+
+def media_uri(serial, remote, extension):
+    """The gallery's own address for a file, which the share screen is handed."""
+    kind = "video" if MEDIA_TYPES[extension].startswith("video/") else "images"
+    output = shell(serial, "content query --uri content://media/external/%s/media --projection _id --where \"_data='%s'\"" % (kind, remote), timeout=15)
+    found = re.search(r"_id=(\d+)", output)
+    if not found:
+        raise RuntimeError("post: the gallery did not list the file after it was copied in")
+    return "content://media/external/%s/media/%s" % (kind, found.group(1))
+
+
+def rehearsal_picture():
+    """A plain picture for the self-test to walk the post screens with. Never posted."""
+    from PIL import Image  # uiautomator2 brings Pillow.
+    buffer = io.BytesIO()
+    Image.new("RGB", (1080, 1080), (232, 228, 220)).save(buffer, format="JPEG", quality=80)
+    return buffer.getvalue(), ".jpg"
+
+
+def share_into(serial, app, uri, extension):
+    """Hands the file to the app's own share screen, as sharing from the gallery does."""
+    shell(serial, "am start -a android.intent.action.SEND -t %s --eu android.intent.extra.STREAM %s --grant-read-uri-permission -p %s" % (
+        MEDIA_TYPES[extension], uri, APP_PACKAGES[app]))
+    time.sleep(5)
+
+
+def leave_app_screen(serial, walk, times=4):
+    """Backs out of a screen without sending anything, discarding a draft if asked."""
+    for _ in range(times):
+        go_back(serial)
+        time.sleep(1)
+        device = walk.screen()
+        for label in ("Discard", "Discard post", "Discard edits", "Delete draft", "Leave"):
+            try:
+                if device(text=label).exists:
+                    walk.press(device(text=label))
+                    break
+            except Exception:  # A screen caught mid-change.
+                break
+
+
+def screen_says(hierarchy_xml, app, phrases):
+    lines = [plain(line) for line in screen_lines(hierarchy_xml, APP_PACKAGES[app])]
+    return next((line for line in lines if any(phrase in line for phrase in phrases)), None)
+
+
+def tap_next_until(walk, step, selectors, until, most=3):
+    """Presses Next until the screen with `until` shows, at most `most` times."""
+    device = walk.screen()
+    for index in range(most):
+        for selector in until:
+            if device(**selector).exists:
+                return
+        walk.tap_first("%s (%d)" % (step, index + 1), selectors=selectors)
+        time.sleep(2)
+    walk.find_first(step, selectors=until)
+
+
+def read_post_link(serial, walk, app):
+    """The newest post's link: the profile, its first post, More, Copy link,
+    and the clipboard read. "" when the app would not give it."""
+    screens = APP_SCREENS[app]
+    try:
+        open_app(serial, app)
+        walk.tap_first("Open the profile", selectors=screens["profile_tab"])
+        time.sleep(2)
+        walk.tap_first("Open the newest post", selectors=screens["grid_first"])
+        time.sleep(2)
+        walk.tap_first("Open its menu", selectors=screens["more"])
+        time.sleep(1)
+        walk.tap_first("Copy its link", selectors=screens["copy_link"])
+        time.sleep(1)
+        link = str(walk.screen().clipboard or "").strip()
+    except (StepFailed, AttributeError) as failure:
+        log("Could not read the new post's link on %s: %s" % (walk.serial, short_words(failure)))
+        return ""
+    return link if screens["link_shape"].match(link) else ""
+
+
+def browse_app_feed(serial, walk, seconds):
+    """A little of the app's own feed, which can never fail what came before it."""
+    device = walk.screen()
+    until = time.monotonic() + seconds
+    while time.monotonic() < until:
+        walk.check()
+        scroll_once(serial, device, 1)
+        scroll_pause(until)
+
+
+def action_app_post(app):
+    def action(serial, args, walk):
+        """Posts one photo or video with its caption, once.
+
+        The file is downloaded from Promo's own address, put in the phone's
+        camera folder and handed to the app's own share screen, as sharing
+        from the gallery does. Next until the caption box shows, the caption
+        typed with a person's rhythm, a pause, and Share or Post pressed once.
+        It counts as posted when the app says so within three minutes. Then
+        the link is read off the newest post, and a little feed. Nothing after
+        the press can fail the post: it is up by then and never sent twice.
+
+        In a rehearsal a plain picture walks the same screens up to the last
+        button, which is found and not pressed, then the draft is discarded
+        and the picture deleted.
+        """
+        screens = APP_SCREENS[app]
+        caption = str(args.get("caption") or "")
+        device = walk.screen()
+        device.screen_on()
+        if walk.rehearse:
+            data, extension = rehearsal_picture()
+        else:
+            data, extension = download_media(str(args.get("mediaUrl") or ""))
+        remote = put_in_gallery(serial, data, extension)
+        walk.shot("Put the file in the gallery")
+        try:
+            share_into(serial, app, media_uri(serial, remote, extension), extension)
+            walk.shot("Opened %s's share screen" % APP_NAMES[app])
+            if signed_out(device.dump_hierarchy(), app):
+                raise RuntimeError("post: the app is not signed in to %s" % APP_NAMES[app])
+            if screens["share_to"]:
+                try:
+                    walk.tap_first("Pick the feed", timeout=4, selectors=screens["share_to"])
+                except StepFailed:
+                    pass  # Straight to the editor on this version.
+            tap_next_until(walk, "Press Next", screens["next"], screens["caption"])
+            walk.tap_first("Open the caption box", selectors=screens["caption"])
+            if not walk.rehearse and caption:
+                gaps = type_like_a_person(serial, device, caption, walk.check)
+                walk.shot("Typed the caption")
+                log("caption typed: %d characters, gaps %.2f to %.2f seconds" % (len(caption), min(gaps or [0]), max(gaps or [0])))
+                go_back(serial)  # The keyboard down, so Share is on screen.
+                time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
+            pressed = walk.final_first("Press %s" % ("Share" if app == "instagram" else "Post"), selectors=screens["share"])
+        except Cancelled:
+            raise
+        except Exception:
+            # Stopped before the last button: the draft is discarded so the
+            # phone is not left on it, and nothing was posted.
+            if not walk.rehearse:
+                leave_app_screen(serial, walk)
+            raise
+        finally:
+            if walk.rehearse:
+                leave_app_screen(serial, walk)
+                quietly(serial, "rm -f '%s'" % remote)
+                quietly(serial, "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d 'file://%s'" % remote)
+        if not pressed:
+            walk.home()
+            return {"postUrl": ""}
+
+        landed = None
+        waiting_until = time.time() + POST_LANDED_APP_SECONDS
+        while time.time() < waiting_until:
+            time.sleep(3)
+            try:
+                hierarchy = device.dump_hierarchy()
+            except Exception:  # A screen caught mid-change; look again.
+                continue
+            if screen_says(hierarchy, app, screens["post_failed"]):
+                walk.shot("The app said it failed")
+                raise RuntimeError("post: the app said it could not post: %s" % screen_says(hierarchy, app, screens["post_failed"]))
+            if screen_says(hierarchy, app, screens["posted"]):
+                landed = True
+                break
+        walk.shot("Looked for the post")
+        if not landed:
+            raise RuntimeError("post: pressed %s but the app did not say it was posted within %d seconds. It may still be uploading; check the app before posting again." % (
+                "Share" if app == "instagram" else "Post", POST_LANDED_APP_SECONDS))
+
+        # After: nothing here may fail the post, which is up.
+        link = ""
+        try:
+            link = read_post_link(serial, walk, app)
+            browse_app_feed(serial, walk, random.uniform(*APP_FEED_AFTER_SECONDS))
+        except Exception as failure:  # Includes a cancel: the post is up either way.
+            log("After the post on %s: %s" % (serial, short_words(failure)))
+        walk.home()
+        return {"postUrl": link}
+    return action
+
+
+def clear_and_type(serial, walk, element, text):
+    """Empties a text box and types into it with a person's rhythm."""
+    walk.press(element)
+    time.sleep(0.6)
+    try:
+        element.clear_text()
+    except Exception:  # A fake screen, or a box that clears on its own.
+        pass
+    if text:
+        type_like_a_person(serial, walk.screen(), text, walk.check)
+
+
+def action_app_profile(app):
+    def action(serial, args, walk):
+        """Changes the fields given in the app's Edit profile: the name, the
+        bio, the link and the picture, each saved on its own screen with one
+        press. The bio is read back off the profile afterwards. A rehearsal
+        opens Edit profile and the bio's screen, finds its box and its Save,
+        and backs out without pressing it."""
+        screens = APP_SCREENS[app]
+        device = walk.screen()
+        device.screen_on()
+        reading = read_app_profile(serial, walk, app)
+        if not reading["handle"]:
+            raise RuntimeError("profile: the app is not signed in to %s" % APP_NAMES[app])
+        walk.tap_first("Open Edit profile", selectors=screens["edit_profile"])
+        time.sleep(2)
+        applied = []
+        fields = [(key, args.get(key)) for key in ("displayName", "bio", "link")]
+        if walk.rehearse:
+            fields = [("bio", "")]
+        for key, value in fields:
+            if value is None:
+                continue
+            walk.check()
+            walk.tap_first("Open the %s" % key, selectors=screens["rows"][key])
+            time.sleep(1.5)
+            if key == "link" and not walk.rehearse:
+                try:
+                    walk.tap_first("Add an external link", timeout=3, selectors=screens["link_add"])
+                    time.sleep(1)
+                except StepFailed:
+                    pass
+            box = walk.find_first("Find the %s box" % key, selectors=field_in(screens["package"]))
+            if not walk.rehearse:
+                clear_and_type(serial, walk, box, str(value))
+                walk.shot("Typed the %s" % key)
+            if walk.final_first("Save the %s" % key, selectors=screens["save"]):
+                applied.append(key)
+                time.sleep(2)
+            else:
+                leave_app_screen(serial, walk, times=2)
+                walk.home()
+                return {"applied": [], "bioAfter": None}
+        picture = str(args.get("pictureUrl") or "")
+        if picture and not walk.rehearse:
+            data, extension = download_media(picture)
+            put_in_gallery(serial, data, extension)
+            walk.tap_first("Change the picture", selectors=screens["picture_row"])
+            time.sleep(1.5)
+            walk.tap_first("Choose from the gallery", selectors=screens["picture_library"])
+            time.sleep(2)
+            # The newest picture in the gallery is the one just put there.
+            walk.tap_first("Pick the newest picture", selectors=screens["gallery_first"])
+            time.sleep(1.5)
+            # Instagram crops the picture first, behind Next; only Save or Done keeps it.
+            tap_next_until(walk, "Crop the picture", screens["next"], screens["save"])
+            if walk.final_first("Save the picture", selectors=screens["save"]):
+                applied.append("picture")
+                time.sleep(4)
+        go_back(serial)
+        time.sleep(2)
+        bio_after = None
+        if "bio" in applied:
+            lines = screen_lines(device.dump_hierarchy(), screens["package"])
+            wanted = " ".join(str(args.get("bio") or "").split())
+            bio_after = wanted if wanted in lines else None
+            walk.shot("Read the profile afterwards")
+        walk.home()
+        return {"applied": applied, "bioAfter": bio_after}
+    return action
+
+
+# ---------------------------------------------------------------------------
+# Messages and comments. The rack reads each phone's notifications once a
+# minute without opening an app, and tells Promo which app had a message or
+# a comment, never its words. Promo then sends an inbox action, which taps
+# that notification the way a person answers the buzz (Tyler, 16 Oct 2026:
+# "if it goes straight to the DM wouldnt that be suspicious?"), reads the
+# conversation or the comments, and spends a little time in the feed.
+
+ALERT_KEEP = 500
+
+
+def parse_app_notifications(output):
+    """The notifications of the three apps in `dumpsys notification --noredact`:
+    (app, key, channel and category, title, text)."""
+    packages = dict((package, app) for app, package in APP_PACKAGES.items())
+    found = []
+    current = None
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("NotificationRecord("):
+            package = re.search(r"pkg=(\S+)", stripped)
+            app = packages.get(package.group(1)) if package else None
+            key = re.search(r"key=(\S+?):", stripped)
+            meta = " ".join(re.findall(r"(?:channel|category|tag)=(\S+)", stripped))
+            current = {"app": app, "key": key.group(1) if key else stripped[:80], "meta": meta, "title": "", "text": ""} if app else None
+            if current:
+                found.append(current)
+        elif current and stripped.startswith("android.title="):
+            current["title"] = re.sub(r"^android\.title=\w+ \((.*)\)$", r"\1", stripped)
+        elif current and stripped.startswith("android.text="):
+            current["text"] = re.sub(r"^android\.text=\w+ \((.*)\)$", r"\1", stripped)
+    return found
+
+
+COMMENT_ALERT = re.compile(r"\b(commented|replied to your comment|mentioned you in a comment)\b")
+MESSAGE_ALERT = re.compile(r"\b(sent you a (message|chat|photo|video|reel|post)|messaged you|new message|new chat|wants to send you a message)\b")
+
+
+def alert_kind(item):
+    """"message", "comment" or None for one app notification. Reddit's comment
+    replies are left to the reader browser, so Reddit only counts its chats
+    and messages. Likes and follows are nothing."""
+    words = plain("%s %s" % (item["title"], item["text"]))
+    meta = plain(item["meta"])
+    if item["app"] in ("instagram", "tiktok") and COMMENT_ALERT.search(words):
+        return "comment"
+    if MESSAGE_ALERT.search(words) or re.search(r"(direct|message|chat|\bmsg\b|\bim\b)", meta):
+        return "message"
+    return None
+
+
+def new_alerts(output, seen):
+    """The alerts not reported before: one per app and kind, each notification
+    remembered by its key and words so it is reported once."""
+    alerts = []
+    for item in parse_app_notifications(output):
+        kind = alert_kind(item)
+        if not kind:
+            continue
+        mark = hashlib.sha256(("%s|%s|%s" % (item["key"], item["title"], item["text"])).encode("utf-8")).hexdigest()
+        if mark in seen:
+            continue
+        seen[mark] = True
+        alert = {"app": item["app"], "kind": kind}
+        if alert not in alerts:
+            alerts.append(alert)
+    while len(seen) > ALERT_KEEP:
+        seen.popitem(last=False)  # The oldest goes first.
+    return alerts
+
+
+_ALERTS = {}
+_ALERTS_LOCK = threading.Lock()
+
+
+def keep_alerts(serial, alerts):
+    with _ALERTS_LOCK:
+        waiting = _ALERTS.setdefault(serial, [])
+        for alert in alerts:
+            if alert not in waiting:
+                waiting.append(alert)
+
+
+def take_alerts(serial):
+    with _ALERTS_LOCK:
+        return _ALERTS.pop(serial, [])
+
+
+def conversation_from_screen(hierarchy_xml, app, height=2400, width=1080):
+    """One conversation as its screen shows it: its name from the top bar, and
+    its lines, the account's own on the right."""
+    package = APP_PACKAGES[app]
+    root = ElementTree.fromstring(hierarchy_xml)
+    thread = ""
+    lines = []
+    for node in root.iter("node"):
+        if node.get("package") not in (None, "", package):
+            continue
+        words = node_words(node)
+        bounds = parse_bounds(node.get("bounds"))
+        if not words or not bounds:
+            continue
+        middle_y = (bounds[1] + bounds[3]) / 2
+        if middle_y < height * 0.12:
+            if not thread and 1 <= len(words) <= 60 and plain(words) not in ("back", "call", "video call", "info", "audio call"):
+                thread = words
+            continue
+        if middle_y > height * 0.9 or NOT_A_LINE.match(words) or node.get("class") == "android.widget.EditText":
+            continue
+        if node.get("text") is None or not (node.get("text") or "").strip():
+            continue
+        mine = (bounds[0] + bounds[2]) / 2 > width * 0.55
+        lines.append({"from": "" if mine else thread, "text": words, "mine": mine})
+    return {"thread": thread, "lines": lines}
+
+
+AUTHOR_TEXT = re.compile(r"^([A-Za-z0-9._]{2,30})\s+(.+)$")
+
+
+def comments_from_screen(hierarchy_xml, app, handle, height=2400):
+    """The comments on a post's comments screen, by author, leaving out the
+    account's own. The first line by the account is the caption, which says
+    which post it is."""
+    package = APP_PACKAGES[app]
+    lines = []
+    root = ElementTree.fromstring(hierarchy_xml)
+    for node in root.iter("node"):
+        if node.get("package") not in (None, "", package):
+            continue
+        bounds = parse_bounds(node.get("bounds"))
+        words = (node.get("text") or "").strip()
+        if not words or not bounds or not (height * 0.1 < (bounds[1] + bounds[3]) / 2 < height * 0.9):
+            continue
+        if NOT_A_LINE.match(words) or plain(words) in ("reply", "see translation", "view replies", "hide replies"):
+            continue
+        lines.append(" ".join(words.split()))
+    thread = ""
+    comments = []
+    index = 0
+    own = (handle or "").lower()
+    while index < len(lines):
+        line = lines[index]
+        author, text = None, None
+        joined = AUTHOR_TEXT.match(line)
+        if PLAIN_HANDLE.match(line) and index + 1 < len(lines) and not PLAIN_HANDLE.match(lines[index + 1]):
+            author, text = line, lines[index + 1]
+            index += 2
+        elif joined:
+            author, text = joined.group(1), joined.group(2)
+            index += 1
+        else:
+            index += 1
+            continue
+        if author.lower() == own:
+            if not thread:
+                thread = text[:120]
+            continue
+        comments.append({"author": author, "text": text})
+    return [dict(comment, thread=thread) for comment in comments]
+
+
+NOT_A_MESSAGE = re.compile(r"\b(liked|follow|following|tagged you|went live|posted)\b")
+
+
+def notification_for(hierarchy_xml, app, kind):
+    """Where the shade shows the app's newest notification of this kind, or None.
+    Each line belongs to the app named above it. A comment needs its words; a
+    message is one that says so, or failing that the app's first line that is
+    no comment, like or follow, since a direct message shows only its words."""
+    name = plain(APP_NAMES[app])
+    names = set(plain(other) for other in APP_NAMES.values())
+    under = None
+    fallback = None
+    for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
+        words = plain(" ".join((node.get("text") or "").split()))
+        bounds = parse_bounds(node.get("bounds"))
+        if not words or not bounds:
+            continue
+        if words in names:
+            under = words
+            continue
+        if under != name:
+            continue
+        if kind == "comment":
+            if COMMENT_ALERT.search(words):
+                return bounds
+        elif MESSAGE_ALERT.search(words):
+            return bounds
+        elif fallback is None and not COMMENT_ALERT.search(words) and not NOT_A_MESSAGE.search(words):
+            fallback = bounds
+    return fallback if kind == "message" else None
+
+
+def open_newest_notification(walk, app, kind):
+    """Pulls the notification shade down and taps the app's newest notification
+    of this kind. False when none is there."""
+    device = walk.screen()
+    try:
+        device.open_notification()
+    except Exception:  # A fake screen; the inbox is opened instead.
+        return False
+    time.sleep(1.5)
+    bounds = notification_for(device.dump_hierarchy(), app, kind)
+    if not bounds:
+        go_back(walk.serial)
+        return False
+    walk.shot("Opened the notifications")
+    press_bounds(walk, bounds)
+    time.sleep(3)
+    return True
+
+
+def press_bounds(walk, bounds):
+    """Presses a place read off the screen the way walk.press presses an element."""
+    time.sleep(random.uniform(*LOOK_BEFORE_TAP_SECONDS))
+    walk.check()
+    x, y = tap_point(bounds)
+    tap_at(walk.serial, walk.screen(), x, y)
+
+
+def landed_on(device, selectors):
+    """True when one of these shapes shows now: the notification led where it should."""
+    return any(device(**selector).exists for selector in selectors)
+
+
+def open_inbox(serial, walk, app):
+    open_app(serial, app)
+    if app == "reddit":
+        walk.tap_first("Open the chats", selectors=REDDIT_CHAT)
+    else:
+        walk.tap_first("Open the inbox", selectors=APP_SCREENS[app]["inbox"])
+    time.sleep(2)
+
+
+REDDIT_CHAT = shapes(REDDIT, "(?i)^(chat|chats|inbox|messages)$")
+REDDIT_MESSAGE_BOX = shapes(REDDIT, "(?i)^(message|send a message)( ?(…|\\.\\.\\.))?$") + field_in(REDDIT)
+REDDIT_SEND = shapes(REDDIT, "(?i)^send$")
+
+
+def screens_for(app):
+    """The buttons an app's messages use; Reddit's chats have their own."""
+    if app == "reddit":
+        return {"message_box": REDDIT_MESSAGE_BOX, "send": REDDIT_SEND, "package": REDDIT}
+    return APP_SCREENS[app]
+
+
+def first_conversation(walk, app):
+    """Opens the inbox's first conversation. False when the inbox is empty."""
+    device = walk.screen()
+    width, height = screen_size(device)
+    root = ElementTree.fromstring(device.dump_hierarchy())
+    package = APP_PACKAGES[app]
+    for node in root.iter("node"):
+        bounds = parse_bounds(node.get("bounds"))
+        if node.get("package") not in (None, "", package) or not bounds or node.get("clickable") != "true":
+            continue
+        if height * 0.18 < (bounds[1] + bounds[3]) / 2 < height * 0.85 and bounds[2] - bounds[0] > width * 0.7:
+            x, y = tap_point(bounds)
+            walk.check()
+            tap_at(walk.serial, device, x, y)
+            time.sleep(2)
+            return True
+    return False
+
+
+def action_app_inbox(app):
+    def action(serial, args, walk):
+        """Reads what arrived. With `via` "notification" it taps the app's
+        newest notification first; otherwise, or when there is none, it opens
+        the app's inbox and the first conversation. Comments are read off the
+        post the notification opens. A minute or so of feed afterwards.
+        Nothing is pressed but the way in and Back."""
+        kind = "comment" if args.get("kind") == "comment" else "message"
+        device = walk.screen()
+        device.screen_on()
+        width, height = screen_size(device)
+        # Promo names the account, so its own lines (the caption) are told apart.
+        handle = str(args.get("handle") or "")
+        reached = False
+        if args.get("via") != "inbox" and not walk.rehearse:
+            reached = open_newest_notification(walk, app, kind)
+            # A notification that led somewhere else is left, and the way in
+            # is the inbox or the activity, as with no notification at all.
+            box = screens_for(app)["message_box"] if kind == "message" else APP_SCREENS[app]["comment_box"]
+            if reached and not landed_on(device, box):
+                go_back(serial)
+                reached = False
+        result = {"conversations": [], "comments": []}
+        if kind == "comment":
+            if not reached:
+                open_app(serial, app)
+                walk.tap_first("Open the activity", selectors=APP_SCREENS[app]["activity"])
+                time.sleep(2)
+                walk.shot("Opened the activity")
+                walk.home()
+                return result
+            result["comments"] = comments_from_screen(device.dump_hierarchy(), app, handle, height)
+            walk.shot("Read the comments")
+        else:
+            if not reached:
+                open_inbox(serial, walk, app)
+                walk.shot("Opened the inbox")
+                if walk.rehearse or not first_conversation(walk, app):
+                    walk.home()
+                    return result
+            conversation = conversation_from_screen(device.dump_hierarchy(), app, height, width)
+            walk.shot("Read the conversation")
+            if conversation["thread"] and conversation["lines"]:
+                result["conversations"].append(conversation)
+        try:
+            go_back(serial)
+            time.sleep(1.5)
+            if app != "reddit":
+                browse_app_feed(serial, walk, random.uniform(*APP_READ_FEED_SECONDS))
+            else:
+                browse_feed(serial, walk, random.uniform(*APP_READ_FEED_SECONDS), 0, new_visit(), time.monotonic() + 120)
+        except Exception as failure:  # The reading stands either way.
+            log("The feed after reading %s on %s: %s" % (APP_NAMES[app], serial, short_words(failure)))
+        walk.home()
+        return result
+    return action
+
+
+def find_line(device, package, words):
+    """An element on screen whose own words hold `words`, or None."""
+    wanted = " ".join((words or "").split())[:60]
+    if not wanted:
+        return None
+    element = device(textContains=wanted, packageName=package)
+    return element if element.exists else None
+
+
+def rows_named(hierarchy_xml, package, name):
+    """Where the screen shows exactly this name, in the app's own views. An
+    inbox row is told apart by its whole name, so "sam" never opens "samantha"
+    or a chat whose last line reads "ask sam"."""
+    wanted = plain(" ".join((name or "").split()))
+    found = []
+    for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
+        if node.get("package") not in (None, "", package):
+            continue
+        bounds = parse_bounds(node.get("bounds"))
+        if bounds and wanted and plain(" ".join((node.get("text") or "").split())) == wanted:
+            found.append(bounds)
+    return found
+
+
+def reply_under(hierarchy_xml, package, words, height):
+    """Where the Reply of the comment holding `words` is: the first Reply below
+    the comment's own words, close under them. None when the comment or its
+    Reply is not on screen."""
+    wanted = " ".join((words or "").split())[:60]
+    comment = None
+    replies = []
+    for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
+        if node.get("package") not in (None, "", package):
+            continue
+        bounds = parse_bounds(node.get("bounds"))
+        text = " ".join((node.get("text") or "").split())
+        if not bounds or not text:
+            continue
+        if comment is None and wanted and wanted in text:
+            comment = bounds
+        elif plain(text) == "reply":
+            replies.append(bounds)
+    if comment is None:
+        return None
+    below = [bounds for bounds in replies if comment[3] - 5 <= bounds[1] <= comment[3] + height * 0.12]
+    return min(below, key=lambda bounds: bounds[1]) if below else None
+
+
+def times_shown(hierarchy_xml, package, text):
+    """How many of the app's views show the words, the text box left out: words
+    still sitting unsent in the box are not an answer that went out, and the
+    same words said earlier in the chat each count once."""
+    wanted = " ".join(text.split())[:60]
+    if not wanted:
+        return 0
+    count = 0
+    for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
+        if node.get("package") not in (None, "", package) or node.get("class") == "android.widget.EditText":
+            continue
+        if any(wanted in " ".join((node.get(key) or "").split()) for key in ("text", "content-desc")):
+            count += 1
+    return count
+
+
+def action_app_reply(app):
+    def action(serial, args, walk):
+        """Answers one conversation or one comment, once. A conversation is
+        found by its name in the inbox; a comment through the app's activity,
+        by its author and words, then its Reply. The words are typed with a
+        person's rhythm and Send or Post pressed once; it counts as sent when
+        the words show on screen within 20 seconds. A rehearsal opens the
+        inbox and its first conversation, if any, finds the box and Send,
+        and presses neither."""
+        kind = "comment" if args.get("kind") == "comment" else "message"
+        text = str(args.get("text") or "")
+        thread = str(args.get("thread") or "")
+        author = str(args.get("author") or "")
+        quote = str(args.get("quote") or "")
+        screens = screens_for(app)
+        package = APP_PACKAGES[app]
+        device = walk.screen()
+        device.screen_on()
+        if not walk.rehearse and not text:
+            raise RuntimeError("reply: no words to send")
+
+        if kind == "message":
+            open_inbox(serial, walk, app)
+            if walk.rehearse:
+                if not first_conversation(walk, app):
+                    walk.home()
+                    return {"sent": False}
+            else:
+                rows = rows_named(device.dump_hierarchy(), package, thread)
+                if len(rows) != 1:
+                    walk.shot("Looked for the conversation")
+                    raise StepFailed(
+                        "Find the conversation",
+                        "The conversation was not in the inbox." if not rows
+                        else "Two conversations in the inbox have the same name, so neither was answered.",
+                    )
+                press_bounds(walk, rows[0])
+                time.sleep(2)
+            walk.shot("Opened the conversation")
+            box = walk.find_first("Find the message box", selectors=screens["message_box"])
+            send = screens["send"]
+        else:
+            open_app(serial, app)
+            walk.tap_first("Open the activity", selectors=APP_SCREENS[app]["activity"])
+            time.sleep(2)
+            if walk.rehearse:
+                walk.shot("Opened the activity")
+                walk.home()
+                return {"sent": False}
+            row = find_line(device, package, author)
+            if row is None:
+                raise StepFailed("Find the comment", "No comment by %s was in the activity." % author)
+            walk.press(row)
+            time.sleep(3)
+            # The Reply under this comment's own words, never the first on screen.
+            _, height = screen_size(device)
+            reply = reply_under(device.dump_hierarchy(), package, quote, height)
+            if reply is None:
+                walk.shot("Looked for the comment")
+                raise StepFailed("Find the comment", "The comment by %s, with its Reply, was not on the post's screen." % author)
+            press_bounds(walk, reply)
+            time.sleep(1.5)
+            box = walk.find_first("Find the reply box", selectors=APP_SCREENS[app]["comment_box"])
+            send = APP_SCREENS[app]["comment_send"]
+
+        before = 0
+        if not walk.rehearse:
+            before = times_shown(device.dump_hierarchy(), package, text)
+            walk.press(box)
+            gaps = type_like_a_person(serial, device, text, walk.check)
+            walk.shot("Typed the answer")
+            log("answer typed: %d characters, gaps %.2f to %.2f seconds" % (len(text), min(gaps or [0]), max(gaps or [0])))
+            time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
+        pressed = walk.final_first("Press Send", selectors=send)
+        if not pressed:
+            leave_app_screen(serial, walk, times=2)
+            walk.home()
+            return {"sent": False}
+        sent = False
+        waiting_until = time.time() + POST_LANDED_SECONDS
+        while time.time() < waiting_until:
+            time.sleep(1)
+            try:
+                if times_shown(device.dump_hierarchy(), package, text) > before:
+                    sent = True
+                    break
+            except Exception:  # A screen caught mid-change; look again.
+                continue
+        walk.shot("Looked for the answer")
+        if not sent:
+            raise RuntimeError("reply: pressed Send but the words did not show within %d seconds. Check the app before sending again." % POST_LANDED_SECONDS)
+        try:
+            go_back(serial)
+            time.sleep(1)
+            if app != "reddit":
+                browse_app_feed(serial, walk, random.uniform(*APP_FEED_AFTER_SECONDS))
+        except Exception as failure:  # The answer is out either way.
+            log("The feed after answering on %s: %s" % (serial, short_words(failure)))
+        walk.home()
+        return {"sent": True}
+    return action
+
+
 # The actions the daily self-test walks, with the arguments a rehearsal uses.
 # The app actions join this list as they are written. The wipe never does:
 # a rehearsal cannot press its last button, but nothing about a wipe is
@@ -1648,7 +2822,20 @@ REHEARSALS = {
     "reddit/state": {},
     "reddit/health": {},
     "reddit/comment": {"permalink": "", "text": "", "subreddit": ""},
+    "reddit/inbox": {"kind": "message", "via": "inbox"},
+    "reddit/reply_message": {"kind": "message", "thread": "", "author": "", "quote": "", "text": ""},
 }
+# Instagram's and TikTok's steps (phone farm file 06). The post walks a plain
+# picture the rack makes, up to Share or Post; the profile walks the bio's box
+# up to Save; neither presses its last button.
+for _app in ("instagram", "tiktok"):
+    REHEARSALS.update({
+        "%s/health" % _app: {"postUrls": []},
+        "%s/profile" % _app: {},
+        "%s/post" % _app: {"mediaUrl": "", "mediaKind": "photo", "caption": ""},
+        "%s/inbox" % _app: {"kind": "message", "via": "inbox", "handle": ""},
+        "%s/reply" % _app: {"kind": "message", "thread": "", "author": "", "quote": "", "text": ""},
+    })
 
 
 def rehearsal_args(rehearsals, overrides):
@@ -1707,7 +2894,18 @@ ACTIONS = {
     "reddit/quick_state": action_reddit_quick_state,
     "reddit/health": action_reddit_health,
     "reddit/comment": action_reddit_comment,
+    "reddit/inbox": action_app_inbox("reddit"),
+    "reddit/reply_message": action_app_reply("reddit"),
 }
+for _app in ("instagram", "tiktok"):
+    ACTIONS.update({
+        "%s/quick_state" % _app: action_app_quick_state(_app),
+        "%s/health" % _app: action_app_health(_app),
+        "%s/profile" % _app: action_app_profile(_app),
+        "%s/post" % _app: action_app_post(_app),
+        "%s/inbox" % _app: action_app_inbox(_app),
+        "%s/reply" % _app: action_app_reply(_app),
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -2202,6 +3400,12 @@ def vitals_turn(state, now=None):
         if phone["state"] != "device" or now - state["read_at"].get(serial, 0) < VITALS_SECONDS:
             continue
         state["read_at"][serial] = now
+        # The apps' notifications, read without opening an app; only which
+        # app and whether it was a message or a comment go to Promo.
+        try:
+            keep_alerts(serial, new_alerts(shell(serial, "dumpsys notification --noredact", timeout=15), state["alerts"].setdefault(serial, collections.OrderedDict())))
+        except Exception as failure:  # The vitals are still read this turn.
+            log("Could not read the notifications on %s: %s" % (serial, failure))
         try:
             reading = parse_vitals(shell(serial, VITALS_COMMAND, timeout=20))
             if now - state["apps_at"].get(serial, 0) >= APPS_SECONDS:
@@ -2227,7 +3431,7 @@ def vitals_turn(state, now=None):
 
 def vitals_loop():
     """Runs for as long as the program does; a turn that fails is logged and the next one tried."""
-    state = {"read_at": {}, "apps_at": {}, "missed": {}}
+    state = {"read_at": {}, "apps_at": {}, "missed": {}, "alerts": {}}
     while True:
         try:
             vitals_turn(state)
@@ -2250,10 +3454,14 @@ def check_in(config):
     note = state.get("rolledBack")
     phones = list_phones()
     taken = {}
+    alerted = {}
     for phone in phones:
         reading = take_reading(phone["serial"]) if phone["state"] == "device" else None
         if reading:
             phone["vitals"] = taken[phone["serial"]] = reading
+        alerts = take_alerts(phone["serial"]) if phone["state"] == "device" else []
+        if alerts:
+            phone["alerts"] = alerted[phone["serial"]] = alerts
     try:
         reply = call(config, "/api/rack/check-in", {
             "version": VERSION,
@@ -2262,9 +3470,11 @@ def check_in(config):
             "rolledBack": note if isinstance(note, dict) else None,
         })
     except (CallFailed, Refused):
-        # Not received, so the readings wait for the next check-in.
+        # Not received, so the readings and alerts wait for the next check-in.
         for serial, reading in taken.items():
             put_back_reading(serial, reading)
+        for serial, alerts in alerted.items():
+            keep_alerts(serial, alerts)
         raise
     # Tells the launcher this version works, so it stops watching it.
     if state.get("checkedIn") != VERSION or state.get("pending"):

@@ -38,6 +38,10 @@ export const JOB_KIND_WORDS: Record<JobKind, string> = {
   promo_threads: "Find a self-promotion thread",
   forget: "Delete a profile's sign-in",
   comment_link: "Find a phone comment's link",
+  app_post: "Post a photo or video",
+  app_profile: "Change a profile",
+  inbox_read: "Read messages and comments",
+  inbox_reply: "Answer a message or comment",
 }
 
 /**

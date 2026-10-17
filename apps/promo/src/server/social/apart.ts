@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm"
 
 import { IMPORTANCE_WORDS, type AccountImportance } from "@/lib/social/importance"
+import { handleWords } from "@/lib/social/networks"
 import { Refusal } from "@/server/browser/refusal"
 import { promoProfiles } from "@/server/browser/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
@@ -54,8 +55,8 @@ function effectiveGroup(account: { importance: AccountImportance; movingToPhoneI
   return account.importance === "important" || account.movingToPhoneId ? "important" : "throwaway"
 }
 
-function name(account: { handle: string }): string {
-  return account.handle ? `u/${account.handle}` : "this account"
+function name(account: { handle: string; platform?: string }): string {
+  return account.handle ? handleWords(account.platform ?? "reddit", account.handle) : "this account"
 }
 
 /** An important account runs on a phone only. */

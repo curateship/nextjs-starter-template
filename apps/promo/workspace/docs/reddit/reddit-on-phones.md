@@ -14,7 +14,9 @@ and a step that does not find its button stops with a picture of the screen.
 
 - **Who is signed in:** the rack opens the app's account menu and reads
   "u/name", the karma and the "Reddit age" off the screen. It runs after every
-  job on a phone account, as the browser's quick look does.
+  job on a phone account, as the browser's quick look does, for the account
+  the job ran as only: since file 06 a phone may also carry an Instagram and a
+  TikTok account, and their apps are not opened after a Reddit job.
 - **The health reading:** the same reading, plus the account opening its own
   profile. The stranger's look, whether a signed-out visitor can see the
   profile, still runs in the signed-out reader browser, never on another
@@ -23,6 +25,10 @@ and a step that does not find its button stops with a picture of the screen.
 - **Searches and thread reads stay in the reader browser** for every account
   (Tyler, 14 Oct 2026), so an account's own history never shows a search. The
   phone reads the post itself before it comments.
+- **Direct messages:** since phone farm file 06, a Reddit chat that arrives on
+  the phone is read off it when its notification shows, and answered from the
+  Messages dashboard when a person presses Send
+  ([the Messages dashboard](../messages-dashboard.md)).
 - **Anything else is refused when its button is pressed,** with words such as
   "u/name's phone cannot do answering a reply yet": answering replies, posts of
   your own, and editing or deleting a sent comment. A step that reaches the
@@ -125,7 +131,7 @@ throwaway), the move waits and the settings window says why.
   (`action_reddit_state`, `action_reddit_health`, `action_reddit_comment`, and
   the hands: `tap_point`, `swipe_path`, `typing_plan`). The saved screens its
   tests read are in `rack/fixtures/reddit/`, written by hand.
-- Which steps a phone does: `PHONE_REDDIT_ROUTINES` in `src/lib/phones/options.ts`,
+- Which steps a phone does: `PHONE_APP_ROUTINES` in `src/lib/phones/options.ts`,
   refused in `src/server/phones/dispatch.ts`; the comment's self-test rule in
   `src/server/phones/action-checks.ts`.
 - The comment's link: `src/server/social/reddit/comment-link.ts`, a

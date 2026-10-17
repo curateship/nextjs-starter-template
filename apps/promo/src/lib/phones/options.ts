@@ -62,40 +62,79 @@ const PHONE_ACTION_WORDS: Record<PhoneAction, string> = {
   "reddit/state": "Read who Reddit is signed in as",
 }
 
-/** A job's Reddit steps, which the rack does in the Reddit app, in words. */
-const REDDIT_STEP_WORDS: Record<string, string> = {
+/** A job's app steps, which the rack does in the Reddit, Instagram and TikTok apps, in words. */
+const APP_STEP_WORDS: Record<string, string> = {
   "reddit/quick_state": "Read who Reddit is signed in as",
   "reddit/health": "Reddit health reading",
   "reddit/comment": "Post a Reddit comment",
+  "reddit/inbox": "Read Reddit's messages",
+  "reddit/reply_message": "Answer a Reddit message",
   "reddit/reply": "answering a reply",
   "reddit/submit": "a post of your own",
   "reddit/edit_comment": "editing a sent comment",
   "reddit/delete_comment": "deleting a sent comment",
   "reddit/warm_up": "the warm-up visit",
+  "instagram/quick_state": "Read who Instagram is signed in as",
+  "instagram/health": "Instagram health reading",
+  "instagram/profile": "Change the Instagram profile",
+  "instagram/post": "Post on Instagram",
+  "instagram/inbox": "Read Instagram's messages and comments",
+  "instagram/reply": "Answer on Instagram",
+  "tiktok/quick_state": "Read who TikTok is signed in as",
+  "tiktok/health": "TikTok health reading",
+  "tiktok/profile": "Change the TikTok profile",
+  "tiktok/post": "Post on TikTok",
+  "tiktok/inbox": "Read TikTok's messages and comments",
+  "tiktok/reply": "Answer on TikTok",
 }
 
 /** An action's name in words, for any action the rack ran, including a job's steps. */
 export function actionWords(action: string): string {
-  return PHONE_ACTION_WORDS[action as PhoneAction] ?? REDDIT_STEP_WORDS[action] ?? action
+  return PHONE_ACTION_WORDS[action as PhoneAction] ?? APP_STEP_WORDS[action] ?? action
 }
 
 /**
- * The Reddit steps the rack can do in the Reddit app (phone farm file 05).
- * Searches and thread reads are not here: they run in the signed-out reader
- * browser for every account, so an account's own history never shows a
- * search (Tyler, 14 Oct 2026). Any other Reddit step on a phone account is
- * refused before anything reaches the phone.
+ * The app steps the rack can do. Reddit (phone farm file 05): who is signed
+ * in, the health reading, the comment, and since file 06 its direct
+ * messages. Searches and thread reads are not here: they run in the
+ * signed-out reader browser for every account, so an account's own history
+ * never shows a search (Tyler, 14 Oct 2026). Instagram and TikTok (file 06):
+ * who is signed in, the health reading, the profile, a post, reading what
+ * arrived and answering it. Any other app step on a phone is refused before
+ * anything reaches the phone.
  */
-export const PHONE_REDDIT_ROUTINES = ["reddit/state", "reddit/quick_state", "reddit/health", "reddit/comment"] as const
+export const PHONE_APP_ROUTINES = [
+  "reddit/state",
+  "reddit/quick_state",
+  "reddit/health",
+  "reddit/comment",
+  "reddit/inbox",
+  "reddit/reply_message",
+  "instagram/quick_state",
+  "instagram/health",
+  "instagram/profile",
+  "instagram/post",
+  "instagram/inbox",
+  "instagram/reply",
+  "tiktok/quick_state",
+  "tiktok/health",
+  "tiktok/profile",
+  "tiktok/post",
+  "tiktok/inbox",
+  "tiktok/reply",
+] as const
+
+const APP_PREFIXES = ["reddit/", "instagram/", "tiktok/"]
 
 /**
- * Why a phone cannot do a Reddit step, in words, or null when it can. Said
+ * Why a phone cannot do an app step, in words, or null when it can. Said
  * when the button is pressed for a phone account, and again where the step
  * would reach the phone, so nothing is ever queued only to fail.
  */
 export function phoneStepRefusal(routine: string, phoneName: string): string | null {
-  if (!routine.startsWith("reddit/") || (PHONE_REDDIT_ROUTINES as readonly string[]).includes(routine)) return null
-  return `${phoneName} cannot do ${actionWords(routine)} yet: on a phone, the Reddit app reads who is signed in, takes the health reading and posts comments. Nothing was sent.`
+  if (!APP_PREFIXES.some((prefix) => routine.startsWith(prefix))) return null
+  if ((PHONE_APP_ROUTINES as readonly string[]).includes(routine)) return null
+  return `${phoneName} cannot do ${actionWords(routine)} yet: on a phone, the Reddit app reads who is signed in, takes the health reading, posts comments and answers messages. Nothing was sent.`
 }
 
 /**

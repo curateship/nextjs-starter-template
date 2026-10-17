@@ -1,11 +1,13 @@
 # Where the code lives
 
-Promo posts to social networks. Reddit is the first and the others are coming,
-so the folders are split by one question: **will the next network share this, or
-is it Reddit's own?**
+Promo posts to social networks: Reddit, and since phone farm file 06
+Instagram and TikTok. The folders are split by one question: **will the next
+network share this, or is it one network's own?**
 
-Shared sits in `social/`. Reddit's own sits in `social/reddit/`. Adding
-Instagram is adding `social/instagram/` beside it and touching nothing else.
+Shared sits in `social/`. Reddit's own sits in `social/reddit/`. Instagram and
+TikTok share `social/phone-apps/`, because on Promo's side the two are the
+same steps in two apps; what differs between them is a table of limits and
+each app's buttons on the rack.
 
 The isolated browser sits one level further out, in `browser/`, because it is
 not a social feature at all. Tyler, 5 Oct 2026: "proxy and browser isolation is
@@ -48,6 +50,24 @@ an app wide feature, not just a reddit feature."
 | `src/components/social/reddit/` | Reddit's module (`reddit-module.tsx`): the keywords panel, the tabs and the posts list, the post-and-comment panel with the accounts dropdown (`account-picker.tsx`), and the Jobs window (`jobs-window.tsx`), which a project's dashboard shows when Reddit is picked. |
 | `docker/browser/routines/reddit.py` | The only file that knows how a Reddit page is put together. Its Reddit app twin is `rack/promo_rack.py`. |
 
+## What belongs to the networks that run on phones
+
+Instagram and TikTok run on a phone only, in the real app, never in the
+browser. Their code is shared between the two, because nothing on Promo's
+side differs except limits.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/lib/social/networks.ts` | `PHONE_ONLY_NETWORKS`: the networks whose accounts may only run on a phone. |
+| `src/lib/social/phone-apps.ts` | Their limits (caption, hashtags, bio, an answer's length), the inbox's kinds and statuses, and the words both halves draw. |
+| `src/server/social/phone-apps/` | The shapes the rack's answers are checked against (`calls.ts`), the daily reading with the shadowban line and post numbers (`health.ts`), posting (`posts.ts`), the AI caption (`captions.ts`), the profile (`profile.ts`), messages and comments for every phone account, Reddit's included (`inbox.ts`), and what the module reads (`module.ts`). |
+| `src/lib/api/social/phone-apps.ts` | The module's, the Messages dashboard's and the profile card's endpoints. |
+| `src/components/social/phone-apps/` | The module (`app-module.tsx`), its Posts and Comments tables, the new post, the answer box, the accounts dropdown, and the Messages dashboard. |
+| `rack/promo_rack.py` | Each app's steps, read off `APP_SCREENS`, and the notifications the rack reads once a minute. |
+
+[Instagram and TikTok accounts, and the daily reading](instagram/accounts-and-the-daily-reading.md)
+has the rest.
+
 ## Phones
 
 Real Android phones are app-wide, like the browser: a device an account runs
@@ -85,27 +105,54 @@ is the person-pace helper every network's routines type and read with.
 
 ## Adding the next network
 
-1. `docker/browser/routines/instagram.py`, exposing the same routines: what it
+A network runs either in the browser, like Reddit, or on a phone only, like
+Instagram and TikTok. Every network gets a module on a project's dashboard and
+never a route or a left menu entry of its own: add it to `NETWORKS` in
+`src/lib/social/networks.ts`, and a branch for it in
+`src/components/social/projects/workspace.tsx` where the modules are picked
+([Networks as modules](network-modules.md)).
+
+### One that runs in the browser
+
+1. `docker/browser/routines/<network>.py`, exposing the same routines: what it
    can see (both the full look and the quick one that does not move the page),
    search, read a thread, post. Add it to `NETWORKS` in
    `routines/__init__.py`.
-2. `src/server/social/instagram/` for searching, reading and posting.
-3. `src/lib/social/instagram/options.ts` for anything only Instagram has.
-4. `src/components/social/instagram/` with its module, the middle and right
+2. `src/server/social/<network>/` for searching, reading and posting.
+3. `src/lib/social/<network>/options.ts` for anything only it has.
+4. `src/components/social/<network>/` with its module, the middle and right
    columns it fills on a project's dashboard, beside
-   `src/components/social/reddit/reddit-module.tsx`. It gets no route and no
-   left menu entry of its own: add `"instagram"` to `NETWORKS` in
-   `src/lib/social/networks.ts`, and add a branch for it in
-   `src/components/social/projects/workspace.tsx` where Reddit's module is
-   picked ([Networks as modules](network-modules.md)).
+   `src/components/social/reddit/reddit-module.tsx`.
 5. Add the calls to `src/server/browser/command.ts`, which already carries the
    network in every address.
 6. The browser program writes down who is signed in after each job, for each
    account inside the profile it used. That loop in `src/server/social/runner.ts`
-   reads Reddit's quick check today; Instagram adds its own beside it.
+   reads Reddit's quick check; the new network adds its own beside it.
 
-Nothing else in `social/` or `browser/` should need changing. If it does, that is
-the sign the thing being added was shared after all and belongs one level up.
+### One that runs on a phone only
+
+How Instagram and TikTok were added (phone farm file 06).
+
+1. Add it to `PHONE_ONLY_NETWORKS` in `src/lib/social/networks.ts`. Adding an
+   account to it then offers phones only, and a browser profile is refused
+   (`checkPicks` in `src/server/social/accounts.ts`).
+2. Its app's package in `APP_PACKAGES` and its buttons in `APP_SCREENS` in
+   `rack/promo_rack.py`, and its steps registered in `ACTIONS` and
+   `REHEARSALS` there, the same seven as Instagram's: state, quick_state,
+   health, profile, post, inbox, reply.
+3. The same names in `PHONE_APP_ROUTINES` and their words in
+   `src/lib/phones/options.ts`, or the phone refuses them before anything is
+   sent. The post and the profile join `NEEDS_A_PASS` in
+   `src/server/phones/action-checks.ts`.
+4. Its limits in `src/lib/social/phone-apps.ts`. If its steps answer in the
+   same shapes, `src/server/social/phone-apps/` and the module in
+   `src/components/social/phone-apps/` serve it with nothing else to change.
+5. Its package's notifications are then read by the rack for messages and
+   comments (`alert_kind` in `rack/promo_rack.py`).
+
+Nothing else in `social/`, `browser/` or `phones/` should need changing. If it
+does, that is the sign the thing being added was shared after all and belongs
+one level up.
 
 ## Who opens a browser
 

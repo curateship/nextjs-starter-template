@@ -25,8 +25,8 @@ instagram panels."
 - **Each network keeps its own keywords inside the project.** Reddit's
   keywords carry subreddits and Reddit's order, and Instagram would search by
   hashtag.
-- **Only built networks can be added.** Reddit today. Instagram joins the list
-  the day it is built (`workspace/tasks/Phone farm/06-instagram-and-tiktok.md`).
+- **Only built networks can be added.** Reddit, and since 16 Oct 2026
+  Instagram and TikTok (`workspace/tasks/Phone farm/06-instagram-and-tiktok.md`).
 - **Voices stays in the left menu,** because one voice serves every network.
 - **Accounts has its own dashboard,** with a Platform filter, under Projects
   after Voices. Tyler, 15 Oct 2026: "I think accounts should be on its own
@@ -43,16 +43,32 @@ instagram panels."
   of each: "My project still holds 2 Reddit accounts and 1 keyword. Take its
   accounts out and remove its keywords first, then take Reddit off."
 - **New project** asks for the networks with the name, every built network
-  ticked to begin with.
+  ticked to begin with: Reddit, Instagram and TikTok.
 - **A project with no network** shows "This project uses no network yet" in the
   middle column and nothing to post from.
 - **The picked network is in the address** (`?network=reddit`), so a reload
   keeps it. With none named, the project's first network is shown.
 
 Reddit's keywords are the only keywords there are, and `promo_keywords` is
-shaped for Reddit (subreddits, Reddit's sort order and time window). Instagram's
-keywords will be a table of its own, so the keywords table has no network
-column.
+shaped for Reddit (subreddits, Reddit's sort order and time window).
+Instagram and TikTok have no keywords: Tyler, 16 Oct 2026, "Skip the searching
+for posts to answer. IG and tiktok is not reddit."
+
+## Instagram's and TikTok's module
+
+One module serves both, `src/components/social/phone-apps/app-module.tsx`:
+
+- **The middle column** is two tabs, **Posts** (every photo and video the
+  project posted on the network, with its numbers) and **Comments** (what
+  people wrote under them). `?view=comments` is the Comments tab, and
+  `?comment=<id>` an open comment. **Jobs** opens the same Jobs window as
+  Reddit's, and **New post** opens the new post.
+- **The right column** is a new post with the **Post as** dropdown, or, with a
+  comment open, the comment and the answer to it.
+- [Instagram and TikTok accounts, and the daily reading](instagram/accounts-and-the-daily-reading.md),
+  [posting](instagram/posting.md) and [comments on your posts](instagram/comments.md)
+  have the rest. Direct messages are on their own dashboard for every network
+  ([the Messages dashboard](messages-dashboard.md)).
 
 ## Reddit's module
 
@@ -133,6 +149,7 @@ It is still stored, and shows again once its account is put in a project.
   network, `project-columns.tsx` is the three columns any network fills, and
   `src/components/social/reddit/reddit-module.tsx` is Reddit's middle and right
   columns. The Jobs window is `jobs-window.tsx` and the dropdown
-  `account-picker.tsx`, beside it.
+  `account-picker.tsx`, beside it. Instagram's and TikTok's module is
+  `src/components/social/phone-apps/app-module.tsx`.
 - **The old addresses** are the four route files they always were, now only
   sending on.

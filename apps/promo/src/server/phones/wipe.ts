@@ -1,6 +1,7 @@
 import { and, eq, isNull, or } from "drizzle-orm"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { handleWords } from "@/lib/social/networks"
 import { promoAccounts } from "@/server/social/schema"
 
 import { recordPhoneEvent } from "./history"
@@ -91,19 +92,19 @@ export async function queueWipe(
   now: Date = new Date()
 ): Promise<string> {
   const [onIt] = await db
-    .select({ handle: promoAccounts.handle, phoneId: promoAccounts.phoneId })
+    .select({ handle: promoAccounts.handle, platform: promoAccounts.platform, phoneId: promoAccounts.phoneId })
     .from(promoAccounts)
     .where(
       and(
         eq(promoAccounts.userId, userId),
         // A retired account still on the phone counts: it holds the phone's
-        // one Reddit place, and bringing it back finds it signed in there.
+        // network's one place on it, and bringing it back finds it signed in there.
         or(eq(promoAccounts.phoneId, phoneId), and(eq(promoAccounts.movingToPhoneId, phoneId), isNull(promoAccounts.retiredAt)))
       )
     )
     .limit(1)
   if (onIt) {
-    const who = onIt.handle ? `u/${onIt.handle}` : "An account"
+    const who = handleWords(onIt.platform, onIt.handle) || "An account"
     throw new Error(
       onIt.phoneId === phoneId
         ? `${who} runs on this phone. Move it to another phone or a browser profile on the Accounts dashboard before wiping, or its sign-in goes with everything else.`

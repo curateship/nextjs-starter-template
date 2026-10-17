@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { adminGet, adminPost } from "@/server/guards"
 import { listProfiles } from "@/server/browser/profiles"
-import { phonesFreeForReddit } from "@/server/phones/phones"
+import { phonesFreeFor } from "@/server/phones/phones"
 import {
   accountsByProfile,
   readAccount,
@@ -81,7 +81,7 @@ const loadFn = createServerFn({ method: "GET" })
           )
         )
         .map(({ id, name }) => ({ id, name })),
-      phones: await phonesFreeForReddit(userId, account?.id ?? null),
+      phones: await phonesFreeFor(userId, account?.id ?? null),
       voices: voices.map(({ id, name }) => ({ id, name })),
     }
   })
