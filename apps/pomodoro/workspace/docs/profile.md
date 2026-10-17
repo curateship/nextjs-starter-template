@@ -25,7 +25,8 @@ app-level facts about a person, in `pomodoro_profiles` (migration
   the saved timezone wins, and until one is saved the browser's own is used
   and quietly recorded, so travelling never silently moves the day
   boundary.
-- **Leaderboard opt-in** — off by default; opting out hides the account
+- **Leaderboard opt-in** — on for every account since 17 Oct 2026, new
+  and old (see [the public profile](public-profile.md)); opting out hides the account
   from the leaderboard immediately (the leaderboard query filters on it). It
   also decides whether you appear in, and can see, the "Who you focus with"
   card. See [Focus rooms](rooms.md).

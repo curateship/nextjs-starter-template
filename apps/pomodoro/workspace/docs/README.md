@@ -29,7 +29,7 @@ cover this one.
   timer counts on, the repeat rule, steps inside a task, and tags.
 - [Projects](projects.md) — grouping tasks at the level people bill at, an
   hours target per week or month, what archiving does, and the per-project
-  split in History.
+  split in Stats.
 - [The streak reminder](streak-reminder.md) — the evening nudge in the bell
   when the streak is alive and today is still empty; off until switched on,
   once a day at most, and never by email.
@@ -85,7 +85,7 @@ cover this one.
   project targets, the sessions table with its tag filter, CSV export, and the
   badges.
 - [Achievements](achievements.md) — the ten badges, the panel at the foot
-  of History with each locked badge's progress, and why a badge can only
+  of Stats with each locked badge's progress, and why a badge can only
   ever be awarded once.
 - [Guest mode and the one-time import](guest-mode.md) — the whole product
   without an account, and the first sign-in copying it over exactly once.

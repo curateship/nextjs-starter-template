@@ -28,9 +28,11 @@ Drawn to Tyler's design of 7 Oct 2026 (`assets/pasted-image-1791398305993222000.
   It stays under the two panels and draws nothing when there is nothing to
   show.
 
-- **Opt-in only, display names only.** An account appears only after
-  turning on "Show me on the leaderboard" in Settings AND choosing a
-  public display name; real names and emails never show. Avatars are
+- **On for new accounts, display names only.** An account appears only while
+  "Show me on the leaderboard" is on in Settings AND it has a public display
+  name. Every account has both from 17 Oct 2026: the switch on, and its first
+  name as the display name unless it already had one (Tyler, 17 Oct 2026, see
+  [the public profile](public-profile.md)). Surnames and emails never show. Avatars are
   coloured initials seeded from the display name — the old stock faces
   were not ported.
 - **A row is never blank.** Every board's query already leaves out anyone
@@ -102,8 +104,8 @@ A signed-in member missing from the global board sees one line above the
 ranking that says why, with Settings as a link to the Profile tab:
 
 - **The switch is off:** "You are not on this board. Switch it on in Settings
-  to take your place." The switch is off by default, so this is most new
-  members.
+  to take your place." A new account starts with the switch on, so this is
+  someone who switched it off.
 - **The switch is on but there is no display name:** "You are not on this
   board yet. Pick a display name in Settings to take your place."
 

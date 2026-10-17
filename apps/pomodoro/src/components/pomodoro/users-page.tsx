@@ -27,7 +27,7 @@ type UsersResult = Awaited<ReturnType<typeof readUsersPage>>
 type DirectoryPerson = UsersResult["rows"][number]
 
 /**
- * `/users`: the members who asked to be listed, drawn to Tyler's design of
+ * `/users`: every listed member, drawn to Tyler's design of
  * 8 Oct 2026. A search box and Most focused / Newest beside the title, then a
  * card per person: photo, name, handle and Follow along the top, the bio,
  * and the hours focused with View profile along the foot.
@@ -79,8 +79,8 @@ export function UsersPage({
         <div className="title-halo flex min-w-[18rem] flex-1 basis-0 flex-col gap-2">
           <h1 className="text-4xl font-bold tracking-tight">Users</h1>
           <p className="text-muted-foreground">
-            Members who chose to be listed. Everyone here switched this on
-            themselves.
+            Everyone who focuses here. Leave the list any time in Settings,
+            under Public page.
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">

@@ -99,7 +99,7 @@ export function ProjectsCard({ pomodoro }: { pomodoro: PomodoroApi }) {
     >
       {!pomodoro.projects.length ? (
         <p className="text-sm text-muted-foreground">
-          Put tasks in a project and History tells you where the month went.
+          Put tasks in a project and Stats tells you where the month went.
         </p>
       ) : null}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
