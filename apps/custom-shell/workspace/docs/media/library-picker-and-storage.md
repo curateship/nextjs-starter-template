@@ -26,7 +26,11 @@ the form and ran off the bottom of the screen.
 
 Uploads pass several checks:
 
-- The server checks the declared type, actual content, and size limit.
+- The server checks the declared type, actual content, and size limit:
+  10MB for a picture, 50MB for sound, 5GB for a video.
+- A video goes straight from the browser to the bucket in pieces and is
+  checked once the pieces are joined. The repo's `docs/shell/big-uploads.md`
+  covers that journey, the progress number and the bucket's CORS rule.
 - The server sanitizes SVG files before storage.
 - Suitable raster images can be cropped before use.
 - The library creates thumbnails where possible and uses a type fallback when
