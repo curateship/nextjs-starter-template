@@ -2,7 +2,7 @@
  * The upload rules the browser checks before sending a file.
  *
  * These mirror `validateMediaFile` in `server/media/library.ts`, which is still the one
- * that decides. Checking here only saves someone a 100MB round trip to be told
+ * that decides. Checking here only saves someone a long upload just to be told
  * no, so the wording matches on both sides.
  */
 import { formatFileSize } from "@/lib/format/format-bytes"
@@ -25,7 +25,26 @@ export const VIDEO_MIME_TYPES = [
 ]
 
 const IMAGE_MAX_BYTES = 10 * 1024 * 1024
-const VIDEO_MAX_BYTES = 100 * 1024 * 1024
+/**
+ * 5GB, about 12 minutes of 4K at 60 frames a second from a phone. Shared with
+ * the server, which refuses anything bigger once the pieces are joined.
+ */
+export const VIDEO_MAX_BYTES = 5 * 1024 * 1024 * 1024
+
+/**
+ * Videos go straight to the bucket in pieces of this size. 10MB keeps the
+ * number climbing often and makes a retried piece cheap, and a 5GB file comes
+ * to 512 pieces, well under the bucket's 10,000.
+ */
+export const VIDEO_UPLOAD_PART_BYTES = 10 * 1024 * 1024
+export const VIDEO_UPLOAD_MAX_PARTS = Math.ceil(
+  VIDEO_MAX_BYTES / VIDEO_UPLOAD_PART_BYTES
+)
+
+/** How many pieces a file of this size is cut into. */
+export function videoUploadPartCount(size: number) {
+  return Math.max(1, Math.ceil(size / VIDEO_UPLOAD_PART_BYTES))
+}
 
 /** What to hand a file input's `accept`, so the picker only offers valid files. */
 export function mediaAccept(allowVideo: boolean) {

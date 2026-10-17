@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as ChangeEmailRouteImport } from './routes/change-email'
+import { Route as CoursesRouteImport } from './routes/courses'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
@@ -33,12 +34,15 @@ import { Route as AuthenticatedChangelogRouteImport } from './routes/_authentica
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as CoursesCourseRouteImport } from './routes/courses_.$course'
+import { Route as CoursesSavedRouteImport } from './routes/courses_.saved'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
+import { Route as AuthenticatedAdminCoursesRouteImport } from './routes/_authenticated/admin/courses'
 import { Route as AuthenticatedAdminCrmRouteImport } from './routes/_authenticated/admin/crm'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
@@ -60,9 +64,12 @@ import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_au
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
+import { Route as CoursesCourseChapterRouteImport } from './routes/courses_.$course_.$chapter'
+import { Route as CoursesToChapterIdRouteImport } from './routes/courses_.to.$chapterId'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
+import { Route as AuthenticatedAdminCoursesCourseIdRouteImport } from './routes/_authenticated/admin/courses_.$courseId'
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
@@ -91,6 +98,11 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
 const ChangeEmailRoute = ChangeEmailRouteImport.update({
   id: '/change-email',
   path: '/change-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoursesRoute = CoursesRouteImport.update({
+  id: '/courses',
+  path: '/courses',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -193,6 +205,16 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CoursesCourseRoute = CoursesCourseRouteImport.update({
+  id: '/courses_/$course',
+  path: '/courses/$course',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoursesSavedRoute = CoursesSavedRouteImport.update({
+  id: '/courses_/saved',
+  path: '/courses/saved',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -225,6 +247,12 @@ const AuthenticatedAdminContactsRoute =
   AuthenticatedAdminContactsRouteImport.update({
     id: '/contacts',
     path: '/contacts',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminCoursesRoute =
+  AuthenticatedAdminCoursesRouteImport.update({
+    id: '/courses',
+    path: '/courses',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminCrmRoute = AuthenticatedAdminCrmRouteImport.update({
@@ -345,6 +373,16 @@ const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
   path: '/api/webhooks/stripe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CoursesCourseChapterRoute = CoursesCourseChapterRouteImport.update({
+  id: '/courses_/$course_/$chapter',
+  path: '/courses/$course/$chapter',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoursesToChapterIdRoute = CoursesToChapterIdRouteImport.update({
+  id: '/courses_/to/$chapterId',
+  path: '/courses/to/$chapterId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAccountBillingSuccessRoute =
   AuthenticatedAccountBillingSuccessRouteImport.update({
     id: '/billing_/success',
@@ -361,6 +399,12 @@ const AuthenticatedAdminAutomationsTemplatesRoute =
   AuthenticatedAdminAutomationsTemplatesRouteImport.update({
     id: '/automations_/templates',
     path: '/automations/templates',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminCoursesCourseIdRoute =
+  AuthenticatedAdminCoursesCourseIdRouteImport.update({
+    id: '/courses_/$courseId',
+    path: '/courses/$courseId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminNewsletterBroadcastIdRoute =
@@ -424,6 +468,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/change-email': typeof ChangeEmailRoute
+  '/courses': typeof CoursesRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
@@ -444,11 +489,14 @@ export interface FileRoutesByFullPath {
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/courses/$course': typeof CoursesCourseRoute
+  '/courses/saved': typeof CoursesSavedRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
+  '/admin/courses': typeof AuthenticatedAdminCoursesRoute
   '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
@@ -469,11 +517,14 @@ export interface FileRoutesByFullPath {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/courses/$course/$chapter': typeof CoursesCourseChapterRoute
+  '/courses/to/$chapterId': typeof CoursesToChapterIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
+  '/admin/courses/$courseId': typeof AuthenticatedAdminCoursesCourseIdRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -489,6 +540,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/change-email': typeof ChangeEmailRoute
+  '/courses': typeof CoursesRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
@@ -507,11 +559,14 @@ export interface FileRoutesByTo {
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/courses/$course': typeof CoursesCourseRoute
+  '/courses/saved': typeof CoursesSavedRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
+  '/admin/courses': typeof AuthenticatedAdminCoursesRoute
   '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
@@ -532,11 +587,14 @@ export interface FileRoutesByTo {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/courses/$course/$chapter': typeof CoursesCourseChapterRoute
+  '/courses/to/$chapterId': typeof CoursesToChapterIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
+  '/admin/courses/$courseId': typeof AuthenticatedAdminCoursesCourseIdRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -554,6 +612,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/change-email': typeof ChangeEmailRoute
+  '/courses': typeof CoursesRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
@@ -574,11 +633,14 @@ export interface FileRoutesById {
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/courses_/$course': typeof CoursesCourseRoute
+  '/courses_/saved': typeof CoursesSavedRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
+  '/_authenticated/admin/courses': typeof AuthenticatedAdminCoursesRoute
   '/_authenticated/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
@@ -599,11 +661,14 @@ export interface FileRoutesById {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/courses_/$course_/$chapter': typeof CoursesCourseChapterRoute
+  '/courses_/to/$chapterId': typeof CoursesToChapterIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
+  '/_authenticated/admin/courses_/$courseId': typeof AuthenticatedAdminCoursesCourseIdRoute
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -621,6 +686,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/change-email'
+    | '/courses'
     | '/forgot-password'
     | '/login'
     | '/maintenance'
@@ -641,11 +707,14 @@ export interface FileRouteTypes {
     | '/home'
     | '/workspaces'
     | '/api/health'
+    | '/courses/$course'
+    | '/courses/saved'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
     | '/admin/automations'
     | '/admin/contacts'
+    | '/admin/courses'
     | '/admin/crm'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
@@ -666,11 +735,14 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/courses/$course/$chapter'
+    | '/courses/to/$chapterId'
     | '/admin/'
     | '/changelog/'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
     | '/admin/automations/templates'
+    | '/admin/courses/$courseId'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
@@ -686,6 +758,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/change-email'
+    | '/courses'
     | '/forgot-password'
     | '/login'
     | '/maintenance'
@@ -704,11 +777,14 @@ export interface FileRouteTypes {
     | '/home'
     | '/workspaces'
     | '/api/health'
+    | '/courses/$course'
+    | '/courses/saved'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
     | '/admin/automations'
     | '/admin/contacts'
+    | '/admin/courses'
     | '/admin/crm'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
@@ -729,11 +805,14 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/courses/$course/$chapter'
+    | '/courses/to/$chapterId'
     | '/admin'
     | '/changelog'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
     | '/admin/automations/templates'
+    | '/admin/courses/$courseId'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
@@ -750,6 +829,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/_authenticated'
     | '/change-email'
+    | '/courses'
     | '/forgot-password'
     | '/login'
     | '/maintenance'
@@ -770,11 +850,14 @@ export interface FileRouteTypes {
     | '/_authenticated/home'
     | '/_authenticated/workspaces'
     | '/api/health'
+    | '/courses_/$course'
+    | '/courses_/saved'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/automations'
     | '/_authenticated/admin/contacts'
+    | '/_authenticated/admin/courses'
     | '/_authenticated/admin/crm'
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/dev-outbox'
@@ -795,11 +878,14 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/courses_/$course_/$chapter'
+    | '/courses_/to/$chapterId'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/automations_/$automationId'
     | '/_authenticated/admin/automations_/templates'
+    | '/_authenticated/admin/courses_/$courseId'
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/pages_/edit'
     | '/_authenticated/admin/settings/$tab'
@@ -817,6 +903,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   ChangeEmailRoute: typeof ChangeEmailRoute
+  CoursesRoute: typeof CoursesRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   MaintenanceRoute: typeof MaintenanceRoute
@@ -832,9 +919,13 @@ export interface RootRouteChildren {
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  CoursesCourseRoute: typeof CoursesCourseRoute
+  CoursesSavedRoute: typeof CoursesSavedRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  CoursesCourseChapterRoute: typeof CoursesCourseChapterRoute
+  CoursesToChapterIdRoute: typeof CoursesToChapterIdRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
@@ -870,6 +961,13 @@ declare module '@tanstack/react-router' {
       path: '/change-email'
       fullPath: '/change-email'
       preLoaderRoute: typeof ChangeEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/courses': {
+      id: '/courses'
+      path: '/courses'
+      fullPath: '/courses'
+      preLoaderRoute: typeof CoursesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -1012,6 +1110,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/courses_/$course': {
+      id: '/courses_/$course'
+      path: '/courses/$course'
+      fullPath: '/courses/$course'
+      preLoaderRoute: typeof CoursesCourseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/courses_/saved': {
+      id: '/courses_/saved'
+      path: '/courses/saved'
+      fullPath: '/courses/saved'
+      preLoaderRoute: typeof CoursesSavedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
       path: '/'
@@ -1052,6 +1164,13 @@ declare module '@tanstack/react-router' {
       path: '/contacts'
       fullPath: '/admin/contacts'
       preLoaderRoute: typeof AuthenticatedAdminContactsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/courses': {
+      id: '/_authenticated/admin/courses'
+      path: '/courses'
+      fullPath: '/admin/courses'
+      preLoaderRoute: typeof AuthenticatedAdminCoursesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/crm': {
@@ -1201,6 +1320,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksStripeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/courses_/$course_/$chapter': {
+      id: '/courses_/$course_/$chapter'
+      path: '/courses/$course/$chapter'
+      fullPath: '/courses/$course/$chapter'
+      preLoaderRoute: typeof CoursesCourseChapterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/courses_/to/$chapterId': {
+      id: '/courses_/to/$chapterId'
+      path: '/courses/to/$chapterId'
+      fullPath: '/courses/to/$chapterId'
+      preLoaderRoute: typeof CoursesToChapterIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/account/billing_/success': {
       id: '/_authenticated/account/billing_/success'
       path: '/billing/success'
@@ -1220,6 +1353,13 @@ declare module '@tanstack/react-router' {
       path: '/automations/templates'
       fullPath: '/admin/automations/templates'
       preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/courses_/$courseId': {
+      id: '/_authenticated/admin/courses_/$courseId'
+      path: '/courses/$courseId'
+      fullPath: '/admin/courses/$courseId'
+      preLoaderRoute: typeof AuthenticatedAdminCoursesCourseIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/newsletter_/$broadcastId': {
@@ -1327,6 +1467,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
+  AuthenticatedAdminCoursesRoute: typeof AuthenticatedAdminCoursesRoute
   AuthenticatedAdminCrmRoute: typeof AuthenticatedAdminCrmRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
@@ -1346,6 +1487,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
   AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
+  AuthenticatedAdminCoursesCourseIdRoute: typeof AuthenticatedAdminCoursesCourseIdRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminPagesEditRoute: typeof AuthenticatedAdminPagesEditRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
@@ -1358,6 +1500,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
+  AuthenticatedAdminCoursesRoute: AuthenticatedAdminCoursesRoute,
   AuthenticatedAdminCrmRoute: AuthenticatedAdminCrmRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
@@ -1379,6 +1522,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminAutomationsAutomationIdRoute,
   AuthenticatedAdminAutomationsTemplatesRoute:
     AuthenticatedAdminAutomationsTemplatesRoute,
+  AuthenticatedAdminCoursesCourseIdRoute:
+    AuthenticatedAdminCoursesCourseIdRoute,
   AuthenticatedAdminNewsletterBroadcastIdRoute:
     AuthenticatedAdminNewsletterBroadcastIdRoute,
   AuthenticatedAdminPagesEditRoute: AuthenticatedAdminPagesEditRoute,
@@ -1432,6 +1577,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   ChangeEmailRoute: ChangeEmailRoute,
+  CoursesRoute: CoursesRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   MaintenanceRoute: MaintenanceRoute,
@@ -1447,9 +1593,13 @@ const rootRouteChildren: RootRouteChildren = {
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
+  CoursesCourseRoute: CoursesCourseRoute,
+  CoursesSavedRoute: CoursesSavedRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  CoursesCourseChapterRoute: CoursesCourseChapterRoute,
+  CoursesToChapterIdRoute: CoursesToChapterIdRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,

@@ -28,7 +28,16 @@
  * Reachable without being signed in, on purpose. The reason says why the thing
  * behind the door is safe for anyone to read.
  */
-export const appOpenEndpoints: Record<string, string> = {}
+export const appOpenEndpoints: Record<string, string> = {
+  "courses/public.ts:readCoursesFn":
+    "The /courses page lists published courses for visitors who may not be signed in; drafts and locked chapters' words are never in the answer.",
+  "courses/public.ts:readCourseIntroFn":
+    "A course's intro page is shown to signed-out visitors so they can see what it covers and join; it carries titles, never a locked chapter's words.",
+  "courses/public.ts:readChapterFn":
+    "A chapter open to everyone, or marked as a free preview, has to be readable while signed out; server/courses/reader.ts sends a locked chapter without its words.",
+  "courses/public.ts:chapterAddressFn":
+    "A chapter link inside a course is followed by whoever is reading it; the answer is only the chapter's current public address, and none for a draft course.",
+}
 
 /**
  * The handler does no checking because the thing it calls does it instead. The
