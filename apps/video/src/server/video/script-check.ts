@@ -10,6 +10,7 @@ import {
 } from "@/lib/video/script-check"
 import { getScriptBannedWords } from "@/server/video/settings"
 import { askWriter } from "@/server/video/writer"
+import { projectSpendMetadata } from "@/server/video/project-spend"
 
 /**
  * The checklist half of the script check.
@@ -72,10 +73,13 @@ export async function checkScript({
   userId,
   script,
   speed,
+  projectId,
 }: {
   userId: string
   script: string
   speed: number
+  /** The project the script is for, so its spend line counts it. */
+  projectId?: string | null
 }): Promise<ScriptCheck> {
   const text = script.trim()
   if (!text) throw new Error(SCRIPT_CHECK_NO_TEXT_MESSAGE)
@@ -84,7 +88,10 @@ export async function checkScript({
   const answer = await askWriter({
     userId,
     feature: SCRIPT_CHECK_FEATURE,
-    metadata: { characters: text.length },
+    metadata: {
+      ...(projectId ? projectSpendMetadata(projectId) : {}),
+      characters: text.length,
+    },
     prompt: scriptCheckPrompt(text, speed, bannedWords),
     schema: scriptCheckAnswerSchema,
     label: SCRIPT_CHECK_LABEL,

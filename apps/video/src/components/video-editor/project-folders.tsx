@@ -1,6 +1,8 @@
 import * as React from "react"
 import {
+  CheckIcon,
   ChevronDownIcon,
+  FolderIcon,
   FolderInputIcon,
   Loader2Icon,
   PlusIcon,
@@ -9,10 +11,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import {
-  dashboardToolbarButtonActiveClassName,
-  DashboardToolbarButton,
-} from "@/components/shared/dashboard-toolbar"
+import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -28,7 +27,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -47,14 +45,15 @@ import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import {
+  ARCHIVED_PROJECTS,
   cleanFolderName,
   NO_FOLDER,
   PROJECT_FOLDER_NAME_MAX,
 } from "@/lib/video/project-folders"
 
 /**
- * Folders on the projects list: the chips that pick one, the menu that makes,
- * renames and deletes them, and the toolbar menu that moves ticked projects.
+ * Folders on the projects list: the dropdown that picks one and makes, renames
+ * and deletes them, and the toolbar menu that moves ticked projects.
  * A project is in one folder at most, and deleting a folder never deletes a
  * project (see `workspace/docs/project-folders.md`).
  */
@@ -192,21 +191,23 @@ function FolderNameDialog({
   )
 }
 
-// ------------------------------------------------------------- Chips ------
+// -------------------------------------------------------------- Menu ------
 
 /**
- * The folder chips for the strip above the rows, plus the one button that
- * manages folders. Rename and delete act on the picked chip, so the menu never
- * needs a list of its own.
+ * The one folder dropdown beside New project (Tyler, 17 Oct 2026): it picks
+ * what the list shows (every project, the ones in no folder, one folder, or
+ * the archived ones) and holds New folder. Every folder's row has its own
+ * rename and delete buttons, always drawn, so a folder can be changed without
+ * picking it first (Tyler, 17 Oct 2026: "there is no delete button").
  */
-export function FolderChips({
+export function FolderMenu({
   folders,
   value,
   onChange,
   onFoldersChanged,
 }: {
   folders: ProjectFolderSummary[]
-  /** Absent for every project, `none`, or a folder's id. */
+  /** Absent for every project, `none`, `archived`, or a folder's id. */
   value: string | undefined
   onChange: (value: string | undefined) => void
   /** A folder was made, renamed or deleted; resolves once the list reloaded. */
@@ -219,7 +220,14 @@ export function FolderChips({
     null
   )
   const [deleteBusy, setDeleteBusy] = React.useState(false)
+  const [menuOpen, setMenuOpen] = React.useState(false)
   const active = folders.find((folder) => folder.id === value)
+  const label =
+    value === NO_FOLDER
+      ? "No folder"
+      : value === ARCHIVED_PROJECTS
+        ? "Archived"
+        : (active?.name ?? "All projects")
 
   async function confirmDelete() {
     if (!deleting) return
@@ -243,96 +251,80 @@ export function FolderChips({
     }
   }
 
-  const options = folders.length
-    ? [
-        { id: undefined, label: "All" },
-        { id: NO_FOLDER, label: "No folder" },
-        ...folders.map((folder) => ({ id: folder.id, label: folder.name })),
-      ]
-    : []
+  const choices: { id: string | undefined; label: string }[] = [
+    { id: undefined, label: "All projects" },
+    { id: NO_FOLDER, label: "No folder" },
+    ...folders.map((folder) => ({ id: folder.id, label: folder.name })),
+  ]
 
   return (
     <>
-      {options.map((option) => {
-        const on = value === option.id
-        return (
-          <Button
-            key={option.id ?? "all"}
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <DashboardToolbarButton
             type="button"
-            // The picked chip is filled the way the shell's toolbar toggles
-            // are; that fill is written for the ghost style, which has no
-            // dark-mode background of its own to cover it.
-            variant={on ? "ghost" : "outline"}
-            size="sm"
-            aria-pressed={on}
-            className={cn(
-              "max-w-56",
-              on && dashboardToolbarButtonActiveClassName
-            )}
-            title={option.label}
-            onClick={() => onChange(option.id)}
+            variant="outline"
+            className="max-w-56"
+            aria-label={`Showing ${label}. Pick a folder`}
           >
-            <span className="truncate">{option.label}</span>
-          </Button>
-        )
-      })}
-
-      {folders.length ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Manage folders"
-              title="Manage folders"
-            >
-              <SettingsIcon />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuItem onSelect={() => setNaming({ folder: null })}>
-              <PlusIcon />
-              New folder
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {active ? (
-              <>
-                <DropdownMenuLabel className="truncate">
-                  {active.name} · {projectsWord(active.project_count)}
-                </DropdownMenuLabel>
-                <DropdownMenuItem
-                  onSelect={() => setNaming({ folder: active })}
-                >
-                  <SettingsIcon />
-                  Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={() => setDeleting(active)}
-                >
-                  <Trash2Icon />
-                  Delete
-                </DropdownMenuItem>
-              </>
-            ) : (
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                Pick a folder to rename or delete it.
-              </DropdownMenuLabel>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => setNaming({ folder: null })}
-        >
-          <PlusIcon />
-          New folder
-        </Button>
-      )}
+            <FolderIcon className="size-4" />
+            <span className="truncate">{label}</span>
+            <ChevronDownIcon className="size-4 text-muted-foreground" />
+          </DashboardToolbarButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-60">
+          {choices.map((choice) => {
+            const folder = folders.find((item) => item.id === choice.id)
+            return (
+              <DropdownMenuItem
+                key={choice.id ?? "all"}
+                onSelect={() => onChange(choice.id)}
+              >
+                <CheckIcon
+                  className={cn(value === choice.id ? "opacity-100" : "opacity-0")}
+                />
+                <span className="min-w-0 flex-1 truncate">{choice.label}</span>
+                {folder ? (
+                  <span className="-my-1 flex shrink-0 items-center">
+                    <FolderRowButton
+                      label={`Rename ${folder.name}`}
+                      onPress={() => {
+                        setMenuOpen(false)
+                        setNaming({ folder })
+                      }}
+                    >
+                      <SettingsIcon />
+                    </FolderRowButton>
+                    <FolderRowButton
+                      label={`Delete ${folder.name}`}
+                      onPress={() => {
+                        setMenuOpen(false)
+                        setDeleting(folder)
+                      }}
+                    >
+                      <Trash2Icon />
+                    </FolderRowButton>
+                  </span>
+                ) : null}
+              </DropdownMenuItem>
+            )
+          })}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => onChange(ARCHIVED_PROJECTS)}>
+            <CheckIcon
+              className={cn(
+                value === ARCHIVED_PROJECTS ? "opacity-100" : "opacity-0"
+              )}
+            />
+            Archived
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setNaming({ folder: null })}>
+            <PlusIcon />
+            New folder
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <FolderNameDialog
         open={naming !== null}
@@ -366,6 +358,41 @@ export function FolderChips({
         onConfirm={() => void confirmDelete()}
       />
     </>
+  )
+}
+
+/**
+ * A small button inside a folder's menu row. It stops the press reaching the
+ * row, so renaming or deleting a folder does not also pick it.
+ */
+function FolderRowButton({
+  label,
+  onPress,
+  children,
+}: {
+  label: string
+  onPress: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-xs"
+      aria-label={label}
+      // The row picks itself when a press it saw start is let go, so neither
+      // half of the press may reach it.
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerUp={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        onPress()
+      }}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      {children}
+    </Button>
   )
 }
 

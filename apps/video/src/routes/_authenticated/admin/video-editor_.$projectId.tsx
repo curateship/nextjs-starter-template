@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { EditorProvider } from "@/components/video-editor/editor-provider"
+import { ProjectSettingsProvider } from "@/components/video-editor/project-settings"
 import { StudioEditor } from "@/components/video-editor/studio-editor"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { getProject, getProjectErrorMessage } from "@/lib/api/video/projects"
@@ -28,7 +29,9 @@ function AdminVideoEditorRoute() {
         timeline: project.timeline,
       }}
     >
-      <StudioEditor timelineError={project.timeline_error} />
+      <ProjectSettingsProvider project={project}>
+        <StudioEditor timelineError={project.timeline_error} />
+      </ProjectSettingsProvider>
     </EditorProvider>
   )
 }

@@ -6,6 +6,7 @@ import {
   CAROUSEL_NAME_MAX,
   CAROUSEL_NAME_REQUIRED_MESSAGE,
   CAROUSEL_NOT_FOUND_MESSAGE,
+  FIRST_FRAMES_NOT_FOUND_MESSAGE,
   requireCanonicalCarouselSlides,
   requireCarouselFormat,
   type CarouselFormat,
@@ -13,7 +14,14 @@ import {
 } from "@/lib/video/carousel-schema"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { videoCarousels, type VideoCarouselRow } from "@/server/video/schema"
+import { serializeMedia } from "@/server/media/library"
+import { customShellMedia } from "@/server/schema"
+import { getOwnedProject } from "@/server/video/projects"
+import {
+  videoCarousels,
+  videoFirstFrames,
+  type VideoCarouselRow,
+} from "@/server/video/schema"
 import { askWriter } from "@/server/video/writer"
 
 export type CarouselItem = {
@@ -187,6 +195,79 @@ export async function createOwnedCarousel(
       name: cleanCarouselName(name),
       format: "4:5",
       slides: createStarterSlides(),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .returning()
+  return serializeCarousel(row)
+}
+
+/**
+ * A carousel made from a project's first frames: one slide per frame, in the
+ * order they were ticked, each picture filling its slide. A portrait frame on
+ * a square slide loses its top and bottom, so the middle stays (Tyler's call,
+ * 17 Oct 2026).
+ */
+export async function createCarouselFromFrames(
+  userId: string,
+  projectId: string,
+  firstFrameIds: string[],
+  format: CarouselFormat,
+  database: CustomShellDb = db
+): Promise<CarouselItem> {
+  const project = await getOwnedProject(userId, projectId, database)
+  const ids = [...new Set(firstFrameIds)]
+  const rows = await database
+    .select({ frame: videoFirstFrames, image: customShellMedia })
+    .from(videoFirstFrames)
+    .innerJoin(
+      customShellMedia,
+      and(
+        eq(customShellMedia.id, videoFirstFrames.imageMediaId),
+        eq(customShellMedia.userId, userId)
+      )
+    )
+    .where(
+      and(
+        eq(videoFirstFrames.userId, userId),
+        eq(videoFirstFrames.projectId, project.id),
+        inArray(videoFirstFrames.id, ids)
+      )
+    )
+  const byId = new Map(rows.map((row) => [row.frame.id, row]))
+  const picked = ids.flatMap((id) => byId.get(id) ?? [])
+  if (!picked.length) throw new Error(FIRST_FRAMES_NOT_FOUND_MESSAGE)
+  const slides = await Promise.all(
+    picked.map(async ({ frame, image }) => ({
+      id: uuid(),
+      title: frame.name.slice(0, 120),
+      backgroundColor: "#000000",
+      items: [
+        {
+          id: uuid(),
+          type: "image" as const,
+          mediaId: image.id,
+          url: (await serializeMedia(image)).url,
+          altText: frame.name.slice(0, 500),
+          fit: "cover" as const,
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+          zIndex: 0,
+        },
+      ],
+    }))
+  )
+  const timestamp = now()
+  const [row] = await database
+    .insert(videoCarousels)
+    .values({
+      id: uuid(),
+      userId,
+      name: cleanCarouselName(`${project.name} carousel`),
+      format: requireCarouselFormat(format),
+      slides: requireCanonicalCarouselSlides(slides),
       createdAt: timestamp,
       updatedAt: timestamp,
     })

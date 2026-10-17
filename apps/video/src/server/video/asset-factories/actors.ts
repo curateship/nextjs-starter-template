@@ -7,6 +7,7 @@ import {
   normalizeAssetTags,
   type ImageModelId,
 } from "@/lib/video/asset-factories"
+import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import { withLook } from "@/lib/video/visual-style"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
@@ -17,6 +18,7 @@ import {
 } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
 import { chosenProjectLook } from "@/server/video/project-look"
+import { requireProjectBudget } from "@/server/video/project-spend"
 import {
   videoActors,
   videoAiGenerations,
@@ -152,6 +154,21 @@ export async function listActors(userId: string): Promise<{ actors: ActorItem[] 
   }
 }
 
+/**
+ * An actor made in a project's look is made for that project: its picture goes
+ * on the project's spend line and is held to the project's limit.
+ */
+async function lookAndBudget(userId: string, payload: ActorPayload) {
+  if (payload.lookProjectId) {
+    await requireProjectBudget(
+      userId,
+      payload.lookProjectId,
+      aiUnitCostCents(payload.model, 1)
+    )
+  }
+  return chosenProjectLook(userId, payload.lookProjectId)
+}
+
 export async function createActor(userId: string, payload: ActorPayload) {
   const name = assetName(payload.name, "Actor")
   const prompt = assetPrompt(payload.prompt)
@@ -160,11 +177,12 @@ export async function createActor(userId: string, payload: ActorPayload) {
     payload.referenceMediaId,
     payload.referenceMediaUrl
   )
-  const look = await chosenProjectLook(userId, payload.lookProjectId)
+  const look = await lookAndBudget(userId, payload)
   const generated = await generateImage({
     userId,
     model: payload.model,
     aspectRatio: "9:16",
+    projectId: payload.lookProjectId,
     ...withLook(
       look,
       `Create a consistent, reusable on-camera character portrait. ${prompt}`,
@@ -219,11 +237,12 @@ export async function updateActor(
   )
   let generatedMedia: Awaited<ReturnType<typeof saveGeneratedAsset>> | null = null
   if (regenerate) {
-    const look = await chosenProjectLook(userId, payload.lookProjectId)
+    const look = await lookAndBudget(userId, payload)
     const generated = await generateImage({
       userId,
       model: payload.model,
       aspectRatio: "9:16",
+      projectId: payload.lookProjectId,
       ...withLook(
         look,
         `Re-pose this same character while preserving their identity. ${prompt}`,

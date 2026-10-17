@@ -23,6 +23,23 @@ export const DEFAULT_IMAGE_MODEL: GeminiImageModelId = "gemini-2.5-flash-image"
 export const ASSET_ASPECT_RATIOS = ["9:16", "16:9"] as const
 export type AssetAspectRatio = (typeof ASSET_ASPECT_RATIOS)[number]
 
+/**
+ * The shape a project's first frames and clips are made in: the project's own
+ * when the picture models and Veo can make it, otherwise null, and the person
+ * picks 9:16 or 16:9 for a square or 4:3 project.
+ */
+export function projectClipAspect(projectAspect: string): AssetAspectRatio | null {
+  return (ASSET_ASPECT_RATIOS as readonly string[]).includes(projectAspect)
+    ? (projectAspect as AssetAspectRatio)
+    : null
+}
+
+/** A first frame's name from its scene line: the first few words, no more. */
+export function sceneName(scene: string): string {
+  const words = scene.trim().replace(/\s+/g, " ")
+  return words.length > 60 ? `${words.slice(0, 57).trimEnd()}…` : words
+}
+
 export const VIDEO_DURATIONS = [4, 6, 8] as const
 export type VideoDurationSeconds = (typeof VIDEO_DURATIONS)[number]
 

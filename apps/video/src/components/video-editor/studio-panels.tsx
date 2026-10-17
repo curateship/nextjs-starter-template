@@ -28,6 +28,9 @@ import { AiPanel } from "@/components/video-editor/studio-ai-panel"
 import { MusicPanel } from "@/components/video-editor/studio-music-panel"
 import { VoiceoversPanel } from "@/components/video-editor/studio-voiceovers-panel"
 import { TranscriptPanel } from "@/components/video-editor/studio-transcript-panel"
+import { AiClipPanel } from "@/components/video-editor/studio-ai-clip-panel"
+import { CopyPanel } from "@/components/video-editor/studio-copy-panel"
+import { ExportsPanel } from "@/components/video-editor/studio-exports-panel"
 import {
   attachEditorMedia,
   getVideoMediaErrorMessage,
@@ -45,7 +48,6 @@ import {
   DEFAULT_TEXT_DURATION_MS,
   editorId,
   formatClock,
-  pxToMs,
   waveformDataUrl,
 } from "@/lib/video/timeline-utils"
 import { Card, CardContent } from "@/components/ui/card"
@@ -58,6 +60,7 @@ import {
   SelectTileOverlay,
 } from "@/components/video-editor/studio-media-collections"
 import { useMediaCollections } from "@/components/video-editor/use-media-collections"
+import { useDragToTimeline } from "@/components/video-editor/use-drag-to-timeline"
 import {
   useEditorRuntime,
   useEditorStoreSelector,
@@ -75,6 +78,9 @@ export type StudioPanel =
   | "text"
   | "ai"
   | "transcript"
+  | "ai-clip"
+  | "copy"
+  | "exports"
 
 // How long the Media panel waits before asking again while a video is still
 // being got ready. The worker runs every fifteen seconds, so this catches a
@@ -87,8 +93,11 @@ const PANEL_TITLE: Record<StudioPanel, string> = {
   music: "Music",
   voiceovers: "Voiceovers",
   text: "Text",
-  ai: "AI",
+  ai: "AI tools",
   transcript: "Transcript",
+  "ai-clip": "AI clip",
+  copy: "Copy",
+  exports: "Exports",
 }
 
 export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
@@ -100,6 +109,9 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   // The AI panel draws its own header too, so its tools can say what they need.
   if (panel === "ai") return <AiPanel />
   if (panel === "transcript") return <TranscriptPanel />
+  if (panel === "ai-clip") return <AiClipPanel />
+  if (panel === "copy") return <CopyPanel />
+  if (panel === "exports") return <ExportsPanel />
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -330,81 +342,10 @@ function MediaPanel() {
     }
   }
 
-  // --- Dragging a file onto a lane ----------------------------------------
-  // Dragging is the only way a file reaches the timeline: the clip lands where
-  // it is let go. The lane under the pointer is found by asking the page what
-  // is there, which keeps the panel and the timeline from having to know about
-  // each other.
-  const [ghost, setGhost] = React.useState<{
-    item: VideoMediaItem
-    x: number
-    y: number
-  } | null>(null)
-  const dragRef = React.useRef<{
-    item: VideoMediaItem
-    startX: number
-    startY: number
-    moved: boolean
-  } | null>(null)
-
-  function tileDown(event: React.PointerEvent, item: VideoMediaItem) {
-    if (event.button !== 0) return
-    dragRef.current = {
-      item,
-      startX: event.clientX,
-      startY: event.clientY,
-      moved: false,
-    }
-    ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-  }
-
-  function tileMove(event: React.PointerEvent) {
-    const drag = dragRef.current
-    if (!drag) return
-    if (
-      !drag.moved &&
-      Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 5
-    ) {
-      return
-    }
-    drag.moved = true
-    setGhost({ item: drag.item, x: event.clientX, y: event.clientY })
-  }
-
-  function tileUp(event: React.PointerEvent) {
-    const drag = dragRef.current
-    dragRef.current = null
-    setGhost(null)
-    if (!drag) return
-    try {
-      ;(event.currentTarget as HTMLElement).releasePointerCapture(
-        event.pointerId
-      )
-    } catch {
-      /* noop */
-    }
-    // A plain click does nothing: adding to the timeline is dragging onto a
-    // track, so a look at a tile never lands a clip by accident.
-    if (!drag.moved) return
-    // The pointer is captured by the tile, so the lane has to be looked up.
-    const target = document
-      .elementsFromPoint(event.clientX, event.clientY)
-      .find((element) => element.matches("[data-track-lane]"))
-    if (!target) return
-    const trackId = (target as HTMLElement).dataset.trackId
-    const rect = target.getBoundingClientRect()
-    const pps = store.getSnapshot().state.pxPerSecond
-    void addItem(
-      drag.item,
-      Math.max(0, pxToMs(event.clientX - rect.left, pps)),
-      trackId
-    )
-  }
-
-  function tileCancel() {
-    dragRef.current = null
-    setGhost(null)
-  }
+  const { dragHandlers, ghost } = useDragToTimeline<VideoMediaItem>({
+    label: (item) => item.original_name,
+    onDrop: (item, atMs, trackId) => void addItem(item, atMs, trackId),
+  })
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -640,19 +581,13 @@ function MediaPanel() {
                         item={item}
                         active={previewingAudioId === item.id}
                         onActiveChange={setPreviewingAudioId}
-                        onPointerDown={(event) => tileDown(event, item)}
-                        onPointerMove={tileMove}
-                        onPointerUp={tileUp}
-                        onPointerCancel={tileCancel}
+                        {...dragHandlers(item)}
                       />
                     ) : (
                       <button
                         type="button"
                         className="st-hovlift"
-                        onPointerDown={(event) => tileDown(event, item)}
-                        onPointerMove={tileMove}
-                        onPointerUp={tileUp}
-                        onPointerCancel={tileCancel}
+                        {...dragHandlers(item)}
                         title={`${item.original_name} — drag onto a track, or right-click for collections and delete`}
                         style={{
                           position: "relative",
@@ -750,31 +685,7 @@ function MediaPanel() {
         }}
       />
 
-      {ghost ? (
-        <div
-          aria-hidden="true"
-          style={{
-            position: "fixed",
-            left: ghost.x + 12,
-            top: ghost.y + 12,
-            zIndex: 90,
-            padding: "6px 10px",
-            maxWidth: 220,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            background: "var(--ink)",
-            color: "var(--paper)",
-            borderRadius: 9,
-            fontSize: 11.5,
-            fontWeight: 600,
-            pointerEvents: "none",
-            boxShadow: "var(--sh)",
-          }}
-        >
-          {ghost.item.original_name}
-        </div>
-      ) : null}
+      {ghost}
     </div>
   )
 }

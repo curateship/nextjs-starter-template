@@ -12,6 +12,7 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { BreakdownPanel } from "@/components/video-creators/breakdown-panel"
+import { CopyThisButton } from "@/components/video-viral/copy-this-button"
 import {
   getSavedVideoErrorMessage,
   loadSavedVideoDetail,
@@ -177,7 +178,12 @@ export function VideoPanel({
             <Figure label="Comments" value={formatCount(post.comments)} />
           </dl>
 
-          <div className="border-b p-3">
+          <div className="grid gap-2 border-b p-3">
+            <CopyThisButton
+              url={post.url}
+              title={post.title}
+              className="w-full"
+            />
             {saved === null ? (
               <>
                 <p className="mb-2 text-xs text-muted-foreground">

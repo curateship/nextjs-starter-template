@@ -48,24 +48,29 @@ untouched.
 
 ## Where the buttons are
 
-Everything is on the projects list (Video editor), in the strip between the
-toolbar and the rows.
+Everything is on the projects list (Video editor). Tyler asked on 17 Oct 2026
+for the folders to be one dropdown beside the New project button instead of a
+row of chips.
 
-- **Making the first one:** a **New folder** button sits in the strip while you
-  have none.
-- **The chips:** once one exists, the chips read All, No folder, then each
-  folder by name, A to Z. No folder shows the projects that are in none.
-- **Rename and delete:** pick a folder's chip, then press the cog at the end of
-  the chips. The menu names the folder and its project count, and offers
-  Rename and Delete. The same menu has New folder.
+- **The dropdown:** it says what the list is showing, "All projects" to start.
+  It lists All projects, No folder, then each folder by name, A to Z. No folder
+  shows the projects that are in none. Under a line comes Archived, which
+  shows the archived projects whatever folder they are in (see
+  `project-first.md`).
+- **Making one:** **New folder** is at the foot of the dropdown.
+- **Rename and delete:** every folder's row in the dropdown has its own
+  rename and delete buttons, always drawn, so a folder is changed without
+  picking it first (Tyler, 17 Oct 2026). Pressing one never switches the list
+  to that folder.
 - **Moving projects:** tick projects, then press **Move to folder** in the
   toolbar and pick one. That is one request and one message, such as "Moved 2
   projects to “Client A”." Projects already there are counted apart: "1 was
   already in it." **No folder** in the same menu takes them out.
 - **Making a folder from a selection:** **New folder** at the foot of the same
   menu creates it and moves the ticked projects in, in one go.
-- **New projects and copies:** a project made while a folder is showing goes
-  straight into that folder. A duplicated project goes into the same folder as
+- **New projects and copies:** the New project window has a Folder choice
+  when you have folders. It starts on the folder the list is showing, and can
+  be changed to any folder or to No folder. A duplicated project goes into the same folder as
   the one it was copied from. Both are so the new project appears in the list
   you are looking at instead of vanishing from it.
 
@@ -74,13 +79,14 @@ project itself did not change.
 
 ## The address
 
-The folder being shown is in the address as `?folder=<id>`, or
-`?folder=none` for No folder, beside the search, sort and page. A reload keeps
+The folder being shown is in the address as `?folder=<id>`, `?folder=none`
+for No folder or `?folder=archived` for Archived, beside the search, sort and
+page. A reload keeps
 it, and opening a project and pressing Back returns to the same folder.
 
-Switching chips replaces the address rather than adding a history step, the
+Switching folders replaces the address rather than adding a history step, the
 same as search and sort on every list, so Back leaves the list instead of
-stepping back through every chip you clicked.
+stepping back through every folder you picked.
 
 If the folder in the address no longer exists, because it was deleted here or
 in another tab or the link is old, the list shows every project and the

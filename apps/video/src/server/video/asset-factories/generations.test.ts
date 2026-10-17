@@ -16,7 +16,7 @@ import {
 } from "@/server/test-support"
 import {
   createGeneration,
-  insertGeneration,
+  listGenerations,
   retryGeneration,
   veoPrompt,
   videoGenerationTick,
@@ -114,6 +114,7 @@ async function seedFirstFrame() {
   await database.insert(videoFirstFrames).values({
     id: "frame-1",
     userId: user.id,
+    projectId: project.id,
     actorId: "actor-1",
     name: "Frame",
     prompt: "Frame",
@@ -301,7 +302,7 @@ describe("shots longer than one clip", () => {
     expect(uploaded.size).toBe(0)
   })
 
-  it("lays a finished shot down as clips with no gap between them", async () => {
+  it("lists a finished shot's pieces as files to drag, in the order they play", async () => {
     const project = await seedTwoPieceShot()
     const timestamp = now()
     for (const id of ["out-1", "out-2"]) {
@@ -319,26 +320,25 @@ describe("shots longer than one clip", () => {
         updatedAt: timestamp,
       })
     }
-    await database
-      .update(videoAiGenerations)
-      .set({ status: "ready", outputMediaId: "out-1", finishedAt: timestamp })
-      .where(eq(videoAiGenerations.id, "piece-1"))
-    await database
-      .update(videoAiGenerations)
-      .set({ status: "ready", outputMediaId: "out-2", finishedAt: timestamp })
-      .where(eq(videoAiGenerations.id, "piece-2"))
+    for (const [piece, output] of [["piece-1", "out-1"], ["piece-2", "out-2"]]) {
+      await database
+        .update(videoAiGenerations)
+        .set({ status: "ready", outputMediaId: output, finishedAt: timestamp })
+        .where(eq(videoAiGenerations.id, piece))
+    }
 
-    await insertGeneration(user.id, "piece-1", project.id)
+    const { generations } = await listGenerations(user.id, project.id)
 
-    const [saved] = await database
-      .select()
-      .from(videoProjects)
-      .where(eq(videoProjects.id, project.id))
-    const track = (saved.timeline as { tracks: Array<{ clips: Array<{ mediaId: string; startMs: number; durationMs: number }> }> }).tracks.at(-1)
-    expect(track?.clips.map((clip) => [clip.mediaId, clip.startMs, clip.durationMs])).toEqual([
-      ["out-1", 0, 8000],
-      ["out-2", 8000, 8000],
-    ])
+    expect(generations).toHaveLength(1)
+    expect(generations[0].status).toBe("ready")
+    expect(generations[0].first_frame_id).toBe("frame-1")
+    expect(generations[0].pieces.map((piece) => piece.output?.id)).toEqual(["out-1", "out-2"])
+  })
+
+  it("lists nothing from another project", async () => {
+    await seedTwoPieceShot()
+    const other = await createOwnedProject(user.id, "Other", database)
+    expect((await listGenerations(user.id, other.id)).generations).toEqual([])
   })
 
   it("refuses a Retry while another video runs on the project", async () => {
@@ -380,11 +380,55 @@ describe("shots longer than one clip", () => {
     expect(second.status).toBe("error")
   })
 
-  it("will not lay down a shot that is still being made", async () => {
-    const project = await seedTwoPieceShot()
-    await expect(insertGeneration(user.id, "piece-1", project.id)).rejects.toThrow(
-      "Only ready generations can be inserted"
+  it("will not make a clip in one project from another project's first frame", async () => {
+    await seedFirstFrame()
+    const other = await createOwnedProject(user.id, "Other", database)
+    await expect(
+      createGeneration(user.id, {
+        projectId: other.id,
+        firstFrameId: "frame-1",
+        prompts: ["Move"],
+        lengthSeconds: 8,
+      })
+    ).rejects.toThrow("First frame not found")
+  })
+})
+
+describe("the project's spend limit", () => {
+  it("stops a shot that would take the project past its limit, before anything is made", async () => {
+    const project = await seedFirstFrame()
+    // An 8 second Veo shot is 8 x $0.40 = $3.20, and $3.00 is the limit.
+    await database
+      .update(videoProjects)
+      .set({ spendLimitCents: 300 })
+      .where(eq(videoProjects.id, project.id))
+
+    await expect(
+      createGeneration(user.id, {
+        projectId: project.id,
+        firstFrameId: "frame-1",
+        prompts: ["Move"],
+        lengthSeconds: 8,
+      })
+    ).rejects.toThrow(
+      "This project has spent $0.00 of its $3.00 limit, and this costs about $3.20. Raise the limit in the project's settings."
     )
+    expect(await pieces()).toEqual([])
+  })
+
+  it("lets the shot through when it fits under the limit", async () => {
+    const project = await seedFirstFrame()
+    await database
+      .update(videoProjects)
+      .set({ spendLimitCents: 500 })
+      .where(eq(videoProjects.id, project.id))
+    const shot = await createGeneration(user.id, {
+      projectId: project.id,
+      firstFrameId: "frame-1",
+      prompts: ["Move"],
+      lengthSeconds: 8,
+    })
+    expect(shot.status).toBe("queued")
   })
 })
 

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
 import { describeAuthError } from "@/lib/api/error-message"
 import {
   ACTOR_IMAGE_MODEL_IDS,
@@ -35,6 +36,7 @@ const idsSchema = z.object({
 export function getActorErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ""
   if (message.startsWith("Google ") || message.startsWith("OpenAI ")) return message
+  if (isProjectSpendLimitMessage(message)) return message
   if (
     [
       "Actor not found",

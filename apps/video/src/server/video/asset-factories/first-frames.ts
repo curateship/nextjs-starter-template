@@ -1,116 +1,75 @@
 import { and, desc, eq, inArray } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
+import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import {
   assetName,
   assetPrompt,
-  normalizeAssetTags,
+  DEFAULT_IMAGE_MODEL,
+  projectClipAspect,
+  sceneName,
   type AssetAspectRatio,
   type GeminiImageModelId,
 } from "@/lib/video/asset-factories"
-import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
 import { withLook } from "@/lib/video/visual-style"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
-import {
-  findOwnedImageByUrl,
-  getOwnedMedia,
-  serializeMedia,
-} from "@/server/media/library"
+import { getOwnedMedia, serializeMedia } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
-import { chosenProjectLook } from "@/server/video/project-look"
-import { writeProjectTimeline } from "@/server/video/projects"
+import {
+  serializeVideoMedia,
+  type VideoMediaItem,
+} from "@/server/video/media-list"
+import { readProjectLook } from "@/server/video/project-look"
+import { requireProjectBudget } from "@/server/video/project-spend"
+import { getOwnedProject } from "@/server/video/projects"
 import {
   videoActors,
   videoAiGenerations,
   videoFirstFrames,
-  videoProjects,
-  type VideoFirstFrameRow,
 } from "@/server/video/schema"
 import { requireOwnedActor } from "./actors"
 import { generateImage } from "./images"
 import { discardGeneratedAsset, saveGeneratedAsset } from "./media"
 
 const frameImage = alias(customShellMedia, "first_frame_image")
-const frameReference = alias(customShellMedia, "first_frame_reference")
 const actorImage = alias(customShellMedia, "first_frame_actor_image")
 
+/**
+ * One opening picture of an actor, made inside one project. `image` is the
+ * picture as the Media panel hands it out, so the AI clip panel can drag it
+ * onto the timeline the same way.
+ */
 export type FirstFrameItem = {
   id: string
   name: string
   actor: { id: string; name: string; image_url: string }
   prompt: string
-  model: GeminiImageModelId
   aspect_ratio: AssetAspectRatio
-  tags: string[]
-  pinned: boolean
-  image_media_id: string
-  image_url: string
-  reference_media_id: string | null
-  reference_media_url: string | null
+  image: VideoMediaItem
   created_at: string
-  updated_at: string
 }
 
 export type FirstFramePayload = {
-  name: string
+  projectId: string
   actorId: string
+  /** The scene, such as "Mia holding a coffee in a bright kitchen". */
   prompt: string
-  model: GeminiImageModelId
-  aspectRatio: AssetAspectRatio
-  tags: string
-  referenceMediaId?: string | null
-  referenceMediaUrl?: string | null
   variants: number
-  /** A project whose look the frames are made in. Not kept on the frame. */
-  lookProjectId?: string | null
+  /**
+   * Only for a square or 4:3 project, whose shape no picture model makes.
+   * Any other project's frames take the project's own shape.
+   */
+  aspectRatio?: AssetAspectRatio | null
 }
 
-function parseTags(value: unknown) {
-  return Array.isArray(value)
-    ? value.filter((tag): tag is string => typeof tag === "string")
-    : []
-}
-
-async function serializeFirstFrame(
-  frame: VideoFirstFrameRow,
-  actor: typeof videoActors.$inferSelect,
-  actorMedia: typeof customShellMedia.$inferSelect,
-  image: typeof customShellMedia.$inferSelect,
-  reference: typeof customShellMedia.$inferSelect | null
-): Promise<FirstFrameItem> {
-  return {
-    id: frame.id,
-    name: frame.name,
-    actor: {
-      id: actor.id,
-      name: actor.name,
-      image_url: (await serializeMedia(actorMedia)).url,
-    },
-    prompt: frame.prompt,
-    model: frame.model as GeminiImageModelId,
-    aspect_ratio: frame.aspectRatio as AssetAspectRatio,
-    tags: parseTags(frame.tags),
-    pinned: frame.pinned,
-    image_media_id: frame.imageMediaId,
-    image_url: (await serializeMedia(image)).url,
-    reference_media_id: frame.referenceMediaId,
-    reference_media_url: reference
-      ? (await serializeMedia(reference)).url
-      : null,
-    created_at: frame.createdAt.toISOString(),
-    updated_at: frame.updatedAt.toISOString(),
-  }
-}
-
-function listRows(userId: string, firstFrameId?: string) {
+function frameRows(userId: string, projectId: string, frameIds?: string[]) {
   return db
     .select({
       frame: videoFirstFrames,
       actor: videoActors,
       actorMedia: actorImage,
       image: frameImage,
-      reference: frameReference,
     })
     .from(videoFirstFrames)
     .innerJoin(
@@ -134,83 +93,91 @@ function listRows(userId: string, firstFrameId?: string) {
         eq(frameImage.userId, userId)
       )
     )
-    .leftJoin(
-      frameReference,
-      and(
-        eq(videoFirstFrames.referenceMediaId, frameReference.id),
-        eq(frameReference.userId, userId)
-      )
-    )
     .where(
       and(
         eq(videoFirstFrames.userId, userId),
-        firstFrameId ? eq(videoFirstFrames.id, firstFrameId) : undefined
+        eq(videoFirstFrames.projectId, projectId),
+        frameIds ? inArray(videoFirstFrames.id, frameIds) : undefined
       )
     )
-    .orderBy(desc(videoFirstFrames.pinned), desc(videoFirstFrames.createdAt))
+    .orderBy(desc(videoFirstFrames.createdAt), desc(videoFirstFrames.id))
 }
 
-export async function listFirstFrames(userId: string) {
-  const rows = await listRows(userId)
-  return {
-    firstFrames: await Promise.all(
-      rows.map((row) =>
-        serializeFirstFrame(
-          row.frame,
-          row.actor,
-          row.actorMedia,
-          row.image,
-          row.reference
-        )
-      )
-    ),
-  }
+async function serializeFrames(
+  rows: Awaited<ReturnType<typeof frameRows>>
+): Promise<FirstFrameItem[]> {
+  const images = await serializeVideoMedia(rows.map((row) => row.image))
+  return Promise.all(
+    rows.map(async (row, index) => ({
+      id: row.frame.id,
+      name: row.frame.name,
+      actor: {
+        id: row.actor.id,
+        name: row.actor.name,
+        image_url: (await serializeMedia(row.actorMedia)).url,
+      },
+      prompt: row.frame.prompt,
+      aspect_ratio: row.frame.aspectRatio as AssetAspectRatio,
+      image: images[index],
+      created_at: row.frame.createdAt.toISOString(),
+    }))
+  )
 }
 
-async function oneFrame(userId: string, frameId: string) {
-  const [row] = await listRows(userId, frameId).limit(1)
-  return row ?? null
+/** This project's first frames, newest first. */
+export async function listFirstFrames(userId: string, projectId: string) {
+  await getOwnedProject(userId, projectId)
+  return { firstFrames: await serializeFrames(await frameRows(userId, projectId)) }
 }
 
+/**
+ * Makes one or more first frames of an actor for a project. The shape is the
+ * project's and the look is the project's, so neither is asked. Every picture
+ * goes on the project's spend line, and the project's limit is checked for
+ * all of them before the first is made.
+ */
 export async function createFirstFrames(
   userId: string,
   payload: FirstFramePayload
 ): Promise<{ firstFrames: FirstFrameItem[]; warning: string | null }> {
+  const project = await getOwnedProject(userId, payload.projectId)
+  const aspectRatio = projectClipAspect(project.aspect) ?? payload.aspectRatio
+  if (!aspectRatio) {
+    throw new Error("Pick 9:16 or 16:9 for this project's first frames")
+  }
   const actor = await requireOwnedActor(userId, payload.actorId)
   const actorMedia = await getOwnedMedia(userId, actor.imageMediaId)
-  const name = assetName(payload.name, "First frame")
   const prompt = assetPrompt(payload.prompt)
-  const selectedReferenceId =
-    payload.referenceMediaId ??
-    (payload.referenceMediaUrl
-      ? (await findOwnedImageByUrl(userId, payload.referenceMediaUrl))?.id
-      : null)
-  const reference = selectedReferenceId
-    ? await getOwnedMedia(userId, selectedReferenceId)
-    : actorMedia
-  if (reference.fileType !== "image") {
-    throw new Error("Reference media must be an image")
-  }
-  const look = await chosenProjectLook(userId, payload.lookProjectId)
+  const name = assetName(sceneName(prompt), "First frame")
+  const model: GeminiImageModelId = DEFAULT_IMAGE_MODEL
+  await requireProjectBudget(
+    userId,
+    project.id,
+    aiUnitCostCents(model, payload.variants)
+  )
+  const look = await readProjectLook(userId, project.id)
 
-  const created: FirstFrameItem[] = []
+  const createdIds: string[] = []
+  let warning: string | null = null
   for (let variant = 1; variant <= payload.variants; variant += 1) {
     try {
       const image = await generateImage({
         userId,
-        model: payload.model,
-        aspectRatio: payload.aspectRatio,
+        model,
+        aspectRatio,
+        projectId: project.id,
         ...withLook(
           look,
           `Create a polished opening frame for a short video. Preserve the actor's identity. Actor: ${actor.name}. Actor description: ${actor.prompt}. Direction: ${prompt}. Variant ${variant} of ${payload.variants}.`,
-          [reference]
+          [actorMedia]
         ),
       })
+      const variantName = payload.variants > 1 ? `${name} ${variant}` : name
       const media = await saveGeneratedAsset({
         userId,
         ...image,
         fileType: "image",
-        name: payload.variants > 1 ? `${name} ${variant}` : name,
+        name: variantName,
       })
       const at = now()
       try {
@@ -219,68 +186,36 @@ export async function createFirstFrames(
           .values({
             id: uuid(),
             userId,
+            projectId: project.id,
             actorId: actor.id,
-            name: payload.variants > 1 ? `${name} ${variant}` : name,
+            name: variantName,
             prompt,
-            model: payload.model,
-            aspectRatio: payload.aspectRatio,
-            tags: normalizeAssetTags(payload.tags),
+            model,
+            aspectRatio,
+            tags: [],
             pinned: false,
             imageMediaId: media.id,
-            referenceMediaId: selectedReferenceId,
             createdAt: at,
             updatedAt: at,
           })
-          .returning()
-        created.push(
-          await serializeFirstFrame(
-            frame,
-            actor,
-            actorMedia,
-            media,
-            selectedReferenceId ? reference : null
-          )
-        )
+          .returning({ id: videoFirstFrames.id })
+        createdIds.push(frame.id)
       } catch (error) {
         await discardGeneratedAsset(media)
         throw error
       }
     } catch (error) {
-      if (!created.length) throw error
-      return {
-        firstFrames: created,
-        warning: `${created.length} variant${created.length === 1 ? " was" : "s were"} made before the next one failed: ${error instanceof Error ? error.message : "Image generation failed"}`,
-      }
+      if (!createdIds.length) throw error
+      warning = `${createdIds.length} of ${payload.variants} ${createdIds.length === 1 ? "was" : "were"} made before the next one failed: ${error instanceof Error ? error.message : "Image generation failed"}`
+      break
     }
   }
-  return { firstFrames: created, warning: null }
-}
-
-export async function setFirstFramePinned(
-  userId: string,
-  firstFrameId: string,
-  pinned: boolean
-) {
-  const [updated] = await db
-    .update(videoFirstFrames)
-    .set({ pinned, updatedAt: now() })
-    .where(
-      and(
-        eq(videoFirstFrames.id, firstFrameId),
-        eq(videoFirstFrames.userId, userId)
-      )
-    )
-    .returning({ id: videoFirstFrames.id })
-  if (!updated) throw new Error("First frame not found")
-  const row = await oneFrame(userId, firstFrameId)
-  if (!row) throw new Error("First frame not found")
-  return await serializeFirstFrame(
-    row.frame,
-    row.actor,
-    row.actorMedia,
-    row.image,
-    row.reference
-  )
+  return {
+    firstFrames: await serializeFrames(
+      await frameRows(userId, project.id, createdIds)
+    ),
+    warning,
+  }
 }
 
 export async function deleteFirstFrames(userId: string, firstFrameIds: string[]) {
@@ -310,46 +245,4 @@ export async function deleteFirstFrames(userId: string, firstFrameIds: string[])
     )
     .returning({ id: videoFirstFrames.id })
   return { deleted_ids: rows.map((row) => row.id) }
-}
-
-export async function insertFirstFrame(
-  userId: string,
-  firstFrameId: string,
-  projectId: string
-) {
-  const frame = await oneFrame(userId, firstFrameId)
-  if (!frame) throw new Error("First frame not found")
-  const [project] = await db
-    .select()
-    .from(videoProjects)
-    .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
-    .limit(1)
-  if (!project) throw new Error("Project not found")
-  const timeline = requireCanonicalTimeline(project.timeline)
-  if (timeline.tracks.length >= 50) throw new Error("Project timeline is full")
-  const media = await serializeMedia(frame.image)
-  const next = requireCanonicalTimeline({
-    ...timeline,
-    tracks: [
-      ...timeline.tracks,
-      {
-        id: uuid(),
-        muted: false,
-        clips: [
-          {
-            id: uuid(),
-            kind: "image",
-            name: frame.frame.name,
-            startMs: 0,
-            durationMs: 4_000,
-            trimStartMs: 0,
-            mediaId: media.id,
-            url: media.url,
-          },
-        ],
-      },
-    ],
-  })
-  await writeProjectTimeline(userId, project.id, next, project.version)
-  return { project_id: project.id, project_name: project.name }
 }

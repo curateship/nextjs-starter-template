@@ -7,6 +7,7 @@ import {
 } from "@/lib/video/asset-factories"
 import { getAiKey } from "@/server/ai/keys"
 import { runAiCall } from "@/server/ai/usage"
+import { projectSpendMetadata } from "@/server/video/project-spend"
 import { getFromR2 } from "@/server/media/storage"
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -125,6 +126,8 @@ export async function generateImage(options: {
   aspectRatio: AssetAspectRatio
   /** Sent in this order. A project's look picture is always the last. */
   references: ImageReference[]
+  /** The project the picture is made for, so its spend line counts it. */
+  projectId?: string | null
 }) {
   const provider = imageProvider(options.model)
   const apiKey = await getAiKey(provider)
@@ -155,6 +158,9 @@ export async function generateImage(options: {
       provider,
       model: options.model,
       feature: "video-image-generation",
+      metadata: options.projectId
+        ? projectSpendMetadata(options.projectId)
+        : undefined,
     },
     async () => {
       if (provider === "openai") {

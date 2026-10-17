@@ -122,6 +122,13 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [viral-score.md](viral-score.md) — the 0 to 100 viral score on every Viral
   page result: its five parts and their weights, one worked example, what
   "sure: medium" means, and why the score is worked out on every read.
+- [project-first.md](project-first.md) — what belongs to a project and what
+  is shared, the Copy and Exports panels at the foot of the rail, Copy this,
+  a project's AI spend and its spend limit, and archive, pin and the actor
+  filter on the projects list.
+- [ai-clip.md](ai-clip.md) — the editor's AI clip panel: an actor, a first
+  frame, a shot, then dragging it onto the timeline; what each step costs,
+  where frames and shots are kept, and a carousel from first frames.
 - [visual-style.md](visual-style.md) — a project's look: the style line and
   look picture set in a project's Settings window, which AI tools send them, and
   why a bad style line spoils every scene at once.

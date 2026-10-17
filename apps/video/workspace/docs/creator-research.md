@@ -147,6 +147,13 @@ one does, then the cuts, then every word. **Clicking any of them jumps the
 player there.** That display is one component, used both here and in the Viral
 page's detail window.
 
+### Copy this
+
+Above Save & break down sits **Copy this**. It saves and breaks the video down
+the same way, makes a new project that copies it, and opens that project in the
+editor on its Copy panel (see `project-first.md`). It works before or after the
+video is saved; a video already saved is not downloaded again.
+
 ### When it fails
 
 The row keeps the reason and offers Try again. yt-dlp's own last error is kept

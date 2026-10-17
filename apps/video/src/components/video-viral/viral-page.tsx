@@ -26,8 +26,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { TableCell, TableRow } from "@/components/ui/table"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { ViralScoreCell } from "@/components/video-viral/viral-score-cell"
+import { CopyThisButton } from "@/components/video-viral/copy-this-button"
 import {
   deleteViralSearches,
   getViralErrorMessage,
@@ -398,11 +399,12 @@ export function ViralPage({ data }: { data: ViralPageData }) {
               sort={sort}
               direction={direction}
               onSort={toggleSort}
+              trailing={<TableHead column="meta">Actions</TableHead>}
             />
           }
           isEmpty={sortedItems.length === 0}
           emptyText={emptyText}
-          emptyColSpan={8}
+          emptyColSpan={9}
           footer={{
             type: "summary",
             count: sortedItems.length,
@@ -468,6 +470,9 @@ export function ViralPage({ data }: { data: ViralPageData }) {
               </TableCell>
               <TableCell column="meta">
                 {formatCount(item.subscribers)}
+              </TableCell>
+              <TableCell column="actions">
+                <CopyThisButton url={item.url} title={item.title} />
               </TableCell>
             </TableRow>
           ))}

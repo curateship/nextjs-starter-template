@@ -35,6 +35,7 @@ import {
   type TranslateLanguage,
 } from "@/lib/video/translate"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
 import {
   SAFE_VOICE_ERRORS,
   VOICE_MODEL_IDS,
@@ -48,10 +49,12 @@ import {
   type Voice,
   type VoiceoverResult,
 } from "@/lib/video/voice"
+import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import { getAiKey } from "@/server/ai/keys"
 import { adminPost, userGet, userPost } from "@/server/guards"
 import { getAiKeysSaved } from "@/server/video/ai-keys-saved"
 import { writeProjectCaptions } from "@/server/video/captions"
+import { requireProjectBudget } from "@/server/video/project-spend"
 import {
   getAiDefaults,
   getVoiceDefaults,
@@ -79,6 +82,17 @@ import {
 
 export type { CaptionsResult }
 
+/** The project a tool is used in, when it is used in one. */
+const optionalProjectId = z.string().min(1).max(36).optional()
+
+/**
+ * Holds a tool to its project's spend limit. A tool used outside any project
+ * has no limit to hold it to.
+ */
+async function budget(userId: string, projectId: string | undefined, nextCents: number) {
+  if (projectId) await requireProjectBudget(userId, projectId, nextCents)
+}
+
 /**
  * What went wrong, in words worth reading.
  *
@@ -97,6 +111,7 @@ export function getAiToolErrorMessage(error: unknown) {
   if (SAFE_TRANSLATE_ERRORS.has(message)) return message
   if (AI_KEY_MISSING_MESSAGES.has(message)) return message
   if (message === PROJECT_NOT_FOUND_MESSAGE) return message
+  if (isProjectSpendLimitMessage(message)) return message
   if (isShowableProviderProblem(message)) return message
   const authProblem = describeAuthError(message)
   if (authProblem) return authProblem
@@ -165,6 +180,7 @@ const writeCaptionsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ projectId: z.string().min(1).max(36) }))
   .handler(async ({ data, context }): Promise<CaptionsResult> => {
+    await budget(context.user.id, data.projectId, 0)
     return writeProjectCaptions(context.user.id, data.projectId)
   })
 
@@ -185,6 +201,7 @@ const jumpCutsFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data, context }): Promise<JumpCutAnalysis> => {
+    await budget(context.user.id, data.projectId, 0)
     return analyseJumpCuts({
       userId: context.user.id,
       projectId: data.projectId,
@@ -214,6 +231,7 @@ const transcriptFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data, context }): Promise<ClipTranscript> => {
+    await budget(context.user.id, data.projectId, 0)
     return transcribeClip({
       userId: context.user.id,
       projectId: data.projectId,
@@ -246,6 +264,7 @@ const hookFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ projectId: z.string().min(1).max(36) }))
   .handler(async ({ data, context }): Promise<HookVariants> => {
+    await budget(context.user.id, data.projectId, 0)
     return rewriteHook({ userId: context.user.id, projectId: data.projectId })
   })
 
@@ -259,19 +278,22 @@ const checkScriptFn = createServerFn({ method: "POST" })
     z.object({
       script: z.string().max(VOICE_TEXT_MAX),
       speed: z.number().min(VOICE_SPEED_MIN).max(VOICE_SPEED_MAX),
+      projectId: optionalProjectId,
     })
   )
   .handler(async ({ data, context }): Promise<ScriptCheck> => {
+    await budget(context.user.id, data.projectId, 0)
     return checkScript({
       userId: context.user.id,
       script: data.script,
       speed: data.speed,
+      projectId: data.projectId,
     })
   })
 
 /** Check a script against the five rules before it is read aloud. */
-export function checkVoiceScript(script: string, speed: number) {
-  return checkScriptFn({ data: { script, speed } })
+export function checkVoiceScript(script: string, speed: number, projectId?: string) {
+  return checkScriptFn({ data: { script, speed, projectId } })
 }
 
 const speakHookFn = createServerFn({ method: "POST" })
@@ -281,25 +303,31 @@ const speakHookFn = createServerFn({ method: "POST" })
       text: z.string().min(1).max(VOICE_TEXT_MAX),
       voiceId: z.string().min(1).max(64),
       voiceName: z.string().min(1).max(255),
+      projectId: optionalProjectId,
     })
   )
   .handler(async ({ data, context }): Promise<VoiceoverResult> => {
     const remembered = await getVoiceDefaults()
+    // Only meaningful for a voice that has models to choose between; the
+    // other provider works it out from the voice itself.
+    const modelId = remembered?.modelId ?? "eleven_multilingual_v2"
+    await budget(context.user.id, data.projectId, aiUnitCostCents(modelId, data.text.length))
     return speak({
       userId: context.user.id,
       voiceId: data.voiceId,
       voiceName: data.voiceName,
-      // Only meaningful for a voice that has models to choose between; the
-      // other provider works it out from the voice itself.
-      modelId: remembered?.modelId ?? "eleven_multilingual_v2",
+      modelId,
       text: data.text,
       settings: rememberedVoiceSettings(remembered),
+      projectId: data.projectId,
     })
   })
 
 /** Say a rewritten opening line out loud, so the sound can replace the old one. */
-export function speakHook(text: string, voice: Voice) {
-  return speakHookFn({ data: { text, voiceId: voice.id, voiceName: voice.name } })
+export function speakHook(text: string, voice: Voice, projectId?: string) {
+  return speakHookFn({
+    data: { text, voiceId: voice.id, voiceName: voice.name, projectId },
+  })
 }
 
 const translateFn = createServerFn({ method: "POST" })
@@ -311,13 +339,16 @@ const translateFn = createServerFn({ method: "POST" })
         .array(z.string().max(TRANSLATE_LINE_MAX))
         .min(1)
         .max(TRANSLATE_LINES_MAX),
+      projectId: optionalProjectId,
     })
   )
   .handler(async ({ data, context }): Promise<string[]> => {
+    await budget(context.user.id, data.projectId, 0)
     return translateLines({
       userId: context.user.id,
       language: data.language,
       lines: data.lines,
+      projectId: data.projectId,
     })
   })
 
@@ -327,9 +358,10 @@ const translateFn = createServerFn({ method: "POST" })
  */
 export function translateCaptionLines(
   language: TranslateLanguage,
-  lines: string[]
+  lines: string[],
+  projectId?: string
 ) {
-  return translateFn({ data: { language, lines } })
+  return translateFn({ data: { language, lines, projectId } })
 }
 
 const speakTranslationFn = createServerFn({ method: "POST" })
@@ -339,10 +371,16 @@ const speakTranslationFn = createServerFn({ method: "POST" })
       text: z.string().min(1).max(VOICE_TEXT_MAX),
       voiceId: z.string().min(1).max(64),
       voiceName: z.string().min(1).max(255),
+      projectId: optionalProjectId,
     })
   )
   .handler(async ({ data, context }): Promise<VoiceoverResult> => {
     const remembered = await getVoiceDefaults()
+    await budget(
+      context.user.id,
+      data.projectId,
+      aiUnitCostCents(TRANSLATE_VOICE_MODEL, data.text.length)
+    )
     return speak({
       userId: context.user.id,
       voiceId: data.voiceId,
@@ -354,13 +392,14 @@ const speakTranslationFn = createServerFn({ method: "POST" })
       text: data.text,
       settings: rememberedVoiceSettings(remembered),
       feature: "translation_voice",
+      projectId: data.projectId,
     })
   })
 
 /** Read a translation aloud, so it can be laid over the original. */
-export function speakTranslation(text: string, voice: Voice) {
+export function speakTranslation(text: string, voice: Voice, projectId?: string) {
   return speakTranslationFn({
-    data: { text, voiceId: voice.id, voiceName: voice.name },
+    data: { text, voiceId: voice.id, voiceName: voice.name, projectId },
   })
 }
 
@@ -401,9 +440,15 @@ const speakFn = createServerFn({ method: "POST" })
       modelId: z.enum(VOICE_MODEL_IDS),
       text: z.string().min(1).max(VOICE_TEXT_MAX),
       settings: voiceSettingsSchema.optional(),
+      projectId: optionalProjectId,
     })
   )
   .handler(async ({ data, context }): Promise<VoiceoverResult> => {
+    await budget(
+      context.user.id,
+      data.projectId,
+      aiUnitCostCents(data.modelId, data.text.length)
+    )
     return speak({
       userId: context.user.id,
       voiceId: data.voiceId,
@@ -411,6 +456,7 @@ const speakFn = createServerFn({ method: "POST" })
       modelId: data.modelId,
       text: data.text,
       settings: data.settings,
+      projectId: data.projectId,
     })
   })
 
@@ -420,6 +466,8 @@ export function readAloud(options: {
   modelId: (typeof VOICE_MODEL_IDS)[number]
   text: string
   settings?: z.infer<typeof voiceSettingsSchema>
+  /** The project it is read for, which pays for it and holds it to its limit. */
+  projectId?: string
 }) {
   return speakFn({ data: options })
 }

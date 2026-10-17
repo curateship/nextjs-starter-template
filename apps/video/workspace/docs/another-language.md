@@ -1,6 +1,6 @@
 # Another language
 
-The AI panel's "Another language" tile translates what is said in a project.
+The AI tools panel's "Another language" tile translates what is said in a project.
 The translation then goes on as captions, or is read aloud by a new voice. One
 cut can become a post in Spanish, one in French and one in German without
 recording anything again.

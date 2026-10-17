@@ -9,6 +9,12 @@ export const PROJECT_FOLDER_NAME_MAX = 120
 /** `?folder=none` lists the projects that are in no folder. */
 export const NO_FOLDER = "none"
 
+/**
+ * `?folder=archived` lists the archived projects, whatever folder they are
+ * in. Every other choice leaves them out.
+ */
+export const ARCHIVED_PROJECTS = "archived"
+
 export const FOLDER_NAME_REQUIRED_MESSAGE = "Folder name is required."
 export const FOLDER_NAME_TAKEN_MESSAGE =
   "A folder with that name already exists."

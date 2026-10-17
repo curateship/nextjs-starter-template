@@ -1,8 +1,12 @@
 import * as React from "react"
 import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
   CopyIcon,
   FilmIcon,
+  PinIcon,
+  PinOffIcon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -22,13 +26,25 @@ import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import type { ActorItem } from "@/lib/api/video/actors"
+import {
+  archiveProjects,
   createProject,
   deleteProjects,
   duplicateProject,
   getProjectErrorMessage,
+  loadProjectDeleteSummary,
+  pinProject,
   saveProjectTimeline,
+  type ProjectDeleteSummary,
   type ProjectItem,
   type ProjectListResponse,
 } from "@/lib/api/video/projects"
@@ -44,14 +60,15 @@ import {
   useSearchBoxText,
 } from "@/lib/nav/list-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 import { editorId, formatClock } from "@/lib/video/timeline-utils"
 import { ProjectFormDialog } from "@/components/video-editor/project-form-dialog"
 import {
-  FolderChips,
+  FolderMenu,
   MoveToFolderMenu,
 } from "@/components/video-editor/project-folders"
 import type { ProjectFolderSummary } from "@/lib/api/video/project-folders"
-import { NO_FOLDER } from "@/lib/video/project-folders"
+import { ARCHIVED_PROJECTS, NO_FOLDER } from "@/lib/video/project-folders"
 
 const projectsRoute = getRouteApi("/_authenticated/admin/video-editor/")
 
@@ -88,16 +105,39 @@ function compareProjects(
   }
 }
 
+/** "3 first frames, 2 AI clips and 1 export", leaving out the ones at none. */
+function describeMadeForProjects(summary: ProjectDeleteSummary) {
+  const parts = [
+    summary.first_frames
+      ? `${summary.first_frames} ${plural(summary.first_frames, "first frame")}`
+      : null,
+    summary.ai_clips
+      ? `${summary.ai_clips} ${plural(summary.ai_clips, "AI clip")}`
+      : null,
+    summary.exports
+      ? `${summary.exports} ${plural(summary.exports, "export")} with ${plural(summary.exports, "its share link", "their share links")}`
+      : null,
+  ].filter((part): part is string => part !== null)
+  if (!parts.length) return null
+  return parts.length === 1
+    ? parts[0]
+    : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`
+}
+
 /**
- * Every project, newest change first, or one folder's worth. A row opens the
- * editor; the settings icon renames it without leaving the list.
+ * Every project, pinned ones first and then the newest change, or one
+ * folder's worth, or the archived ones. A row opens the editor; the settings
+ * icon renames it without leaving the list.
  */
 export function ProjectsPage({
   initial,
   folders,
+  actors,
 }: {
   initial: ProjectListResponse
   folders: ProjectFolderSummary[]
+  /** Every actor, for the filter by actor. */
+  actors: ActorItem[]
 }) {
   const { config } = useShellRuntime()
   const router = useRouter()
@@ -108,8 +148,11 @@ export function ProjectsPage({
   const setListSearch = useListSearchNavigate()
   const searchQuery = listSearch.q ?? ""
   const folder = listSearch.folder
+  const actorFilter = listSearch.actor
+  const showingArchived = folder === ARCHIVED_PROJECTS
   // The folder a new project goes straight into: the one being shown.
-  const openFolderId = folder && folder !== NO_FOLDER ? folder : null
+  const openFolderId =
+    folder && folder !== NO_FOLDER && !showingArchived ? folder : null
   const currentPage = listSearch.page ?? 1
   const [searchText, setSearchText] = useSearchBoxText(searchQuery, (text) =>
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
@@ -122,6 +165,8 @@ export function ProjectsPage({
   const [formOpen, setFormOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<ProjectItem | null>(null)
   const [deleteTargets, setDeleteTargets] = React.useState<ProjectItem[]>([])
+  const [deleteSummary, setDeleteSummary] =
+    React.useState<ProjectDeleteSummary | null>(null)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const selection = useSelection()
 
@@ -134,9 +179,14 @@ export function ProjectsPage({
     const timer = setInterval(() => void router.invalidate(), THUMBNAIL_POLL_MS)
     return () => clearInterval(timer)
   }, [anyThumbnailPending, router])
+  // Pinned projects stay on top whatever the sort.
   const sortedProjects = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
-    return [...projects].sort((a, b) => factor * compareProjects(a, b, sort))
+    return [...projects].sort(
+      (a, b) =>
+        Number(b.pinned) - Number(a.pinned) ||
+        factor * compareProjects(a, b, sort)
+    )
   }, [direction, projects, sort])
 
   const totalPages = Math.ceil(sortedProjects.length / pageSize)
@@ -148,8 +198,23 @@ export function ProjectsPage({
 
   useClearSelectionOnListChange(
     selection.setSelected,
-    `${searchQuery}|${folder}|${sort}|${direction}|${currentPage}|${pageSize}`
+    `${searchQuery}|${folder}|${actorFilter}|${sort}|${direction}|${currentPage}|${pageSize}`
   )
+
+  // What the delete window says goes, counted when it opens.
+  const deleteKey = deleteTargets.map((project) => project.id).join(",")
+  React.useEffect(() => {
+    if (!deleteKey) return
+    let active = true
+    loadProjectDeleteSummary(deleteKey.split(","))
+      .then((summary) => {
+        if (active) setDeleteSummary(summary)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [deleteKey])
 
   function openEditor(project: ProjectItem) {
     void navigate({
@@ -205,6 +270,33 @@ export function ProjectsPage({
     })
   }
 
+  async function handlePin(project: ProjectItem) {
+    await run(async () => {
+      await pinProject(project.id, !project.pinned)
+      await router.invalidate()
+    })
+  }
+
+  async function handleArchive(targets: ProjectItem[], archived: boolean) {
+    await run(async () => {
+      const { done_ids: done } = await archiveProjects(
+        targets.map((project) => project.id),
+        archived
+      )
+      selection.clear()
+      await router.invalidate()
+      toast.success(
+        describeBulkResult({
+          done: done.length,
+          kept: targets.length - done.length,
+          one: "project",
+          many: "projects",
+          verb: archived ? "archived" : "brought back",
+        })
+      )
+    })
+  }
+
   async function handleDuplicate(project: ProjectItem) {
     await run(async () => {
       const copy = await duplicateProject(project.id)
@@ -234,6 +326,7 @@ export function ProjectsPage({
       }
       selection.clear()
       setDeleteTargets([])
+      setDeleteSummary(null)
       await router.invalidate()
       toast.success(
         describeBulkResult({
@@ -283,6 +376,23 @@ export function ProjectsPage({
             {selectedCount ? (
               <DashboardToolbarButton
                 type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() =>
+                  void handleArchive(selectedProjects, !showingArchived)
+                }
+              >
+                {showingArchived ? (
+                  <ArchiveRestoreIcon className="size-4" />
+                ) : (
+                  <ArchiveIcon className="size-4" />
+                )}
+                {showingArchived ? "Bring back" : "Archive"} ({selectedCount})
+              </DashboardToolbarButton>
+            ) : null}
+            {selectedCount ? (
+              <DashboardToolbarButton
+                type="button"
                 variant="destructive"
                 disabled={busy}
                 onClick={() => setDeleteTargets(selectedProjects)}
@@ -298,7 +408,38 @@ export function ProjectsPage({
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
             />
-            {projects.length === 0 && !searchQuery && !folder ? (
+            {actors.length ? (
+              <Select
+                value={actorFilter ?? "all"}
+                onValueChange={(next) =>
+                  setListSearch({
+                    actor: next === "all" ? undefined : next,
+                    page: undefined,
+                  })
+                }
+              >
+                <SelectTrigger aria-label="Show projects with this actor">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All actors</SelectItem>
+                  {actors.map((actor) => (
+                    <SelectItem key={actor.id} value={actor.id}>
+                      {actor.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            <FolderMenu
+              folders={folders}
+              value={folder}
+              onChange={(next) =>
+                setListSearch({ folder: next, page: undefined })
+              }
+              onFoldersChanged={() => router.invalidate()}
+            />
+            {projects.length === 0 && !searchQuery && !folder && !actorFilter ? (
               <DashboardToolbarButton
                 type="button"
                 variant="outline"
@@ -319,16 +460,6 @@ export function ProjectsPage({
               New project
             </DashboardToolbarButton>
           </>
-        }
-        filters={
-          <FolderChips
-            folders={folders}
-            value={folder}
-            onChange={(next) =>
-              setListSearch({ folder: next, page: undefined })
-            }
-            onFoldersChanged={() => router.invalidate()}
-          />
         }
         header={
           <SortableTableHeader
@@ -352,7 +483,11 @@ export function ProjectsPage({
         emptyText={
           searchQuery
             ? "No projects match that search."
-            : folder === NO_FOLDER
+            : actorFilter
+              ? "No project has a first frame of that actor."
+              : showingArchived
+                ? "Nothing is archived. Archive keeps a finished project out of the list without deleting anything."
+                : folder === NO_FOLDER
               ? "Every project is in a folder."
               : folder
                 ? "Nothing in this folder yet. Tick projects under All and use Move to folder."
@@ -376,7 +511,13 @@ export function ProjectsPage({
         {visibleProjects.map((project) => (
           <TableRow
             key={project.id}
-            className="group"
+            className={cn(
+              "group",
+              // A pinned project reads as pinned from across the list (Tyler,
+              // 17 Oct 2026), in the amber the app already uses for notices.
+              project.pinned &&
+                "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-400/10 dark:hover:bg-amber-400/15"
+            )}
             rowAction={() => openEditor(project)}
           >
             <TableCell column="select">
@@ -399,14 +540,52 @@ export function ProjectsPage({
                     <FilmIcon className="size-4 text-muted-foreground" />
                   )}
                 </span>
-                <button
-                  type="button"
-                  className="block max-w-full truncate text-left font-medium group-hover:underline"
-                  onClick={() => openEditor(project)}
-                  title={project.name}
-                >
-                  {project.name}
-                </button>
+                <div className="grid min-w-0 gap-1">
+                  <button
+                    type="button"
+                    className="flex max-w-full items-center gap-1.5 text-left font-medium group-hover:underline"
+                    onClick={() => openEditor(project)}
+                  >
+                    {project.pinned ? (
+                      <PinIcon
+                        className="size-3.5 shrink-0 text-muted-foreground"
+                        aria-label="Pinned"
+                      />
+                    ) : null}
+                    <span className="truncate">{project.name}</span>
+                  </button>
+                  {project.actors.length || project.source ? (
+                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                      {project.actors.slice(0, 4).map((actor) => (
+                        <img
+                          key={actor.id}
+                          src={actor.image_url}
+                          alt={actor.name}
+                          className="size-5 shrink-0 rounded-full border object-cover"
+                        />
+                      ))}
+                      {project.actors.length > 4 ? (
+                        <span className="tabular-nums">
+                          +{project.actors.length - 4}
+                        </span>
+                      ) : null}
+                      {project.source ? (
+                        <span className="flex min-w-0 items-center gap-1">
+                          {project.source.cover_url ? (
+                            <img
+                              src={project.source.cover_url}
+                              alt=""
+                              className="h-5 w-3 shrink-0 rounded-sm object-cover"
+                            />
+                          ) : null}
+                          <span className="truncate">
+                            Copies {project.source.title ? `“${project.source.title}”` : "a viral video"}
+                          </span>
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </TableCell>
             <TableCell column="meta">{project.clip_count}</TableCell>
@@ -417,6 +596,27 @@ export function ProjectsPage({
             <TableCell column="meta">{formatDate(project.updated_at)}</TableCell>
             <TableCell column="actions">
               <div className="flex items-center gap-1">
+                {showingArchived ? null : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={busy}
+                    aria-pressed={project.pinned}
+                    onClick={() => void handlePin(project)}
+                    aria-label={
+                      project.pinned
+                        ? `Unpin ${project.name}`
+                        : `Pin ${project.name} to the top`
+                    }
+                  >
+                    {project.pinned ? (
+                      <PinOffIcon className="size-4" />
+                    ) : (
+                      <PinIcon className="size-4" />
+                    )}
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="ghost"
@@ -424,9 +624,28 @@ export function ProjectsPage({
                   disabled={busy}
                   onClick={() => void handleDuplicate(project)}
                   aria-label={`Duplicate ${project.name}`}
-                  title={`Duplicate ${project.name}`}
                 >
                   <CopyIcon className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  onClick={() =>
+                    void handleArchive([project], !showingArchived)
+                  }
+                  aria-label={
+                    showingArchived
+                      ? `Bring back ${project.name}`
+                      : `Archive ${project.name}`
+                  }
+                >
+                  {showingArchived ? (
+                    <ArchiveRestoreIcon className="size-4" />
+                  ) : (
+                    <ArchiveIcon className="size-4" />
+                  )}
                 </Button>
                 <Button
                   type="button"
@@ -437,7 +656,6 @@ export function ProjectsPage({
                     setFormOpen(true)
                   }}
                   aria-label={`Settings for ${project.name}`}
-                  title={`Settings for ${project.name}`}
                 >
                   <SettingsIcon className="size-4" />
                 </Button>
@@ -447,7 +665,6 @@ export function ProjectsPage({
                   size="icon"
                   onClick={() => setDeleteTargets([project])}
                   aria-label={`Delete ${project.name}`}
-                  title={`Delete ${project.name}`}
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
@@ -468,6 +685,7 @@ export function ProjectsPage({
         open={formOpen}
         project={editing}
         folderId={openFolderId}
+        folders={folders}
         onClose={() => {
           setFormOpen(false)
           setEditing(null)
@@ -479,14 +697,25 @@ export function ProjectsPage({
       <ConfirmDialog
         open={deleteTargets.length > 0}
         onOpenChange={(open) => {
-          if (!open) setDeleteTargets([])
+          if (!open) {
+            setDeleteTargets([])
+            setDeleteSummary(null)
+          }
         }}
         title={
           deleteTargets.length > 1
             ? `Delete ${deleteTargets.length} ${plural(deleteTargets.length, "project", "projects")}?`
             : "Delete this project?"
         }
-        description="The timeline goes for good, and so do its exports and their share links. The footage it used stays in your media library."
+        description={(() => {
+          const made = deleteSummary
+            ? describeMadeForProjects(deleteSummary)
+            : null
+          const goes = made
+            ? `The timeline goes for good, and so do ${made}.`
+            : "The timeline goes for good."
+          return `${goes} The actors and any viral video it copies stay, and so does footage from your media library.`
+        })()}
         confirmLabel={
           deleteTargets.length > 1 ? "Delete projects" : "Delete project"
         }

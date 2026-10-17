@@ -8,6 +8,8 @@ export const CAROUSEL_ITEM_MAX = 50
 export const CAROUSEL_NAME_REQUIRED_MESSAGE = "A carousel needs a name."
 export const CAROUSEL_ITEM_LIMIT_MESSAGE = "A slide can have at most 50 layers."
 export const CAROUSEL_NOT_FOUND_MESSAGE = "Carousel not found."
+export const FIRST_FRAMES_NOT_FOUND_MESSAGE =
+  "None of those first frames are in this project any more."
 export const CAROUSEL_CONFLICT_MESSAGE =
   "This carousel changed somewhere else. Reload to use the newer version."
 export const SAVED_CAROUSEL_INVALID_MESSAGE =

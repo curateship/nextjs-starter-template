@@ -152,6 +152,7 @@ const listExportsFn = createServerFn({ method: "GET" })
         page: z.number().int().optional(),
         pageSize: z.number().int().optional(),
         search: z.string().trim().max(120).default(""),
+        projectId: z.string().min(1).max(36).optional(),
       })
       .optional()
   )
@@ -162,6 +163,7 @@ const listExportsFn = createServerFn({ method: "GET" })
         page: data?.page ?? 1,
         pageSize: data?.pageSize ?? 24,
         search: data?.search,
+        projectId: data?.projectId,
       }),
       loadExportStorage(context.user.id),
     ])
@@ -268,8 +270,15 @@ export function listExports({
   page = 1,
   pageSize = 24,
   search,
-}: { page?: number; pageSize?: number; search?: string } = {}) {
-  return listExportsFn({ data: { page, pageSize, search } })
+  projectId,
+}: {
+  page?: number
+  pageSize?: number
+  search?: string
+  /** Only one project's, for that project's Exports tab. */
+  projectId?: string
+} = {}) {
+  return listExportsFn({ data: { page, pageSize, search, projectId } })
 }
 
 export function updateExport(

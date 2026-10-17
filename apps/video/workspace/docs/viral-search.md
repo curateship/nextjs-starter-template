@@ -75,6 +75,16 @@ looking at a past keyword costs nothing.
 - Deleting saved searches (tick them in the panel) removes only the keyword
   rows and their result rows, in one request.
 
+## Copy this
+
+Every result has a **Copy this** button in its Actions column. It saves the
+video for breaking down, the same as Save & break down on the creators
+dashboard, makes a new project named after the video, and opens it in the
+editor on the Copy panel at the foot of the rail. The download and the
+breakdown spend from the AI allowance unless the video was saved before.
+Pressing it twice makes two projects but downloads the video once. The
+project side is in `project-first.md`.
+
 ## What is not here yet
 
 The viral score on each result is in `viral-score.md`. TikTok and Instagram
