@@ -42,6 +42,14 @@ export function useOpenScreen() {
     setScreen((current) => ({ frameUrl: url, load: current.load + 1, url, title: "" }))
   }, [])
 
+  /** Back to Personal's own start page, with nothing in the middle panel. */
+  const goHome = React.useCallback(() => {
+    if (window.location.pathname + window.location.search !== "/") {
+      window.history.pushState(null, "", "/")
+    }
+    setScreen((current) => ({ frameUrl: null, load: current.load + 1, url: null, title: "" }))
+  }, [])
+
   /** The framed app says it moved to `path`. */
   const report = React.useCallback((path: string, title: string) => {
     setScreen((current) => {
@@ -68,5 +76,5 @@ export function useOpenScreen() {
     document.title = screen.title ? `${screen.title} · Personal` : "Personal"
   }, [screen.title])
 
-  return { screen, open, report }
+  return { screen, open, goHome, report }
 }

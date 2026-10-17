@@ -12,15 +12,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { LINK_ICONS, parseAppUrl, type LinkIcon, type Place } from "@/lib/menu"
+import { LINK_ICONS, parseAppUrl, placeKey, type LinkIcon, type Place } from "@/lib/menu"
 
 export type LinkDraft = { label: string; url: string; icon: LinkIcon }
 
 export type PlaceChoice = { place: Place; label: string }
-
-function placeKey(place: Place) {
-  return place.kind === "top" ? "top" : `section:${place.sectionId}`
-}
 
 /**
  * The form inside a link's pop-up: its name, the address of the screen it
