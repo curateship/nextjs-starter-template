@@ -16,6 +16,14 @@ import { sql } from "drizzle-orm"
 import type { AccountStatus } from "@/lib/social/account-status"
 import type { AccountImportance } from "@/lib/social/importance"
 import type { Network } from "@/lib/social/networks"
+import type {
+  InboxKind,
+  InboxLine,
+  InboxStatus,
+  PhoneAppMediaKind,
+  PhoneAppPostStatus,
+  ProfileEditStatus,
+} from "@/lib/social/phone-apps"
 import {
   type DraftRewrite,
   type DraftStatus,
@@ -147,7 +155,10 @@ export const promoAccounts = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    /** 'reddit' today. The other networks share this table when they land. */
+    /**
+     * 'reddit', 'instagram' or 'tiktok' (`src/lib/social/networks.ts`).
+     * Instagram and TikTok accounts run on a phone only.
+     */
     platform: varchar("platform", { length: 30 }).notNull().default("reddit"),
     /**
      * The handle without the u/ prefix. Written by the browser program after
@@ -225,6 +236,27 @@ export const promoAccounts = pgTable(
     /** The profile read signed in and signed out. Null until one is taken. */
     profileCheck: jsonb("profile_check").$type<ProfileCheck | null>(),
     lastPostedAt: timestamp("last_posted_at", { withTimezone: true }),
+    /**
+     * Instagram's and TikTok's daily health reading, all null until one is
+     * taken: followers, following and posts as the profile shows them, and
+     * whether the app's own Account status page says its posts may be shown
+     * to people who do not follow it. `shadowbanned` is null when that page
+     * could not be read, which is not the same as "not shadowbanned". Added
+     * by `drizzle/0120_promo_instagram_tiktok.sql`, as are the two below.
+     */
+    followers: integer("followers"),
+    following: integer("following"),
+    postCount: integer("post_count"),
+    shadowbanned: boolean("shadowbanned"),
+    /** The Account status page's own words, kept to show beside the line. */
+    shadowbanWords: text("shadowban_words").notNull().default(""),
+    appHealthReadAt: timestamp("app_health_read_at", { withTimezone: true }),
+    /**
+     * When the phone first read the account signed in, after it was last
+     * read signed out. A profile is not changed in the day after
+     * (`PROFILE_EDIT_WAIT_HOURS`). Null until a phone reads it signed in.
+     */
+    signedInAt: timestamp("signed_in_at", { withTimezone: true }),
     /**
      * The subreddits the daily warm-up joined, lower case, so it never asks to
      * join one twice. Added by `drizzle/0106_promo_behaviour.sql`.
@@ -857,3 +889,155 @@ export const promoNotices = pgTable("promo_notices", {
   href: varchar("href", { length: 600 }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 })
+
+/**
+ * A photo or video posted on Instagram or TikTok from a phone, because a
+ * person pressed Post. One row per press, like a comment, so a failure leaves
+ * a record. Tried once and never again. The numbers are read once a day on
+ * the health visit, all null until then. The SQL is
+ * `drizzle/0120_promo_instagram_tiktok.sql`.
+ */
+export const promoAppPosts = pgTable(
+  "promo_app_posts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => promoAccounts.id, { onDelete: "cascade" }),
+    /** The project it was posted for, when the account was in one. */
+    projectId: varchar("project_id", { length: 36 }).references(() => promoProjects.id, {
+      onDelete: "set null",
+    }),
+    platform: varchar("platform", { length: 30 }).notNull(),
+    /** The media library file, by its address, as it was when Post was pressed. */
+    mediaUrl: varchar("media_url", { length: 2048 }).notNull(),
+    mediaKind: varchar("media_kind", { length: 10 }).$type<PhoneAppMediaKind>().notNull(),
+    /** The file's own name, so the list says which one it was. */
+    mediaName: varchar("media_name", { length: 255 }).notNull().default(""),
+    /** Exactly what was posted, which may differ from the AI's draft after an edit. */
+    caption: text("caption").notNull().default(""),
+    /** What the AI wrote before any edit, or "" when it was written by hand. */
+    draftCaption: text("draft_caption").notNull().default(""),
+    status: varchar("status", { length: 20 }).$type<PhoneAppPostStatus>().notNull().default("waiting"),
+    /** Where it landed in the app, or "" until the link was read. */
+    postUrl: varchar("post_url", { length: 600 }).notNull().default(""),
+    lastError: text("last_error").notNull().default(""),
+    /** The job carrying it to the phone. */
+    jobId: varchar("job_id", { length: 36 }),
+    views: integer("views"),
+    likes: integer("likes"),
+    comments: integer("comments"),
+    numbersReadAt: timestamp("numbers_read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("ix_promo_app_posts_account").on(table.accountId, table.createdAt.desc()),
+    index("ix_promo_app_posts_project").on(table.projectId, table.createdAt.desc()),
+  ]
+)
+
+/**
+ * A change to an Instagram or TikTok account's profile, applied in the app
+ * by its phone because a person pressed Apply. A null field is left as it
+ * is. One row per press. The SQL is `drizzle/0120_promo_instagram_tiktok.sql`.
+ */
+export const promoProfileEdits = pgTable(
+  "promo_profile_edits",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => promoAccounts.id, { onDelete: "cascade" }),
+    displayName: varchar("display_name", { length: 60 }),
+    bio: text("bio"),
+    link: varchar("link", { length: 300 }),
+    /** A media library picture's address. */
+    pictureUrl: varchar("picture_url", { length: 2048 }),
+    status: varchar("status", { length: 20 }).$type<ProfileEditStatus>().notNull().default("waiting"),
+    lastError: text("last_error").notNull().default(""),
+    jobId: varchar("job_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [index("ix_promo_profile_edits_account").on(table.accountId, table.createdAt.desc())]
+)
+
+/**
+ * What somebody wrote to a phone account, read off the phone after the app's
+ * notification said it arrived (Tyler, 16 Oct 2026): a direct message on
+ * Reddit, Instagram or TikTok, or a comment under one of the account's own
+ * Instagram or TikTok posts. A conversation is one row, its newest lines
+ * kept; a comment is one row. Nothing answers by itself: a person sends the
+ * reply, edits it, or skips it.
+ *
+ * A conversation is kept only while it is open in Promo. Answering or
+ * skipping it deletes the row, words and all, leaving only `promo_inbox_seen`
+ * so the same lines are never listed twice. Comments are public and are kept.
+ * The SQL is `drizzle/0120_promo_instagram_tiktok.sql`.
+ */
+export const promoInbox = pgTable(
+  "promo_inbox",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => promoAccounts.id, { onDelete: "cascade" }),
+    platform: varchar("platform", { length: 30 }).notNull(),
+    kind: varchar("kind", { length: 10 }).$type<InboxKind>().notNull(),
+    /**
+     * A conversation's name as the inbox lists it, or for a comment the
+     * opening words of the post it is under, so the phone can find it again.
+     */
+    thread: varchar("thread", { length: 200 }).notNull(),
+    /** Who wrote the newest line, or the comment. */
+    author: varchar("author", { length: 120 }).notNull().default(""),
+    /** The conversation's newest lines, or the one comment. */
+    lines: jsonb("lines").$type<InboxLine[]>().notNull().default([]),
+    status: varchar("status", { length: 20 }).$type<InboxStatus>().notNull().default("open"),
+    /** The AI's suggestion, "" until one is asked for. */
+    draft: text("draft").notNull().default(""),
+    /** What was sent, exactly, once a person pressed Send. */
+    replyText: text("reply_text").notNull().default(""),
+    /** Why the last reply did not go out. */
+    lastError: text("last_error").notNull().default(""),
+    jobId: varchar("job_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When a new line last arrived, which orders the list. */
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("ix_promo_inbox_user").on(table.userId, table.status, table.updatedAt.desc()),
+    /** One open row per conversation per account, so new lines join it. */
+    uniqueIndex("ux_promo_inbox_thread")
+      .on(table.accountId, table.kind, table.thread)
+      .where(sql`${table.kind} = 'message'`),
+  ]
+)
+
+/**
+ * The lines already listed, by a hash of the account, conversation, author
+ * and words, so a conversation answered and deleted is not listed again the
+ * next time the phone reads the same lines. Holds no words. The SQL is
+ * `drizzle/0120_promo_instagram_tiktok.sql`.
+ */
+export const promoInboxSeen = pgTable(
+  "promo_inbox_seen",
+  {
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => promoAccounts.id, { onDelete: "cascade" }),
+    key: varchar("key", { length: 64 }).notNull(),
+    seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("ux_promo_inbox_seen").on(table.accountId, table.key)]
+)

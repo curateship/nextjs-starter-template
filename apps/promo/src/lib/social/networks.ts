@@ -6,18 +6,48 @@
  * sidebar".
  *
  * Only networks Promo has built are listed, so "+ Add network" never offers
- * one that does nothing. Instagram joins when it is built
+ * one that does nothing. Instagram and TikTok joined with phone farm file 06
  * (`workspace/tasks/Phone farm/06-instagram-and-tiktok.md`). The server reads
  * this same list to refuse anything else.
  */
-export const NETWORKS = ["reddit"] as const
+export const NETWORKS = ["reddit", "instagram", "tiktok"] as const
 
 export type Network = (typeof NETWORKS)[number]
 
 export const NETWORK_NAMES: Record<Network, string> = {
   reddit: "Reddit",
+  instagram: "Instagram",
+  tiktok: "TikTok",
 }
 
 export function isNetwork(value: unknown): value is Network {
   return typeof value === "string" && (NETWORKS as readonly string[]).includes(value)
+}
+
+/**
+ * The networks whose accounts run on a phone only, in the real app. Both are
+ * built for the phone, and a desktop browser stands out there; setting one of
+ * their accounts onto a browser profile is refused.
+ */
+export const PHONE_ONLY_NETWORKS = ["instagram", "tiktok"] as const
+
+export type PhoneAppNetwork = (typeof PHONE_ONLY_NETWORKS)[number]
+
+export function isPhoneAppNetwork(value: unknown): value is PhoneAppNetwork {
+  return typeof value === "string" && (PHONE_ONLY_NETWORKS as readonly string[]).includes(value)
+}
+
+/** An account's name as its network writes it: u/name on Reddit, @name elsewhere. */
+export function handleWords(platform: string, handle: string): string {
+  if (!handle) return ""
+  return platform === "reddit" ? `u/${handle}` : `@${handle}`
+}
+
+/**
+ * "a Reddit", "an Instagram", "a TikTok": the network's name with its
+ * article, for a sentence, with a capital when it starts one.
+ */
+export function aNetwork(network: Network, atStart = false): string {
+  const article = network === "instagram" ? "an" : "a"
+  return `${atStart ? article.charAt(0).toUpperCase() + article.slice(1) : article} ${NETWORK_NAMES[network]}`
 }

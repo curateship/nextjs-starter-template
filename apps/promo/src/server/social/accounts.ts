@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 
 import type { AccountImportance } from "@/lib/social/importance"
+import { aNetwork, handleWords, isNetwork, isPhoneAppNetwork, NETWORK_NAMES, type Network } from "@/lib/social/networks"
 import { uuid } from "@/server/auth/security"
 import { promoProfiles } from "@/server/browser/schema"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
@@ -115,29 +116,35 @@ export async function saveAccount(
 }
 
 /**
- * Adds another Reddit account, on a browser profile or a phone of its own,
- * from the Reddit accounts dashboard. It is signed in to Reddit there
- * afterwards, and starts in no project.
+ * Adds another account from the Accounts dashboard: Reddit on a browser
+ * profile or a phone of its own, Instagram or TikTok on a phone only. It is
+ * signed in there afterwards, and starts in no project.
  */
 export async function addAccount(
   userId: string,
-  input: SaveAccountInput,
+  input: SaveAccountInput & { platform?: Network },
   db: CustomShellDb = defaultDb
 ): Promise<string> {
+  const platform = input.platform ?? "reddit"
+  if (!isNetwork(platform)) throw new Error("Promo cannot use that network yet.")
   if (!input.profileId && !input.phoneId) {
-    throw new Error("Pick the browser profile or the phone the account runs on.")
+    throw new Error(
+      isPhoneAppNetwork(platform)
+        ? `Pick the phone the ${NETWORK_NAMES[platform]} account runs on.`
+        : "Pick the browser profile or the phone the account runs on."
+    )
   }
-  await checkPicks(userId, input, null, db)
+  await checkPicks(userId, input, null, db, platform)
   const id = uuid()
   await db.insert(promoAccounts).values({
     id,
     userId,
-    platform: "reddit",
+    platform,
     profileId: input.profileId,
     phoneId: input.phoneId,
     voiceId: input.voiceId,
   })
-  await notePhoneMove(userId, { handle: "", importance: "throwaway" }, null, input.phoneId, db)
+  await notePhoneMove(userId, { handle: "", importance: "throwaway", platform }, null, input.phoneId, db)
   return id
 }
 
@@ -155,13 +162,18 @@ export async function setAccountRunsOn(
   if (!input.profileId && !input.phoneId) {
     throw new Error("Pick the browser profile or the phone the account runs on.")
   }
-  await checkPicks(userId, { ...input, voiceId: null }, accountId, db)
   const [before] = await db
-    .select({ handle: promoAccounts.handle, phoneId: promoAccounts.phoneId, importance: promoAccounts.importance })
+    .select({
+      handle: promoAccounts.handle,
+      phoneId: promoAccounts.phoneId,
+      importance: promoAccounts.importance,
+      platform: promoAccounts.platform,
+    })
     .from(promoAccounts)
     .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
     .limit(1)
   if (!before) throw new Error("That account is not there any more.")
+  await checkPicks(userId, { ...input, voiceId: null }, accountId, db, isNetwork(before.platform) ? before.platform : "reddit")
   await db
     .update(promoAccounts)
     // Set by hand, so a move to a phone that was waiting is off.
@@ -178,13 +190,16 @@ export async function setAccountRunsOn(
  */
 async function notePhoneMove(
   userId: string,
-  account: { handle: string; importance: string },
+  account: { handle: string; importance: string; platform?: string },
   from: string | null,
   to: string | null,
   db: CustomShellDb
 ): Promise<void> {
   if (from === to) return
-  const name = account.handle ? `u/${account.handle}` : "A Reddit account"
+  const platform = account.platform ?? "reddit"
+  const name = account.handle
+    ? handleWords(platform, account.handle)
+    : `${isNetwork(platform) ? aNetwork(platform, true) : `A ${platform}`} account`
   if (from) {
     await recordPhoneEvent(userId, from, "account_moved", `${name} moved off it. It needs wiping before another account goes on.`, db)
     await noteAccountLeftPhone(userId, from, db)
@@ -206,11 +221,20 @@ async function checkPicks(
   userId: string,
   input: SaveAccountInput,
   accountId: string | null,
-  db: CustomShellDb
+  db: CustomShellDb,
+  platform: Network = "reddit"
 ): Promise<void> {
   if (input.profileId && input.phoneId) {
     throw new Error("An account runs on a browser profile or a phone, never both.")
   }
+  // Instagram and TikTok are built for the phone, and a desktop browser
+  // stands out there (phone farm file 06).
+  if (input.profileId && isPhoneAppNetwork(platform)) {
+    throw new Error(
+      `${aNetwork(platform, true)} account runs on a phone only, in the ${NETWORK_NAMES[platform]} app, never on a browser profile. Pick a phone.`
+    )
+  }
+  const networkName = NETWORK_NAMES[platform]
 
   // Important and throwaway accounts are kept apart (part 22 of the phone
   // farm); a new account is a throwaway until it is marked.
@@ -244,17 +268,18 @@ async function checkPicks(
       .where(
         and(
           eq(promoAccounts.phoneId, input.phoneId),
-          eq(promoAccounts.platform, "reddit"),
+          eq(promoAccounts.platform, platform),
           ...(accountId ? [ne(promoAccounts.id, accountId)] : [])
         )
       )
       .limit(1)
     if (taken) {
       throw new Error(
-        `The phone ${phone.name} already has a Reddit account on it. One Reddit account per phone, or they sign in over each other.`
+        `The phone ${phone.name} already has ${aNetwork(platform)} account on it. One ${networkName} account per phone, or they sign in over each other.`
       )
     }
-    const [incoming] = await db
+    // Only Reddit accounts are moved onto phones from a browser profile.
+    const [incoming] = platform !== "reddit" ? [] : await db
       .select({ handle: promoAccounts.handle })
       .from(promoAccounts)
       .where(

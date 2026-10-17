@@ -20,18 +20,33 @@ pressing Post, and a comment is never tried twice.
   checked against the same shapes as a browser's, so nothing above that layer
   knows which one it was.
 - **What the Reddit app does:** who is signed in, the health reading and the
-  comment, since phone farm file 05 ([Reddit on phones](../reddit/reddit-on-phones.md)).
+  comment, since phone farm file 05 ([Reddit on phones](../reddit/reddit-on-phones.md)),
+  and reading and answering its chats since file 06.
+- **What Instagram and TikTok do,** on phones only: who is signed in, the
+  daily reading, the profile, a post, and reading and answering messages and
+  comments ([Instagram and TikTok accounts](../instagram/accounts-and-the-daily-reading.md)).
+  A Reddit step for an Instagram or TikTok account, or a post of photos for a
+  Reddit one, is refused before anything reaches the phone.
+- **Who is signed in, after each job,** is read in the app the job worked in
+  only, for the account the job ran as. A phone may carry a Reddit, an
+  Instagram and a TikTok account, and opening all three apps after every job
+  is not what a person does.
   Any other Reddit step on a phone account, such as answering a reply or a
   post of your own, is refused when its button is pressed, with words such as
   "u/name's phone cannot do answering a reply yet", and again before anything
   reaches the phone.
-- **The daily health reading includes phone accounts.** The daily warm-up still
-  skips them: it reads a browser profile's clock and label.
+- **The daily health reading includes phone accounts,** Instagram's and
+  TikTok's among them. The daily warm-up still skips them: it reads a browser
+  profile's clock and label.
 
 ## One at a time per phone, side by side across phones
 
 - **One phone, one job at a time,** in order, the same as a browser profile.
   The rack is also handed one action per phone at a time.
+- **A job's hold on the queue** lasts 10 minutes, after which it counts as
+  abandoned. A post, a profile change, an answer, a health reading and a read
+  of an inbox get 25 minutes, because a phone action may wait five minutes
+  behind the phone's other actions before it starts.
 - **Different phones work together.** The program on the rack computer runs
   each action on a thread of its own.
 - **Phones have their own limit,** separate from the browsers: "Phones working

@@ -28,6 +28,14 @@ const checkInShape = z.object({
           })
           .nullable()
           .default(null),
+        /**
+         * The app notifications that arrived since the last check-in: which
+         * app, and whether it was a message or a comment. Never their words.
+         */
+        alerts: z
+          .array(z.object({ app: z.enum(["reddit", "instagram", "tiktok"]), kind: z.enum(["message", "comment"]) }))
+          .max(20)
+          .default([]),
       })
     )
     .max(200),
@@ -39,8 +47,9 @@ const checkInShape = z.object({
 
 /**
  * Every 15 seconds: the phones adb sees, and the program's version, and
- * about once a minute each phone's battery, heat, storage and signal. The
- * answer says which version Promo serves, so the rack updates itself.
+ * about once a minute each phone's battery, heat, storage and signal, and
+ * the Reddit, Instagram and TikTok notifications that arrived. The answer
+ * says which version Promo serves, so the rack updates itself.
  */
 export const Route = createFileRoute("/api/rack/check-in")({
   server: {

@@ -38,6 +38,13 @@ import { promoAppRollouts, promoPhoneActionChecks, promoPhones, promoPhoneSettin
 
 const UPDATE_SECONDS = 600
 
+/**
+ * The self-test's own time limit. It walks Reddit's, Instagram's and
+ * TikTok's steps one after another, about twenty rehearsals since phone farm
+ * file 06, each a few screens and up to a minute.
+ */
+const SELF_TEST_SECONDS = 1_800
+
 /** The self-test walks a comment on a post found in the last week, so it rehearses on a live thread. */
 const REHEARSAL_POST_DAYS = 7
 
@@ -138,7 +145,7 @@ export async function queueDailySelfTest(db: CustomShellDb = defaultDb, now: Dat
   const fresh = (at: Date | null) => at !== null && now.getTime() - at.getTime() < PHONE_STALE_MS
   if (!fresh(row.rackSeenAt) || !fresh(row.phone.lastSeenAt)) return false
   await queuePhoneAction(row.phone.userId, row.phone.id, "phone/self-test", db, now, {
-    timeoutSeconds: 900,
+    timeoutSeconds: SELF_TEST_SECONDS,
     args: await rehearsalArgs(row.phone.userId, db, now),
   })
   await queuePhoneAction(row.phone.userId, row.phone.id, "phone/check-updates", db, now, { timeoutSeconds: 300 })
@@ -151,7 +158,7 @@ export async function runSelfTestNow(userId: string, db: CustomShellDb = default
   const { testPhoneId } = await settingsRow(db)
   if (!testPhoneId) throw new Error("Pick a self-test phone in Settings → Phones first.")
   await queuePhoneAction(userId, testPhoneId, "phone/self-test", db, now, {
-    timeoutSeconds: 900,
+    timeoutSeconds: SELF_TEST_SECONDS,
     args: await rehearsalArgs(userId, db, now),
   })
   // The day's Play Store look goes with it, since this run counts as the day's.
@@ -365,7 +372,7 @@ export async function recordAppUpdate(
   await setRollout(userId, app, "testing", { toVersion }, db, now)
   try {
     await queuePhoneAction(userId, phoneId, "phone/self-test", db, now, {
-      timeoutSeconds: 900,
+      timeoutSeconds: SELF_TEST_SECONDS,
       args: await rehearsalArgs(userId, db, now),
     })
   } catch (error) {

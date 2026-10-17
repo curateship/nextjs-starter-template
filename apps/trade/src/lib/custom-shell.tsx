@@ -396,6 +396,12 @@ export type ShellTopRightAppAction = {
   type: "app"
   id: string
   visible: boolean
+  /**
+   * Where it goes on a phone, chosen in the Top right menu: true for the
+   * three-dot dropdown, false for the row. Unset follows the app's own
+   * `foldsOnPhone`, and it is read only for a control with `phoneChoice`.
+   */
+  foldsOnPhone?: boolean
 }
 
 /**
@@ -1029,10 +1035,14 @@ export function normalizeTopRightNavigation(
 
     if (appIds.has(id)) {
       seenIds.add(id)
+      const { foldsOnPhone } = raw as { foldsOnPhone?: unknown }
       kept.push({
         type: "app",
         id,
         visible: item.visible !== false,
+        // Only a saved choice is carried. Unset is how the app's own default
+        // keeps applying, so nothing is written until somebody picks.
+        ...(typeof foldsOnPhone === "boolean" ? { foldsOnPhone } : {}),
       })
       continue
     }

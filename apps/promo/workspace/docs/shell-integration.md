@@ -82,7 +82,10 @@ stay in `src/server/schema.ts`, which promo never opens.
   `promo_blocked_subreddits`, `promo_subreddit_rules`, `promo_reddit_settings`,
   `promo_searches`, `promo_finds`, `promo_drafts`, `promo_comments`, `promo_jobs`,
   `promo_projects`, `promo_behaviour_settings`, `promo_posts` (posts of your
-  own) and `promo_notices` (where each bell notice opens).
+  own), `promo_notices` (where each bell notice opens), and from
+  `drizzle/0120_promo_instagram_tiktok.sql` `promo_app_posts` (Instagram and
+  TikTok posts), `promo_profile_edits`, `promo_inbox` and `promo_inbox_seen`
+  (messages and comments read off the phones).
 
 The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
 `drizzle/0092_promo_reddit_relevance.sql`,
@@ -142,8 +145,11 @@ Projects, kept what sat under it, and added Reddit accounts
 end of its Administration section. `drizzle/0118_promo_project_networks.sql`
 took Today, Comments, Reddit accounts and Jobs back out of every saved sidebar,
 wherever they sat, when they moved inside each project's Reddit module on 14 Oct
-2026 ([Networks as modules](network-modules.md)). After that the entries are an
-admin's to move or remove like any other.
+2026 ([Networks as modules](network-modules.md)).
+`drizzle/0119_promo_accounts_menu.sql` put Accounts under Projects after
+Voices, and `drizzle/0120_promo_instagram_tiktok.sql` put Messages after
+Accounts ([the Messages dashboard](messages-dashboard.md)). After that the
+entries are an admin's to move or remove like any other.
 
 ## Two shell hazards worth knowing
 

@@ -16,7 +16,8 @@ import {
   touchSession,
 } from "@/server/browser/session"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { NO_PROFILE_MESSAGE, READER_JOB_KINDS, WRITE_JOB_KINDS } from "@/lib/social/options"
+import { NO_PROFILE_MESSAGE, READER_JOB_KINDS, WRITE_JOB_KINDS, type JobKind } from "@/lib/social/options"
+import { aNetwork, handleWords, isPhoneAppNetwork, NETWORK_NAMES } from "@/lib/social/networks"
 import { nextWakeAt } from "@/lib/social/waking"
 import { PHONE_LANE_PREFIX, phoneLane } from "@/lib/phones/options"
 import { recordPhoneEvent } from "@/server/phones/history"
@@ -50,6 +51,11 @@ import {
 import { loadFindThread, runKeywordSearch } from "./reddit/search"
 import { promoAccounts } from "./schema"
 import { runWarmUp } from "./warm-up"
+import { appQuickState } from "./phone-apps/calls"
+import { recordAppHealth } from "./phone-apps/health"
+import { runInboxRead, runInboxReply } from "./phone-apps/inbox"
+import { runAppPost } from "./phone-apps/posts"
+import { runProfileEdit } from "./phone-apps/profile"
 
 /**
  * One turn of the browser work.
@@ -212,6 +218,7 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   }
 
   const account = await accountForJob(job, db)
+  refuseWrongNetwork(job.kind, account)
   if (!account.profileId && !account.phoneId) throw new Refusal(NO_PROFILE_MESSAGE)
   // The account moved to a phone or a profile after the job was filed, or
   // the job is from before lanes. It is filed again where it now runs, so it
@@ -286,9 +293,38 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   }
 }
 
+/** Jobs only a Reddit account does, in its browser or the Reddit app. */
+const REDDIT_ONLY_KINDS: readonly JobKind[] = ["comment", "reply", "submit", "delete_comment", "edit_comment", "warm_up"]
+
+/** Jobs only an Instagram or TikTok account does, in its app. */
+const PHONE_APP_ONLY_KINDS: readonly JobKind[] = ["app_post", "app_profile"]
+
 /**
- * The account's own Reddit work, the same steps whether `target` is its
- * browser or its phone. Afterwards, whether it worked or not, what the
+ * Refuses a job its account's network has no such thing for, before
+ * anything opens: a Reddit comment from an Instagram account, a post of
+ * photos from a Reddit one. Instagram and TikTok run on a phone only.
+ */
+function refuseWrongNetwork(kind: JobKind, account: Account): void {
+  const network = account.platform
+  if (!isPhoneAppNetwork(network)) {
+    if (PHONE_APP_ONLY_KINDS.includes(kind)) {
+      throw new Refusal("Only an Instagram or TikTok account does that. Nothing was sent.")
+    }
+    return
+  }
+  if (REDDIT_ONLY_KINDS.includes(kind)) {
+    throw new Refusal(`That is Reddit's, and this is ${aNetwork(network)} account. Nothing was sent.`)
+  }
+  if (!account.phoneId) {
+    throw new Refusal(
+      `${aNetwork(network, true)} account runs on a phone only. Pick its phone on the Accounts dashboard. Nothing was sent.`
+    )
+  }
+}
+
+/**
+ * The account's own work, the same steps whether `target` is its browser or
+ * its phone. Afterwards, whether it worked or not, what the
  * browser or phone can see is written down: a failed search is often a
  * sign-out or a captcha, and that is exactly what a dashboard needs to show.
  */
@@ -343,19 +379,37 @@ async function runAccountJob(
         await editSentComment(job.userId, commentId, String(job.payload.text ?? ""), target, db)
       }
     } else if (job.kind === "health") {
-      await recordAccountHealth(job.userId, account.id, target, db)
+      if (isPhoneAppNetwork(account.platform)) {
+        await recordAppHealth(job.userId, account, account.platform, target, db)
+      } else {
+        await recordAccountHealth(job.userId, account.id, target, db)
+      }
+    } else if (job.kind === "app_post") {
+      await runAppPost(job.userId, account, target, job.payload, job.id, db)
+    } else if (job.kind === "app_profile") {
+      await runProfileEdit(job.userId, account, target, job.payload, job.id, db)
+    } else if (job.kind === "inbox_read") {
+      await runInboxRead(job.userId, account, target, job.payload, db)
+    } else if (job.kind === "inbox_reply") {
+      await runInboxReply(job.userId, account, target, job.payload, job.id, db)
     } else if (job.kind === "warm_up") {
       await runWarmUp(job.userId, account, target, db)
     } else {
       throw new Error(`There is no job kind called "${job.kind}".`)
     }
   } finally {
-    await readSignIns(
-      job.userId,
-      account.phoneId ? { phoneId: account.phoneId } : { profileId: account.profileId ?? "" },
-      target,
-      db
-    )
+    // On a phone, only the app the job worked in is looked at: opening every
+    // app on the phone after each job is not what a person does. An
+    // Instagram or TikTok health reading has just read who is signed in.
+    const justRead = job.kind === "health" && isPhoneAppNetwork(account.platform)
+    if (!justRead) {
+      await readSignIns(
+        job.userId,
+        account.phoneId ? { phoneId: account.phoneId, accountId: account.id } : { profileId: account.profileId ?? "" },
+        target,
+        db
+      )
+    }
   }
 }
 
@@ -460,7 +514,7 @@ async function accountForJob(job: QueuedJob, db: CustomShellDb): Promise<Account
  */
 async function readSignIns(
   userId: string,
-  where: { profileId: string } | { phoneId: string },
+  where: { profileId: string } | { phoneId: string; accountId: string },
   target: CommandTarget,
   db: CustomShellDb,
   full = false
@@ -470,12 +524,33 @@ async function readSignIns(
     .from(promoAccounts)
     .where(
       and(
-        "phoneId" in where ? eq(promoAccounts.phoneId, where.phoneId) : eq(promoAccounts.profileId, where.profileId),
+        "phoneId" in where
+          ? and(eq(promoAccounts.phoneId, where.phoneId), eq(promoAccounts.id, where.accountId))
+          : eq(promoAccounts.profileId, where.profileId),
         eq(promoAccounts.userId, userId)
       )
     )
 
   for (const account of accounts) {
+    if (isPhoneAppNetwork(account.platform)) {
+      if (!("phoneId" in where)) continue
+      try {
+        const state = await appQuickState(target, account.platform)
+        const signedIn = await saveAppSignIn(account, state, db)
+        if (signedIn) {
+          await recordPhoneEvent(
+            userId,
+            where.phoneId,
+            "account_signed_in",
+            `${handleWords(account.platform, signedIn)} is signed in to ${NETWORK_NAMES[account.platform]}.`,
+            db
+          )
+        }
+      } catch (error) {
+        console.error(`Could not read who is signed in for account ${account.id}`, error)
+      }
+      continue
+    }
     if (account.platform !== "reddit") continue
     let signedIn: string | null = null
     if (full) {
@@ -524,6 +599,32 @@ async function saveSignIn(
       blockedReason: sql`CASE WHEN ${promoAccounts.banScreenAt} IS NULL THEN ${state.blocked ? state.reason : ""} ELSE ${promoAccounts.blockedReason} END`,
       stateReadAt: now,
       ...accountFigures(state, now),
+    })
+    .where(eq(promoAccounts.id, account.id))
+  return !account.handle && state.handle ? state.handle : null
+}
+
+/**
+ * Writes who an Instagram or TikTok app is signed in as. The first read
+ * signed in after a read signed out starts the account's first day, which
+ * holds back a profile change (`PROFILE_EDIT_WAIT_HOURS`); a read signed out
+ * ends it. An answer that was not checked changes nothing.
+ *
+ * Returns the handle when the account was signed out and now is signed in.
+ */
+async function saveAppSignIn(
+  account: { id: string; handle: string },
+  state: { checked: boolean; handle: string | null },
+  db: CustomShellDb,
+  now: Date = new Date()
+): Promise<string | null> {
+  if (!state.checked) return null
+  await db
+    .update(promoAccounts)
+    .set({
+      handle: state.handle ?? "",
+      stateReadAt: now,
+      signedInAt: state.handle ? sql`coalesce(${promoAccounts.signedInAt}, ${now.toISOString()}::timestamptz)` : null,
     })
     .where(eq(promoAccounts.id, account.id))
   return !account.handle && state.handle ? state.handle : null

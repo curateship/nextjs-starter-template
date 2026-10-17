@@ -20,6 +20,30 @@ the repo's `docs/`, and is never copied here.
   Reddit's screens folded into its module as tabs and windows, the tables that
   fold by the column's width, and where the old addresses lead.
 
+## Instagram and TikTok
+
+- [Accounts and the daily reading](instagram/accounts-and-the-daily-reading.md):
+  accounts on a phone only, one per phone per network, who is signed in, the
+  daily reading with followers and the shadowban line off the app's Account
+  status page, each post's numbers, and the module on a project's dashboard.
+- [Posting a photo or video](instagram/posting.md): the media library file,
+  the AI caption in the account's voice, Post once from the phone, the link,
+  calling a post off, and what is refused.
+- [An account's profile](instagram/profile.md): the name, bio, link and
+  picture typed in by the phone, held back in the account's first day.
+- [Comments on your posts](instagram/comments.md): read when the phone's
+  notification says one arrived, listed with a suggested answer, sent only on
+  a press.
+- [What differs on TikTok](tiktok/what-differs-on-tiktok.md): no post count,
+  longer captions, shorter bios and answers, Post rather than Share.
+
+## Messages
+
+- [The Messages dashboard](messages-dashboard.md): every phone account's
+  direct messages on Reddit, Instagram and TikTok, read when a notification
+  says one arrived, answered only on a press, and deleted once answered or
+  skipped.
+
 ## Reddit
 
 - [The Accounts dashboard](reddit/accounts-dashboard.md): `/admin/accounts`,
@@ -133,8 +157,8 @@ the repo's `docs/`, and is never copied here.
 ## Notices
 
 - [Promo's bell notices](notices.md): new replies, removed comments, suspended
-  accounts, failures, proxy renewals and phone problems, one notice per thing,
-  and where each opens.
+  and shadowbanned accounts, new messages and comments, failures, proxy
+  renewals and phone problems, one notice per thing, and where each opens.
 
 ## Shell
 

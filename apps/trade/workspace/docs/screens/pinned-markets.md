@@ -1,6 +1,6 @@
 # Pinned markets
 
-Header pins keep up to five markets visible while an account moves between pages.
+Header pins keep any number of markets visible while an account moves between pages.
 Migration `0168_trade_pinned_markets.sql` is applied to the remote database used
 by the local Trade server. The column stores JSON lists, rejects null values
 and defaults to an empty list.
@@ -24,8 +24,10 @@ header. The button fills while the market is pinned. Fav folders and header
 pins are separate choices. Each account saves its ordered market keys in
 `trade_prefs.pinned_markets`; workspaces do not have separate lists.
 
-A sixth pin is refused with a sentence naming the five already pinned. Removing
-one makes room for another, which appears at the end. Unpinning also works from
+There is no limit on how many markets an account pins. Tyler asked for the old
+five-pin limit to go on 17 Oct 2026, because nothing needed it: the chips scroll
+sideways when the header runs out of room, and prices are read once per exchange
+rather than once per pin. A new pin appears at the end. Unpinning also works from
 the chip's × button. Each write changes one market under a database row lock,
 so another browser cannot overwrite the rest of the list with an older copy.
 The server checks the signed-in account and confirms a newly pinned market is
@@ -104,7 +106,7 @@ thrown out. The next read also picks up pin changes made in another browser.
 
 Clicking a chip opens the market's exchange chart and preserves its network in
 the market key. Below 1280 pixels, chips show symbols and remove buttons only.
-When a phone has too little room for all five, the shared horizontal scroll area
+When the header has too little room for every pin, the shared horizontal scroll area
 keeps the pins inside the header. With no pins, the original sidebar navigation
 returns. The same links remain visible while the header component loads.
 
@@ -127,7 +129,7 @@ The screens a member is still refused, and why, are in
 
 Run the focused normaliser, server persistence and header component tests, then
 the app type check. The server tests use an isolated database and exercise the
-new migration, account separation, ordered saves, the five-pin limit, removal
+new migration, account separation, ordered saves, removal
 and a market that is no longer listed.
 
 Check the actual saved workflow in the existing server on port 3014:
@@ -137,8 +139,8 @@ Check the actual saved workflow in the existing server on port 3014:
    a 15-second refresh: the percentage must stay on screen the whole time and
    the chip must not change width. Compare the new figure with a fresh exchange
    price.
-2. Pin four more markets. Attempt a sixth and check that the refusal names all
-   five. Remove a header chip and confirm the chart's pin button also clears.
+2. Pin six or more markets and check that every one is saved and the row
+   scrolls. Remove a header chip and confirm the chart's pin button also clears.
 3. Reload, then sign into a second browser as the same account. Check the saved
    order and confirm that a pin changed in either browser reaches the other
    within the next visible refresh. A different account should have its own list.

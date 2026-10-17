@@ -84,7 +84,12 @@ function checked<T>(routine: string, status: number, parsed: unknown, shape: z.Z
   return result.data
 }
 
-async function call<T>(
+/**
+ * One routine on a browser or a phone, its answer checked against `shape`.
+ * Exported for the phone-only networks' calls
+ * (`src/server/social/phone-apps/calls.ts`), which never run in a browser.
+ */
+export async function call<T>(
   target: CommandTarget,
   routine: string,
   args: Record<string, unknown> | null,

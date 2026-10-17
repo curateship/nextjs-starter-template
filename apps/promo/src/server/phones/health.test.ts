@@ -15,7 +15,7 @@ vi.mock("@/server/media/storage", () => ({
 
 import { phoneReadings, sweepPhoneHealth, tidyPhoneReadings, type ReportedVitals } from "./health"
 import { phoneHistory } from "./history"
-import { listPhones, phonesFreeForReddit } from "./phones"
+import { listPhones, phonesFreeFor } from "./phones"
 import { checkIn, createPairingCode, finishAction, nextAction, pairRack, type ReportedPhone, type VerifiedRack } from "./rack"
 import { RACK_VERSION } from "./release"
 import { promoAppRollouts, promoPhoneActions, promoPhoneActionChecks, promoPhones, promoPhoneSettings } from "./schema"
@@ -291,7 +291,7 @@ describe("phone health", () => {
       await expect(setTestPhone(userId, await phoneId("A1"), db)).rejects.toThrow("must be a spare one")
       const test = await phoneId("T1")
       await setTestPhone(userId, test, db)
-      expect((await phonesFreeForReddit(userId, null, db)).map((one) => one.id)).not.toContain(test)
+      expect((await phonesFreeFor(userId, null, db)).map((one) => one.id)).not.toContain(test)
       await expect(addAccount(userId, { profileId: null, phoneId: test, voiceId: null }, db)).rejects.toThrow("is the self-test phone")
     })
 

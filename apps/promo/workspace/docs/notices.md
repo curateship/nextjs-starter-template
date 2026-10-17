@@ -33,6 +33,18 @@ acts on a bad reading". Tyler picked this the same day.
 - **The self-test finding an action broken**, "Self-test failed:", and **an app
   update in the Play Store**, "App update out:".
   [The self-test and app updates](phones/self-test-and-app-updates.md).
+- **An Instagram or TikTok account shadowbanned**, from the daily reading of
+  the app's Account status page: "Shadowbanned: @name on Instagram", once,
+  gone when a reading says it is over. Opens the Accounts dashboard filtered
+  to that network.
+- **A message or a comment a phone read**: "New message for @name on
+  Instagram", which opens the Messages dashboard, and "New comment on a post
+  by @name on TikTok", which opens the project's Comments tab for that
+  network. Nothing is sent until a person presses Send.
+- **An Instagram or TikTok post, a profile change, or an answer that did not go
+  out**: "Did not go out: a post on Instagram", "… a profile change on
+  TikTok", "… an answer to a message on Reddit". Each opens where it was
+  pressed.
 - **A Wi-Fi phone showing the wrong address**: "Wrong address showing: Pixel
   8a in slot 4", with the address apps saw. Every job on it is refused until
   a check finds its proxy's address, and the notice goes then. Opens the phone.

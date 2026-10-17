@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { addRedditAccount, getRedditAccountsErrorMessage } from "@/lib/api/social/reddit-accounts"
+import { aNetwork, isNetwork, isPhoneAppNetwork, NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
 import { readRunsOn } from "@/lib/social/runs-on"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -31,13 +32,15 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 const NO_VOICE = "none"
 
 /**
- * Adds a Reddit account: where it runs, a browser profile or a phone, and the
- * voice it drafts with. One Reddit account per profile and per phone, so one
- * already holding one, and the reader browser, are not offered. Signing in to
- * Reddit happens afterwards, in that profile's browser or on that phone.
+ * Adds an account: its network, where it runs, and the voice it drafts with.
+ * Reddit runs on a browser profile or a phone; Instagram and TikTok on a
+ * phone only. One account of a network per profile and per phone, so one
+ * already holding one, and the reader browser, are not offered. Signing in
+ * happens afterwards, in that profile's browser or in the app on that phone.
  */
 export function AddAccountDialog({
   open,
+  initialPlatform,
   profiles,
   phones,
   voices,
@@ -45,18 +48,26 @@ export function AddAccountDialog({
   onAdded,
 }: {
   open: boolean
+  /** The network the dashboard is filtered to, picked to begin with. */
+  initialPlatform: Network
   profiles: Array<{ id: string; name: string }>
-  phones: Array<{ id: string; name: string; note?: string }>
+  /** The phones free for each network. */
+  phones: Record<Network, Array<{ id: string; name: string; note?: string }>>
   voices: Array<{ id: string; name: string }>
   onClose: () => void
   onAdded: () => Promise<void>
 }) {
+  const [platform, setPlatform] = React.useState<Network>(initialPlatform)
   const [runsOn, setRunsOn] = React.useState("")
   const [voiceId, setVoiceId] = React.useState(NO_VOICE)
   const [invalid, setInvalid] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+  const phoneOnly = isPhoneAppNetwork(platform)
+  const platformProfiles = phoneOnly ? [] : profiles
+  const platformPhones = phones[platform]
 
   function reset() {
+    setPlatform(initialPlatform)
     setRunsOn("")
     setVoiceId(NO_VOICE)
     setInvalid(false)
@@ -65,16 +76,16 @@ export function AddAccountDialog({
   async function add() {
     if (!runsOn) {
       setInvalid(true)
-      showErrorToast("Pick the browser profile or the phone the account runs on.")
+      showErrorToast(phoneOnly ? "Pick the phone the account runs on." : "Pick the browser profile or the phone the account runs on.")
       return
     }
     const picked = readRunsOn(runsOn)
     setSaving(true)
     try {
-      await addRedditAccount({ ...picked, voiceId: voiceId === NO_VOICE ? null : voiceId })
+      await addRedditAccount({ ...picked, voiceId: voiceId === NO_VOICE ? null : voiceId, platform })
       if (picked.phoneId) {
-        const name = phones.find((phone) => phone.id === picked.phoneId)?.name ?? "that phone"
-        toast.success(`Account added. Sign in to the Reddit app on ${name}.`)
+        const name = platformPhones.find((phone) => phone.id === picked.phoneId)?.name ?? "that phone"
+        toast.success(`Account added. Sign in to the ${NETWORK_NAMES[platform]} app on ${name}, then press Check now.`)
       } else {
         const name = profiles.find((profile) => profile.id === picked.profileId)?.name ?? "that profile"
         toast.success(`Account added. Sign in to Reddit in ${name}'s browser on the Browser profiles dashboard.`)
@@ -91,7 +102,7 @@ export function AddAccountDialog({
   return (
     <FormDialog
       open={open}
-      dirty={Boolean(runsOn) || voiceId !== NO_VOICE}
+      dirty={Boolean(runsOn) || voiceId !== NO_VOICE || platform !== initialPlatform}
       busy={saving}
       onClose={() => {
         reset()
@@ -101,10 +112,11 @@ export function AddAccountDialog({
       {(requestClose) => (
         <DialogContent variant="admin">
           <DialogHeader>
-            <DialogTitle>Add a Reddit account</DialogTitle>
+            <DialogTitle>Add an account</DialogTitle>
             <DialogDescription>
-              The account runs on a browser profile or a phone of its own. Put it
-              in a project on the Projects dashboard afterwards.
+              A Reddit account runs on a browser profile or a phone of its own; an Instagram or
+              TikTok account runs on a phone only. Put it in a project on the Projects dashboard
+              afterwards.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -121,6 +133,30 @@ export function AddAccountDialog({
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   <div className="grid gap-2">
+                    <Label htmlFor="add-account-platform">Network</Label>
+                    <Select
+                      value={platform}
+                      onValueChange={(value) => {
+                        if (!isNetwork(value)) return
+                        setPlatform(value)
+                        // A pick from the other network's list may not be on this one.
+                        setRunsOn("")
+                        setInvalid(false)
+                      }}
+                    >
+                      <SelectTrigger id="add-account-platform" className="w-full sm:w-fit sm:min-w-64">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {NETWORKS.map((network) => (
+                          <SelectItem key={network} value={network}>
+                            {NETWORK_NAMES[network]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
                     <Label htmlFor="add-account-runs-on">Runs on</Label>
                     <RunsOnSelect
                       id="add-account-runs-on"
@@ -129,11 +165,23 @@ export function AddAccountDialog({
                         setRunsOn(value)
                         setInvalid(false)
                       }}
-                      profiles={profiles}
-                      phones={phones}
+                      profiles={platformProfiles}
+                      phones={platformPhones}
                       invalid={invalid}
                     />
-                    {profiles.length || phones.length ? null : (
+                    {platformProfiles.length || platformPhones.length ? null : phoneOnly ? (
+                      <p className="text-sm text-muted-foreground">
+                        Every phone already holds {aNetwork(platform)} account. Add a phone on the{" "}
+                        <Link
+                          to="/admin/phones"
+                          search={{ open: undefined }}
+                          className="font-medium text-foreground underline underline-offset-2"
+                        >
+                          Phones dashboard
+                        </Link>
+                        .
+                      </p>
+                    ) : (
                       <p className="text-sm text-muted-foreground">
                         Every profile and phone already holds an account, or is the
                         reader. Make a new profile on the{" "}

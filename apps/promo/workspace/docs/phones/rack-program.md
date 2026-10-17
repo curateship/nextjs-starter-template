@@ -20,6 +20,13 @@ home and nothing changes on the Hetzner server.
   SIM's signal, the time since it started, and every ten minutes its app
   versions. A thread of its own takes the readings, so a slow phone never
   holds up a check-in. [A phone's health](phone-health.md) has the rest.
+- **Each minute it also reads the phone's notifications,** without opening an
+  app. A Reddit chat, an Instagram or TikTok message, or a comment under an
+  Instagram or TikTok post is an alert, carried on the next check-in as the
+  app and "message" or "comment", never the words. Each notification is
+  reported once; an alert Promo did not hear waits for the next check-in.
+  Promo then has the account's phone read it
+  ([the Messages dashboard](../messages-dashboard.md)).
 - **Every 3 seconds** it asks `/api/rack/next` for the oldest waiting action,
   and asks again at once after taking one. Promo hands each phone one action
   at a time; the program runs each on a thread of its own, so two phones
@@ -79,6 +86,12 @@ self-test and app updates](self-test-and-app-updates.md) has them.
 - **`reddit/state`, `reddit/quick_state`, `reddit/health` and
   `reddit/comment`:** the Reddit app's own steps, answering in the browser's
   shapes. [Reddit on phones](../reddit/reddit-on-phones.md).
+- **`reddit/inbox` and `reddit/reply_message`:** reading a Reddit chat and
+  answering it ([the Messages dashboard](../messages-dashboard.md)).
+- **`instagram/…` and `tiktok/…`:** `state`, `quick_state`, `health`,
+  `profile`, `post`, `inbox` and `reply` in each app, the same steps read off
+  each app's own buttons in `APP_SCREENS`.
+  [Instagram and TikTok accounts, and the daily reading](../instagram/accounts-and-the-daily-reading.md).
 
 Every action that touches the screen walks it as named steps through the
 `Walk` class, which keeps a picture of each, stops pressing anything once the
@@ -179,8 +192,11 @@ The computer never needs a terminal after the first command.
   signing example, both kinds of rollback, the readings, the self-test never
   pressing Post, every saved ban screen, reopening a frozen app or
   restarting a frozen phone, the setup check's readings, the wipe, the Reddit
-  app's screens, and taps, swipes and typing like a person. pytest is not
-  needed.
+  app's screens, Instagram's and TikTok's screens (`rack/fixtures/instagram/`
+  and `rack/fixtures/tiktok/`), the notifications that are alerts and those
+  that are not (`rack/fixtures/notifications/`), a post, an answer and a
+  profile change pressing their last button once and a rehearsal never, and
+  taps, swipes and typing like a person. pytest is not needed.
 - `python3 rack/promo_rack.py phones` prints what adb sees, for checking a
   phone by hand.
 

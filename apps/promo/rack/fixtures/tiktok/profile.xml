@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="" class="android.widget.FrameLayout" package="com.zhiliaoapp.musically" bounds="[0,0][1080,2400]">
+    <node index="0" text="Quiet Maple" class="android.widget.TextView" package="com.zhiliaoapp.musically" bounds="[300,90][780,170]" />
+    <node index="1" text="@quiet.maple" class="android.widget.TextView" package="com.zhiliaoapp.musically" bounds="[360,420][720,480]" />
+    <node index="2" text="" class="android.view.ViewGroup" package="com.zhiliaoapp.musically" bounds="[100,520][980,660]">
+      <node index="0" text="" class="android.view.ViewGroup" package="com.zhiliaoapp.musically" bounds="[100,520][380,660]">
+        <node index="0" text="56" class="android.widget.TextView" package="com.zhiliaoapp.musically" bounds="[100,520][380,580]" />
+        <node index="1" text="Following" class="android.widget.TextView" package="com.zhiliaoapp.musically" bounds="[100,590][380,640]" />
+      </node>
+      <node index="1" text="" class="android.view.ViewGroup" package="com.zhiliaoapp.musically" bounds="[400,520][680,660]">
+        <node index="0" text="12.3K" class="android.widget.TextView" package="com.zhiliaoapp.musically" bounds="[400,520][680,580]" />
+        <node index="1" text="Followers" class="android.widget.TextView" package="com.zhiliaoapp.musically" bounds="[400,590][680,640]" />
+      </node>
+      <node index="2" text="" class="android.view.ViewGroup" package="com.zhiliaoapp.musically" bounds="[700,520][980,660]">
+        <node index="0" text="98.1K" class="android.widget.TextView" package="com.zhiliaoapp.musically" bounds="[700,520][980,580]" />
+        <node index="1" text="Likes" class="android.widget.TextView" package="com.zhiliaoapp.musically" bounds="[700,590][980,640]" />
+      </node>
+    </node>
+  </node>
+</hierarchy>

@@ -7,6 +7,7 @@ import { db } from "@/server/db"
 
 import { promoPhoneActions } from "./schema"
 import { refuseBrokenAction } from "./action-checks"
+import { clearStepPictures } from "./trail"
 
 /**
  * How a job's Reddit step reaches a phone: the same named routine the browser
@@ -47,6 +48,17 @@ const PICK_UP_MS = 60_000
  */
 const QUEUED_WAIT_MS = 5 * 60_000
 
+/**
+ * The routines that carry a private conversation: reading an inbox and
+ * answering in it. Their words live in Promo only while the conversation is
+ * open there (`src/server/social/phone-apps/inbox.ts`), so the action row
+ * forgets its arguments and answer as soon as Promo has them, and a finished
+ * one's step pictures, which show the conversation, go too. A failed one keeps
+ * its pictures, so the step that went wrong can be seen, until a person
+ * clears them (`clearStepPictures`).
+ */
+const PRIVATE_ROUTINE = /^(reddit|instagram|tiktok)\/(inbox|reply|reply_message)$/
+
 export class PhoneActionError extends Error {
   readonly routine: string
   constructor(routine: string, message: string) {
@@ -82,6 +94,25 @@ export async function callPhone(
   // has started it, Promo waits the action's whole time from that moment, so
   // it never records a comment as failed while the rack is still typing it.
   const queuedUntil = Date.now() + QUEUED_WAIT_MS
+  if (!PRIVATE_ROUTINE.test(routine)) return waitForAnswer(target, routine, id, timeoutMs, queuedUntil)
+  let finished = false
+  try {
+    const answer = await waitForAnswer(target, routine, id, timeoutMs, queuedUntil)
+    finished = true
+    return answer
+  } finally {
+    await db.update(promoPhoneActions).set({ args: {}, result: null }).where(eq(promoPhoneActions.id, id))
+    if (finished) await clearStepPictures(target.phone.userId, id)
+  }
+}
+
+async function waitForAnswer(
+  target: PhoneTarget,
+  routine: string,
+  id: string,
+  timeoutMs: number,
+  queuedUntil: number
+): Promise<unknown> {
   for (;;) {
     const [row] = await db
       .select({

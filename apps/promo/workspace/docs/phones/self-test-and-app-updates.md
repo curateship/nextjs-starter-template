@@ -38,16 +38,30 @@ adds odd activity to an account that matters.
   notice goes.
 - **Run it now** in the Self-test window asks for it straight away, with the
   day's Play Store look, and counts as that day's run.
-- **What it walks:** reading the Android version off Settings, and in the
-  Reddit app who is signed in, the health reading and the comment (phone farm
-  file 05). Instagram and TikTok join as they are written (file 06). The wipe
-  is never rehearsed.
+- **What it walks:** reading the Android version off Settings; in the Reddit
+  app who is signed in, the health reading, the comment, and reading and
+  answering a chat (phone farm files 05 and 06); and in the Instagram and
+  TikTok apps who is signed in, the daily reading, the profile, a post, and
+  reading and answering a message. About twenty rehearsals, so it has half an
+  hour. The wipe is never rehearsed. The test phone needs the test account
+  signed in to all three apps, or their steps read as broken.
 - **The comment rehearsal** opens a post found in the last week, taps the
   comment box, types nothing, finds Post without pressing it, and backs out.
   With no post found lately it opens the first post in the test account's feed.
-- **The comment only goes out from a phone once the self-test has passed it**
-  at least once. Before that, Post on a phone account is refused with how to
-  run the self-test.
+- **The post rehearsal** puts a plain picture the rack makes in the test
+  phone's gallery, hands it to the app's share screen, presses Next to the
+  caption box, types nothing, finds Share or Post without pressing it,
+  discards the draft and deletes the picture.
+- **The profile rehearsal** opens Edit profile and the bio's screen, finds its
+  box and its Save, types nothing and backs out without pressing Save.
+- **The answer rehearsal** opens the inbox and its first conversation, if the
+  test account has one, and finds the box and Send without pressing it. An
+  empty inbox passes at the inbox.
+- **The comment, the post and the profile change only go out from a phone once
+  the self-test has passed them** at least once. Before that, Post or Apply on
+  a phone account is refused with how to run the self-test. An answer to a
+  message or a comment is refused only when the self-test last found it
+  broken, since the test account may have nothing in its inbox to rehearse on.
 
 ## App updates, one phone first
 

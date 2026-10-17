@@ -9,7 +9,7 @@ import { listRedditAccounts } from "@/server/social/account-list"
 import { promoAccounts } from "@/server/social/schema"
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
 
-import { createPhone, deletePhones, holdPhones, listPhones, phonesFreeForReddit, phoneStatus, type PhoneInput } from "./phones"
+import { createPhone, deletePhones, holdPhones, listPhones, phonesFreeFor, phoneStatus, type PhoneInput } from "./phones"
 
 const PHONE: PhoneInput = {
   name: "Pixel 8a",
@@ -87,7 +87,7 @@ describe("phones as records", () => {
     await expect(addAccount(userId, { profileId: null, phoneId, voiceId: null }, db)).rejects.toThrow(
       "already has a Reddit account on it"
     )
-    expect(await phonesFreeForReddit(userId, null, db)).toEqual([])
+    expect(await phonesFreeFor(userId, null, db)).toEqual([])
   })
 
   it("moves an account from its profile to a phone and back, clearing the other", async () => {

@@ -1,0 +1,44 @@
+Current Notification Manager state:
+  Notification List:
+    NotificationRecord(0x0c5d2e1d: pkg=com.instagram.android user=UserHandle{0} id=-1234 tag=direct_v2_message importance=4 key=0|com.instagram.android|-1234|direct_v2_message|10198: Notification(channel=ig_direct pri=1 contentView=null vibrate=null sound=null defaults=0x0 flags=0x10 color=0x00000000 category=msg vis=PRIVATE))
+      uid=10198 userId=0
+      extras={
+        android.title=String (sam.reads)
+        android.text=String (hey, is the night mode free?)
+      }
+    NotificationRecord(0x0aa1b2c3: pkg=com.instagram.android user=UserHandle{0} id=-5678 tag=comment importance=3 key=0|com.instagram.android|-5678|comment|10198: Notification(channel=ig_comments pri=0 contentView=null vibrate=null sound=null defaults=0x0 flags=0x10 color=0x00000000 vis=PRIVATE))
+      uid=10198 userId=0
+      extras={
+        android.title=String (Instagram)
+        android.text=String (night_owl_99 commented: love this, using it tonight)
+      }
+    NotificationRecord(0x0bb2c3d4: pkg=com.instagram.android user=UserHandle{0} id=-9999 tag=like importance=3 key=0|com.instagram.android|-9999|like|10198: Notification(channel=ig_likes pri=0 contentView=null vibrate=null sound=null defaults=0x0 flags=0x10 color=0x00000000 vis=PRIVATE))
+      uid=10198 userId=0
+      extras={
+        android.title=String (Instagram)
+        android.text=String (sam.reads liked your comment: so true)
+      }
+    NotificationRecord(0x0cc3d4e5: pkg=com.zhiliaoapp.musically user=UserHandle{0} id=42 tag=null importance=4 key=0|com.zhiliaoapp.musically|42|null|10211: Notification(channel=im_message pri=1 contentView=null vibrate=null sound=null defaults=0x0 flags=0x10 color=0x00000000 vis=PRIVATE))
+      uid=10211 userId=0
+      extras={
+        android.title=String (studybuddy)
+        android.text=String (sent you a message)
+      }
+    NotificationRecord(0x0dd4e5f6: pkg=com.reddit.frontpage user=UserHandle{0} id=7 tag=null importance=3 key=0|com.reddit.frontpage|7|null|10150: Notification(channel=comment_replies pri=0 contentView=null vibrate=null sound=null defaults=0x0 flags=0x10 color=0x00000000 vis=PRIVATE))
+      uid=10150 userId=0
+      extras={
+        android.title=String (u/third_person replied to your comment)
+        android.text=String (good point, thanks)
+      }
+    NotificationRecord(0x0ee5f607: pkg=com.reddit.frontpage user=UserHandle{0} id=8 tag=null importance=4 key=0|com.reddit.frontpage|8|null|10150: Notification(channel=chat_messages pri=1 contentView=null vibrate=null sound=null defaults=0x0 flags=0x10 color=0x00000000 vis=PRIVATE))
+      uid=10150 userId=0
+      extras={
+        android.title=String (u/curious_cat)
+        android.text=String (hi, saw your comment about timers)
+      }
+    NotificationRecord(0x0ff60718: pkg=com.google.android.apps.messaging user=UserHandle{0} id=3 tag=null importance=4 key=0|com.google.android.apps.messaging|3|null|10100: Notification(channel=conversations pri=1 contentView=null vibrate=null sound=null defaults=0x0 flags=0x10 color=0x00000000 vis=PRIVATE))
+      uid=10100 userId=0
+      extras={
+        android.title=String (Mum)
+        android.text=String (call me when you can)
+      }

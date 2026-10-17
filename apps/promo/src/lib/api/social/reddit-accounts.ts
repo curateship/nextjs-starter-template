@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { adminGet, adminPost } from "@/server/guards"
 import { listProfiles } from "@/server/browser/profiles"
-import { phonesFreeForReddit } from "@/server/phones/phones"
+import { phonesFreeFor } from "@/server/phones/phones"
 import { accountsByProfile, addAccount, setAccountRunsOn } from "@/server/social/accounts"
 import {
   checkAccountsNow,
@@ -18,6 +18,7 @@ import { readBehaviour } from "@/server/social/behaviour"
 import { setAccountsPaused } from "@/server/social/pause"
 import { listVoices } from "@/server/social/voices"
 import { ACCOUNT_STATUSES } from "@/lib/social/account-status"
+import { NETWORKS, type Network } from "@/lib/social/networks"
 import { clearBanScreen } from "@/server/phones/health"
 import { markImportant } from "@/server/social/apart"
 import { cancelMoveToPhone, checkMoveToPhone, startMoveToPhone } from "@/server/social/move-to-phone"
@@ -39,6 +40,10 @@ export const getRedditAccountsErrorMessage = passReaderWritten(createErrorMessag
   {
     "already has a Reddit account in it": "That profile already has a Reddit account in it. Pick another, or make a new profile.",
     "already has a Reddit account on it": "That phone already has a Reddit account on it. Pick another.",
+    "already has an Instagram account on it": "That phone already has an Instagram account on it. Pick another.",
+    "already has a TikTok account on it": "That phone already has a TikTok account on it. Pick another.",
+    "runs on a phone only": "Instagram and TikTok accounts run on a phone only. Pick a phone.",
+    "Pick the phone the": "Pick the phone the account runs on.",
     "phone does not exist": "That phone is not there any more. Pick another.",
     "never both": "An account runs on a browser profile or a phone, never both.",
     "Pick the browser profile or the phone": "Pick the browser profile or the phone the account runs on.",
@@ -66,8 +71,8 @@ export type RedditAccountsPage = {
   voices: Array<{ id: string; name: string }>
   /** Profiles that could hold a new account: no Reddit account in them, and not the reader. */
   freeProfiles: Array<{ id: string; name: string }>
-  /** Phones that could hold a new account: no Reddit account on them. */
-  freePhones: Array<{ id: string; name: string; note: string }>
+  /** Phones that could hold a new account on each network: none of that network on them yet. */
+  freePhones: Record<Network, Array<{ id: string; name: string; note: string }>>
 }
 
 const loadFn = createServerFn({ method: "GET" })
@@ -89,7 +94,11 @@ const loadFn = createServerFn({ method: "GET" })
         .filter((profile) => profile.id !== behaviour.readerProfileId)
         .filter((profile) => !(holders.get(profile.id) ?? []).some((other) => other.platform === "reddit"))
         .map(({ id, name }) => ({ id, name })),
-      freePhones: await phonesFreeForReddit(userId, null),
+      freePhones: {
+        reddit: await phonesFreeFor(userId, null),
+        instagram: await phonesFreeFor(userId, null, undefined, "instagram"),
+        tiktok: await phonesFreeFor(userId, null, undefined, "tiktok"),
+      },
     }
   })
 
@@ -106,12 +115,18 @@ const runsOn = {
 
 const addFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(z.object({ ...runsOn, voiceId: z.string().min(1).nullable() }))
+  .inputValidator(z.object({ ...runsOn, voiceId: z.string().min(1).nullable(), platform: z.enum(NETWORKS) }))
   .handler(async ({ context, data }): Promise<{ id: string }> => ({
     id: await addAccount(context.user.id, data),
   }))
 
-export function addRedditAccount(data: { profileId: string | null; phoneId: string | null; voiceId: string | null }) {
+/** Adds an account: Reddit on a browser profile or a phone, Instagram or TikTok on a phone only. */
+export function addRedditAccount(data: {
+  profileId: string | null
+  phoneId: string | null
+  voiceId: string | null
+  platform: Network
+}) {
   return addFn({ data })
 }
 

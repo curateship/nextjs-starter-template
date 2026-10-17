@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { LayersIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { AppModule } from "@/components/social/phone-apps/app-module"
 import { RedditModule, type RedditSearch } from "@/components/social/reddit/reddit-module"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
@@ -36,8 +37,8 @@ export type ProjectSearch = RedditSearch & { network?: Network }
  * panel will show reddit panels."
  *
  * The picked network is in the address (`?network=`), so a reload keeps it.
- * With none named, the project's first network is the one shown. Reddit is
- * the only module so far (`RedditModule`).
+ * With none named, the project's first network is the one shown. Reddit's
+ * module is `RedditModule`; Instagram and TikTok share `AppModule`.
  */
 export function ProjectsWorkspace({
   initialView,
@@ -138,6 +139,22 @@ export function ProjectsWorkspace({
   )
 
   const dialogs = <ProjectDialogs dialog={dialog} onClose={() => setDialog(null)} />
+
+  if (network === "instagram" || network === "tiktok") {
+    return (
+      <AppModule
+        // Keyed by the network, so moving between Instagram and TikTok starts
+        // afresh rather than showing one's posts under the other.
+        key={network}
+        network={network}
+        projectId={projectId}
+        left={left}
+        dialogs={dialogs}
+        search={search}
+        onSearch={setSearch}
+      />
+    )
+  }
 
   if (network === "reddit") {
     return (

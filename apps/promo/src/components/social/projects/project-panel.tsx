@@ -418,7 +418,7 @@ function ProjectNetworks({
               ))
             ) : (
               <DropdownMenuLabel className="font-normal text-muted-foreground">
-                This project uses every network Promo has. Instagram joins once it is built.
+                This project uses every network Promo has.
               </DropdownMenuLabel>
             )}
           </DropdownMenuContent>

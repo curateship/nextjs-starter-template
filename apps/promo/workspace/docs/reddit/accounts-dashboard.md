@@ -11,8 +11,8 @@ the Reddit accounts page left the left menu on 14 Oct 2026
 ([Networks as modules](../network-modules.md)).
 
 - **Platform** is a filter in the toolbar, "All platforms" or one network, and
-  each row names its platform after the account ("u/name · Reddit"). Only
-  Reddit accounts exist so far, and the list reads every platform's.
+  each row names its platform after the account ("u/name · Reddit",
+  "@name · Instagram"). Reddit, Instagram and TikTok accounts are listed.
 - **The filter lives in the address** as `?platform=reddit`, so a reload, a
   link or the left menu's own link always shows what the address says.
   **Manage accounts**, the last item in the **Comment as** dropdown above a
@@ -26,9 +26,10 @@ the Reddit accounts page left the left menu on 14 Oct 2026
 - **The left menu link** is added by `drizzle/0119_promo_accounts_menu.sql`
   to every saved left menu with a Projects entry: after Voices, or last under
   Projects where Voices is not there.
-- **Every action still speaks Reddit.** Add account makes a Reddit account,
-  and Check now reads Reddit. When Instagram is built, its accounts need their
-  own Add and Check (`workspace/tasks/Phone farm/06-instagram-and-tiktok.md`).
+- **Each action speaks its account's network.** Add account asks for the
+  network first, Check now takes Reddit's reading or Instagram's and TikTok's
+  ([Instagram and TikTok accounts](../instagram/accounts-and-the-daily-reading.md)),
+  and Help-only posts shows on Reddit rows only.
 
 Tyler's words, 12 Oct 2026: "build a dashboard for reddit profiles with status
 (like warming up, ready etc...) show what profile and proxy as currantly
@@ -41,12 +42,19 @@ did, and a page for each account are not built yet.
 
 ## Several accounts
 
-**Add account** asks where the account runs and which voice it drafts with,
-the two choices Settings → Reddit account offers. "Runs on" is one list of
-browser profiles and phones from the [Phones dashboard](../phones/phones-dashboard.md).
-One Reddit account per profile and per phone, so one already holding one, and
-the reader browser from Settings → Behaviour, are not offered. The account is
-then signed in to Reddit there, and starts in no project.
+**Add account** asks for the network (Reddit, Instagram or TikTok, starting
+on the one the Platform filter shows), where the account runs, and which voice
+it drafts with. "Runs on" is one list of browser profiles and phones from the
+[Phones dashboard](../phones/phones-dashboard.md); for Instagram and TikTok it
+lists phones only, since they never run on a browser profile. One account of a
+network per profile and per phone, so one already holding one, and the reader
+browser from Settings → Behaviour, are not offered. A phone may hold a Reddit,
+an Instagram and a TikTok account at once. The account is then signed in
+there, and starts in no project.
+
+An Instagram or TikTok account's settings window also has its **Profile**: the
+name, bio, link and picture the phone types into the app
+([an account's profile](../instagram/profile.md)).
 
 An account runs on a profile or a phone, never both. An account on a phone has
 its jobs run on the phone ([Jobs on phones](../phones/phone-jobs.md)).
@@ -100,7 +108,10 @@ Columns: the account (u/name, or "Not signed in"), its status, its project or
 dashboard, or "Phone:" and the phone's name linking to the Phones dashboard,
 "Nowhere" in red when neither is set), the profile's proxy with its last test
 or the phone's SIM carrier or Wi-Fi, its voice with a menu to swap it, its age, its karma and its
-last comment. Under 1536px wide the age, karma and last comment fold into a line
+last comment. On an Instagram or TikTok row the age is its post count, Karma
+or followers is its followers (following behind it), and the status carries
+"Not shadowbanned" or "Shadowbanned" in red once the daily reading has read
+the app's Account status page. Under 1536px wide the age, karma and last comment fold into a line
 under the name, because the row was otherwise wider than a 1440px window and
 its buttons went off the edge.
 

@@ -13,6 +13,7 @@ import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { finishMoveFromPhone } from "@/server/social/move-to-phone"
+import { noteAppAlerts, type AppAlert } from "@/server/social/phone-apps/inbox"
 
 import { recordVitals, stopForBanScreen, type BanScreen, type ReportedVitals } from "./health"
 import { recordPhoneEvent } from "./history"
@@ -182,6 +183,8 @@ export type ReportedPhone = {
   timezone?: string
   /** Battery, heat, storage, signal and app versions, about once a minute. */
   vitals?: ReportedVitals | null
+  /** App notifications that arrived since the last check-in, without their words. */
+  alerts?: AppAlert[]
 }
 
 export type CheckInInput = {
@@ -288,6 +291,9 @@ export async function checkIn(
       await recordPhoneEvent(rack.userId, phone.id, "plugged_in", pluggedWords(seen.usb, state), db, now)
     }
     if (seen.vitals && state === "device") await recordVitals(rack.userId, phone, seen.vitals, db, now)
+    // A message or a comment arrived: the account on that app reads it,
+    // through the notification, once it is awake (phone farm file 06).
+    if (seen.alerts?.length && state === "device") await noteAppAlerts(rack.userId, phone.id, seen.alerts, db)
   }
 
   // Phones this rack had a moment ago that it no longer lists. Read before

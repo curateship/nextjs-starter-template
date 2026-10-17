@@ -5,6 +5,8 @@ import {
   ArchiveRestoreIcon,
   ArrowRightLeftIcon,
   BanIcon,
+  EyeIcon,
+  EyeOffIcon,
   HandHelpingIcon,
   Loader2Icon,
   PauseIcon,
@@ -63,7 +65,8 @@ import {
   type AccountStatus,
 } from "@/lib/social/account-status"
 import { ACCOUNT_IMPORTANCE, IMPORTANCE_WORDS } from "@/lib/social/importance"
-import { isNetwork, NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
+import { handleWords, isNetwork, NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
+import { countWords } from "@/lib/social/phone-apps"
 import { accountAgeText, postedDateText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -85,8 +88,9 @@ const COLUMNS: TableHeaderColumn<SortColumn>[] = [
   // Under 1536px these three fold into a line under the account's name, or
   // the row is wider than the window and its buttons go off the edge.
   { key: "age", label: "Age", column: "meta", className: "hidden 2xl:table-cell" },
-  { key: "karma", label: "Karma", column: "meta", className: "hidden 2xl:table-cell text-right" },
-  { key: "last", label: "Last comment", column: "meta", className: "hidden 2xl:table-cell" },
+  // Karma on Reddit, followers on Instagram and TikTok.
+  { key: "karma", label: "Karma or followers", column: "meta", className: "hidden 2xl:table-cell text-right" },
+  { key: "last", label: "Last comment or post", column: "meta", className: "hidden 2xl:table-cell" },
 ]
 
 /** Status order when sorting: the four in Tyler's order, then never read. */
@@ -106,7 +110,7 @@ function compare(a: RedditAccountRow, b: RedditAccountRow, column: SortColumn): 
     case "age":
       return time(b.redditCreatedAt) - time(a.redditCreatedAt)
     case "karma":
-      return (a.karma ?? Number.NEGATIVE_INFINITY) - (b.karma ?? Number.NEGATIVE_INFINITY)
+      return (a.karma ?? a.followers ?? Number.NEGATIVE_INFINITY) - (b.karma ?? b.followers ?? Number.NEGATIVE_INFINITY)
     case "last":
       return time(a.lastPostedAt) - time(b.lastPostedAt)
     default:
@@ -476,7 +480,7 @@ export function RedditAccountsDashboard({
         emptyText={
           accounts.length
             ? "No accounts match that."
-            : "No accounts yet. Press Add account, pick a browser profile or a phone, then sign in to Reddit there."
+            : "No accounts yet. Press Add account, pick the network and where it runs, then sign in there."
         }
         emptyColSpan={columnCount}
         footer={{ type: "summary", count: shown.length, label: "accounts" }}
@@ -543,7 +547,7 @@ export function RedditAccountsDashboard({
         key={runsOnFor?.id ?? "closed"}
         account={runsOnFor ? (accounts.find((row) => row.id === runsOnFor.id) ?? runsOnFor) : null}
         profiles={page.freeProfiles}
-        phones={page.freePhones}
+        phones={runsOnFor && isNetwork(runsOnFor.platform) ? page.freePhones[runsOnFor.platform] : page.freePhones.reddit}
         onClose={() => setRunsOnFor(null)}
         onSaved={async () => {
           setRunsOnFor(null)
@@ -552,7 +556,10 @@ export function RedditAccountsDashboard({
         onChanged={() => refresh(showRetired)}
       />
       <AddAccountDialog
+        // Opened again on another network's filter, it starts on that network.
+        key={platform ?? ALL}
         open={adding}
+        initialPlatform={platform ?? "reddit"}
         profiles={page.freeProfiles}
         phones={page.freePhones}
         voices={page.voices}
@@ -593,12 +600,27 @@ function AccountRow({
   onPause: (paused: boolean) => void
   onRetire: (retire: boolean) => void
 }) {
-  const name = row.handle ? `u/${row.handle}` : "Not signed in"
-  const age = row.redditCreatedAt ? accountAgeText(new Date(row.redditCreatedAt)) : "Age not read yet"
-  const karma = row.karma === null ? "karma not read yet" : `${row.karma} karma`
+  const reddit = row.platform === "reddit"
+  const name = row.handle ? handleWords(row.platform, row.handle) : "Not signed in"
+  const lastWord = reddit ? "comment" : "post"
+  // Instagram and TikTok show no account age; their reading is followers and posts.
+  const age = reddit
+    ? row.redditCreatedAt
+      ? accountAgeText(new Date(row.redditCreatedAt))
+      : "Age not read yet"
+    : row.postCount === null
+      ? "posts not read yet"
+      : `${countWords(row.postCount)} posts`
+  const karma = reddit
+    ? row.karma === null
+      ? "karma not read yet"
+      : `${row.karma} karma`
+    : row.followers === null
+      ? "followers not read yet"
+      : `${countWords(row.followers)} followers`
   const lastComment = row.lastPostedAt
-    ? `last comment ${postedDateText(new Date(row.lastPostedAt)).toLowerCase()}`
-    : "no comment yet"
+    ? `last ${lastWord} ${postedDateText(new Date(row.lastPostedAt)).toLowerCase()}`
+    : `no ${lastWord} yet`
   return (
     <TableRow className="group">
       <TableCell column="select">
@@ -648,7 +670,20 @@ function AccountRow({
               </span>
             </Hint>
           ) : null}
-          {row.status.warning ? (
+          {row.shadowbanned === false ? (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <EyeIcon className="size-3" aria-hidden="true" />
+              Not shadowbanned
+            </span>
+          ) : null}
+          {row.shadowbanned ? (
+            <Hint label={row.shadowbanWords || "The app's Account status page says its posts are hidden from people who do not follow it."}>
+              <span className="flex items-center gap-1 text-xs text-destructive">
+                <EyeOffIcon className="size-3" aria-hidden="true" />
+                Shadowbanned
+              </span>
+            </Hint>
+          ) : row.status.warning ? (
             <Hint label={row.status.warning}>
               <span className="block max-w-48 truncate text-xs text-amber-600 dark:text-amber-400">
                 {row.status.warning}
@@ -727,15 +762,19 @@ function AccountRow({
         </Select>
       </TableCell>
       <TableCell column="meta" className="hidden text-muted-foreground 2xl:table-cell">
-        {row.redditCreatedAt ? accountAgeText(new Date(row.redditCreatedAt)) : "Not read yet"}
+        {reddit ? (row.redditCreatedAt ? accountAgeText(new Date(row.redditCreatedAt)) : "Not read yet") : age}
       </TableCell>
       <TableCell column="meta" className="hidden text-right tabular-nums 2xl:table-cell">
-        {row.karma === null ? (
+        {(reddit ? row.karma : row.followers) === null ? (
           <Hint label="Not read yet">
-            <span className="text-muted-foreground">—</span>
+            <span className="text-muted-foreground">-</span>
           </Hint>
-        ) : (
+        ) : reddit ? (
           row.karma
+        ) : (
+          <Hint label={`${row.following === null ? "Following not read" : `Following ${countWords(row.following)}`}`}>
+            <span>{countWords(row.followers)} followers</span>
+          </Hint>
         )}
       </TableCell>
       <TableCell column="meta" className="hidden text-muted-foreground 2xl:table-cell">
@@ -757,7 +796,13 @@ function AccountRow({
           </Hint>
         ) : (
           <>
-            <Hint label="Check now: read its karma, age and profile again">
+            <Hint
+              label={
+                reddit
+                  ? "Check now: read its karma, age and profile again"
+                  : "Check now: read its followers, posts and Account status page again"
+              }
+            >
               <Button
                 type="button"
                 variant="ghost"
@@ -769,17 +814,19 @@ function AccountRow({
                 {busy ? <Loader2Icon className="size-4 animate-spin" /> : <RefreshCwIcon className="size-4" />}
               </Button>
             </Hint>
-            <Hint label="Help-only posts: answer posts in its own subreddits, never mentioning what you make">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={onHelp}
-                aria-label={`Help-only posts for ${name}`}
-              >
-                <HandHelpingIcon className="size-4" />
-              </Button>
-            </Hint>
+            {reddit ? (
+              <Hint label="Help-only posts: answer posts in its own subreddits, never mentioning what you make">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={onHelp}
+                  aria-label={`Help-only posts for ${name}`}
+                >
+                  <HandHelpingIcon className="size-4" />
+                </Button>
+              </Hint>
+            ) : null}
             {/* A paused project's accounts are resumed from the project, so
                 the row offers Resume only when the account itself is paused. */}
             <Hint
@@ -800,7 +847,13 @@ function AccountRow({
                 {row.paused === "account" ? <PlayIcon className="size-4" /> : <PauseIcon className="size-4" />}
               </Button>
             </Hint>
-            <Hint label="Settings: important or throwaway, where it runs, and its two-factor code">
+            <Hint
+              label={
+                reddit
+                  ? "Settings: important or throwaway, where it runs, and its two-factor code"
+                  : "Settings: its profile, important or throwaway, its phone, and its two-factor code"
+              }
+            >
               <Button
                 type="button"
                 variant="ghost"

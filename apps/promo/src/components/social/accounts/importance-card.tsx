@@ -14,6 +14,7 @@ import {
   moveRedditAccountToPhone,
   type RedditAccountRow,
 } from "@/lib/api/social/reddit-accounts"
+import { handleWords } from "@/lib/social/networks"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -33,7 +34,7 @@ export function ImportanceCard({
   phones: Array<{ id: string; name: string; note?: string }>
   onChanged: () => Promise<void>
 }) {
-  const name = account.handle ? `u/${account.handle}` : "this account"
+  const name = account.handle ? handleWords(account.platform, account.handle) : "this account"
   const [confirming, setConfirming] = React.useState(false)
   const [busy, setBusy] = React.useState<null | "mark" | "start" | "check" | "cancel">(null)
   const [phoneId, setPhoneId] = React.useState("")
