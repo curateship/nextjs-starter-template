@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link, useNavigate, useRouter } from "@tanstack/react-router"
+import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
   ExternalLinkIcon,
   GraduationCapIcon,
@@ -44,6 +44,7 @@ import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSelection } from "@/lib/hooks/use-selection"
+import { useSiteAddress } from "@/lib/hooks/use-site-address"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -83,6 +84,7 @@ function compare(a: AdminCourseRow, b: AdminCourseRow, sort: CourseSort) {
 export function CoursesDashboard({ courses }: { courses: AdminCourseRow[] }) {
   const router = useRouter()
   const navigate = useNavigate()
+  const siteAddress = useSiteAddress()
   const { sort, direction, toggleSort } = useTableSort<CourseSort>(
     "updated",
     "desc",
@@ -166,10 +168,10 @@ export function CoursesDashboard({ courses }: { courses: AdminCourseRow[] }) {
               onChange={(event) => setSearch(event.target.value)}
             />
             <DashboardToolbarButton variant="outline" asChild>
-              <Link to="/courses" target="_blank">
+              <a href={siteAddress("/courses")} target="_blank" rel="noreferrer">
                 <ExternalLinkIcon className="size-4" />
                 Open /courses
-              </Link>
+              </a>
             </DashboardToolbarButton>
             <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
               <PlusIcon className="size-4" />

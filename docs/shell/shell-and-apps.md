@@ -75,6 +75,19 @@ Everything else on a public page — the header's layout, the breadcrumbs, the
 footer's social accounts, the SEO fields, the fonts — is one answer for the
 whole deployment.
 
+**An open button on a signed-in screen opens the site picked in the left
+menu**, not the address the admin is signed in on. On a multisite app the
+deployment's own address draws its oldest site's public pages, so a bare
+`/about` there opened a different site's page from the one being edited.
+Every such button builds its link with `useSiteAddress` in
+`src/lib/hooks/use-site-address.ts`, which uses the left menu's own rule in
+`workspacePublicOrigin` (`src/lib/workspaces/addresses.ts`): the subdomain on
+`localhost` and on a deployment without a domain, the site's own domain on a
+deployment that has one, and the plain path in a one-site app. A site's
+address is a different address, so somebody signed in only on the
+deployment's address arrives there signed out. Tyler asked for this on
+17 Oct 2026.
+
 ## App options
 
 One file holds an app's answers:

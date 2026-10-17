@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
 import { ExternalLinkIcon, Loader2Icon, SettingsIcon, Trash2Icon, Volume2Icon } from "lucide-react"
 
 import {
@@ -35,6 +34,7 @@ import {
 import { getCourseErrorMessage } from "@/lib/courses/course-errors"
 import { slugProblem } from "@/lib/courses/course-slugs"
 import type { AdminChapter, AdminCourse, PlanChoice } from "@/lib/courses/course-types"
+import { useSiteAddress } from "@/lib/hooks/use-site-address"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /** What one character of ElevenLabs reading costs, from `lib/ai/ai-models.ts`. */
@@ -174,6 +174,7 @@ export function CourseInspector({
   onChapterChanged: (chapter: AdminChapter) => void
   onDeleteChapter: (chapter: AdminChapter) => Promise<void>
 }) {
+  const siteAddress = useSiteAddress()
   const collapseAll = useInspectorCollapseAll()
   const [deleting, setDeleting] = React.useState(false)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
@@ -277,14 +278,16 @@ export function CourseInspector({
                   />
                   <div className="flex flex-wrap gap-2">
                     <Button asChild size="sm" variant="outline">
-                      <Link
-                        to="/courses/$course/$chapter"
-                        params={{ course: course.slug, chapter: chapter.slug }}
+                      <a
+                        href={siteAddress(
+                          `/courses/${encodeURIComponent(course.slug)}/${encodeURIComponent(chapter.slug)}`
+                        )}
                         target="_blank"
+                        rel="noreferrer"
                       >
                         <ExternalLinkIcon className="size-4" />
                         Open this chapter
-                      </Link>
+                      </a>
                     </Button>
                     <Button
                       type="button"
@@ -455,15 +458,16 @@ export function CourseInspector({
                   </div>
                 ) : null}
                 <Button asChild size="sm" variant="outline" className="w-fit">
-                  <Link
-                    to="/courses/$course"
-                    params={{ course: course.slug }}
-                    search={{ preview: "free" }}
+                  <a
+                    href={siteAddress(
+                      `/courses/${encodeURIComponent(course.slug)}?preview=free`
+                    )}
                     target="_blank"
+                    rel="noreferrer"
                   >
                     <ExternalLinkIcon className="size-4" />
                     Read as a free member
-                  </Link>
+                  </a>
                 </Button>
               </div>
             </InspectorCard>

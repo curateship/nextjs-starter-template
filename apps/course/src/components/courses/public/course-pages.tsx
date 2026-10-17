@@ -89,18 +89,22 @@ export function CourseListPage({
           </CardContent>
         </Card>
       ) : (
-        <ul
-          className="grid sm:grid-cols-2 lg:grid-cols-3"
-          style={{ gap: pageGutter }}
-        >
-          {courses.map((course) => (
-            <li key={course.slug} className="flex">
-              <CourseCard course={course} />
-            </li>
-          ))}
-        </ul>
+        <CourseCardGrid courses={courses} />
       )}
     </CourseFrame>
+  )
+}
+
+/** The course cards, as `/courses` and the front page's Courses row draw them. */
+export function CourseCardGrid({ courses }: { courses: PublicCourseCard[] }) {
+  return (
+    <ul className="grid sm:grid-cols-2 lg:grid-cols-3" style={{ gap: pageGutter }}>
+      {courses.map((course) => (
+        <li key={course.slug} className="flex">
+          <CourseCard course={course} />
+        </li>
+      ))}
+    </ul>
   )
 }
 

@@ -8,8 +8,7 @@ import type {
   ReaderViewer,
 } from "@/lib/courses/course-types"
 import { MAX_SLUG_LENGTH } from "@/lib/courses/course-slugs"
-import { findCurrentUser } from "@/server/auth/security"
-import { readPageVisibility } from "@/server/content/pages"
+import { coursesPageOpen } from "@/server/courses/page-switch"
 import {
   chapterAddress,
   currentReader,
@@ -36,13 +35,7 @@ const slugInput = z.string().min(1).max(MAX_SLUG_LENGTH)
 async function openSite(): Promise<string | null> {
   const workspaceId = await visitorWorkspaceId()
   if (!workspaceId) return null
-  const visibility = await readPageVisibility(workspaceId, "/courses")
-  if (visibility === "off") return null
-  if (visibility === "members") {
-    const viewer = await findCurrentUser().catch(() => null)
-    if (!viewer) return null
-  }
-  return workspaceId
+  return (await coursesPageOpen(workspaceId)) ? workspaceId : null
 }
 
 async function readerFor(preview: boolean | undefined): Promise<Reader> {

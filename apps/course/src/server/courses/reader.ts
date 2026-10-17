@@ -165,7 +165,8 @@ function toReaderCourse(row: CourseRow, reader: Reader): ReaderCourse {
   }
 }
 
-async function siteName(workspaceId: string, database: CustomShellDb) {
+/** The site's own name, as the bell and the page titles say it. */
+export async function siteName(workspaceId: string, database: CustomShellDb = db) {
   const [row] = await database
     .select({ name: customShellWorkspaces.name })
     .from(customShellWorkspaces)
@@ -351,6 +352,30 @@ export async function readPublicCourses(
   reader: Reader,
   database: CustomShellDb = db
 ): Promise<{ siteName: string; courses: PublicCourseCard[]; viewer: ReaderViewer }> {
+  return {
+    siteName: await siteName(workspaceId, database),
+    courses: await readCourseCards(
+      workspaceId,
+      reader,
+      { drafts: reader.rules.isAdmin, limit: 200 },
+      database
+    ),
+    viewer: reader.viewer,
+  }
+}
+
+/**
+ * One card per course on this site, in the admin's order, as this person sees
+ * them. `drafts` is only ever true for an admin on `/courses`; the front page
+ * row asks for published courses alone, because a draft's card on the site's
+ * home page reads as a mistake even to the admin who wrote it.
+ */
+export async function readCourseCards(
+  workspaceId: string,
+  reader: Reader,
+  options: { drafts: boolean; limit: number },
+  database: CustomShellDb = db
+): Promise<PublicCourseCard[]> {
   const at = now()
   const rows = await database
     .select()
@@ -358,11 +383,11 @@ export async function readPublicCourses(
     .where(
       and(
         eq(courses.workspaceId, workspaceId),
-        reader.rules.isAdmin ? undefined : eq(courses.status, "published")
+        options.drafts ? undefined : eq(courses.status, "published")
       )
     )
     .orderBy(asc(courses.position), asc(courses.title))
-    .limit(200)
+    .limit(options.limit)
 
   const ids = rows.map((row) => row.id).concat("")
   const chapters = await database
@@ -399,7 +424,7 @@ export async function readPublicCourses(
   const started = new Set(starts.map((row) => row.courseId))
   const finished = new Set(done.map((row) => row.chapterId))
 
-  const cards = rows.map((row): PublicCourseCard => {
+  return rows.map((row): PublicCourseCard => {
     // Counted the way the reader would see them: drafts and chapters not out
     // yet are not part of the course for a visitor.
     const live = chapters.filter(
@@ -422,12 +447,6 @@ export async function readPublicCourses(
       started: started.has(row.id),
     }
   })
-
-  return {
-    siteName: await siteName(workspaceId, database),
-    courses: cards,
-    viewer: reader.viewer,
-  }
 }
 
 /** /courses/<course>: the intro page, and the chapter "Keep reading" opens. */

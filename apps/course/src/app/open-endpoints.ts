@@ -37,6 +37,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "A chapter open to everyone, or marked as a free preview, has to be readable while signed out; server/courses/reader.ts sends a locked chapter without its words.",
   "courses/public.ts:chapterAddressFn":
     "A chapter link inside a course is followed by whoever is reading it; the answer is only the chapter's current public address, and none for a draft course.",
+  "site-root.ts:readSiteRootFn":
+    "Anybody opening / has to be told whether it is a site's front page or the deployment's own address; it takes no input and answers only that, plus whether the asker is signed in.",
 }
 
 /**

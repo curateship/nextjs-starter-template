@@ -4,6 +4,9 @@ Courses are written guides. A course is a list of chapters, and a reader sees
 the chapter list on the left and the chapter's words in the middle. Admins
 write them at `/admin/courses`; readers find them at `/courses`.
 
+Each course belongs to one site. `sites.md` says what that means, including
+the Courses row a site's front page can show and Copy courses.
+
 ## Who decides what
 
 Tyler made these calls on 17 Oct 2026, and they outrank the code:
@@ -103,7 +106,8 @@ Signed-in members can mark a chapter done, save it to their Saved list, keep
 private notes beside it, tick checklists, answer quizzes and ask questions.
 Each of those checks the chapter is open to them first, so a locked chapter
 cannot be written to by calling the server directly. A member can ask at most
-10 questions an hour, because each one rings every admin's bell.
+10 questions an hour, because each one rings every admin's bell. The bell
+names the site as well as the course, since every admin reaches every site.
 
 When every chapter a member can see is marked done, the chapter page shows
 "You finished" with a button to the next course on the site.

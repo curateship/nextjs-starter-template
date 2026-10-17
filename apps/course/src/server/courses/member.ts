@@ -7,7 +7,12 @@ import {
 } from "@/lib/courses/chapter-body"
 import type { ChapterQuestion, QuizResult } from "@/lib/courses/course-types"
 import { now, uuid } from "@/server/auth/security"
-import { chapterQuestions, requireOpenChapter, type Reader } from "@/server/courses/reader"
+import {
+  chapterQuestions,
+  requireOpenChapter,
+  siteName,
+  type Reader,
+} from "@/server/courses/reader"
 import { db, type CustomShellDb } from "@/server/db"
 import { publishNotificationCreatedMany } from "@/server/notifications/events"
 import {
@@ -20,6 +25,7 @@ import {
   courses,
 } from "@/server/courses/schema"
 import { customShellNotifications, customShellUsers } from "@/server/schema"
+import { workspaceBaseDomain } from "@/server/workspaces/host"
 
 /**
  * What a member does inside a chapter. Each one first asks
@@ -217,9 +223,9 @@ export async function answerQuiz(
 }
 
 /**
- * Asks a question under a chapter. Every admin on the site is told in their
- * bell, with the course and chapter named, so it can be answered from the
- * course's Questions tab.
+ * Asks a question under a chapter. Every admin is told in their bell, with the
+ * course and chapter named, and the site too when there are several, so it can
+ * be answered from the course's Questions tab.
  */
 export async function askQuestion(
   workspaceId: string,
@@ -270,13 +276,19 @@ export async function askQuestion(
       )
     const recipients = admins.map((admin) => admin.id).filter((id) => id !== member.userId)
     if (recipients.length) {
+      // Every admin reaches every site, so with several sites the bell names
+      // the one to switch to before the course can be found.
+      const where = workspaceBaseDomain()
+        ? `On ${await siteName(workspaceId, database)}, in ${course.title}.`
+        : `In ${course.title}.`
+      const detail = `${where} Answer it in Courses → ${course.title} → Questions.`
       await database.insert(customShellNotifications).values(
         recipients.map((recipientUserId) => ({
           id: uuid(),
           recipientUserId,
           type: "app_activity" as const,
           message: `New question on ${chapter.title}`,
-          detail: `In ${course.title}. Answer it in Courses → ${course.title} → Questions.`,
+          detail,
           createdAt: at,
         }))
       )
