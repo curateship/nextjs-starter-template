@@ -6,7 +6,6 @@ import {
   DEFAULT_CHECKIN_QUESTIONS,
   type CheckinNotes,
   type CheckinQuestions,
-  type TeamRole,
 } from "@/lib/project/rules"
 import { db } from "@/server/db"
 import { visibleProjectIds, type ProjectDb } from "@/server/project/access"
@@ -15,7 +14,7 @@ import { clockOf, isLate, loadClock, notesOf, personDay } from "@/server/project
 import { holidayOn, holidaysBetween, type Holiday } from "@/server/project/holidays"
 import { thanksBetween, type ThanksLine } from "@/server/project/task-thanks"
 import { loadTeamDueDates, type TeamDueDates } from "@/server/project/team-due-dates"
-import { awayOn } from "@/server/project/time-off"
+import { awayBetween, awayOn, type AwayDay } from "@/server/project/time-off"
 import {
   projectCheckinItems,
   projectCheckins,
@@ -51,6 +50,8 @@ export type TeamMonth = {
   holidays: Holiday[]
   /** My "Due dates" switch, and the due tasks across the month's grid while it is on. */
   dueDates: TeamDueDates
+  /** Who is on time off on each of the team's work days in the month's grid. */
+  away: AwayDay[]
 }
 
 export async function loadTeamMonth(
@@ -119,6 +120,7 @@ export async function loadTeamMonth(
     days,
     holidays,
     dueDates: await loadTeamDueDates(membership, first, last, database),
+    away: await awayBetween(membership.teamId, workDays, first, last, database),
   }
 }
 
@@ -279,7 +281,7 @@ export type TeamDayTask = {
 }
 
 export type TeamDayPerson = {
-  person: { id: string; name: string; avatarUrl: string; role: TeamRole }
+  person: { id: string; name: string; avatarUrl: string }
   /** The check-in replies attach to; null without one. */
   checkinId: string | null
   /** The words the three boxes had that day. */
@@ -339,7 +341,6 @@ export async function loadTeamDay(
   const people = await database
     .select({
       id: projectTeamMembers.userId,
-      role: projectTeamMembers.role,
       name: customShellUsers.name,
       avatarUrl: customShellUsers.avatarUrl,
       teamTime: projectTeams.checkinTime,
@@ -467,7 +468,6 @@ export async function loadTeamDay(
         id: person.id,
         name: person.name,
         avatarUrl: person.avatarUrl ?? "",
-        role: person.role,
       },
       checkinId: row?.checkedInAt ? row.id : null,
       questions:

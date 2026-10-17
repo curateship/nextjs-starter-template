@@ -15,6 +15,8 @@ import { FeedbackModal } from "@/components/feedback/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppHeaderLeftContent } from "@/components/shell/sticky-header/app-header-left-content"
 import { AppSidebar } from "@/components/shell/sidebar/sidebar"
+import { StickyHeaderBreadcrumb } from "@/components/shell/sticky-header/sticky-header-breadcrumb"
+import { StickyHeaderLeftNav } from "@/components/shell/sticky-header/sticky-header-left-nav"
 import {
   StickyHeader,
   type SaveStatus,
@@ -30,10 +32,14 @@ import {
   isShellItem,
   normalizeAutomationPause,
   normalizeMaintenance,
+  normalizeRoleSections,
   normalizeSessionPolicy,
+  normalizeTopLeftMode,
   normalizeTopLeftNavLimit,
+  normalizeTopLeftShortcuts,
   normalizeTopRightNavigation,
   renderShellIcon,
+  shortcutsForRole,
   shellConfigSaveRefusal,
   type ShellConfig,
   type ShellItem,
@@ -60,6 +66,7 @@ import {
   capitalise,
   workspaceWord,
 } from "@/lib/app-options"
+import { roleMay } from "@/lib/roles"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizePublicHeader } from "@/lib/pages/public-header"
 import { normalizePublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
@@ -108,12 +115,14 @@ import {
 import type { WorkspaceListResponse } from "@/lib/api/people/workspaces"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
-import { routePageTitle } from "@/lib/nav/route-title"
+import { buildHeaderBreadcrumb } from "@/lib/nav/header-breadcrumb"
+import { knownRoutePageTitle, routePageTitle } from "@/lib/nav/route-title"
 import { clampSidebarWidth } from "@/lib/layout/sidebar-width"
 import { setToastSeconds } from "@/lib/toast/toast-duration"
 import { plural } from "@/lib/format/plural"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { usePanelReport, usePanelView } from "@/lib/layout/panel-view"
 import { cn } from "@/lib/utils"
 
 // Debounce window before an edit on the settings page is auto-saved.
@@ -185,9 +194,31 @@ export function ShellLayout({
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
   })
+  // A page that shows one record returns its name as `recordTitle` from its
+  // loader. Read off the same match the page draws from, so the breadcrumb
+  // changes in the same frame as the page and never shows the last record.
+  // While the next page loads the address has already moved on, so the old
+  // page's name is not used for it.
+  const recordTitle = useRouterState({
+    select: (state) => {
+      const match = state.matches.at(-1)
+      const data = match?.loaderData as { recordTitle?: unknown } | undefined
+      return match?.pathname === state.location.pathname &&
+        typeof data?.recordTitle === "string"
+        ? data.recordTitle
+        : undefined
+    },
+  })
   const currentRouteId = useRouterState({
     select: (state) => state.matches.at(-1)?.routeId,
   })
+  // Another app showing this page in a frame named `shell-panel` gets the
+  // middle panel alone, with no left menu or top bar. See
+  // lib/layout/panel-view.ts.
+  const searchStr = useRouterState({
+    select: (state) => state.location.searchStr,
+  })
+  const panelView = usePanelView(searchStr)
   const navigate = useNavigate()
   const router = useRouter()
   const { account: accountTab } = useSearch({ from: "/_authenticated" })
@@ -580,12 +611,22 @@ export function ShellLayout({
       ? { "--border": dividerColor, "--sidebar-border": dividerColor }
       : {}),
   } as React.CSSProperties
-  const stickyHeaderNavLinks = getStickyHeaderNavLinks(
+  const pageTitle = getCurrentPageTitle(
     config,
     currentPath,
+    currentRouteId,
     user.role
   )
+  usePanelReport(panelView, currentPath, pageTitle)
   const headerLeftContent = appHeaderLeftContentForRole(user.role)
+  const mayFeedback = roleMay(user.role, "feedback")
+  const topLeftContent = getTopLeftContent(
+    config,
+    currentPath,
+    user.role,
+    recordTitle ??
+      knownRoutePageTitle(currentRouteId, capitalise(workspaceWord().many))
+  )
 
   return (
     <ShellRuntimeContext.Provider value={runtime}>
@@ -595,79 +636,88 @@ export function ShellLayout({
           sidebarWidth={config.sidebarWidth}
           onSidebarWidthCommit={handleSidebarWidthCommit}
         >
-          <a
-            href="#main-content"
-            className={cn(
-              "sr-only fixed top-2 left-2 z-[60] rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground focus:not-sr-only",
-              focusRing
-            )}
-            onClick={(event) => {
-              const main = document.getElementById("main-content")
-              if (!main) return
-              event.preventDefault()
-              main.focus()
-            }}
-          >
-            Skip to content
-          </a>
-          <AppSidebar
-            config={config}
-            user={user}
-            plan={plan}
-            workspaces={workspaces.workspaces}
-            baseDomain={workspaces.baseDomain}
-            copyChoices={workspaces.copyChoices}
-            viewingAsMember={Boolean(viewedBy)}
-            onLogout={handleLogout}
-          />
+          {panelView ? null : (
+            <>
+              <a
+                href="#main-content"
+                className={cn(
+                  "sr-only fixed top-2 left-2 z-[60] rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground focus:not-sr-only",
+                  focusRing
+                )}
+                onClick={(event) => {
+                  const main = document.getElementById("main-content")
+                  if (!main) return
+                  event.preventDefault()
+                  main.focus()
+                }}
+              >
+                Skip to content
+              </a>
+              <AppSidebar
+                config={config}
+                user={user}
+                plan={plan}
+                workspaces={workspaces.workspaces}
+                baseDomain={workspaces.baseDomain}
+                copyChoices={workspaces.copyChoices}
+                viewingAsMember={Boolean(viewedBy)}
+                onLogout={handleLogout}
+              />
+            </>
+          )}
           <SidebarInset>
-            <StickyHeader
-              navLinks={stickyHeaderNavLinks}
-              navContent={headerLeftContent ? (
-                <AppHeaderLeftContent
-                  action={headerLeftContent}
-                  role={user.role}
-                  navLinks={stickyHeaderNavLinks}
-                  limit={config.topLeftNavLimit}
-                />
-              ) : undefined}
-              navLinkLimit={config.topLeftNavLimit}
-              rightNavItems={config.topRightNavigation}
-              role={user.role}
-              unseenNotifications={unseenNotifications}
-              liveNotifications={config.liveNotifications}
-              saveStatus={pageSaveStatus ?? saveStatus}
-              maintenanceOn={
-                user.role === "admin" && config.maintenance.enabled
-              }
-              maintenanceBusy={maintenanceBusy}
-              automationPause={
-                user.role === "admin" && config.automationPause.enabled
-                  ? config.automationPause
-                  : null
-              }
-              automationPauseBusy={automationPauseBusy}
-              viewingAs={
-                viewedBy
-                  ? {
-                      memberName: user.name,
-                      memberEmail: user.email,
-                      adminName: viewedBy.name,
-                    }
-                  : null
-              }
-              onTurnOffMaintenance={() =>
-                void handleMaintenanceChange({
-                  ...config.maintenance,
-                  enabled: false,
-                })
-              }
-              onResumeAutomations={() =>
-                void handleAutomationPauseChange(false)
-              }
-              onOpenFeedback={() => openFeedback()}
-              onOpenFeedbackThread={openFeedback}
-            />
+            {panelView ? null : (
+              <StickyHeader
+                navContent={
+                  headerLeftContent ? (
+                    <AppHeaderLeftContent
+                      action={headerLeftContent}
+                      role={user.role}
+                      fallback={topLeftContent}
+                    />
+                  ) : (
+                    topLeftContent
+                  )
+                }
+                rightNavItems={config.topRightNavigation}
+                role={user.role}
+                unseenNotifications={unseenNotifications}
+                liveNotifications={config.liveNotifications}
+                saveStatus={pageSaveStatus ?? saveStatus}
+                maintenanceOn={
+                  user.role === "admin" && config.maintenance.enabled
+                }
+                maintenanceBusy={maintenanceBusy}
+                automationPause={
+                  user.role === "admin" && config.automationPause.enabled
+                    ? config.automationPause
+                    : null
+                }
+                automationPauseBusy={automationPauseBusy}
+                viewingAs={
+                  viewedBy
+                    ? {
+                        memberName: user.name,
+                        memberEmail: user.email,
+                        adminName: viewedBy.name,
+                      }
+                    : null
+                }
+                onTurnOffMaintenance={() =>
+                  void handleMaintenanceChange({
+                    ...config.maintenance,
+                    enabled: false,
+                  })
+                }
+                onResumeAutomations={() =>
+                  void handleAutomationPauseChange(false)
+                }
+                // No button and no thread links for an app role whose app
+                // gave it no feedback; the server refuses it the same.
+                onOpenFeedback={mayFeedback ? () => openFeedback() : undefined}
+                onOpenFeedbackThread={mayFeedback ? openFeedback : undefined}
+              />
+            )}
             <DashboardContent
               id="main-content"
               // Settings pages are taller than the viewport and already make
@@ -680,12 +730,7 @@ export function ShellLayout({
                   : undefined
               }
               styling={config.styling}
-              pageTitle={getCurrentPageTitle(
-                config,
-                currentPath,
-                currentRouteId,
-                user.role
-              )}
+              pageTitle={pageTitle}
             >
               {/* First cards on the page, so a broadcast rides the content
                   gutter and the workspace's own card styling. Remounted per set
@@ -699,17 +744,20 @@ export function ShellLayout({
             </DashboardContent>
           </SidebarInset>
         </SidebarProvider>
-        <FeedbackModal
-          open={feedbackOpen}
-          onOpenChange={handleFeedbackOpenChange}
-          targetFeedbackId={targetFeedbackId}
-          currentUserName={user.name}
-          onMutated={() => setFeedbackRefreshToken((current) => current + 1)}
-        />
+        {mayFeedback ? (
+          <FeedbackModal
+            open={feedbackOpen}
+            onOpenChange={handleFeedbackOpenChange}
+            targetFeedbackId={targetFeedbackId}
+            currentUserName={user.name}
+            onMutated={() => setFeedbackRefreshToken((current) => current + 1)}
+          />
+        ) : null}
         <AccountDialog
           tab={accountTab ?? null}
           user={user}
           plan={plan}
+          passkeys={config.passkeySignIn}
           onTabChange={(tab) =>
             navigate({ to: ".", search: (prev) => ({ ...prev, account: tab }) })
           }
@@ -756,6 +804,9 @@ function normalizeConfig(
       : fallback.dashboardRowsPerPage,
     toastSeconds: clampToastSeconds(settings.toastSeconds),
     topLeftNavLimit: normalizeTopLeftNavLimit(settings.topLeftNavLimit),
+    topLeftMode: normalizeTopLeftMode(settings.topLeftMode),
+    memberTopLeftMode: normalizeTopLeftMode(settings.memberTopLeftMode),
+    topLeftShortcuts: normalizeTopLeftShortcuts(settings.topLeftShortcuts),
     sidebarWidth: clampSidebarWidth(
       settings.sidebarWidth ?? fallback.sidebarWidth
     ),
@@ -815,9 +866,12 @@ function normalizeConfig(
     memberSections: Array.isArray(settings.memberSections)
       ? settings.memberSections
       : fallback.memberSections,
+    roleSections: normalizeRoleSections(settings.roleSections),
     // Only an explicit `false` turns the live bell off, so a config saved
     // before this setting existed keeps it on.
     liveNotifications: settings.liveNotifications !== false,
+    // Same rule: a config saved before this switch existed keeps passkeys on.
+    passkeySignIn: settings.passkeySignIn !== false,
     notificationTypes: normalizeNotificationTypeVisibility(
       settings.notificationTypes
     ),
@@ -1012,6 +1066,47 @@ function getCurrentPageTitle(
   return (
     currentLink?.label ??
     routePageTitle(routeId, capitalise(workspaceWord().many))
+  )
+}
+
+/**
+ * What the top left of the header draws, by the viewer's Top left shows
+ * choice: admins and members each have their own. Shortcuts with nothing this
+ * person may see fall back to the sidebar links rather than an empty bar.
+ */
+function getTopLeftContent(
+  config: ShellConfig,
+  currentPath: string,
+  role: string,
+  pageTitle: string | undefined
+): React.ReactNode {
+  const mode = role === "admin" ? config.topLeftMode : config.memberTopLeftMode
+
+  if (mode === "breadcrumb") {
+    return (
+      <StickyHeaderBreadcrumb
+        steps={buildHeaderBreadcrumb({
+          items: getShellItems(config, role),
+          currentPath,
+          pageTitle,
+        })}
+      />
+    )
+  }
+
+  const shortcuts =
+    mode === "shortcuts" ? shortcutsForRole(config.topLeftShortcuts, role) : []
+  const navLinks = shortcuts.length
+    ? shortcuts.map((shortcut) => ({
+        label: shortcut.label.trim(),
+        href: shortcut.href.trim(),
+        icon: renderShellIcon(shortcut.icon, "h-3.5 w-3.5"),
+        active: isActiveShellHref(shortcut.href, currentPath),
+      }))
+    : getStickyHeaderNavLinks(config, currentPath, role)
+
+  return (
+    <StickyHeaderLeftNav navLinks={navLinks} limit={config.topLeftNavLimit} />
   )
 }
 

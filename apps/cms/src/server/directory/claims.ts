@@ -18,6 +18,7 @@ import {
 } from "@/lib/pages/written-page-body"
 import { createSecretToken, hashToken, now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
+import { fireClaimApproved } from "@/server/directory/automation-events"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import { updateListing } from "@/server/directory/listings"
 import {
@@ -537,6 +538,9 @@ export async function reviewClaim(
   if (!updated) throw new Error("Somebody has already dealt with this one.")
 
   clearPublicDirectoryCache(workspaceId)
+  // After the write, and it never throws: a flow that cannot start cannot
+  // undo the approval.
+  if (updated.status === "approved") await fireClaimApproved(updated, database)
   return {
     claim: toClaim(updated),
     listingTitle: found.listingTitle,

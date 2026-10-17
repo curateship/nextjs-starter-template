@@ -20,6 +20,12 @@ import { getDatabaseUrl } from "@/server/db"
  */
 
 const CHANNEL = "project_live"
+/**
+ * "Team T changed": check-ins, meetings, time off, holidays, members, the
+ * team and its projects and milestones (`drizzle/0118_project_features_16_oct.sql`),
+ * for My dashboard and the Team dashboard.
+ */
+const TEAM_CHANNEL = "project_team_live"
 const RECONNECT_DELAY_MS = 2000
 
 /**
@@ -34,6 +40,7 @@ type LiveBus = {
   starting: Promise<void> | null
   reconnectTimer: ReturnType<typeof setTimeout> | null
   listenersByProject: Map<string, Set<Listener>>
+  listenersByTeam: Map<string, Set<() => void>>
 }
 
 // Parked on globalThis so a dev-server reload reuses the connection and the
@@ -44,7 +51,18 @@ const bus: LiveBus = (globals.__projectLiveBus ??= {
   starting: null,
   reconnectTimer: null,
   listenersByProject: new Map(),
+  listenersByTeam: new Map(),
 })
+
+function emitTeam(teamId: string) {
+  for (const listener of bus.listenersByTeam.get(teamId) ?? []) {
+    try {
+      listener()
+    } catch (error) {
+      console.error("Project team live listener failed", error)
+    }
+  }
+}
 
 function emit(projectId: string, change: LiveChange) {
   for (const listener of bus.listenersByProject.get(projectId) ?? []) {
@@ -79,6 +97,7 @@ function scheduleReconnect() {
         // Whatever changed while the connection was down was told to nobody,
         // so every open page is asked to look again.
         for (const projectId of bus.listenersByProject.keys()) emit(projectId, "all")
+        for (const teamId of bus.listenersByTeam.keys()) emitTeam(teamId)
       })
       .catch((error) => {
         console.error("Project live LISTEN reconnect failed", error)
@@ -97,6 +116,10 @@ function ensureListening(): Promise<void> {
       application_name: "project_live_listen",
     })
     client.on("notification", (message) => {
+      if (message.channel === TEAM_CHANNEL) {
+        if (message.payload) emitTeam(message.payload)
+        return
+      }
       const change = message.payload ? readPayload(message.payload) : null
       if (change) emit(change.projectId, change.change)
     })
@@ -109,6 +132,7 @@ function ensureListening(): Promise<void> {
     })
     await client.connect()
     await client.query(`LISTEN ${CHANNEL}`)
+    await client.query(`LISTEN ${TEAM_CHANNEL}`)
     bus.client = client
   })()
   const pending = bus.starting
@@ -135,5 +159,22 @@ export function subscribeToProject(projectId: string, listener: Listener): () =>
     if (!current) return
     current.delete(listener)
     if (current.size === 0) bus.listenersByProject.delete(projectId)
+  }
+}
+
+/** Calls `listener` whenever something of the team's own changes, until the returned function is called. */
+export function subscribeToTeam(teamId: string, listener: () => void): () => void {
+  let listeners = bus.listenersByTeam.get(teamId)
+  if (!listeners) {
+    listeners = new Set()
+    bus.listenersByTeam.set(teamId, listeners)
+  }
+  listeners.add(listener)
+  void ensureListening().catch((error) => console.error("Project live LISTEN start failed", error))
+  return () => {
+    const current = bus.listenersByTeam.get(teamId)
+    if (!current) return
+    current.delete(listener)
+    if (current.size === 0) bus.listenersByTeam.delete(teamId)
   }
 }

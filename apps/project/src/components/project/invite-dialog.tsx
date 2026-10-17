@@ -1,7 +1,6 @@
 import * as React from "react"
-import { getRouteApi, useRouter } from "@tanstack/react-router"
-import { CopyIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
+import { useRouter } from "@tanstack/react-router"
+import { Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,15 +14,6 @@ import {
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import {
   inviteManyToTeam,
@@ -33,25 +23,18 @@ import {
 } from "@/lib/api/project/teams"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import {
-  INVITE_BATCH,
-  INVITE_LIFETIME_DAYS,
-  TEAM_INVITE_ROLES,
-  inviteAddresses,
-  TEAM_ROLE_LABEL,
-  type TeamInviteRole,
-} from "@/lib/project/rules"
+import { INVITE_BATCH, inviteAddresses } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * Invites one person, or up to 20 pasted at once, by email. One address
- * shows its link to copy and says plainly when no email went out; several
- * show what happened to each address.
+ * Invites one person, or up to 20 pasted at once, by email. Each becomes an
+ * employee on the team at once and gets the "Set your password" email, whose
+ * link works once and signs them in. One address says plainly whether the
+ * email went out; several show what happened to each address.
  */
 export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter()
   const [text, setText] = React.useState("")
-  const [role, setRole] = React.useState<TeamInviteRole>("member")
   const [invalid, setInvalid] = React.useState(false)
   const [sent, setSent] = React.useState<{ email: string; invite: SentInvite } | null>(null)
   const [outcomes, setOutcomes] = React.useState<InviteOutcome[] | null>(null)
@@ -60,7 +43,6 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
 
   function close() {
     setText("")
-    setRole("member")
     setInvalid(false)
     setSent(null)
     setOutcomes(null)
@@ -80,8 +62,8 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
       return
     }
     const ok = await run(async () => {
-      if (emails.length === 1) setSent({ email: emails[0], invite: await inviteToTeam({ email: emails[0], role }) })
-      else setOutcomes(await inviteManyToTeam({ emails, role }))
+      if (emails.length === 1) setSent({ email: emails[0], invite: await inviteToTeam({ email: emails[0] }) })
+      else setOutcomes(await inviteManyToTeam({ emails }))
     })
     if (ok) await router.invalidate()
   }
@@ -91,9 +73,10 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{outcomes ? inviteResultTitle(outcomes) : sent ? "Invite sent" : "Invite teammates"}</DialogTitle>
+            <DialogTitle>{outcomes ? inviteResultTitle(outcomes) : sent ? "Invite sent" : "Invite people"}</DialogTitle>
             <DialogDescription>
-              Each invite works for {INVITE_LIFETIME_DAYS} days, and only for its own email address.
+              Each person joins the team as an employee straight away. Their email has a link to set
+              their password, which signs them in on My dashboard.
             </DialogDescription>
           </DialogHeader>
           {done ? (
@@ -141,24 +124,6 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
                         }}
                       />
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="invite-role">Role</Label>
-                      <Select value={role} onValueChange={(value) => setRole(value as TeamInviteRole)}>
-                        <SelectTrigger id="invite-role" className="w-full sm:w-fit">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TEAM_INVITE_ROLES.map((value) => (
-                            <SelectItem key={value} value={value}>
-                              {TEAM_ROLE_LABEL[value]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Admins can invite and remove people and change the team's settings.
-                      </p>
-                    </div>
                   </CardContent>
                 </Card>
               </DialogBody>
@@ -191,23 +156,15 @@ function inviteResultTitle(outcomes: InviteOutcome[]) {
 }
 
 const OUTCOME_TEXT: Record<Exclude<InviteOutcome["result"], "sent">, string> = {
-  on_team: "Already on the team",
-  invited: "Already invited. Resend it from Members for a new link.",
+  on_team: "Already on a team",
+  not_an_employee: "That email belongs to an account that isn't an employee",
   not_an_email: "Not an email address",
   too_many: "Not sent, because too many invites went out. Try this one again later.",
+  not_sent: "The email couldn't be sent. Try again.",
 }
 
-/** What happened to each address of a send with several, with each sent invite's link. */
+/** What happened to each address of a send with several. */
 function InviteOutcomesCard({ outcomes }: { outcomes: InviteOutcome[] }) {
-  async function copy(link: string) {
-    try {
-      await navigator.clipboard.writeText(link)
-      toast.success("Link copied.")
-    } catch {
-      showErrorToast("The link couldn't be copied. Resend it from Members to see it again.")
-    }
-  }
-
   return (
     <Card size="sm">
       <CardHeader>
@@ -216,31 +173,21 @@ function InviteOutcomesCard({ outcomes }: { outcomes: InviteOutcome[] }) {
       <CardContent>
         <ul className="grid gap-3">
           {outcomes.map((outcome) => (
-            <li key={outcome.email} className="flex items-start gap-3">
-              <div className="grid min-w-0 flex-1 gap-0.5">
-                <span className="text-sm font-medium break-all">{outcome.email}</span>
-                <span
-                  className={
-                    outcome.result === "sent" || outcome.result === "on_team" || outcome.result === "invited"
-                      ? "text-xs text-muted-foreground"
-                      : "text-xs text-destructive"
-                  }
-                >
-                  {outcome.result === "sent"
-                    ? outcome.sent.emailed
-                      ? "Emailed"
-                      : outcome.sent.emailError
-                        ? `The email was refused: ${outcome.sent.emailError}. Send the link yourself.`
-                        : "Not emailed, because email isn't set up. Send the link yourself."
-                    : OUTCOME_TEXT[outcome.result]}
-                </span>
-              </div>
-              {outcome.result === "sent" ? (
-                <Button type="button" variant="outline" size="sm" onClick={() => void copy(outcome.sent.link)}>
-                  <CopyIcon className="size-4" />
-                  Copy link
-                </Button>
-              ) : null}
+            <li key={outcome.email} className="grid min-w-0 gap-0.5">
+              <span className="text-sm font-medium break-all">{outcome.email}</span>
+              <span
+                className={
+                  outcome.result === "sent" || outcome.result === "on_team"
+                    ? "text-xs text-muted-foreground"
+                    : "text-xs text-destructive"
+                }
+              >
+                {outcome.result === "sent"
+                  ? outcome.sent.emailed
+                    ? "On the team, and emailed"
+                    : "On the team. Email is switched off here, so the link went to the server log."
+                  : OUTCOME_TEXT[outcome.result]}
+              </span>
             </li>
           ))}
         </ul>
@@ -249,55 +196,23 @@ function InviteOutcomesCard({ outcomes }: { outcomes: InviteOutcome[] }) {
   )
 }
 
-const authenticatedRoute = getRouteApi("/_authenticated")
-
 /**
- * The link, and whether an email really went out: emailed, refused, or no
- * email set up. Shared with Resend. Settings → Email is named only to an app
- * admin, the one person who can open it.
+ * Whether the "Set your password" email went out. Shared with Resend. There is
+ * no link to copy: it signs whoever opens it into the account, so it only ever
+ * travels by email.
  */
 export function SentInviteCard({ sent, email }: { sent: SentInvite; email: string }) {
-  const appAdmin = authenticatedRoute.useLoaderData().user.role === "admin"
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(sent.link)
-      toast.success("Link copied.")
-    } catch {
-      showErrorToast("The link couldn't be copied. Select it and copy it by hand.")
-    }
-  }
-
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>
-          {sent.emailed
-            ? `Emailed to ${email}`
-            : sent.emailError
-              ? "The email didn't go out"
-              : "Email isn't set up"}
-        </CardTitle>
+        <CardTitle>{sent.emailed ? `Emailed to ${email}` : "Email is switched off here"}</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4">
+      <CardContent>
         <p className="text-sm text-muted-foreground">
           {sent.emailed
-            ? "You can also send them this link yourself."
-            : sent.emailError
-              ? `It was refused: ${sent.emailError}. Send them this link yourself.`
-              : appAdmin
-                ? "Send them this link yourself. You can set up email in Settings → Email."
-                : "Send them this link yourself."}
+            ? "They're on the team now. The link in the email sets their password and works once. If it runs out, send it again from Members."
+            : "They're on the team now, but no email went out, so the link to set their password is in the server log. Set up email in Settings → Email."}
         </p>
-        <div className="grid gap-2">
-          <Label htmlFor="invite-link">Invite link</Label>
-          <div className="flex gap-2">
-            <Input id="invite-link" value={sent.link} readOnly onFocus={(event) => event.currentTarget.select()} />
-            <Button type="button" variant="outline" onClick={() => void copy()}>
-              <CopyIcon className="size-4" />
-              Copy
-            </Button>
-          </div>
-        </div>
       </CardContent>
     </Card>
   )

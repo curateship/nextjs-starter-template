@@ -1,35 +1,38 @@
-import { and, asc, eq, gt, inArray, sql } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
-import {
-  INVITE_LIFETIME_DAYS,
-  inviteSchema,
-  type TeamInviteRole,
-} from "@/lib/project/rules"
+import { inviteSchema } from "@/lib/project/rules"
 import { appUrlFor } from "@/server/app-url"
+import { getAuthLinkContext, createWorkspaceAuthToken } from "@/server/auth/link-expiry"
 import { RateLimitError, enforceRateLimit } from "@/server/auth/rate-limit"
-import { createSecretToken, hashToken, now, uuid } from "@/server/auth/security"
+import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { findMembership, requireTeamRunner } from "@/server/project/access"
+import { sendAuthEmail } from "@/server/email/send"
+import { requireTeamRunner, type ProjectDb } from "@/server/project/access"
 import { sendInviteEmail } from "@/server/project/invite-email"
-import {
-  projectTeamInvites,
-  projectTeamMembers,
-  projectTeams,
-} from "@/server/project/schema"
+import { projectTeamMembers, projectTeams } from "@/server/project/schema"
 import { giveStarterTasks } from "@/server/project/starter-tasks"
-import { customShellUsers } from "@/server/schema"
 import { joinWholeTeamProjects } from "@/server/project/whole-team"
+import { inviteAccount } from "@/server/people/invite"
+import { customShellUsers } from "@/server/schema"
 
 /**
- * Invites to a team. An invite is for one email address, and only an account
- * signed in with that address can accept it. The link carries a secret whose
- * hash is stored, so the database alone can't be used to accept an invite.
+ * Inviting someone makes them an employee: an account with Project's
+ * `employee` role, put on the team the moment it is made. Tyler, 16 Oct 2026:
+ * employees are shell accounts with a role of their own, sign in on the one
+ * `/login`, and see only Project.
  *
- * `/register` doesn't send a new account back to the link it came from, so
- * an invite also shows on the Projects page of whoever signs in with the
- * invited address. Either way in leads to the same accept.
+ * A new address gets the shell's "Set your password" email (`inviteAccount`),
+ * whose one-time link sets the password and signs them in on My dashboard. An
+ * employee who already has an account but no team is put on this one and told
+ * by email. An address on a team already is refused, and so is an account
+ * that isn't an employee, since an admin or a member is never moved onto a
+ * team by an invite.
+ *
+ * Only the site admin invites.
  */
+
+export const EMPLOYEE_ROLE = "employee"
 
 export type InviteActor = {
   id: string
@@ -38,333 +41,258 @@ export type InviteActor = {
 }
 
 export type SentInvite = {
-  inviteId: string
-  /** The link to copy, always returned so it can be shared by hand. */
-  link: string
+  userId: string
+  /** False when this server has email switched off, so the link went to the server log. */
   emailed: boolean
-  emailError?: string
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
-
 /**
- * Anyone can start a team and become its owner, so without a cap an invite is
- * a way to make Project email any address as often as someone likes. Each
- * inviter gets 30 emails an hour, and one address gets at most 5 a day from
- * all teams together.
+ * An invite emails an address on the site admin's say-so, so it keeps a cap:
+ * 30 an hour from one inviter, and 5 a day to one address.
  */
 export const INVITE_LIMITS = {
   perInviter: { maxAttempts: 30, windowSeconds: 60 * 60 },
   perAddress: { maxAttempts: 5, windowSeconds: 24 * 60 * 60 },
 } as const
 
-async function enforceInviteLimits(actorId: string, email: string, database: typeof db) {
-  await enforceRateLimit(`project-invite-from:${actorId}`, INVITE_LIMITS.perInviter, database)
-  await enforceRateLimit(`project-invite-to:${email}`, INVITE_LIMITS.perAddress, database)
+async function enforceInviteLimits(actorId: string, email: string, database: ProjectDb) {
+  await enforceRateLimit(`project-invite-from:${actorId}`, INVITE_LIMITS.perInviter, database as typeof db)
+  await enforceRateLimit(`project-invite-to:${email}`, INVITE_LIMITS.perAddress, database as typeof db)
+}
+
+/**
+ * "ben.tester@acme.com" becomes "Ben Tester", so the account has a name before
+ * its person sets their own on Account → Profile.
+ */
+function nameFromEmail(email: string) {
+  const local = email.split("@")[0] ?? ""
+  const words = local
+    .split(/[._+-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+  return (words.join(" ") || email).slice(0, 255)
 }
 
 export async function createInvite(
   actor: InviteActor,
-  input: { email: string; role: TeamInviteRole },
+  input: { email: string; name?: string },
   database = db
 ): Promise<SentInvite> {
   const membership = await requireTeamRunner(actor.id, database)
   const email = input.email.trim().toLowerCase()
-
-  const [onTeam] = await database
-    .select({ userId: projectTeamMembers.userId })
-    .from(projectTeamMembers)
-    .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
-    .where(
-      and(
-        eq(projectTeamMembers.teamId, membership.teamId),
-        eq(sql`lower(${customShellUsers.email})`, email)
-      )
-    )
-    .limit(1)
-  if (onTeam) throw new Error(PROJECT_ERRORS.alreadyOnYourTeam)
+  await requireFreeAddress(email, database)
   await enforceInviteLimits(actor.id, email, database)
+  return addEmployee(
+    { email, name: input.name?.trim() || nameFromEmail(email), teamId: membership.teamId },
+    { inviterName: actor.name, workspaceId: actor.currentWorkspaceId },
+    database
+  )
+}
 
-  const token = createSecretToken()
-  const at = now()
-  const values = {
-    role: input.role,
-    tokenHash: hashToken(token),
-    invitedByUserId: actor.id,
-    expiresAt: new Date(at.getTime() + INVITE_LIFETIME_DAYS * DAY_MS),
-    sentAt: at,
+/**
+ * Makes or finds the employee and puts them on the team. Shared with the join
+ * link, which runs its own checks first.
+ */
+export async function addEmployee(
+  person: { email: string; name: string; teamId: string },
+  sender: { inviterName: string; workspaceId: string | null },
+  database = db
+): Promise<SentInvite> {
+  const existing = await accountFor(person.email, database)
+  if (existing) {
+    // Only an employee is ever moved onto a team, whoever called this.
+    if (existing.role !== EMPLOYEE_ROLE) throw new Error(PROJECT_ERRORS.emailNotAnEmployee)
+    if (existing.hasPassword) {
+      await putOnTeam(person.teamId, existing.id, database)
+      return { userId: existing.id, emailed: await tellAddedToTeam(person, sender, database) }
+    }
+    // The link goes first, so a mail that can't be sent leaves nothing half done.
+    const emailed = await sendSetPasswordLink(existing, database)
+    await putOnTeam(person.teamId, existing.id, database)
+    return { userId: existing.id, emailed }
   }
-  // Inviting the same address again replaces the old invite and its link.
-  const [invite] = await database
-    .insert(projectTeamInvites)
-    .values({ id: uuid(), teamId: membership.teamId, email, createdAt: at, ...values })
-    .onConflictDoUpdate({
-      target: [projectTeamInvites.teamId, projectTeamInvites.email],
-      set: values,
-    })
-    .returning({ id: projectTeamInvites.id })
-
-  return sendInvite(actor, membership.teamId, invite.id, email, token, database)
+  let made: { id: string; delivered: boolean }
+  try {
+    made = await inviteAccount({ email: person.email, name: person.name, role: EMPLOYEE_ROLE }, database)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ""
+    if (message === "ACCOUNT_EXISTS") throw new Error(PROJECT_ERRORS.emailNotAnEmployee)
+    if (message === "INVALID_NAME") throw new Error(PROJECT_ERRORS.joinNeedsName)
+    // A refused address is the checker's list of issues; it says what's wrong itself.
+    if (message.startsWith("[")) throw error
+    // Otherwise the mail didn't go, and the shell removed the fresh account
+    // again, so the invite can simply be sent once more.
+    throw new Error(PROJECT_ERRORS.inviteNotSent)
+  }
+  await putOnTeam(person.teamId, made.id, database)
+  return { userId: made.id, emailed: made.delivered }
 }
 
 /** What happened to one address of a send with several. */
 export type InviteOutcome =
   | { email: string; result: "sent"; sent: SentInvite }
-  | { email: string; result: "on_team" | "invited" | "not_an_email" | "too_many" }
+  | { email: string; result: "on_team" | "not_an_employee" | "not_an_email" | "too_many" | "not_sent" }
 
 /**
- * Invites several addresses with one role, one at a time through
- * `createInvite`, so each keeps the same checks, caps and email. An address
- * with an invite still open is left alone rather than given a new link, since
- * Resend on the Members page does that on purpose. Hitting a cap stops only
- * that address; the window lists it to send again later.
+ * Invites several addresses, one at a time through `createInvite`, so each
+ * keeps the same checks, caps and email. A refused address stops only itself;
+ * the window lists it with the reason.
  */
 export async function createInvites(
   actor: InviteActor,
-  input: { emails: string[]; role: TeamInviteRole },
+  input: { emails: string[] },
   database = db
 ): Promise<InviteOutcome[]> {
-  const membership = await requireTeamRunner(actor.id, database)
+  await requireTeamRunner(actor.id, database)
   const emails = [...new Set(input.emails.map((email) => email.trim().toLowerCase()))]
-  const open = await database
-    .select({ email: projectTeamInvites.email })
-    .from(projectTeamInvites)
-    .where(
-      and(
-        eq(projectTeamInvites.teamId, membership.teamId),
-        inArray(projectTeamInvites.email, emails),
-        gt(projectTeamInvites.expiresAt, now())
-      )
-    )
-  const invited = new Set(open.map((row) => row.email))
-
   const outcomes: InviteOutcome[] = []
   for (const email of emails) {
     if (!inviteSchema.shape.email.safeParse(email).success) {
       outcomes.push({ email, result: "not_an_email" })
-    } else if (invited.has(email)) {
-      outcomes.push({ email, result: "invited" })
-    } else {
-      try {
-        outcomes.push({ email, result: "sent", sent: await createInvite(actor, { email, role: input.role }, database) })
-      } catch (error) {
-        if (error instanceof RateLimitError) outcomes.push({ email, result: "too_many" })
-        else if (error instanceof Error && error.message === PROJECT_ERRORS.alreadyOnYourTeam) {
-          outcomes.push({ email, result: "on_team" })
-        } else throw error
-      }
+      continue
+    }
+    try {
+      outcomes.push({ email, result: "sent", sent: await createInvite(actor, { email }, database) })
+    } catch (error) {
+      const refused = error instanceof RateLimitError ? "too_many" : refusalFor(error)
+      if (!refused) throw error
+      outcomes.push({ email, result: refused })
     }
   }
   return outcomes
 }
 
-/** A fresh link and seven more days, sent again. The old link stops working. */
+function refusalFor(error: unknown) {
+  if (!(error instanceof Error)) return null
+  if (error.message === PROJECT_ERRORS.emailOnATeam) return "on_team" as const
+  if (error.message === PROJECT_ERRORS.emailNotAnEmployee) return "not_an_employee" as const
+  if (error.message === PROJECT_ERRORS.inviteNotSent) return "not_sent" as const
+  return null
+}
+
+/**
+ * A fresh "Set your password" link for someone invited who hasn't opened
+ * theirs. The old link stops working the way any reset link does when a newer
+ * one is made.
+ */
 export async function resendInvite(
   actor: InviteActor,
-  inviteId: string,
+  userId: string,
   database = db
 ): Promise<SentInvite> {
   const membership = await requireTeamRunner(actor.id, database)
-  const [existing] = await database
-    .select({ email: projectTeamInvites.email })
-    .from(projectTeamInvites)
-    .where(
-      and(
-        eq(projectTeamInvites.id, inviteId),
-        eq(projectTeamInvites.teamId, membership.teamId)
-      )
-    )
-    .limit(1)
-  if (!existing) throw new Error(PROJECT_ERRORS.inviteNotFound)
-  await enforceInviteLimits(actor.id, existing.email, database)
-  const token = createSecretToken()
-  const at = now()
-  const [invite] = await database
-    .update(projectTeamInvites)
-    .set({
-      tokenHash: hashToken(token),
-      expiresAt: new Date(at.getTime() + INVITE_LIFETIME_DAYS * DAY_MS),
-      sentAt: at,
+  const [person] = await database
+    .select({
+      id: customShellUsers.id,
+      email: customShellUsers.email,
+      name: customShellUsers.name,
+      passwordHash: customShellUsers.passwordHash,
     })
-    .where(
-      and(
-        eq(projectTeamInvites.id, inviteId),
-        eq(projectTeamInvites.teamId, membership.teamId)
-      )
-    )
-    .returning({ id: projectTeamInvites.id, email: projectTeamInvites.email })
-  if (!invite) throw new Error(PROJECT_ERRORS.inviteNotFound)
-  return sendInvite(actor, membership.teamId, invite.id, invite.email, token, database)
-}
-
-export async function cancelInvite(actorId: string, inviteId: string, database = db) {
-  const membership = await requireTeamRunner(actorId, database)
-  await database
-    .delete(projectTeamInvites)
-    .where(
-      and(
-        eq(projectTeamInvites.id, inviteId),
-        eq(projectTeamInvites.teamId, membership.teamId)
-      )
-    )
-}
-
-async function sendInvite(
-  actor: InviteActor,
-  teamId: string,
-  inviteId: string,
-  email: string,
-  token: string,
-  database: typeof db
-): Promise<SentInvite> {
-  const [team] = await database
-    .select({ name: projectTeams.name })
-    .from(projectTeams)
-    .where(eq(projectTeams.id, teamId))
+    .from(projectTeamMembers)
+    .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
+    .where(and(eq(projectTeamMembers.teamId, membership.teamId), eq(projectTeamMembers.userId, userId)))
     .limit(1)
-  // The invite page lives under /projects (`routes/_authenticated/projects/invite.$token.tsx`).
-  const link = appUrlFor(`/projects/invite/${encodeURIComponent(token)}`)
-  const sent = await sendInviteEmail(
-    {
-      to: email,
-      teamName: team?.name ?? "your team",
-      inviterName: actor.name,
-      link,
-      workspaceId: actor.currentWorkspaceId,
-    },
-    database
-  )
-  return { inviteId, link, emailed: sent.emailed, emailError: sent.error }
+  if (!person) throw new Error(PROJECT_ERRORS.personNotOnTeam)
+  if (person.passwordHash) throw new Error(PROJECT_ERRORS.alreadySignedIn)
+  await enforceInviteLimits(actor.id, person.email, database)
+  return { userId: person.id, emailed: await sendSetPasswordLink(person, database) }
 }
 
-export type InviteForMe = {
-  id: string
-  teamName: string
-  invitedByName: string | null
-  role: TeamInviteRole
-  email: string
-  /** Why it can't be accepted yet, or null when it can. */
-  blocker: "expired" | "wrong-email" | "already-on-team" | null
+/** Refuses an address that is on a team already. */
+async function requireFreeAddress(email: string, database: ProjectDb) {
+  const existing = await accountFor(email, database)
+  if (!existing) return
+  if (existing.role !== EMPLOYEE_ROLE) throw new Error(PROJECT_ERRORS.emailNotAnEmployee)
+  if (existing.onTeam) throw new Error(PROJECT_ERRORS.emailOnATeam)
 }
 
-type Invitee = { id: string; email: string }
-
-/** The invite behind a link, as the signed-in person sees it. */
-export async function loadInviteByToken(
-  user: Invitee,
-  token: string,
-  database = db
-): Promise<InviteForMe | null> {
-  const [row] = await inviteQuery(database).where(
-    eq(projectTeamInvites.tokenHash, hashToken(token))
-  )
-  return row ? describeInvite(user, row, database) : null
-}
-
-/** Every open invite to this person's email, for the Projects page. */
-export async function listInvitesForMe(
-  user: Invitee,
-  database = db
-): Promise<InviteForMe[]> {
-  const rows = await inviteQuery(database)
-    .where(
-      and(
-        eq(projectTeamInvites.email, user.email.toLowerCase()),
-        gt(projectTeamInvites.expiresAt, now())
-      )
-    )
-    .orderBy(asc(projectTeams.name))
-  return Promise.all(rows.map((row) => describeInvite(user, row, database)))
-}
-
-export async function acceptInvite(
-  user: Invitee,
-  inviteId: string,
-  database = db
-): Promise<{ teamId: string }> {
-  return database.transaction(async (tx) => {
-    const [invite] = await tx
-      .select()
-      .from(projectTeamInvites)
-      .where(eq(projectTeamInvites.id, inviteId))
-      .limit(1)
-    if (!invite) throw new Error(PROJECT_ERRORS.inviteNotFound)
-    if (invite.email !== user.email.toLowerCase()) {
-      throw new Error(PROJECT_ERRORS.inviteWrongEmail)
-    }
-    if (invite.expiresAt <= now()) throw new Error(PROJECT_ERRORS.inviteExpired)
-    if (await findMembership(user.id, tx)) throw new Error(PROJECT_ERRORS.alreadyOnTeam)
-
-    await tx.insert(projectTeamMembers).values({
-      teamId: invite.teamId,
-      userId: user.id,
-      role: invite.role,
-      joinedAt: now(),
+async function accountFor(email: string, database: ProjectDb) {
+  const [row] = await database
+    .select({
+      id: customShellUsers.id,
+      email: customShellUsers.email,
+      name: customShellUsers.name,
+      role: customShellUsers.role,
+      passwordHash: customShellUsers.passwordHash,
+      teamId: projectTeamMembers.teamId,
     })
-    await tx.delete(projectTeamInvites).where(eq(projectTeamInvites.id, invite.id))
-    await giveStarterTasks(invite.teamId, user.id, tx)
-    await joinWholeTeamProjects(invite.teamId, user.id, tx)
-    return { teamId: invite.teamId }
+    .from(customShellUsers)
+    .leftJoin(projectTeamMembers, eq(projectTeamMembers.userId, customShellUsers.id))
+    .where(eq(sql`lower(${customShellUsers.email})`, email))
+    .limit(1)
+  if (!row) return null
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.role,
+    hasPassword: row.passwordHash !== null,
+    onTeam: row.teamId !== null,
+  }
+}
+
+async function putOnTeam(teamId: string, userId: string, database: typeof db) {
+  await database.transaction(async (tx) => {
+    const added = await tx
+      .insert(projectTeamMembers)
+      .values({ teamId, userId, role: "member", joinedAt: now() })
+      .onConflictDoNothing()
+      .returning({ userId: projectTeamMembers.userId })
+    // Someone already on a team stays where they are.
+    if (!added.length) throw new Error(PROJECT_ERRORS.emailOnATeam)
+    await giveStarterTasks(teamId, userId, tx)
+    await joinWholeTeamProjects(teamId, userId, tx)
   })
 }
 
-/** Turning an invite down deletes it. Only the invited address can. */
-export async function declineInvite(user: Invitee, inviteId: string, database = db) {
-  await database
-    .delete(projectTeamInvites)
-    .where(
-      and(
-        eq(projectTeamInvites.id, inviteId),
-        eq(projectTeamInvites.email, user.email.toLowerCase())
-      )
-    )
-}
-
-function inviteQuery(database: typeof db) {
-  return database
-    .select({
-      id: projectTeamInvites.id,
-      email: projectTeamInvites.email,
-      role: projectTeamInvites.role,
-      expiresAt: projectTeamInvites.expiresAt,
-      teamName: projectTeams.name,
-      invitedByName: customShellUsers.name,
-    })
-    .from(projectTeamInvites)
-    .innerJoin(projectTeams, eq(projectTeams.id, projectTeamInvites.teamId))
-    .leftJoin(
-      customShellUsers,
-      eq(customShellUsers.id, projectTeamInvites.invitedByUserId)
-    )
-    .$dynamic()
-}
-
-async function describeInvite(
-  user: Invitee,
-  row: {
-    id: string
-    email: string
-    role: TeamInviteRole
-    expiresAt: Date
-    teamName: string
-    invitedByName: string | null
-  },
+/** The shell's own "Set your password" email, sent again. */
+async function sendSetPasswordLink(
+  person: { id: string; email: string; name: string },
   database: typeof db
-): Promise<InviteForMe> {
-  const blocker =
-    row.expiresAt <= now()
-      ? "expired"
-      : row.email !== user.email.toLowerCase()
-        ? "wrong-email"
-        : (await findMembership(user.id, database))
-          ? "already-on-team"
-          : null
-  return {
-    id: row.id,
-    teamName: row.teamName,
-    invitedByName: row.invitedByName,
-    role: row.role,
-    email: row.email,
-    blocker,
+): Promise<boolean> {
+  const linkContext = await getAuthLinkContext(database)
+  const token = await createWorkspaceAuthToken(person.id, "reset_password", database, {
+    context: linkContext,
+  })
+  try {
+    const sent = await sendAuthEmail(
+      {
+        kind: "new-account",
+        to: person.email,
+        recipientName: person.name,
+        workspaceId: linkContext.workspaceId ?? undefined,
+        linkExpiry: linkContext.expiry,
+        showFailureReasonToAdmin: true,
+        actionUrl: appUrlFor(`/reset-password?token=${encodeURIComponent(token)}`),
+      },
+      { retryOnFailure: false, database }
+    )
+    return sent.delivered
+  } catch {
+    throw new Error(PROJECT_ERRORS.inviteNotSent)
   }
+}
+
+/** An employee with a password already, put on a new team, is told by email. */
+async function tellAddedToTeam(
+  person: { email: string; teamId: string },
+  sender: { inviterName: string; workspaceId: string | null },
+  database: typeof db
+) {
+  const [team] = await database
+    .select({ name: projectTeams.name })
+    .from(projectTeams)
+    .where(eq(projectTeams.id, person.teamId))
+    .limit(1)
+  const sent = await sendInviteEmail(
+    {
+      to: person.email,
+      teamName: team?.name ?? "your team",
+      inviterName: sender.inviterName,
+      link: appUrlFor("/login"),
+      workspaceId: sender.workspaceId,
+    },
+    database
+  )
+  return sent.emailed
 }

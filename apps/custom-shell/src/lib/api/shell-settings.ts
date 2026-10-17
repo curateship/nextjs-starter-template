@@ -4,9 +4,9 @@ import { eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { appPublicTheme } from "@/lib/app-options"
+import { ROLE_ID_PATTERN } from "@/lib/role-id"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  SHELL_ROLES,
   TOP_LEFT_MODES,
   TOP_LEFT_NAV_LIMIT_OPTIONS,
   TOP_RIGHT_NAVIGATION_ITEM_IDS,
@@ -140,7 +140,10 @@ const publicFontAssetSchema = z
   })
   .nullable()
 
-const shellRolesSchema = z.array(z.enum(SHELL_ROLES)).optional()
+// The shape only, not the app's list: a menu link still naming a role the app
+// has stopped declaring must not refuse the whole settings save.
+const roleIdSchema = z.string().regex(ROLE_ID_PATTERN)
+const shellRolesSchema = z.array(roleIdSchema).optional()
 
 const shellChildItemSchema = z.object({
   id: z.string().min(1),
@@ -526,6 +529,9 @@ const shellConfigSchema = z.object({
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
   memberSections: z.array(shellSectionSchema),
+  // Optional so a settings tab left open from before role menus existed
+  // still saves; the handler keeps the stored menus when it sends none.
+  roleSections: z.record(roleIdSchema, z.array(shellSectionSchema)).optional(),
   liveNotifications: z.boolean(),
   passkeySignIn: z.boolean(),
   notificationTypes: z.object(
@@ -737,6 +743,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             data.memberTopLeftMode ?? existingGlobals.memberTopLeftMode,
           topLeftShortcuts:
             data.topLeftShortcuts ?? existingGlobals.topLeftShortcuts,
+          roleSections: data.roleSections ?? existingGlobals.roleSections,
         }),
         publicTheme: publicThemeOverrides(nextPublicTheme, appPublicTheme()),
         maintenance: {

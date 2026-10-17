@@ -7,7 +7,7 @@ import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
   requireMembership,
-  requireProjectAccess,
+  requireProjectSettings,
   requireTeamRunner,
   type ProjectDb,
 } from "@/server/project/access"
@@ -50,7 +50,7 @@ export async function saveTemplate(
   database = db
 ): Promise<{ id: string }> {
   return database.transaction(async (tx) => {
-    const { membership, project } = await requireProjectAccess(userId, input.projectId, tx)
+    const { membership, project } = await requireProjectSettings(userId, input.projectId, tx, { allowArchived: true })
     requireSharedProject(project)
     const [{ total }] = await tx
       .select({ total: count() })
@@ -63,7 +63,7 @@ export async function saveTemplate(
       id,
       teamId: membership.teamId,
       name: input.name,
-      content: await readProjectPlan(tx, project, userId),
+      content: await readProjectPlan(tx, project),
       createdByUserId: userId,
       createdAt: now(),
     })

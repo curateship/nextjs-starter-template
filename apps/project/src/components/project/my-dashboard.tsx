@@ -45,7 +45,6 @@ import {
   type NotificationItem,
 } from "@/lib/api/notification"
 import { saveMemberTitle } from "@/lib/api/project/team-running"
-import type { InviteForMe } from "@/lib/api/project/teams"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -53,11 +52,12 @@ import { useAppNotificationDetails } from "@/lib/hooks/use-app-notification-deta
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
 import { notificationAction } from "@/lib/notification-action"
+import { clientChoices } from "@/lib/project/clients"
 import { MY_DASHBOARD_PANEL_LAYOUT_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { clockIn, clockLabel } from "@/lib/project/days"
-import { LIMITS, TEAM_ROLE_LABEL, runsTheTeam, type TaskStatus } from "@/lib/project/rules"
+import { LIMITS, type TaskStatus } from "@/lib/project/rules"
 import {
   DUE_GROUPS,
   dueGroupOf,
@@ -68,6 +68,7 @@ import {
 import { todaysPicks } from "@/lib/project/todays-picks"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { viewHasFilters } from "@/lib/project/saved-views"
+import { useMyLive } from "@/lib/project/use-my-live"
 import { cn } from "@/lib/utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -89,18 +90,18 @@ type MyView = (typeof MY_VIEWS)[number]
  * project page, and closing it brings the inbox back (Tyler, 13 Oct 2026).
  * The check-in opens as a window from here.
  */
+const MY_DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
+
 export function MyDashboardScreen({
   dashboard,
-  invites,
   notifications,
   search,
 }: {
   dashboard: MyDashboardData | null
-  invites: InviteForMe[]
   notifications: NotificationItem[]
   search: MyDashboardSearch
 }) {
-  if (!dashboard) return <TeamStart invites={invites} />
+  if (!dashboard) return <TeamStart />
   return <Dashboard dashboard={dashboard} notifications={notifications} search={search} />
 }
 
@@ -126,6 +127,12 @@ function Dashboard({
       if (tasksRef.current.some((task) => task.id === taskId && task.unread > 0)) void router.invalidate()
     },
     [router]
+  )
+  // A task handed to me, or changed on a project I'm on, shows without a
+  // reload (Features 16 Oct, part 5). Only this page's own data loads again.
+  useMyLive(
+    (change) => change === "mine",
+    () => void router.invalidate({ filter: (match) => match.routeId === MY_DASHBOARD_ROUTE_ID })
   )
   const go = React.useCallback(
     (patch: Partial<MyDashboardSearch>, options: { replace?: boolean } = {}) =>
@@ -170,6 +177,7 @@ function Dashboard({
                 label: search.label,
                 type: search.type,
                 due: search.due,
+                client: search.client,
               }}
               onFilters={(patch) => go(patch, { replace: true })}
               onOpenTask={taskAddress.open}
@@ -250,7 +258,7 @@ function MePanel({
         <div className="grid min-w-0 flex-1">
           <span className="truncate text-sm font-medium">{me.name}</span>
           <span className="truncate text-xs text-muted-foreground">
-            {TEAM_ROLE_LABEL[me.role]} · {me.teamName}
+            {[me.title, me.teamName].filter(Boolean).join(" · ")}
           </span>
         </div>
         <MySettingsMenu dashboard={dashboard} />
@@ -278,7 +286,7 @@ function MePanel({
                 </>
               ) : null}
               {dashboard.record.of ? (
-                // Only I see this; it is never shown to the owner.
+                // Only I and the site admin see this; teammates never do.
                 <>
                   <dt className="text-muted-foreground">On time</dt>
                   <dd className="text-right">
@@ -383,7 +391,7 @@ function MySettingsMenu({ dashboard }: { dashboard: MyDashboardData }) {
               title="Bell notices"
               summary={dashboard.noticesOff.length ? `${dashboard.noticesOff.length} off` : "All on"}
             >
-              <MyNoticeSwitches off={dashboard.noticesOff} runsTheTeam={runsTheTeam(me.role)} />
+              <MyNoticeSwitches off={dashboard.noticesOff} />
             </OptionCard>
           </div>
         </ScrollArea>
@@ -547,6 +555,7 @@ function MyTasksPanel({
             types={dashboard.taskTypes}
             buttonVariant="ghost"
             onSaveView={saveView}
+            clients={clientChoices([...open, ...done].map((task) => task.projectClient))}
           />
           <SavedViewsControls
             views={dashboard.views}

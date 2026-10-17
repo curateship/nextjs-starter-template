@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import {
-  ChartColumnIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -11,8 +10,7 @@ import {
   MegaphoneIcon,
   PartyPopperIcon,
   PlusIcon,
-  SettingsIcon,
-  UsersIcon,
+  RefreshCwIcon,
 } from "lucide-react"
 
 import { BlockerReplies } from "@/components/project/blocker-replies"
@@ -28,8 +26,10 @@ import { AnnouncementCard, AnnouncementDialog } from "@/components/project/team-
 import { TaggedWords } from "@/components/project/tag-textarea"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskDialog } from "@/components/project/task-dialog"
-import { TeamFiguresGrid, TeamPhoto } from "@/components/project/team-figures"
-import { DayDueTasks, DueChips } from "@/components/project/team-due-dates"
+import { TeamCover, TeamFiguresGrid } from "@/components/project/team-figures"
+import { ClientFilterSelect } from "@/components/project/client-filter-select"
+import { AwayChip } from "@/components/project/team-away"
+import { DayDueTasks, DeadlineChips, DueChips } from "@/components/project/team-due-dates"
 import { MeetingChips, MeetingsCard } from "@/components/project/team-meetings"
 import { InviteResentDialog } from "@/components/project/team-members"
 import { PanelCard } from "@/components/project/panel-card"
@@ -41,11 +41,9 @@ import { TeamStart } from "@/components/project/team-start"
 import { TeamTrendsDialog } from "@/components/project/team-trends-dialog"
 import { TeamWeek } from "@/components/project/team-week"
 import { ThreePanels } from "@/components/project/three-panels"
-import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { Badge } from "@/components/ui/badge"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Meter } from "@/components/ui/meter"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
@@ -53,9 +51,12 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   showDueDatesOnCalendar,
+  type AwayDay,
+  type BlockerReply,
   type TeamDay,
   type TeamDayPerson,
   type TeamDayTask,
+  type TeamDeadline,
   type TeamDueTask,
   type TeamMonth,
 } from "@/lib/api/project/checkins"
@@ -63,19 +64,19 @@ import { linkNoteLineToTask, type Meeting, type MeetingOccurrence, type TeamMeet
 import { loadNewTaskProjects, type NewTaskProject } from "@/lib/api/project/tasks"
 import {
   resendTeamInvite,
-  type InviteForMe,
   type SentInvite,
   type TeamDashboard as TeamDashboardData,
   type TeamFigures,
-  type TeamInviteRow,
   type TeamMemberRow,
 } from "@/lib/api/project/teams"
 import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { addDays, clockIn, dayLabel, longDayLabel, shortDayLabel, zoneCity } from "@/lib/project/days"
+import { matchesClient } from "@/lib/project/clients"
+import { useMyLive } from "@/lib/project/use-my-live"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { dueByDay, dueWords } from "@/lib/project/due-days"
+import { awayWords, deadlineWords, dueByDay, dueWords } from "@/lib/project/due-days"
 import {
   dayCellClassName,
   meetingWords,
@@ -95,8 +96,10 @@ import {
 import { weekDays } from "@/lib/project/week-view"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { TEAM_ROLE_LABEL, runsTheTeam } from "@/lib/project/rules"
+import { runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
+
+const TEAM_ROUTE_ID = "/_authenticated/team/"
 
 export type TeamSearch = {
   /** "YYYY-MM" shown in the calendar. Left out, the current month. */
@@ -108,6 +111,11 @@ export type TeamSearch = {
   day?: string
   /** The task whose window is open. */
   task?: string
+  /**
+   * A client's name, or "No client": the calendar's due dates and Workload
+   * show only that client's projects (Features 16 Oct, part 9).
+   */
+  client?: string
 }
 
 /**
@@ -124,17 +132,15 @@ export function TeamDashboardScreen({
   checkins,
   meetings,
   figures,
-  invites,
   search,
 }: {
   data: TeamDashboardData | null
   checkins: { month: TeamMonth; day: TeamDay } | null
   meetings: TeamMeetings | null
   figures: TeamFigures | null
-  invites: InviteForMe[]
   search: TeamSearch
 }) {
-  if (!data || !checkins || !meetings || !figures) return <TeamStart invites={invites} />
+  if (!data || !checkins || !meetings || !figures) return <TeamStart />
   return (
     <Dashboard
       data={data}
@@ -163,6 +169,19 @@ function Dashboard({
   search: TeamSearch
 }) {
   const navigate = useNavigate()
+  const router = useRouter()
+  // Check-ins, meetings, time off and tasks changed by others show without a
+  // reload (Features 16 Oct, part 5). Only this page's own data loads again;
+  // an open task window loads its own.
+  // Attention and Workload load apart from the page, so they count changes too.
+  const [liveChanges, setLiveChanges] = React.useState(0)
+  useMyLive(
+    () => true,
+    () => {
+      setLiveChanges((n) => n + 1)
+      void router.invalidate({ filter: (match) => match.routeId === TEAM_ROUTE_ID })
+    }
+  )
   const go = React.useCallback(
     (patch: Partial<TeamSearch>) =>
       void navigate({
@@ -179,7 +198,22 @@ function Dashboard({
   const [dayPicks, setDayPicks] = React.useState(0)
   const selected = search.day ?? month.today
   const meetingDays = React.useMemo(() => meetingsByDay(meetings), [meetings])
-  const dueDays = React.useMemo(() => dueByDay(month.dueDates.tasks), [month.dueDates.tasks])
+  const client = search.client
+  const dueDays = React.useMemo(
+    () =>
+      dueByDay(client ? month.dueDates.tasks.filter((task) => matchesClient(task.projectClient, client)) : month.dueDates.tasks),
+    [month.dueDates.tasks, client]
+  )
+  const deadlineDays = React.useMemo(
+    () =>
+      dueByDay(
+        client
+          ? month.dueDates.deadlines.filter((deadline) => matchesClient(deadline.projectClient, client))
+          : month.dueDates.deadlines
+      ),
+    [month.dueDates.deadlines, client]
+  )
+  const awayOf = React.useMemo(() => new Map(month.away.map((away) => [away.day, away])), [month.away])
   const holidayOf = React.useMemo(() => new Map(month.holidays.map((h) => [h.day, h.name])), [month.holidays])
   // The calendar's New meeting and the right panel's "+ Add" open the same windows.
   const meetingWindows = useMeetingWindows({ meetings, data, day: selected < month.today ? month.today : selected })
@@ -201,9 +235,13 @@ function Dashboard({
             selected={selected}
             meetingDays={meetingDays}
             dueDays={dueDays}
+            deadlineDays={deadlineDays}
+            awayOf={awayOf}
             holidayOf={holidayOf}
             viewerZone={meetings.viewerZone}
             data={data}
+            client={client}
+            onClient={(next) => go({ client: next })}
             // A new month starts on its 1st, or on today in today's month, so
             // the calendar, its meetings and the check-ins name one day.
             onMonth={(next) =>
@@ -227,8 +265,6 @@ function Dashboard({
         content: (
           <RightPanel
             canRun={runsTheTeam(data.myRole)}
-            day={day}
-            onDay={(next) => go({ day: next, month: next.slice(0, 7) })}
             checkins={
               <CheckinsCard
                 day={day}
@@ -249,11 +285,19 @@ function Dashboard({
             }
             due={
               month.dueDates.on ? (
-                <DayDueTasks tasks={dueDays.get(day.day) ?? []} onOpenTask={(taskId) => go({ task: taskId })} />
+                <DayDueTasks
+                  tasks={dueDays.get(day.day) ?? []}
+                  deadlines={deadlineDays.get(day.day) ?? []}
+                  onOpenTask={(taskId) => go({ task: taskId })}
+                />
               ) : null
             }
             openTask={search.task}
+            liveChanges={liveChanges}
             onOpenTask={(taskId) => go({ task: taskId })}
+            clients={data.clients}
+            client={client}
+            onClient={(next) => go({ client: next })}
           />
         ),
       }}
@@ -331,7 +375,6 @@ function useMeetingWindows({ meetings, data, day }: { meetings: TeamMeetings; da
 function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFigures }) {
   const { team } = data
   const canRun = runsTheTeam(data.myRole)
-  const router = useRouter()
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [inviting, setInviting] = React.useState(false)
   const [trendsOpen, setTrendsOpen] = React.useState(false)
@@ -342,100 +385,61 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
 
   /** The same resend as the Members page: a fresh link, the old one stops working. */
-  async function resend(invite: TeamInviteRow) {
+  async function resend(member: TeamMemberRow) {
     let sent: SentInvite | null = null
     const ok = await run(async () => {
-      sent = await resendTeamInvite(invite.id)
+      sent = await resendTeamInvite(member.userId)
     })
-    if (!ok || !sent) return
-    setResent({ sent, email: invite.email })
-    await router.invalidate()
+    if (ok && sent) setResent({ sent, email: member.email })
   }
 
   return (
     <>
-      <DashboardCardTitleHeader
-        icon={<UsersIcon className="size-4" />}
-        title="Team"
-        action={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Team settings"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <SettingsIcon className="size-4" />
-          </Button>
-        }
-      />
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         {/* The check-in schedule is in Team settings (the cog), so it isn't repeated here (Tyler, 14 Oct 2026). */}
-        <div className="grid gap-3 p-3">
-          <TeamPhoto teamName={team.name} photoUrl={team.photoUrl} canEdit={canRun} />
-          <div className="grid gap-0.5 px-1 pb-1">
-            <h3 className="text-lg font-semibold break-words">{team.name}</h3>
-            <p className="text-sm text-muted-foreground">
-              Created {formatDate(team.createdAt)} · {zoneCity(team.timeZone)}
-            </p>
-          </div>
-          <PanelCard storageId="project-team-this-week" title="This week">
+        <TeamCover
+          team={team}
+          created={`Created ${formatDate(team.createdAt)} · ${zoneCity(team.timeZone)}`}
+          canEdit={canRun}
+          // Team settings are the site admin's alone, so nobody else sees the cog.
+          onSettings={canRun ? () => setSettingsOpen(true) : null}
+        />
+        <div className="grid gap-3 px-3 pb-3">
+          <PanelCard
+            storageId="project-team-this-week"
+            title="This week"
+            action={
+              <Button type="button" variant="ghost" size="sm" onClick={() => setTrendsOpen(true)}>
+                Trends
+              </Button>
+            }
+          >
             <TeamFiguresGrid figures={figures} />
-            <Button type="button" variant="outline" size="sm" className="bg-background" onClick={() => setTrendsOpen(true)}>
-              <ChartColumnIcon className="size-4" />
-              Trends, last 12 weeks
-            </Button>
           </PanelCard>
-          <PanelCard storageId="project-team-members" title="Members" meta={data.members.length}>
-            {/* min-w-0: in a narrow panel the names shorten rather than pushing Owner and Resend out of the card. */}
-            <ul className="grid min-w-0 gap-1">
-              {data.members.map((member) => (
-                <li key={member.userId}>
-                  <button
-                    type="button"
-                    onClick={() => setViewing(member)}
-                    className="flex w-full items-center gap-3 rounded-md py-1 text-left text-sm hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                  >
-                    <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} size="default" />
-                    <span className="grid min-w-0 flex-1">
-                      <span className="truncate font-medium">
-                        {member.name}
-                        {member.userId === data.myUserId ? " (you)" : ""}
-                      </span>
-                      {member.title ? (
-                        <span className="truncate text-xs text-muted-foreground">{member.title}</span>
-                      ) : null}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">{TEAM_ROLE_LABEL[member.role]}</span>
-                  </button>
-                </li>
-              ))}
-              {/* Only the owner and admins are sent the pending invites. */}
-              {data.invites.map((invite) => (
-                <li key={invite.id} className="flex items-center gap-3 py-1 text-sm">
-                  <span aria-hidden className="size-8 shrink-0 rounded-full border border-dashed" />
-                  <span className="grid min-w-0 flex-1">
-                    <span className="truncate text-muted-foreground">{invite.email}</span>
-                    <span className="text-xs text-muted-foreground">{invite.expired ? "Invite ran out" : "Pending invite"}</span>
-                  </span>
-                  <Button type="button" variant="ghost" size="sm" className="-mr-2" disabled={busy} onClick={() => void resend(invite)}>
-                    Resend
-                  </Button>
-                </li>
-              ))}
-            </ul>
-            {/* Side by side where they fit; Manage drops under Invite member in a narrow panel. */}
-            <div className="flex min-w-0 flex-wrap gap-2">
-              {canRun ? (
-                <Button type="button" size="sm" className="flex-1" onClick={() => setInviting(true)}>
-                  <PlusIcon className="size-4" />
-                  Invite member
-                </Button>
-              ) : null}
-              <Button asChild variant="outline" size="sm" className="flex-1 bg-background">
+          <PanelCard
+            storageId="project-team-members"
+            title="Members"
+            meta={data.members.length}
+            action={
+              <Button asChild variant="ghost" size="sm">
                 <Link to="/team/members">Manage</Link>
               </Button>
-            </div>
+            }
+          >
+            <MemberGroups
+              members={data.members}
+              myUserId={data.myUserId}
+              canRun={canRun}
+              busy={busy}
+              onOpen={setViewing}
+              onResend={(member) => void resend(member)}
+            />
+            {canRun ? (
+              <Button type="button" className="w-full" onClick={() => setInviting(true)}>
+                <PlusIcon className="size-4" />
+                Invite people
+              </Button>
+            ) : null}
           </PanelCard>
         </div>
       </ScrollArea>
@@ -465,6 +469,80 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
   )
 }
 
+/**
+ * The Members card's two groups, as Tyler drew them on 16 Oct 2026: Active,
+ * then Invited (not signed in yet) under a line, each invited person with a
+ * dashed photo and Resend for the site admin. A name opens the person's page.
+ */
+function MemberGroups({
+  members,
+  myUserId,
+  canRun,
+  busy,
+  onOpen,
+  onResend,
+}: {
+  members: TeamMemberRow[]
+  myUserId: string
+  canRun: boolean
+  busy: boolean
+  onOpen: (member: TeamMemberRow) => void
+  onResend: (member: TeamMemberRow) => void
+}) {
+  const active = members.filter((member) => !member.invited)
+  const invited = members.filter((member) => member.invited)
+  const row = (member: TeamMemberRow) => (
+    <li key={member.userId} className="flex min-w-0 items-center gap-2">
+      <button
+        type="button"
+        onClick={() => onOpen(member)}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left text-sm hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <PersonAvatar
+          name={member.name}
+          avatarUrl={member.avatarUrl}
+          size="default"
+          className={member.invited ? "after:border-dashed [&_[data-slot=avatar-fallback]]:bg-transparent" : undefined}
+        />
+        <span className="grid min-w-0 flex-1">
+          <span className={cn("truncate", member.invited ? "text-muted-foreground" : "font-medium")}>
+            {member.name}
+            {member.userId === myUserId ? " (you)" : ""}
+          </span>
+          {member.title ? <span className="truncate text-xs text-muted-foreground">{member.title}</span> : null}
+        </span>
+      </button>
+      {canRun && member.invited ? (
+        <Button type="button" variant="outline" size="sm" className="shrink-0 bg-background" disabled={busy} onClick={() => onResend(member)}>
+          Resend
+        </Button>
+      ) : null}
+    </li>
+  )
+  return (
+    <div className="grid min-w-0 gap-4">
+      {active.length ? (
+        <MemberGroup label={`Active · ${active.length}`}>{active.map(row)}</MemberGroup>
+      ) : null}
+      {invited.length ? (
+        // The line between the groups runs to the card's edges.
+        <div className={cn("grid min-w-0", active.length && "-mx-4 border-t px-4 pt-4")}>
+          <MemberGroup label={`Invited · ${invited.length}`}>{invited.map(row)}</MemberGroup>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function MemberGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <section aria-label={label} className="grid min-w-0 gap-2">
+      <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</h3>
+      <ul className="grid min-w-0 gap-1">{children}</ul>
+    </section>
+  )
+}
+
 const MIDDLE_TABS = ["calendar", "activity"] as const
 type MiddleTab = (typeof MIDDLE_TABS)[number]
 const CALENDAR_VIEWS = ["month", "week"] as const
@@ -483,9 +561,13 @@ function CalendarPanel({
   selected,
   meetingDays,
   dueDays,
+  deadlineDays,
+  awayOf,
   holidayOf,
   viewerZone,
   data,
+  client,
+  onClient,
   onMonth,
   onWeek,
   onToday,
@@ -497,9 +579,14 @@ function CalendarPanel({
   selected: string
   meetingDays: Map<string, DayMeeting[]>
   dueDays: Map<string, TeamDueTask[]>
+  /** Each day's milestones and projects due; empty while "Due dates" is off. */
+  deadlineDays: Map<string, TeamDeadline[]>
+  awayOf: Map<string, AwayDay>
   holidayOf: Map<string, string>
   viewerZone: string
   data: TeamDashboardData
+  client: string | undefined
+  onClient: (client: string | undefined) => void
   onMonth: (month: string) => void
   /** A week's arrow: the same weekday in the week before or after. */
   onWeek: (day: string) => void
@@ -584,6 +671,9 @@ function CalendarPanel({
               showDue={showDue}
               savingDue={savingSwitch}
               onShowDue={(on) => void switchDueDates(on)}
+              clients={data.clients}
+              client={client}
+              onClient={onClient}
             />
           ) : null}
           {canRun && !data.announcement ? (
@@ -632,6 +722,8 @@ function CalendarPanel({
               meetingDays={meetingDays}
               holidays={holidayOf}
               dueDays={dueDays}
+              deadlineDays={deadlineDays}
+              awayOf={awayOf}
               viewerZone={viewerZone}
               onSelect={onSelect}
             />
@@ -645,10 +737,14 @@ function CalendarPanel({
                   : null
                 const holiday = inMonth ? holidayOf.get(date) : undefined
                 const dayDue = inMonth ? (dueDays.get(date) ?? []) : []
+                const dayDeadlines = inMonth ? (deadlineDays.get(date) ?? []) : []
+                const away = inMonth ? awayOf.get(date) : undefined
                 const words = [
                   holiday ? `${holiday}, a team holiday` : null,
                   checkinWords,
+                  awayWords(away),
                   meetingWords(dayMeetings, viewerZone),
+                  deadlineWords(dayDeadlines),
                   dueWords(dayDue),
                 ].filter(Boolean)
                 return (
@@ -666,32 +762,30 @@ function CalendarPanel({
                       date === selected && "ring-2 ring-foreground"
                     )}
                   >
-                    <DayNumber date={date} today={month.today} />
-                    {/* A phone's squares are too narrow for words: "4/6" and a mark with the number. */}
+                    {/* As Tyler drew it on 16 Oct 2026: the day and its check-ins in one
+                        line, then blocked, meetings and who is away, each its own chip. */}
+                    <span className="flex w-full items-center justify-between gap-1">
+                      <DayNumber date={date} today={month.today} />
+                      {counts && counts.expected ? <CheckinPill counts={counts} /> : null}
+                    </span>
                     {holiday ? (
-                      <span className="flex max-w-full items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-muted-foreground sm:px-1.5">
+                      <span className="flex w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground">
                         <PartyPopperIcon className="size-3 shrink-0" aria-hidden />
                         <span className="truncate max-sm:hidden">{holiday}</span>
                       </span>
                     ) : null}
-                    {counts && counts.expected ? (
-                      <span className="w-full rounded bg-muted px-1 py-0.5 sm:px-1.5">
-                        <span className="sm:hidden">
-                          {counts.checkedIn}/{counts.expected}
-                        </span>
-                        <span className="max-sm:hidden">
-                          {counts.checkedIn} of {counts.expected} in
-                        </span>
-                      </span>
-                    ) : null}
                     {counts?.blocked ? (
-                      <span className="flex w-full items-center gap-0.5 rounded bg-destructive/10 px-1 py-0.5 text-destructive sm:px-1.5">
+                      <span className="flex w-full items-center gap-1 rounded-md bg-destructive/10 px-1.5 py-0.5 text-destructive">
                         <CircleAlertIcon className="size-3 shrink-0 sm:hidden" aria-hidden />
-                        {counts.blocked}
-                        <span className="max-sm:hidden">&nbsp;blocked</span>
+                        <span className="truncate">
+                          {counts.blocked}
+                          <span className="max-sm:hidden"> blocked</span>
+                        </span>
                       </span>
                     ) : null}
                     <MeetingChips meetings={dayMeetings} />
+                    <AwayChip away={away} />
+                    <DeadlineChips deadlines={dayDeadlines} />
                     <DueChips tasks={dayDue} />
                   </button>
                 )
@@ -714,18 +808,43 @@ function CalendarPanel({
  * dates switch that puts the team's due dates on the calendar (each person's
  * own choice).
  */
+/**
+ * "4/4" beside the day: grey when everyone checked in, amber when some did,
+ * red when nobody did (Tyler's drawing, 16 Oct 2026). The square's own label
+ * says it in words for a screen reader.
+ */
+function CheckinPill({ counts }: { counts: { checkedIn: number; expected: number } }) {
+  const tone =
+    counts.checkedIn >= counts.expected
+      ? "bg-muted text-muted-foreground"
+      : counts.checkedIn === 0
+        ? "bg-destructive/10 text-destructive"
+        : "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+  return (
+    <span aria-hidden className={cn("shrink-0 rounded-full px-1.5 py-0.5 font-medium tabular-nums", tone)}>
+      {counts.checkedIn}/{counts.expected}
+    </span>
+  )
+}
+
 function CalendarViewMenu({
   view,
   onView,
   showDue,
   savingDue,
   onShowDue,
+  clients,
+  client,
+  onClient,
 }: {
   view: CalendarView
   onView: (view: CalendarView) => void
   showDue: boolean
   savingDue: boolean
   onShowDue: (on: boolean) => void
+  clients: string[]
+  client: string | undefined
+  onClient: (client: string | undefined) => void
 }) {
   return (
     <Popover>
@@ -758,6 +877,14 @@ function CalendarViewMenu({
             onCheckedChange={onShowDue}
           />
         </div>
+        {showDue && (clients.length || client) ? (
+          <div className="grid gap-2">
+            <Label htmlFor="team-calendar-client" className="font-normal">
+              Client
+            </Label>
+            <ClientFilterSelect id="team-calendar-client" value={client} clients={clients} onChange={onClient} />
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   )
@@ -853,51 +980,42 @@ type RightTab = (typeof RIGHT_TABS)[number]
  */
 function RightPanel({
   canRun,
-  day,
-  onDay,
   checkins,
   meetings,
   due,
   openTask,
+  liveChanges,
   onOpenTask,
+  clients,
+  client,
+  onClient,
 }: {
   canRun: boolean
-  day: TeamDay
-  onDay: (day: string) => void
   checkins: React.ReactNode
   meetings: React.ReactNode
   due: React.ReactNode
   /** The task whose window is open: the lists load again when it closes, so a fixed task leaves them. */
   openTask: string | undefined
+  /** How many live changes have come in; each one loads Attention and Workload again. */
+  liveChanges: number
   onOpenTask: (taskId: string) => void
+  clients: string[]
+  client: string | undefined
+  onClient: (client: string | undefined) => void
 }) {
   const [chosen, setTab] = useRememberedChoice<RightTab>(TEAM_RIGHT_TAB_KEY, "checkins", RIGHT_TABS)
   const tab = chosen === "attention" && !canRun ? "checkins" : chosen
-  const attention = useAttention(canRun, openTask)
+  const reload = `${openTask ?? ""}:${liveChanges}`
+  const attention = useAttention(canRun, reload)
   const attentionCount = attention.loaded.state === "ready" ? attention.loaded.value.length : 0
   return (
     <>
-      <DashboardCardHeader>
-        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{longDayLabel(day.day)}</h2>
-        <Button type="button" variant="ghost" size="icon" aria-label="The day before" onClick={() => onDay(addDays(day.day, -1))}>
-          <ChevronLeftIcon className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="The day after"
-          disabled={day.day >= day.today}
-          onClick={() => onDay(addDays(day.day, 1))}
-        >
-          <ChevronRightIcon className="size-4" />
-        </Button>
-      </DashboardCardHeader>
-      <div className="flex h-11 shrink-0 border-b px-4">
+      {/* The tabs are the header (Tyler, 16 Oct 2026); the day is picked on the calendar.
+          px-2 lines the first tab up with the cards and leaves room for all three. */}
+      <DashboardCardHeader className="@container px-2">
         <UnderlineTabs
           value={tab}
           onValueChange={(value) => setTab(value as RightTab)}
-          className="my-0 self-stretch"
           tabs={[
             { value: "checkins", label: "Check-ins" },
             { value: "workload", label: "Workload" },
@@ -910,7 +1028,7 @@ function RightPanel({
                       <>
                         Attention
                         {attentionCount ? (
-                          <span className="rounded-full bg-destructive/10 px-1.5 text-xs text-destructive tabular-nums">
+                          <span className="rounded-full bg-destructive/10 px-1 text-xs text-destructive tabular-nums">
                             {attentionCount}
                           </span>
                         ) : null}
@@ -921,13 +1039,19 @@ function RightPanel({
               : []),
           ]}
         />
-      </div>
+      </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <div className="grid gap-3 p-3">
           {tab === "checkins" ? (
             checkins
           ) : tab === "workload" ? (
-            <WorkloadPanel reload={openTask} onOpenTask={onOpenTask} />
+            <WorkloadPanel
+              reload={reload}
+              onOpenTask={onOpenTask}
+              clients={clients}
+              client={client}
+              onClient={onClient}
+            />
           ) : (
             <AttentionPanel attention={attention} onOpenTask={onOpenTask} />
           )}
@@ -940,8 +1064,11 @@ function RightPanel({
 }
 
 /**
- * The day's check-ins as a card: "1 of 1 checked in" with its bar, then each
- * person with when they checked in, Late or Blocked, and their notes.
+ * The day's check-ins, as Tyler drew them on 16 Oct 2026
+ * (`workspace/docs/assets/pasted-image-1792198076949402000.png`): a card with
+ * "3 of 6 checked in", a bar with one piece per person, and everyone who
+ * checked in with their time and notes; then a card of whoever didn't, each
+ * with what they picked last time, and one of whoever was away.
  */
 function CheckinsCard({
   day,
@@ -960,81 +1087,175 @@ function CheckinsCard({
     () => members.map((member) => ({ id: member.userId, name: member.name })),
     [members]
   )
+  const checkedIn = day.people.filter((row) => row.state === "checked_in")
+  const missing = day.people.filter(
+    (row) => row.state === "not_yet" || row.state === "missed" || row.state === "no_record"
+  )
+  const away = day.people.filter((row) => row.state === "away" || row.state === "day_off")
+  const late = checkedIn.filter((row) => row.late).length
+  const nothingSaved = day.people.every((row) => row.state === "no_record")
   return (
-    <TeamSideCard
-      title="Check-ins"
-      aside={
-        day.expected ? (
-          <>
-            {day.checkedIn} of {day.expected} checked in
-            {day.blocked ? ` · ${day.blocked} blocked` : ""}
-          </>
-        ) : null
-      }
-    >
-      {requested && requested > day.today ? (
-        <p className="text-sm">{shortDayLabel(requested)} hasn't happened yet. Showing today.</p>
+    <>
+      <TeamSideCard
+        title={day.expected ? `${day.checkedIn} of ${day.expected} checked in` : "Check-ins"}
+        aside={
+          day.blocked || late ? (
+            <span className="flex items-center gap-1.5">
+              {day.blocked ? (
+                <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                  {day.blocked} blocked
+                </span>
+              ) : null}
+              {late ? (
+                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                  {late} late
+                </span>
+              ) : null}
+            </span>
+          ) : null
+        }
+      >
+        {requested && requested > day.today ? (
+          <p className="text-sm">{shortDayLabel(requested)} hasn't happened yet. Showing today.</p>
+        ) : null}
+        {day.expected === 0 ? (
+          // A day with no saved rows at all (before the team began, or a day
+          // the end-of-day job never ran) isn't a day off; it's a day unknown.
+          <p className="text-sm text-muted-foreground">
+            {day.holiday
+              ? `${day.holiday}, a team holiday.`
+              : nothingSaved
+                ? "Nothing was saved for this day."
+                : "A day off for the team."}
+          </p>
+        ) : (
+          <CheckinPieces checkedIn={checkedIn} expected={day.expected} />
+        )}
+        {checkedIn.length ? (
+          <div className="grid min-w-0">
+            {/* The lines between people run to the card's edges. */}
+            <ul className="-mx-4 divide-y border-t">
+              {checkedIn.map((row) => (
+                <li key={row.person.id} className="px-4 py-3 last:pb-0">
+                  <PersonCheckin
+                    row={row}
+                    viewerZone={day.viewerZone}
+                    isMe={row.person.id === myUserId}
+                    people={people}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : day.expected ? (
+          <p className="text-sm text-muted-foreground">Nobody has checked in yet.</p>
+        ) : null}
+      </TeamSideCard>
+      {missing.length && !nothingSaved ? (
+        <TeamSideCard title="Didn't check in" aside={missing.length}>
+          <ul className="grid gap-3">
+            {missing.map((row) => (
+              <OffRow
+                key={row.person.id}
+                row={row}
+                isMe={row.person.id === myUserId}
+                line={
+                  row.state === "no_record"
+                    ? "Nothing saved for this day"
+                    : row.before.length
+                      ? `${row.questions.yesterday}: ${taskWords(row.before)}`
+                      : "No recent check-ins"
+                }
+              />
+            ))}
+          </ul>
+        </TeamSideCard>
       ) : null}
-      {day.expected === 0 ? (
-        // A day with no saved rows at all (before the team began, or a day
-        // the end-of-day job never ran) isn't a day off; it's a day unknown.
-        <p className="text-sm text-muted-foreground">
-          {day.holiday
-            ? `${day.holiday}, a team holiday.`
-            : day.people.every((row) => row.state === "no_record")
-              ? "Nothing was saved for this day."
-              : "A day off for the team."}
-        </p>
-      ) : (
-        <Meter
-          value={day.checkedIn}
-          max={day.expected}
-          label="People checked in"
-          valueText={`${day.checkedIn} of ${day.expected}`}
-          size="sm"
-        />
-      )}
-      <ul className="grid gap-3">
-        {day.people.map((row) => (
-          <PersonCheckin
-            key={row.person.id}
-            row={row}
-            viewerZone={day.viewerZone}
-            isMe={row.person.id === myUserId}
-            people={people}
-          />
-        ))}
-      </ul>
-    </TeamSideCard>
+      {away.length ? (
+        <TeamSideCard title="Away" aside={away.length}>
+          <ul className="grid gap-3">
+            {away.map((row) => (
+              <OffRow
+                key={row.person.id}
+                row={row}
+                isMe={row.person.id === myUserId}
+                line={row.state === "away" ? "Time off" : "Not a work day for them"}
+              />
+            ))}
+          </ul>
+        </TeamSideCard>
+      ) : null}
+    </>
   )
 }
 
 /**
- * The check-in time reads in the viewer's clock, like meetings do. Only the
- * time moves: late is still judged on the person's own clock by the server.
+ * One piece of the bar per person expected that day: amber for a late
+ * check-in, red for someone blocked, the foreground for on time, and an empty
+ * piece for each person still to check in.
  */
-function stateLine(row: TeamDayPerson, viewerZone: string) {
-  switch (row.state) {
-    case "checked_in":
-      // Late is a badge at the row's end, as Tyler drew it.
-      return `Checked in ${row.checkedInAt ? clockIn(row.checkedInAt, viewerZone) : ""}`
-    case "not_yet":
-      return "No check-in yet"
-    case "missed":
-      return "Didn't check in"
-    case "day_off":
-      return "Day off"
-    case "away":
-      return "Away"
-    case "no_record":
-      return "Nothing saved for this day"
-  }
+function CheckinPieces({ checkedIn, expected }: { checkedIn: TeamDayPerson[]; expected: number }) {
+  const shown = checkedIn.slice(0, expected)
+  const tone = (row: TeamDayPerson) =>
+    row.blocked ? "bg-destructive" : row.late ? "bg-amber-500" : "bg-foreground"
+  return (
+    <div
+      role="img"
+      aria-label={`${checkedIn.length} of ${expected} checked in`}
+      className="flex h-1.5 gap-1"
+    >
+      {shown.map((row) => (
+        <span key={row.person.id} className={cn("flex-1 rounded-full", tone(row))} />
+      ))}
+      {Array.from({ length: expected - shown.length }, (_, index) => (
+        <span key={`empty-${index}`} className="flex-1 rounded-full bg-muted" />
+      ))}
+    </div>
+  )
+}
+
+/** Someone who didn't check in or was away: a dashed photo, the name, one line under it. */
+function OffRow({ row, isMe, line }: { row: TeamDayPerson; isMe: boolean; line: string }) {
+  return (
+    <li className="flex min-w-0 items-center gap-3">
+      <PersonAvatar
+        name={row.person.name}
+        size="default"
+        className="after:border-dashed [&_[data-slot=avatar-fallback]]:bg-transparent"
+      />
+      <span className="grid min-w-0">
+        <span className="truncate text-sm font-medium">
+          {row.person.name}
+          {isMe ? " (you)" : ""}
+        </span>
+        <span className="truncate text-xs text-muted-foreground">{line}</span>
+      </span>
+    </li>
+  )
+}
+
+/** "Brief, Logo, 1 personal task": the titles the viewer may see, the rest counted. */
+function taskWords(tasks: TeamDayTask[]) {
+  const seen = tasks.flatMap((task) => (task.title !== null ? [task.title] : []))
+  const personal = tasks.filter((task) => task.personal).length
+  const hidden = tasks.length - seen.length - personal
+  return [
+    ...seen,
+    hidden ? (hidden === 1 ? "1 task in another project" : `${hidden} tasks in other projects`) : null,
+    personal ? (personal === 1 ? "1 personal task" : `${personal} personal tasks`) : null,
+  ]
+    .filter(Boolean)
+    .join(", ")
 }
 
 /**
- * One person's day: their notes under the team's words for that day, their
- * picks, each blocker with its replies and a Reply button, and the thanks
- * they got that day in one small line.
+ * One person who checked in, as Tyler drew it on 16 Oct 2026
+ * (`workspace/docs/assets/pasted-image-1792199207802160000.png`): name, the
+ * time in the viewer's clock and Late, then under the team's word for
+ * "Today" each task they picked as a card of its own. A task carried over
+ * from their last check-in says "Since yesterday". A blocked one turns red
+ * with its reason and Reply. Their own words, when they wrote any, sit
+ * above the cards, and thanks get one small line.
  */
 function PersonCheckin({
   row,
@@ -1047,150 +1268,223 @@ function PersonCheckin({
   isMe: boolean
   people: { id: string; name: string }[]
 }) {
-  const { questions } = row
+  const { questions, notes } = row
+  const carried = new Set(row.before.flatMap((task) => (task.taskId ? [task.taskId] : [])))
+  const blockerOf = (task: TeamDayTask) =>
+    task.taskId ? row.blockers.find((blocker) => blocker.taskId === task.taskId) : undefined
+  // A blocked task the viewer can't open has no id to match, so it gets a card of its own.
+  const unnamedBlockers = row.blockers.filter((blocker) => !blocker.taskId)
+  // Those hidden blocked tasks are among the picks too, so the plain cards leave them out.
+  const picked = [
+    ...row.picked.filter((task) => task.taskId),
+    ...row.picked.filter((task) => !task.taskId).slice(unnamedBlockers.length),
+  ]
+  const empty = !notes?.yesterday && !notes?.today && !notes?.blocker && row.picked.length === 0 && row.blockers.length === 0
   return (
-    <li className="flex gap-3">
-      <PersonAvatar name={row.person.name} avatarUrl={row.person.avatarUrl} size="default" />
-      <div className="grid min-w-0 flex-1 gap-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="grid min-w-0">
-            <span className="truncate text-sm font-medium">
-              {row.person.name}
-              {isMe ? " (you)" : ""}
-            </span>
-            <span className="text-xs text-muted-foreground">{stateLine(row, viewerZone)}</span>
-          </div>
-          <span className="flex shrink-0 gap-1">
-            {row.state === "checked_in" && row.late ? (
+    <div className="grid min-w-0 gap-2">
+      <div className="flex min-w-0 items-center gap-3">
+        <PersonAvatar name={row.person.name} avatarUrl={row.person.avatarUrl} size="default" />
+        {/* In a narrow panel the time and Late drop under the name rather than out of the card. */}
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-x-3 gap-y-1">
+          <span className="min-w-0 flex-1 basis-24 truncate text-sm font-medium">
+            {row.person.name}
+            {isMe ? " (you)" : ""}
+          </span>
+          <span className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+            {row.checkedInAt ? (
+              <span className="text-sm text-muted-foreground tabular-nums">
+                {clockIn(row.checkedInAt, viewerZone)}
+              </span>
+            ) : null}
+            {row.late ? (
               <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
                 Late
               </span>
             ) : null}
-            {row.blocked ? <Badge variant="destructive">Blocked</Badge> : null}
           </span>
         </div>
-        <NoteLine label={questions.yesterday} note={row.notes?.yesterday ?? null} tasks={row.before} people={people} />
-        <NoteLine label={questions.today} note={row.notes?.today ?? null} tasks={row.picked} people={people} />
-        {row.notes?.blocker ? (
-          <div className="grid gap-1">
-            <p className="text-sm break-words text-destructive">
-              {questions.blocker} · <TaggedWords body={row.notes.blocker} people={people} />
+      </div>
+      <div className="grid min-w-0 gap-3 pl-11">
+        {empty ? <p className="text-sm text-muted-foreground">No tasks attached</p> : null}
+        {notes?.yesterday ? (
+          <BoxSection label={questions.yesterday}>
+            <p className="text-sm break-words">
+              <TaggedWords body={notes.yesterday} people={people} />
             </p>
-            <BlockerReplies
-              replies={row.noteReplies}
-              checkinId={row.checkinId}
-              taskId={null}
-              blockedName={row.person.name}
-              canReply
-            />
-          </div>
+          </BoxSection>
         ) : null}
-        {row.blockers.map((blocker, index) => (
-          <div key={blocker.taskId ?? index} className="grid gap-1">
-            <p className="text-sm break-words text-destructive">
-              {questions.blocker} ·{" "}
-              {blocker.title ?? (blocker.personal ? "a personal task" : "a task in another project")}
-              {blocker.reason ? `: ${blocker.reason}` : ""}
-            </p>
-            {/* Only someone who can open the task replies about it; its title is private to them. */}
-            <BlockerReplies
-              replies={blocker.replies}
-              checkinId={row.checkinId}
-              taskId={blocker.taskId}
-              blockedName={row.person.name}
-              canReply={Boolean(blocker.taskId)}
-            />
-          </div>
-        ))}
+        {notes?.today || picked.length || unnamedBlockers.length || notes?.blocker ? (
+          <BoxSection label={questions.today}>
+            {notes?.today ? (
+              <p className="text-sm break-words">
+                <TaggedWords body={notes.today} people={people} />
+              </p>
+            ) : null}
+            {picked.map((task, index) => (
+              <PickCard
+                key={task.taskId ?? `pick-${index}`}
+                task={task}
+                carried={Boolean(task.taskId && carried.has(task.taskId))}
+                blocker={blockerOf(task)}
+                row={row}
+              />
+            ))}
+            {unnamedBlockers.map((blocker, index) => (
+              <PickCard key={`hidden-${index}`} task={blocker} carried={false} blocker={blocker} row={row} />
+            ))}
+            {notes?.blocker ? (
+              <BlockedCard
+                title={null}
+                reason={<TaggedWords body={notes.blocker} people={people} />}
+                label={questions.blocker}
+                replies={row.noteReplies}
+                checkinId={row.checkinId}
+                taskId={null}
+                blockedName={row.person.name}
+                canReply
+              />
+            ) : null}
+          </BoxSection>
+        ) : null}
         {row.thanks.length ? (
           <p className="flex items-start gap-1.5 text-xs break-words text-muted-foreground">
             <HeartIcon className="mt-0.5 size-3 shrink-0" aria-hidden />
             <span>
               Thanked by{" "}
-              {row.thanks
-                .map((line) => `${line.fromName} for ${line.taskTitle ?? "a task"}`)
-                .join(", ")}
+              {row.thanks.map((line) => `${line.fromName} for ${line.taskTitle ?? "a task"}`).join(", ")}
             </span>
           </p>
         ) : null}
       </div>
-    </li>
-  )
-}
-
-/**
- * "Today · Work on members table" in the person's own words, with the tasks
- * they picked in a small grey line under it (Tyler's choice, 11 Oct 2026).
- * With no note, the picked tasks are the line, as before notes existed.
- */
-function NoteLine({
-  label,
-  note,
-  tasks,
-  people,
-}: {
-  label: string
-  note: string | null
-  tasks: TeamDayTask[]
-  people: { id: string; name: string }[]
-}) {
-  if (!note) return tasks.length ? <TaskLine label={label} tasks={tasks} /> : null
-  return (
-    <div className="grid gap-0.5">
-      <p className="text-sm break-words">
-        <span className="text-muted-foreground">{label} · </span>
-        <TaggedWords body={note} people={people} />
-      </p>
-      {tasks.length ? <TaskLine tasks={tasks} quiet /> : null}
     </div>
   )
 }
 
-/**
- * "Today · Brief, Logo, 1 task in another project, 1 personal task". `quiet`
- * is the small grey line under a note, with no label.
- */
-function TaskLine({
-  label,
-  tasks,
-  quiet = false,
-}: {
-  label?: string
-  tasks: TeamDayTask[]
-  quiet?: boolean
-}) {
-  const seen = tasks.filter((task) => task.title !== null)
-  const personal = tasks.filter((task) => task.personal).length
-  const hidden = tasks.length - seen.length - personal
-  const unnamed = [
-    hidden ? (hidden === 1 ? "1 task in another project" : `${hidden} tasks in other projects`) : null,
-    personal ? (personal === 1 ? "1 personal task" : `${personal} personal tasks`) : null,
-  ].filter(Boolean)
+/** "TODAY" in small capitals, the team's own word, over what goes with it. */
+function BoxSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <p className={cn("break-words", quiet ? "text-xs text-muted-foreground" : "text-sm")}>
-      {label ? <span className="text-muted-foreground">{label} · </span> : null}
-      {seen.map((task, index) => (
-        <React.Fragment key={task.taskId ?? `${task.title}-${index}`}>
-          {index ? ", " : null}
-          {task.taskId ? (
-            <Link
-              to="/team"
-              search={(previous: TeamSearch) => ({ ...previous, task: task.taskId ?? undefined })}
-              className="hover:underline focus-visible:underline focus-visible:outline-none"
-            >
-              {task.title}
-            </Link>
-          ) : (
-            <span>{task.title} (deleted)</span>
-          )}
-        </React.Fragment>
-      ))}
-      {unnamed.length ? (
-        <span className="text-muted-foreground">
-          {seen.length ? ", " : ""}
-          {unnamed.join(", ")}
-        </span>
+    <section aria-label={label} className="grid min-w-0 gap-1.5">
+      <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</h4>
+      {children}
+    </section>
+  )
+}
+
+/** One picked task as a card; a blocked one is the red card with its reason and Reply. */
+function PickCard({
+  task,
+  carried,
+  blocker,
+  row,
+}: {
+  task: TeamDayTask
+  carried: boolean
+  blocker: (TeamDayTask & { reason: string | null; replies: BlockerReply[] }) | undefined
+  row: TeamDayPerson
+}) {
+  const since = carried ? (
+    <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+      <RefreshCwIcon className="size-3" aria-hidden />
+      Since yesterday
+    </span>
+  ) : null
+  if (blocker) {
+    return (
+      <BlockedCard
+        title={<TaskTitle task={task} />}
+        since={since}
+        reason={blocker.reason}
+        label="Blocked"
+        replies={blocker.replies}
+        checkinId={row.checkinId}
+        taskId={blocker.taskId}
+        blockedName={row.person.name}
+        // Only someone who can open the task replies about it; its title is private to them.
+        canReply={Boolean(blocker.taskId)}
+      />
+    )
+  }
+  return (
+    <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1 rounded-lg border bg-background px-3 py-2.5 text-sm">
+      <TaskTitle task={task} />
+      {since}
+    </div>
+  )
+}
+
+/** The red card: what is blocked, the word "Blocked", the reason, Reply, and the replies. */
+function BlockedCard({
+  title,
+  since,
+  label,
+  reason,
+  replies,
+  checkinId,
+  taskId,
+  blockedName,
+  canReply,
+}: {
+  title: React.ReactNode
+  since?: React.ReactNode
+  label: string
+  reason: React.ReactNode
+  replies: BlockerReply[]
+  checkinId: string | null
+  taskId: string | null
+  blockedName: string
+  canReply: boolean
+}) {
+  const [replying, setReplying] = React.useState(false)
+  return (
+    <div className="grid min-w-0 gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-sm">
+      {title ? (
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
+          {title}
+          {since}
+        </div>
       ) : null}
-    </p>
+      <div className="flex min-w-0 items-end justify-between gap-3">
+        <div className="grid min-w-0 gap-0.5">
+          <span className="text-xs font-medium text-destructive">{label}</span>
+          {reason ? <span className="break-words text-destructive">{reason}</span> : null}
+        </div>
+        {canReply && checkinId && !replying ? (
+          <Button type="button" variant="outline" size="sm" className="shrink-0 bg-background" onClick={() => setReplying(true)}>
+            Reply
+          </Button>
+        ) : null}
+      </div>
+      <BlockerReplies
+        replies={replies}
+        checkinId={checkinId}
+        taskId={taskId}
+        blockedName={blockedName}
+        canReply={canReply}
+        open={replying}
+        onOpenChange={setReplying}
+        className=""
+      />
+    </div>
+  )
+}
+
+/** A task's title, opening it; one the viewer can't see is named for what it is. */
+function TaskTitle({ task }: { task: TeamDayTask }) {
+  if (task.title === null) {
+    return (
+      <span className="min-w-0 flex-1 basis-36 text-muted-foreground">
+        {task.personal ? "A personal task" : "A task in another project"}
+      </span>
+    )
+  }
+  if (!task.taskId) return <span className="min-w-0 flex-1 basis-36 break-words">{task.title} (deleted)</span>
+  return (
+    <Link
+      to="/team"
+      search={(previous: TeamSearch) => ({ ...previous, task: task.taskId ?? undefined })}
+      className="min-w-0 flex-1 basis-36 break-words hover:underline focus-visible:underline focus-visible:outline-none"
+    >
+      {task.title}
+    </Link>
   )
 }

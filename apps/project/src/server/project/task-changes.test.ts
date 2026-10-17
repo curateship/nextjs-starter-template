@@ -6,11 +6,9 @@ import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { linesToTitles } from "@/lib/project/paste-lines"
 import type { CustomShellDb } from "@/server/db"
 import { submitCheckin } from "@/server/project/checkins"
-import { acceptInvite, createInvite } from "@/server/project/invites"
 import { createLabel, setTaskLabels } from "@/server/project/labels"
 import {
   addProjectMember,
-  createProject,
   loadProjectPage,
   removeProjectMember,
 } from "@/server/project/projects"
@@ -33,7 +31,7 @@ import {
   loadTaskDetail,
   updateStep,
 } from "@/server/project/tasks"
-import { createTeam } from "@/server/project/teams"
+import { projectFor, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
@@ -42,6 +40,7 @@ let database: CustomShellDb
 let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
+let admin: CustomShellUser
 let website: string
 let brand: string
 
@@ -54,20 +53,13 @@ beforeEach(async () => {
   anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
   ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  for (const person of [ben, carla]) {
-    const sent = await createInvite(
-      { ...actor(anna), currentWorkspaceId: anna.currentWorkspaceId },
-      { email: person.email, role: "member" },
-      database
-    )
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  website = (await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)).id
-  brand = (await createProject(anna.id, { name: "Brand", color: "pink", description: "" }, database)).id
-  await addProjectMember(anna.id, website, ben.id, database)
-  await addProjectMember(anna.id, website, carla.id, database)
-  await addProjectMember(anna.id, brand, ben.id, database)
+  admin = (await startTeam(database, [anna, ben, carla])).admin
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  brand = (await projectFor(admin, anna.id, { name: "Brand", color: "pink", description: "" }, database)).id
+  // A project's members are the site admin's to change.
+  await addProjectMember(admin.id, website, ben.id, database)
+  await addProjectMember(admin.id, website, carla.id, database)
+  await addProjectMember(admin.id, brand, ben.id, database)
 })
 
 afterEach(async () => {
@@ -174,7 +166,7 @@ describe("moving to another project", () => {
   })
 
   it("refuses a project the person can't see, and never names it to them later", async () => {
-    const hidden = (await createProject(anna.id, { name: "Hidden", color: "red", description: "" }, database)).id
+    const hidden = (await projectFor(admin, anna.id, { name: "Hidden", color: "red", description: "" }, database)).id
     const id = await task("Mine", ben)
     await expect(moveTask(actor(ben), { taskId: id, projectId: hidden }, database)).rejects.toThrow(
       PROJECT_ERRORS.projectNotFound
@@ -280,7 +272,7 @@ describe("steps with a person and a date", () => {
       { message: "Anna gave you a step", detail: "Launch page: Write the headline" },
     ])
 
-    await removeProjectMember(anna.id, website, carla.id, database)
+    await removeProjectMember(admin.id, website, carla.id, database)
     detail = await loadTaskDetail(anna.id, parent, database)
     expect(detail.steps[0].assignee).toBeNull()
   })

@@ -79,8 +79,54 @@ the code. If the code disagrees with a line here, the code is wrong.
   a missing figure reads "None", and a time range reads "10:00 to 10:45 AM".
 - **Price.** Project will become its own paid subscription product. It is free
   for now, and there is no billing work until Tyler decides on pricing.
+- **Not a SaaS yet.** Tyler, 16 Oct 2026: "we're not building a sass for this
+  app yet so you're confusing this app with a sass product." Nobody signs up
+  and starts a team of their own. Nothing is designed for that until Tyler
+  says the subscription work has started.
+
+## Who runs the app
+
+Tyler's rules, 16 Oct 2026. Built the same day
+(`workspace/tasks/Admin/01-employees-and-the-site-admin.md`); how it works is
+in [Teams and invites](teams-and-invites.md#who-is-who).
+
+- **Employees are shell accounts with Project's own `employee` role.** Tyler
+  first said "employees are NOT users of shell and all those features like
+  stripe etc", then, after a first build gave Project a second frame of its
+  own and was thrown away: "I think this needs to be a shell change. We'd
+  have admin, pro, free and other types of users such as employee". He chose
+  shell accounts with a type over a table of Project's own, and one `/login`
+  for everyone. Free and Pro stay plans; an employee has no plan.
+- **An employee gets none of the shell's member features**: no Billing, AI
+  usage, Feedback or Changelog. They change their own name, photo and
+  password, nothing else. A forgotten password is reset by the shell's
+  emailed link.
+- **The site admin oversees and does no work in a team.** Tyler: "What
+  tasks? if i only overseeas the team, why would I get tasks?" He isn't a
+  member of the teams he creates, never checks in and gets no tasks. Only he
+  sees every project in a team, and only he gets the morning "5 of 6
+  checked in" notice.
+- **The site admin runs every team.** Tyler: "Im admin, I should be able to
+  see everything." Only the site admin creates teams, changes their
+  settings, invites people and makes task types.
+- **Team roles stop giving powers:** "Only me, the site admin."
+- **Only the site admin makes projects:** "only I create projects". That
+  covers New project and Copy project.
+- **A project's settings are the site admin's alone:** "Employees dont even
+  see the settings cog or page. Only admin see it".
+- **The site admin moves between teams with a team picker**, and sees each
+  one as its owner would.
+- **The site admin sees everything, private things included**: each
+  person's My week, check-out notes, check-in record and "Just me" tasks.
+- **The site admin stays invisible** in a team they look at: not a member,
+  not in any picker or count. The notices meant for whoever runs the team
+  (the morning count, joins, a milestone with no lead) go to him; task
+  notices don't, since he is on no task.
 
 ## Choices for the next features
+
+What these choices gave a team's owner and admins went to the site admin on
+16 Oct 2026, when team roles stopped giving powers (above).
 
 Tyler answered these on 10 Oct 2026, before the Next features tasks 02 to 08
 were built.
@@ -95,24 +141,24 @@ were built.
   never pile up.
 - **A "Just me" task** can later be moved into a project.
 - **The bin.** Whoever could delete a task can bring it back. Emptying the bin
-  early is for owners and admins.
+  early is for the site admin.
 - **Copying a project** leaves every task's due date empty.
-- **Time off.** Each person marks their own days off, and owners and admins can
+- **Time off.** Each person marks their own days off, and the site admin can
   mark them for anyone.
 - **Needs attention** is a tab in the Team dashboard's right panel, beside the
-  day's check-ins, for owners and admins.
+  day's check-ins, for the site admin.
 - **Handing over all of someone's tasks** never adds the receiver to a
   project. Tasks in projects they aren't on are left with nobody assigned.
 - **The team join link** lets people in straight away, with no approval.
-  Owners and admins hear about each join in the bell.
+  The site admin hears about each join in the bell.
 
 ## Choices for the Team dashboard
 
 Tyler answered these on 11 Oct 2026, before the Team dashboard tasks 01 and 02
 were built. Each was the recommended option.
 
-- **Meetings.** Anyone on the team makes one; only its maker, the owner and
-  admins change or delete it. A meeting belongs to the team and everyone sees
+- **Meetings.** Anyone on the team makes one; only its maker and the site
+  admin change or delete it. A meeting belongs to the team and everyone sees
   it. It repeats never, weekly or every 2 weeks. A person gets a bell notice
   when added to one, and no reminder before it starts. The video link is any
   https address, named when it is a known service.
@@ -120,7 +166,7 @@ were built. Each was the recommended option.
   with the picked tasks in a small grey line under it. A typed Blocker note
   and a Stuck picked task both mark someone blocked.
 - **The check-in rate** counts work days only, and a late check-in counts.
-- **The team photo** is changed by the owner and admins.
+- **The team photo** is changed by the site admin.
 - **Open tasks** counts only projects the viewer can see, leaving out "Just
   me" lists and the bin.
 
@@ -136,8 +182,8 @@ were built. Each was the recommended option.
   check-out note. It only fills my own next Yesterday box.
 - **The team's check-in questions** can be renamed only. There are always
   three boxes.
-- **Starter tasks** are "Just me" tasks for the new member, so the owner
-  can't see whether they are done.
+- **Starter tasks** are "Just me" tasks for the new member. Since 16 Oct
+  2026 the site admin sees whether they are done.
 - **A task waiting for review counts as Done** in progress bars and figures,
   with a "Waiting for review" mark beside it.
 
@@ -146,7 +192,7 @@ were built. Each was the recommended option.
 Tyler answered these on 12 Oct 2026, before Task types task 01 was built.
 Each was the recommended option.
 
-- **Who makes types.** The owner and admins make and change task types and
+- **Who makes types.** The site admin makes and changes task types and
   their fields, because a type shapes everyone's work. Everyone else picks a
   type on a task.
 - **Removing a type** archives it. It leaves New task and the type picker,
@@ -156,18 +202,18 @@ Each was the recommended option.
   so it can't make 30 half-filled tasks.
 - **Task types have their own dashboard.** Tyler, 12 Oct 2026: "tasks type
   should have its own dashboard". It is in the left menu after Team, everyone
-  on the team can open it, and only the owner and admins change anything on
+  on the team can open it, and only the site admin changes anything on
   it. It replaced the Task types card in Team settings.
 - **Who can change a field.** Tyler ticked this on 11 Oct 2026, bending the
   rule that anyone who can see a project can change it: a field can be
   limited to the person assigned or to whoever handed the task out, so a
   brief can't be rewritten by the person doing the work and a result can't be
-  filled in by someone else. The owner and admins can always change it.
+  filled in by someone else. The site admin can always change it.
 - **Closing the gaps in that rule.** Tyler chose this on 12 Oct 2026, after
   the audit found two ways round it. "Whoever handed it out" is whoever first
   handed the task out (whoever made it, when nobody did), and stays with them
-  however the task is handed around later. Only that person, the owner and
-  admins can change a task's type once it exists, so nobody switches a task
+  however the task is handed around later. Only that person and the site
+  admin can change a task's type once it exists, so nobody switches a task
   to a plain one to get past "Needed before Done".
 
 ## Choices for chat and talking
@@ -199,7 +245,7 @@ Tyler answered these on 12 Oct 2026, before More features task 05 was built.
 Each was the recommended option.
 
 - **Saved step lists** belong to the team. Anyone makes or uses one; the
-  owner and admins rename and delete them in Team settings, the same as
+  site admin renames and deletes them in Team settings, the same as
   labels.
 - **Every 3 months** counts from a first date the person picks, so the task
   can say which months it comes back in.
@@ -261,8 +307,9 @@ were built. Each was the recommended option.
 Tyler answered these on 15 Oct 2026, before More for projects (task 06) was
 built. Each was the recommended option.
 
-- **A project's status** is set by its lead, the owner and admins once it
-  has a lead, and by anyone on it while it has none.
+- **A project's status** was set by its lead, the owner and admins. Since
+  16 Oct 2026 it is one of the project's settings, so the site admin alone
+  sets it.
 - **The lead hears Stuck, unblocked and Done** on every task in the
   project, not its chat.
 - **A saved template keeps what Copy project keeps**: description, colour,
@@ -271,6 +318,29 @@ built. Each was the recommended option.
 - **A project with "Everyone on the team" on** can't be left, and nobody
   can be taken off it, until the switch is off. Tyler didn't know the
   feature and asked me to decide, so this is my call, open to change.
+
+## Choices for the 16 Oct features
+
+Tyler answered these on 16 Oct 2026, before Features 16 Oct task 01 was
+built. Each was the recommended option.
+
+- **A project's status reaches the bell** when it goes At risk or Off track,
+  and again when it goes back to On track or the status is taken off.
+- **"Milestone due tomorrow" goes to the project's lead**, or to the site
+  admin when it has no lead.
+- **A task waiting for review shows in Needs attention after one work day**
+  of waiting, the same as a task not accepted.
+- **A repeating task whose milestone has already passed** makes its next
+  copy with no milestone.
+- **My dashboard and the Team dashboard update by themselves.** The Projects
+  table doesn't; a reload is fine there.
+- **Time off is always shown on the Team calendar**, to everyone on the
+  team, with no switch.
+- **Someone named in a Person field follows the task**, so its chat and its
+  Done reach them too.
+- **Board cards show the fields picked for the List**, with no separate
+  choice.
+- **A saved view on My dashboard keeps its client.**
 
 ## The first version
 

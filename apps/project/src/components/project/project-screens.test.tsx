@@ -1,26 +1,33 @@
+import type * as React from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { InvitePage } from "@/components/project/invite-page"
 import { TaskTypesDashboard } from "@/components/project/task-types-dashboard"
 import type { TaskType } from "@/lib/project/task-types"
 import { ProjectMembersCard } from "@/components/project/project-members-card"
 import { ProjectWorkspace } from "@/components/project/project-workspace"
 import { ProjectsDashboard } from "@/components/project/projects-dashboard"
 import { TaskBoard } from "@/components/project/task-board"
+import type { FieldRule } from "@/lib/project/task-fields"
 import { TaskList } from "@/components/project/task-list"
 import { TeamStart } from "@/components/project/team-start"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { ProjectPage } from "@/lib/api/project/projects"
 import type { TaskCard } from "@/lib/api/project/tasks"
-import type { InviteForMe } from "@/lib/api/project/teams"
+
+// The signed-in account the `/_authenticated` route hands every screen. Tyler
+// is the site admin unless a test makes him an employee.
+const signedIn = vi.hoisted(() => ({ user: { id: "me", name: "Tyler", role: "admin" } }))
+afterEach(() => {
+  signedIn.user.role = "admin"
+})
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
   useRouter: () => ({ invalidate: vi.fn() }),
   useNavigate: () => vi.fn(),
   useRouterState: () => ({}),
-  getRouteApi: () => ({ useLoaderData: () => ({ user: { id: "me", name: "Tyler" } }) }),
+  getRouteApi: () => ({ useLoaderData: () => ({ user: signedIn.user }) }),
 }))
 // The real check reads the incoming request, which a render to HTML doesn't have.
 vi.mock("@/lib/layout/wide-screen", () => ({ useWideScreen: () => true }))
@@ -33,6 +40,7 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     id: "t1",
     projectId: "p1",
     projectName: "Website",
+    projectClient: null,
     title: "Write the brief",
     status: "todo",
     stuckReason: null,
@@ -156,6 +164,57 @@ describe("the board", () => {
   })
 })
 
+describe("the board's field lines (Features 16 Oct, part 8)", () => {
+  const rule = (id: string, name: string, kind: FieldRule["kind"], settings: FieldRule["settings"] = {}): FieldRule => ({
+    id,
+    name,
+    kind,
+    neededBeforeDone: false,
+    neededWhenMade: false,
+    whoCanChange: "anyone",
+    settings,
+  })
+  const platform = rule("f1", "Platform", "dropdown", {
+    choices: [
+      { id: "yt", name: "YouTube" },
+      { id: "tt", name: "TikTok" },
+    ],
+  })
+  // Shown only for YouTube.
+  const thumbnail = rule("f2", "Thumbnail", "text", { showWhen: { fieldId: "f1", choiceId: "yt" } })
+  const finalCut = rule("f3", "Final cut", "file")
+  const fields = [platform, thumbnail, finalCut]
+  const type = { id: "ty1", name: "Video editing", icon: "video" as const, color: "red" as const }
+  const board = (cardFields?: React.ComponentProps<typeof TaskBoard>["cardFields"]) =>
+    renderToStaticMarkup(
+      <TaskBoard
+        tasks={[
+          card({ id: "v1", title: "TikTok cut", type, fieldValues: { f1: "tt", f2: "Hidden words", f3: 2 } }),
+          card({ id: "v2", title: "YouTube cut", type, fieldValues: { f1: "yt", f2: "Big smile" } }),
+        ]}
+        readOnly={false}
+        onOpenTask={() => {}}
+        onMove={() => {}}
+        onReorder={() => {}}
+        cardFields={cardFields}
+      />
+    )
+  const people = new Map<string, string>()
+
+  it("draws the List's chosen fields as lines, hiding a field its dropdown hides and an empty one", () => {
+    const html = board({ columns: fields.map((field) => ({ field, people })), fields })
+    expect(html).toContain("Platform:</span> TikTok")
+    expect(html).toContain("Final cut:</span> 2 files")
+    expect(html).toContain("Thumbnail:</span> Big smile")
+    expect(html).not.toContain("Hidden words")
+  })
+
+  it("draws no lines when no field is chosen", () => {
+    expect(board()).not.toContain("Platform:")
+    expect(board({ columns: [], fields })).not.toContain("Platform:")
+  })
+})
+
 describe("the list", () => {
   it("lists tasks with their status and says so when there are none", () => {
     const full = renderToStaticMarkup(<TaskList tasks={tasks} readOnly={false} onOpenTask={() => {}} />)
@@ -202,32 +261,26 @@ describe("the list", () => {
   })
 })
 
-const invite = (overrides: Partial<InviteForMe>): InviteForMe => ({
-  id: "i1",
-  teamName: "Acme",
-  invitedByName: "Anna",
-  role: "member",
-  email: "me@example.test",
-  blocker: null,
-  ...overrides,
-})
-
 describe("before there is a team", () => {
-  it("offers to start a team and shows invites, hiding Join on one that can't be accepted", () => {
-    const html = renderToStaticMarkup(
-      <TeamStart
-        invites={[invite({}), invite({ id: "i2", teamName: "Rival", blocker: "already-on-team" })]}
-      />
-    )
+  it("offers the site admin a team to start", () => {
+    const html = renderToStaticMarkup(<TeamStart />)
     expect(html).toContain("Start a team")
-    expect(html).toContain("Join Acme")
-    expect(html).not.toContain("Join Rival")
-    expect(html).toContain("Leave your current team to join this one.")
+    expect(html).toContain("Create team")
+    expect(html).not.toContain("Not on a team yet")
+  })
+
+  it("tells an employee the site admin puts them on one, with no way to start a team", () => {
+    signedIn.user.role = "employee"
+    const html = renderToStaticMarkup(<TeamStart />)
+    expect(html).toContain("Not on a team yet")
+    expect(html).toContain("The site admin puts you on a team.")
+    expect(html).not.toContain("Start a team")
+    expect(html).not.toContain("Create team")
   })
 
   it("puts the start card on the Projects dashboard when there is no team", () => {
     const html = renderToStaticMarkup(
-      <ProjectsDashboard page={{ team: null, projects: [], invites: [] }} />
+      <ProjectsDashboard page={{ team: null, projects: [] }} />
     )
     expect(html).toContain("Start a team")
     expect(html).not.toContain("New project")
@@ -241,13 +294,13 @@ describe("the Projects dashboard", () => {
       <ProjectsDashboard
         page={{
           team: { id: "team", name: "Acme", myRole: "owner" },
-          invites: [],
           projects: [
             {
               id: "p1",
               name: "Website",
               color: "blue",
               archived: false,
+              personal: false,
               starred: false,
               dueDate: "2020-01-01",
               memberCount: 3,
@@ -261,6 +314,7 @@ describe("the Projects dashboard", () => {
               name: "Old launch",
               color: "red",
               archived: true,
+              personal: false,
               starred: false,
               dueDate: null,
               memberCount: 1,
@@ -283,16 +337,7 @@ describe("the Projects dashboard", () => {
   })
 })
 
-describe("the invite page", () => {
-  it("explains a missing invite, a wrong address, and offers Join when it can", () => {
-    expect(renderToStaticMarkup(<InvitePage invite={null} />)).toContain("Invite not found")
-    expect(renderToStaticMarkup(<InvitePage invite={invite({ blocker: "wrong-email" })} />)).toContain(
-      "This invite was sent to me@example.test"
-    )
-    expect(renderToStaticMarkup(<InvitePage invite={invite({})} />)).toContain("Join Acme")
-  })
-})
-
+// Tyler is the site admin ("owner"), who runs the project without being on it.
 describe("the project page", () => {
   const page: ProjectPage = {
     project: {
@@ -323,8 +368,8 @@ describe("the project page", () => {
     myRole: "owner",
     chatUnread: 0,
     members: [
-      { userId: "me", name: "Tyler", email: "t@example.test", avatarUrl: "", role: "owner", title: null, openTasks: 1 },
-      { userId: "ben", name: "Ben Ortiz", email: "b@example.test", avatarUrl: "", role: "member", title: "Designer", openTasks: 3 },
+      { userId: "anna", name: "Anna Weiss", email: "a@example.test", avatarUrl: "", title: null, openTasks: 1 },
+      { userId: "ben", name: "Ben Ortiz", email: "b@example.test", avatarUrl: "", title: "Designer", openTasks: 3 },
     ],
     addable: [{ userId: "leo", name: "Leo", email: "l@example.test", avatarUrl: "" }],
     tasks,
@@ -354,19 +399,29 @@ describe("the project page", () => {
     expect(html).toContain(`aria-label="Add a task to Doing"`)
   })
 
-  it("lists the members in Project settings, where they are added and removed", () => {
+  it("gives an employee no settings cog", () => {
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <ProjectWorkspace page={{ ...page, myRole: "member" }} openTaskId={undefined} filters={{}} />
+      </TooltipProvider>
+    )
+    expect(html).not.toContain(`aria-label="Project settings"`)
+    expect(html).toContain("New task")
+  })
+
+  it("lists the members in Project settings, where the site admin adds and removes them", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
         <ProjectMembersCard page={page} />
       </TooltipProvider>
     )
     expect(html).toContain("Members")
-    expect(html).toContain("Tyler (you)")
     expect(html).toContain("3 open tasks")
-    // My own row leaves; everyone else's row removes.
-    expect(html).toContain(`aria-label="Leave project"`)
+    // The site admin isn't on the project, so every row removes and none leaves.
+    expect(html).toContain(`aria-label="Remove Anna Weiss from the project"`)
     expect(html).toContain(`aria-label="Remove Ben Ortiz from the project"`)
-    expect(html).not.toContain(`aria-label="Remove Tyler from the project"`)
+    expect(html).not.toContain("(you)")
+    expect(html).not.toContain(`aria-label="Leave project"`)
   })
 
   it("locks an archived project", () => {
@@ -384,6 +439,18 @@ describe("the project page", () => {
     // Nobody can be added to an archived project, so the empty card doesn't ask.
     expect(members).toContain("Nobody is on this project.")
     expect(members).not.toContain("Add a teammate so tasks can be handed to them.")
+  })
+
+  it("tells an employee on an archived project that the site admin brings it back", () => {
+    const archived = { ...page, myRole: "member" as const, project: { ...page.project, archived: true } }
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <ProjectWorkspace page={archived} openTaskId={undefined} filters={{}} />
+      </TooltipProvider>
+    )
+    expect(html).toContain("The site admin can bring it back.")
+    expect(html).not.toContain("Bring it back from Project settings")
+    expect(html).not.toContain(`aria-label="Project settings"`)
   })
 
   it("says so when a search matches nothing", () => {
@@ -437,7 +504,7 @@ describe("the Task types dashboard", () => {
       </TooltipProvider>
     )
 
-  it("lets the owner change types, starting on the first live one", () => {
+  it("lets the site admin change types, starting on the first live one", () => {
     const html = draw("owner")
     expect(html).toContain(`aria-label="New task type"`)
     expect(html).toContain(`aria-label="Video editing settings"`)
@@ -449,7 +516,7 @@ describe("the Task types dashboard", () => {
     expect(html).toContain("Rough cut")
   })
 
-  it("shows a member every type as words, with nothing to change", () => {
+  it("shows an employee every type as words, with nothing to change", () => {
     const html = draw("member")
     expect(html).not.toContain(`aria-label="New task type"`)
     expect(html).not.toContain(`aria-label="Video editing settings"`)

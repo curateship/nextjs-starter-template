@@ -8,7 +8,6 @@ import { readTaskNotes } from "@/lib/project/notes"
 import { taskHref } from "@/lib/project/notices"
 import { meetingNotesSchema } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
-import { acceptInvite, createInvite } from "@/server/project/invites"
 import {
   answerMeeting,
   createMeeting,
@@ -21,17 +20,18 @@ import {
 } from "@/server/project/meetings"
 import { loadMyDashboard } from "@/server/project/my-dashboard"
 import { loadNoticesOff, setNoticeSwitch } from "@/server/project/notice-switches"
-import { addProjectMember, createProject } from "@/server/project/projects"
+import { addProjectMember } from "@/server/project/projects"
 import { projectNoticeLinks } from "@/server/project/schema"
 import { sendMessage } from "@/server/project/task-chat"
 import { createTask, setTaskStatus } from "@/server/project/tasks"
-import { createTeam } from "@/server/project/teams"
+import { insertEmployee, projectFor, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { createTestDatabase } from "@/server/test-support"
 
 /*
  * Dates are in 2099 so nothing here meets the real today. 2 March 2099 is a
- * Monday. Anna owns the team; Ben and Carla are members; Olga runs another.
+ * Monday. The site admin runs the team; Anna, Ben and Carla are its
+ * employees. Olga is on another team.
  */
 const MONDAY = "2099-03-02"
 
@@ -41,21 +41,18 @@ let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
 let olga: CustomShellUser
+let admin: CustomShellUser
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
-  anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
-  ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
-  carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  olga = await insertUser(database, { name: "Olga", email: "olga@example.test" })
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  for (const person of [ben, carla]) {
-    const sent = await createInvite(anna, { email: person.email, role: "member" }, database)
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  await createTeam(olga.id, { name: "Other", timeZone: "UTC" }, database)
+  anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
+  ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
+  carla = await insertEmployee(database, { name: "Carla", email: "carla@example.test" })
+  olga = await insertEmployee(database, { name: "Olga", email: "olga@example.test" })
+  admin = (await startTeam(database, [anna, ben, carla])).admin
+  await startTeam(database, [olga], { name: "Other" })
 })
 
 afterEach(async () => {
@@ -158,12 +155,12 @@ describe("meeting notes", () => {
     await expect(
       saveMeetingNotes(carla, { meetingId: id, day: MONDAY, notes: doc("Mine") }, database)
     ).rejects.toThrow(PROJECT_ERRORS.cantChangeMeetingNotes)
-    // The owner may.
-    await saveMeetingNotes(anna, { meetingId: id, day: MONDAY, notes: doc("Owner's notes") }, database)
-    expect((await loadMeetingNotes(ben.id, { meetingId: id, day: MONDAY }, database)).updatedBy).toBe("Anna")
+    // The site admin may.
+    await saveMeetingNotes(admin, { meetingId: id, day: MONDAY, notes: doc("The admin's notes") }, database)
+    expect((await loadMeetingNotes(ben.id, { meetingId: id, day: MONDAY }, database)).updatedBy).toBe("Tyler")
 
     // Clearing the notes deletes them.
-    await saveMeetingNotes(anna, { meetingId: id, day: MONDAY, notes: "" }, database)
+    await saveMeetingNotes(admin, { meetingId: id, day: MONDAY, notes: "" }, database)
     expect(await loadMeetingNotes(ben.id, { meetingId: id, day: MONDAY }, database)).toMatchObject({
       notes: "",
       updatedAt: null,
@@ -187,8 +184,8 @@ describe("meeting notes", () => {
       { meetingId: id, day: MONDAY, notes: doc("Talked about the launch", "Send the new price list") },
       database
     )
-    const { id: projectId } = await createProject(anna.id, { name: "Sales", color: "green", description: "" }, database)
-    await addProjectMember(anna.id, projectId, ben.id, database)
+    const { id: projectId } = await projectFor(admin, anna.id, { name: "Sales", color: "green", description: "" }, database)
+    await addProjectMember(admin.id, projectId, ben.id, database)
     const { id: taskId } = await createTask(
       anna,
       { projectId, title: "Send the new price list", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
@@ -214,7 +211,7 @@ describe("meeting notes", () => {
   it("never links a line that changed meanwhile", async () => {
     const { id } = await createMeeting(anna, meeting(), database)
     await saveMeetingNotes(anna, { meetingId: id, day: MONDAY, notes: doc("Send the new price list") }, database)
-    const { id: projectId } = await createProject(anna.id, { name: "Sales", color: "green", description: "" }, database)
+    const { id: projectId } = await projectFor(admin, anna.id, { name: "Sales", color: "green", description: "" }, database)
     const { id: taskId } = await createTask(
       anna,
       { projectId, title: "Send prices", notes: "", assigneeUserId: null, dueDate: null, steps: [] },
@@ -238,9 +235,9 @@ describe("meeting notes", () => {
 
 describe("choosing my bell notices", () => {
   async function project() {
-    const { id: projectId } = await createProject(anna.id, { name: "Site", color: "blue", description: "" }, database)
-    await addProjectMember(anna.id, projectId, ben.id, database)
-    await addProjectMember(anna.id, projectId, carla.id, database)
+    const { id: projectId } = await projectFor(admin, anna.id, { name: "Site", color: "blue", description: "" }, database)
+    await addProjectMember(admin.id, projectId, ben.id, database)
+    await addProjectMember(admin.id, projectId, carla.id, database)
     return projectId
   }
 
@@ -315,7 +312,7 @@ describe("choosing my bell notices", () => {
     expect((await loadMyDashboard(ben.id, database)).noticesOff).toEqual(["overdue"])
     expect((await loadMyDashboard(carla.id, database)).noticesOff).toEqual([])
 
-    const loner = await insertUser(database, { name: "Lone", email: "lone@example.test" })
+    const loner = await insertEmployee(database, { name: "Lone", email: "lone@example.test" })
     await expect(setNoticeSwitch(loner.id, { id: "overdue", on: false }, database)).rejects.toThrow(
       PROJECT_ERRORS.noTeam
     )

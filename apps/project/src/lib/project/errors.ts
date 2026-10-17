@@ -6,19 +6,21 @@ import { describeAuthError } from "@/lib/api/error-message"
  * and, where there is one, what to do next.
  */
 export const PROJECT_ERRORS = {
-  noTeam: "You aren't on a team yet. Create one or accept an invite first.",
-  alreadyOnTeam: "You're already on a team. Leave it before joining another.",
-  notRunningTeam: "Only the team's owner and admins can do that.",
-  ownerCantLeave:
-    "The owner can't leave. Make someone else the owner first, then leave.",
-  cantChangeOwner: "The owner's role can only change by handing the team over.",
-  cantRemoveYourself: "Use Leave team to remove yourself.",
+  noTeam: "You aren't on a team yet. The site admin adds you to one.",
+  notRunningTeam: "Only the site admin can do that.",
+  teamNotFound: "That team no longer exists.",
+  emailOnATeam: "That email is already on a team.",
+  emailNotAnEmployee:
+    "That email belongs to an account that isn't an employee, so it can't join a team.",
+  inviteNotSent: "The invite email couldn't be sent. Check Settings → Email, then try again.",
+  joinNeedsName: "Type your name.",
+  joinEmailTaken:
+    "That email already has an account. Ask the site admin to add it to the team instead.",
+  alreadySignedIn: "They've already set their password, so there's no invite to send again.",
+  onlySiteAdminSettings: "Only the site admin changes a project's settings.",
+  siteAdminNoTasks: "The site admin oversees the team, so there's no Just me list. Pick a project.",
+  siteAdminNoCheckin: "The site admin oversees the team, so there's no check-in to do.",
   personNotOnTeam: "That person isn't on your team.",
-  alreadyOnYourTeam: "That person is already on your team.",
-  inviteNotFound: "This invite no longer exists. Ask for a new one.",
-  inviteExpired: "This invite has expired. Ask for a new one.",
-  inviteWrongEmail:
-    "This invite was sent to a different email address. Sign in with that address to accept it.",
   projectNotFound: "That project doesn't exist or you can't see it.",
   projectArchived: "This project is archived. Bring it back to change it.",
   taskNotFound: "That task doesn't exist or you can't see it.",
@@ -27,7 +29,7 @@ export const PROJECT_ERRORS = {
   stuckNeedsReason: "Say in a line why the task is stuck.",
   notAssignee: "Only the person the task is assigned to can do that.",
   nothingToHandBack: "This task wasn't handed to you by anyone.",
-  cantDeleteTask: "Only the person who made the task, the owner or an admin can delete it.",
+  cantDeleteTask: "Only the person who made the task or the site admin can delete it.",
   tooManySteps: "A task can have at most 50 steps.",
   stepNotFound: "That step no longer exists.",
   alreadyCheckedIn: "You've already checked in today. Change today's picks below.",
@@ -43,7 +45,7 @@ export const PROJECT_ERRORS = {
   messageNotFound: "That message no longer exists.",
   notYourMessage: "Only the person who wrote a message can edit it.",
   cantDeleteMessage:
-    "Only the person who wrote a message, the owner or an admin can delete it.",
+    "Only the person who wrote a message or the site admin can delete it.",
   tooManyFiles: "A task can hold at most 10 files. Delete one to add another.",
   fileTooBig: "A file can be at most 10 MB.",
   fileEmpty: "That file is empty.",
@@ -51,7 +53,7 @@ export const PROJECT_ERRORS = {
     "Your team has used all 5 GB of its file space. Delete some files to make room.",
   fileNotFound: "That file doesn't exist or you can't see it.",
   cantDeleteFile:
-    "Only the person who added a file, the owner or an admin can delete it.",
+    "Only the person who added a file or the site admin can delete it.",
   fileStorageOff: "File storage isn't set up on this server yet, so files can't be added.",
   fileNotSaved: "The file couldn't be saved. Try again.",
   tooManyUploads: "That's a lot of files in a short while. Wait a few minutes, then add the rest.",
@@ -61,7 +63,7 @@ export const PROJECT_ERRORS = {
   tooManyLabels: "A team can have at most 100 labels. Delete one to make another.",
   sectionNotFound: "That section no longer exists.",
   tooManySections: "A project can have at most 30 sections.",
-  personalProject: "That's your own Just me list, which only you can see, so it can't be shared or changed.",
+  personalProject: "That's a Just me list, which only its person and the site admin see, so it can't be shared or changed.",
   cantWaitOnItself: "A task can't wait on itself.",
   waitingLoop: "That task is already waiting on this one, so this one can't wait on it.",
   tooManyWaits: "A task can wait on at most 10 tasks. Take one off to add another.",
@@ -71,7 +73,6 @@ export const PROJECT_ERRORS = {
   tooManyStepLists: "A team can have at most 100 step lists. Delete one to save another.",
   noStepsToSave: "Add some steps first, then save them as a list.",
   healthNeedsNote: "Say in a line why the project is at risk or off track.",
-  onlyLeadSetsHealth: "Only the project's lead, the owner or an admin can change its status.",
   leadNotMember: "Only someone on the project can lead it.",
   milestoneNotFound: "That milestone no longer exists.",
   tooManyMilestones: "A project can have at most 30 milestones.",
@@ -91,14 +92,14 @@ export const PROJECT_ERRORS = {
   notInThisProject: "Those tasks aren't all in this project. Reload the page and try again.",
   meetingNotFound: "That meeting doesn't exist any more.",
   cantChangeMeeting:
-    "Only the person who made the meeting, the owner or an admin can change or delete it.",
+    "Only the person who made the meeting or the site admin can change or delete it.",
   tooManyMeetings: "A team can have at most 200 meetings. Delete old ones to make another.",
   photoNotYours: "Pick a photo you uploaded yourself.",
   tooManyMeetingSaves: "That's a lot of meeting changes in an hour. Wait a while, then try again.",
   notInvitedToMeeting: "Only people invited to the meeting can answer it.",
   meetingNotOnDay: "The meeting doesn't fall on that day. Pick it again on the calendar.",
   cantChangeMeetingNotes:
-    "Only the person who made the meeting, the owner or an admin can change its notes.",
+    "Only the person who made the meeting or the site admin can change its notes.",
   meetingNotesChanged:
     "The task was made, but someone changed the notes meanwhile, so that line wasn't linked to it.",
   tagNotOnTeam: "You can only tag people on your team.",
@@ -115,7 +116,7 @@ export const PROJECT_ERRORS = {
   nothingToThank: "Only a Done task with someone assigned can be thanked.",
   cantAskForReview: "Only the person who handed the task out or made it can ask for a review.",
   notWaitingForReview: "This task isn't waiting for a review any more.",
-  cantReview: "Only the person reviewing this task, the owner or an admin can confirm it or send it back.",
+  cantReview: "Only the person reviewing this task or the site admin can confirm it or send it back.",
   typeNotFound: "That task type no longer exists.",
   typeNameTaken: "Your team already has a task type with that name.",
   tooManyTypes: "A team can have at most 50 task types.",
@@ -139,7 +140,7 @@ export const PROJECT_ERRORS = {
   fieldDate: "Pick a date from the calendar.",
   fieldValueWrong: "That value doesn't fit this field.",
   fieldPersonNotOnProject: "Pick someone who is on this project.",
-  cantChangeType: "Only whoever handed the task out, the owner or an admin can change its type.",
+  cantChangeType: "Only whoever handed the task out or the site admin can change its type.",
   viewNotFound: "That view no longer exists.",
   viewNeedsFilters: "Search or pick a filter first, then save it as a view.",
   tooManyViews: "You can keep at most 30 views here. Delete one to save another.",
@@ -165,7 +166,7 @@ export const PROJECT_ERRORS = {
 const NAMED_REFUSALS = [
   /^Fill in .{1,80} first\.$/,
   /^That list has \d+ steps? and this task has room for \d+ more, since a task can have at most 50\.$/,
-  /^Only (the person assigned|whoever handed the task out), the owner or an admin can change .{1,80}\.$/,
+  /^Only (the person assigned|whoever handed the task out) or the site admin can change .{1,80}\.$/,
 ]
 
 /** The shell's rate limiter refuses with this code rather than a sentence. */

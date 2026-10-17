@@ -28,13 +28,13 @@ card that sat in Team settings.
   link opens it. With none, the first type is open.
 - **Everyone on the team can open it** (Tyler's choice, 12 Oct 2026) and reads
   each field as one line: "File · Needed before Done · Only the person
-  assigned · Only when Platform is YouTube". Only the owner and admins see the
+  assigned · Only when Platform is YouTube". Only the site admin sees the
   boxes, buttons and arrows, and only they are told how many tasks use a
   field, since that counts tasks in projects a member can't see.
 
 ## Making types
 
-- **The owner and admins make and change types** (Tyler's choice, 11 Oct
+- **The site admin makes and changes types** (Tyler's choice, 11 Oct
   2026), on the Task types dashboard.
 - **A type has a name, an icon and a colour.** Names are unique in a team
   whatever their capitals, like labels. A team can have up to 50 types,
@@ -64,6 +64,14 @@ tasks.
 - **Nine kinds:** Text, Long text, Number, Link (https addresses only, so a
   link can never run anything), Date, Dropdown (one choice from the field's
   list), Checkbox, Person (someone on the task's project) and File.
+- **Naming someone in a Person field tells them**, in the bell: "Ben named
+  you on a task", with "Reviewer on Edit the trailer" under it, opening the
+  task. They also follow the task from then on, so its chat and its Done
+  reach them (Tyler, 16 Oct 2026). Naming yourself, or the task's own
+  person, tells nobody, and saving the same person again says nothing new.
+  A task made with the field filled tells them too. Each person can switch
+  it off ("Named you in a task's field"). The rule is `tellPeopleNamed` in
+  `src/server/project/task-types.ts`.
 - **Drag a field by its handle** to change the order (Tyler, 12 Oct 2026:
   "the field order should be draggable"). A task's card and New task list the
   fields in that order. The new order shows at once and goes back if the save
@@ -94,7 +102,7 @@ Each field's cog holds four settings:
   won't make the task without it, naming the first one missing. A File field
   can't be needed when made, because files are added after the task exists.
 - **Who can change it.** Anyone on the project (the default), only the person
-  assigned, or only whoever handed it out. The owner and admins can always
+  assigned, or only whoever handed it out. The site admin can always
   change it.
 - **"Whoever handed it out" is whoever first handed the task out**, or
   whoever made it when nobody has, and it stays with them however the task is
@@ -134,7 +142,7 @@ Each field's cog holds four settings:
 - **The Task card has a Type field** for a task that exists. It lists the
   types the project offers, and the task's own type even when it is archived
   or the project no longer offers it.
-- **Only whoever handed the task out, the owner and admins change its type**
+- **Only whoever handed the task out and the site admin change its type**
   once it exists (Tyler's choice, 12 Oct 2026), so nobody switches a task to a
   plain one to get past "Needed before Done". Everyone else sees the field
   greyed out with that sentence under it, and the server refuses it the same
@@ -158,7 +166,7 @@ Each field's cog holds four settings:
 - **The Files card leaves out files that belong to a field.**
 - **Adding or deleting a file in a field** needs the right to change that
   field, as well as the usual rule that a file is deleted by whoever added it,
-  the owner or an admin.
+  the site admin.
 
 ## Which types a project uses
 
@@ -179,8 +187,8 @@ Each field's cog holds four settings:
 - **Duplicate** carries the type and every value except files, which
   Duplicate never copies, so a File field starts empty.
 - **Copy project** carries each task's type and values, and the project's own
-  pick of types. A Person field keeps only the person copying, since they are
-  the copy's one member.
+  pick of types. Person fields start empty, since the copy starts with
+  nobody on it (only the site admin copies, and isn't on projects).
 - **A repeat's copy** carries the type and values. Files stay behind.
 - **Move to project** keeps the type and values. A Person field naming someone
   who isn't on the new project is emptied, the same as the person assigned.
@@ -203,6 +211,14 @@ Each field's cog holds four settings:
   blanks last either way, and a task that left the field empty shows a blank
   cell. A File field's column shows "2 files". The chosen columns are
   remembered in this browser for each type.
+- **The same fields show on Board cards** (Features 16 Oct). Filtered to one
+  type, the Board's Filter has the same menu, called "Fields on cards", and
+  each card shows a "Platform: YouTube" line for each chosen field, under its
+  chips. It is one choice for both: picking on the Board changes the List's
+  columns too (Tyler, 16 Oct 2026). An empty field, and one hidden by "shown
+  only when", draws nothing; a File field shows "2 files", never names.
+  Phones leave the lines off, for room. Drawn by `FieldLines` in
+  `src/components/project/task-board.tsx`.
 - **The search box doesn't look inside field values** in this version.
 
 ## Left out

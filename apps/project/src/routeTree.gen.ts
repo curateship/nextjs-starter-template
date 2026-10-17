@@ -36,6 +36,7 @@ import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/h
 import { Route as AuthenticatedTaskTypesRouteImport } from './routes/_authenticated/task-types'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
@@ -65,6 +66,7 @@ import { Route as AuthenticatedProjectsProjectIdRouteImport } from './routes/_au
 import { Route as AuthenticatedTeamIndexRouteImport } from './routes/_authenticated/team/index'
 import { Route as AuthenticatedTeamMembersRouteImport } from './routes/_authenticated/team/members'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
+import { Route as ApiProjectMyLiveRouteImport } from './routes/api/project/my-live'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
@@ -74,8 +76,7 @@ import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './r
 import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
-import { Route as AuthenticatedProjectsInviteTokenRouteImport } from './routes/_authenticated/projects/invite.$token'
-import { Route as AuthenticatedProjectsJoinTokenRouteImport } from './routes/_authenticated/projects/join.$token'
+import { Route as AuthenticatedProjectsTeamTeamIdRouteImport } from './routes/_authenticated/projects/team.$teamId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
 import { Route as ApiProjectLiveProjectIdRouteImport } from './routes/api/project/live.$projectId'
 import { Route as ApiProjectTaskFilesFileIdRouteImport } from './routes/api/project/task-files.$fileId'
@@ -217,6 +218,11 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinTokenRoute = JoinTokenRouteImport.update({
+  id: '/join/$token',
+  path: '/join/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -384,6 +390,11 @@ const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   path: '/api/auth/google',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProjectMyLiveRoute = ApiProjectMyLiveRouteImport.update({
+  id: '/api/project/my-live',
+  path: '/api/project/my-live',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWebhooksResendRoute = ApiWebhooksResendRouteImport.update({
   id: '/api/webhooks/resend',
   path: '/api/webhooks/resend',
@@ -436,16 +447,10 @@ const AuthenticatedAdminSystemEmailsKindRoute =
     path: '/system-emails/$kind',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedProjectsInviteTokenRoute =
-  AuthenticatedProjectsInviteTokenRouteImport.update({
-    id: '/projects/invite/$token',
-    path: '/projects/invite/$token',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedProjectsJoinTokenRoute =
-  AuthenticatedProjectsJoinTokenRouteImport.update({
-    id: '/projects/join/$token',
-    path: '/projects/join/$token',
+const AuthenticatedProjectsTeamTeamIdRoute =
+  AuthenticatedProjectsTeamTeamIdRouteImport.update({
+    id: '/projects/team/$teamId',
+    path: '/projects/team/$teamId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
@@ -519,6 +524,7 @@ export interface FileRoutesByFullPath {
   '/task-types': typeof AuthenticatedTaskTypesRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/join/$token': typeof JoinTokenRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -544,6 +550,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/team/members': typeof AuthenticatedTeamMembersRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/project/my-live': typeof ApiProjectMyLiveRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -557,8 +564,7 @@ export interface FileRoutesByFullPath {
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
-  '/projects/invite/$token': typeof AuthenticatedProjectsInviteTokenRoute
-  '/projects/join/$token': typeof AuthenticatedProjectsJoinTokenRoute
+  '/projects/team/$teamId': typeof AuthenticatedProjectsTeamTeamIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/project/live/$projectId': typeof ApiProjectLiveProjectIdRoute
   '/api/project/task-files/$fileId': typeof ApiProjectTaskFilesFileIdRoute
@@ -593,6 +599,7 @@ export interface FileRoutesByTo {
   '/task-types': typeof AuthenticatedTaskTypesRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/join/$token': typeof JoinTokenRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -618,6 +625,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/team/members': typeof AuthenticatedTeamMembersRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/project/my-live': typeof ApiProjectMyLiveRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -631,8 +639,7 @@ export interface FileRoutesByTo {
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
-  '/projects/invite/$token': typeof AuthenticatedProjectsInviteTokenRoute
-  '/projects/join/$token': typeof AuthenticatedProjectsJoinTokenRoute
+  '/projects/team/$teamId': typeof AuthenticatedProjectsTeamTeamIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/project/live/$projectId': typeof ApiProjectLiveProjectIdRoute
   '/api/project/task-files/$fileId': typeof ApiProjectTaskFilesFileIdRoute
@@ -671,6 +678,7 @@ export interface FileRoutesById {
   '/_authenticated/task-types': typeof AuthenticatedTaskTypesRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/join/$token': typeof JoinTokenRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -696,6 +704,7 @@ export interface FileRoutesById {
   '/_authenticated/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/_authenticated/team/members': typeof AuthenticatedTeamMembersRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/project/my-live': typeof ApiProjectMyLiveRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -709,8 +718,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
-  '/_authenticated/projects/invite/$token': typeof AuthenticatedProjectsInviteTokenRoute
-  '/_authenticated/projects/join/$token': typeof AuthenticatedProjectsJoinTokenRoute
+  '/_authenticated/projects/team/$teamId': typeof AuthenticatedProjectsTeamTeamIdRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/project/live/$projectId': typeof ApiProjectLiveProjectIdRoute
   '/api/project/task-files/$fileId': typeof ApiProjectTaskFilesFileIdRoute
@@ -749,6 +757,7 @@ export interface FileRouteTypes {
     | '/task-types'
     | '/workspaces'
     | '/api/health'
+    | '/join/$token'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -774,6 +783,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/team/members'
     | '/api/auth/google'
+    | '/api/project/my-live'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin/'
@@ -787,8 +797,7 @@ export interface FileRouteTypes {
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
-    | '/projects/invite/$token'
-    | '/projects/join/$token'
+    | '/projects/team/$teamId'
     | '/api/auth/google/callback'
     | '/api/project/live/$projectId'
     | '/api/project/task-files/$fileId'
@@ -823,6 +832,7 @@ export interface FileRouteTypes {
     | '/task-types'
     | '/workspaces'
     | '/api/health'
+    | '/join/$token'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -848,6 +858,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/team/members'
     | '/api/auth/google'
+    | '/api/project/my-live'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin'
@@ -861,8 +872,7 @@ export interface FileRouteTypes {
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
-    | '/projects/invite/$token'
-    | '/projects/join/$token'
+    | '/projects/team/$teamId'
     | '/api/auth/google/callback'
     | '/api/project/live/$projectId'
     | '/api/project/task-files/$fileId'
@@ -900,6 +910,7 @@ export interface FileRouteTypes {
     | '/_authenticated/task-types'
     | '/_authenticated/workspaces'
     | '/api/health'
+    | '/join/$token'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
@@ -925,6 +936,7 @@ export interface FileRouteTypes {
     | '/_authenticated/projects/$projectId'
     | '/_authenticated/team/members'
     | '/api/auth/google'
+    | '/api/project/my-live'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/_authenticated/admin/'
@@ -938,8 +950,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pages_/edit'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
-    | '/_authenticated/projects/invite/$token'
-    | '/_authenticated/projects/join/$token'
+    | '/_authenticated/projects/team/$teamId'
     | '/api/auth/google_/callback'
     | '/api/project/live/$projectId'
     | '/api/project/task-files/$fileId'
@@ -971,7 +982,9 @@ export interface RootRouteChildren {
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  JoinTokenRoute: typeof JoinTokenRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
+  ApiProjectMyLiveRoute: typeof ApiProjectMyLiveRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
@@ -1172,6 +1185,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/join/$token': {
+      id: '/join/$token'
+      path: '/join/$token'
+      fullPath: '/join/$token'
+      preLoaderRoute: typeof JoinTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -1377,6 +1397,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthGoogleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/project/my-live': {
+      id: '/api/project/my-live'
+      path: '/api/project/my-live'
+      fullPath: '/api/project/my-live'
+      preLoaderRoute: typeof ApiProjectMyLiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/webhooks/resend': {
       id: '/api/webhooks/resend'
       path: '/api/webhooks/resend'
@@ -1440,18 +1467,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSystemEmailsKindRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/projects/invite/$token': {
-      id: '/_authenticated/projects/invite/$token'
-      path: '/projects/invite/$token'
-      fullPath: '/projects/invite/$token'
-      preLoaderRoute: typeof AuthenticatedProjectsInviteTokenRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/projects/join/$token': {
-      id: '/_authenticated/projects/join/$token'
-      path: '/projects/join/$token'
-      fullPath: '/projects/join/$token'
-      preLoaderRoute: typeof AuthenticatedProjectsJoinTokenRouteImport
+    '/_authenticated/projects/team/$teamId': {
+      id: '/_authenticated/projects/team/$teamId'
+      path: '/projects/team/$teamId'
+      fullPath: '/projects/team/$teamId'
+      preLoaderRoute: typeof AuthenticatedProjectsTeamTeamIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/auth/google_/callback': {
@@ -1637,8 +1657,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTeamMembersRoute: typeof AuthenticatedTeamMembersRoute
   AuthenticatedProjectsIndexRoute: typeof AuthenticatedProjectsIndexRoute
   AuthenticatedTeamIndexRoute: typeof AuthenticatedTeamIndexRoute
-  AuthenticatedProjectsInviteTokenRoute: typeof AuthenticatedProjectsInviteTokenRoute
-  AuthenticatedProjectsJoinTokenRoute: typeof AuthenticatedProjectsJoinTokenRoute
+  AuthenticatedProjectsTeamTeamIdRoute: typeof AuthenticatedProjectsTeamTeamIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -1653,8 +1672,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTeamMembersRoute: AuthenticatedTeamMembersRoute,
   AuthenticatedProjectsIndexRoute: AuthenticatedProjectsIndexRoute,
   AuthenticatedTeamIndexRoute: AuthenticatedTeamIndexRoute,
-  AuthenticatedProjectsInviteTokenRoute: AuthenticatedProjectsInviteTokenRoute,
-  AuthenticatedProjectsJoinTokenRoute: AuthenticatedProjectsJoinTokenRoute,
+  AuthenticatedProjectsTeamTeamIdRoute: AuthenticatedProjectsTeamTeamIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -1682,7 +1700,9 @@ const rootRouteChildren: RootRouteChildren = {
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
+  JoinTokenRoute: JoinTokenRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
+  ApiProjectMyLiveRoute: ApiProjectMyLiveRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,

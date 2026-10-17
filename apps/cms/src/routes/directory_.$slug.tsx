@@ -16,6 +16,7 @@ import { FollowButton } from "@/components/promotions/public/follow-button"
 import { ListingDealsBox } from "@/components/promotions/public/listing-deals"
 import { ListingSidebar } from "@/components/directory/public/listing-sidebar"
 import { NearbyListings } from "@/components/directory/public/nearby-listings"
+import { RecentlyViewedListings } from "@/components/directory/public/recently-viewed-listings"
 import {
   ListingGallery,
   ListingHoursCard,
@@ -97,6 +98,7 @@ function ListingRoute() {
     primaryCategory,
     nearby,
     claim,
+    ownerMessage,
     whatsOn,
     dealsHere,
     follow,
@@ -182,6 +184,7 @@ function ListingRoute() {
         listing={listing}
         coordinates={coordinates}
         claim={claim}
+        ownerMessage={ownerMessage}
         startClaimOpen={search.claim === "start"}
       />
       <ListingHoursCard hours={listing.hours} />
@@ -273,6 +276,10 @@ function ListingRoute() {
           {sidebar}
         </div>
       )}
+
+      {/* Records this listing and shows the ones opened before it, under
+          both columns so its cards have the page's full width. */}
+      <RecentlyViewedListings currentListingId={listing.id} />
     </DirectoryFrame>
   )
 }

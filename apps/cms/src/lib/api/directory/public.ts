@@ -11,7 +11,9 @@ import {
   readDirectoryNearRadius,
 } from "@/lib/directory/public-search"
 import { findCurrentUser } from "@/server/auth/security"
+import { readPageVisibility } from "@/server/content/pages"
 import {
+  publicListingCardsByIds,
   readDirectoryMap,
   readDirectorySuggestions,
   readPublicBrowse,
@@ -25,6 +27,7 @@ import {
   type PublicListingPage,
 } from "@/server/directory/public"
 import type { DirectoryFrontPageAnswer } from "@/lib/directory/front-page"
+import { RECENTLY_VIEWED_KEPT } from "@/lib/directory/recently-viewed"
 import {
   DIRECTORY_DEAL_FILTERS,
   type DirectoryDealFilter,
@@ -262,6 +265,40 @@ const readDirectorySuggestionsFn = createServerFn({ method: "GET" })
  */
 export function loadDirectorySuggestions(query: string) {
   return readDirectorySuggestionsFn({ data: { query } })
+}
+
+const readRecentlyViewedFn = createServerFn({ method: "GET" })
+  .inputValidator(
+    z.object({
+      ids: z.array(z.string().max(36)).max(RECENTLY_VIEWED_KEPT),
+    })
+  )
+  .handler(async ({ data }): Promise<PublicListingCard[]> => {
+    const site = await visitorSite()
+    if (!site || data.ids.length === 0) return []
+
+    // The route around the row has asked this already, but this door can be
+    // knocked on without it. A directory switched off, or kept for members
+    // from a signed-out visitor, hands back no cards.
+    const visibility = await readPageVisibility(site.id, "/directory")
+    if (visibility === "off") return []
+    if (visibility === "members" && !(await someoneIsSignedIn())) return []
+
+    // Published on this site only, in the order asked. A listing since put
+    // back to draft, or one from another site, is simply missing.
+    const cards = await publicListingCardsByIds(site.id, data.ids)
+    const dealsNow = cards.length
+      ? await dealsClockFor(site.id, someoneIsSignedIn)
+      : null
+    return withDealTags(site.id, cards, dealsNow)
+  })
+
+/**
+ * Fresh cards for the ids this browser remembers, so a renamed listing shows
+ * its new name and an unpublished one drops out.
+ */
+export function loadRecentlyViewed(ids: string[]) {
+  return readRecentlyViewedFn({ data: { ids } })
 }
 
 const geocodeDirectoryPlaceFn = createServerFn({ method: "POST" })
@@ -555,5 +592,6 @@ export type {
   PublicClaimState,
   PublicDirectoryMap,
   PublicListingCard,
+  PublicListingPage,
   PublicMapPin,
 } from "@/server/directory/public"

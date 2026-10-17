@@ -6,7 +6,9 @@ import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { requireMembership, type ProjectDb } from "@/server/project/access"
 import { loadClock, personDay } from "@/server/project/checkins"
+import { addDays, weekdayOf } from "@/lib/project/days"
 import { projectCheckins, projectTeamMembers, projectTimeOff } from "@/server/project/schema"
+import { customShellUsers } from "@/server/schema"
 
 /**
  * Time off for one person. On those days of their own calendar there is no
@@ -110,6 +112,48 @@ export async function awayOn(
       )
     )
   return new Set(rows.map((row) => row.userId))
+}
+
+export type AwayDay = { day: string; people: { id: string; name: string }[] }
+
+/**
+ * Who on the team is away on each of the team's work days from `first` to
+ * `last`, for the Team calendar (Tyler, 16 Oct 2026: always shown, to
+ * everyone on the team). Time off on a day the team doesn't work isn't
+ * named, and nor is anyone who has left the team.
+ */
+export async function awayBetween(
+  teamId: string,
+  workDays: readonly number[],
+  first: string,
+  last: string,
+  database: ProjectDb = db
+): Promise<AwayDay[]> {
+  const rows = await database
+    .select({
+      userId: projectTimeOff.userId,
+      name: customShellUsers.name,
+      firstDay: projectTimeOff.firstDay,
+      lastDay: projectTimeOff.lastDay,
+    })
+    .from(projectTimeOff)
+    .innerJoin(
+      projectTeamMembers,
+      and(eq(projectTeamMembers.teamId, projectTimeOff.teamId), eq(projectTeamMembers.userId, projectTimeOff.userId))
+    )
+    .innerJoin(customShellUsers, eq(customShellUsers.id, projectTimeOff.userId))
+    .where(and(eq(projectTimeOff.teamId, teamId), lte(projectTimeOff.firstDay, last), gte(projectTimeOff.lastDay, first)))
+    .orderBy(asc(customShellUsers.name))
+  const days: AwayDay[] = []
+  for (let day = first; day <= last; day = addDays(day, 1)) {
+    if (!workDays.includes(weekdayOf(day))) continue
+    const people = new Map<string, string>()
+    for (const row of rows) {
+      if (row.firstDay <= day && row.lastDay >= day) people.set(row.userId, row.name)
+    }
+    if (people.size) days.push({ day, people: [...people].map(([id, name]) => ({ id, name })) })
+  }
+  return days
 }
 
 export type CheckinRecord = { onTime: number; of: number }

@@ -19,8 +19,7 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: {
         ...globals.browser,
-        // Put into the code at build time; declared in `src/globals.d.ts`.
-        __DEV_APP_PORT__: 'readonly',
+        ...globals.node,
       },
     },
     rules: {

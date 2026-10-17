@@ -28,7 +28,12 @@
  * Reachable without being signed in, on purpose. The reason says why the thing
  * behind the door is safe for anyone to read.
  */
-export const appOpenEndpoints: Record<string, string> = {}
+export const appOpenEndpoints: Record<string, string> = {
+  "project/team-running.ts:loadJoinOfferFn":
+    "A team's join link opens signed out, because the person joining has no account yet. It answers only the team's name, and only for a link whose secret matches the stored fingerprint.",
+  "project/team-running.ts:joinByLinkFn":
+    "Joining through a team's link is how a new employee's account is made, so nobody is signed in yet. It checks the app's own origin, caps tries per address and per email, runs the human check, needs a live link, and refuses any email that already has an account.",
+}
 
 /**
  * The handler does no checking because the thing it calls does it instead. The

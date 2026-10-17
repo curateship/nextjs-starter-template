@@ -12,11 +12,9 @@ import type { CustomShellDb } from "@/server/db"
 import { requireMembership } from "@/server/project/access"
 import { saveFinishedDays } from "@/server/project/checkin-jobs"
 import { submitCheckin } from "@/server/project/checkins"
-import { acceptInvite, createInvite } from "@/server/project/invites"
 import { loadTeamActivity } from "@/server/project/project-activity"
 import {
   addProjectMember,
-  createProject,
   loadProjectPage,
   removeProjectMember,
 } from "@/server/project/projects"
@@ -26,17 +24,18 @@ import { searchTasks } from "@/server/project/search"
 import { assignTask, createTask, deleteTask, setTaskStatus, updateTask } from "@/server/project/tasks"
 import { loadTeamFigures, loadTeamTrends } from "@/server/project/team-figures"
 import { loadTeamMonth } from "@/server/project/team-days"
-import { createTeam, leaveTeam } from "@/server/project/teams"
+import { removeTeamMember } from "@/server/project/teams"
+import { insertEmployee, projectFor, startTeam } from "@/server/project/test-people"
 import type { CustomShellUser } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { createTestDatabase } from "@/server/test-support"
 import type { TaskActivityEntry } from "@/server/project/project-activity"
 
 /*
  * More features task 04: search every project, saved views, the team's
  * Activity tab, the Team calendar's week and the 12 weeks of trends.
  *
- * Anna owns the team. Ben and Carla are members. "Website" has Anna and Ben,
- * "Secret" only Anna. Dates are in 2099 so nothing meets the real today;
+ * The site admin runs the team; Anna, Ben and Carla are its employees.
+ * "Website" has Anna and Ben, "Secret" only Anna. Dates are in 2099 so nothing meets the real today;
  * 2 March 2099 is a Monday.
  */
 
@@ -45,6 +44,7 @@ let database: CustomShellDb
 let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
+let admin: CustomShellUser
 let website: string
 let secret: string
 
@@ -54,17 +54,13 @@ beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
-  anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
-  ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
-  carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  for (const person of [ben, carla]) {
-    const sent = await createInvite(anna, { email: person.email, role: "member" }, database)
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  website = (await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)).id
-  await addProjectMember(anna.id, website, ben.id, database)
-  secret = (await createProject(anna.id, { name: "Secret", color: "red", description: "" }, database)).id
+  anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
+  ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
+  carla = await insertEmployee(database, { name: "Carla", email: "carla@example.test" })
+  admin = (await startTeam(database, [anna, ben, carla])).admin
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  await addProjectMember(admin.id, website, ben.id, database)
+  secret = (await projectFor(admin, anna.id, { name: "Secret", color: "red", description: "" }, database)).id
 })
 
 afterEach(async () => {
@@ -94,11 +90,19 @@ describe("searching every project", () => {
       "New logo for the homepage",
       "Sketch a logo idea",
     ])
-    // The owner sees every shared project, but never someone else's Just me list.
+    // Anna is on both shared projects, but never sees someone else's Just me list.
     expect(titles(await searchTasks(anna.id, "LOGO", database))).toEqual([
       "Fonts",
       "Logo for the surprise",
       "New logo for the homepage",
+    ])
+    // The site admin sees every project, everyone's Just me list included.
+    expect(titles(await searchTasks(admin.id, "logo", database))).toEqual([
+      "Carla's logo notes",
+      "Fonts",
+      "Logo for the surprise",
+      "New logo for the homepage",
+      "Sketch a logo idea",
     ])
     // Every word must be there, in the title or the notes.
     expect(titles(await searchTasks(ben.id, "logo weight", database))).toEqual(["Fonts"])
@@ -168,11 +172,11 @@ describe("saved views", () => {
   it("go when their person leaves the project or the team", async () => {
     await saveView(ben.id, { projectId: website, name: "Mine", filters: { person: ben.id } }, database)
     await saveView(ben.id, { projectId: null, name: "Doing", filters: { status: "doing" } }, database)
-    await removeProjectMember(anna.id, website, ben.id, database)
+    await removeProjectMember(admin.id, website, ben.id, database)
     const team = await teamId()
     expect(await listSavedViews(ben.id, team, website, database)).toEqual([])
     expect(await listSavedViews(ben.id, team, null, database)).toHaveLength(1)
-    await leaveTeam(ben.id, database)
+    await removeTeamMember(admin.id, ben.id, database)
     expect(await listSavedViews(ben.id, team, null, database)).toEqual([])
   })
 
@@ -300,7 +304,7 @@ describe("team trends", () => {
     expect(thisWeek).toEqual({ monday: "2099-03-02", checkins: { checkedIn: 3, expected: 6 }, finished: 1 })
     expect(lastWeek.finished).toBe(1)
     expect(thisWeek.finished).toBe((await loadTeamFigures(ben.id, database, wednesday)).completedThisWeek)
-    // The owner sees Secret too.
+    // Anna is on Secret, so she sees it too.
     expect((await loadTeamTrends(anna.id, database, wednesday)).at(-1)?.finished).toBe(2)
   })
 

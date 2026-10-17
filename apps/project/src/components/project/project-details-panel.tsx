@@ -12,6 +12,7 @@ import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-hea
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ProjectPage } from "@/lib/api/project/projects"
+import { runsTheTeam } from "@/lib/project/rules"
 
 /**
  * The project's description, lead and client, then its status and milestones
@@ -22,12 +23,16 @@ import type { ProjectPage } from "@/lib/api/project/projects"
  * left this panel on 14 Oct 2026: whose tasks show is a dropdown in the tasks
  * panel's header, and adding or removing someone, or naming the lead, is in
  * Project settings. The bin is in the tasks panel's More menu.
+ *
+ * Only the site admin sees the cog and Project settings (Tyler, 16 Oct 2026:
+ * "Employees dont even see the settings cog or page. Only admin see it").
  */
 export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
   const { project } = page
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const lead = page.members.find((member) => member.userId === project.leadUserId) ?? null
   const shared = !project.personal
+  const siteAdmin = runsTheTeam(page.myRole)
 
   return (
     <>
@@ -44,15 +49,17 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
           shared ? (
             <div className="flex items-center gap-1">
               <StarButton project={project} />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Project settings"
-                onClick={() => setSettingsOpen(true)}
-              >
-                <SettingsIcon className="size-4" />
-              </Button>
+              {siteAdmin ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Project settings"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  <SettingsIcon className="size-4" />
+                </Button>
+              ) : null}
             </div>
           ) : null
         }
@@ -61,15 +68,18 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
         <div className="grid gap-5 p-4">
           {project.archived ? (
             <p className="text-sm text-muted-foreground">
-              This project is archived, so nothing in it can change. Bring it back from
-              Project settings to work on it.
+              {siteAdmin
+                ? "This project is archived, so nothing in it can change. Bring it back from Project settings to work on it."
+                : "This project is archived, so nothing in it can change. The site admin can bring it back."}
             </p>
           ) : null}
           <div className="grid gap-2">
             <Heading>Description</Heading>
             <p className="text-sm break-words whitespace-pre-wrap">
               {project.personal
-                ? "Your own tasks, which only you can see. They show on My dashboard and in your check-in."
+                ? siteAdmin
+                  ? "Their own tasks, which only they and you see. They show on their My dashboard and in their check-in."
+                  : "Your own tasks, which only you and the site admin see. They show on My dashboard and in your check-in."
                 : project.description || <span className="text-muted-foreground">No description yet.</span>}
             </p>
           </div>
@@ -105,11 +115,9 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
           ) : null}
         </div>
       </ScrollArea>
-      <ProjectSettingsDialog
-        page={page}
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
+      {siteAdmin ? (
+        <ProjectSettingsDialog page={page} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      ) : null}
     </>
   )
 }

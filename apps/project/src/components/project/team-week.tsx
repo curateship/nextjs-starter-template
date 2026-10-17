@@ -1,8 +1,9 @@
-import { CircleAlertIcon, ListTodoIcon, PartyPopperIcon } from "lucide-react"
+import { CircleAlertIcon, FlagIcon, ListTodoIcon, PartyPopperIcon } from "lucide-react"
 
-import type { TeamDueTask, TeamMonth } from "@/lib/api/project/checkins"
+import { AwayChip } from "@/components/project/team-away"
+import type { AwayDay, TeamDeadline, TeamDueTask, TeamMonth } from "@/lib/api/project/checkins"
 import { clockLabel, longDayLabel, weekdayOf } from "@/lib/project/days"
-import { dueWords } from "@/lib/project/due-days"
+import { awayWords, deadlineWords, dueWords } from "@/lib/project/due-days"
 import { MEETING_CHIP, meetingWords, timeRangeLabel, type DayMeeting } from "@/lib/project/meetings"
 import { dayBlocks, weekDays, weekHours, type WeekBlock } from "@/lib/project/week-view"
 import { cn } from "@/lib/utils"
@@ -12,8 +13,8 @@ const HOUR_PX = 48
 
 /**
  * The Team calendar's Week view: Monday to Sunday of the chosen day's week,
- * each day's check-in count at the top (and its due tasks' count while
- * "Due dates" is on) and its meetings at their times, in
+ * each day's check-in count and who is away at the top (and its milestones
+ * and due tasks' counts while "Due dates" is on) and its meetings at their times, in
  * the viewer's own time zone and on the viewer's own day. Clicking a day, or
  * a meeting on it, picks that day, so its check-ins show on the right and its
  * meetings under the calendar. On a phone the days stack as a list instead.
@@ -24,6 +25,8 @@ export function TeamWeek({
   meetingDays,
   holidays,
   dueDays,
+  deadlineDays,
+  awayOf,
   viewerZone,
   onSelect,
 }: {
@@ -33,6 +36,9 @@ export function TeamWeek({
   holidays: Map<string, string>
   /** Each day's due tasks; empty while "Due dates" is off. */
   dueDays: Map<string, TeamDueTask[]>
+  /** Each day's milestones and projects due; empty while "Due dates" is off. */
+  deadlineDays: Map<string, TeamDeadline[]>
+  awayOf: Map<string, AwayDay>
   viewerZone: string
   onSelect: (day: string) => void
 }) {
@@ -46,12 +52,16 @@ export function TeamWeek({
     const square = counts.get(day)
     const holiday = holidays.get(day)
     const dayMeetings = meetingDays.get(day) ?? []
+    const away = awayOf.get(day)
+    const deadlines = deadlineDays.get(day) ?? []
     const words = [
       holiday ? `${holiday}, a team holiday` : null,
       square?.expected
         ? `${square.checkedIn} of ${square.expected} checked in${square.blocked ? `, ${square.blocked} blocked` : ""}`
         : null,
+      awayWords(away),
       meetingWords(dayMeetings, viewerZone),
+      deadlineWords(deadlines),
       dueWords(dueDays.get(day) ?? []),
     ].filter(Boolean)
     const due = dueDays.get(day)?.length ?? 0
@@ -85,6 +95,13 @@ export function TeamWeek({
             <span className="flex max-w-full items-center gap-0.5 rounded bg-destructive/10 px-1 py-0.5 text-destructive">
               <CircleAlertIcon className="size-3 shrink-0" aria-hidden />
               {square.blocked} blocked
+            </span>
+          ) : null}
+          <AwayChip away={away} />
+          {deadlines.length ? (
+            <span className="flex max-w-full items-center gap-0.5 rounded bg-muted px-1 py-0.5 font-medium">
+              <FlagIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="truncate">{deadlines.length === 1 ? deadlines[0].name : `${deadlines.length} due`}</span>
             </span>
           ) : null}
           {due ? (

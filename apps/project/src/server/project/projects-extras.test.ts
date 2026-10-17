@@ -3,14 +3,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { CustomShellDb } from "@/server/db"
-import { acceptInvite, createInvite } from "@/server/project/invites"
 import { createLabel, setTaskLabels } from "@/server/project/labels"
 import { restoreTask } from "@/server/project/planning"
 import { loadProjectActivity } from "@/server/project/project-activity"
 import {
   addProjectMember,
   copyProject,
-  createProject,
   loadProjectPage,
   loadProjectsPage,
   updateProject,
@@ -27,7 +25,7 @@ import {
   updateStep,
   updateTask,
 } from "@/server/project/tasks"
-import { createTeam } from "@/server/project/teams"
+import { projectFor, startTeam } from "@/server/project/test-people"
 import type { CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import type { TaskActivityEntry } from "@/server/project/project-activity"
@@ -37,6 +35,8 @@ let database: CustomShellDb
 let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
+/** The site admin, who runs the team without being on it. */
+let admin: CustomShellUser
 let website: string
 
 const actor = (user: CustomShellUser) => ({ id: user.id, name: user.name })
@@ -48,17 +48,10 @@ beforeEach(async () => {
   anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
   ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  for (const person of [ben, carla]) {
-    const sent = await createInvite(
-      { ...actor(anna), currentWorkspaceId: anna.currentWorkspaceId },
-      { email: person.email, role: "member" },
-      database
-    )
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  website = (await createProject(anna.id, { name: "Bloom Bakery", color: "pink", description: "Site for Bloom" }, database)).id
-  await addProjectMember(anna.id, website, ben.id, database)
+  ;({ admin } = await startTeam(database, [anna, ben, carla]))
+  // Anna makes the project and is on it; the site admin adds Ben.
+  website = (await projectFor(admin, anna.id, { name: "Bloom Bakery", color: "pink", description: "Site for Bloom" }, database)).id
+  await addProjectMember(admin.id, website, ben.id, database)
 })
 
 afterEach(async () => {
@@ -77,7 +70,7 @@ async function task(title: string, assignee: CustomShellUser | null = ben, dueDa
 
 describe("copying a project", () => {
   it("copies tasks, steps, labels and sections, with no people, dates, chat or history", async () => {
-    const design = await createSection(anna.id, { projectId: website, name: "Design" }, database)
+    const design = await createSection(admin.id, { projectId: website, name: "Design" }, database)
     const brief = await task("Write the brief", ben, "2099-03-04")
     await updateTask(actor(anna), { taskId: brief, sectionId: design.id }, database)
     const step = await addStep(actor(anna), { taskId: brief, text: "Call the client" }, database)
@@ -90,7 +83,13 @@ describe("copying a project", () => {
     await deleteTask(actor(anna), binned, database)
     await task("Launch")
 
-    const { id } = await copyProject(ben.id, { projectId: website, name: "Hart Dental" }, database)
+    await expect(copyProject(ben.id, { projectId: website, name: "Hart Dental" }, database)).rejects.toThrow(
+      PROJECT_ERRORS.onlySiteAdminSettings
+    )
+    const { id } = await copyProject(admin.id, { projectId: website, name: "Hart Dental" }, database)
+    // The site admin isn't on projects, so the copy starts with nobody on it.
+    expect((await loadProjectPage(admin.id, id, database)).members).toEqual([])
+    await addProjectMember(admin.id, id, ben.id, database)
     const copy = await loadProjectPage(ben.id, id, database)
     expect(copy.project).toMatchObject({ name: "Hart Dental", color: "pink", description: "Site for Bloom" })
     expect(copy.members.map((m) => m.name)).toEqual(["Ben"])
@@ -122,7 +121,11 @@ describe("a project's due date and progress", () => {
     await task("Two")
     const binned = await task("Gone")
     await deleteTask(actor(anna), binned, database)
-    await updateProject(anna.id, { projectId: website, dueDate: "2099-11-30" }, database)
+    // The due date is a project setting, so the site admin's alone.
+    await expect(updateProject(anna.id, { projectId: website, dueDate: "2099-11-30" }, database)).rejects.toThrow(
+      PROJECT_ERRORS.onlySiteAdminSettings
+    )
+    await updateProject(admin.id, { projectId: website, dueDate: "2099-11-30" }, database)
     let row = (await loadProjectsPage(anna.id, database)).projects[0]
     expect(row.dueDate).toBe("2099-11-30")
     expect(row.counts).toEqual({ todo: 2, doing: 0, done: 0, stuck: 0 })

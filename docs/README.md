@@ -43,6 +43,8 @@ sat in thirteen app folders, and nothing read them.
   a site has more addresses than one sitemap file can hold.
 - `home-screen.md` — adding any app to a phone's home screen: the manifest,
   the icons cut from the logo, and the `homeScreen` app option.
+- `panel-view.md` — showing a signed-in page as the middle panel alone, inside
+  another app's frame named `shell-panel`, and the note the frame sends back.
 - `contacts-and-sending.md` — the five contact statuses and who may set each,
   who a send reaches, the rule that marks somebody as gone quiet, and why an
   admin table has to be told to fit the window.

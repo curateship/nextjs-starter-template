@@ -11,19 +11,14 @@ import { storedTaskNotes } from "@/lib/project/notes"
  * which outranks this file.
  */
 
+/**
+ * A stored team row's role. Since 16 Oct 2026 it gives no powers: "Only me,
+ * the site admin." `findMembership` answers "owner" for the site admin and
+ * "member" for everyone else, whatever the row says.
+ */
 export type TeamRole = "owner" | "admin" | "member"
 
-/** An invite never makes an owner; ownership is handed over, not given out. */
-export const TEAM_INVITE_ROLES = ["admin", "member"] as const
-export type TeamInviteRole = (typeof TEAM_INVITE_ROLES)[number]
-
-export const TEAM_ROLE_LABEL: Record<TeamRole, string> = {
-  owner: "Owner",
-  admin: "Admin",
-  member: "Member",
-}
-
-/** The owner and admins run the team: people, invites and its settings. */
+/** Whether this is the site admin, who runs every team: people, invites and settings. */
 export function runsTheTeam(role: TeamRole | null | undefined) {
   return role === "owner" || role === "admin"
 }
@@ -147,7 +142,7 @@ export const WEEK_DAYS = [
   { day: 0, short: "Sun" },
 ] as const
 
-/** How long an invite link works. */
+/** How long a join link works. */
 export const INVITE_LIFETIME_DAYS = 7
 
 /** What a check-in holds: a task worked on that day, or one let go from the last check-in. */
@@ -440,7 +435,6 @@ export const inviteSchema = z.object({
     .toLowerCase()
     .email("That doesn't look like an email address.")
     .max(254),
-  role: z.enum(TEAM_INVITE_ROLES),
 })
 
 /** How many addresses one send of the invite window takes (Tyler, 13 Oct 2026). */
@@ -455,7 +449,17 @@ export const inviteManySchema = z.object({
     .array(z.string().trim().toLowerCase().max(254))
     .min(1)
     .max(INVITE_BATCH, `One send takes at most ${INVITE_BATCH} addresses.`),
-  role: z.enum(TEAM_INVITE_ROLES),
+})
+
+/** Joining through a team's join link, signed out: a name and an email. */
+export const joinByLinkSchema = z.object({
+  name: z.string().trim().min(1, "Type your name.").max(255),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("That doesn't look like an email address.")
+    .max(254),
 })
 
 /**

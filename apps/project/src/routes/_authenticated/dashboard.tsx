@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
 import { MyDashboardScreen, type MyDashboardSearch } from "@/components/project/my-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
@@ -20,12 +20,17 @@ function readSearch(search: Record<string, unknown>): MyDashboardSearch {
   return result
 }
 
-/** My dashboard: me and today's check-in, my tasks, my inbox. */
+/** My dashboard: me and today's check-in, my tasks, my inbox. Employees only. */
 export const Route = createFileRoute("/_authenticated/dashboard")({
   validateSearch: readSearch,
   // Opening a task or the check-in doesn't reload the page under it.
   loaderDeps: () => ({}),
-  loader: async () => {
+  loader: async ({ parentMatchPromise }) => {
+    // The site admin oversees and has no tasks or check-in (Tyler, 16 Oct
+    // 2026: "What tasks? if i only overseeas the team, why would I get
+    // tasks?"), so My dashboard sends them to the Team dashboard.
+    const { user } = (await parentMatchPromise).loaderData ?? {}
+    if (user?.role === "admin") throw redirect({ to: "/team", replace: true })
     const [page, inbox] = await Promise.all([
       loadMyDashboardPage(),
       listNotificationPage({ limit: 30 }),
@@ -38,11 +43,10 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 })
 
 function DashboardRoute() {
-  const { dashboard, invites, notifications } = Route.useLoaderData()
+  const { dashboard, notifications } = Route.useLoaderData()
   return (
     <MyDashboardScreen
       dashboard={dashboard}
-      invites={invites}
       notifications={notifications}
       search={Route.useSearch()}
     />

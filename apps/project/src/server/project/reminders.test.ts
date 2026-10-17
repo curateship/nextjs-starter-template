@@ -2,13 +2,12 @@ import { PGlite } from "@electric-sql/pglite"
 import { and, asc, eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { onTeamHref } from "@/lib/project/notices"
 import type { CustomShellDb } from "@/server/db"
 
 import { setMyCheckinTime, submitCheckin } from "@/server/project/checkins"
-import { acceptInvite, createInvite } from "@/server/project/invites"
 import {
   addProjectMember,
-  createProject,
   removeProjectMember,
   setProjectArchived,
 } from "@/server/project/projects"
@@ -17,7 +16,8 @@ import { projectNoticeLinks } from "@/server/project/schema"
 import { followTask } from "@/server/project/task-followers"
 import { createTask, setTaskStatus, updateTask } from "@/server/project/tasks"
 import { loadTeamMonth } from "@/server/project/team-days"
-import { changeMemberRole, createTeam } from "@/server/project/teams"
+import type { TeamSummary } from "@/server/project/teams"
+import { projectFor, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
@@ -38,6 +38,9 @@ let database: CustomShellDb
 let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
+/** The site admin, who runs the team without being on it. */
+let admin: CustomShellUser
+let team: TeamSummary
 let projectId: string
 
 const actor = (user: CustomShellUser) => ({ id: user.id, name: user.name })
@@ -49,23 +52,17 @@ beforeEach(async () => {
   anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
   ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  for (const person of [ben, carla]) {
-    const sent = await createInvite(
-      { ...actor(anna), currentWorkspaceId: anna.currentWorkspaceId },
-      { email: person.email, role: "member" },
-      database
-    )
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  const project = await createProject(
+  ;({ admin, team } = await startTeam(database, [anna, ben, carla]))
+  // The site admin makes Website with Anna on it, then adds Ben and Carla.
+  const project = await projectFor(
+    admin,
     anna.id,
     { name: "Website", color: "blue", description: "" },
     database
   )
   projectId = project.id
-  await addProjectMember(anna.id, projectId, ben.id, database)
-  await addProjectMember(anna.id, projectId, carla.id, database)
+  await addProjectMember(admin.id, projectId, ben.id, database)
+  await addProjectMember(admin.id, projectId, carla.id, database)
 })
 
 afterEach(async () => {
@@ -166,14 +163,14 @@ describe("due tomorrow and overdue", () => {
       { projectId, title: "Nobody's", notes: "", assigneeUserId: null, dueDate: TUESDAY, steps: [] },
       database
     )
-    const other = await createProject(anna.id, { name: "Old", color: "red", description: "" }, database)
-    await addProjectMember(anna.id, other.id, ben.id, database)
+    const other = await projectFor(admin, anna.id, { name: "Old", color: "red", description: "" }, database)
+    await addProjectMember(admin.id, other.id, ben.id, database)
     await createTask(
       actor(anna),
       { projectId: other.id, title: "Archived", notes: "", assigneeUserId: ben.id, dueDate: TUESDAY, steps: [] },
       database
     )
-    await setProjectArchived(anna.id, other.id, true, database)
+    await setProjectArchived(admin.id, other.id, true, database)
 
     await sendDueReminders(database, at(`${MONDAY}T09:00:00Z`))
     expect(await noticesFor(ben.id, "due_soon")).toHaveLength(0)
@@ -253,16 +250,15 @@ describe("finished and unblocked", () => {
 
   it("tells nobody who is no longer on the project", async () => {
     const task = await taskFor(ben, "Write the launch email", null, carla)
-    await removeProjectMember(anna.id, projectId, carla.id, database)
-    await addProjectMember(anna.id, projectId, ben.id, database)
+    await removeProjectMember(admin.id, projectId, carla.id, database)
+    await addProjectMember(admin.id, projectId, ben.id, database)
     await setTaskStatus(actor(anna), { taskId: task.id, status: "done", stuckReason: null }, database)
     expect(await noticesFor(carla.id, "task_done")).toHaveLength(0)
   })
 })
 
 describe("the team's morning", () => {
-  it("tells the owner and admins once, after the latest check-in time, with the calendar's numbers", async () => {
-    await changeMemberRole(anna.id, carla.id, "admin", database)
+  it("tells the site admin once, after the latest check-in time, with the calendar's numbers", async () => {
     await setMyCheckinTime(ben.id, { checkinTime: "10:00" }, database)
     await submitCheckin(anna.id, { answers: [], picks: [] }, database, at(`${MONDAY}T09:05:00Z`))
     const stuck = await taskFor(carla, "Blocked thing", null, carla)
@@ -271,29 +267,31 @@ describe("the team's morning", () => {
 
     // The latest time is Ben's 10:00, so nothing goes until 10:30.
     await sendTeamMorningNotices(database, at(`${MONDAY}T10:29:00Z`))
-    expect(await noticesFor(anna.id, "team_morning")).toHaveLength(0)
+    expect(await noticesFor(admin.id, "team_morning")).toHaveLength(0)
 
     await sendTeamMorningNotices(database, at(`${MONDAY}T10:30:00Z`))
     await sendTeamMorningNotices(database, at(`${MONDAY}T11:30:00Z`))
-    const square = (await loadTeamMonth(anna.id, undefined, database, at(`${MONDAY}T10:30:00Z`))).days.find(
+    const square = (await loadTeamMonth(admin.id, undefined, database, at(`${MONDAY}T10:30:00Z`))).days.find(
       (day) => day.day === MONDAY
     )
+    // The site admin isn't on the team, so isn't one of the three expected.
     expect(square).toEqual({ day: MONDAY, checkedIn: 2, expected: 3, blocked: 1 })
-    const expected = [
+    // The site admin may be looking at another team, so the link picks this one first.
+    expect(await noticesFor(admin.id, "team_morning")).toEqual([
       {
         message: "2 of 3 checked in, 1 blocked",
         detail: "Not yet: Ben.",
         kind: "team_morning",
-        href: `/team?day=${MONDAY}`,
+        href: onTeamHref(team.id, `/team?day=${MONDAY}`),
       },
-    ]
-    expect(await noticesFor(anna.id, "team_morning")).toEqual(expected)
-    expect(await noticesFor(carla.id, "team_morning")).toEqual(expected)
-    expect(await noticesFor(ben.id, "team_morning")).toHaveLength(0)
+    ])
+    for (const person of [anna, ben, carla]) {
+      expect(await noticesFor(person.id, "team_morning")).toHaveLength(0)
+    }
   })
 
   it("sends nothing on a day off", async () => {
     await sendTeamMorningNotices(database, at("2099-03-07T18:00:00Z"))
-    expect(await noticesFor(anna.id, "team_morning")).toHaveLength(0)
+    expect(await noticesFor(admin.id, "team_morning")).toHaveLength(0)
   })
 })

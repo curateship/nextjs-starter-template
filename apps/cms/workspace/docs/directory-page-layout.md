@@ -37,6 +37,8 @@ page is 1152px at its widest.
   headline, like "20% off", while one of its deals is on. `promotions.md`
   says how it is read.
 - **Business hours** is a card of its own under the narrow column.
+- **"Recently viewed" runs under both columns**, at the page's full width.
+  `recently-viewed-listings.md` covers it.
 - **On a phone the narrow column comes first.** Somebody opening a listing
   wants the photo, the name and the phone number, not the write-up. The wide
   column moves above it only once both fit side by side.
@@ -337,7 +339,8 @@ pages.
   the top, the map, and the search by town or postcode. The map and the search
   each need their own Google key, and each section says which.
 - **Listing pages** — the category that names this site's neighbourhoods, which
-  is the small label on a listing's card.
+  is the small label on a listing's card, and whether a listing with an
+  approved owner shows "Message the owner" (`message-the-owner.md`).
 - **Post pages** — whether a post's own page draws its cover image at the top.
   Off takes the picture off that page alone; every card that leads to the post
   still has it. `posts.md` describes the page.

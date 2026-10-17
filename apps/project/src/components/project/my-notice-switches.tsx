@@ -17,18 +17,12 @@ import { useSaveLine } from "@/lib/project/use-save-line"
  * "Time to check in", my own reminders and tags always arrive, so they
  * aren't listed (Tyler's choices, 12 Oct 2026).
  */
-export function MyNoticeSwitches({
-  off: savedOff,
-  runsTheTeam,
-}: {
-  off: NoticeSwitchId[]
-  /** The owner and admins also get the morning summary and join notices. */
-  runsTheTeam: boolean
-}) {
+export function MyNoticeSwitches({ off: savedOff }: { off: NoticeSwitchId[] }) {
   const [saveState, track] = useSaveLine()
   // Held here so a flip shows at once; the page's data catches up on the next load.
   const [off, setOff] = React.useState(() => new Set(savedOff))
-  const shown = NOTICE_SWITCHES.filter((item) => runsTheTeam || !item.runsTheTeam)
+  // My dashboard is an employee's; the morning summary and joins go to the site admin.
+  const shown = NOTICE_SWITCHES.filter((item) => !item.runsTheTeam)
 
   async function flip(id: NoticeSwitchId, on: boolean) {
     const change = (set: Set<NoticeSwitchId>, nowOn: boolean) => {

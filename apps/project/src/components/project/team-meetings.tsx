@@ -24,7 +24,7 @@ export function MeetingChips({ meetings }: { meetings: DayMeeting[] }) {
       {meetings.slice(0, CHIPS_PER_DAY).map(({ occurrence, meeting }) => (
         <span
           key={`${meeting.id}-${occurrence.startsAt}`}
-          className={cn("block w-full truncate rounded px-1 py-0.5 sm:px-1.5", MEETING_CHIP[meeting.color])}
+          className={cn("block w-full truncate rounded-md px-1.5 py-0.5", MEETING_CHIP[meeting.color])}
         >
           {meeting.title}
         </span>
@@ -126,12 +126,14 @@ function MeetingRow({
   )
 
   return (
-    <li className="flex items-center gap-1 rounded-lg border bg-background pr-1">
+    // The whole row lights on hover and opens the meeting (Tyler, 16 Oct 2026):
+    // the button's layer covers the row, and Join and the cog sit above it.
+    <li className="relative flex items-center gap-1 rounded-lg border bg-background pr-1 transition-colors hover:bg-accent/40 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring">
       <button
         type="button"
         aria-label={`${meeting.title}, ${time}, ${details.join(", ")}. Open the meeting`}
         onClick={onOpen}
-        className="flex min-w-0 flex-1 items-center gap-3 rounded-l-lg p-3 text-left hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left outline-none after:absolute after:inset-0 after:rounded-lg"
       >
         {body}
       </button>
@@ -139,7 +141,7 @@ function MeetingRow({
         // An icon, since the right panel's row has little room; its name says Join.
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button asChild variant="ghost" size="icon">
+            <Button asChild variant="ghost" size="icon" className="relative">
               <a
                 href={meeting.videoUrl}
                 target="_blank"
@@ -155,7 +157,14 @@ function MeetingRow({
       ) : null}
       <PeopleStack people={meeting.people} />
       {meeting.canEdit ? (
-        <Button type="button" variant="ghost" size="icon" aria-label={`Change ${meeting.title}`} onClick={onEdit}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="relative"
+          aria-label={`Change ${meeting.title}`}
+          onClick={onEdit}
+        >
           <SettingsIcon className="size-4" />
         </Button>
       ) : null}
@@ -173,8 +182,8 @@ function PeopleStack({ people }: { people: MeetingPerson[] }) {
     <span
       role="img"
       aria-label={`Invited: ${people.map((person) => person.name).join(", ")}`}
-      title={people.map((person) => person.name).join(", ")}
-      className="flex shrink-0 items-center -space-x-1"
+      // Faces only: a click on them opens the meeting, like the rest of the row.
+      className="pointer-events-none flex shrink-0 items-center -space-x-1"
     >
       {people.slice(0, FACES).map((person) => (
         <PersonAvatar

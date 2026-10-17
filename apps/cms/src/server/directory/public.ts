@@ -89,6 +89,7 @@ import {
   LISTING_CONTENT_TYPE,
 } from "@/server/directory/schema"
 import { visitorWorkspaceId } from "@/server/workspaces/for-request"
+import { getHumanCheckSiteKey } from "@/server/auth/turnstile"
 import { CATEGORY_POST_LIMIT } from "@/lib/posts/post-sort"
 import {
   postsArePublic,
@@ -386,6 +387,15 @@ export type PublicListingPage = {
    */
   nearby: PublicListingCard[]
   claim: PublicClaimState
+  /**
+   * Whether "Message the owner" is offered: the site has it switched on and
+   * somebody holds the approved claim. Never who, and never their address.
+   */
+  ownerMessage: {
+    open: boolean
+    /** The human check's public key, or null when the site runs without one. */
+    humanCheckSiteKey: string | null
+  }
 }
 
 export type PublicCategoryPage = {
@@ -1391,8 +1401,13 @@ async function sameNeighbourhood(
  * site's listing — on purpose. A visitor is told the same thing in each case,
  * and so is anybody calling this endpoint directly.
  */
-type CachedPublicListingPage = Omit<PublicListingPage, "claim"> & {
+type CachedPublicListingPage = Omit<
+  PublicListingPage,
+  "claim" | "ownerMessage"
+> & {
   claim: Omit<PublicClaimState, "signedIn" | "claimed" | "mine">
+  /** The site's switch. Whether anybody owns the listing is read per request. */
+  ownerMessagesEnabled: boolean
 }
 
 async function readPublicListingUncached(
@@ -1503,6 +1518,7 @@ async function readPublicListingUncached(
       pendingMessage: settings.claimPendingMessage,
       approvedMessage: settings.claimApprovedMessage,
     },
+    ownerMessagesEnabled: settings.ownerMessagesEnabled,
   }
 }
 
@@ -1535,13 +1551,19 @@ export async function readPublicListing(
     options.viewerId ?? null,
     database
   )
+  const { ownerMessagesEnabled, ...shared } = page
+  const ownerMessageOpen = ownerMessagesEnabled && claimState.claimed
   return {
-    ...page,
+    ...shared,
     claim: {
       ...page.claim,
       signedIn: Boolean(options.viewerId),
       claimed: claimState.claimed,
       mine: claimState.mine,
+    },
+    ownerMessage: {
+      open: ownerMessageOpen,
+      humanCheckSiteKey: ownerMessageOpen ? getHumanCheckSiteKey() : null,
     },
   }
 }

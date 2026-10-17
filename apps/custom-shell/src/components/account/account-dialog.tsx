@@ -20,6 +20,7 @@ import {
   type AccountPasswordDraft,
 } from "@/components/account/account-security-page"
 import type { AuthUser } from "@/lib/api/auth/auth"
+import { roleMay } from "@/lib/roles"
 import {
   getBillingErrorMessage,
   loadBillingPage,
@@ -136,9 +137,18 @@ export function AccountDialog({
   // straight from `tab` hid the body, unmounted the panel and dropped the
   // footer at that moment, so the window visibly collapsed to a small empty
   // header before it disappeared. Only whether it is open reads `tab` now.
-  const [shownTab, setShownTab] = React.useState<AccountTab>(tab ?? "profile")
-  if (tab && tab !== shownTab) {
-    setShownTab(tab)
+  //
+  // A tab this role does not get, such as Billing for an app role reached by
+  // an old `?account=billing` link, opens Profile instead.
+  const tabs = ACCOUNT_TABS.filter(
+    (id) => id !== "billing" || roleMay(user.role, "billing")
+  )
+  const askedTab = tab && tabs.includes(tab) ? tab : tab && "profile"
+  const [shownTab, setShownTab] = React.useState<AccountTab>(
+    askedTab ?? "profile"
+  )
+  if (askedTab && askedTab !== shownTab) {
+    setShownTab(askedTab)
   }
 
   return (
@@ -171,7 +181,7 @@ export function AccountDialog({
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <DialogTitle>Account</DialogTitle>
                 <TabsList>
-                  {ACCOUNT_TABS.map((id) => (
+                  {tabs.map((id) => (
                     <TabsTrigger
                       key={id}
                       value={id}
@@ -211,9 +221,15 @@ export function AccountDialog({
                   onStatusChange={setProfileStatus}
                 />
               </TabsContent>
-              <TabsContent value="billing" className="min-w-0">
-                <BillingTab key={user.id} userId={user.id} />
-              </TabsContent>
+              {tabs.includes("billing") ? (
+                <TabsContent value="billing" className="min-w-0">
+                  <BillingTab
+                    key={user.id}
+                    userId={user.id}
+                    showAiUsage={roleMay(user.role, "aiUsage")}
+                  />
+                </TabsContent>
+              ) : null}
               <TabsContent value="security" className="min-w-0">
                 <AccountSecurityPage
                   user={user}
@@ -306,7 +322,13 @@ type BillingTabData = {
 let lastBilling: { userId: string; data: BillingTabData } | null = null
 
 /** Billing data isn't in the shell, so fetch it when the tab first mounts. */
-function BillingTab({ userId }: { userId: string }) {
+function BillingTab({
+  userId,
+  showAiUsage,
+}: {
+  userId: string
+  showAiUsage: boolean
+}) {
   const [data, setData] = React.useState<BillingTabData | null>(
     lastBilling?.userId === userId ? lastBilling.data : null
   )
@@ -362,6 +384,7 @@ function BillingTab({ userId }: { userId: string }) {
       cardWarning={data.cardWarning}
       billingHistory={data.billingHistory}
       usage={data.usage}
+      showAiUsage={showAiUsage}
       // Pausing changes the plan, the badges and the buttons all at once, so
       // the tab re-reads itself rather than trying to patch what it is showing.
       onChanged={() => setReloads((count) => count + 1)}

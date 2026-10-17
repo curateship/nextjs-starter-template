@@ -17,6 +17,8 @@ import { projectProjectMembers, projectProjects } from "@/server/project/schema"
 /** The person's own project, made now if they have none. */
 async function ensurePersonalProject(userId: string, database: ProjectDb): Promise<string> {
   const membership = await requireMembership(userId, database)
+  // The site admin oversees, so they have no tasks of their own.
+  if (membership.siteAdmin) throw new Error(PROJECT_ERRORS.siteAdminNoTasks)
   const [found] = await database
     .select({ id: projectProjects.id })
     .from(projectProjects)

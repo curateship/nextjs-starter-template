@@ -1,6 +1,7 @@
 import { PlusIcon, SearchIcon } from "lucide-react"
 
 import type { AppOptions } from "@/lib/app-options"
+import { projectNavSection } from "@/lib/project/menu"
 import {
   PROJECT_NOTICE_CATEGORIES,
   isProjectNoticeKind,
@@ -29,7 +30,29 @@ export const appOptions: AppOptions = {
    * one tap away (Features 13 Oct task 06).
    */
   homeScreen: { startPath: "/dashboard" },
+  /**
+   * Project's people are employees (Tyler, 16 Oct 2026: "I think this needs to
+   * be a shell change. We'd have admin, pro, free and other types of users
+   * such as employee"). An employee gets none of the shell's member features:
+   * no billing, plan or Upgrade, AI usage, Feedback, Changelog or workspaces,
+   * and an Account window with their name, photo and password. Their left
+   * menu starts as Project's own. The site admin is the shell's `admin`, and
+   * runs every team without being on one (`src/server/project/access.ts`).
+   */
+  roles: [
+    {
+      id: "employee",
+      label: "Employee",
+      landing: "/dashboard",
+      menu: [projectNavSection()],
+    },
+  ],
   header: {
+    /** The site admin's team picker: they are on no team, so it says which one every page shows. */
+    leftContent: {
+      roles: ["admin"],
+      component: () => import("@/components/project/team-picker-header"),
+    },
     rightActions: [
       {
         /**
@@ -39,6 +62,7 @@ export const appOptions: AppOptions = {
         id: "task-search",
         label: "Search tasks",
         icon: SearchIcon,
+        roles: ["admin", "member", "employee"],
         foldsOnPhone: true,
         component: () => import("@/components/project/task-search-header"),
       },
@@ -50,6 +74,7 @@ export const appOptions: AppOptions = {
         id: "new-task",
         label: "New task",
         icon: PlusIcon,
+        roles: ["admin", "member", "employee"],
         foldsOnPhone: true,
         component: () => import("@/components/project/new-task-header"),
       },

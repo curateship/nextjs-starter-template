@@ -1,6 +1,7 @@
 import type * as React from "react"
 import { BookmarkIcon, ListFilterIcon } from "lucide-react"
 
+import { ClientFilterSelect } from "@/components/project/client-filter-select"
 import { ProjectDot } from "@/components/project/task-bits"
 import { TypeIconGlyph } from "@/components/project/task-type-icon"
 import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
@@ -31,6 +32,7 @@ const NO_TASK_FILTERS: Partial<TaskFilters> = {
   priority: undefined,
   label: undefined,
   type: undefined,
+  client: undefined,
 }
 
 /**
@@ -40,7 +42,9 @@ const NO_TASK_FILTERS: Partial<TaskFilters> = {
  * counts the filters set. Where the panel is too narrow for the header's
  * search box, the search is the popover's first row instead. Who the task
  * is for and when it is due are dropdowns of their own in the project page's
- * header (Tyler, 14 Oct 2026), so Clear leaves them alone.
+ * header (Tyler, 14 Oct 2026), so Clear leaves them alone. My dashboard adds
+ * a Client row (Features 16 Oct, part 9), since its tasks come from many
+ * projects.
  */
 export function TaskFilterPopover({
   filters,
@@ -51,6 +55,7 @@ export function TaskFilterPopover({
   groupByPerson,
   extra,
   onSaveView,
+  clients,
   buttonVariant = "outline",
 }: {
   filters: TaskFilters
@@ -65,10 +70,14 @@ export function TaskFilterPopover({
   /** More controls under the switch, such as the List's Columns menu. */
   extra?: React.ReactNode
   onSaveView: () => void
+  /** The clients of the projects shown, for a Client row. Left out, there is no row. */
+  clients?: string[]
   /** Ghost in the project page's header, where every control is. */
   buttonVariant?: "outline" | "ghost"
 }) {
-  const count = [filters.status, filters.priority, filters.label, filters.type].filter(Boolean).length
+  const count = [filters.status, filters.priority, filters.label, filters.type, clients && filters.client].filter(
+    Boolean
+  ).length
 
   return (
     <Popover>
@@ -170,6 +179,16 @@ export function TaskFilterPopover({
               </SelectContent>
             </Select>
           </FilterRow>
+          {clients ? (
+            <FilterRow id="filter-client" label="Client">
+              <ClientFilterSelect
+                id="filter-client"
+                value={filters.client}
+                clients={clients}
+                onChange={(client) => onChange({ client })}
+              />
+            </FilterRow>
+          ) : null}
         </div>
         {groupByPerson || extra ? (
           <>

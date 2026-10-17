@@ -5,11 +5,11 @@ import { toast } from "sonner"
 
 import { CopyProjectDialog } from "@/components/project/copy-project-dialog"
 import { NewProjectDialog } from "@/components/project/new-project-dialog"
-import { HealthMark, HealthSetBy } from "@/components/project/project-health"
+import { HealthWithInfo } from "@/components/project/project-health"
 import { ProjectProgress } from "@/components/project/project-progress"
 import { StarButton } from "@/components/project/star-button"
 import { PersonAvatar, ProjectDot } from "@/components/project/task-bits"
-import { InvitesForMe, TeamStart } from "@/components/project/team-start"
+import { TeamStart } from "@/components/project/team-start"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -34,7 +34,6 @@ import {
   type ProjectListRow,
   type ProjectsPage,
 } from "@/lib/api/project/projects"
-import type { InviteForMe } from "@/lib/api/project/teams"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
@@ -43,18 +42,16 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { runsTheTeam } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 type Column = "name" | "progress" | "status" | "lead" | "open" | "stuck" | "members"
 type Group = "active" | "archived"
 
-/** Room for "Set by Priya, 2 days ago" on one line; the reason is cut with "…". */
-const STATUS_WIDTH = "w-60 max-w-60"
-
 const COLUMNS: SortableColumn<Column>[] = [
   { key: "name", label: "Project", column: "main", className: "min-w-0 md:min-w-72" },
   { key: "progress", label: "Progress", column: "preview" },
-  { key: "status", label: "Status", column: "preview", className: STATUS_WIDTH },
+  { key: "status", label: "Status", column: "preview" },
   { key: "lead", label: "Lead", column: "preview" },
   { key: "open", label: "Open tasks", column: "preview" },
   { key: "stuck", label: "Stuck", column: "preview" },
@@ -81,18 +78,22 @@ function compareClients(a: string | null, b: string | null) {
 export function ProjectsDashboard({
   page,
 }: {
-  page: ProjectsPage & { invites: InviteForMe[] }
+  page: ProjectsPage
 }) {
-  if (!page.team) return <TeamStart invites={page.invites} />
+  if (!page.team) return <TeamStart />
   return (
     <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
-      {page.invites.length ? <InvitesForMe invites={page.invites} /> : null}
-      <ProjectsTable projects={page.projects} />
+      <ProjectsTable projects={page.projects} siteAdmin={runsTheTeam(page.team.myRole)} />
     </div>
   )
 }
 
-function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
+/**
+ * Making, copying and archiving projects are the site admin's alone (Tyler,
+ * 16 Oct 2026: "only I create projects"), so employees get the list to read
+ * and open, with stars.
+ */
+function ProjectsTable({ projects, siteAdmin }: { projects: ProjectListRow[]; siteAdmin: boolean }) {
   const navigate = useNavigate()
   const router = useRouter()
   const { config } = useShellRuntime()
@@ -159,7 +160,8 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
     config.dashboardRowsPerPage,
     `${group}|${query}|${client}|${byClient}|${sort}|${direction}`
   )
-  const visibleIds = visible.map((row) => row.id)
+  // A "Just me" list can't be archived, so it can't be ticked either.
+  const visibleIds = siteAdmin ? visible.filter((row) => !row.personal).map((row) => row.id) : []
   useClearSelectionOnListChange(selection.setSelected, `${group}|${query}|${client}`)
 
   async function setArchived(ids: string[], archived: boolean) {
@@ -248,10 +250,12 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
                 Group by client
               </Label>
             </div>
-            <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
-              <PlusIcon className="size-4" />
-              New project
-            </DashboardToolbarButton>
+            {siteAdmin ? (
+              <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
+                <PlusIcon className="size-4" />
+                New project
+              </DashboardToolbarButton>
+            ) : null}
           </>
         }
         header={
@@ -263,6 +267,7 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
             leading={
               <SelectAllTableHead
                 noun="projects"
+                disabled={visibleIds.length === 0}
                 checked={selection.selectAllState(visibleIds)}
                 onCheckedChange={() => selection.toggleVisible(visibleIds)}
               />
@@ -276,7 +281,9 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
             ? "No projects match that search."
             : group === "archived"
               ? "No archived projects."
-              : "No projects yet. Make one with New project."
+              : siteAdmin
+                ? "No projects yet. Make one with New project."
+                : "You aren't on any projects yet. The site admin adds you to them."
         }
         emptyColSpan={COLUMNS.length + 2}
         footer={footer}
@@ -299,6 +306,7 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
               <TableCell column="select">
                 <Checkbox
                   checked={selection.selected.has(row.id)}
+                  disabled={!siteAdmin || row.personal}
                   onCheckedChange={() => selection.toggle(row.id)}
                   aria-label={`Select ${row.name}`}
                 />
@@ -317,14 +325,8 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
               <TableCell column="preview">
                 <ProjectProgress counts={row.counts} dueDate={row.dueDate} />
               </TableCell>
-              <TableCell column="preview" className={STATUS_WIDTH}>
-                {row.health ? (
-                  <span className="grid w-52 min-w-0 gap-0.5">
-                    <HealthMark health={row.health.value} className="text-foreground" />
-                    {row.health.note ? <span className="truncate">{row.health.note}</span> : null}
-                    <HealthSetBy health={row.health} className="truncate" />
-                  </span>
-                ) : null}
+              <TableCell column="preview">
+                {row.health ? <HealthWithInfo health={row.health} /> : null}
               </TableCell>
               <TableCell column="preview">
                 {row.lead ? (
@@ -339,29 +341,33 @@ function ProjectsTable({ projects }: { projects: ProjectListRow[] }) {
               <TableCell column="preview">{row.memberCount}</TableCell>
               <TableCell column="actions">
                 <StarButton project={row} />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Copy ${row.name}`}
-                  onClick={() => setCopyingRow(row)}
-                >
-                  <CopyIcon className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={row.archived ? `Bring back ${row.name}` : `Archive ${row.name}`}
-                  disabled={busy}
-                  onClick={() => void setArchived([row.id], !row.archived)}
-                >
-                  {row.archived ? (
-                    <ArchiveRestoreIcon className="size-4" />
-                  ) : (
-                    <ArchiveIcon className="size-4" />
-                  )}
-                </Button>
+                {siteAdmin && !row.personal ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Copy ${row.name}`}
+                      onClick={() => setCopyingRow(row)}
+                    >
+                      <CopyIcon className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={row.archived ? `Bring back ${row.name}` : `Archive ${row.name}`}
+                      disabled={busy}
+                      onClick={() => void setArchived([row.id], !row.archived)}
+                    >
+                      {row.archived ? (
+                        <ArchiveRestoreIcon className="size-4" />
+                      ) : (
+                        <ArchiveIcon className="size-4" />
+                      )}
+                    </Button>
+                  </>
+                ) : null}
               </TableCell>
             </TableRow>
             </React.Fragment>

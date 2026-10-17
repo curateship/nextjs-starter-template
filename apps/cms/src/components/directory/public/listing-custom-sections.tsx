@@ -8,6 +8,7 @@ import {
   type CustomSimpleValue,
 } from "@/lib/directory/custom-fields"
 import type { WrittenPageNode } from "@/lib/pages/written-page-body"
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { cn } from "@/lib/utils"
 
 /**
@@ -95,6 +96,9 @@ function FieldLine({
       <figure className="grid gap-1">
         <img
           src={value}
+          srcSet={mediaImageSrcSet(value)}
+          // `max-w-sm`: never drawn wider than 384px.
+          sizes="384px"
           alt={label}
           loading="lazy"
           decoding="async"

@@ -6,7 +6,6 @@ import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { PERSONAL_PROJECT_ID } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
 import { loadCheckinPage, setMyCheckinTime, submitCheckin } from "@/server/project/checkins"
-import { acceptInvite, createInvite } from "@/server/project/invites"
 import {
   emptyProjectBin,
   loadProjectBin,
@@ -17,7 +16,6 @@ import {
 import { emptyOldBins, makeRepeatCopies } from "@/server/project/planning-jobs"
 import {
   addProjectMember,
-  createProject,
   loadProjectPage,
   loadProjectsPage,
 } from "@/server/project/projects"
@@ -34,8 +32,8 @@ import {
   updateStep,
   updateTask,
 } from "@/server/project/tasks"
-import { createTeam } from "@/server/project/teams"
 import { loadTeamDay } from "@/server/project/team-days"
+import { projectFor, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
@@ -50,6 +48,8 @@ let database: CustomShellDb
 let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
+/** The site admin, who runs the team without being on it. */
+let admin: CustomShellUser
 let website: string
 
 const actor = (user: CustomShellUser) => ({ id: user.id, name: user.name })
@@ -61,17 +61,10 @@ beforeEach(async () => {
   anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
   ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  for (const person of [ben, carla]) {
-    const sent = await createInvite(
-      { ...actor(anna), currentWorkspaceId: anna.currentWorkspaceId },
-      { email: person.email, role: "member" },
-      database
-    )
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  website = (await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)).id
-  await addProjectMember(anna.id, website, ben.id, database)
+  ;({ admin } = await startTeam(database, [anna, ben, carla]))
+  // Anna makes Website and is on it; the site admin adds Ben.
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  await addProjectMember(admin.id, website, ben.id, database)
 })
 
 afterEach(async () => {
@@ -197,7 +190,7 @@ describe("waiting on another task", () => {
   })
 
   it("never names a task in a project the reader isn't on", async () => {
-    const other = (await createProject(anna.id, { name: "Secret", color: "red", description: "" }, database)).id
+    const other = (await projectFor(admin, anna.id, { name: "Secret", color: "red", description: "" }, database)).id
     const hidden = await task("Hidden contract", anna, other)
     const launch = await task("Launch the site")
     await addWait(actor(anna), { taskId: launch, waitingOnTaskId: hidden }, database)
@@ -208,7 +201,7 @@ describe("waiting on another task", () => {
 })
 
 describe("Just me tasks", () => {
-  it("can't be opened by anyone else, not even the owner, and read as a personal task on the Team dashboard", async () => {
+  it("can't be opened by anyone else on the team, only the site admin, and read as a personal task on the Team dashboard", async () => {
     const { id } = await createTask(
       actor(ben),
       { projectId: PERSONAL_PROJECT_ID, title: "Book the dentist", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
@@ -218,6 +211,12 @@ describe("Just me tasks", () => {
     await expect(loadTaskDetail(anna.id, id, database)).rejects.toThrow(PROJECT_ERRORS.taskNotFound)
     expect((await loadProjectsPage(ben.id, database)).projects.map((p) => p.name)).toEqual(["Website"])
     expect((await loadProjectsPage(anna.id, database)).projects.map((p) => p.name)).toEqual(["Website"])
+    // The site admin sees every "Just me" list, under its person's name.
+    expect((await loadTaskDetail(admin.id, id, database)).task.title).toBe("Book the dentist")
+    expect((await loadProjectsPage(admin.id, database)).projects.map((p) => p.name)).toEqual([
+      "Just me · Ben",
+      "Website",
+    ])
 
     await submitCheckin(ben.id, { answers: [], picks: [id] }, database, at(`${MONDAY}T09:00:00Z`))
     const day = await loadTeamDay(anna.id, MONDAY, database, at(`${MONDAY}T10:00:00Z`))
@@ -261,7 +260,7 @@ describe("the bin", () => {
     expect(detail.history.map((e) => e.kind)).toEqual(expect.arrayContaining(["deleted", "restored"]))
   })
 
-  it("is emptied for good after 30 days, and early only by the owner and admins", async () => {
+  it("is emptied for good after 30 days, and early only by the site admin", async () => {
     const id = await task("Old mistake")
     await deleteTask(actor(anna), id, database)
     await emptyOldBins(database, new Date(Date.now() + 29 * 24 * 60 * 60 * 1000))
@@ -272,7 +271,9 @@ describe("the bin", () => {
     const second = await task("Another")
     await deleteTask(actor(anna), second, database)
     await expect(emptyProjectBin(ben.id, website, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-    await emptyProjectBin(anna.id, website, database)
+    // Anna made the project, and that gives her no say over its bin.
+    await expect(emptyProjectBin(anna.id, website, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+    await emptyProjectBin(admin.id, website, database)
     expect((await loadProjectBin(anna.id, website, database)).entries).toHaveLength(0)
   })
 })

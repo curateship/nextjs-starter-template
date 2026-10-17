@@ -84,18 +84,30 @@ export async function loadClock(
   database: ProjectDb = db
 ): Promise<{ membership: Membership; clock: CheckinClock }> {
   const membership = await requireMembership(userId, database)
-  const [row] = await database
-    .select({
-      teamTime: projectTeams.checkinTime,
-      teamZone: projectTeams.timeZone,
-      workDays: projectTeams.workDays,
-      ownTime: projectTeamMembers.checkinTime,
-      ownZone: projectTeamMembers.timeZone,
-    })
-    .from(projectTeamMembers)
-    .innerJoin(projectTeams, eq(projectTeams.id, projectTeamMembers.teamId))
-    .where(eq(projectTeamMembers.userId, userId))
-    .limit(1)
+  // The site admin is on no team, so they read the day on the team's clock.
+  const [row] = membership.siteAdmin
+    ? await database
+        .select({
+          teamTime: projectTeams.checkinTime,
+          teamZone: projectTeams.timeZone,
+          workDays: projectTeams.workDays,
+        })
+        .from(projectTeams)
+        .where(eq(projectTeams.id, membership.teamId))
+        .limit(1)
+        .then((rows) => rows.map((team) => ({ ...team, ownTime: null, ownZone: null })))
+    : await database
+        .select({
+          teamTime: projectTeams.checkinTime,
+          teamZone: projectTeams.timeZone,
+          workDays: projectTeams.workDays,
+          ownTime: projectTeamMembers.checkinTime,
+          ownZone: projectTeamMembers.timeZone,
+        })
+        .from(projectTeamMembers)
+        .innerJoin(projectTeams, eq(projectTeams.id, projectTeamMembers.teamId))
+        .where(eq(projectTeamMembers.userId, userId))
+        .limit(1)
   if (!row) throw new Error(PROJECT_ERRORS.noTeam)
   return { membership, clock: clockOf(row) }
 }
@@ -134,6 +146,7 @@ export async function setMyCheckinTime(
   database = db
 ) {
   const membership = await requireMembership(userId, database)
+  if (membership.siteAdmin) throw new Error(PROJECT_ERRORS.siteAdminNoCheckin)
   if (patch.timeZone) await requireKnownZone(patch.timeZone, database)
   const fields: { checkinTime?: string | null; timeZone?: string | null } = {}
   if (patch.checkinTime !== undefined) fields.checkinTime = patch.checkinTime
@@ -594,6 +607,7 @@ export async function submitCheckin(
   }
   await database.transaction(async (tx) => {
     const { membership, clock } = await loadClock(userId, tx)
+    if (membership.siteAdmin) throw new Error(PROJECT_ERRORS.siteAdminNoCheckin)
     // A check-in on time off or a holiday is saved as a day off, so it is never late.
     const today = await personWorkDay(userId, membership.teamId, clock, at, tx)
     const existing = await findDay(userId, today.day, tx)
@@ -722,7 +736,8 @@ async function pickableTasks(userId: string, taskIds: string[], database: Projec
 }
 
 async function requireCheckedInToday(userId: string, database: ProjectDb, at: Date) {
-  const { clock } = await loadClock(userId, database)
+  const { membership, clock } = await loadClock(userId, database)
+  if (membership.siteAdmin) throw new Error(PROJECT_ERRORS.siteAdminNoCheckin)
   const today = personDay(clock, at)
   const row = await findDay(userId, today.day, database)
   if (!row?.checkedInAt) throw new Error(PROJECT_ERRORS.notCheckedIn)

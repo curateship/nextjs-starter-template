@@ -3,7 +3,6 @@ import { z } from "zod"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import {
-  TEAM_INVITE_ROLES,
   announcementSchema,
   createTeamSchema,
   inviteManySchema,
@@ -19,39 +18,29 @@ import {
   postAnnouncement,
   takeDownAnnouncement,
 } from "@/server/project/announcements"
-import { findMembership } from "@/server/project/access"
+import { findMembership, pickTeam } from "@/server/project/access"
+import { createInvite, createInvites, resendInvite } from "@/server/project/invites"
 import {
-  acceptInvite,
-  cancelInvite,
-  createInvite,
-  createInvites,
-  declineInvite,
-  listInvitesForMe,
-  loadInviteByToken,
-  resendInvite,
-} from "@/server/project/invites"
-import {
-  changeMemberRole,
   createTeam,
   eachOf,
-  leaveTeam,
+  listTeamsForPicker,
   loadTeamDashboard,
   removeTeamMember,
+  setTeamAvatar,
   setTeamPhoto,
-  transferOwnership,
   updateTeam,
 } from "@/server/project/teams"
 import { loadTeamFigures } from "@/server/project/team-figures"
 
 export type {
   BulkResult,
+  PickerTeam,
   TeamDashboard,
-  TeamInviteRow,
   TeamMemberRow,
   TeamSummary,
 } from "@/server/project/teams"
 export type { Announcement } from "@/server/project/announcements"
-export type { InviteForMe, InviteOutcome, SentInvite } from "@/server/project/invites"
+export type { InviteOutcome, SentInvite } from "@/server/project/invites"
 export type { TeamFigures } from "@/server/project/team-figures"
 
 const id = z.string().min(1).max(36)
@@ -72,6 +61,11 @@ const setTeamPhotoFn = createServerFn({ method: "POST" })
   .inputValidator(teamPhotoSchema)
   .handler(async ({ data, context }) => setTeamPhoto(context.user.id, data.photoUrl))
 
+const setTeamAvatarFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(teamPhotoSchema)
+  .handler(async ({ data, context }) => setTeamAvatar(context.user.id, data.photoUrl))
+
 const createTeamFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(createTeamSchema)
@@ -82,35 +76,12 @@ const updateTeamFn = createServerFn({ method: "POST" })
   .inputValidator(updateTeamSchema)
   .handler(async ({ data, context }) => updateTeam(context.user.id, data))
 
-const changeRoleFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ userId: id, role: z.enum(TEAM_INVITE_ROLES) }))
-  .handler(async ({ data, context }) =>
-    changeMemberRole(context.user.id, data.userId, data.role)
-  )
-
-const transferOwnershipFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ userId: id }))
-  .handler(async ({ data, context }) => transferOwnership(context.user.id, data.userId))
-
 const removeMembersFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ userIds: z.array(id).min(1).max(200) }))
   .handler(async ({ data, context }) =>
     eachOf(data.userIds, (userId) => removeTeamMember(context.user.id, userId))
   )
-
-const cancelInvitesFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ inviteIds: z.array(id).min(1).max(200) }))
-  .handler(async ({ data, context }) =>
-    eachOf(data.inviteIds, (inviteId) => cancelInvite(context.user.id, inviteId))
-  )
-
-const leaveTeamFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .handler(async ({ context }) => leaveTeam(context.user.id))
 
 const createInviteFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -124,27 +95,19 @@ const createInvitesFn = createServerFn({ method: "POST" })
 
 const resendInviteFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ inviteId: id }))
-  .handler(async ({ data, context }) => resendInvite(context.user, data.inviteId))
+  .inputValidator(z.object({ userId: id }))
+  .handler(async ({ data, context }) => resendInvite(context.user, data.userId))
 
-const loadInviteFn = createServerFn({ method: "GET" })
+/** Every team, for the site admin's picker in the header. */
+const listPickerTeamsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ token: z.string().min(1).max(128) }))
-  .handler(async ({ data, context }) => loadInviteByToken(context.user, data.token))
+  .handler(async ({ context }) => listTeamsForPicker(context.user.id))
 
-const listInvitesForMeFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
-  .handler(async ({ context }) => listInvitesForMe(context.user))
-
-const acceptInviteFn = createServerFn({ method: "POST" })
+/** Moves the site admin's picker to another team. */
+const pickTeamFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ inviteId: id }))
-  .handler(async ({ data, context }) => acceptInvite(context.user, data.inviteId))
-
-const declineInviteFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ inviteId: id }))
-  .handler(async ({ data, context }) => declineInvite(context.user, data.inviteId))
+  .inputValidator(z.object({ teamId: id }))
+  .handler(async ({ data, context }) => pickTeam(context.user.id, data.teamId))
 
 export function loadTeamDashboardPage() {
   return loadTeamDashboardFn()
@@ -155,26 +118,17 @@ export function loadFigures() {
 export function saveTeamPhoto(photoUrl: string) {
   return setTeamPhotoFn({ data: { photoUrl } })
 }
+export function saveTeamAvatar(avatarUrl: string) {
+  return setTeamAvatarFn({ data: { photoUrl: avatarUrl } })
+}
 export function createProjectTeam(data: z.input<typeof createTeamSchema>) {
   return createTeamFn({ data })
 }
 export function updateProjectTeam(data: z.input<typeof updateTeamSchema>) {
   return updateTeamFn({ data })
 }
-export function changeTeamMemberRole(data: { userId: string; role: "admin" | "member" }) {
-  return changeRoleFn({ data })
-}
-export function makeTeamOwner(userId: string) {
-  return transferOwnershipFn({ data: { userId } })
-}
 export function removeManyFromTeam(userIds: string[]) {
   return removeMembersFn({ data: { userIds } })
-}
-export function cancelTeamInvites(inviteIds: string[]) {
-  return cancelInvitesFn({ data: { inviteIds } })
-}
-export function leaveProjectTeam() {
-  return leaveTeamFn()
 }
 export function inviteToTeam(data: z.input<typeof inviteSchema>) {
   return createInviteFn({ data })
@@ -182,20 +136,15 @@ export function inviteToTeam(data: z.input<typeof inviteSchema>) {
 export function inviteManyToTeam(data: z.input<typeof inviteManySchema>) {
   return createInvitesFn({ data })
 }
-export function resendTeamInvite(inviteId: string) {
-  return resendInviteFn({ data: { inviteId } })
+/** A fresh "Set your password" email for someone invited who hasn't opened theirs. */
+export function resendTeamInvite(userId: string) {
+  return resendInviteFn({ data: { userId } })
 }
-export function loadTeamInvite(token: string) {
-  return loadInviteFn({ data: { token } })
+export function loadPickerTeams() {
+  return listPickerTeamsFn()
 }
-export function loadMyTeamInvites() {
-  return listInvitesForMeFn()
-}
-export function acceptTeamInvite(inviteId: string) {
-  return acceptInviteFn({ data: { inviteId } })
-}
-export function declineTeamInvite(inviteId: string) {
-  return declineInviteFn({ data: { inviteId } })
+export function pickProjectTeam(teamId: string) {
+  return pickTeamFn({ data: { teamId } })
 }
 
 /** Each one rings everyone's bell, so an owner or admin can post 20 an hour at most. */

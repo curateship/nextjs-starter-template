@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { createErrorMessage } from "../error-message"
 
-import { userGet } from "@/server/guards"
+import { featureGet } from "@/server/guards"
 import {
   loadMemberHome,
   type MemberHome,
@@ -23,8 +23,10 @@ export const getMemberHomeErrorMessage = createErrorMessage(
   "We could not load your home page. Please try again."
 )
 
+// The member home is a member's plan, referrals and feedback, so an app role
+// without billing never lands here and is refused if it asks.
 const loadMemberHomeFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([featureGet("billing")])
   .handler(async ({ context }) => loadMemberHome(context.user))
 
 export function loadMemberHomePage() {

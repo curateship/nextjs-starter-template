@@ -1,8 +1,7 @@
 import * as React from "react"
-import { getRouteApi, useRouter } from "@tanstack/react-router"
+import { useRouter } from "@tanstack/react-router"
 import {
   ArrowRightLeftIcon,
-  LogOutIcon,
   MailPlusIcon,
   RefreshCwIcon,
   SettingsIcon,
@@ -15,7 +14,6 @@ import { HandOverDialog } from "@/components/project/hand-over-dialog"
 import { InviteDialog, SentInviteCard } from "@/components/project/invite-dialog"
 import { MemberDialog } from "@/components/project/member-dialog"
 import { PersonAvatar } from "@/components/project/task-bits"
-import { CardTop, FeedCard } from "@/components/shared/feed-card"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -42,14 +40,11 @@ import {
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
-  cancelTeamInvites,
-  leaveProjectTeam,
   removeManyFromTeam,
   resendTeamInvite,
   type BulkResult,
   type SentInvite,
   type TeamDashboard as TeamDashboardData,
-  type TeamInviteRow,
   type TeamMemberRow,
 } from "@/lib/api/project/teams"
 import { describeBulkResult } from "@/lib/format/bulk-result"
@@ -61,26 +56,21 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import {
-  TEAM_ROLE_LABEL,
-  runsTheTeam,
-  type TeamRole,
-} from "@/lib/project/rules"
+import { runsTheTeam } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * The Members page (`/team/members`), opened from Manage on the Team
- * dashboard: everyone on the team, the pending invites, and Leave team. The
- * owner and admins change roles, remove people and handle invites here;
- * everyone else sees the same page to read.
+ * dashboard: everyone on the team. The site admin invites, resends a
+ * "Set your password" email, hands tasks on and removes people here;
+ * employees see the same page to read. Team roles give no powers since
+ * 16 Oct 2026 ("Only me, the site admin"), so there are no roles to change,
+ * no owner to hand over to and no Leave team.
  */
 export function TeamMembersPage({ data }: { data: TeamDashboardData }) {
-  const canRun = runsTheTeam(data.myRole)
   return (
     <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
-      <MembersTable data={data} canRun={canRun} />
-      {canRun ? <InvitesTable invites={data.invites} /> : null}
-      {data.myRole === "owner" ? null : <LeaveTeamCard teamName={data.team.name} />}
+      <MembersTable data={data} canRun={runsTheTeam(data.myRole)} />
     </div>
   )
 }
@@ -102,8 +92,7 @@ function useBulkReport(one: string, many: string, verb: string) {
   )
 }
 
-type MemberColumn = "name" | "title" | "role" | "joined"
-const ROLE_ORDER: Record<TeamRole, number> = { owner: 0, admin: 1, member: 2 }
+type MemberColumn = "name" | "title" | "status" | "joined"
 
 function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boolean }) {
   const router = useRouter()
@@ -113,16 +102,14 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
   const [editing, setEditing] = React.useState<TeamMemberRow | null>(null)
   const [removing, setRemoving] = React.useState<TeamMemberRow[] | null>(null)
   const [handingOver, setHandingOver] = React.useState<TeamMemberRow | null>(null)
-  const { sort, direction, toggleSort } = useTableSort<MemberColumn>("role")
+  const [resent, setResent] = React.useState<{ sent: SentInvite; email: string } | null>(null)
+  const { sort, direction, toggleSort } = useTableSort<MemberColumn>("name")
   const selection = useSelection()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const report = useBulkReport("person", "people", "removed from the team")
   // A search hides people, so it clears the ticks: Remove never acts on someone out of sight.
   useClearSelectionOnListChange(selection.setSelected, query)
 
-  // The owner and you can't be picked: neither can be removed from here.
-  const removable = (member: TeamMemberRow) =>
-    canRun && member.role !== "owner" && member.userId !== data.myUserId
 
   const rows = React.useMemo(() => {
     const sign = direction === "asc" ? 1 : -1
@@ -134,8 +121,8 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
       )
       .sort((a, b) => {
         const gap =
-          sort === "role"
-            ? ROLE_ORDER[a.role] - ROLE_ORDER[b.role]
+          sort === "status"
+            ? Number(b.invited) - Number(a.invited)
             : sort === "title"
               ? (a.title ?? "~").localeCompare(b.title ?? "~")
               : sort === "joined"
@@ -146,17 +133,26 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
   }, [data.members, direction, query, sort])
 
   const { visible, footer } = useClientPage(rows, config.dashboardRowsPerPage, `${query}|${sort}|${direction}`)
-  const selectableIds = visible.filter(removable).map((m) => m.userId)
+  // Only the site admin removes people, and the site admin is never in this list.
+  const selectableIds = canRun ? visible.map((m) => m.userId) : []
   const selectedIds = [...selection.selected].filter((id) =>
-    data.members.some((m) => m.userId === id && removable(m))
+    canRun && data.members.some((m) => m.userId === id)
   )
 
   const columns: SortableColumn<MemberColumn>[] = [
     { key: "name", label: "Name", column: "main", className: "min-w-0 md:min-w-64" },
     { key: "title", label: "Job title", column: "preview" },
-    { key: "role", label: "Role", column: "preview" },
+    { key: "status", label: "Status", column: "preview" },
     { key: "joined", label: "Joined", column: "preview" },
   ]
+
+  async function resend(member: TeamMemberRow) {
+    let sent: SentInvite | null = null
+    const ok = await run(async () => {
+      sent = await resendTeamInvite(member.userId)
+    })
+    if (ok && sent) setResent({ sent, email: member.email })
+  }
 
   async function remove(people: TeamMemberRow[]) {
     let result: BulkResult = { done: [], kept: [] }
@@ -232,7 +228,6 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
       >
         {visible.map((member) => {
           const isMe = member.userId === data.myUserId
-          const canEdit = canRun && member.role !== "owner" && !isMe
           return (
             <TableRow
               key={member.userId}
@@ -242,7 +237,7 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
               <TableCell column="select">
                 <Checkbox
                   checked={selection.selected.has(member.userId)}
-                  disabled={!removable(member)}
+                  disabled={!canRun}
                   onCheckedChange={() => selection.toggle(member.userId)}
                   aria-label={`Select ${member.name}`}
                 />
@@ -262,19 +257,39 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
               <TableCell column="preview">
                 {member.title}
               </TableCell>
-              <TableCell column="preview">{TEAM_ROLE_LABEL[member.role]}</TableCell>
+              <TableCell column="preview">
+                {member.invited ? <span className="text-muted-foreground">Invited</span> : "Active"}
+              </TableCell>
               <TableCell column="preview">{formatDate(member.joinedAt)}</TableCell>
               <TableCell column="actions">
-                {canEdit || (data.myRole === "owner" && !isMe) ? (
+                {canRun && !isMe ? (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    aria-label={`Change ${member.name}'s role`}
+                    aria-label={`Open ${member.name}'s page`}
                     onClick={() => setEditing(member)}
                   >
                     <SettingsIcon className="size-4" />
                   </Button>
+                ) : null}
+                {canRun && member.invited ? (
+                  // The tooltip says it before the press: a fresh email stops the old link.
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Send ${member.name} a fresh link to set their password. The old link stops working.`}
+                        disabled={busy}
+                        onClick={() => void resend(member)}
+                      >
+                        <RefreshCwIcon className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Send the invite again. The old link stops working.</TooltipContent>
+                  </Tooltip>
                 ) : null}
                 {canRun ? (
                   <Button
@@ -287,7 +302,7 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
                     <ArrowRightLeftIcon className="size-4" />
                   </Button>
                 ) : null}
-                {removable(member) ? (
+                {canRun ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -312,6 +327,7 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
         onHandOver={setHandingOver}
       />
       <HandOverDialog from={handingOver} members={data.members} onClose={() => setHandingOver(null)} />
+      <InviteResentDialog resent={resent} onClose={() => setResent(null)} />
       <ConfirmDialog
         open={Boolean(removing)}
         onOpenChange={(open) => {
@@ -324,8 +340,8 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
         }
         description={
           <>
-            They lose access at once. Their tasks stay, with nobody assigned and a note saying whose
-            they were.
+            They lose access to the team at once and keep their account. Their tasks stay, with
+            nobody assigned and a note saying whose they were.
             {removing?.length === 1 ? (
               <>
                 {" "}
@@ -354,221 +370,9 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
   )
 }
 
-type InviteColumn = "email" | "role" | "expires"
-
-function InvitesTable({ invites }: { invites: TeamInviteRow[] }) {
-  const router = useRouter()
-  const { config } = useShellRuntime()
-  const { sort, direction, toggleSort } = useTableSort<InviteColumn>("email")
-  const selection = useSelection()
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  const [cancelling, setCancelling] = React.useState<string[] | null>(null)
-  const [resent, setResent] = React.useState<{ sent: SentInvite; email: string } | null>(null)
-  const report = useBulkReport("invite", "invites", "cancelled")
-
-  const rows = React.useMemo(() => {
-    const sign = direction === "asc" ? 1 : -1
-    return [...invites].sort((a, b) => {
-      const gap =
-        sort === "role"
-          ? a.role.localeCompare(b.role)
-          : sort === "expires"
-            ? a.expiresAt.localeCompare(b.expiresAt)
-            : a.email.localeCompare(b.email)
-      return gap * sign || a.email.localeCompare(b.email)
-    })
-  }, [direction, invites, sort])
-  const { visible, footer } = useClientPage(rows, config.dashboardRowsPerPage, `${sort}|${direction}`)
-  const visibleIds = visible.map((invite) => invite.id)
-  const selectedIds = [...selection.selected].filter((id) => invites.some((i) => i.id === id))
-
-  const columns: SortableColumn<InviteColumn>[] = [
-    { key: "email", label: "Email", column: "main", className: "min-w-0 md:min-w-64" },
-    { key: "role", label: "Role", column: "preview" },
-    { key: "expires", label: "Expires", column: "preview" },
-  ]
-
-  async function resend(invite: TeamInviteRow) {
-    let sent: SentInvite | null = null
-    const ok = await run(async () => {
-      sent = await resendTeamInvite(invite.id)
-    })
-    if (!ok || !sent) return
-    setResent({ sent, email: invite.email })
-    await router.invalidate()
-  }
-
-  async function cancel(ids: string[]) {
-    let result: BulkResult = { done: [], kept: [] }
-    const ok = await run(async () => {
-      result = await cancelTeamInvites(ids)
-    })
-    if (!ok) return
-    report(result)
-    setCancelling(null)
-    selection.clear()
-    await router.invalidate()
-  }
-
-  return (
-    <>
-      <DashboardTable
-        title="Pending invites"
-        icon={<MailPlusIcon className="text-muted-foreground" />}
-        count={rows.length}
-        selectedCount={selectedIds.length}
-        onClearSelection={selection.clear}
-        controls={
-          selectedIds.length ? (
-            <DashboardToolbarButton
-              type="button"
-              variant="destructive"
-              disabled={busy}
-              onClick={() => setCancelling(selectedIds)}
-            >
-              <Trash2Icon className="size-4" />
-              Cancel ({selectedIds.length})
-            </DashboardToolbarButton>
-          ) : null
-        }
-        header={
-          <SortableTableHeader
-            columns={columns}
-            sort={sort}
-            direction={direction}
-            onSort={toggleSort}
-            leading={
-              <SelectAllTableHead
-                noun="invites"
-                disabled={visibleIds.length === 0}
-                checked={selection.selectAllState(visibleIds)}
-                onCheckedChange={() => selection.toggleVisible(visibleIds)}
-              />
-            }
-            trailing={<TableHead column="meta">Actions</TableHead>}
-          />
-        }
-        isEmpty={rows.length === 0}
-        emptyText="No invites waiting. Invite someone from the Members table."
-        emptyColSpan={5}
-        footer={footer}
-      >
-        {visible.map((invite) => (
-          <TableRow key={invite.id} className="group">
-            <TableCell column="select">
-              <Checkbox
-                checked={selection.selected.has(invite.id)}
-                onCheckedChange={() => selection.toggle(invite.id)}
-                aria-label={`Select the invite to ${invite.email}`}
-              />
-            </TableCell>
-            <TableCell column="main">
-              <span className="block truncate font-medium">{invite.email}</span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {invite.invitedByName ? `Invited by ${invite.invitedByName}` : "Invited"} on{" "}
-                {formatDate(invite.sentAt)}
-              </span>
-            </TableCell>
-            <TableCell column="preview">{TEAM_ROLE_LABEL[invite.role]}</TableCell>
-            <TableCell column="preview">
-              {invite.expired ? (
-                <span className="text-destructive">Expired</span>
-              ) : (
-                formatDate(invite.expiresAt)
-              )}
-            </TableCell>
-            <TableCell column="actions">
-              {/* The tooltip says it before the press: resending stops the old link. */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Resend the invite to ${invite.email}. The old link stops working.`}
-                    disabled={busy}
-                    onClick={() => void resend(invite)}
-                  >
-                    <RefreshCwIcon className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Resend the invite. The old link stops working.</TooltipContent>
-              </Tooltip>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`Cancel the invite to ${invite.email}`}
-                disabled={busy}
-                onClick={() => setCancelling([invite.id])}
-              >
-                <Trash2Icon className="size-4" />
-              </Button>
-            </TableCell>
-          </TableRow>
-        ))}
-      </DashboardTable>
-      <ConfirmDialog
-        open={Boolean(cancelling)}
-        onOpenChange={(open) => {
-          if (!open) setCancelling(null)
-        }}
-        title={cancelling?.length === 1 ? "Cancel this invite?" : `Cancel ${cancelling?.length ?? 0} invites?`}
-        description="The invite link stops working. You can invite the same address again later."
-        confirmLabel="Cancel invite"
-        cancelLabel="Keep it"
-        loading={busy}
-        onConfirm={async () => {
-          if (cancelling) await cancel(cancelling)
-        }}
-      />
-      <InviteResentDialog resent={resent} onClose={() => setResent(null)} />
-    </>
-  )
-}
-
-function LeaveTeamCard({ teamName }: { teamName: string }) {
-  const router = useRouter()
-  const me = getRouteApi("/_authenticated").useLoaderData().user
-  const [confirming, setConfirming] = React.useState(false)
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
-
-  return (
-    <FeedCard>
-      <CardTop icon={LogOutIcon} title="Leave team" />
-      <div className="grid gap-4 p-4 sm:p-5">
-        <p className="text-sm text-muted-foreground">
-          You'll lose access to {teamName}'s projects at once. Your tasks stay, with nobody assigned.
-        </p>
-        <div>
-          <Button type="button" variant="outline" onClick={() => setConfirming(true)}>
-            <LogOutIcon className="size-4" />
-            Leave {teamName}
-          </Button>
-        </div>
-      </div>
-      <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title={`Leave ${teamName}?`}
-        description={`${me.name}, you'd need a new invite to come back.`}
-        confirmLabel="Leave team"
-        loading={busy}
-        onConfirm={async () => {
-          const ok = await run(() => leaveProjectTeam(), `You left ${teamName}.`)
-          if (ok) {
-            setConfirming(false)
-            await router.invalidate()
-          }
-        }}
-      />
-    </FeedCard>
-  )
-}
-
 /**
- * After Resend: the fresh link to copy, and whether the email went. Here and
- * on the Team dashboard's Members card, which resends the same way.
+ * After Resend: whether the fresh "Set your password" email went. Here and on
+ * the Team dashboard's Members card, which resends the same way.
  */
 export function InviteResentDialog({
   resent,
@@ -582,7 +386,7 @@ export function InviteResentDialog({
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Invite sent again</DialogTitle>
-          <DialogDescription>The old link no longer works. This one lasts seven days.</DialogDescription>
+          <DialogDescription>The old link no longer works.</DialogDescription>
         </DialogHeader>
         <DialogBody>{resent ? <SentInviteCard sent={resent.sent} email={resent.email} /> : null}</DialogBody>
         <DialogFooter>

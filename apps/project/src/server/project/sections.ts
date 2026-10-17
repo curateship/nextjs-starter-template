@@ -5,7 +5,7 @@ import { LIMITS } from "@/lib/project/rules"
 import { placesAfterReorder } from "@/lib/project/task-order"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { requireOpenProject, type ProjectDb } from "@/server/project/access"
+import { requireOpenProject, requireProjectSettings, type ProjectDb } from "@/server/project/access"
 import { projectSections, projectTasks } from "@/server/project/schema"
 
 /**
@@ -31,7 +31,7 @@ export async function createSection(
   database = db
 ): Promise<Section> {
   return database.transaction(async (tx) => {
-    await requireOpenProject(userId, input.projectId, tx)
+    await requireProjectSettings(userId, input.projectId, tx)
     const [{ total, last }] = await tx
       .select({ total: count(), last: max(projectSections.position) })
       .from(projectSections)
@@ -55,7 +55,7 @@ async function requireSection(userId: string, sectionId: string, database: Proje
     .where(eq(projectSections.id, sectionId))
     .limit(1)
   if (!section) throw new Error(PROJECT_ERRORS.sectionNotFound)
-  await requireOpenProject(userId, section.projectId, database)
+  await requireProjectSettings(userId, section.projectId, database)
   return section
 }
 

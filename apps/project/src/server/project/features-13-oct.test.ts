@@ -6,18 +6,19 @@ import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { CustomShellDb } from "@/server/db"
 import { checkOut, finishedNote, loadCheckinPage, submitCheckin } from "@/server/project/checkins"
 import { inviteAddresses } from "@/lib/project/rules"
-import { acceptInvite, createInvite, createInvites } from "@/server/project/invites"
-import { addProjectMember, createProject } from "@/server/project/projects"
-import { projectTasks, projectTeamInvites } from "@/server/project/schema"
+import { createInvites } from "@/server/project/invites"
+import { addProjectMember } from "@/server/project/projects"
+import { projectTasks, projectTeamMembers } from "@/server/project/schema"
 import { changeManyTasks, duplicateTask } from "@/server/project/task-changes"
 import { createTask, deleteTask, listTaskCards, loadTaskDetail, updateTask } from "@/server/project/tasks"
-import { createTeam } from "@/server/project/teams"
-import type { CustomShellUser } from "@/server/schema"
+import { insertEmployee, projectFor, startTeam } from "@/server/project/test-people"
+import { customShellUsers, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
 /*
  * Features 13 Oct 2026. Dates are in 2099 so nothing here meets the real
  * today. 2 March 2099 is a Monday. The team works Monday to Friday at 9:00 UTC.
+ * The site admin runs the team; Anna and Ben are its employees.
  */
 const MONDAY = "2099-03-02"
 const TUESDAY = "2099-03-03"
@@ -27,6 +28,7 @@ let client: PGlite
 let database: CustomShellDb
 let anna: CustomShellUser
 let ben: CustomShellUser
+let admin: CustomShellUser
 
 const actor = (user: CustomShellUser) => ({
   id: user.id,
@@ -38,11 +40,9 @@ beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
-  anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
-  ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  const sent = await createInvite(actor(anna), { email: ben.email, role: "member" }, database)
-  await acceptInvite(ben, sent.inviteId, database)
+  anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
+  ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
+  admin = (await startTeam(database, [anna, ben])).admin
 })
 
 afterEach(async () => {
@@ -51,8 +51,8 @@ afterEach(async () => {
 
 /** Anna's project with Ben in it, and one task each for Ben. */
 async function benWithTasks(titles: string[]) {
-  const project = await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)
-  await addProjectMember(anna.id, project.id, ben.id, database)
+  const project = await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)
+  await addProjectMember(admin.id, project.id, ben.id, database)
   const ids: string[] = []
   for (const title of titles) {
     const task = await createTask(
@@ -197,46 +197,50 @@ describe("Suggested picks at check-in", () => {
 })
 
 describe("Invite several people at once", () => {
-  it("sends each new address and lists the rest without sending them", async () => {
-    await createInvite(actor(anna), { email: "dee@example.test", role: "member" }, database)
+  it("makes each new address an employee on the team and lists the rest without sending them", async () => {
+    // Mia signed herself up, so she is a member of the site, not an employee.
+    await insertUser(database, { name: "Mia", email: "mia@example.test" })
     const outcomes = await createInvites(
-      actor(anna),
-      {
-        emails: ["ED@example.test", "fay@example.test", "ben@example.test", "dee@example.test", "nope", "ed@example.test"],
-        role: "member",
-      },
+      actor(admin),
+      { emails: ["ED@example.test", "fay@example.test", "ben@example.test", "mia@example.test", "nope", "ed@example.test"] },
       database
     )
     expect(outcomes.map(({ email, result }) => [email, result])).toEqual([
       ["ed@example.test", "sent"],
       ["fay@example.test", "sent"],
       ["ben@example.test", "on_team"],
-      ["dee@example.test", "invited"],
+      ["mia@example.test", "not_an_employee"],
       ["nope", "not_an_email"],
     ])
-    const invites = await database.select().from(projectTeamInvites)
-    expect(invites.map((invite) => invite.email).sort()).toEqual([
-      "dee@example.test",
-      "ed@example.test",
-      "fay@example.test",
+    const onTeam = await database
+      .select({ email: customShellUsers.email, role: customShellUsers.role })
+      .from(projectTeamMembers)
+      .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
+    expect(onTeam.map((row) => [row.email, row.role]).sort()).toEqual([
+      ["anna@example.test", "employee"],
+      ["ben@example.test", "employee"],
+      ["ed@example.test", "employee"],
+      ["fay@example.test", "employee"],
     ])
   })
 
   it("marks the addresses past the hourly cap and still sends the ones before it", async () => {
+    // The site admin sends 30 an hour; the 31st address is past the cap.
     const emails = Array.from({ length: 20 }, (_, i) => `p${i}@example.test`)
-    // Ben's invite at the start already used one of Anna's 30 an hour.
-    const first = await createInvites(actor(anna), { emails, role: "member" }, database)
+    const first = await createInvites(actor(admin), { emails }, database)
     expect(first.every((outcome) => outcome.result === "sent")).toBe(true)
-    const more = Array.from({ length: 10 }, (_, i) => `q${i}@example.test`)
-    const second = await createInvites(actor(anna), { emails: more, role: "member" }, database)
-    expect(second.filter((outcome) => outcome.result === "sent")).toHaveLength(9)
+    const more = Array.from({ length: 11 }, (_, i) => `q${i}@example.test`)
+    const second = await createInvites(actor(admin), { emails: more }, database)
+    expect(second.filter((outcome) => outcome.result === "sent")).toHaveLength(10)
     expect(second.at(-1)?.result).toBe("too_many")
   })
 
-  it("is only for the owner and admins", async () => {
-    await expect(
-      createInvites(actor(ben), { emails: ["gus@example.test"], role: "member" }, database)
-    ).rejects.toThrow()
+  it("is only for the site admin", async () => {
+    for (const person of [anna, ben]) {
+      await expect(createInvites(actor(person), { emails: ["gus@example.test"] }, database)).rejects.toThrow(
+        PROJECT_ERRORS.notRunningTeam
+      )
+    }
   })
 
   it("splits pasted text into addresses", () => {

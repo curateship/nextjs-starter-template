@@ -1,5 +1,4 @@
 import { escapeHtml } from "@/lib/email/escape-html"
-import { INVITE_LIFETIME_DAYS } from "@/lib/project/rules"
 import { getWorkspaceSystemEmailSender } from "@/server/email/app-sender"
 import { getEmailProvider } from "@/server/email/provider"
 import { getAppEmailApiKey } from "@/server/email/settings"
@@ -15,9 +14,10 @@ export type InviteEmail = {
 }
 
 /**
- * Sends one team invite. Answers whether an email really left: with no email
- * key saved in Settings → Email and none in the environment, nothing is sent,
- * and the inviter is told to copy the link instead of being told it went.
+ * Tells an employee who already has a password that they were put on a team.
+ * A new employee gets the shell's "Set your password" email instead. Answers
+ * whether an email really left: with no email key saved in Settings → Email
+ * and none in the environment, nothing is sent.
  *
  * The invite goes through the email provider directly rather than the shell's
  * list of system emails, because adding a kind to that list means editing
@@ -37,7 +37,7 @@ export async function sendInviteEmail(
   const result = await getEmailProvider(apiKey).send({
     from: sender.from,
     to: email.to,
-    subject: `${email.inviterName} invited you to ${email.teamName}`,
+    subject: `${email.inviterName} added you to ${email.teamName}`,
     html: inviteHtml(email),
     text: inviteText(email),
   })
@@ -48,11 +48,9 @@ export async function sendInviteEmail(
 
 function inviteText(email: InviteEmail) {
   return [
-    `${email.inviterName} invited you to join ${email.teamName} on Project.`,
+    `${email.inviterName} added you to ${email.teamName} on Project.`,
     "",
-    `Join the team: ${email.link}`,
-    "",
-    `The link works for ${INVITE_LIFETIME_DAYS} days. If you weren't expecting this, you can ignore it.`,
+    `Sign in with your usual password: ${email.link}`,
   ].join("\n")
 }
 
@@ -63,9 +61,9 @@ function inviteHtml(email: InviteEmail) {
   return `<!doctype html>
 <html>
   <body style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #111; line-height: 1.5;">
-    <p>${inviter} invited you to join <strong>${team}</strong> on Project.</p>
-    <p><a href="${link}" style="display: inline-block; padding: 8px 16px; background: #111; color: #fff; border-radius: 8px; text-decoration: none;">Join ${team}</a></p>
-    <p style="color: #555; font-size: 14px;">The link works for ${INVITE_LIFETIME_DAYS} days. If you weren't expecting this, you can ignore it.</p>
+    <p>${inviter} added you to <strong>${team}</strong> on Project.</p>
+    <p><a href="${link}" style="display: inline-block; padding: 8px 16px; background: #111; color: #fff; border-radius: 8px; text-decoration: none;">Sign in</a></p>
+    <p style="color: #555; font-size: 14px;">Sign in with your usual password.</p>
   </body>
 </html>`
 }

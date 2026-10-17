@@ -1,4 +1,4 @@
-import { and, count, eq, gt, gte, isNotNull, isNull, lte, lt, ne, or } from "drizzle-orm"
+import { and, count, eq, gte, isNotNull, isNull, lte, lt, ne, or } from "drizzle-orm"
 
 import { addDays, daysBetween, localNow, momentOf, weekdayOf } from "@/lib/project/days"
 import { db } from "@/server/db"
@@ -8,9 +8,9 @@ import {
   projectCheckins,
   projectProjects,
   projectTasks,
-  projectTeamInvites,
   projectTeamMembers,
 } from "@/server/project/schema"
+import { customShellUsers } from "@/server/schema"
 
 /**
  * The four figures under the team's name on the Team dashboard. Tyler's
@@ -29,6 +29,7 @@ import {
 
 export type TeamFigures = {
   members: number
+  /** People invited who haven't set their password yet. */
   pendingInvites: number
   openTasks: number
   /** Open tasks due Monday to Sunday of this week. */
@@ -51,10 +52,13 @@ export async function loadTeamFigures(
     .select({ members: count() })
     .from(projectTeamMembers)
     .where(eq(projectTeamMembers.teamId, membership.teamId))
+  // An invited employee is on the team from the start; until they set a
+  // password from their email, they count as a pending invite.
   const [{ pendingInvites }] = await database
     .select({ pendingInvites: count() })
-    .from(projectTeamInvites)
-    .where(and(eq(projectTeamInvites.teamId, membership.teamId), gt(projectTeamInvites.expiresAt, at)))
+    .from(projectTeamMembers)
+    .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
+    .where(and(eq(projectTeamMembers.teamId, membership.teamId), isNull(customShellUsers.passwordHash)))
 
   const sharedAndSeen = and(
     visibleProjectsWhere(membership),

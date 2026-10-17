@@ -1,12 +1,15 @@
-import { and, eq, inArray, sql } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 
 import { addDays, weekdayOf } from "@/lib/project/days"
 import {
   dueSoonHeading,
+  milestoneDueHeading,
   MY_DASHBOARD_HREF,
   overdueHeading,
+  projectHref,
   taskHref,
   taskReminderHeading,
+  onTeamHref,
   teamDayHref,
   teamMorningDetail,
   teamMorningHeading,
@@ -18,14 +21,14 @@ import {
 } from "@/lib/project/rules"
 import { db, type CustomShellDb } from "@/server/db"
 import { PEOPLE } from "@/server/project/checkin-jobs"
-import { whoCanStillSee } from "@/server/project/access"
+import { siteAdminIds, whoCanStillSee } from "@/server/project/access"
 import { writeAppNotices, type AppNotice } from "@/server/project/notices"
 import {
   projectDueReminders,
+  projectMilestoneReminders,
   projectProjects,
   projectTaskReminders,
   projectTasks,
-  projectTeamMembers,
   projectTeamMorningNotices,
 } from "@/server/project/schema"
 import { countTeamToday } from "@/server/project/team-days"
@@ -40,6 +43,7 @@ const BATCH = 500
 
 export async function runReminderJobs(database: CustomShellDb = db, at = new Date()) {
   await sendDueReminders(database, at)
+  await sendMilestoneReminders(database, at)
   await sendTeamMorningNotices(database, at)
   await sendTaskReminders(database, at)
 }
@@ -192,6 +196,107 @@ export async function sendDueReminders(database: CustomShellDb = db, at = new Da
   }
 }
 
+type MilestoneRow = {
+  milestoneId: string
+  name: string
+  dueDate: string
+  projectId: string
+  projectName: string
+  userId: string
+  today: string
+  teamId: string
+  siteAdmin: boolean
+}
+
+/**
+ * "Milestone due tomorrow" (or "Milestone due Monday" before a weekend) at
+ * the person's own check-in time on a work day, to the project's lead, or to
+ * the site admin at the team's check-in time when it has no lead (Tyler,
+ * 16 Oct 2026). A milestone
+ * whose tasks are all Done, or in an archived project, sends nothing. Moving
+ * the date sends a fresh one. Time off and team holidays wait, as for tasks.
+ */
+export async function sendMilestoneReminders(database: CustomShellDb = db, at = new Date()) {
+  const found = await database.execute(sql`
+    WITH ${PEOPLE},
+    -- The team's people, and each site admin once per team on the team's clock.
+    recipients AS (
+      SELECT p.user_id, p.team_id, p.work_days, p.zone, p.at_time, false AS site_admin FROM people p
+      UNION ALL
+      SELECT u.id, t.id, t.work_days, t.time_zone, t.checkin_time, true
+      FROM users u CROSS JOIN project_teams t
+      WHERE u.role = 'admin' AND u.status = 'active'
+        AND t.time_zone IN (SELECT name FROM pg_timezone_names)
+    )
+    SELECT m.id AS "milestoneId", m.name, m.due_date::text AS "dueDate",
+      pr.id AS "projectId", pr.name AS "projectName", p.user_id AS "userId", l.day::text AS "today",
+      p.team_id AS "teamId", p.site_admin AS "siteAdmin"
+    FROM recipients p
+    CROSS JOIN LATERAL (
+      SELECT (${at.toISOString()}::timestamptz AT TIME ZONE p.zone) AS local
+    ) z
+    CROSS JOIN LATERAL (SELECT z.local::date AS day) l
+    CROSS JOIN LATERAL (
+      SELECT min(d)::date AS day
+      FROM generate_series(l.day + 1, l.day + 7, interval '1 day') d
+      WHERE extract(dow FROM d)::int = ANY (p.work_days)
+    ) next_work
+    JOIN project_projects pr
+      ON pr.team_id = p.team_id AND pr.archived_at IS NULL AND pr.personal_user_id IS NULL
+    JOIN project_milestones m ON m.project_id = pr.id
+    WHERE extract(dow FROM z.local)::int = ANY (p.work_days)
+      AND to_char(z.local, 'HH24:MI') >= p.at_time
+      AND m.due_date > l.day AND m.due_date <= next_work.day
+      AND (
+        (pr.lead_user_id = p.user_id AND NOT p.site_admin)
+        OR (pr.lead_user_id IS NULL AND p.site_admin)
+      )
+      -- Reached: it has tasks and every one is Done.
+      AND NOT (
+        EXISTS (SELECT 1 FROM project_tasks t WHERE t.milestone_id = m.id AND t.deleted_at IS NULL)
+        AND NOT EXISTS (
+          SELECT 1 FROM project_tasks t
+          WHERE t.milestone_id = m.id AND t.deleted_at IS NULL AND t.status <> 'done'
+        )
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM project_milestone_reminders r
+        WHERE r.milestone_id = m.id AND r.user_id = p.user_id AND r.due_date = m.due_date
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM project_time_off o
+        WHERE o.user_id = p.user_id AND l.day BETWEEN o.first_day AND o.last_day
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM project_team_holidays h
+        WHERE h.team_id = p.team_id AND h.day = l.day
+      )
+    ORDER BY p.user_id, m.due_date, m.name
+    LIMIT ${BATCH}
+  `)
+  for (const row of found.rows as MilestoneRow[]) {
+    await database.transaction(async (tx) => {
+      const claimed = await tx
+        .insert(projectMilestoneReminders)
+        .values({ milestoneId: row.milestoneId, userId: row.userId, dueDate: row.dueDate, sentAt: at })
+        .onConflictDoNothing()
+        .returning({ milestoneId: projectMilestoneReminders.milestoneId })
+      if (!claimed.length) return
+      await writeAppNotices(tx, [
+        {
+          kind: "milestone_due",
+          recipientUserId: row.userId,
+          message: milestoneDueHeading(row.dueDate === addDays(row.today, 1) ? 1 : 2, weekdayOf(row.dueDate)),
+          detail: `${row.name} · ${row.projectName}`,
+          href: row.siteAdmin
+            ? onTeamHref(row.teamId, projectHref(row.projectId))
+            : projectHref(row.projectId),
+        },
+      ])
+    })
+  }
+}
+
 /**
  * One notice per task, unless more than three of one kind (and, for "Due",
  * one day) come at once: then one notice counts them and opens My dashboard.
@@ -241,7 +346,7 @@ function listTitles(titles: string[]) {
 }
 
 /**
- * The team's morning, to its owner and admins: "5 of 6 checked in, 1
+ * The team's morning, to the site admin alone: "5 of 6 checked in, 1
  * blocked", counted as the Team dashboard's square for today counts it. Sent
  * on the team's work days but not its holidays, once the latest check-in time in the team has
  * passed by 30 minutes, so the numbers are complete (Tyler's choice). The day
@@ -287,23 +392,14 @@ export async function sendTeamMorningNotices(database: CustomShellDb = db, at = 
         .returning({ teamId: projectTeamMorningNotices.teamId })
       if (!claimed.length) return
       const square = await countTeamToday(team.teamId, team.day, tx)
-      const runners = await tx
-        .select({ userId: projectTeamMembers.userId })
-        .from(projectTeamMembers)
-        .where(
-          and(
-            eq(projectTeamMembers.teamId, team.teamId),
-            inArray(projectTeamMembers.role, ["owner", "admin"])
-          )
-        )
       await writeAppNotices(
         tx,
-        runners.map((runner) => ({
+        (await siteAdminIds(tx)).map((adminId) => ({
           kind: "team_morning",
-          recipientUserId: runner.userId,
+          recipientUserId: adminId,
           message: teamMorningHeading(square.checkedIn, square.expected, square.blocked),
           detail: teamMorningDetail(square.notYet),
-          href: teamDayHref(team.day),
+          href: onTeamHref(team.teamId, teamDayHref(team.day)),
         }))
       )
     })

@@ -20,15 +20,13 @@ import {
  * project and saved templates both go through here, so they follow one rule
  * (Tyler's, 10 Oct 2026): every task starts To do with nobody assigned and no
  * dates, milestones keep their names but not their dates, steps come
- * unticked, and a Person field keeps only the person doing the copying.
+ * unticked, and Person fields start empty: a new project has nobody on it
+ * until the site admin adds people, the only one who copies or uses a
+ * template (16 Oct 2026).
  * People, chat, files and history stay behind.
  */
 
-export async function readProjectPlan(
-  tx: ProjectDb,
-  source: ProjectRow,
-  actorId: string
-): Promise<TemplateContent> {
+export async function readProjectPlan(tx: ProjectDb, source: ProjectRow): Promise<TemplateContent> {
   const sections = await tx
     .select({ id: projectSections.id, name: projectSections.name })
     .from(projectSections)
@@ -98,7 +96,7 @@ export async function readProjectPlan(
         labelIds: labels.filter((label) => label.taskId === task.id).map((label) => label.labelId),
         fieldValues: values
           .filter((row) => row.taskId === task.id)
-          .filter((row) => row.kind !== "person" || row.value === actorId)
+          .filter((row) => row.kind !== "person")
           .map(({ fieldId, value }) => ({ fieldId, value })),
       })
     ),
@@ -214,10 +212,10 @@ export async function writeProjectPlan(
 
   const values = tasks.flatMap(({ id, task, typeId }) =>
     task.fieldValues
-      .filter(({ fieldId, value }) => {
+      .filter(({ fieldId }) => {
         const field = fieldById.get(fieldId)
         if (!field || field.typeId !== typeId) return false
-        return field.kind !== "person" || value === actorId
+        return field.kind !== "person"
       })
       .map(({ fieldId, value }) => ({
         taskId: id,

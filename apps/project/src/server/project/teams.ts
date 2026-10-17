@@ -6,7 +6,6 @@ import {
   DEFAULT_CHECKIN_TIME,
   DEFAULT_WORK_DAYS,
   runsTheTeam,
-  type TeamInviteRole,
   type TeamRole,
 } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
@@ -23,10 +22,13 @@ import { clearPersonValues } from "@/server/project/task-types"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
 import {
   findMembership,
-  requireMembership,
+  isSiteAdmin,
+  pickTeam,
+  requireSiteAdmin,
   requireTeamRunner,
   type ProjectDb,
 } from "@/server/project/access"
+import { visibleClients } from "@/server/project/clients"
 import {
   projectProjectMembers,
   projectProjectStars,
@@ -35,7 +37,6 @@ import {
   projectTaskSteps,
   projectProjects,
   projectTasks,
-  projectTeamInvites,
   projectTeamMembers,
   projectTeams,
 } from "@/server/project/schema"
@@ -48,8 +49,10 @@ export type TeamSummary = {
   timeZone: string
   workDays: number[]
   createdAt: string
-  /** The team photo's address, or null. */
+  /** The team photo's address, drawn as the wide cover; or null. */
   photoUrl: string | null
+  /** The team's square avatar beside its name; null shows its initials. */
+  avatarUrl: string | null
   /** The team's own words for the check-in's boxes; null keeps the usual one. */
   questions: { yesterday: string | null; today: string | null; blocker: string | null }
   /** Titles each new member gets as "Just me" tasks. */
@@ -61,51 +64,45 @@ export type TeamMemberRow = {
   name: string
   email: string
   avatarUrl: string
-  role: TeamRole
   joinedAt: string
+  /** Invited and hasn't set a password yet, so they have never signed in. */
+  invited: boolean
   /** A short job title, such as "Copywriter", or null. */
   title: string | null
 }
 
-export type TeamInviteRow = {
-  id: string
-  email: string
-  role: TeamInviteRole
-  invitedByName: string | null
-  expiresAt: string
-  sentAt: string
-  expired: boolean
-}
-
 export type TeamDashboard = {
   team: TeamSummary
+  /** "owner" for the site admin, "member" for everyone else. */
   myRole: TeamRole
   myUserId: string
   members: TeamMemberRow[]
-  /** Only the owner and admins see pending invites. */
-  invites: TeamInviteRow[]
   labels: Label[]
   /** The team's saved step lists, renamed and deleted in Team settings. */
   stepLists: StepList[]
   /** The team's saved project templates, renamed and deleted in Team settings. */
   templates: TemplateRow[]
-  /** The join link's state, for the owner and admins; null for everyone else. */
+  /** The join link's state, for the site admin; null for everyone else. */
   joinLink: JoinLinkState | null
   /** The team's holidays from today on. */
   holidays: Holiday[]
   /** The pinned announcement, unless there is none or I hid it. */
   announcement: Announcement | null
+  /** Clients of the projects I can see, for the Client choice on the calendar and Workload. */
+  clients: string[]
 }
 
+/**
+ * Only the site admin makes teams, and isn't put on them: they oversee, so they
+ * are in no member list, picker or count. Their picker moves to the new team.
+ */
 export async function createTeam(
   userId: string,
   input: { name: string; timeZone: string },
   database = db
 ): Promise<TeamSummary> {
   return database.transaction(async (tx) => {
-    if (await findMembership(userId, tx)) {
-      throw new Error(PROJECT_ERRORS.alreadyOnTeam)
-    }
+    await requireSiteAdmin(userId, tx)
     await requireKnownZone(input.timeZone, tx)
     const at = now()
     const team = {
@@ -118,14 +115,28 @@ export async function createTeam(
       updatedAt: at,
     }
     await tx.insert(projectTeams).values(team)
-    await tx.insert(projectTeamMembers).values({
-      teamId: team.id,
-      userId,
-      role: "owner",
-      joinedAt: at,
-    })
+    await pickTeam(userId, team.id, tx)
     return toTeamSummary(team)
   })
+}
+
+export type PickerTeam = { id: string; name: string; photoUrl: string | null }
+
+/**
+ * Every team by name, and which one the site admin is looking at, for the
+ * picker in the header. Anyone else gets null: the picker is the site admin's.
+ */
+export async function listTeamsForPicker(
+  userId: string,
+  database = db
+): Promise<{ teams: PickerTeam[]; currentId: string | null } | null> {
+  const membership = await findMembership(userId, database)
+  if (membership ? !membership.siteAdmin : !(await isSiteAdmin(userId, database))) return null
+  const teams = await database
+    .select({ id: projectTeams.id, name: projectTeams.name, photoUrl: projectTeams.photoUrl })
+    .from(projectTeams)
+    .orderBy(asc(projectTeams.name), asc(projectTeams.id))
+  return { teams, currentId: membership?.teamId ?? null }
 }
 
 export async function loadTeamDashboard(
@@ -143,16 +154,12 @@ export async function loadTeamDashboard(
   if (!team) return null
 
   const members = await listTeamMembers(membership.teamId, database)
-  const invites = runsTheTeam(membership.role)
-    ? await listTeamInvites(membership.teamId, database)
-    : []
 
   return {
     team: toTeamSummary(team),
     myRole: membership.role,
     myUserId: userId,
     members,
-    invites,
     labels: await listTeamLabels(membership.teamId, database),
     stepLists: await listStepLists(membership.teamId, database),
     templates: await listTemplates(membership.teamId, database),
@@ -163,6 +170,7 @@ export async function loadTeamDashboard(
       database
     ),
     announcement: await loadAnnouncement(membership, database),
+    clients: await visibleClients(membership, database),
   }
 }
 
@@ -173,60 +181,25 @@ export async function listTeamMembers(
   const rows = await database
     .select({
       userId: projectTeamMembers.userId,
-      role: projectTeamMembers.role,
       joinedAt: projectTeamMembers.joinedAt,
       name: customShellUsers.name,
       email: customShellUsers.email,
       avatarUrl: customShellUsers.avatarUrl,
       title: projectTeamMembers.title,
+      passwordHash: customShellUsers.passwordHash,
     })
     .from(projectTeamMembers)
     .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
     .where(eq(projectTeamMembers.teamId, teamId))
     .orderBy(asc(customShellUsers.name))
-  const order: Record<TeamRole, number> = { owner: 0, admin: 1, member: 2 }
-  return rows
-    .map((row) => ({
-      userId: row.userId,
-      role: row.role,
-      joinedAt: row.joinedAt.toISOString(),
-      name: row.name,
-      email: row.email,
-      avatarUrl: row.avatarUrl ?? "",
-      title: row.title,
-    }))
-    .sort((a, b) => order[a.role] - order[b.role])
-}
-
-async function listTeamInvites(
-  teamId: string,
-  database: ProjectDb
-): Promise<TeamInviteRow[]> {
-  const rows = await database
-    .select({
-      id: projectTeamInvites.id,
-      email: projectTeamInvites.email,
-      role: projectTeamInvites.role,
-      expiresAt: projectTeamInvites.expiresAt,
-      sentAt: projectTeamInvites.sentAt,
-      invitedByName: customShellUsers.name,
-    })
-    .from(projectTeamInvites)
-    .leftJoin(
-      customShellUsers,
-      eq(customShellUsers.id, projectTeamInvites.invitedByUserId)
-    )
-    .where(eq(projectTeamInvites.teamId, teamId))
-    .orderBy(asc(projectTeamInvites.email))
-  const at = now()
   return rows.map((row) => ({
-    id: row.id,
+    userId: row.userId,
+    joinedAt: row.joinedAt.toISOString(),
+    name: row.name,
     email: row.email,
-    role: row.role,
-    invitedByName: row.invitedByName,
-    expiresAt: row.expiresAt.toISOString(),
-    sentAt: row.sentAt.toISOString(),
-    expired: row.expiresAt <= at,
+    avatarUrl: row.avatarUrl ?? "",
+    title: row.title,
+    invited: row.passwordHash === null,
   }))
 }
 
@@ -255,8 +228,8 @@ export async function updateTeam(
 }
 
 /**
- * The team photo, which the owner and admins change (Tyler's choice, 11 Oct
- * 2026). A new photo must be one the person uploaded to the media library
+ * The team photo, the wide cover at the top of the Team dashboard, which the
+ * site admin changes (Tyler's choice, 11 Oct 2026). A new photo must be one the person uploaded to the media library
  * themselves, so nobody can point the team at someone else's file or at an
  * address outside the library. "" takes the photo away.
  */
@@ -276,58 +249,25 @@ export async function setTeamPhoto(userId: string, photoUrl: string, database = 
     .where(eq(projectTeams.id, membership.teamId))
 }
 
-/** Owner and admins move people between admin and member. */
-export async function changeMemberRole(
-  actorId: string,
-  targetUserId: string,
-  role: TeamInviteRole,
-  database = db
-) {
-  const membership = await requireTeamRunner(actorId, database)
-  const target = await requireTeammate(membership.teamId, targetUserId, database)
-  if (target.role === "owner") throw new Error(PROJECT_ERRORS.cantChangeOwner)
+/**
+ * The team's square avatar, the site admin's to change, with the same rule as
+ * the cover photo: a picture they uploaded to the media library themselves.
+ * "" takes it away and the team's initials show again.
+ */
+export async function setTeamAvatar(userId: string, avatarUrl: string, database = db) {
+  const membership = await requireTeamRunner(userId, database)
+  const [team] = await database
+    .select({ avatarUrl: projectTeams.avatarUrl })
+    .from(projectTeams)
+    .where(eq(projectTeams.id, membership.teamId))
+  const unchanged = avatarUrl === (team?.avatarUrl ?? "")
+  if (avatarUrl && !unchanged && !(await isOwnedImageUrl(userId, avatarUrl, database))) {
+    throw new Error(PROJECT_ERRORS.photoNotYours)
+  }
   await database
-    .update(projectTeamMembers)
-    .set({ role })
-    .where(
-      and(
-        eq(projectTeamMembers.teamId, membership.teamId),
-        eq(projectTeamMembers.userId, targetUserId)
-      )
-    )
-}
-
-/** The owner hands the team to someone else and becomes an admin. */
-export async function transferOwnership(
-  actorId: string,
-  targetUserId: string,
-  database = db
-) {
-  await database.transaction(async (tx) => {
-    const membership = await requireMembership(actorId, tx)
-    if (membership.role !== "owner") throw new Error(PROJECT_ERRORS.notRunningTeam)
-    if (targetUserId === actorId) return
-    await requireTeammate(membership.teamId, targetUserId, tx)
-    // Step down first: the table allows one owner per team.
-    await tx
-      .update(projectTeamMembers)
-      .set({ role: "admin" })
-      .where(
-        and(
-          eq(projectTeamMembers.teamId, membership.teamId),
-          eq(projectTeamMembers.userId, actorId)
-        )
-      )
-    await tx
-      .update(projectTeamMembers)
-      .set({ role: "owner" })
-      .where(
-        and(
-          eq(projectTeamMembers.teamId, membership.teamId),
-          eq(projectTeamMembers.userId, targetUserId)
-        )
-      )
-  })
+    .update(projectTeams)
+    .set({ avatarUrl: avatarUrl || null, updatedAt: now() })
+    .where(eq(projectTeams.id, membership.teamId))
 }
 
 export async function removeTeamMember(
@@ -337,18 +277,8 @@ export async function removeTeamMember(
 ) {
   await database.transaction(async (tx) => {
     const membership = await requireTeamRunner(actorId, tx)
-    if (targetUserId === actorId) throw new Error(PROJECT_ERRORS.cantRemoveYourself)
-    const target = await requireTeammate(membership.teamId, targetUserId, tx)
-    if (target.role === "owner") throw new Error(PROJECT_ERRORS.cantChangeOwner)
+    await requireTeammate(membership.teamId, targetUserId, tx)
     await takePersonOffTeam(membership.teamId, targetUserId, tx)
-  })
-}
-
-export async function leaveTeam(userId: string, database = db) {
-  await database.transaction(async (tx) => {
-    const membership = await requireMembership(userId, tx)
-    if (membership.role === "owner") throw new Error(PROJECT_ERRORS.ownerCantLeave)
-    await takePersonOffTeam(membership.teamId, userId, tx)
   })
 }
 
@@ -451,7 +381,7 @@ export async function clearAssignee(
 
 async function requireTeammate(teamId: string, userId: string, database: ProjectDb) {
   const [row] = await database
-    .select({ role: projectTeamMembers.role })
+    .select({ userId: projectTeamMembers.userId })
     .from(projectTeamMembers)
     .where(
       and(eq(projectTeamMembers.teamId, teamId), eq(projectTeamMembers.userId, userId))
@@ -469,7 +399,7 @@ function toTeamSummary(
     Partial<
       Pick<
         typeof projectTeams.$inferSelect,
-        "photoUrl" | "questionYesterday" | "questionToday" | "questionBlocker" | "starterTasks"
+        "photoUrl" | "avatarUrl" | "questionYesterday" | "questionToday" | "questionBlocker" | "starterTasks"
       >
     >
 ): TeamSummary {
@@ -481,6 +411,7 @@ function toTeamSummary(
     workDays: [...team.workDays],
     createdAt: team.createdAt.toISOString(),
     photoUrl: team.photoUrl ?? null,
+    avatarUrl: team.avatarUrl ?? null,
     questions: {
       yesterday: team.questionYesterday ?? null,
       today: team.questionToday ?? null,

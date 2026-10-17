@@ -84,6 +84,7 @@ export function SavedViewsControls({
       label: undefined,
       type: undefined,
       due: undefined,
+      client: undefined,
       ...next,
     })
     if (missing.length) {

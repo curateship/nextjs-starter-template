@@ -423,7 +423,9 @@ export async function listNewTaskProjects(
       )
     )
     .orderBy(asc(projectProjects.name))
-  if (projects.length === 0) return [justMe]
+  // The site admin oversees, so they have no "Just me" list to put a task in.
+  const own = membership.siteAdmin ? [] : [justMe]
+  if (projects.length === 0) return own
   const members = await database
     .select({
       projectId: projectProjectMembers.projectId,
@@ -450,6 +452,6 @@ export async function listNewTaskProjects(
         .filter((member) => member.projectId === project.id)
         .map(({ userId, name, avatarUrl }) => ({ userId, name, avatarUrl: avatarUrl ?? "" })),
     })),
-    justMe,
+    ...own,
   ]
 }

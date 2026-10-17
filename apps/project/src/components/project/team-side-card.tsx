@@ -27,11 +27,15 @@ export function TeamSideCard({
       className={cn("grid min-w-0 gap-3 rounded-lg border bg-muted/40 p-4", className)}
     >
       {title ? (
-        <div className="flex min-h-7 items-center justify-between gap-2">
+        // Wraps rather than cutting: in a narrow panel the aside takes the next line.
+        <div className="flex min-h-7 min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <h3 className="shrink-0 text-[15px] font-semibold whitespace-nowrap">{title}</h3>
-          {/* The heading keeps its line; a long answer is cut short instead. */}
+          {/* The heading keeps its line; the answer is cut short only once it has a line to itself. */}
           {aside ? (
-            <div className="flex min-w-0 items-center truncate text-sm text-muted-foreground">{aside}</div>
+            // The words sit in a span of their own: a flex box can't cut its own text short.
+            <div className="flex min-w-0 items-center text-sm text-muted-foreground">
+              <span className="min-w-0 truncate">{aside}</span>
+            </div>
           ) : null}
         </div>
       ) : null}

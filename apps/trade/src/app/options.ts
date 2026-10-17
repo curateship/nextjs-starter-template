@@ -70,9 +70,10 @@ export const appOptions: AppOptions = {
         label: "Search markets",
         icon: SearchIcon,
         roles: ["member", "admin"],
-        // Nothing to read at a glance — it is a field you go and use — so it
-        // is one of the two that fold away on a phone.
-        foldsOnPhone: true,
+        // The one control that stays in the row on a phone, as a magnifier.
+        // Tyler's drawing of the three-dot dropdown on 16 Oct 2026 has no
+        // search in it, and the field's width broke the one sliding line of
+        // buttons in there.
         component: () => import("@/components/trade/market-search-header"),
       },
       {
@@ -80,6 +81,10 @@ export const appOptions: AppOptions = {
         label: "Active trades",
         icon: CandlestickChartIcon,
         roles: ["member", "admin"],
+        // Folds on a phone, Tyler's drawing of 16 Oct 2026, so the row is the
+        // exchange's name, the search, the bell and the three dots. The
+        // figures sit just under the pinned markets in there.
+        foldsOnPhone: true,
         component: () => import("@/components/trade/active-trades-header"),
       },
       {
@@ -91,6 +96,7 @@ export const appOptions: AppOptions = {
         id: "goal",
         label: "Goal",
         icon: TargetIcon,
+        foldsOnPhone: true,
         component: () => import("@/components/trade/goal-header"),
       },
     ],

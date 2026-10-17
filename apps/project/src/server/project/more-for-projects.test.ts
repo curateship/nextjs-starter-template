@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { CustomShellDb } from "@/server/db"
-import { acceptInvite, createInvite } from "@/server/project/invites"
 import { createLabel, setTaskLabels } from "@/server/project/labels"
 import {
   createMilestone,
@@ -34,7 +33,8 @@ import { createSection } from "@/server/project/sections"
 import { followTask } from "@/server/project/task-followers"
 import { moveTask } from "@/server/project/task-changes"
 import { addStep, assignTask, createTask, loadTaskDetail, setTaskStatus, updateTask } from "@/server/project/tasks"
-import { createTeam, leaveTeam } from "@/server/project/teams"
+import { removeTeamMember } from "@/server/project/teams"
+import { insertEmployee, joinTeam, projectFor, startTeam } from "@/server/project/test-people"
 import {
   deleteTemplate,
   listMyTeamTemplates,
@@ -42,40 +42,34 @@ import {
   saveTemplate,
 } from "@/server/project/templates"
 import type { CustomShellUser } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { createTestDatabase } from "@/server/test-support"
 
 let client: PGlite
 let database: CustomShellDb
 let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
+let admin: CustomShellUser
+let teamId: string
 let website: string
 
 const actor = (user: CustomShellUser) => ({ id: user.id, name: user.name })
-
-async function invite(person: CustomShellUser) {
-  const sent = await createInvite(
-    { ...actor(anna), currentWorkspaceId: anna.currentWorkspaceId },
-    { email: person.email, role: "member" },
-    database
-  )
-  await acceptInvite(person, sent.inviteId, database)
-}
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
-  anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
-  ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
-  carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  // Anna owns the team; Ben and Carla are members.
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  await invite(ben)
-  await invite(carla)
-  website = (await createProject(anna.id, { name: "Website", color: "pink", description: "Hart Dental's site" }, database)).id
-  await addProjectMember(anna.id, website, ben.id, database)
-  await addProjectMember(anna.id, website, carla.id, database)
+  anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
+  ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
+  carla = await insertEmployee(database, { name: "Carla", email: "carla@example.test" })
+  // The site admin runs the team; Anna, Ben and Carla are its employees.
+  // Anna makes the Website and the site admin puts Ben and Carla on it.
+  const started = await startTeam(database, [anna, ben, carla])
+  admin = started.admin
+  teamId = started.team.id
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "pink", description: "Hart Dental's site" }, database)).id
+  await addProjectMember(admin.id, website, ben.id, database)
+  await addProjectMember(admin.id, website, carla.id, database)
 })
 
 afterEach(async () => {
@@ -104,27 +98,28 @@ async function noticeKinds(userId: string) {
 const listRow = async (userId: string, projectId = website) =>
   (await loadProjectsPage(userId, database)).projects.find((row) => row.id === projectId)
 
+// A project's status is one of its settings, so the site admin alone sets it.
 describe("project status", () => {
   it("shows nothing until set, then the status, its why, who and when", async () => {
     expect((await listRow(anna.id))?.health).toBeNull()
-    await setProjectHealth(ben.id, { projectId: website, health: "at_risk", note: "Client hasn't sent the photos" }, database)
+    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Client hasn't sent the photos" }, database)
     const health = (await loadProjectPage(anna.id, website, database)).project.health
-    expect(health).toMatchObject({ value: "at_risk", note: "Client hasn't sent the photos", byName: "Ben" })
+    expect(health).toMatchObject({ value: "at_risk", note: "Client hasn't sent the photos", byName: "Tyler" })
     expect(Date.parse(health!.at)).not.toBeNaN()
     expect((await listRow(carla.id))?.health?.value).toBe("at_risk")
   })
 
   it("needs a line of why for At risk and Off track, but not On track", async () => {
     await expect(
-      setProjectHealth(ben.id, { projectId: website, health: "off_track", note: "" }, database)
+      setProjectHealth(admin.id, { projectId: website, health: "off_track", note: "" }, database)
     ).rejects.toThrow(PROJECT_ERRORS.healthNeedsNote)
-    await setProjectHealth(ben.id, { projectId: website, health: "on_track", note: "" }, database)
+    await setProjectHealth(admin.id, { projectId: website, health: "on_track", note: "" }, database)
     expect((await listRow(anna.id))?.health).toMatchObject({ value: "on_track", note: "" })
   })
 
   it("writes each change on the Activity tab, taking it off included", async () => {
-    await setProjectHealth(ben.id, { projectId: website, health: "at_risk", note: "Late photos" }, database)
-    await setProjectHealth(ben.id, { projectId: website, health: null, note: "" }, database)
+    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Late photos" }, database)
+    await setProjectHealth(admin.id, { projectId: website, health: null, note: "" }, database)
     const entries = (await loadProjectActivity(anna.id, { projectId: website }, database)).entries
     expect(entries.map((entry) => entry.kind === "health_set" && [entry.health, entry.note])).toEqual([
       [null, null],
@@ -133,40 +128,42 @@ describe("project status", () => {
     expect((await listRow(anna.id))?.health).toBeNull()
   })
 
-  it("is set by the lead, the owner and admins once there is a lead", async () => {
-    await setProjectLead(anna.id, { projectId: website, userId: carla.id }, database)
-    await expect(
-      setProjectHealth(ben.id, { projectId: website, health: "on_track", note: "" }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.onlyLeadSetsHealth)
-    expect((await loadProjectPage(ben.id, website, database)).project.canSetHealth).toBe(false)
-    await setProjectHealth(carla.id, { projectId: website, health: "on_track", note: "" }, database)
-    await setProjectHealth(anna.id, { projectId: website, health: "off_track", note: "Budget gone" }, database)
-    expect((await listRow(anna.id))?.health?.byName).toBe("Anna")
+  it("is the site admin's alone, the project's lead included", async () => {
+    await setProjectLead(admin.id, { projectId: website, userId: carla.id }, database)
+    for (const person of [ben, carla]) {
+      await expect(
+        setProjectHealth(person.id, { projectId: website, health: "on_track", note: "" }, database)
+      ).rejects.toThrow(PROJECT_ERRORS.onlySiteAdminSettings)
+      expect((await loadProjectPage(person.id, website, database)).project.canSetHealth).toBe(false)
+    }
+    expect((await loadProjectPage(admin.id, website, database)).project.canSetHealth).toBe(true)
+    await setProjectHealth(admin.id, { projectId: website, health: "off_track", note: "Budget gone" }, database)
+    expect((await listRow(anna.id))?.health?.byName).toBe("Tyler")
   })
 
   it("stays on an archived project, which can't change it", async () => {
-    await setProjectHealth(ben.id, { projectId: website, health: "at_risk", note: "Late photos" }, database)
-    await setProjectArchived(anna.id, website, true, database)
+    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Late photos" }, database)
+    await setProjectArchived(admin.id, website, true, database)
     expect((await listRow(anna.id))?.health?.value).toBe("at_risk")
     await expect(
-      setProjectHealth(anna.id, { projectId: website, health: "on_track", note: "" }, database)
+      setProjectHealth(admin.id, { projectId: website, health: "on_track", note: "" }, database)
     ).rejects.toThrow(PROJECT_ERRORS.projectArchived)
   })
 })
 
 describe("project lead", () => {
   it("must be on the project, and shows on the Projects table", async () => {
-    const other = (await createProject(anna.id, { name: "Office", color: "blue", description: "" }, database)).id
-    await expect(setProjectLead(anna.id, { projectId: other, userId: ben.id }, database)).rejects.toThrow(
+    const other = (await projectFor(admin, anna.id, { name: "Office", color: "blue", description: "" }, database)).id
+    await expect(setProjectLead(admin.id, { projectId: other, userId: ben.id }, database)).rejects.toThrow(
       PROJECT_ERRORS.leadNotMember
     )
-    await setProjectLead(ben.id, { projectId: website, userId: carla.id }, database)
+    await setProjectLead(admin.id, { projectId: website, userId: carla.id }, database)
     expect((await listRow(anna.id))?.lead).toMatchObject({ id: carla.id, name: "Carla" })
     expect((await loadProjectPage(ben.id, website, database)).project.leadUserId).toBe(carla.id)
   })
 
   it("hears every Stuck, unblocked and Done, once even when also following", async () => {
-    await setProjectLead(anna.id, { projectId: website, userId: carla.id }, database)
+    await setProjectLead(admin.id, { projectId: website, userId: carla.id }, database)
     const logo = await task("Logo", ben)
     await setTaskStatus(actor(ben), { taskId: logo, status: "stuck", stuckReason: "No brief" }, database)
     await setTaskStatus(actor(ben), { taskId: logo, status: "doing", stuckReason: null }, database)
@@ -176,20 +173,26 @@ describe("project lead", () => {
   })
 
   it("leaves with nobody leading when the lead leaves the project or the team", async () => {
-    await setProjectLead(anna.id, { projectId: website, userId: carla.id }, database)
-    await removeProjectMember(anna.id, website, carla.id, database)
+    await setProjectLead(admin.id, { projectId: website, userId: carla.id }, database)
+    await removeProjectMember(admin.id, website, carla.id, database)
     expect((await listRow(anna.id))?.lead).toBeNull()
 
-    await setProjectLead(anna.id, { projectId: website, userId: ben.id }, database)
-    await leaveTeam(ben.id, database)
+    await setProjectLead(admin.id, { projectId: website, userId: ben.id }, database)
+    await removeTeamMember(admin.id, ben.id, database)
     expect((await listRow(anna.id))?.lead).toBeNull()
   })
 
-  it("takes no right away from the other members", async () => {
-    await setProjectLead(anna.id, { projectId: website, userId: carla.id }, database)
-    await updateProject(ben.id, { projectId: website, name: "Website v2" }, database)
-    await setProjectLead(ben.id, { projectId: website, userId: ben.id }, database)
-    expect((await listRow(anna.id))?.lead?.name).toBe("Ben")
+  it("is picked by the site admin alone, and being lead changes no setting", async () => {
+    await setProjectLead(admin.id, { projectId: website, userId: carla.id }, database)
+    for (const person of [ben, carla]) {
+      await expect(
+        setProjectLead(person.id, { projectId: website, userId: person.id }, database)
+      ).rejects.toThrow(PROJECT_ERRORS.onlySiteAdminSettings)
+    }
+    await expect(updateProject(carla.id, { projectId: website, name: "Website v2" }, database)).rejects.toThrow(
+      PROJECT_ERRORS.onlySiteAdminSettings
+    )
+    expect((await listRow(anna.id))?.lead?.name).toBe("Carla")
   })
 })
 
@@ -212,7 +215,7 @@ describe("milestones", () => {
   })
 
   it("refuses another project's milestone, and moving a task frees it", async () => {
-    const office = (await createProject(anna.id, { name: "Office", color: "blue", description: "" }, database)).id
+    const office = (await projectFor(admin, anna.id, { name: "Office", color: "blue", description: "" }, database)).id
     const elsewhere = await createMilestone(anna.id, { projectId: office, name: "Move in", dueDate: null }, database)
     const logo = await task("Logo")
     await expect(
@@ -225,7 +228,7 @@ describe("milestones", () => {
   })
 
   it("can't be reached from outside the project", async () => {
-    const office = (await createProject(anna.id, { name: "Office", color: "blue", description: "" }, database)).id
+    const office = (await projectFor(admin, anna.id, { name: "Office", color: "blue", description: "" }, database)).id
     const moveIn = await createMilestone(anna.id, { projectId: office, name: "Move in", dueDate: null }, database)
     await expect(
       updateMilestone(ben.id, { milestoneId: moveIn.id, name: "Mine now", dueDate: null }, database)
@@ -245,52 +248,60 @@ describe("milestones", () => {
     const design = await createMilestone(ben.id, { projectId: website, name: "Design", dueDate: "2026-11-15" }, database)
     const logo = await task("Logo")
     await setTaskMilestone(ben.id, { taskId: logo, milestoneId: design.id }, database)
-    const copy = await copyProject(anna.id, { projectId: website, name: "Copy of Website" }, database)
+    const copy = await copyProject(admin.id, { projectId: website, name: "Copy of Website" }, database)
     expect(await listMilestones(copy.id, database)).toMatchObject([{ name: "Design", dueDate: null, done: 0, total: 1 }])
   })
 })
 
 describe("clients", () => {
-  it("names a client, offering only clients of projects I can see", async () => {
-    const secret = (await createProject(anna.id, { name: "Secret", color: "red", description: "" }, database)).id
-    await setProjectClient(anna.id, { projectId: secret, client: "Hidden Co" }, database)
-    await setProjectClient(ben.id, { projectId: website, client: "Hart Dental" }, database)
+  it("is named by the site admin, offering only clients of projects the viewer can see", async () => {
+    // The site admin makes Secret and is on no project, so only they see it.
+    const secret = (await createProject(admin.id, { name: "Secret", color: "red", description: "" }, database)).id
+    await setProjectClient(admin.id, { projectId: secret, client: "Hidden Co" }, database)
+    await setProjectClient(admin.id, { projectId: website, client: "Hart Dental" }, database)
     expect((await listRow(ben.id))?.client).toBe("Hart Dental")
     expect((await loadProjectPage(ben.id, website, database)).teamClients).toEqual(["Hart Dental"])
-    expect((await loadProjectPage(anna.id, website, database)).teamClients).toEqual(["Hart Dental", "Hidden Co"])
-    await setProjectClient(ben.id, { projectId: website, client: null }, database)
+    expect((await loadProjectPage(admin.id, website, database)).teamClients).toEqual(["Hart Dental", "Hidden Co"])
+    await expect(setProjectClient(ben.id, { projectId: website, client: null }, database)).rejects.toThrow(
+      PROJECT_ERRORS.onlySiteAdminSettings
+    )
+    await setProjectClient(admin.id, { projectId: website, client: null }, database)
     expect((await listRow(ben.id))?.client).toBeNull()
   })
 })
 
 describe("whole-team projects", () => {
   it("puts everyone on, newcomers included, and nobody can leave while it's on", async () => {
-    const office = (await createProject(ben.id, { name: "Office", color: "blue", description: "" }, database)).id
-    await setWholeTeam(ben.id, { projectId: office, wholeTeam: true }, database)
-    const dan = await insertUser(database, { name: "Dan", email: "dan@example.test" })
-    await invite(dan)
+    const office = (await projectFor(admin, ben.id, { name: "Office", color: "blue", description: "" }, database)).id
+    await expect(setWholeTeam(ben.id, { projectId: office, wholeTeam: true }, database)).rejects.toThrow(
+      PROJECT_ERRORS.onlySiteAdminSettings
+    )
+    await setWholeTeam(admin.id, { projectId: office, wholeTeam: true }, database)
+    const dan = await insertEmployee(database, { name: "Dan", email: "dan@example.test" })
+    await joinTeam(database, teamId, dan)
+    // The site admin is on no team, so "everyone on the team" leaves them off.
     const members = (await loadProjectPage(ben.id, office, database)).members.map((m) => m.name)
     expect(members).toEqual(["Anna", "Ben", "Carla", "Dan"])
-    await expect(removeProjectMember(ben.id, office, dan.id, database)).rejects.toThrow(
+    await expect(removeProjectMember(admin.id, office, dan.id, database)).rejects.toThrow(
       PROJECT_ERRORS.wholeTeamProject
     )
   })
 
   it("keeps everyone as ordinary members once off, and leaving the team still takes them off", async () => {
-    const office = (await createProject(ben.id, { name: "Office", color: "blue", description: "" }, database)).id
-    await setWholeTeam(ben.id, { projectId: office, wholeTeam: true }, database)
-    await setWholeTeam(ben.id, { projectId: office, wholeTeam: false }, database)
+    const office = (await projectFor(admin, ben.id, { name: "Office", color: "blue", description: "" }, database)).id
+    await setWholeTeam(admin.id, { projectId: office, wholeTeam: true }, database)
+    await setWholeTeam(admin.id, { projectId: office, wholeTeam: false }, database)
     expect((await loadProjectPage(ben.id, office, database)).members).toHaveLength(3)
-    await removeProjectMember(ben.id, office, carla.id, database)
-    await setWholeTeam(ben.id, { projectId: office, wholeTeam: true }, database)
-    await leaveTeam(carla.id, database)
+    await removeProjectMember(admin.id, office, carla.id, database)
+    await setWholeTeam(admin.id, { projectId: office, wholeTeam: true }, database)
+    await removeTeamMember(admin.id, carla.id, database)
     expect((await loadProjectPage(ben.id, office, database)).members.map((m) => m.name)).toEqual(["Anna", "Ben"])
   })
 })
 
 describe("project templates", () => {
   it("saves a plan that never shows as a project and starts new ones like Copy project", async () => {
-    const design = await createSection(ben.id, { projectId: website, name: "Design" }, database)
+    const design = await createSection(admin.id, { projectId: website, name: "Design" }, database)
     const signedOff = await createMilestone(ben.id, { projectId: website, name: "Signed off", dueDate: "2026-11-15" }, database)
     const label = await createLabel(ben.id, { name: "Client", color: "pink" }, database)
     const logo = await task("Logo")
@@ -301,7 +312,7 @@ describe("project templates", () => {
     await addStep(actor(ben), { taskId: logo, text: "Sketch" }, database)
     await setTaskStatus(actor(ben), { taskId: logo, status: "done", stuckReason: null }, database)
 
-    const saved = await saveTemplate(ben.id, { projectId: website, name: "Client website" }, database)
+    const saved = await saveTemplate(admin.id, { projectId: website, name: "Client website" }, database)
     expect(await listMyTeamTemplates(carla.id, database)).toEqual([
       { id: saved.id, name: "Client website", taskCount: 1, color: "pink" },
     ])
@@ -309,7 +320,8 @@ describe("project templates", () => {
 
     // Changing the source afterwards leaves the template as it was saved.
     await task("Added later")
-    const started = await createProject(
+    const started = await projectFor(
+      admin,
       carla.id,
       { name: "Website for Bloom", color: "blue", description: "", templateId: saved.id },
       database
@@ -327,23 +339,27 @@ describe("project templates", () => {
     expect(page.members.map((m) => m.name)).toEqual(["Carla"])
   })
 
-  it("is renamed and deleted by the owner and admins only, and stays in its team", async () => {
-    const saved = await saveTemplate(ben.id, { projectId: website, name: "Client website" }, database)
-    await expect(saveTemplate(ben.id, { projectId: website, name: "client WEBSITE" }, database)).rejects.toThrow(
+  it("is saved, renamed and deleted by the site admin only, and stays in its team", async () => {
+    await expect(saveTemplate(ben.id, { projectId: website, name: "Client website" }, database)).rejects.toThrow(
+      PROJECT_ERRORS.onlySiteAdminSettings
+    )
+    const saved = await saveTemplate(admin.id, { projectId: website, name: "Client website" }, database)
+    await expect(saveTemplate(admin.id, { projectId: website, name: "client WEBSITE" }, database)).rejects.toThrow(
       PROJECT_ERRORS.templateNameTaken
     )
     await expect(renameTemplate(ben.id, { templateId: saved.id, name: "Site" }, database)).rejects.toThrow(
       PROJECT_ERRORS.notRunningTeam
     )
-    await renameTemplate(anna.id, { templateId: saved.id, name: "Site" }, database)
+    await renameTemplate(admin.id, { templateId: saved.id, name: "Site" }, database)
 
-    const outsider = await insertUser(database, { name: "Olga", email: "olga@example.test" })
-    await createTeam(outsider.id, { name: "Other", timeZone: "UTC" }, database)
+    const outsider = await insertEmployee(database, { name: "Olga", email: "olga@example.test" })
+    const other = await startTeam(database, [outsider], { name: "Other" })
     await expect(
-      createProject(outsider.id, { name: "Stolen", color: "blue", description: "", templateId: saved.id }, database)
+      createProject(other.admin.id, { name: "Stolen", color: "blue", description: "", templateId: saved.id }, database)
     ).rejects.toThrow(PROJECT_ERRORS.templateNotFound)
 
-    await deleteTemplate(anna.id, saved.id, database)
+    await expect(deleteTemplate(anna.id, saved.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+    await deleteTemplate(admin.id, saved.id, database)
     expect(await listMyTeamTemplates(anna.id, database)).toEqual([])
   })
 })

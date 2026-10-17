@@ -5,8 +5,9 @@ import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { requireTaskAccess, type ProjectDb } from "@/server/project/access"
+import { loadClock } from "@/server/project/checkins"
 import { holidaysBetween } from "@/server/project/holidays"
-import { projectTaskReminders, projectTeamMembers, projectTeams } from "@/server/project/schema"
+import { projectTaskReminders } from "@/server/project/schema"
 
 /**
  * "Remind me": anyone who can see a task picks a day, and on that day, at
@@ -59,20 +60,10 @@ async function myToday(userId: string, database: ProjectDb) {
   return localNow(now(), zone).day
 }
 
+/** My zone and the team's work days; the site admin reads the team's zone. */
 async function myClock(userId: string, database: ProjectDb) {
-  const [row] = await database
-    .select({
-      teamId: projectTeams.id,
-      own: projectTeamMembers.timeZone,
-      team: projectTeams.timeZone,
-      workDays: projectTeams.workDays,
-    })
-    .from(projectTeamMembers)
-    .innerJoin(projectTeams, eq(projectTeams.id, projectTeamMembers.teamId))
-    .where(eq(projectTeamMembers.userId, userId))
-    .limit(1)
-  if (!row) throw new Error(PROJECT_ERRORS.noTeam)
-  return { teamId: row.teamId, zone: row.own ?? row.team, workDays: [...row.workDays] }
+  const { membership, clock } = await loadClock(userId, database)
+  return { teamId: membership.teamId, zone: clock.zone, workDays: clock.workDays }
 }
 
 /** How far ahead the quick due dates look for the team's holidays. */

@@ -13,16 +13,19 @@ import type { TaskTypeField } from "@/lib/project/task-types"
 
 /**
  * Adds up to 3 of a task type's fields to the List as columns, while the List
- * is filtered to that type.
+ * is filtered to that type. The Board shows the same fields as lines on its
+ * cards, so the menu there is named for that.
  */
 export function FieldColumnsMenu({
   fields,
   chosen,
   onChange,
+  label = "Columns",
 }: {
   fields: TaskTypeField[]
   chosen: string[]
   onChange: (ids: string[]) => void
+  label?: string
 }) {
   const full = chosen.length >= LIMITS.fieldColumns
   return (
@@ -30,7 +33,8 @@ export function FieldColumnsMenu({
       <DropdownMenuTrigger asChild>
         <DashboardToolbarButton type="button" variant="outline">
           <Columns3Icon className="size-4" />
-          Columns{chosen.length ? ` (${chosen.length})` : ""}
+          {label}
+          {chosen.length ? ` (${chosen.length})` : ""}
         </DashboardToolbarButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

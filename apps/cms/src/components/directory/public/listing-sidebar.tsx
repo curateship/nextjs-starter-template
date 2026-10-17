@@ -1,6 +1,7 @@
 import { NavigationIcon } from "lucide-react"
 
 import { ClaimButton } from "@/components/directory/public/claim-button"
+import { MessageOwnerButton } from "@/components/directory/public/message-owner-button"
 import {
   LISTING_ROW_CLASS,
   ListingContactLinks,
@@ -16,8 +17,12 @@ import {
   type ListingCoordinates,
 } from "@/lib/directory/listing-details"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import type { ContactLinks } from "@/lib/directory/contact-links"
-import type { PublicClaimState } from "@/lib/api/directory/public"
+import type {
+  PublicClaimState,
+  PublicListingPage,
+} from "@/lib/api/directory/public"
 
 /**
  * The card beside a listing: its photo, its rating, and every way to reach it,
@@ -37,6 +42,7 @@ export function ListingSidebar({
   listing,
   coordinates,
   claim,
+  ownerMessage,
   startClaimOpen,
 }: {
   listing: {
@@ -55,6 +61,7 @@ export function ListingSidebar({
    */
   coordinates: ListingCoordinates | null
   claim: PublicClaimState
+  ownerMessage: PublicListingPage["ownerMessage"]
   startClaimOpen: boolean
 }) {
   const hasDirectionsLink = listing.contactLinks.menuLinks.some(
@@ -72,6 +79,10 @@ export function ListingSidebar({
         <div className="relative overflow-hidden">
           <img
             src={listing.featuredImage}
+            srcSet={mediaImageSrcSet(listing.featuredImage)}
+            // The narrow column on a wide screen, the whole width on a phone.
+            // Not lazy: it is the first thing on the page.
+            sizes="(min-width: 1024px) 400px, 100vw"
             alt=""
             className="aspect-[4/3] w-full object-cover"
           />
@@ -128,6 +139,13 @@ export function ListingSidebar({
             <NavigationIcon className="size-4 shrink-0" aria-hidden="true" />
             Get directions
           </a>
+        ) : null}
+        {ownerMessage.open ? (
+          <MessageOwnerButton
+            listingId={listing.id}
+            title={listing.title}
+            humanCheckSiteKey={ownerMessage.humanCheckSiteKey}
+          />
         ) : null}
         <ClaimButton
           asRow

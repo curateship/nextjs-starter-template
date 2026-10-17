@@ -43,6 +43,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "A site's optional listings home page is public, and it returns published cards only for the site whose address the visitor typed. A row drawn as a map also carries that site's browser map key, which is a value its own admin chose to publish and is only sent when a map row exists.",
   "directory/public.ts:readDirectorySuggestionsFn":
     "The search box on the public directory offers a few matches as a visitor types, so it has to answer without an account. It reads published listings and non-empty categories on the visited site only, returns names and addresses that are already on the public pages, and is rate limited per address.",
+  "directory/public.ts:readRecentlyViewedFn":
+    "The Recently viewed row on the public directory asks for fresh cards for up to eight listing ids the visitor's own browser remembers. It answers with published listings on the visited site only, in the shape the browse page already shows, and nothing at all while the directory is switched off or kept for members and the reader is signed out.",
   "directory/public.ts:geocodeDirectoryPlaceFn":
     "A visitor may type a town when browser location is unavailable; this lookup is rate limited, cached, and returns no private site data.",
   "posts/public.ts:readPostsFn":
@@ -83,6 +85,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "Anybody may claim a deal with a name and an email, which is the whole feature: the visitor has no account. It still checks the request came from this app's own pages and that the Deals page is open to them, takes eight claims an hour from one address per site, counts places under a row lock, and never shows a code for an email that has already claimed, so typing someone else's email gets nobody their code.",
   "promotions/claims.ts:claimPassFn":
     "The page a customer shows at the counter is found by their code alone, and the person holding that code has no account, so the door cannot ask for one. It reads the visited site only, follows the Deals page's on/off and members-only switch, answers with a published deal at a published listing, and returns the claimer's name and code but never their email. A code is eight characters out of 850 billion, and a wrong one costs one of thirty tries an hour from that address while a real one clears the count, so the code cannot be found by guessing. Marking it used is a different door that does require an account.",
+  "directory/owner-messages.ts:messageOwnerFn":
+    "The \"Message the owner\" form on a listing's page is for visitors, who have no account. It checks the request came from this app's own pages, runs the human check when the site has its keys, follows the directory's on/off and members-only switch, is limited per address, per email and per listing, and only sends when the site has the form switched on and the listing is published here with an approved owner. It answers \"sent\" and nothing else, so the owner's address never reaches the visitor.",
   "directory/reports.ts:reportListingProblemFn":
     "Anybody may say a listing is wrong, which is the whole feature — the visitor who found the shop shut has no account. It still checks the request came from this app's own pages, is rate limited per listing, per address and per site, writes a row no visitor can ever read back, and changes nothing on the listing it is about.",
 }

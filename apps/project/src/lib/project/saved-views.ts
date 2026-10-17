@@ -24,6 +24,8 @@ export const savedViewFiltersSchema = z.object({
   label: id.optional(),
   type: id.optional(),
   due: z.enum(DUE_FILTERS.map((option) => option.key) as [DueKey, ...DueKey[]]).optional(),
+  // A view keeps its client (Tyler, 16 Oct 2026).
+  client: z.string().trim().min(1).max(LIMITS.clientName).optional(),
 })
 
 type DueKey = (typeof DUE_FILTERS)[number]["key"]
@@ -49,6 +51,7 @@ export function viewFilters(filters: TaskFilters): SavedViewFilters {
   if (filters.label) kept.label = filters.label
   if (filters.type) kept.type = filters.type
   if (filters.due) kept.due = filters.due
+  if (filters.client) kept.client = filters.client
   return kept
 }
 

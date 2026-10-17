@@ -11,13 +11,11 @@ import { quickDays } from "@/lib/project/quick-days"
 import type { CustomShellDb } from "@/server/db"
 import { loadCheckinPage, setMyCheckinTime } from "@/server/project/checkins"
 import { addHoliday } from "@/server/project/holidays"
-import { acceptInvite, createInvite } from "@/server/project/invites"
 import { addWait, findTasksToWaitOn, removeWait, setRepeat } from "@/server/project/planning"
 import { makeRepeatCopies } from "@/server/project/planning-jobs"
 import {
   addProjectMember,
   copyProject,
-  createProject,
   loadProjectPage,
   removeProjectMember,
 } from "@/server/project/projects"
@@ -40,18 +38,21 @@ import {
   setTaskStatus,
   updateTask,
 } from "@/server/project/tasks"
-import { createTeam, leaveTeam } from "@/server/project/teams"
+import { removeTeamMember } from "@/server/project/teams"
+import { insertEmployee, projectFor, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { createTestDatabase } from "@/server/test-support"
 
 /*
  * More features task 05, planning tasks. 2 March 2099 is a Monday. The team
- * works Monday to Friday, checks in at 9:00, and is on UTC.
+ * works Monday to Friday, checks in at 9:00, and is on UTC. The site admin
+ * runs it; Anna and Ben work on it, both on Website.
  */
 const at = (iso: string) => new Date(iso)
 
 let client: PGlite
 let database: CustomShellDb
+let admin: CustomShellUser
 let anna: CustomShellUser
 let ben: CustomShellUser
 let website: string
@@ -62,17 +63,11 @@ beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
-  anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
-  ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  const sent = await createInvite(
-    { ...actor(anna), currentWorkspaceId: anna.currentWorkspaceId },
-    { email: ben.email, role: "member" },
-    database
-  )
-  await acceptInvite(ben, sent.inviteId, database)
-  website = (await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)).id
-  await addProjectMember(anna.id, website, ben.id, database)
+  anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
+  ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
+  admin = (await startTeam(database, [anna, ben])).admin
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  await addProjectMember(admin.id, website, ben.id, database)
 })
 
 afterEach(async () => {
@@ -114,8 +109,8 @@ describe("task priority", () => {
     const copy = await duplicateTask(actor(anna), id, database)
     expect((await card(copy.id)).priority).toBe("high")
 
-    const copied = await copyProject(anna.id, { projectId: website, name: "Website 2" }, database)
-    const copiedTasks = (await loadProjectPage(anna.id, copied.id, database)).tasks
+    const copied = await copyProject(admin.id, { projectId: website, name: "Website 2" }, database)
+    const copiedTasks = (await loadProjectPage(admin.id, copied.id, database)).tasks
     expect(copiedTasks.map((t) => t.priority)).toEqual(["high", "high"])
 
     await database.update(projectTasks).set({ createdAt: at("2099-02-20T10:00:00Z") }).where(eq(projectTasks.id, id))
@@ -161,7 +156,7 @@ describe("quick due dates", () => {
   it("reads my zone, the team's work days and its coming holidays for the buttons", async () => {
     await setMyCheckinTime(ben.id, { timeZone: "Asia/Tokyo" }, database)
     const soon = addDays(localNow(new Date(), "UTC").day, 5)
-    await addHoliday(anna.id, { day: soon, name: "Founders' day" }, database)
+    await addHoliday(admin.id, { day: soon, name: "Founders' day" }, database)
     expect(await loadMyDays(ben.id, database)).toEqual({
       zone: "Asia/Tokyo",
       workDays: [1, 2, 3, 4, 5],
@@ -379,16 +374,16 @@ describe("remind me", () => {
     await setTaskReminder(actor(ben), { taskId: binned, day: "2099-03-05" }, database)
     await setTaskReminder(actor(ben), { taskId: hidden, day: "2099-03-05" }, database)
     await deleteTask(actor(anna), binned, database)
-    await removeProjectMember(anna.id, website, ben.id, database)
+    await removeProjectMember(admin.id, website, ben.id, database)
     await sendTaskReminders(database, at("2099-03-05T10:00:00Z"))
     expect(await noticesTo(ben, "task_reminder")).toEqual([])
     expect(await database.select().from(projectTaskReminders)).toEqual([])
   })
 
-  it("are taken off when the person leaves the team", async () => {
+  it("are taken off when the person is taken off the team", async () => {
     const id = await task("Write the About page")
     await setTaskReminder(actor(ben), { taskId: id, day: "2099-03-05" }, database)
-    await leaveTeam(ben.id, database)
+    await removeTeamMember(admin.id, ben.id, database)
     expect(await database.select().from(projectTaskReminders)).toEqual([])
   })
 
@@ -437,7 +432,7 @@ describe("saved step lists", () => {
     expect((await loadTaskDetail(anna.id, full, database)).steps).toHaveLength(48)
   })
 
-  it("lets only the owner and admins rename or delete a list", async () => {
+  it("lets only the site admin rename or delete a list", async () => {
     const source = await task("Source")
     await addStep(actor(anna), { taskId: source, text: "One" }, database)
     const list = await saveStepList(actor(ben), { taskId: source, name: "Mine" }, database)
@@ -445,9 +440,13 @@ describe("saved step lists", () => {
       PROJECT_ERRORS.notRunningTeam
     )
     await expect(deleteStepList(ben.id, list.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-    await renameStepList(anna.id, { listId: list.id, name: "Ours" }, database)
+    // Anna works on the team like Ben, so she can't either.
+    await expect(renameStepList(anna.id, { listId: list.id, name: "Ours" }, database)).rejects.toThrow(
+      PROJECT_ERRORS.notRunningTeam
+    )
+    await renameStepList(admin.id, { listId: list.id, name: "Ours" }, database)
     expect((await listStepLists(await teamId(), database)).map((l) => l.name)).toEqual(["Ours"])
-    await deleteStepList(anna.id, list.id, database)
+    await deleteStepList(admin.id, list.id, database)
     expect(await listStepLists(await teamId(), database)).toEqual([])
   })
 })

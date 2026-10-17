@@ -16,6 +16,11 @@ The Users dashboard lets an admin:
 - End sessions and inspect security details.
 - Temporarily view the product as that person.
 
+The role filter, the Role column and both role pickers list every role the app
+has: Admin, Member, and the app's own roles. Moving an account onto an app role
+here is allowed; Tyler said yes on 16 Oct 2026. See
+[App roles](../accounts/app-roles.md).
+
 Add account asks for a name, an email address and a role. Leaving the optional
 password empty is the normal path: the account starts with no password at all,
 and the emailed link sets one and confirms the address. Typing a password

@@ -1,4 +1,5 @@
 import { dueDayOf, isOverdue, todayKey } from "@/lib/project/dates"
+import { matchesClient, readClientFilter } from "@/lib/project/clients"
 import { addDays } from "@/lib/project/days"
 import {
   DONE_RECENT_DAYS,
@@ -10,7 +11,7 @@ import {
 
 /**
  * Narrowing a list of tasks: a search over title and notes, and Status,
- * Priority, Person, Label, Type and due-date filters. They live in the page's address, so a
+ * Priority, Person, Label, Type, due-date and Client filters. They live in the page's address, so a
  * pasted link keeps them. The search doesn't look inside a type's fields.
  */
 
@@ -45,6 +46,8 @@ export type TaskFilters = {
   /** A task type's id. */
   type?: string
   due?: DueFilter
+  /** A client's name, or `NO_CLIENT_FILTER`. My dashboard only: a project has one client. */
+  client?: string
 }
 
 type Filterable = {
@@ -57,6 +60,7 @@ type Filterable = {
   type: { id: string } | null
   dueDate?: string | null
   dueAt?: string | null
+  projectClient?: string | null
 }
 
 const ID = /^[\w-]{1,36}$/
@@ -71,12 +75,21 @@ export function readTaskFilters(search: Record<string, unknown>): TaskFilters {
   if (typeof search.label === "string" && ID.test(search.label)) result.label = search.label
   if (typeof search.type === "string" && ID.test(search.type)) result.type = search.type
   if (isDueFilter(search.due)) result.due = search.due
+  const client = readClientFilter(search.client)
+  if (client) result.client = client
   return result
 }
 
 export function hasTaskFilters(filters: TaskFilters) {
   return Boolean(
-    filters.q?.trim() || filters.status || filters.priority || filters.person || filters.label || filters.type || filters.due
+    filters.q?.trim() ||
+      filters.status ||
+      filters.priority ||
+      filters.person ||
+      filters.label ||
+      filters.type ||
+      filters.due ||
+      filters.client
   )
 }
 
@@ -93,6 +106,7 @@ export function filterTasks<T extends Filterable>(tasks: T[], filters: TaskFilte
     if (filters.label && !task.labels.some((label) => label.id === filters.label)) return false
     if (filters.type && task.type?.id !== filters.type) return false
     if (filters.due && !matchesDue(task, filters.due, today, now)) return false
+    if (filters.client && !matchesClient(task.projectClient, filters.client)) return false
     if (words.length) {
       const haystack = `${task.title}\n${task.notesText}`.toLowerCase()
       if (!words.every((word) => haystack.includes(word))) return false

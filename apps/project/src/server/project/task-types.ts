@@ -24,7 +24,7 @@ import { db } from "@/server/db"
 import {
   findMembership,
   isProjectMember,
-  requireOpenProject,
+  requireProjectSettings,
   requireTaskAccess,
   requireTeamRunner,
   type Membership,
@@ -33,10 +33,12 @@ import {
   type TaskRow,
 } from "@/server/project/access"
 import { requireSharedProject } from "@/server/project/personal"
+import { writeTaskNotices } from "@/server/project/notices"
 import {
   projectProjects,
   projectTaskFieldValues,
   projectTaskFiles,
+  projectTaskFollowers,
   projectTaskTypeFields,
   projectTaskTypes,
   projectTasks,
@@ -708,7 +710,7 @@ async function checkedValue(field: FieldRule, raw: unknown, projectId: string, d
  * API and anything else alike.
  */
 export async function setTaskFieldValue(
-  actor: { id: string },
+  actor: { id: string; name: string },
   input: { taskId: string; fieldId: string; value: unknown },
   database = db
 ) {
@@ -722,9 +724,42 @@ export async function setTaskFieldValue(
       : onlyWhoCanChange(field)
     if (refusal) throw new Error(refusal)
     const value = await checkedValue(field, input.value, task.projectId, tx)
+    const before = field.kind === "person" ? ((await valuesForTasks([task], tx)).get(task.id) ?? {})[field.id] : null
     await writeValue(tx, task.id, field.id, value, actor.id)
     await tx.update(projectTasks).set({ updatedAt: now() }).where(eq(projectTasks.id, task.id))
+    if (field.kind === "person" && value !== null && value !== before) {
+      await tellPeopleNamed(tx, actor, task, [{ personId: String(value), fieldName: field.name }])
+    }
   })
+}
+
+/**
+ * Someone named in a Person field hears about it and follows the task, so
+ * its chat and its Done reach them too (Tyler, 16 Oct 2026). Naming yourself,
+ * or the task's own person, tells nobody: they already know the task.
+ */
+async function tellPeopleNamed(
+  tx: ProjectDb,
+  actor: { id: string; name: string },
+  task: Pick<TaskRow, "id" | "projectId" | "title" | "assigneeUserId">,
+  named: { personId: string; fieldName: string }[]
+) {
+  const told = named.filter(({ personId }) => personId !== actor.id && personId !== task.assigneeUserId)
+  if (told.length === 0) return
+  await tx
+    .insert(projectTaskFollowers)
+    .values(told.map(({ personId }) => ({ taskId: task.id, userId: personId, createdAt: now() })))
+    .onConflictDoNothing()
+  await writeTaskNotices(
+    tx,
+    told.map(({ personId, fieldName }) => ({
+      kind: "task_field_person" as const,
+      recipientUserId: personId,
+      actor,
+      task: { id: task.id, projectId: task.projectId, title: task.title },
+      detail: `${fieldName} on ${task.title}`,
+    }))
+  )
 }
 
 async function writeValue(
@@ -758,10 +793,10 @@ export async function writeNewTaskFields(
   input: {
     membership: Membership
     project: ProjectRow
-    taskId: string
+    task: Pick<TaskRow, "id" | "projectId" | "title" | "assigneeUserId">
     typeId: string
     values: Record<string, unknown>
-    actorId: string
+    actor: { id: string; name: string }
   }
 ) {
   await requireOfferedType(input.membership.teamId, input.project, input.typeId, tx)
@@ -777,8 +812,13 @@ export async function writeNewTaskFields(
   const missing = firstMissingField(fields, saved, "made")
   if (missing) throw new Error(fillInFirst(missing))
   for (const [fieldId, value] of Object.entries(saved)) {
-    await writeValue(tx, input.taskId, fieldId, value, input.actorId)
+    await writeValue(tx, input.task.id, fieldId, value, input.actor.id)
   }
+  const named = Object.entries(saved).flatMap(([fieldId, value]) => {
+    const field = byId.get(fieldId)!
+    return field.kind === "person" ? [{ personId: String(value), fieldName: field.name }] : []
+  })
+  await tellPeopleNamed(tx, input.actor, input.task, named)
 }
 
 /**
@@ -873,8 +913,8 @@ export async function clearPersonValuesOffProject(taskId: string, projectId: str
 
 /**
  * Which of the team's types this project offers, and the one New task starts
- * on. Unticking a type changes nothing on tasks that already have it. Anyone
- * who can change the project can change these, as with its sections.
+ * on. Unticking a type changes nothing on tasks that already have it. It is
+ * one of the project's settings, so only the site admin changes it.
  */
 export async function setProjectTypes(
   userId: string,
@@ -882,7 +922,7 @@ export async function setProjectTypes(
   database = db
 ) {
   await database.transaction(async (tx) => {
-    const { membership, project } = await requireOpenProject(userId, input.projectId, tx)
+    const { membership, project } = await requireProjectSettings(userId, input.projectId, tx)
     requireSharedProject(project)
     const hidden = input.hiddenTypeIds ? [...new Set(input.hiddenTypeIds)] : project.hiddenTypeIds
     const wanted = [...new Set([...hidden, ...(input.defaultTypeId ? [input.defaultTypeId] : [])])]

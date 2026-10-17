@@ -5,6 +5,7 @@ import { CalendarIcon, MapPinIcon, NavigationIcon } from "lucide-react"
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ReportProblemButton } from "@/components/directory/public/report-problem-button"
 import { AddToCalendarMenu } from "@/components/events/public/calendar-menus"
@@ -120,6 +121,9 @@ function EventRoute() {
         {event.coverImage ? (
           <img
             src={event.coverImage}
+            srcSet={mediaImageSrcSet(event.coverImage)}
+            // The page's column, 1152px at most. Not lazy: it opens the page.
+            sizes="(min-width: 1184px) 1152px, 100vw"
             alt=""
             className="aspect-[3/1] w-full object-cover"
           />

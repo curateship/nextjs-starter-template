@@ -88,7 +88,7 @@ export function CheckoutDialog({
             <DialogDescription>
               {page.checkout?.at
                 ? `You checked out at ${clockIn(page.checkout.at, page.clock.zone)}. You can change it until the day ends.`
-                : "Optional. Only you see this, and nothing reminds you to do it."}
+                : "Optional. Only you and the site admin see this, and nothing reminds you to do it."}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>

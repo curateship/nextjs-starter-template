@@ -16,9 +16,8 @@ import {
   submitCheckin,
 } from "@/server/project/checkins"
 import { addHoliday } from "@/server/project/holidays"
-import { acceptInvite, createInvite } from "@/server/project/invites"
 import { loadMyWeek } from "@/server/project/my-week"
-import { addProjectMember, createProject } from "@/server/project/projects"
+import { addProjectMember } from "@/server/project/projects"
 import {
   projectCheckins,
   projectNoticeLinks,
@@ -41,7 +40,8 @@ import {
 } from "@/server/project/tasks"
 import { loadTeamDay, loadTeamMonth } from "@/server/project/team-days"
 import { loadPeopleRoom, loadWorkload } from "@/server/project/team-running"
-import { createTeam, updateTeam } from "@/server/project/teams"
+import { updateTeam, type TeamSummary } from "@/server/project/teams"
+import { joinTeam, projectFor, startTeam } from "@/server/project/test-people"
 import { addTimeOff } from "@/server/project/time-off"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -61,6 +61,9 @@ let database: CustomShellDb
 let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
+/** The site admin, who runs the team without being on it. */
+let admin: CustomShellUser
+let team: TeamSummary
 let projectId: string
 
 const actor = (user: CustomShellUser) => ({
@@ -76,14 +79,11 @@ beforeEach(async () => {
   anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
   ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  for (const person of [ben, carla]) {
-    const sent = await createInvite(actor(anna), { email: person.email, role: "member" }, database)
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  // Carla is on the team but not on Website.
-  projectId = (await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)).id
-  await addProjectMember(anna.id, projectId, ben.id, database)
+  ;({ admin, team } = await startTeam(database, [anna, ben, carla]))
+  // Anna makes Website and is on it; the site admin adds Ben. Carla is on the
+  // team but not on Website.
+  projectId = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  await addProjectMember(admin.id, projectId, ben.id, database)
 })
 
 afterEach(async () => {
@@ -281,7 +281,7 @@ describe("tags in check-in notes", () => {
 describe("the team's own check-in words", () => {
   it("shows the new words, and past days under the words of their day", async () => {
     await submitCheckin(ben.id, { answers: [], picks: [], notes: { ...NO_NOTES, today: "Members table" } }, database, at(`${MONDAY}T09:00:00Z`))
-    await updateTeam(anna.id, { questionYesterday: "Wins", questionToday: "Focus" }, database)
+    await updateTeam(admin.id, { questionYesterday: "Wins", questionToday: "Focus" }, database)
     await submitCheckin(ben.id, { answers: [], picks: [] }, database, at(`${TUESDAY}T09:00:00Z`))
 
     expect((await loadCheckinPage(ben.id, database, at(`${TUESDAY}T10:00:00Z`))).questions).toEqual({
@@ -358,11 +358,11 @@ describe("my week", () => {
 
 describe("team holidays", () => {
   it("sends no reminders, saves the day off, and names it on the calendar", async () => {
-    await addHoliday(anna.id, { day: MONDAY, name: "Founders' Day" }, database)
+    await addHoliday(admin.id, { day: MONDAY, name: "Founders' Day" }, database)
     await expect(addHoliday(ben.id, { day: TUESDAY, name: "Mine" }, database)).rejects.toThrow(
       PROJECT_ERRORS.notRunningTeam
     )
-    await expect(addHoliday(anna.id, { day: MONDAY, name: "Again" }, database)).rejects.toThrow(
+    await expect(addHoliday(admin.id, { day: MONDAY, name: "Again" }, database)).rejects.toThrow(
       PROJECT_ERRORS.holidayTaken
     )
 
@@ -502,11 +502,10 @@ describe("handing out work", () => {
     )
   })
 
-  it("gives a new member the starter tasks as their own, and nobody already on the team", async () => {
-    await updateTeam(anna.id, { starterTasks: ["Read the handbook", "Set up email"] }, database)
+  it("gives a new member the starter tasks as their own, from the site admin, and nobody already on the team", async () => {
+    await updateTeam(admin.id, { starterTasks: ["Read the handbook", "Set up email"] }, database)
     const dan = await insertUser(database, { name: "Dan", email: "dan@example.test" })
-    const sent = await createInvite(actor(anna), { email: dan.email, role: "member" }, database)
-    await acceptInvite(dan, sent.inviteId, database)
+    await joinTeam(database, team.id, dan)
 
     const tasks = await database
       .select({ title: projectTasks.title, assignee: projectTasks.assigneeUserId, by: projectTasks.assignedByUserId, personal: projectProjects.personalUserId })
@@ -514,11 +513,11 @@ describe("handing out work", () => {
       .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
       .where(eq(projectTasks.assigneeUserId, dan.id))
     expect(tasks).toEqual([
-      { title: "Read the handbook", assignee: dan.id, by: anna.id, personal: dan.id },
-      { title: "Set up email", assignee: dan.id, by: anna.id, personal: dan.id },
+      { title: "Read the handbook", assignee: dan.id, by: admin.id, personal: dan.id },
+      { title: "Set up email", assignee: dan.id, by: admin.id, personal: dan.id },
     ])
     expect(await noticesOf(dan.id, "tasks_handed")).toEqual([
-      expect.objectContaining({ message: "Anna gave you 2 tasks", href: "/dashboard" }),
+      expect.objectContaining({ message: "Tyler gave you 2 tasks", href: "/dashboard" }),
     ])
     const page = await loadCheckinPage(dan.id, database, at(`${MONDAY}T08:00:00Z`))
     expect(page.groups.flatMap((group) => group.tasks).map((t) => t.title)).toEqual([

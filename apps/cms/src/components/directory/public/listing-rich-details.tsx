@@ -8,6 +8,7 @@ import {
   listingHoursStatus,
   type ListingHours,
 } from "@/lib/directory/listing-details"
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { cn } from "@/lib/utils"
 
 export function ListingGallery({
@@ -33,6 +34,9 @@ export function ListingGallery({
         >
           <img
             src={image}
+            srcSet={mediaImageSrcSet(image)}
+            // Two across on a phone, three in the wide column above that.
+            sizes="(min-width: 1024px) 240px, (min-width: 768px) 33vw, 50vw"
             alt={`${title} photo ${index + 1}`}
             loading="lazy"
             decoding="async"

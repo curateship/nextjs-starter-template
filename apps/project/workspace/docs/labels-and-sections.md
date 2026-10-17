@@ -38,7 +38,7 @@ hold a link, a file or a number.
   change the task can change its labels.
 - **They show** on Board cards and List rows as the colour dot and the name,
   never the colour alone.
-- **Owners and admins rename, recolour and delete them**, in Team settings
+- **The site admin renames, recolours and deletes them**, in Team settings
   (the cog on the Team dashboard). Everyone else sees the list there.
 - **Deleting one takes it off every task** that had it, in every project.
 - **The Label filter** sits beside search, Status, Priority and Person on a

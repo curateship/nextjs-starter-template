@@ -19,6 +19,7 @@ import { formatChange } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { usePinnedMarkets } from "@/lib/trade/use-pinned-markets"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 import { useHidePnlSync } from "@/lib/trade/use-hide-pnl-sync"
 import { PublicProfileDialogHost } from "@/components/social/public-profile-setting"
 
@@ -103,6 +104,7 @@ export default function PinnedMarketsHeader({
 export function PinnedMarketChips({
   className,
   alwaysShowChange = false,
+  spread = false,
 }: {
   className?: string
   /**
@@ -111,11 +113,23 @@ export function PinnedMarketChips({
    * is a list rather than a row and has the width to spare.
    */
   alwaysShowChange?: boolean
+  /**
+   * Separate pills with room between them, and the row fading out under the
+   * right edge where it carries on. For the three-dot dropdown, which has a
+   * line of its own to give the pins rather than a tray in a crowded header.
+   */
+  spread?: boolean
 }) {
   const { pins, quotes, busy, store } = usePinnedMarkets()
   if (!pins.length) return null
   return (
-    <ScrollArea className={className}>
+    <ScrollArea
+      className={cn(
+        className,
+        spread &&
+          "[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)]"
+      )}
+    >
       {/*
             The chips sit on their own light ground, so the pins read as one
             thing rather than as more navigation links that happen to be
@@ -126,7 +140,14 @@ export function PinnedMarketChips({
           */}
       <nav
         aria-label="Pinned markets"
-        className="flex h-8 w-max items-center gap-0.5 rounded-lg bg-muted/60 p-0.5"
+        className={cn(
+          "flex w-max items-center",
+          // The space after the last pin is what the fade covers, so the last
+          // one reads in full once the row is slid to its end.
+          spread
+            ? "gap-2 pr-10"
+            : "h-8 gap-0.5 rounded-lg bg-muted/60 p-0.5"
+        )}
       >
         {pins.map((key) => {
           const quote = quotes.find((item) => item.key === key)
@@ -148,7 +169,12 @@ export function PinnedMarketChips({
                 */
             <div
               key={key}
-              className="inline-flex h-7 min-w-0 items-center gap-1 rounded-md pr-1 pl-2.5 text-sm font-medium transition-all hover:bg-muted"
+              className={cn(
+                "inline-flex min-w-0 items-center gap-1 text-sm font-medium transition-all hover:bg-muted",
+                spread
+                  ? "h-9 rounded-lg bg-muted/60 pr-2 pl-3"
+                  : "h-7 rounded-md pr-1 pl-2.5"
+              )}
             >
               {/*
                     No tooltip on the chip.
