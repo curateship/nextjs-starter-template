@@ -189,7 +189,8 @@ row of buttons wrapped onto three lines on a phone.
   pair. It carries how many filters are on, "Filters (3)", and is drawn in full
   contrast while any are.
 - **The panel's headings come in a fixed order**: the category groups
-  ("Neighbourhood", "Cuisine"), then Rating, then each choice field the site
+  ("Neighbourhood", "Cuisine"), then Hours on the browse page only, then
+  Rating, then each choice field the site
   marked as a filter under its own name ("Price"), then the yes or no fields
   under the name of the section they belong to ("Amenities").
 - **Each option is a chip**, filled while it is on. A long group shows its first
@@ -215,6 +216,27 @@ row of buttons wrapped onto three lines on a phone.
   key holding a comma-separated list, `?category=italian,portuguese`, so every
   link written when only one category could be picked still means what it
   meant, and the server decides which group each slug belongs to.
+- **Hours has one chip, "Open now".** Ticked, the page keeps only the places
+  open at this moment, and the line beside the chip says "Leaves out places
+  with no hours listed." Tyler chose on 17 Oct 2026 to leave those out rather
+  than show them, so the chip never promises a place it cannot vouch for.
+- **"Now" is the site's own clock**, from its time zone in Settings →
+  Directory. Not the server's and not the visitor's browser: somebody in
+  Vancouver looking at a Toronto site sees what is open in Toronto.
+- **Open now is worked out in the database** from each listing's hours, in the
+  same query as every other filter, so the count, the pages and the field
+  chips' numbers all agree with the cards. It asks the listing page's own two
+  questions: does yesterday's stretch run past midnight and still hold this
+  time, and does today's stretch hold it. A bar open 8pm to 2am on Monday is
+  open at 1:30 on Tuesday. A stretch whose open and close are the same time is
+  open all day. A day with no hours is closed.
+- **It can be up to a minute behind.** The public pages keep each answer for
+  two minutes, and an Open now answer is kept under the minute it was read at,
+  so 9:59's list is never shown at 10:01.
+- **It is in the address as `?open=now`**, so it survives a reload and a
+  shared link. It also narrows the map, and the sentence over the results
+  says "12 listings open now". It is on the browse page only; a category page
+  has no Hours block.
 - **Rating is Any, 4.0+ or 4.5+.** A listing nobody has scored is out when a
   minimum is asked for: a place with no rating is not a place rated 4 and over.
 - **A field the site invented can be a filter too.** In Admin → Listings →

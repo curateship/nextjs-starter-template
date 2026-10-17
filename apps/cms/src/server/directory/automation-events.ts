@@ -18,6 +18,10 @@ import {
   type DirectoryTriggerKind,
 } from "@/lib/directory/automation-nodes"
 import { formatUtcDate } from "@/lib/format/format-time"
+import {
+  LISTING_PAGE_STATUSES,
+  readListingStatus,
+} from "@/lib/directory/listing-status"
 import { plural } from "@/lib/format/plural"
 import { now, uuid } from "@/server/auth/security"
 import { readAutomationsPaused } from "@/server/automations/pause"
@@ -223,7 +227,7 @@ async function eventFacts(
       listingTitle = listing.title
       // A draft's address answers "not found", so it is not handed out.
       listingLink =
-        listing.status === "published"
+        LISTING_PAGE_STATUSES.includes(readListingStatus(listing.status))
           ? `${siteLink}/directory/${listing.slug}`
           : ""
     }

@@ -1,4 +1,6 @@
-import { and, asc, eq, sql } from "drizzle-orm"
+import { and, asc, eq, inArray, sql } from "drizzle-orm"
+
+import { LISTING_PAGE_STATUSES } from "@/lib/directory/listing-status"
 
 import type { SitemapChunkFile, SitemapEntry } from "@/server/app-options"
 import { db, type CustomShellDb } from "@/server/db"
@@ -103,7 +105,10 @@ async function directorySitemapChunkFilesUncached(
              listing.updated_at AS updated_at
       FROM directory_listings listing
       WHERE listing.workspace_id = ${workspaceId}
-        AND listing.status = 'published'
+        AND listing.status IN (${sql.join(
+          LISTING_PAGE_STATUSES.map((status) => sql`${status}`),
+          sql`, `
+        )})
     ) numbered
     GROUP BY 1
     ORDER BY 1
@@ -138,8 +143,10 @@ async function directoryListingChunkEntriesUncached(
     return null
   }
 
-  // Ordered by address, which is unique within a site, so a listing cannot fall
-  // between two files or turn up in both.
+  // Closed listings stay in, because their pages stay up. Google's own advice
+  // is to let it find the "closed" for a while, and Tyler chose that on 17 Oct
+  // 2026. Ordered by address, which is unique within a site, so a listing
+  // cannot fall between two files or turn up in both.
   const rows = await database
     .select({
       slug: directoryListings.slug,
@@ -149,7 +156,7 @@ async function directoryListingChunkEntriesUncached(
     .where(
       and(
         eq(directoryListings.workspaceId, workspaceId),
-        eq(directoryListings.status, "published")
+        inArray(directoryListings.status, [...LISTING_PAGE_STATUSES])
       )
     )
     .orderBy(asc(directoryListings.slug))

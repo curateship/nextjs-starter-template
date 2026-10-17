@@ -15,6 +15,7 @@ import {
 } from "@/server/directory/schema"
 import { newestEventsForFeed } from "@/server/events/public"
 import { newestPostsForFeed } from "@/server/posts/public"
+import { newestGuidesForFeed } from "@/server/directory/guides"
 
 /** One small page is enough for readers without making every poll expensive. */
 export const DIRECTORY_FEED_LIMIT = 20
@@ -23,7 +24,7 @@ export const DIRECTORY_FEED_CACHE_CONTROL =
   "public, max-age=120, stale-while-revalidate=120"
 
 /**
- * A new listing, post or event. `path` is where it lives on the site. An
+ * A new listing, post, event or guide. `path` is where it lives on the site. An
  * event is placed by the day it was published, not the day it happens, so the
  * feed stays "what is new on the site".
  */
@@ -51,7 +52,7 @@ async function readDirectoryFeedUncached(
   siteId: string,
   database: CustomShellDb
 ): Promise<DirectoryFeedEntry[]> {
-  const [listings, posts, events] = await Promise.all([
+  const [listings, posts, events, guides] = await Promise.all([
     database
       .select({
         id: directoryListings.id,
@@ -72,6 +73,7 @@ async function readDirectoryFeedUncached(
       .limit(DIRECTORY_FEED_LIMIT),
     newestPostsForFeed(siteId, DIRECTORY_FEED_LIMIT, database),
     newestEventsForFeed(siteId, DIRECTORY_FEED_LIMIT, database),
+    newestGuidesForFeed(siteId, DIRECTORY_FEED_LIMIT, database),
   ])
 
   const categoryFor = new Map<string, string>()
@@ -85,7 +87,7 @@ async function readDirectoryFeedUncached(
     }
   }
 
-  // Twenty of each were read, so the newest twenty of the three together are
+  // Twenty of each were read, so the newest twenty of the four together are
   // all here, whichever kind they turn out to be.
   return [
     ...listings.map((listing) => ({
@@ -112,6 +114,13 @@ async function readDirectoryFeedUncached(
       category: event.category,
       description:
         event.summary.trim() || firstSentence(postBodyText(event.body)),
+    })),
+    ...guides.map((guide) => ({
+      title: guide.title,
+      path: `/guides/${guide.slug}`,
+      publishedAt: guide.publishedAt,
+      category: "Guide",
+      description: firstSentence(guide.intro),
     })),
   ]
     .sort(
@@ -151,7 +160,7 @@ async function listingCategoryRows(
 }
 
 /**
- * The newest published listings, posts and events on one site, held by the
+ * The newest published listings, posts, events and guides on one site, held by the
  * public-page cache.
  */
 export function readDirectoryFeed(
@@ -211,7 +220,7 @@ export function renderDirectoryFeedXml(input: {
       .join("")
   })
 
-  const title = `${input.siteName} — New listings, posts and events`
+  const title = `${input.siteName} — New listings, posts, events and guides`
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
@@ -219,7 +228,7 @@ export function renderDirectoryFeedXml(input: {
     `<title>${escapeXml(title)}</title>`,
     `<link>${escapeXml(homeUrl)}</link>`,
     `<atom:link href="${escapeXml(feedUrl)}" rel="self" type="application/rss+xml" />`,
-    `<description>${escapeXml(`Newest listings, posts and events from ${input.siteName}.`)}</description>`,
+    `<description>${escapeXml(`Newest listings, posts, events and guides from ${input.siteName}.`)}</description>`,
     ...(input.entries[0]
       ? [
           `<lastBuildDate>${input.entries[0].publishedAt.toUTCString()}</lastBuildDate>`,

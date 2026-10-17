@@ -13,11 +13,13 @@
 - Each file lists the published listings on that site in address order. An
   address is unique within a site, so a listing cannot fall between two files
   or turn up in both.
-- Categories, posts and events are not in the numbered files. They stay in
-  the flat part at `/sitemap.xml?part=pages` with the shell's own pages,
-  because the biggest site here has eighty categories and posts and events are
-  written by hand, so none of them would fill a file. `posts.md` and
-  `events.md` say when posts and events are left out.
+- Categories, posts, events and guides are not in the numbered files. They
+  stay in the flat part at `/sitemap.xml?part=pages` with the shell's own
+  pages, because the biggest site here has eighty categories and posts, events
+  and guides are written by hand, so none of them would fill a file.
+  `posts.md`, `events.md` and `guides.md` say when they are left out.
+- A closed listing stays in the numbered files, because its page stays up.
+  `closed-listings.md` says why.
 - Drafts are never in any of it.
 - File zero always exists, even on a site with nothing published. An empty list
   of addresses is a valid sitemap and a missing file is not.

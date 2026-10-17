@@ -112,6 +112,10 @@ const everyPublicRead: Record<
   readPublicEvent: {
     notAList: "One event by its address: the link a private event is for.",
   },
+  eventPageExists: {
+    notAList:
+      "Whether one event's page opens at an address an old link forwards to, the same rule as readPublicEvent.",
+  },
   eventsArePublic: { notAList: "Reads the Events page's switch." },
   findEventPlace: { notAList: "Finds a listing by its address, not events." },
   findReportableEvent: {

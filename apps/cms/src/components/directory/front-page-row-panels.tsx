@@ -14,6 +14,7 @@ import { loadCategories, type Category } from "@/lib/api/directory/categories"
 import type { AppFrontPageRowEditorProps } from "@/lib/app-options"
 import {
   cleanCategoriesRowSettings,
+  cleanGuidesRowSettings,
   cleanListingsRowSettings,
   cleanPickedRowSettings,
 } from "@/lib/directory/front-page-kinds"
@@ -36,7 +37,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * The fields behind each of CMS's own front page rows, inside the shell's row
  * window.
  *
- * One file for all five, because they share the category picker, the "how many"
+ * One file for all six, because they share the category picker, the "how many"
  * box and the loading of this site's categories. The shell hands each panel the
  * row's saved fields and takes back a whole new set, so nothing here knows how
  * the row is stored.
@@ -416,5 +417,35 @@ export function PostsRowPanel(props: AppFrontPageRowEditorProps) {
       everyLabel="Every post"
       plural="posts"
     />
+  )
+}
+
+/**
+ * The newest guides: how many, and how many on a line. There is no category
+ * box, because a guide has no categories.
+ */
+export function GuidesRowPanel({
+  settings,
+  disabled,
+  onChange,
+}: AppFrontPageRowEditorProps) {
+  const row = cleanGuidesRowSettings(settings)
+
+  return (
+    <>
+      <CountField
+        id="front-page-row-guides-count"
+        value={row.count}
+        disabled={disabled}
+        hint={`At most this many guides, newest first, between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX}.`}
+        onChange={(count) => onChange({ ...row, count })}
+      />
+      <ColumnsField
+        id="front-page-row-guides-columns"
+        value={row.columns}
+        disabled={disabled}
+        onChange={(columns) => onChange({ ...row, columns })}
+      />
+    </>
   )
 }

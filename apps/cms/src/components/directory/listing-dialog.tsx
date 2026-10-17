@@ -17,7 +17,7 @@ import {
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
-import { Badge } from "@/components/ui/badge"
+import { ListingStatusBadge } from "@/components/directory/listing-status-badge"
 import { Button } from "@/components/ui/button"
 import {
   DialogBody,
@@ -43,6 +43,7 @@ import { Textarea } from "@/components/ui/textarea"
 import type { Category } from "@/lib/api/directory/categories"
 import {
   getListingErrorMessage,
+  loadFeaturedSpotEnd,
   saveListing,
   saveNewListing,
   type ListingForEdit,
@@ -59,6 +60,12 @@ import {
 } from "@/lib/directory/custom-fields"
 import { categoryTreeOrder } from "@/lib/directory/category-tree"
 import { slugFromTitle } from "@/lib/directory/slugs"
+import {
+  DIRECTORY_LISTING_STATUSES,
+  DIRECTORY_LISTING_STATUS_LABELS,
+  type ListingStatus,
+} from "@/lib/directory/listing-status"
+import { formatDate } from "@/lib/format/format-time"
 import {
   listingRatingFromText,
   LISTING_RATING_ERROR,
@@ -108,7 +115,7 @@ export function ListingDialog({
    * beat — so the window still says which listing it is instead of "Edit
    * listing" while the record is on its way.
    */
-  preview?: { title: string; status: "draft" | "published" } | null
+  preview?: { title: string; status: ListingStatus } | null
   onClose: () => void
   /** A save landed — the list behind the window is stale. */
   onSaved: () => void
@@ -127,6 +134,15 @@ export function ListingDialog({
   /** Once the address has been typed in directly, the title stops writing it. */
   const [slugEdited, setSlugEdited] = React.useState(false)
 
+  /**
+   * When its paid spot runs out, asked the moment Closed is picked. Keyed on
+   * the listing so another listing's answer is never shown.
+   */
+  const [closingSpot, setClosingSpot] = React.useState<{
+    forId: string
+    endsAt: Date | null
+  } | null>(null)
+
   const creating = listingId === null && createdId === null
 
   // A closed window forgets what it held, so reopening always reads afresh —
@@ -138,6 +154,7 @@ export function ListingDialog({
       setLoaded(null)
       setCreatedId(null)
       setSlugEdited(false)
+      setClosingSpot(null)
     }
   }
 
@@ -215,13 +232,15 @@ export function ListingDialog({
   const formReady = listingId === null || shown !== null
   /** The saved record, which is what the preview link may point at. */
   const saved = shown?.forId === listingId ? shown.data.listing : null
+  const featuredEndsAt =
+    listingId && closingSpot?.forId === listingId ? closingSpot.endsAt : null
 
   const [title, setTitle] = React.useState("")
   const [slug, setSlug] = React.useState("")
   const [metaDescription, setMetaDescription] = React.useState("")
   const [rating, setRating] = React.useState("")
   const [ratingTouched, setRatingTouched] = React.useState(false)
-  const [status, setStatus] = React.useState<"draft" | "published">("draft")
+  const [status, setStatus] = React.useState<ListingStatus>("draft")
   const [displayOrder, setDisplayOrder] = React.useState("0")
   const [featuredImage, setFeaturedImage] = React.useState("")
   const [gallery, setGallery] = React.useState<string[]>([])
@@ -442,15 +461,16 @@ export function ListingDialog({
               {/* The row already knows the name and whether it is live, so a
                   cold open says which listing it is rather than sitting on a
                   placeholder while the record arrives. */}
-              {(formReady ? status : preview?.status) === "published" ? (
-                <Badge variant="secondary">Published</Badge>
-              ) : formReady || preview ? (
-                <Badge variant="outline">Draft</Badge>
+              {formReady ? (
+                <ListingStatusBadge status={status} />
+              ) : preview ? (
+                <ListingStatusBadge status={preview.status} />
               ) : null}
+              {/* A closed listing still has its page, so the link opens it. */}
               <RecordPreviewLink
                 word="listing"
                 path={saved ? `/directory/${saved.slug}` : null}
-                published={saved?.status === "published"}
+                published={saved !== null && saved.status !== "draft"}
               />
             </div>
             <DialogDescription>
@@ -499,7 +519,7 @@ export function ListingDialog({
                       <div className="grid gap-2 sm:flex-1">
                         <FieldLabel
                           htmlFor="listing-slug"
-                          hint="The public page's address part, like joes-diner. Changing it changes the page's address — old links stop working."
+                          hint="The public page's address part, like joes-diner. Changing it changes the page's address. Old links forward to the new one."
                         >
                           Address part
                         </FieldLabel>
@@ -547,13 +567,26 @@ export function ListingDialog({
                     </div>
                     <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
                       <div className="grid gap-2">
-                        <FieldLabel htmlFor="listing-status">Status</FieldLabel>
+                        <FieldLabel
+                          htmlFor="listing-status"
+                          hint="Closed is for a place that has shut for good. Its page stays up and says so, and it leaves every list on the site."
+                        >
+                          Status
+                        </FieldLabel>
                         <Select
                           value={status}
                           disabled={saving}
-                          onValueChange={(value) =>
-                            setStatus(value as "draft" | "published")
-                          }
+                          onValueChange={(value) => {
+                            setStatus(value as ListingStatus)
+                            if (value === "closed" && listingId) {
+                              const forId = listingId
+                              loadFeaturedSpotEnd(forId).then(
+                                (endsAt) => setClosingSpot({ forId, endsAt }),
+                                (error: unknown) =>
+                                  showErrorToast(getListingErrorMessage(error))
+                              )
+                            }
+                          }}
                         >
                           <SelectTrigger
                             id="listing-status"
@@ -562,8 +595,11 @@ export function ListingDialog({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="draft">Draft</SelectItem>
-                            <SelectItem value="published">Published</SelectItem>
+                            {DIRECTORY_LISTING_STATUSES.map((value) => (
+                              <SelectItem key={value} value={value}>
+                                {DIRECTORY_LISTING_STATUS_LABELS[value]}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -610,6 +646,15 @@ export function ListingDialog({
                         />
                       </div>
                     </div>
+                    {/* Said before the save, because the save cannot be
+                        undone: reopening the listing does not bring the
+                        spot back. Tyler's call on 17 Oct 2026. */}
+                    {status === "closed" && featuredEndsAt ? (
+                      <p role="note" className="text-sm">
+                        Saving as closed ends its featured spot, paid until{" "}
+                        {formatDate(featuredEndsAt)}. No money is refunded.
+                      </p>
+                    ) : null}
                     <div className="grid gap-2">
                       {/* The label sits outside the width cap so it stays on
                           one line while the box matches Settings' logo size. */}

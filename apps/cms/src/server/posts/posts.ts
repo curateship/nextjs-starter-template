@@ -29,6 +29,15 @@ import {
   requireFreeSlug as requireFreeSlugRule,
 } from "@/server/directory/slug-rules"
 import {
+  readListingStatus,
+  type ListingStatus,
+} from "@/lib/directory/listing-status"
+import {
+  forgetAddressesOf,
+  releaseAddress,
+  saveKeepingOldAddress,
+} from "@/server/directory/old-addresses"
+import {
   sitePosts,
   POST_CONTENT_TYPE,
   type PostRow,
@@ -67,7 +76,7 @@ export type PostSummary = Omit<SitePost, "body"> & { categories: string[] }
 export type ListingChoice = {
   id: string
   title: string
-  status: "draft" | "published"
+  status: ListingStatus
   featuredImage: string
   /** The street address line shown on the listing, or empty. */
   address: string
@@ -240,6 +249,7 @@ export async function createPost(
     .returning()
 
   if (!row) throw new Error("The post was not created.")
+  await releaseAddress(database, workspaceId, "post", [row.slug])
   return toPost(row)
 }
 
@@ -289,11 +299,34 @@ export async function updatePost(
     }
   }
 
-  const [row] = await database
-    .update(sitePosts)
-    .set(values)
-    .where(and(eq(sitePosts.id, id), eq(sitePosts.workspaceId, workspaceId)))
-    .returning()
+  const thisPost = and(
+    eq(sitePosts.id, id),
+    eq(sitePosts.workspaceId, workspaceId)
+  )
+  // A new address leaves the old one forwarding to it, in the same save.
+  const row = await saveKeepingOldAddress(
+    database,
+    {
+      siteId: workspaceId,
+      kind: "post",
+      changesAddress: values.slug !== undefined,
+    },
+    async (tx) => {
+      const [before] = await tx
+        .select({ slug: sitePosts.slug })
+        .from(sitePosts)
+        .where(thisPost)
+      return before?.slug ?? null
+    },
+    async (tx) => {
+      const [updated] = await tx
+        .update(sitePosts)
+        .set(values)
+        .where(thisPost)
+        .returning()
+      return updated
+    }
+  )
 
   if (!row) throw new Error("That post no longer exists.")
   clearPublicDirectoryCache(workspaceId)
@@ -318,9 +351,16 @@ export async function deletePosts(
       .where(
         and(eq(sitePosts.workspaceId, workspaceId), inArray(sitePosts.id, ids))
       )
-      .returning({ id: sitePosts.id })
+      .returning({ id: sitePosts.id, slug: sitePosts.slug })
     const removed = deleted.map((row) => row.id)
     await deleteCategoryRowsFor(workspaceId, POST_CONTENT_TYPE, removed, tx)
+    // A deleted post's old addresses stop forwarding.
+    await forgetAddressesOf(
+      tx,
+      workspaceId,
+      "post",
+      deleted.map((row) => row.slug)
+    )
     return removed
   })
 
@@ -344,7 +384,7 @@ function toChoice(row: {
   featuredImage: string
   address: string
 }): ListingChoice {
-  return { ...row, status: row.status === "published" ? "published" : "draft" }
+  return { ...row, status: readListingStatus(row.status) }
 }
 
 /** One of this site's listings as the pickers show it, or null. */

@@ -1,5 +1,9 @@
 import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm"
 
+import {
+  readListingStatus,
+  type ListingStatus,
+} from "@/lib/directory/listing-status"
 import { isValidDateString } from "@/lib/events/calendar-grid"
 import { slugFromTitle, slugProblem } from "@/lib/directory/slugs"
 import {
@@ -45,6 +49,11 @@ import {
   firstFreeSlug as firstFreeSlugRule,
   requireFreeSlug as requireFreeSlugRule,
 } from "@/server/directory/slug-rules"
+import {
+  forgetAddressesOf,
+  releaseAddress,
+  saveKeepingOldAddress,
+} from "@/server/directory/old-addresses"
 import { listingChoice, type ListingChoice } from "@/server/posts/posts"
 import { shownCodeTaps } from "@/server/promotions/counts"
 import {
@@ -106,7 +115,7 @@ export type PromotionSummary = Omit<
   "description" | "smallPrint"
 > & {
   listingTitle: string
-  listingStatus: "draft" | "published"
+  listingStatus: ListingStatus
   /** People who opened its page, one a day each, over all time. */
   views: number
   /**
@@ -433,7 +442,7 @@ export async function listPromotions(
         return {
           ...rest,
           listingTitle,
-          listingStatus: listingStatus === "published" ? "published" : "draft",
+          listingStatus: readListingStatus(listingStatus),
           views,
           codeTaps: shownCodeTaps(row, codeTaps),
         }
@@ -525,6 +534,7 @@ export async function createPromotion(
     })
     .returning()
   if (!row) throw new Error("The deal was not created.")
+  await releaseAddress(database, workspaceId, "promotion", [row.slug])
   if (row.status === "published") clearPublicDirectoryCache(workspaceId)
   return toPromotion(row)
 }
@@ -544,30 +554,73 @@ export async function updatePromotion(
   )
 
   const at = now()
-  const [row] = await database
-    .update(sitePromotions)
-    .set({
-      ...values,
-      slug,
-      // The first publish dates the deal; later ones keep that date.
-      ...(values.status === "published"
-        ? {
-            publishedAt: sql`coalesce(${sitePromotions.publishedAt}, ${at.toISOString()}::timestamptz)`,
-          }
-        : {}),
-      updatedAt: at,
-    })
-    .where(
-      and(
-        eq(sitePromotions.id, id),
-        eq(sitePromotions.workspaceId, workspaceId)
-      )
-    )
-    .returning()
+  const thisDeal = and(
+    eq(sitePromotions.id, id),
+    eq(sitePromotions.workspaceId, workspaceId)
+  )
+  // The deal window always sends its address, so every save asks whether it
+  // moved. A new address leaves the old one forwarding to it.
+  const row = await saveKeepingOldAddress(
+    database,
+    { siteId: workspaceId, kind: "promotion", changesAddress: true },
+    async (tx) => {
+      const [before] = await tx
+        .select({ slug: sitePromotions.slug })
+        .from(sitePromotions)
+        .where(thisDeal)
+      return before?.slug ?? null
+    },
+    async (tx) => {
+      const [updated] = await tx
+        .update(sitePromotions)
+        .set({
+          ...values,
+          slug,
+          // The first publish dates the deal; later ones keep that date.
+          ...(values.status === "published"
+            ? {
+                publishedAt: sql`coalesce(${sitePromotions.publishedAt}, ${at.toISOString()}::timestamptz)`,
+              }
+            : {}),
+          updatedAt: at,
+        })
+        .where(thisDeal)
+        .returning()
+      return updated
+    }
+  )
   if (!row) throw new Error("That deal no longer exists.")
   // Unpublishing has to reach visitors too, so every save clears.
   clearPublicDirectoryCache(workspaceId)
   return toPromotion(row)
+}
+
+/**
+ * The deals at these listings go when the listings do, by the database's own
+ * cascade, so their old addresses are forgotten first, inside the listings'
+ * delete.
+ */
+export async function forgetDealAddressesAtListings(
+  workspaceId: string,
+  listingIds: string[],
+  database: CustomShellDb
+): Promise<void> {
+  if (listingIds.length === 0) return
+  const deals = await database
+    .select({ slug: sitePromotions.slug })
+    .from(sitePromotions)
+    .where(
+      and(
+        eq(sitePromotions.workspaceId, workspaceId),
+        inArray(sitePromotions.listingId, listingIds)
+      )
+    )
+  await forgetAddressesOf(
+    database,
+    workspaceId,
+    "promotion",
+    deals.map((deal) => deal.slug)
+  )
 }
 
 /** One request for the whole selection; `done` names what was deleted. */
@@ -577,15 +630,26 @@ export async function deletePromotions(
   database: CustomShellDb = db
 ): Promise<{ done: string[]; kept: string[] }> {
   if (ids.length === 0) return { done: [], kept: [] }
-  const deleted = await database
-    .delete(sitePromotions)
-    .where(
-      and(
-        eq(sitePromotions.workspaceId, workspaceId),
-        inArray(sitePromotions.id, ids)
+  // The deals and their old addresses together: a forward left behind would
+  // lead to whatever deal takes that address next.
+  const deleted = await database.transaction(async (tx) => {
+    const rows = await tx
+      .delete(sitePromotions)
+      .where(
+        and(
+          eq(sitePromotions.workspaceId, workspaceId),
+          inArray(sitePromotions.id, ids)
+        )
       )
+      .returning({ id: sitePromotions.id, slug: sitePromotions.slug })
+    await forgetAddressesOf(
+      tx,
+      workspaceId,
+      "promotion",
+      rows.map((row) => row.slug)
     )
-    .returning({ id: sitePromotions.id })
+    return rows
+  })
   const done = deleted.map((row) => row.id)
   if (done.length) clearPublicDirectoryCache(workspaceId)
   const doneSet = new Set(done)

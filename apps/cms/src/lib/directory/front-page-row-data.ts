@@ -19,6 +19,7 @@ import type {
 } from "@/lib/directory/front-page"
 import type { DirectoryFrontPageLayout } from "@/lib/directory/front-page"
 import type { DealCardView } from "@/lib/promotions/deal-content"
+import type { PublicGuideCard } from "@/lib/directory/guides"
 
 /**
  * The way to the whole list, drawn by the shell beside the row's heading.
@@ -61,4 +62,9 @@ export type PostsRowData = {
   posts: DirectoryFrontPagePost[]
   /** The site's own name, printed under each card where a byline would be. */
   siteName: string
+}
+
+export type GuidesRowData = {
+  action: FrontPageRowAction
+  guides: PublicGuideCard[]
 }

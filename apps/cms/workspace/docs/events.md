@@ -813,9 +813,9 @@ drawn share card, the same rule posts follow.
 - **The sitemap:** every published event in the flat part at
   `/sitemap.xml?part=pages`, until 30 days after its last day by the site's
   calendar. An event on 27 Aug is still there on 26 Sep and gone on 27 Sep.
-- **The feed at `/feed.xml`:** mixed in with listings and posts by the day it
-  was published, 20 entries in all. The feed is now called "New listings,
-  posts and events".
+- **The feed at `/feed.xml`:** mixed in with listings, posts and guides by the
+  day it was published, 20 entries in all. The feed is called "New listings,
+  posts, events and guides".
 - **How fast the switch reaches them:** search, the suggestions and the
   sitemap follow a Pages switch change at once. The feed and the share card
   can take up to two minutes, because the public page cache holds them that

@@ -344,9 +344,11 @@ function ListingBadgeBuilder({ listing }: { listing: OwnedListing }) {
       <div className="border-t pt-4">
         <p className="text-sm font-medium">Website badge</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          {listing.status !== "published"
-            ? "This badge becomes available when the listing is published."
-            : `Badges are turned off on ${listing.siteName}.`}
+          {listing.status === "closed"
+            ? "This listing is marked closed for good, so it has no badge."
+            : listing.status !== "published"
+              ? "This badge becomes available when the listing is published."
+              : `Badges are turned off on ${listing.siteName}.`}
         </p>
       </div>
     )

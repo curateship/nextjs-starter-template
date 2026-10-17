@@ -465,6 +465,8 @@ function StatusBadges({
       ) : null}
       {promotion.listingStatus === "draft" ? (
         <Badge variant="outline">Listing is a draft</Badge>
+      ) : promotion.listingStatus === "closed" ? (
+        <Badge variant="outline">Listing is closed</Badge>
       ) : null}
     </div>
   )

@@ -1,5 +1,6 @@
 import { redirect } from "@tanstack/react-router"
 import {
+  BookOpenIcon,
   CalendarDaysIcon,
   NewspaperIcon,
   ShapesIcon,
@@ -78,6 +79,7 @@ const ROW_PANELS = {
   events: "EventsRowPanel",
   deals: "DealsRowPanel",
   posts: "PostsRowPanel",
+  guides: "GuidesRowPanel",
 } as const
 
 /** The picture on each kind's card in the shell's Add row window. */
@@ -87,6 +89,7 @@ const ROW_ICONS = {
   events: CalendarDaysIcon,
   deals: TagIcon,
   posts: NewspaperIcon,
+  guides: BookOpenIcon,
 } as const
 
 const ROW_CONTENT = {
@@ -95,6 +98,7 @@ const ROW_CONTENT = {
   events: "EventsRowContent",
   deals: "DealsRowContent",
   posts: "PostsRowContent",
+  guides: "GuidesRowContent",
 } as const
 
 /**
@@ -118,8 +122,9 @@ export const appOptions: AppOptions = {
   pages: {
     catchAll: directoryFrontPage,
     /**
-     * The five kinds of row this app adds to the shell's front page builder:
-     * its listings, its category cards, its events, its deals and its posts.
+     * The six kinds of row this app adds to the shell's front page builder:
+     * its listings, its category cards, its events, its deals, its posts and
+     * its guides.
      *
      * Each one is a label, a line saying what it shows, the panel that edits
      * its own fields and the component that draws it. What fills one is the

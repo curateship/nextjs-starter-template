@@ -8,12 +8,12 @@ in one place per site, and there was no good reason. There is one now.
 
 The shell owns the row: its heading, the line under it, how wide it sits, where
 it sits across the page, whether it is hidden, and which screens it draws on.
-This app adds five kinds of row to that builder, and this file is about those
-five. The shell's own kinds — plain text, a hero, the plans on sale,
+This app adds six kinds of row to that builder, and this file is about those
+six. The shell's own kinds — plain text, a hero, the plans on sale,
 testimonials, an FAQ, a logo strip and screenshots — are the same on every app
 built from the shell and are documented once in the repo's `docs/shell/`.
 
-## The five kinds this app adds
+## The six kinds this app adds
 
 - **Listings.** Cards for individual listings, narrowed to a category, ordered
   newest, featured only, top rated or A to Z, and drawn as a grid, one under
@@ -25,9 +25,14 @@ built from the shell and are documented once in the repo's `docs/shell/`.
 - **Current deals.** The newest deals that are not over yet, with their
   headlines.
 - **Latest posts.** The newest published posts, as post cards.
+- **Latest guides.** The newest published guides, as the cards the Guides
+  page draws: the cover, the title, the start of the intro and how many places
+  each holds.
 
 Upcoming events, Current deals and Latest posts are set up the same way: a
 category or "every one of them", how many, 1 to 12, and how many columns.
+Latest guides is how many and how many columns, with no category, because a
+guide has none.
 Listings adds an order and an arrangement; Category cards picks its categories
 instead of filtering by one.
 
@@ -56,8 +61,9 @@ Every one of these rows shows a handful of a longer list, so each carries the
 way to all of it: **Browse directory**, **Browse events**, **Browse deals** and
 **Browse posts**. The shell draws it as the page's main button at the end of the
 row's heading line, and it carries the row's own filter — a row narrowed to
-Cafés opens the browse page on Cafés. Category cards have none: every card on
-that row is already a way in.
+Cafés opens the browse page on Cafés. Latest guides carries **Browse guides**,
+which opens `/guides`. Category cards have none: every card on that row is
+already a way in.
 
 ## Rules that hold for every one of them
 
@@ -67,14 +73,14 @@ that row is already a way in.
 - **A row with nothing in it is dropped**, never drawn as a heading over an
   empty space. The app answers "nothing" and the shell leaves the row off.
 - **A row follows the page it leads to.** A row of events is left off for a
-  visitor who may not see the Events page, and the same goes for deals and
-  posts. Every card on those rows leads to that page, so a row that survived
+  visitor who may not see the Events page, and the same goes for deals, posts
+  and guides. Every card on those rows leads to that page, so a row that survived
   would be a set of closed doors.
 - **A map row needs a map key.** Without one it draws as a grid of the same
   listings, and the key is read when the page is drawn rather than stored with
   the row.
 - **Each row is read on its own and remembered for two minutes.** Saving a
-  listing, an event, a deal or a post clears that memory, so a record published
+  listing, an event, a deal, a post or a guide clears that memory, so a record published
   a minute ago is on the page.
 - **There is no limit on how many rows**, and no sample data: a site with
   nothing to show has no rows, not a row of examples.
@@ -87,7 +93,7 @@ that row is already a way in.
 draws with, and holds the rule that a phone gets one card.
 `src/lib/directory/front-page-kinds.ts` decides what one of these rows may
 hold, and the editor panel, the public component and the server's reader all
-clean what they are given through it. `src/app/options.ts` registers the five
+clean what they are given through it. `src/app/options.ts` registers the six
 kinds with the shell and `src/app/server-options.ts` registers what fills them.
 The panels are `src/components/directory/front-page-row-panels.tsx`, the public
 side is `src/components/directory/public/front-page-row-content.tsx`, and the

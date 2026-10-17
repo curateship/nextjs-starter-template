@@ -20,6 +20,8 @@ that record's public page in a new tab. Tyler asked for it on 25 Sep 2026.
   is still there and still pressable, and pressing it puts "A draft has no
   public page. Publish the event and the link opens it." in an error toast. It
   is never greyed out, because a greyed-out button cannot explain itself.
+- **A closed listing's icon opens its page**, because a closed listing keeps
+  its page. The guide window has the same icon, for `/guides/<slug>`.
 - **A record being created has no icon at all**, because there is nothing saved
   to look at.
 

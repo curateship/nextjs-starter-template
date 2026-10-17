@@ -1,5 +1,5 @@
 import * as React from "react"
-import { createFileRoute, Link, notFound } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
@@ -10,6 +10,7 @@ import { PostBody } from "@/components/posts/public/post-body"
 import { PostContents } from "@/components/posts/public/post-contents"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import { loadPost } from "@/lib/api/posts/public"
+import { forwardOldAddress } from "@/lib/api/directory/old-addresses"
 import { usePublicHeader } from "@/lib/branding"
 import {
   directoryDescription,
@@ -35,7 +36,8 @@ export const Route = createFileRoute("/posts_/$slug")({
       requirePageVisible("/posts"),
       loadPost(params.slug),
     ])
-    if (!page) throw notFound()
+    // An address the record used to have forwards to the one it has now.
+    if (!page) return forwardOldAddress("post", params.slug)
     return page
   },
   head: ({ loaderData }) => {

@@ -8,6 +8,7 @@ import {
   readCategoriesRow,
   readDealsRow,
   readEventsRow,
+  readGuidesRow,
   readListingsRow,
   readPostsRow,
 } from "@/server/directory/front-page-row-readers"
@@ -20,6 +21,10 @@ import { eventSearchResults, eventSitemapEntries } from "@/server/events/public"
 import { runRepeatTopUps } from "@/server/events/repeats"
 import { runWaitingListPass } from "@/server/events/waiting-list"
 import { postSearchResults, postSitemapEntries } from "@/server/posts/public"
+import {
+  guideSearchResults,
+  guideSitemapEntries,
+} from "@/server/directory/guides"
 import { DRAFT_EVENTS_KIND } from "@/lib/events/draft-events-step"
 import {
   DIRECTORY_EMAIL_KIND,
@@ -63,6 +68,8 @@ export const appServerOptions: AppServerOptions = {
         readEventsRow(workspaceId, settings),
       deals: ({ settings, workspaceId }) => readDealsRow(workspaceId, settings),
       posts: ({ settings, workspaceId }) => readPostsRow(workspaceId, settings),
+      guides: ({ settings, workspaceId }) =>
+        readGuidesRow(workspaceId, settings),
     },
   },
   automations: {
@@ -79,20 +86,26 @@ export const appServerOptions: AppServerOptions = {
     onCopy: copyDirectoryWorkspace,
   },
   sitemap: {
-    // Category pages, posts and events. Listings are in the numbered files
-    // below.
+    // Category pages, posts, events and guides. Listings are in the
+    // numbered files below.
     extraEntries: async (workspaceId) =>
       (
         await Promise.all([
           directorySitemapEntries(workspaceId),
           postSitemapEntries(workspaceId),
           eventSitemapEntries(workspaceId),
+          guideSitemapEntries(workspaceId),
         ])
       ).flat(),
     chunkFiles: directorySitemapChunkFiles,
   },
   search: {
-    sources: [directorySearchResults, postSearchResults, eventSearchResults],
+    sources: [
+      directorySearchResults,
+      postSearchResults,
+      eventSearchResults,
+      guideSearchResults,
+    ],
   },
   background: {
     workers: [

@@ -179,6 +179,31 @@ export function formatListingTime(value: string) {
   }).format(date)
 }
 
+/**
+ * The day, the day before and the time of day in a site's wall-clock reading,
+ * like "2026-10-20T01:30" from `wallClockAt`.
+ *
+ * The day before is part of the answer because a bar open from 8pm to 2am is
+ * open at 1:30 on Tuesday on Monday's hours. "Open now" on the browse page
+ * asks the database the same two questions `listingHoursStatus` asks below.
+ */
+export function wallClockWeekdays(wallClock: string): {
+  today: ListingWeekday
+  yesterday: ListingWeekday
+  time: string
+} {
+  const [date = "", time = "00:00"] = wallClock.split("T")
+  // Read as a date in UTC, which only names the weekday and so cannot be
+  // moved a day by the server's own time zone.
+  const sundayFirst = new Date(`${date}T00:00:00Z`).getUTCDay()
+  const index = (sundayFirst + 6) % 7
+  return {
+    today: LISTING_WEEKDAYS[index]!,
+    yesterday: LISTING_WEEKDAYS[(index + 6) % 7]!,
+    time: time.slice(0, 5),
+  }
+}
+
 export function listingHoursStatus(hours: ListingHours, now = new Date()) {
   const dayIndex = (now.getDay() + 6) % 7
   const day = LISTING_WEEKDAYS[dayIndex]!

@@ -25,6 +25,10 @@ import { listCustomSections } from "@/server/directory/custom-sections"
 import { LISTING_META_DESCRIPTION_MAX } from "@/lib/directory/field-lengths"
 import { slugFromTitle, slugProblem } from "@/lib/directory/slugs"
 import {
+  readListingStatus,
+  type ListingStatus,
+} from "@/lib/directory/listing-status"
+import {
   isListingRating,
   LISTING_RATING_ERROR,
 } from "@/lib/directory/listing-rating"
@@ -68,7 +72,14 @@ import {
   listingViewTotal,
 } from "@/server/directory/views"
 import { fileContentUnderCategory } from "@/server/directory/content-categories"
+import {
+  forgetAddressesOf,
+  releaseAddress,
+  saveKeepingOldAddress,
+} from "@/server/directory/old-addresses"
+import { forgetDealAddressesAtListings } from "@/server/promotions/promotions"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
+import { endFeaturedSpotsOfClosedListing } from "@/server/directory/featured"
 import { keepListingPlaceOnEvents } from "@/server/events/events"
 import { customShellTrafficDailyFacts } from "@/server/schema"
 
@@ -81,7 +92,7 @@ import { customShellTrafficDailyFacts } from "@/server/schema"
 
 export const MAX_LISTING_TITLE = 200
 
-export type ListingStatus = "draft" | "published"
+export type { ListingStatus }
 
 export type DirectoryListing = {
   id: string
@@ -132,7 +143,7 @@ function toListing(
     slug: row.slug,
     metaDescription: row.metaDescription,
     rating: row.rating,
-    status: row.status === "published" ? "published" : "draft",
+    status: readListingStatus(row.status),
     displayOrder: row.displayOrder,
     featuredImage: row.featuredImage,
     gallery: cleanListingGallery(row.gallery),
@@ -428,6 +439,7 @@ export async function createListing(
     .returning()
 
   if (!row) throw new Error("The listing was not created.")
+  await releaseAddress(database, workspaceId, "listing", [row.slug])
   clearPublicDirectoryCache(workspaceId)
   return toListing(row)
 }
@@ -502,20 +514,64 @@ export async function updateListing(
     values.customValues = cleanCustomValues(sections, input.customValues)
   }
 
-  const [row] = await database
-    .update(directoryListings)
-    .set(values)
-    .where(
-      and(
-        eq(directoryListings.id, id),
-        eq(directoryListings.workspaceId, workspaceId)
-      )
-    )
-    .returning()
+  const thisListing = and(
+    eq(directoryListings.id, id),
+    eq(directoryListings.workspaceId, workspaceId)
+  )
+  // A new address leaves the old one forwarding to it, in the same save.
+  const row = await saveKeepingOldAddress(
+    database,
+    {
+      siteId: workspaceId,
+      kind: "listing",
+      changesAddress: values.slug !== undefined,
+    },
+    async (tx) => {
+      const [before] = await tx
+        .select({ slug: directoryListings.slug })
+        .from(directoryListings)
+        .where(thisListing)
+      return before?.slug ?? null
+    },
+    async (tx) => {
+      const [updated] = await tx
+        .update(directoryListings)
+        .set(values)
+        .where(thisListing)
+        .returning()
+      return updated
+    }
+  )
 
   if (!row) throw new Error("That listing no longer exists.")
   clearPublicDirectoryCache(workspaceId)
   return toListing(row, sections)
+}
+
+/**
+ * The listing window's save, by an admin. Saved as closed, the listing's paid
+ * spots end in the same transaction: a listing that closed while its spot kept
+ * running would be paying for a place in lists it is no longer in. Tyler's
+ * call on 17 Oct 2026, and the window warns before the save.
+ */
+export async function saveListingAsAdmin(
+  workspaceId: string,
+  id: string,
+  input: Parameters<typeof updateListing>[2],
+  adminId: string,
+  database: CustomShellDb = db
+): Promise<DirectoryListing> {
+  const listing = await database.transaction(async (tx) => {
+    const saved = await updateListing(workspaceId, id, input, tx)
+    if (saved.status === "closed") {
+      await endFeaturedSpotsOfClosedListing(workspaceId, id, adminId, tx)
+    }
+    return saved
+  })
+  // Again after the commit: a page read between the clear inside the save and
+  // the commit would have cached the listing as it was.
+  clearPublicDirectoryCache(workspaceId)
+  return listing
 }
 
 /**
@@ -567,6 +623,7 @@ export async function duplicateListing(
       .returning()
 
     if (!created) throw new Error("The listing was not copied.")
+    await releaseAddress(tx, workspaceId, "listing", [created.slug])
 
     const links = await categoriesForListing(workspaceId, id, tx)
     if (links.length) {
@@ -646,6 +703,8 @@ export async function deleteListings(
   const done = await database.transaction(async (tx) => {
     // An event held at one of these keeps its name and address as text.
     await keepListingPlaceOnEvents(workspaceId, ids, tx)
+    // Their deals go with them by cascade, and so do the deals' old addresses.
+    await forgetDealAddressesAtListings(workspaceId, ids, tx)
     const deleted = await tx
       .delete(directoryListings)
       .where(
@@ -654,8 +713,16 @@ export async function deleteListings(
           inArray(directoryListings.id, ids)
         )
       )
-      .returning({ id: directoryListings.id })
+      .returning({ id: directoryListings.id, slug: directoryListings.slug })
     const removed = deleted.map((row) => row.id)
+    // A deleted listing's old addresses stop forwarding, so they show the
+    // page-not-found page like the listing's own address does.
+    await forgetAddressesOf(
+      tx,
+      workspaceId,
+      "listing",
+      deleted.map((row) => row.slug)
+    )
 
     if (removed.length) {
       await tx

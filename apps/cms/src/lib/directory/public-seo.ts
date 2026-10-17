@@ -13,6 +13,7 @@ import {
   LISTING_WEEKDAY_LABELS,
 } from "@/lib/directory/listing-details"
 import { eventShareImageUrl } from "@/lib/events/event-share-image"
+import { guideShareImageUrl } from "@/lib/directory/guides"
 import { eventMomentText, type EventWhen } from "@/lib/events/event-time"
 
 /**
@@ -88,6 +89,22 @@ export function listingPageShareImage(input: {
   }
 }
 
+/** A guide's cover first, otherwise its versioned drawn card. */
+export function guidePageShareImage(input: {
+  coverImage: string
+  siteUrl: string
+  slug: string
+  version: string
+}): DirectoryHeadImage {
+  if (input.coverImage) return input.coverImage
+  return {
+    url: guideShareImageUrl(input.siteUrl, input.slug, input.version),
+    type: LISTING_SHARE_IMAGE_TYPE,
+    width: LISTING_SHARE_IMAGE_WIDTH,
+    height: LISTING_SHARE_IMAGE_HEIGHT,
+  }
+}
+
 /** An event's cover photo first, otherwise its versioned drawn card. */
 export function eventPageShareImage(input: {
   coverImage: string
@@ -116,7 +133,7 @@ export function directoryHead(
       {
         rel: "alternate",
         type: "application/rss+xml",
-        title: "New listings, posts and events",
+        title: "New listings, posts, events and guides",
         href: "/feed.xml",
       },
     ],
@@ -186,10 +203,14 @@ export function listingJsonLd(input: {
   longitude?: number | null
   createdAt: Date | string
   updatedAt: Date | string
+  /** Shut for good. Said as a business that is closed on every day. */
+  closed?: boolean
 }): JsonLdNode {
   const coordinates = cleanListingCoordinates(input.latitude, input.longitude)
   const page: JsonLdNode = {
-    "@type": coordinates ? "LocalBusiness" : "WebPage",
+    // A closed place is still a business, so it says so even without a pin:
+    // a plain web page has no opening hours to say "closed" with.
+    "@type": coordinates || input.closed ? "LocalBusiness" : "WebPage",
     name: input.title,
     url: siteUrlFor(input.siteUrl, `/directory/${input.slug}`),
   }
@@ -206,6 +227,10 @@ export function listingJsonLd(input: {
       longitude: coordinates.longitude,
     }
     if (input.address?.trim()) page.address = input.address.trim()
+  }
+  if (input.closed) {
+    page.openingHoursSpecification = [closedEveryDay()]
+  } else if (coordinates) {
     const specifications = openingHoursSpecifications(input.hours)
     if (specifications.length) page.openingHoursSpecification = specifications
   }
@@ -213,6 +238,22 @@ export function listingJsonLd(input: {
   page.dateModified = asDate(input.updatedAt)
 
   return graph([organisationJsonLd(input.siteName, input.siteUrl), page])
+}
+
+/**
+ * Schema.org has no field for "permanently closed". Its nearest honest answer
+ * is hours that open and close at midnight on every day, which is how Google's
+ * own guide says "closed all day".
+ */
+function closedEveryDay() {
+  return {
+    "@type": "OpeningHoursSpecification",
+    dayOfWeek: LISTING_WEEKDAYS.map(
+      (day) => `https://schema.org/${LISTING_WEEKDAY_LABELS[day]}`
+    ),
+    opens: "00:00",
+    closes: "00:00",
+  }
 }
 
 function openingHoursSpecifications(hours: unknown) {
@@ -223,8 +264,12 @@ function openingHoursSpecifications(hours: unknown) {
     listingDayShifts(cleaned[day]).map((shift) => ({
       "@type": "OpeningHoursSpecification",
       dayOfWeek: `https://schema.org/${LISTING_WEEKDAY_LABELS[day]}`,
-      opens: shift.open,
-      closes: shift.close,
+      // A day that opens and closes at the same minute is open all day. A
+      // search engine reads equal times as closed all day, which is what a
+      // closed listing says, so open all day is written 00:00 to 23:59.
+      ...(shift.open === shift.close
+        ? { opens: "00:00", closes: "23:59" }
+        : { opens: shift.open, closes: shift.close }),
     }))
   )
 }
@@ -243,6 +288,42 @@ export function categoryJsonLd(input: {
     url: siteUrlFor(input.siteUrl, `/directory/category/${input.slug}`),
   }
   if (input.description) page.description = input.description
+
+  return graph([organisationJsonLd(input.siteName, input.siteUrl), page])
+}
+
+/**
+ * The same for a guide: the site, and the list this page is, marked up the way
+ * a category page is. The listings it holds go in as the list's items, in the
+ * guide's order, so a search engine reads the order the editor chose.
+ */
+export function guideJsonLd(input: {
+  siteName: string
+  siteUrl: string
+  title: string
+  slug: string
+  intro: string
+  image: string
+  listings: { title: string; slug: string }[]
+}): JsonLdNode {
+  const page: JsonLdNode = {
+    "@type": "CollectionPage",
+    name: input.title,
+    url: siteUrlFor(input.siteUrl, `/guides/${input.slug}`),
+  }
+  if (input.intro) page.description = input.intro
+  if (input.image) page.image = input.image
+  if (input.listings.length) {
+    page.mainEntity = {
+      "@type": "ItemList",
+      itemListElement: input.listings.map((listing, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: listing.title,
+        url: siteUrlFor(input.siteUrl, `/directory/${listing.slug}`),
+      })),
+    }
+  }
 
   return graph([organisationJsonLd(input.siteName, input.siteUrl), page])
 }

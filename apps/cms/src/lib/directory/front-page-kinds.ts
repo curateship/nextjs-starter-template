@@ -32,13 +32,14 @@ import {
 } from "@/lib/directory/front-page"
 import { cleanPublicGridColumns } from "@/lib/layout/grid-columns"
 
-/** The five keys, as they are stored on a row and read back by the app. */
+/** The six keys, as they are stored on a row and read back by the app. */
 export const CMS_FRONT_PAGE_ROW_KEYS = [
   "listings",
   "categories",
   "events",
   "deals",
   "posts",
+  "guides",
 ] as const
 
 export type CmsFrontPageRowKey = (typeof CMS_FRONT_PAGE_ROW_KEYS)[number]
@@ -49,6 +50,7 @@ export const CMS_FRONT_PAGE_ROW_LABELS: Record<CmsFrontPageRowKey, string> = {
   events: "Upcoming events",
   deals: "Current deals",
   posts: "Latest posts",
+  guides: "Latest guides",
 }
 
 export const CMS_FRONT_PAGE_ROW_HINTS: Record<CmsFrontPageRowKey, string> = {
@@ -61,6 +63,8 @@ export const CMS_FRONT_PAGE_ROW_HINTS: Record<CmsFrontPageRowKey, string> = {
     "The newest deals that are not over yet, as cards with their headlines. Left off the page while there are none.",
   posts:
     "The newest published posts, as cards with their cover photo and how long each takes to read. Left off the page while there are none.",
+  guides:
+    "The newest published guides, as cards with their cover, intro and how many places each holds. Left off the page while there are none.",
 }
 
 export function isCmsFrontPageRowKey(
@@ -97,8 +101,18 @@ export type PickedRowSettings = {
   columns: number
 }
 
+/** A row of guides: how many of the newest, and how many on a line. */
+export type GuidesRowSettings = {
+  count: number
+  /** Cards on one line at full width, 1 to 4. 0 is the grid's own. */
+  columns: number
+}
+
 export type CmsFrontPageRowSettings =
-  ListingsRowSettings | CategoriesRowSettings | PickedRowSettings
+  | ListingsRowSettings
+  | CategoriesRowSettings
+  | PickedRowSettings
+  | GuidesRowSettings
 
 function cleanCount(value: unknown): number {
   if (typeof value !== "number" || !Number.isInteger(value)) {
@@ -149,6 +163,15 @@ export function cleanPickedRowSettings(
   }
 }
 
+export function cleanGuidesRowSettings(
+  value: Record<string, unknown> | null | undefined
+): GuidesRowSettings {
+  return {
+    count: cleanCount(value?.count),
+    columns: cleanPublicGridColumns(value?.columns),
+  }
+}
+
 /** One row's settings, cleaned by the rules of whichever kind it is. */
 export function cleanCmsFrontPageRowSettings(
   key: CmsFrontPageRowKey,
@@ -156,5 +179,6 @@ export function cleanCmsFrontPageRowSettings(
 ): CmsFrontPageRowSettings {
   if (key === "listings") return cleanListingsRowSettings(value)
   if (key === "categories") return cleanCategoriesRowSettings(value)
+  if (key === "guides") return cleanGuidesRowSettings(value)
   return cleanPickedRowSettings(value)
 }

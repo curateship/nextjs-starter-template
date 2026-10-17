@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 
 import {
   DirectoryBreadcrumbs,
@@ -6,6 +6,7 @@ import {
 } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { ClosedBadge } from "@/components/directory/public/closed-badge"
 import { FeaturedBadge } from "@/components/directory/public/featured-badge"
 import { PublicTitleBand } from "@/components/shared/public-title-band"
 import { JsonLd } from "@/components/directory/public/json-ld"
@@ -26,6 +27,7 @@ import { writtenPageBodyIsEmpty } from "@/lib/pages/written-page-body"
 import { Card, CardContent } from "@/components/ui/card"
 import { loadDirectoryListing } from "@/lib/api/directory/public"
 import { requirePageVisible } from "@/lib/api/content/pages"
+import { forwardOldAddress } from "@/lib/api/directory/old-addresses"
 import {
   directoryDescription,
   directoryHead,
@@ -47,6 +49,10 @@ import {
  * keeps it out from under the browse page — otherwise the browse route would
  * have to render this one inside itself.
  *
+ * A closed listing opens like any other, with "Permanently closed" under its
+ * name and no hours, phone or directions. It keeps the link working for
+ * everybody who saved it, and it is in no list on the site.
+ *
  * Three misses look identical from out here — no such address, a draft, and
  * another site's listing — because the endpoint answers null to all three. A
  * visitor is told the same thing in each case, which is the point: a draft
@@ -66,7 +72,8 @@ export const Route = createFileRoute("/directory_/$slug")({
       loadDirectoryListing(params.slug),
     ])
 
-    if (!page) throw notFound()
+    // An address the record used to have forwards to the one it has now.
+    if (!page) return forwardOldAddress("listing", params.slug)
     return page
   },
   head: ({ loaderData }) => {
@@ -186,8 +193,10 @@ function ListingRoute() {
         claim={claim}
         ownerMessage={ownerMessage}
         startClaimOpen={search.claim === "start"}
+        closed={listing.closed}
       />
-      <ListingHoursCard hours={listing.hours} />
+      {/* A closed place's hours would read as an invitation. */}
+      {listing.closed ? null : <ListingHoursCard hours={listing.hours} />}
     </>
   )
 
@@ -202,8 +211,9 @@ function ListingRoute() {
           // print it. A listing with no photo has nowhere to hang that chip, so
           // its card keeps the stars.
           intro={
-            listing.featured || follow ? (
+            listing.closed || listing.featured || follow ? (
               <div className="flex flex-wrap items-center gap-2">
+                {listing.closed ? <ClosedBadge /> : null}
                 {listing.featured ? <FeaturedBadge /> : null}
                 {/* Only while this visitor may see deals at all. */}
                 {follow ? (
@@ -235,6 +245,7 @@ function ListingRoute() {
           longitude: listing.longitude,
           createdAt: listing.createdAt,
           updatedAt: listing.updatedAt,
+          closed: listing.closed,
         })}
       />
 

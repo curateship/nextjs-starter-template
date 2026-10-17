@@ -20,7 +20,6 @@ import {
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -44,15 +43,18 @@ import {
   type ListingSummary,
 } from "@/lib/api/directory/listings"
 import {
-  LISTING_STATUS_FILTERS,
-  LISTING_STATUS_LABELS,
   LISTING_VIEW_RANGES,
   LISTING_VIEW_RANGE_LABELS,
   listingSortDirection,
   type ListingSortColumn,
-  type ListingStatusFilter,
   type ListingViewRange,
 } from "@/lib/directory/listing-sort"
+import {
+  DIRECTORY_LISTING_STATUSES,
+  DIRECTORY_LISTING_STATUS_LABELS,
+  type ListingStatus,
+} from "@/lib/directory/listing-status"
+import { ListingStatusBadge } from "@/components/directory/listing-status-badge"
 import { forgetListings, prefetchListing } from "@/lib/directory/listing-cache"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useBulkChange } from "@/lib/hooks/use-bulk-change"
@@ -86,7 +88,7 @@ export function ListingsDashboard({
   customSections: CustomSection[]
   search: {
     q?: string
-    status?: ListingStatusFilter
+    status?: ListingStatus
     sort?: ListingSortColumn
     direction?: "asc" | "desc"
     days?: ListingViewRange
@@ -326,9 +328,9 @@ export function ListingsDashboard({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
-                {LISTING_STATUS_FILTERS.map((status) => (
+                {DIRECTORY_LISTING_STATUSES.map((status) => (
                   <SelectItem key={status} value={status}>
-                    {LISTING_STATUS_LABELS[status]}
+                    {DIRECTORY_LISTING_STATUS_LABELS[status]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -440,11 +442,7 @@ export function ListingsDashboard({
               </span>
             </TableCell>
             <TableCell column="meta">
-              {listing.status === "published" ? (
-                <Badge variant="secondary">Published</Badge>
-              ) : (
-                <Badge variant="outline">Draft</Badge>
-              )}
+              <ListingStatusBadge status={listing.status} />
             </TableCell>
             <TableCell column="meta">
               {listing.views.toLocaleString()}

@@ -21,6 +21,7 @@ import { Route as EventsRouteImport } from './routes/events'
 import { Route as EventsDoticsRouteImport } from './routes/events[.]ics'
 import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as GuidesRouteImport } from './routes/guides'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as ManifestDotwebmanifestRouteImport } from './routes/manifest[.]webmanifest'
@@ -52,6 +53,7 @@ import { Route as DealsSlugRouteImport } from './routes/deals_.$slug'
 import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps.$chunk'
 import { Route as DirectorySlugRouteImport } from './routes/directory_.$slug'
 import { Route as EventsSlugRouteImport } from './routes/events_.$slug'
+import { Route as GuidesSlugRouteImport } from './routes/guides_.$slug'
 import { Route as PostsSlugRouteImport } from './routes/posts_.$slug'
 import { Route as ProfileProfileIdRouteImport } from './routes/profile_.$profileId'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
@@ -70,6 +72,7 @@ import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminListingClaimsRouteImport } from './routes/_authenticated/admin/listing-claims'
 import { Route as AuthenticatedAdminListingFeaturedRouteImport } from './routes/_authenticated/admin/listing-featured'
 import { Route as AuthenticatedAdminListingFieldsRouteImport } from './routes/_authenticated/admin/listing-fields'
+import { Route as AuthenticatedAdminListingGuidesRouteImport } from './routes/_authenticated/admin/listing-guides'
 import { Route as AuthenticatedAdminListingOutreachRouteImport } from './routes/_authenticated/admin/listing-outreach'
 import { Route as AuthenticatedAdminListingReportsRouteImport } from './routes/_authenticated/admin/listing-reports'
 import { Route as AuthenticatedAdminListingSavesRouteImport } from './routes/_authenticated/admin/listing-saves'
@@ -101,6 +104,7 @@ import { Route as DirectoryShareImageSlugRouteImport } from './routes/directory_
 import { Route as EmbedListingListingIdRouteImport } from './routes/embed/listing/$listingId'
 import { Route as EventsSlugCalendarDoticsRouteImport } from './routes/events_.$slug.calendar[.]ics'
 import { Route as EventsShareImageSlugRouteImport } from './routes/events_.share-image.$slug'
+import { Route as GuidesShareImageSlugRouteImport } from './routes/guides_.share-image.$slug'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
@@ -172,6 +176,11 @@ const FeedDotxmlRoute = FeedDotxmlRouteImport.update({
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuidesRoute = GuidesRouteImport.update({
+  id: '/guides',
+  path: '/guides',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -331,6 +340,11 @@ const EventsSlugRoute = EventsSlugRouteImport.update({
   path: '/events/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuidesSlugRoute = GuidesSlugRouteImport.update({
+  id: '/guides_/$slug',
+  path: '/guides/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PostsSlugRoute = PostsSlugRouteImport.update({
   id: '/posts_/$slug',
   path: '/posts/$slug',
@@ -432,6 +446,12 @@ const AuthenticatedAdminListingFieldsRoute =
   AuthenticatedAdminListingFieldsRouteImport.update({
     id: '/listing-fields',
     path: '/listing-fields',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingGuidesRoute =
+  AuthenticatedAdminListingGuidesRouteImport.update({
+    id: '/listing-guides',
+    path: '/listing-guides',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminListingOutreachRoute =
@@ -607,6 +627,11 @@ const EventsShareImageSlugRoute = EventsShareImageSlugRouteImport.update({
   path: '/events/share-image/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuidesShareImageSlugRoute = GuidesShareImageSlugRouteImport.update({
+  id: '/guides_/share-image/$slug',
+  path: '/guides/share-image/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAccountBillingSuccessRoute =
   AuthenticatedAccountBillingSuccessRouteImport.update({
     id: '/billing_/success',
@@ -694,6 +719,7 @@ export interface FileRoutesByFullPath {
   '/events.ics': typeof EventsDoticsRoute
   '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/guides': typeof GuidesRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
@@ -725,6 +751,7 @@ export interface FileRoutesByFullPath {
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
   '/events/$slug': typeof EventsSlugRouteWithChildren
+  '/guides/$slug': typeof GuidesSlugRoute
   '/posts/$slug': typeof PostsSlugRoute
   '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -742,6 +769,7 @@ export interface FileRoutesByFullPath {
   '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
   '/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
   '/admin/listing-fields': typeof AuthenticatedAdminListingFieldsRoute
+  '/admin/listing-guides': typeof AuthenticatedAdminListingGuidesRoute
   '/admin/listing-outreach': typeof AuthenticatedAdminListingOutreachRoute
   '/admin/listing-reports': typeof AuthenticatedAdminListingReportsRoute
   '/admin/listing-saves': typeof AuthenticatedAdminListingSavesRoute
@@ -772,6 +800,7 @@ export interface FileRoutesByFullPath {
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
   '/events/share-image/$slug': typeof EventsShareImageSlugRoute
+  '/guides/share-image/$slug': typeof GuidesShareImageSlugRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -800,6 +829,7 @@ export interface FileRoutesByTo {
   '/events.ics': typeof EventsDoticsRoute
   '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/guides': typeof GuidesRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
@@ -829,6 +859,7 @@ export interface FileRoutesByTo {
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
   '/events/$slug': typeof EventsSlugRouteWithChildren
+  '/guides/$slug': typeof GuidesSlugRoute
   '/posts/$slug': typeof PostsSlugRoute
   '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -846,6 +877,7 @@ export interface FileRoutesByTo {
   '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
   '/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
   '/admin/listing-fields': typeof AuthenticatedAdminListingFieldsRoute
+  '/admin/listing-guides': typeof AuthenticatedAdminListingGuidesRoute
   '/admin/listing-outreach': typeof AuthenticatedAdminListingOutreachRoute
   '/admin/listing-reports': typeof AuthenticatedAdminListingReportsRoute
   '/admin/listing-saves': typeof AuthenticatedAdminListingSavesRoute
@@ -876,6 +908,7 @@ export interface FileRoutesByTo {
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
   '/events/share-image/$slug': typeof EventsShareImageSlugRoute
+  '/guides/share-image/$slug': typeof GuidesShareImageSlugRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -906,6 +939,7 @@ export interface FileRoutesById {
   '/events.ics': typeof EventsDoticsRoute
   '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/guides': typeof GuidesRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
@@ -937,6 +971,7 @@ export interface FileRoutesById {
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory_/$slug': typeof DirectorySlugRoute
   '/events_/$slug': typeof EventsSlugRouteWithChildren
+  '/guides_/$slug': typeof GuidesSlugRoute
   '/posts_/$slug': typeof PostsSlugRoute
   '/profile_/$profileId': typeof ProfileProfileIdRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -954,6 +989,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
   '/_authenticated/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
   '/_authenticated/admin/listing-fields': typeof AuthenticatedAdminListingFieldsRoute
+  '/_authenticated/admin/listing-guides': typeof AuthenticatedAdminListingGuidesRoute
   '/_authenticated/admin/listing-outreach': typeof AuthenticatedAdminListingOutreachRoute
   '/_authenticated/admin/listing-reports': typeof AuthenticatedAdminListingReportsRoute
   '/_authenticated/admin/listing-saves': typeof AuthenticatedAdminListingSavesRoute
@@ -984,6 +1020,7 @@ export interface FileRoutesById {
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/events_/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
   '/events_/share-image/$slug': typeof EventsShareImageSlugRoute
+  '/guides_/share-image/$slug': typeof GuidesShareImageSlugRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -1014,6 +1051,7 @@ export interface FileRouteTypes {
     | '/events.ics'
     | '/feed.xml'
     | '/forgot-password'
+    | '/guides'
     | '/login'
     | '/maintenance'
     | '/manifest.webmanifest'
@@ -1045,6 +1083,7 @@ export interface FileRouteTypes {
     | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
     | '/events/$slug'
+    | '/guides/$slug'
     | '/posts/$slug'
     | '/profile/$profileId'
     | '/admin/ai'
@@ -1062,6 +1101,7 @@ export interface FileRouteTypes {
     | '/admin/listing-claims'
     | '/admin/listing-featured'
     | '/admin/listing-fields'
+    | '/admin/listing-guides'
     | '/admin/listing-outreach'
     | '/admin/listing-reports'
     | '/admin/listing-saves'
@@ -1092,6 +1132,7 @@ export interface FileRouteTypes {
     | '/embed/listing/$listingId'
     | '/events/$slug/calendar.ics'
     | '/events/share-image/$slug'
+    | '/guides/share-image/$slug'
     | '/admin/'
     | '/changelog/'
     | '/account/billing/success'
@@ -1120,6 +1161,7 @@ export interface FileRouteTypes {
     | '/events.ics'
     | '/feed.xml'
     | '/forgot-password'
+    | '/guides'
     | '/login'
     | '/maintenance'
     | '/manifest.webmanifest'
@@ -1149,6 +1191,7 @@ export interface FileRouteTypes {
     | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
     | '/events/$slug'
+    | '/guides/$slug'
     | '/posts/$slug'
     | '/profile/$profileId'
     | '/admin/ai'
@@ -1166,6 +1209,7 @@ export interface FileRouteTypes {
     | '/admin/listing-claims'
     | '/admin/listing-featured'
     | '/admin/listing-fields'
+    | '/admin/listing-guides'
     | '/admin/listing-outreach'
     | '/admin/listing-reports'
     | '/admin/listing-saves'
@@ -1196,6 +1240,7 @@ export interface FileRouteTypes {
     | '/embed/listing/$listingId'
     | '/events/$slug/calendar.ics'
     | '/events/share-image/$slug'
+    | '/guides/share-image/$slug'
     | '/admin'
     | '/changelog'
     | '/account/billing/success'
@@ -1225,6 +1270,7 @@ export interface FileRouteTypes {
     | '/events.ics'
     | '/feed.xml'
     | '/forgot-password'
+    | '/guides'
     | '/login'
     | '/maintenance'
     | '/manifest.webmanifest'
@@ -1256,6 +1302,7 @@ export interface FileRouteTypes {
     | '/directory-sitemaps/$chunk'
     | '/directory_/$slug'
     | '/events_/$slug'
+    | '/guides_/$slug'
     | '/posts_/$slug'
     | '/profile_/$profileId'
     | '/_authenticated/admin/ai'
@@ -1273,6 +1320,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/listing-claims'
     | '/_authenticated/admin/listing-featured'
     | '/_authenticated/admin/listing-fields'
+    | '/_authenticated/admin/listing-guides'
     | '/_authenticated/admin/listing-outreach'
     | '/_authenticated/admin/listing-reports'
     | '/_authenticated/admin/listing-saves'
@@ -1303,6 +1351,7 @@ export interface FileRouteTypes {
     | '/embed/listing/$listingId'
     | '/events_/$slug/calendar.ics'
     | '/events_/share-image/$slug'
+    | '/guides_/share-image/$slug'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
@@ -1333,6 +1382,7 @@ export interface RootRouteChildren {
   EventsDoticsRoute: typeof EventsDoticsRoute
   FeedDotxmlRoute: typeof FeedDotxmlRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  GuidesRoute: typeof GuidesRoute
   LoginRoute: typeof LoginRoute
   MaintenanceRoute: typeof MaintenanceRoute
   ManifestDotwebmanifestRoute: typeof ManifestDotwebmanifestRoute
@@ -1357,6 +1407,7 @@ export interface RootRouteChildren {
   DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
   EventsSlugRoute: typeof EventsSlugRouteWithChildren
+  GuidesSlugRoute: typeof GuidesSlugRoute
   PostsSlugRoute: typeof PostsSlugRoute
   ProfileProfileIdRoute: typeof ProfileProfileIdRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
@@ -1367,6 +1418,7 @@ export interface RootRouteChildren {
   DirectoryShareImageSlugRoute: typeof DirectoryShareImageSlugRoute
   EmbedListingListingIdRoute: typeof EmbedListingListingIdRoute
   EventsShareImageSlugRoute: typeof EventsShareImageSlugRoute
+  GuidesShareImageSlugRoute: typeof GuidesShareImageSlugRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
@@ -1458,6 +1510,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guides': {
+      id: '/guides'
+      path: '/guides'
+      fullPath: '/guides'
+      preLoaderRoute: typeof GuidesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -1677,6 +1736,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guides_/$slug': {
+      id: '/guides_/$slug'
+      path: '/guides/$slug'
+      fullPath: '/guides/$slug'
+      preLoaderRoute: typeof GuidesSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/posts_/$slug': {
       id: '/posts_/$slug'
       path: '/posts/$slug'
@@ -1801,6 +1867,13 @@ declare module '@tanstack/react-router' {
       path: '/listing-fields'
       fullPath: '/admin/listing-fields'
       preLoaderRoute: typeof AuthenticatedAdminListingFieldsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-guides': {
+      id: '/_authenticated/admin/listing-guides'
+      path: '/listing-guides'
+      fullPath: '/admin/listing-guides'
+      preLoaderRoute: typeof AuthenticatedAdminListingGuidesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/listing-outreach': {
@@ -2020,6 +2093,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventsShareImageSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guides_/share-image/$slug': {
+      id: '/guides_/share-image/$slug'
+      path: '/guides/share-image/$slug'
+      fullPath: '/guides/share-image/$slug'
+      preLoaderRoute: typeof GuidesShareImageSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/account/billing_/success': {
       id: '/_authenticated/account/billing_/success'
       path: '/billing/success'
@@ -2156,6 +2236,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminListingClaimsRoute: typeof AuthenticatedAdminListingClaimsRoute
   AuthenticatedAdminListingFeaturedRoute: typeof AuthenticatedAdminListingFeaturedRoute
   AuthenticatedAdminListingFieldsRoute: typeof AuthenticatedAdminListingFieldsRoute
+  AuthenticatedAdminListingGuidesRoute: typeof AuthenticatedAdminListingGuidesRoute
   AuthenticatedAdminListingOutreachRoute: typeof AuthenticatedAdminListingOutreachRoute
   AuthenticatedAdminListingReportsRoute: typeof AuthenticatedAdminListingReportsRoute
   AuthenticatedAdminListingSavesRoute: typeof AuthenticatedAdminListingSavesRoute
@@ -2203,6 +2284,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminListingFeaturedRoute:
     AuthenticatedAdminListingFeaturedRoute,
   AuthenticatedAdminListingFieldsRoute: AuthenticatedAdminListingFieldsRoute,
+  AuthenticatedAdminListingGuidesRoute: AuthenticatedAdminListingGuidesRoute,
   AuthenticatedAdminListingOutreachRoute:
     AuthenticatedAdminListingOutreachRoute,
   AuthenticatedAdminListingReportsRoute: AuthenticatedAdminListingReportsRoute,
@@ -2308,6 +2390,7 @@ const rootRouteChildren: RootRouteChildren = {
   EventsDoticsRoute: EventsDoticsRoute,
   FeedDotxmlRoute: FeedDotxmlRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  GuidesRoute: GuidesRoute,
   LoginRoute: LoginRoute,
   MaintenanceRoute: MaintenanceRoute,
   ManifestDotwebmanifestRoute: ManifestDotwebmanifestRoute,
@@ -2332,6 +2415,7 @@ const rootRouteChildren: RootRouteChildren = {
   DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
   DirectorySlugRoute: DirectorySlugRoute,
   EventsSlugRoute: EventsSlugRouteWithChildren,
+  GuidesSlugRoute: GuidesSlugRoute,
   PostsSlugRoute: PostsSlugRoute,
   ProfileProfileIdRoute: ProfileProfileIdRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
@@ -2342,6 +2426,7 @@ const rootRouteChildren: RootRouteChildren = {
   DirectoryShareImageSlugRoute: DirectoryShareImageSlugRoute,
   EmbedListingListingIdRoute: EmbedListingListingIdRoute,
   EventsShareImageSlugRoute: EventsShareImageSlugRoute,
+  GuidesShareImageSlugRoute: GuidesShareImageSlugRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,

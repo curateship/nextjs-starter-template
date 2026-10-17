@@ -97,6 +97,17 @@ export type DirectoryBrowseSearch = {
    * not see, so switching back to the map restores what they had.
    */
   deals?: DirectoryDealFilter
+  /**
+   * `?open=now` leaves out every listing that is closed at this moment, by the
+   * site's clock. A place with no hours listed is left out too, and the chip
+   * says so.
+   */
+  open?: "now"
+}
+
+/** The one value `?open=` may hold. Anything else is no filter. */
+export function readDirectoryOpenNow(value: unknown): "now" | undefined {
+  return value === "now" ? "now" : undefined
 }
 
 /**

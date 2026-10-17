@@ -46,6 +46,10 @@ import {
   type EventRow,
 } from "@/server/events/schema"
 import { holdsSignUps } from "@/server/events/sign-ups"
+import {
+  forgetAddressesOf,
+  releaseAddress,
+} from "@/server/directory/old-addresses"
 
 /**
  * Repeating events. The main event holds the rule and is the first date. Each
@@ -128,6 +132,7 @@ async function makeDate(
       })
       .returning({ id: siteEvents.id })
     if (!made) return false
+    await releaseAddress(tx, main.workspaceId, "event", [slug])
     if (categoryIds.length) {
       await tx.insert(categoryRelationships).values(
         categoryIds.map((categoryId) => ({
@@ -306,7 +311,13 @@ async function clearFutureDates(
     const cleared = await tx
       .delete(siteEvents)
       .where(and(futureDatesFollowing(main.id, today), not(holdsSignUps(tx))))
-      .returning({ id: siteEvents.id })
+      .returning({ id: siteEvents.id, slug: siteEvents.slug })
+    await forgetAddressesOf(
+      tx,
+      main.workspaceId,
+      "event",
+      cleared.map((row) => row.slug)
+    )
     await deleteCategoryRowsFor(
       main.workspaceId,
       EVENT_CONTENT_TYPE,

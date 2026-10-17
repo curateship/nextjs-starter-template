@@ -40,6 +40,7 @@ export type Crumb = {
   posts?: boolean
   events?: boolean
   deals?: boolean
+  guides?: boolean
 }
 
 export function DirectoryBreadcrumbs({
@@ -129,6 +130,13 @@ function CrumbLink({ crumb }: { crumb: Crumb }) {
   if (crumb.events) {
     return (
       <Link to="/events" search={{}} className={className}>
+        {crumb.label}
+      </Link>
+    )
+  }
+  if (crumb.guides) {
+    return (
+      <Link to="/guides" className={className}>
         {crumb.label}
       </Link>
     )

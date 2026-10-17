@@ -26,6 +26,7 @@ import {
   type PublicDirectoryMap,
   type PublicListingCard,
   type PublicListingPage,
+  type PublicSite,
 } from "@/server/directory/public"
 import type { DirectoryFrontPageAnswer } from "@/lib/directory/front-page"
 import { RECENTLY_VIEWED_KEPT } from "@/lib/directory/recently-viewed"
@@ -34,6 +35,12 @@ import {
   type DirectoryDealFilter,
 } from "@/lib/directory/listing-map"
 import { answerForRequest } from "@/server/workspaces/host"
+import {
+  readPublicGuide,
+  readPublicGuides,
+  type PublicGuidePage,
+} from "@/server/directory/guides"
+import type { PublicGuideCard } from "@/lib/directory/guides"
 import { geocodeDirectoryPlace } from "@/server/directory/geocode"
 import { requireAppOrigin, requestIp } from "@/server/auth/origin"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
@@ -104,6 +111,15 @@ const minRatingInput = z.number().optional()
 const fieldFiltersInput = z.string().max(4_000).optional()
 const pageInput = z.number().int().min(1).max(10_000).optional()
 const slugInput = z.string().min(1).max(160)
+const openNowInput = z.literal("now").optional()
+
+/**
+ * "Now" at this site, for the Open now filter: its own wall clock, never the
+ * server's and never the visitor's browser.
+ */
+async function openNowAt(siteId: string, open: "now" | undefined) {
+  return open ? wallClockAt(await siteTimeZone(siteId), new Date()) : undefined
+}
 
 const readDirectoryBrowseFn = createServerFn({ method: "GET" })
   .inputValidator(
@@ -117,6 +133,7 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
       near: z.string().max(40).optional(),
       place: z.string().max(120).optional(),
       radius: z.number().int().optional(),
+      open: openNowInput,
     })
   )
   .handler(async ({ data }): Promise<PublicBrowse | null> => {
@@ -130,6 +147,7 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
       categories: readDirectoryCategories(data.category),
       minRating: readDirectoryMinRating(data.minRating),
       fields: readDirectoryFieldFilters(data.filter),
+      openAt: await openNowAt(site.id, data.open),
       sort: data.sort,
       page: data.page ?? 1,
       near: parseDirectoryNearPoint(data.near) ?? undefined,
@@ -160,6 +178,8 @@ export function loadDirectoryBrowse(input: {
   near?: string
   place?: string
   radius?: number
+  /** "now" leaves out every listing closed at this moment. */
+  open?: "now"
 }) {
   return readDirectoryBrowseFn({ data: input })
 }
@@ -186,6 +206,7 @@ const readDirectoryMapFn = createServerFn({ method: "GET" })
       near: z.string().max(40).optional(),
       radius: z.number().int().optional(),
       deals: z.enum(DIRECTORY_DEAL_FILTERS).optional(),
+      open: openNowInput,
     })
   )
   .handler(async ({ data }): Promise<DirectoryMapAnswer | null> => {
@@ -203,6 +224,7 @@ const readDirectoryMapFn = createServerFn({ method: "GET" })
       categories: readDirectoryCategories(data.category),
       minRating: readDirectoryMinRating(data.minRating),
       fields: readDirectoryFieldFilters(data.filter),
+      openAt: await openNowAt(site.id, data.open),
       sort: data.sort,
       near: parseDirectoryNearPoint(data.near) ?? undefined,
       radius: readDirectoryNearRadius(data.radius),
@@ -234,6 +256,7 @@ export function loadDirectoryMap(input: {
   radius?: number
   /** "only" leaves out every listing with no deal on. */
   deals?: DirectoryDealFilter
+  open?: "now"
 }) {
   return readDirectoryMapFn({ data: input })
 }
@@ -423,6 +446,11 @@ const readDirectoryListingFn = createServerFn({ method: "GET" })
         viewerId: viewer?.id ?? null,
       })
       if (!page) return null
+      // A place that has shut has no deals to show, nothing on, and nothing
+      // worth following.
+      if (page.listing.closed) {
+        return { ...page, whatsOn: null, dealsHere: null, follow: null }
+      }
 
       // Read after the listing's two-minute cache, by the site's clock, and only
       // when this visitor may see the Deals page, the switch every deal follows.
@@ -468,7 +496,7 @@ const readDirectoryListingFn = createServerFn({ method: "GET" })
     }
   )
 
-/** One published listing by its address, or null if there is not one. */
+/** One published or closed listing by its address, or null if there is not one. */
 export function loadDirectoryListing(slug: string) {
   return readDirectoryListingFn({ data: { slug } })
 }
@@ -592,6 +620,56 @@ const readDirectoryFrontPageFn = createServerFn({ method: "GET" }).handler(
  */
 export function loadDirectoryFrontPage() {
   return readDirectoryFrontPageFn()
+}
+
+/**
+ * The visited site, when this visitor may open its Guides page: open to
+ * everyone, or kept for members and they are signed in. The route checks the
+ * same switch, but anyone can call these doors directly.
+ */
+async function siteWithOpenGuides() {
+  const site = await visitorSite()
+  if (!site) return null
+  const visibility = await readPageVisibility(site.id, "/guides")
+  if (visibility === "off") return null
+  if (visibility === "members" && !(await someoneIsSignedIn())) return null
+  return site
+}
+
+const readGuideFn = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ slug: slugInput }))
+  .handler(async ({ data }): Promise<PublicGuidePage | null> => {
+    const site = await siteWithOpenGuides()
+    if (!site) return null
+    const page = await readPublicGuide(site, data.slug)
+    if (!page) return null
+    // Read after the guide's cache, like a category page's: a deal that
+    // started a minute ago tags its card on the next visit.
+    const dealsNow = page.listings.length
+      ? await dealsClockFor(site.id, someoneIsSignedIn)
+      : null
+    return {
+      ...page,
+      listings: await withDealTags(site.id, page.listings, dealsNow),
+    }
+  })
+
+/** One published guide by its address, or null if there is not one. */
+export function loadGuide(slug: string) {
+  return readGuideFn({ data: { slug } })
+}
+
+const readGuidesFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ site: PublicSite; guides: PublicGuideCard[] } | null> => {
+    const site = await siteWithOpenGuides()
+    if (!site) return null
+    return readPublicGuides(site)
+  }
+)
+
+/** Every published guide on the visited site, for the Guides page. */
+export function loadGuides() {
+  return readGuidesFn()
 }
 
 /**
