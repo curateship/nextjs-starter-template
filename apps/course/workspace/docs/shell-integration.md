@@ -1,6 +1,6 @@
-# systemeverything and Custom Shell
+# Course and Custom Shell
 
-systemeverything uses the shared Custom Shell code for accounts, billing,
+Course uses the shared Custom Shell code for accounts, billing,
 automations, navigation, public pages and settings. Its own routes, tables,
 migrations and app options belong to it.
 
@@ -42,7 +42,7 @@ committed file and the resulting diff checked to be purely additive.
 
 **This app.** 41 shell files updated, 9 added and 1 removed. One migration was
 carried: the shell's `0091_custom_shell_crm_blocked_senders.sql` keeps its own
-number here, because systemeverything's next free number was also 0091.
+number here, because this app's next free number was also 0091.
 
 The single removed file was `lib/hooks/use-app-notification-links.ts`, which the
 shell no longer has and nothing here imported.

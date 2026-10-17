@@ -76,7 +76,7 @@ project".
 
 ## What arrived, 4 Oct 2026
 
-25,100 contacts into the "System Everything" workspace: 15,059 on the list,
+25,100 contacts into the workspace now called "Course": 15,059 on the list,
 9,405 gone quiet, 370 bouncing, 258 opted out, 8 marked it spam. 158 tags. One
 address already here, so 25,099 added.
 

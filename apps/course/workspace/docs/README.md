@@ -1,7 +1,10 @@
 # This app's docs
 
-What is true of this app and no other. Everything true of every app built on
-Custom Shell lives in the repo's `docs/`, and `docs/README.md` indexes it.
+What is true of this app and no other. The app was called systemeverything,
+in `apps/systemeverything`, until 17 Oct 2026, so older commits and notes use
+that name. Its local database is still named `systemeverything`. Everything
+true of every app built on Custom Shell lives in the repo's `docs/`, and
+`docs/README.md` indexes it.
 
 - `courses.md` — written guides at `/courses`: the chapter editor, who can
   read what, free previews, held-back and dated chapters, what members can do

@@ -1,4 +1,4 @@
-# Systemeverything
+# Course
 
 Generated from the Custom Shell scaffold.
 
