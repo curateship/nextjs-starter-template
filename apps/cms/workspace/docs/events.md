@@ -810,9 +810,11 @@ drawn share card, the same rule posts follow.
   categories and listings, with the start day on the right, like
   "Sat, Sep 26". The arrows, Enter and Escape work on them the same as on a
   listing. `directory-search-suggestions.md` covers the box.
-- **The sitemap:** every published event in the flat part at
-  `/sitemap.xml?part=pages`, until 30 days after its last day by the site's
-  calendar. An event on 27 Aug is still there on 26 Sep and gone on 27 Sep.
+- **The sitemap:** every published public event, in numbered files at
+  `/event-sitemaps/0`, `/event-sitemaps/1` and so on, until 30 days after its
+  last day by the site's calendar. An event on 27 Aug is still there on 26 Sep
+  and gone on 27 Sep. Each date of a repeating event is its own page and its
+  own address. `sitemap-files.md` covers the files.
 - **The feed at `/feed.xml`:** mixed in with listings, posts and guides by the
   day it was published, 20 entries in all. The feed is called "New listings,
   posts, events and guides".

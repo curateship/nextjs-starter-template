@@ -39,8 +39,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - `import-eatdrinktoronto.md` — the one-off command that copies one old
   Directory site into one CMS site, and the second command that loads the
   fields it left behind.
-- `sitemap-files.md` — the numbered sitemap files a site's listings come in,
-  and what happens at the edges of them.
+- `sitemap-files.md` — the numbered sitemap files a site's listings, events
+  and posts come in, and what happens at the edges of them.
 - `listing-problem-reports.md` — the "Report a problem" link on a listing, what
   stops it being used for spam, and the admin queue that listing and event
   reports land in.
@@ -60,8 +60,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   server.
 - `home-page-rows.md` — the six kinds of row this app adds to the shell's front
   page builder, and the rules that hold for every one of them.
-- `image-fields.md` — what happens when an image field is clicked, and why the
-  picker opens as a window inside an editing window.
+- `image-fields.md` — what happens when an image field is clicked, why the
+  picker opens as a window inside an editing window, and the words a screen
+  reader hears for each public photo.
 - `posts.md` — each site's Posts page: writing posts, listing cards in a post,
   how a post's own page is laid out with its contents list, the "More to read"
   cards under a post, featured posts, the Views column on Admin → Posts, and

@@ -129,7 +129,7 @@ export function ListingCard({ listing }: { listing: PublicListingCard }) {
             src={listing.featuredImage}
             srcSet={mediaImageSrcSet(listing.featuredImage)}
             sizes="(min-width: 640px) 50vw, 100vw"
-            alt=""
+            alt={listing.title}
             loading="lazy"
             className="aspect-[3/2] w-full object-cover"
           />

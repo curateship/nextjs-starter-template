@@ -107,7 +107,7 @@ export function EventCard({ event }: { event: ListedEvent }) {
             src={event.coverImage}
             srcSet={mediaImageSrcSet(event.coverImage)}
             sizes="(min-width: 640px) 50vw, 100vw"
-            alt=""
+            alt={event.title}
             loading="lazy"
             className="aspect-[3/2] w-full object-cover"
           />

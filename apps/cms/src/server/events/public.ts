@@ -39,7 +39,7 @@ import {
   postListingIds,
   type PostBody,
 } from "@/lib/posts/post-body"
-import type { SitemapEntry } from "@/server/app-options"
+import type { SitemapChunkFile, SitemapEntry } from "@/server/app-options"
 import { readPageVisibility } from "@/server/content/pages"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -58,6 +58,11 @@ import {
   directoryListings,
 } from "@/server/directory/schema"
 import { siteTimeZone } from "@/server/directory/settings"
+import {
+  numberedSitemapChunk,
+  numberedSitemapFiles,
+  type NumberedSitemapSource,
+} from "@/server/directory/sitemap"
 import { toEvent } from "@/server/events/events"
 import {
   listingOfEvent,
@@ -1080,34 +1085,85 @@ export async function readEventSuggestions(
 const PAST_EVENT_SITEMAP_DAYS = 30
 
 /**
- * Every published event's address for the flat sitemap file, until 30 days
- * after its last day by the site's calendar. The page still opens after that;
- * it is only no longer offered to search engines.
+ * The events in the sitemap: every published public event until 30 days after
+ * its last day by the site's calendar, and none at all while the Events page
+ * is not open to everyone. The page still opens after the 30 days; it is only
+ * no longer offered to search engines.
+ *
+ * Each date of a repeating event is its own event with its own page, so each
+ * is its own address here. A weekly event is about twelve addresses at a time:
+ * the eight dates made ahead and the last month's.
+ *
+ * Numbered oldest first, so a new event lands in the last file and moves
+ * nothing. An event passing its 30 days moves every later one down a place,
+ * which is harmless: each address is in exactly one file at a time, and a
+ * file's date is the newest change among the events in it, so a moved address
+ * is one the search engine has already read.
  */
-export async function eventSitemapEntries(
+async function eventSitemapSource(
+  siteId: string,
+  database: CustomShellDb,
+  at: Date
+): Promise<{ source: NumberedSitemapSource; today: string; open: boolean }> {
+  const open = await eventsArePublic(siteId, database)
+  const today = (await siteNow(siteId, database, at)).slice(0, 10)
+  const source: NumberedSitemapSource = {
+    table: siteEvents,
+    where: open
+      ? and(
+          listedEventsOnSite(siteId),
+          gte(
+            lastDayOfEvent,
+            sql`${today}::date - ${PAST_EVENT_SITEMAP_DAYS}::int`
+          )
+        )
+      : sql`false`,
+    order: [siteEvents.createdAt, siteEvents.id],
+    slug: siteEvents.slug,
+    updatedAt: siteEvents.updatedAt,
+    folder: "/event-sitemaps",
+    pagePath: (slug) => `/events/${slug}`,
+  }
+  return { source, today, open }
+}
+
+/**
+ * The numbered files this site's events come in, for the sitemap index. None
+ * when there are no events to list. Held by the public-page cache, which
+ * saving an event clears; the day is part of the key, so an event passing its
+ * 30 days leaves at midnight rather than up to two minutes after.
+ */
+export async function eventSitemapFiles(
   siteId: string,
   database: CustomShellDb = db,
   at: Date = new Date()
-): Promise<SitemapEntry[]> {
-  if (!(await eventsArePublic(siteId, database))) return []
-  const today = (await siteNow(siteId, database, at)).slice(0, 10)
-  const rows = await database
-    .select({ slug: siteEvents.slug, updatedAt: siteEvents.updatedAt })
-    .from(siteEvents)
-    .where(
-      and(
-        listedEventsOnSite(siteId),
-        gte(
-          lastDayOfEvent,
-          sql`${today}::date - ${PAST_EVENT_SITEMAP_DAYS}::int`
-        )
-      )
-    )
-    .orderBy(asc(siteEvents.slug))
-  return rows.map((row) => ({
-    path: `/events/${row.slug}`,
-    updatedAt: row.updatedAt,
-  }))
+): Promise<readonly SitemapChunkFile[]> {
+  const { source, today, open } = await eventSitemapSource(siteId, database, at)
+  return cachedPublicDirectoryRead(
+    siteId,
+    "event-sitemap-files",
+    { today, open },
+    () => numberedSitemapFiles(source, database)
+  )
+}
+
+/**
+ * One numbered file's event addresses, or `null` when that file does not
+ * exist. File zero always exists, and is empty on a site with none to list.
+ */
+export async function eventSitemapFile(
+  siteId: string,
+  chunk: number,
+  database: CustomShellDb = db,
+  at: Date = new Date()
+): Promise<readonly SitemapEntry[] | null> {
+  const { source, today, open } = await eventSitemapSource(siteId, database, at)
+  return cachedPublicDirectoryRead(
+    siteId,
+    "event-sitemap-file",
+    { chunk, today, open },
+    () => numberedSitemapChunk(source, chunk, database)
+  )
 }
 
 type EventFeedRow = {

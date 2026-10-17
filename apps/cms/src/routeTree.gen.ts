@@ -52,8 +52,10 @@ import { Route as ApiListingUnfollowRouteImport } from './routes/api/listing-unf
 import { Route as DealsSlugRouteImport } from './routes/deals_.$slug'
 import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps.$chunk'
 import { Route as DirectorySlugRouteImport } from './routes/directory_.$slug'
+import { Route as EventSitemapsChunkRouteImport } from './routes/event-sitemaps.$chunk'
 import { Route as EventsSlugRouteImport } from './routes/events_.$slug'
 import { Route as GuidesSlugRouteImport } from './routes/guides_.$slug'
+import { Route as PostSitemapsChunkRouteImport } from './routes/post-sitemaps.$chunk'
 import { Route as PostsSlugRouteImport } from './routes/posts_.$slug'
 import { Route as ProfileProfileIdRouteImport } from './routes/profile_.$profileId'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
@@ -335,6 +337,11 @@ const DirectorySlugRoute = DirectorySlugRouteImport.update({
   path: '/directory/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EventSitemapsChunkRoute = EventSitemapsChunkRouteImport.update({
+  id: '/event-sitemaps/$chunk',
+  path: '/event-sitemaps/$chunk',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EventsSlugRoute = EventsSlugRouteImport.update({
   id: '/events_/$slug',
   path: '/events/$slug',
@@ -343,6 +350,11 @@ const EventsSlugRoute = EventsSlugRouteImport.update({
 const GuidesSlugRoute = GuidesSlugRouteImport.update({
   id: '/guides_/$slug',
   path: '/guides/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PostSitemapsChunkRoute = PostSitemapsChunkRouteImport.update({
+  id: '/post-sitemaps/$chunk',
+  path: '/post-sitemaps/$chunk',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PostsSlugRoute = PostsSlugRouteImport.update({
@@ -750,8 +762,10 @@ export interface FileRoutesByFullPath {
   '/deals/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
+  '/event-sitemaps/$chunk': typeof EventSitemapsChunkRoute
   '/events/$slug': typeof EventsSlugRouteWithChildren
   '/guides/$slug': typeof GuidesSlugRoute
+  '/post-sitemaps/$chunk': typeof PostSitemapsChunkRoute
   '/posts/$slug': typeof PostsSlugRoute
   '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -858,8 +872,10 @@ export interface FileRoutesByTo {
   '/deals/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
+  '/event-sitemaps/$chunk': typeof EventSitemapsChunkRoute
   '/events/$slug': typeof EventsSlugRouteWithChildren
   '/guides/$slug': typeof GuidesSlugRoute
+  '/post-sitemaps/$chunk': typeof PostSitemapsChunkRoute
   '/posts/$slug': typeof PostsSlugRoute
   '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -970,8 +986,10 @@ export interface FileRoutesById {
   '/deals_/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory_/$slug': typeof DirectorySlugRoute
+  '/event-sitemaps/$chunk': typeof EventSitemapsChunkRoute
   '/events_/$slug': typeof EventsSlugRouteWithChildren
   '/guides_/$slug': typeof GuidesSlugRoute
+  '/post-sitemaps/$chunk': typeof PostSitemapsChunkRoute
   '/posts_/$slug': typeof PostsSlugRoute
   '/profile_/$profileId': typeof ProfileProfileIdRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -1082,8 +1100,10 @@ export interface FileRouteTypes {
     | '/deals/$slug'
     | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
+    | '/event-sitemaps/$chunk'
     | '/events/$slug'
     | '/guides/$slug'
+    | '/post-sitemaps/$chunk'
     | '/posts/$slug'
     | '/profile/$profileId'
     | '/admin/ai'
@@ -1190,8 +1210,10 @@ export interface FileRouteTypes {
     | '/deals/$slug'
     | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
+    | '/event-sitemaps/$chunk'
     | '/events/$slug'
     | '/guides/$slug'
+    | '/post-sitemaps/$chunk'
     | '/posts/$slug'
     | '/profile/$profileId'
     | '/admin/ai'
@@ -1301,8 +1323,10 @@ export interface FileRouteTypes {
     | '/deals_/$slug'
     | '/directory-sitemaps/$chunk'
     | '/directory_/$slug'
+    | '/event-sitemaps/$chunk'
     | '/events_/$slug'
     | '/guides_/$slug'
+    | '/post-sitemaps/$chunk'
     | '/posts_/$slug'
     | '/profile_/$profileId'
     | '/_authenticated/admin/ai'
@@ -1406,8 +1430,10 @@ export interface RootRouteChildren {
   DealsSlugRoute: typeof DealsSlugRoute
   DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
+  EventSitemapsChunkRoute: typeof EventSitemapsChunkRoute
   EventsSlugRoute: typeof EventsSlugRouteWithChildren
   GuidesSlugRoute: typeof GuidesSlugRoute
+  PostSitemapsChunkRoute: typeof PostSitemapsChunkRoute
   PostsSlugRoute: typeof PostsSlugRoute
   ProfileProfileIdRoute: typeof ProfileProfileIdRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
@@ -1729,6 +1755,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DirectorySlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/event-sitemaps/$chunk': {
+      id: '/event-sitemaps/$chunk'
+      path: '/event-sitemaps/$chunk'
+      fullPath: '/event-sitemaps/$chunk'
+      preLoaderRoute: typeof EventSitemapsChunkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/events_/$slug': {
       id: '/events_/$slug'
       path: '/events/$slug'
@@ -1741,6 +1774,13 @@ declare module '@tanstack/react-router' {
       path: '/guides/$slug'
       fullPath: '/guides/$slug'
       preLoaderRoute: typeof GuidesSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/post-sitemaps/$chunk': {
+      id: '/post-sitemaps/$chunk'
+      path: '/post-sitemaps/$chunk'
+      fullPath: '/post-sitemaps/$chunk'
+      preLoaderRoute: typeof PostSitemapsChunkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/posts_/$slug': {
@@ -2414,8 +2454,10 @@ const rootRouteChildren: RootRouteChildren = {
   DealsSlugRoute: DealsSlugRoute,
   DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
   DirectorySlugRoute: DirectorySlugRoute,
+  EventSitemapsChunkRoute: EventSitemapsChunkRoute,
   EventsSlugRoute: EventsSlugRouteWithChildren,
   GuidesSlugRoute: GuidesSlugRoute,
+  PostSitemapsChunkRoute: PostSitemapsChunkRoute,
   PostsSlugRoute: PostsSlugRoute,
   ProfileProfileIdRoute: ProfileProfileIdRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,

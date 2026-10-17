@@ -214,8 +214,9 @@ A published post appears in all of these and a draft in none of them.
 - **The feed** at `/feed.xml`: the newest 20 listings, posts, events and
   guides together, newest first. It is called "New listings, posts, events and
   guides".
-- **The sitemap:** `/posts` and every published post, in the flat file
-  alongside the category pages.
+- **The sitemap:** `/posts` is in the flat part with the site's pages, and
+  every published post is in numbered files at `/post-sitemaps/0` and on.
+  `sitemap-files.md` covers the files.
 - **Whole-site search:** matches the title, summary and body words, labelled
   "Post".
 - **A home page row:** "Latest posts" in Settings → Public pages → Front page, beside Listings, Category cards, Upcoming events and Current deals. It

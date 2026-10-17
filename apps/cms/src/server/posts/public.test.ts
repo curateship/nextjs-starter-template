@@ -17,7 +17,7 @@ import { createPost, updatePost } from "@/server/posts/posts"
 import { POST_CONTENT_TYPE } from "@/server/posts/schema"
 import {
   postSearchResults,
-  postSitemapEntries,
+  postSitemapFile,
   readPublicPosts,
   readPublicPost,
 } from "@/server/posts/public"
@@ -80,7 +80,7 @@ async function everywhere(query: string) {
     search: (await postSearchResults(site.id, query, 10, database)).map(
       (result) => result.path
     ),
-    sitemap: (await postSitemapEntries(site.id, database)).map(
+    sitemap: ((await postSitemapFile(site.id, 0, database)) ?? []).map(
       (entry) => entry.path
     ),
     feed: (await readDirectoryFeed(site.id, database)).map(

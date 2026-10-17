@@ -174,7 +174,7 @@ function CategoryRoute() {
                 srcSet={mediaImageSrcSet(category.featuredImage)}
                 // `max-w-xs`: never wider than 320px.
                 sizes="320px"
-                alt=""
+                alt={category.name}
                 className="aspect-[4/3] w-full max-w-xs rounded-xl object-cover"
               />
             ) : undefined

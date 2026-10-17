@@ -17,10 +17,10 @@ import { ownerMessageTextSweep } from "@/server/directory/owner-messages"
 import { followMailTick } from "@/server/promotions/follow-mail"
 import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
 import { executeDraftEventsStep } from "@/server/events/ai-drafts"
-import { eventSearchResults, eventSitemapEntries } from "@/server/events/public"
+import { eventSearchResults, eventSitemapFiles } from "@/server/events/public"
 import { runRepeatTopUps } from "@/server/events/repeats"
 import { runWaitingListPass } from "@/server/events/waiting-list"
-import { postSearchResults, postSitemapEntries } from "@/server/posts/public"
+import { postSearchResults, postSitemapFiles } from "@/server/posts/public"
 import {
   guideSearchResults,
   guideSitemapEntries,
@@ -86,18 +86,23 @@ export const appServerOptions: AppServerOptions = {
     onCopy: copyDirectoryWorkspace,
   },
   sitemap: {
-    // Category pages, posts, events and guides. Listings are in the
-    // numbered files below.
+    // Category pages and guides, of which no site has thousands. Listings,
+    // events and posts are in the numbered files below.
     extraEntries: async (workspaceId) =>
       (
         await Promise.all([
           directorySitemapEntries(workspaceId),
-          postSitemapEntries(workspaceId),
-          eventSitemapEntries(workspaceId),
           guideSitemapEntries(workspaceId),
         ])
       ).flat(),
-    chunkFiles: directorySitemapChunkFiles,
+    chunkFiles: async (workspaceId) =>
+      (
+        await Promise.all([
+          directorySitemapChunkFiles(workspaceId),
+          eventSitemapFiles(workspaceId),
+          postSitemapFiles(workspaceId),
+        ])
+      ).flat(),
   },
   search: {
     sources: [

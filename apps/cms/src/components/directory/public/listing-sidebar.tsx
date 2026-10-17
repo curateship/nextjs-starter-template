@@ -99,7 +99,7 @@ export function ListingSidebar({
             // The narrow column on a wide screen, the whole width on a phone.
             // Not lazy: it is the first thing on the page.
             sizes="(min-width: 1024px) 400px, 100vw"
-            alt=""
+            alt={listing.title}
             className="aspect-[4/3] w-full object-cover"
           />
           {/* The rating over the photo, on the left, the way a listing card in

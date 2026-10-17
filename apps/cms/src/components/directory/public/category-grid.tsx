@@ -57,7 +57,7 @@ function CategoryCard({ category }: { category: DirectoryCategoryCard }) {
             srcSet={mediaImageSrcSet(category.featuredImage)}
             // One, two, three or four across, in a column 1152px at most.
             sizes="(min-width: 1280px) 288px, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-            alt=""
+            alt={category.name}
             loading="lazy"
             className="aspect-[3/2] w-full object-cover transition-opacity duration-200 group-hover/card:opacity-75"
           />
