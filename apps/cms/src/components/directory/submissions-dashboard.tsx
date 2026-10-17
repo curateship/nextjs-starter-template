@@ -189,17 +189,22 @@ export function SubmissionsDashboard({
                 </span>
               </TableCell>
               <TableCell column="meta">
-                {submission.status === "pending_review" ? (
-                  <Badge>{REVIEW_STATUS_LABELS.pending_review}</Badge>
-                ) : submission.status === "approved" ? (
-                  <Badge variant="secondary">
-                    {REVIEW_STATUS_LABELS.approved}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline">
-                    {REVIEW_STATUS_LABELS[submission.status]}
-                  </Badge>
-                )}
+                <div className="flex flex-wrap items-center gap-1">
+                  {submission.status === "pending_review" ? (
+                    <Badge>{REVIEW_STATUS_LABELS.pending_review}</Badge>
+                  ) : submission.status === "approved" ? (
+                    <Badge variant="secondary">
+                      {REVIEW_STATUS_LABELS.approved}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">
+                      {REVIEW_STATUS_LABELS[submission.status]}
+                    </Badge>
+                  )}
+                  {data.duplicates[submission.id] ? (
+                    <Badge variant="outline">Possible duplicate</Badge>
+                  ) : null}
+                </div>
               </TableCell>
               <TableCell column="meta" className="hidden md:table-cell">
                 <span
@@ -251,6 +256,7 @@ export function SubmissionsDashboard({
         listing={
           open?.listingId ? (data.listings[open.listingId] ?? null) : null
         }
+        duplicates={open ? (data.duplicates[open.id] ?? []) : []}
         onClose={() => setListSearch({ open: undefined })}
         onDecided={(decision, emailed) => {
           setListSearch({ open: undefined })

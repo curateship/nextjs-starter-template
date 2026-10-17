@@ -1,5 +1,15 @@
 import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm"
 
+import { cleanContactLinks } from "@/lib/directory/contact-links"
+import {
+  MAX_DUPLICATES_PER_SUBMISSION,
+  duplicateMatchKinds,
+  duplicateNameKey,
+  duplicatePhoneKey,
+  duplicateWebsiteKey,
+  submissionDuplicateKeys,
+  type DuplicateMatch,
+} from "@/lib/directory/submission-duplicates"
 import { looksLikeEmail } from "@/lib/directory/submission-fields"
 import type { ReviewStatus } from "@/lib/directory/review-status"
 import { cleanWrittenPageBody } from "@/lib/pages/written-page-body"
@@ -10,12 +20,16 @@ import {
   uuid,
 } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
+import { directorySettingsFor } from "@/server/directory/settings"
+import { directorySiteUrl } from "@/server/directory/site-url"
+import { customShellWorkspaces } from "@/server/schema"
 import {
   fireSubmissionApproved,
   fireSubmissionArrived,
 } from "@/server/directory/automation-events"
 import {
   categories,
+  directoryClaims,
   directoryListings,
   directorySubmissions,
   type DirectorySubmissionRow,
@@ -362,6 +376,234 @@ async function categoryNames(
   return new Map(rows.map((row) => [row.id, row.name]))
 }
 
+function textArray(values: string[]) {
+  if (!values.length) return sql`ARRAY[]::text[]`
+  return sql`ARRAY[${sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `
+  )}]::text[]`
+}
+
+/** Enough candidates for a page of fifty submissions that each name a chain. */
+const DUPLICATE_CANDIDATE_LIMIT = 500
+
+/**
+ * The listings already on this site that each submission looks like.
+ *
+ * **One query for the whole page**, however many submissions are on it. The
+ * query only narrows the site's listings down to the ones that could match:
+ * a name key equal to or inside one of the submitted names, a phone whose
+ * last ten digits are one of the submitted numbers, or a website that contains
+ * one of the submitted hosts. Which submission each one matches, and on what,
+ * is then decided by `lib/directory/submission-duplicates.ts`, so there is one
+ * rule and not two.
+ *
+ * Every status of listing counts. A draft somebody started last week is the
+ * same business as the one being submitted today.
+ */
+export async function possibleDuplicatesFor(
+  workspaceId: string,
+  submissions: Pick<
+    DirectorySubmission,
+    "id" | "businessName" | "phone" | "website"
+  >[],
+  database: CustomShellDb = db
+): Promise<Map<string, DuplicateMatch[]>> {
+  const keyed = submissions.map((submission) => ({
+    id: submission.id,
+    keys: submissionDuplicateKeys(submission),
+  }))
+  const names = [...new Set(keyed.map((row) => row.keys.name).filter(Boolean))]
+  const phones = [...new Set(keyed.map((row) => row.keys.phone).filter(Boolean))]
+  const websites = [
+    ...new Set(keyed.map((row) => row.keys.website).filter(Boolean)),
+  ]
+  if (!names.length && !phones.length && !websites.length) return new Map()
+
+  // The name key is worked out once per listing, in the first step, rather
+  // than once per listing per submitted name: 50 names against 3,333 listings
+  // took 550ms the other way and 56ms this way. `duplicateNameKey` is the same
+  // rule in TypeScript, and the test that names "The Luigi's Pizza & Pasta"
+  // holds the two together.
+  const result = await database.execute(sql`
+    WITH site_listing AS MATERIALIZED (
+      SELECT
+        listing.id,
+        listing.title,
+        listing.slug,
+        listing.status,
+        listing.contact_links,
+        regexp_replace(
+          regexp_replace(
+            regexp_replace(lower(listing.title), '&', 'and', 'g'),
+            '^\\s*the\\s+', ''
+          ),
+          '[^a-z0-9]+', '', 'g'
+        ) AS name_key,
+        CASE WHEN jsonb_typeof(listing.contact_links->'menuLinks') = 'array'
+          THEN listing.contact_links->'menuLinks'
+          ELSE '[]'::jsonb
+        END AS menu_links
+      FROM directory_listings listing
+      WHERE listing.workspace_id = ${workspaceId}
+    )
+    SELECT id, title, slug, status, contact_links AS "contactLinks"
+    FROM site_listing
+    WHERE EXISTS (
+        SELECT 1 FROM unnest(${textArray(names)}) AS wanted(key)
+        WHERE wanted.key = site_listing.name_key
+          OR (length(wanted.key) >= 8 AND position(wanted.key IN site_listing.name_key) > 0)
+          OR (length(site_listing.name_key) >= 8 AND position(site_listing.name_key IN wanted.key) > 0)
+      )
+      OR EXISTS (
+        SELECT 1 FROM jsonb_array_elements(site_listing.menu_links) AS link
+        WHERE link->>'type' = 'phone'
+          AND right(regexp_replace(link->>'value', '\\D', '', 'g'), 10) = ANY(${textArray(phones)})
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(site_listing.menu_links) AS link,
+          unnest(${textArray(websites)}) AS wanted(key)
+        WHERE link->>'type' = 'website'
+          AND position(wanted.key IN lower(link->>'value')) > 0
+      )
+    ORDER BY title, id
+    LIMIT ${DUPLICATE_CANDIDATE_LIMIT}
+  `)
+  const candidates = result.rows as Array<{
+    id: string
+    title: string
+    slug: string
+    status: string
+    contactLinks: unknown
+  }>
+
+  const listings = candidates.map((row) => {
+    const links = cleanContactLinks(row.contactLinks).menuLinks
+    return {
+      row,
+      keys: {
+        name: duplicateNameKey(row.title),
+        phones: new Set(
+          links
+            .filter((link) => link.type === "phone")
+            .map((link) => duplicatePhoneKey(link.value))
+            .filter(Boolean)
+        ),
+        websites: new Set(
+          links
+            .filter((link) => link.type === "website")
+            .map((link) => duplicateWebsiteKey(link.value))
+            .filter(Boolean)
+        ),
+      },
+    }
+  })
+
+  const found = new Map<string, DuplicateMatch[]>()
+  for (const submission of keyed) {
+    const matches = listings
+      .map(({ row, keys }) => ({
+        listingId: row.id,
+        title: row.title,
+        slug: row.slug,
+        status: row.status,
+        matched: duplicateMatchKinds(submission.keys, keys),
+      }))
+      .filter((match) => match.matched.length > 0)
+      // More things matching first, and a phone before a website before a
+      // name, because a shared number is the surest sign of the three.
+      .sort(
+        (a, b) =>
+          b.matched.length - a.matched.length ||
+          strength(a.matched) - strength(b.matched)
+      )
+      .slice(0, MAX_DUPLICATES_PER_SUBMISSION)
+    if (matches.length) found.set(submission.id, matches)
+  }
+  return found
+}
+
+function strength(kinds: DuplicateMatch["matched"]) {
+  return kinds.includes("phone") ? 0 : kinds.includes("website") ? 1 : 2
+}
+
+/**
+ * Where a rejected sender is sent instead, when the admin rejected the
+ * submission because the business is already listed.
+ *
+ * The claim form when the site offers claiming and nobody owns the listing
+ * yet, so the sender can look after the page that exists. Otherwise the page
+ * itself. Only a published listing can be pointed to, because a draft has no
+ * page for a stranger to open.
+ */
+async function pointerToListing(
+  workspaceId: string,
+  listingId: string,
+  database: CustomShellDb
+): Promise<{ sentence: string; action: { label: string; url: string } }> {
+  const [listing] = await database
+    .select({
+      id: directoryListings.id,
+      title: directoryListings.title,
+      slug: directoryListings.slug,
+      status: directoryListings.status,
+    })
+    .from(directoryListings)
+    .where(
+      and(
+        eq(directoryListings.id, listingId),
+        eq(directoryListings.workspaceId, workspaceId)
+      )
+    )
+    .limit(1)
+  if (!listing) throw new Error("That listing no longer exists.")
+  if (listing.status !== "published") {
+    throw new Error(
+      `${listing.title} is a draft, so there is no page to send the sender to. Publish it first, or reject without pointing to it.`
+    )
+  }
+
+  const [[site], settings, [owned]] = await Promise.all([
+    database
+      .select({
+        name: customShellWorkspaces.name,
+        subdomain: customShellWorkspaces.subdomain,
+        customDomain: customShellWorkspaces.customDomain,
+      })
+      .from(customShellWorkspaces)
+      .where(eq(customShellWorkspaces.id, workspaceId))
+      .limit(1),
+    directorySettingsFor(workspaceId, database),
+    database
+      .select({ id: directoryClaims.id })
+      .from(directoryClaims)
+      .where(
+        and(
+          eq(directoryClaims.workspaceId, workspaceId),
+          eq(directoryClaims.listingId, listing.id),
+          eq(directoryClaims.status, "approved")
+        )
+      )
+      .limit(1),
+  ])
+  if (!site) throw new Error("That site no longer exists.")
+
+  // The site's own address, never the admin's: an admin working on the
+  // deployment's host must not send a stranger there.
+  const page = `${directorySiteUrl(site)}/directory/${listing.slug}`
+  if (settings.claimsEnabled && !owned) {
+    return {
+      sentence: `It looks like ${listing.title}, which is already listed on ${site.name}. If it is your business, claim it from its page and you can keep its details up to date.`,
+      action: { label: `Claim ${listing.title}`, url: `${page}?claim=start` },
+    }
+  }
+  return {
+    sentence: `It looks like ${listing.title}, which is already listed on ${site.name}.`,
+    action: { label: `See ${listing.title}`, url: page },
+  }
+}
+
 /** How many are waiting, for the screen to say so without loading the list. */
 export async function pendingSubmissionCount(
   workspaceId: string,
@@ -447,9 +689,19 @@ export async function reviewSubmission(
     decision: SubmissionDecision
     note?: string
     reviewerId: string
+    /**
+     * Rejecting because this listing already exists. The note sent says so,
+     * and the email carries a button to that listing's claim form or page.
+     */
+    alreadyListedId?: string
   },
   database: CustomShellDb = db
-): Promise<{ submission: DirectorySubmission; listingId: string | null }> {
+): Promise<{
+  submission: DirectorySubmission
+  listingId: string | null
+  /** The button the rejection email carries, when it points to a listing. */
+  pointTo: { label: string; url: string } | null
+}> {
   const [row] = await database
     .select()
     .from(directorySubmissions)
@@ -475,20 +727,33 @@ export async function reviewSubmission(
   const note = (input.note ?? "").trim().slice(0, 500)
 
   if (input.decision === "reject") {
+    const pointer = input.alreadyListedId
+      ? await pointerToListing(workspaceId, input.alreadyListedId, database)
+      : null
+    // The sentence goes into the note itself, so the record of what was sent
+    // and the email are the same words. The admin's own note follows it.
+    const sentNote = pointer
+      ? [pointer.sentence, note].filter(Boolean).join("\n\n").slice(0, 500)
+      : note
+
     const [updated] = await database
       .update(directorySubmissions)
       .set({
         status: "rejected",
         reviewedAt: at,
         reviewedByUserId: input.reviewerId,
-        reviewNote: note,
+        reviewNote: sentNote,
         updatedAt: at,
       })
       .where(eq(directorySubmissions.id, row.id))
       .returning()
 
     if (!updated) throw new Error("That submission no longer exists.")
-    return { submission: toSubmission(updated), listingId: null }
+    return {
+      submission: toSubmission(updated),
+      listingId: null,
+      pointTo: pointer?.action ?? null,
+    }
   }
 
   // All of it or none of it. A listing created without its categories, or a
@@ -546,7 +811,11 @@ export async function reviewSubmission(
       .returning()
 
     if (!updated) throw new Error("Somebody has already dealt with this one.")
-    return { submission: toSubmission(updated), listingId: listing.id }
+    return {
+      submission: toSubmission(updated),
+      listingId: listing.id,
+      pointTo: null,
+    }
   })
 
   // After the listing is saved, never inside the transaction, and it never
@@ -554,6 +823,40 @@ export async function reviewSubmission(
   await fireSubmissionApproved(row, result.listingId, database)
 
   return result
+}
+
+/**
+ * The email the sender gets about the decision. A rejection that points to an
+ * existing listing carries that listing's button, and its address underneath
+ * for a mail reader that drops buttons.
+ */
+export function submissionDecisionEmail(
+  submission: Pick<DirectorySubmission, "businessName" | "reviewNote">,
+  decision: SubmissionDecision,
+  pointTo: { label: string; url: string } | null
+): {
+  subject: string
+  lines: string[]
+  action?: { label: string; url: string }
+} {
+  if (decision === "approve") {
+    return {
+      subject: `${submission.businessName} is now listed`,
+      lines: [
+        `${submission.businessName} is on the site now.`,
+        submission.reviewNote,
+      ].filter(Boolean),
+    }
+  }
+  return {
+    subject: `About your listing for ${submission.businessName}`,
+    lines: [
+      `We are not adding ${submission.businessName} at the moment.`,
+      submission.reviewNote ||
+        "If you think this is a mistake, reply to this email.",
+    ],
+    ...(pointTo ? { action: pointTo } : {}),
+  }
 }
 
 /** The listing an approved submission became, for the queue to link to. */

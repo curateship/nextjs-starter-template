@@ -15,6 +15,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   two people buy at once.
 - `submission-review-email.md` — what an admin is told after approving or
   rejecting a submission, and why a failed email never undoes the decision.
+- `submission-duplicate-warning.md` — the "already listed" warning on a
+  submission, what counts as a match, and rejecting with a pointer to the
+  existing listing's claim form.
 - `embeddable-listing-badge.md` — the badge a listing owner can put on another
   website, and the setting that allows it.
 - `who-may-frame-cms.md` — CMS refuses other sites' frames, except Personal

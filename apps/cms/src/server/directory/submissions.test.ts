@@ -2,13 +2,21 @@ import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { createCategory } from "@/server/directory/categories"
-import { findListing, listListings } from "@/server/directory/listings"
+import {
+  createListing,
+  findListing,
+  listListings,
+  updateListing,
+} from "@/server/directory/listings"
+import { directoryClaims } from "@/server/directory/schema"
 import {
   createSubmission,
   listSubmissions,
   pendingSubmissionCount,
+  possibleDuplicatesFor,
   resendSubmissionVerification,
   reviewSubmission,
+  submissionDecisionEmail,
   verifySubmission,
 } from "@/server/directory/submissions"
 import {
@@ -271,5 +279,274 @@ describe("searching the queue", () => {
 
     expect(found.submissions).toEqual([])
     expect(found.total).toBe(0)
+  })
+})
+
+/**
+ * The duplicate warning. An admin approving a business that is already listed
+ * makes two pages for one place, and nothing used to compare the two.
+ */
+describe("warning when a submission looks like an existing listing", () => {
+  async function listed(
+    site: string,
+    title: string,
+    links: { phone?: string; website?: string } = {},
+    status: "published" | "draft" = "published"
+  ) {
+    const listing = await createListing(site, { title }, database)
+    await updateListing(
+      site,
+      listing.id,
+      {
+        status,
+        contactLinks: {
+          address: "",
+          menuLinks: [
+            ...(links.phone
+              ? [{ id: "p", type: "phone", label: "", value: links.phone }]
+              : []),
+            ...(links.website
+              ? [{ id: "w", type: "website", label: "", value: links.website }]
+              : []),
+          ],
+          socialLinks: [],
+        },
+      },
+      database
+    )
+    return listing
+  }
+
+  function submitted(over: Partial<Record<"businessName" | "phone" | "website", string>>) {
+    return {
+      id: "s1",
+      businessName: "Somewhere New",
+      phone: "",
+      website: "",
+      ...over,
+    }
+  }
+
+  it("matches the same phone digits however they were typed", async () => {
+    const listing = await listed(alpha, "Luigi's", { phone: "(416) 555-0100" })
+
+    const found = await possibleDuplicatesFor(
+      alpha,
+      [submitted({ phone: "+1 416 555 0100" })],
+      database
+    )
+
+    expect(found.get("s1")).toEqual([
+      expect.objectContaining({ listingId: listing.id, matched: ["phone"] }),
+    ])
+  })
+
+  it("matches the same website host", async () => {
+    const listing = await listed(alpha, "Luigi's", {
+      website: "https://www.luigis.test/menu",
+    })
+
+    const found = await possibleDuplicatesFor(
+      alpha,
+      [submitted({ website: "luigis.test" })],
+      database
+    )
+
+    expect(found.get("s1")?.[0]).toMatchObject({
+      listingId: listing.id,
+      matched: ["website"],
+    })
+  })
+
+  it("does not take a longer host for the same one", async () => {
+    await listed(alpha, "Luigi's", { website: "notluigis.test" })
+
+    const found = await possibleDuplicatesFor(
+      alpha,
+      [submitted({ website: "luigis.test" })],
+      database
+    )
+
+    expect(found.has("s1")).toBe(false)
+  })
+
+  it("matches a very close name, read the same way by the database", async () => {
+    const listing = await listed(alpha, "The Luigi's Pizza & Pasta")
+
+    const found = await possibleDuplicatesFor(
+      alpha,
+      [
+        { ...submitted({ businessName: "Luigis Pizza and Pasta" }), id: "same" },
+        { ...submitted({ businessName: "Luigi's Pizza" }), id: "inside" },
+      ],
+      database
+    )
+
+    expect(found.get("same")?.[0]).toMatchObject({
+      listingId: listing.id,
+      matched: ["name"],
+    })
+    expect(found.get("inside")?.[0]?.listingId).toBe(listing.id)
+  })
+
+  it("names every way one listing matched, strongest first", async () => {
+    await listed(alpha, "Luigi's Pizza", {
+      phone: "416 555 0100",
+      website: "luigis.test",
+    })
+
+    const found = await possibleDuplicatesFor(
+      alpha,
+      [
+        submitted({
+          businessName: "Luigi's Pizza",
+          phone: "4165550100",
+          website: "http://luigis.test",
+        }),
+      ],
+      database
+    )
+
+    expect(found.get("s1")?.[0]?.matched).toEqual(["phone", "website", "name"])
+  })
+
+  it("counts a draft, because it is still the same business", async () => {
+    await listed(alpha, "Luigi's Pizza", {}, "draft")
+
+    const found = await possibleDuplicatesFor(
+      alpha,
+      [submitted({ businessName: "Luigi's Pizza" })],
+      database
+    )
+
+    expect(found.get("s1")?.[0]?.status).toBe("draft")
+  })
+
+  it("says nothing when nothing matches", async () => {
+    await listed(alpha, "Sam's Bar", { phone: "416 555 0199" })
+
+    const found = await possibleDuplicatesFor(
+      alpha,
+      [submitted({ businessName: "Luigi's Pizza", phone: "416 555 0100" })],
+      database
+    )
+
+    expect(found.size).toBe(0)
+  })
+
+  it("never matches a listing on another site", async () => {
+    await listed(beta, "Luigi's Pizza", {
+      phone: "416 555 0100",
+      website: "luigis.test",
+    })
+
+    const found = await possibleDuplicatesFor(
+      alpha,
+      [
+        submitted({
+          businessName: "Luigi's Pizza",
+          phone: "416 555 0100",
+          website: "luigis.test",
+        }),
+      ],
+      database
+    )
+
+    expect(found.size).toBe(0)
+  })
+})
+
+describe("rejecting because the business is already listed", () => {
+  async function waiting() {
+    const { token } = await send(alpha)
+    await verifySubmission(token, database)
+    const queued = await listSubmissions(alpha, {}, database)
+    return queued.submissions[0]?.id ?? ""
+  }
+
+  async function publishedListing(site: string, title: string) {
+    const listing = await createListing(site, { title }, database)
+    await updateListing(site, listing.id, { status: "published" }, database)
+    return listing
+  }
+
+  it("emails the listing's claim link and keeps what was said", async () => {
+    const listing = await publishedListing(alpha, "Joe's Diner")
+    const id = await waiting()
+
+    const { submission, pointTo } = await reviewSubmission(
+      alpha,
+      id,
+      {
+        decision: "reject",
+        note: "Thanks for thinking of us.",
+        reviewerId: admin,
+        alreadyListedId: listing.id,
+      },
+      database
+    )
+    const email = submissionDecisionEmail(submission, "reject", pointTo)
+
+    expect(email.action?.url).toMatch(
+      new RegExp(`/directory/${listing.slug}\\?claim=start$`)
+    )
+    expect(email.action?.label).toBe("Claim Joe's Diner")
+    expect(email.lines.join(" ")).toContain("already listed")
+    expect(submission.reviewNote).toContain("Joe's Diner")
+    expect(submission.reviewNote).toContain("Thanks for thinking of us.")
+  })
+
+  it("sends the page, not the claim form, when somebody already owns it", async () => {
+    const listing = await publishedListing(alpha, "Joe's Diner")
+    const owner = await insertUser(database, {})
+    await database.insert(directoryClaims).values({
+      id: "claim-1",
+      workspaceId: alpha,
+      listingId: listing.id,
+      userId: owner.id,
+      contactEmail: "owner@joes.test",
+      claimantName: "Joe",
+      status: "approved",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    const id = await waiting()
+
+    const { pointTo } = await reviewSubmission(
+      alpha,
+      id,
+      { decision: "reject", reviewerId: admin, alreadyListedId: listing.id },
+      database
+    )
+
+    expect(pointTo?.url).toMatch(new RegExp(`/directory/${listing.slug}$`))
+  })
+
+  it("refuses a draft, which has no page to send anybody to", async () => {
+    const draft = await createListing(alpha, { title: "Joe's Diner" }, database)
+    const id = await waiting()
+
+    await expect(
+      reviewSubmission(
+        alpha,
+        id,
+        { decision: "reject", reviewerId: admin, alreadyListedId: draft.id },
+        database
+      )
+    ).rejects.toThrow(/draft/i)
+  })
+
+  it("refuses a listing on another site", async () => {
+    const theirs = await publishedListing(beta, "Joe's Diner")
+    const id = await waiting()
+
+    await expect(
+      reviewSubmission(
+        alpha,
+        id,
+        { decision: "reject", reviewerId: admin, alreadyListedId: theirs.id },
+        database
+      )
+    ).rejects.toThrow(/no longer exists/i)
   })
 })

@@ -37,6 +37,10 @@ The toast is worded from that, in
 | Rejected, emailed | Rejected. The sender has been emailed. | green |
 | Rejected, not emailed | Rejected, but the email to the sender could not be sent. | amber |
 
+A rejection made with **Reject, point to it** is worded the same way. Its email
+also carries a button to the existing listing's claim form or page, which
+`submission-duplicate-warning.md` covers.
+
 Every one of them names the decision in the first word, so a failed email is
 never read as a refused decision. Amber rather than red, because nothing went
 wrong with the decision. It is only unfinished: the admin has to reach the

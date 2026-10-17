@@ -11,10 +11,13 @@ import {
   listSubmissions,
   listingTitlesFor,
   pendingSubmissionCount,
+  possibleDuplicatesFor,
   resendSubmissionVerification,
   reviewSubmission,
+  submissionDecisionEmail,
   type SubmissionSummary,
 } from "@/server/directory/submissions"
+import type { DuplicateMatch } from "@/lib/directory/submission-duplicates"
 import { publicCategories, visitorSite } from "@/server/directory/public"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
@@ -197,6 +200,12 @@ export type SubmissionsPage = {
   waiting: number
   /** The listing an approved submission became, so the row can link to it. */
   listings: Record<string, { title: string; slug: string }>
+  /**
+   * Existing listings each waiting submission looks like, by submission id.
+   * Only the ones waiting for a decision are checked: a decided one is a
+   * record, and a warning on it would be noise.
+   */
+  duplicates: Record<string, DuplicateMatch[]>
 }
 
 const loadSubmissionsPageFn = createServerFn({ method: "GET" })
@@ -224,12 +233,21 @@ const loadSubmissionsPageFn = createServerFn({ method: "GET" })
       pendingSubmissionCount(site),
     ])
 
-    const titles = await listingTitlesFor(
-      site,
-      submissions
-        .map((submission) => submission.listingId)
-        .filter((id): id is string => Boolean(id))
-    )
+    // One query each for the whole page, never one per row.
+    const [titles, duplicates] = await Promise.all([
+      listingTitlesFor(
+        site,
+        submissions
+          .map((submission) => submission.listingId)
+          .filter((id): id is string => Boolean(id))
+      ),
+      possibleDuplicatesFor(
+        site,
+        submissions.filter(
+          (submission) => submission.status === "pending_review"
+        )
+      ),
+    ])
 
     return {
       submissions,
@@ -238,6 +256,7 @@ const loadSubmissionsPageFn = createServerFn({ method: "GET" })
       pageSize,
       waiting,
       listings: Object.fromEntries(titles),
+      duplicates: Object.fromEntries(duplicates),
     }
   })
 
@@ -257,15 +276,22 @@ const reviewSubmissionFn = createServerFn({ method: "POST" })
       id: z.string().min(1).max(36),
       decision: z.enum(["approve", "reject"]),
       note: z.string().max(500).optional(),
+      alreadyListedId: z.string().min(1).max(36).optional(),
     })
   )
   .handler(async ({ data, context }) => {
     const site = await workspaceIdForRequest(context.user.id)
-    const { submission, listingId } = await reviewSubmission(site, data.id, {
-      decision: data.decision,
-      note: data.note,
-      reviewerId: context.user.id,
-    })
+    const { submission, listingId, pointTo } = await reviewSubmission(
+      site,
+      data.id,
+      {
+        decision: data.decision,
+        note: data.note,
+        reviewerId: context.user.id,
+        alreadyListedId:
+          data.decision === "reject" ? data.alreadyListedId : undefined,
+      }
+    )
 
     // Telling the sender is a courtesy, not part of the decision: a mail server
     // having a bad afternoon must not undo an approval that has already created
@@ -277,21 +303,7 @@ const reviewSubmissionFn = createServerFn({ method: "POST" })
       const sent = await sendDirectoryEmail({
         workspaceId: site,
         to: submission.contactEmail,
-        subject:
-          data.decision === "approve"
-            ? `${submission.businessName} is now listed`
-            : `About your listing for ${submission.businessName}`,
-        lines:
-          data.decision === "approve"
-            ? [
-                `${submission.businessName} is on the site now.`,
-                submission.reviewNote,
-              ].filter(Boolean)
-            : [
-                `We are not adding ${submission.businessName} at the moment.`,
-                submission.reviewNote ||
-                  "If you think this is a mistake, reply to this email.",
-              ],
+        ...submissionDecisionEmail(submission, data.decision, pointTo),
       })
       emailed = sent.delivered
     } catch {
@@ -312,6 +324,8 @@ export function decideSubmission(input: {
   id: string
   decision: "approve" | "reject"
   note?: string
+  /** Rejecting because this listing already exists; the email points to it. */
+  alreadyListedId?: string
 }) {
   return reviewSubmissionFn({ data: input })
 }

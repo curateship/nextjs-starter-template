@@ -1,4 +1,6 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
+import { TriangleAlertIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -26,6 +28,10 @@ import {
 } from "@/lib/api/directory/submissions"
 import type { SubmissionSummary } from "@/lib/api/directory/submissions"
 import { REVIEW_STATUS_LABELS } from "@/lib/directory/review-status"
+import {
+  describeDuplicateMatch,
+  type DuplicateMatch,
+} from "@/lib/directory/submission-duplicates"
 import { formatDate } from "@/lib/format/format-time"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
@@ -41,6 +47,7 @@ export function SubmissionDialog({
   open,
   submission,
   listing,
+  duplicates,
   onClose,
   onDecided,
 }: {
@@ -48,6 +55,8 @@ export function SubmissionDialog({
   submission: SubmissionSummary | null
   /** The listing an approved one became, when it has one. */
   listing: { title: string; slug: string } | null
+  /** Listings already on the site that this one looks like. Empty for most. */
+  duplicates: DuplicateMatch[]
   onClose: () => void
   /** `emailed` is whether the sender was actually told, not whether we tried. */
   onDecided: (decision: "approve" | "reject", emailed: boolean) => void
@@ -64,7 +73,10 @@ export function SubmissionDialog({
 
   const decided = submission ? submission.status !== "pending_review" : false
 
-  async function decide(decision: "approve" | "reject") {
+  async function decide(
+    decision: "approve" | "reject",
+    alreadyListedId?: string
+  ) {
     if (!submission) return
     dismissErrorToast()
     setBusy(true)
@@ -73,6 +85,7 @@ export function SubmissionDialog({
         id: submission.id,
         decision,
         note,
+        alreadyListedId,
       })
       onDecided(decision, emailed)
     } catch (error) {
@@ -105,6 +118,14 @@ export function SubmissionDialog({
           </DialogHeader>
 
           <DialogBody>
+            {!decided && duplicates.length ? (
+              <DuplicateWarning
+                duplicates={duplicates}
+                busy={busy}
+                onReject={(listingId) => void decide("reject", listingId)}
+              />
+            ) : null}
+
             <Card size="sm">
               <CardHeader>
                 <CardTitle>What was sent</CardTitle>
@@ -218,6 +239,77 @@ export function SubmissionDialog({
         </DialogContent>
       )}
     </FormDialog>
+  )
+}
+
+/**
+ * "This looks like Luigi's Pizza, already listed", once per listing it looks
+ * like, with what matched and a way to open it.
+ *
+ * A published one also offers to reject with a pointer: the email then tells
+ * the sender the business is already listed and gives them its claim button,
+ * so an owner who missed their own page ends up looking after it. A draft has
+ * no page a stranger could open, so it only gets the link.
+ */
+function DuplicateWarning({
+  duplicates,
+  busy,
+  onReject,
+}: {
+  duplicates: DuplicateMatch[]
+  busy: boolean
+  onReject: (listingId: string) => void
+}) {
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <TriangleAlertIcon aria-hidden="true" className="size-4 shrink-0" />
+          Possibly already listed
+        </CardTitle>
+        <CardDescription>
+          Check before approving. Nothing is rejected unless you say so.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {duplicates.map((match) => (
+          <div
+            key={match.listingId}
+            className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="grid min-w-0 gap-1">
+              <p className="text-sm">
+                This looks like{" "}
+                <Link
+                  to="/admin/listings"
+                  search={{ open: match.listingId }}
+                  className="font-medium underline-offset-4 hover:underline"
+                >
+                  {match.title}
+                </Link>
+                , already listed
+                {match.status === "published" ? "." : " as a draft."}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {describeDuplicateMatch(match.matched)}
+              </p>
+            </div>
+            {match.status === "published" ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 self-start sm:self-auto"
+                disabled={busy}
+                onClick={() => onReject(match.listingId)}
+              >
+                Reject, point to it
+              </Button>
+            ) : null}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   )
 }
 
