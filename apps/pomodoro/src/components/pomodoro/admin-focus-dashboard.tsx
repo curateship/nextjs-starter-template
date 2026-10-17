@@ -253,7 +253,7 @@ function describeFocusDataDeletion(rows: AdminFocusRow[]) {
   const whose = rows.length === 1 ? "Their" : "Each person's"
   return [
     `${sessions.toLocaleString()} ${plural(sessions, "session", "sessions")} and ${formatDuration(seconds * 1000, { zero: "0m" })} of focus will be wiped.`,
-    `${whose} History, streak, leaderboard place, profile figures and share card all go back to zero.`,
+    `${whose} Stats, streak, leaderboard place, profile figures and share card all go back to zero.`,
     `${rows.length === 1 ? "The account and its" : "The accounts and their"} tasks, projects, rooms and earned badges stay. A timer still running is left alone.`,
     "This cannot be undone.",
   ].join(" ")

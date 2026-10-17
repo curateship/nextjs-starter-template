@@ -35,3 +35,25 @@ behind it. Nothing is saved until the editing window itself is saved.
 An image field on an ordinary settings page opens the library in place of
 itself, which is right there: the page scrolls and the library appears where
 the field was.
+
+## What a screen reader hears for a public photo
+
+A photo's alt text is the record's own title. Nobody writes a description per
+picture. Tyler decided on 17 Oct 2026 that nobody will write one by hand for
+every image.
+
+- **The title:** the photo on a listing, category, event, post or deal card,
+  wherever those cards appear, and the main photo on a listing's, event's,
+  post's or deal's page and in a category page's band.
+- **A deal with no photo of its own** is drawn with its listing's photo, so it
+  takes the listing's title.
+- **"Title photo 2":** each photo in a listing's gallery, so a row of twelve
+  is not the same name twelve times.
+- **Empty on purpose:** the "Also nearby" thumbnails at the foot of a listing
+  page, because the name is printed right beside each one. Guide covers, the
+  listing badge on a business's own website, and the small previews in admin
+  windows stay empty too.
+- **The Media library's own alt text is not used here.** The picker and the
+  Media library keep alt text on each uploaded file, and the shell's front
+  page and written pages copy it in when a picture is picked. The CMS listing,
+  category, event, post and deal windows store only the picture's address.

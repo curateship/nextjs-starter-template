@@ -92,7 +92,8 @@ function DealCard({ deal }: { deal: DealCardView }) {
             src={photo}
             srcSet={mediaImageSrcSet(photo)}
             sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-            alt=""
+            // The listing's photo stands in when the deal has none of its own.
+            alt={deal.coverImage ? deal.title : deal.listingTitle}
             loading="lazy"
             className="aspect-[3/2] w-full object-cover"
           />

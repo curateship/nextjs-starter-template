@@ -107,7 +107,7 @@ const GUEST_REPEAT_REASON =
 const GUEST_PROJECT_REASON =
   "Projects need an account, because they are saved with your focus history."
 const GUEST_TAG_REASON =
-  "Tags need an account, because History filters your saved sessions by them."
+  "Tags need an account, because Stats filters your saved sessions by them."
 
 /**
  * Today's tasks, ported from the old app's task-plan-list, and the one list
@@ -777,7 +777,7 @@ export function RemoveTaskButton({
         title="Remove this task?"
         description={
           <>
-            {`"${task.title}" comes off your list. Any focus you finished on it stays in History.`}
+            {`"${task.title}" comes off your list. Any focus you finished on it stays in Stats.`}
             {task.repeatWeekdays !== null
               ? " It still comes back on its next repeat day."
               : ""}

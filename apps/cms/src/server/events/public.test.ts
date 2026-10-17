@@ -11,7 +11,7 @@ import { saveDirectoryTimeZone } from "@/server/directory/settings"
 import { createEvent, updateEvent } from "@/server/events/events"
 import {
   eventSearchResults,
-  eventSitemapEntries,
+  eventSitemapFile,
   readEventCategories,
   readEventSuggestions,
   readEventsBetween,
@@ -522,7 +522,7 @@ describe("search, suggestions and the sitemap", () => {
       suggestions: (
         await readEventSuggestions(site.id, query, at, database)
       ).map((row) => row.slug),
-      sitemap: (await eventSitemapEntries(site.id, database, at)).map(
+      sitemap: ((await eventSitemapFile(site.id, 0, database, at)) ?? []).map(
         (entry) => entry.path
       ),
     }
@@ -642,9 +642,9 @@ describe("search, suggestions and the sitemap", () => {
     })
 
     expect(
-      (await eventSitemapEntries(site.id, database, at)).map(
-        (entry) => entry.path
-      )
+      ((await eventSitemapFile(site.id, 0, database, at)) ?? [])
+        .map((entry) => entry.path)
+        .sort()
     ).toEqual([`/events/${longRun.slug}`, `/events/${thirtyDays.slug}`].sort())
   })
 })

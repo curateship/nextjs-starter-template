@@ -4,7 +4,7 @@ The member-facing app is its own world, matched to the old app side by
 side: the `_pomodoro` layout route (`src/routes/_pomodoro.tsx`) wraps
 every product page in `src/components/pomodoro/pomodoro-shell.tsx` — the
 translucent blurred sidebar of pill links (Dashboard, Rooms, Pricing,
-Backgrounds, Sounds, Leaderboard, History, Tasks; Settings at the foot), the
+Backgrounds, Sounds, Leaderboard, Stats, Tasks; Settings at the foot), the
 transparent sticky header (brand; the glassy Timer / Leaderboard / Background
 pills in the middle; then on the right Log in + orange Sign up or
 [the bell](notifications.md) and [the account menu](account-menu.md)),
@@ -194,7 +194,7 @@ stop a member ever seeing it:
   links to `/home`. The field is a saved setting, not code, so it has to be set
   on each database. It was set locally on 6 Oct 2026 and is owed on live.
 - **The header's Log in carries the page you were on.** Pressing Log in on
-  History brings you back to History. The front page sends none, because
+  Stats brings you back to Stats. The front page sends none, because
   Member home already lands on the timer.
 
 Admins are forwarded by the Admin home route next to it instead, which is

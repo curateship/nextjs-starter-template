@@ -167,9 +167,12 @@ Twitter tags at it.
 
 ### The /users directory
 
-A page listing the members who asked to be listed, reached from **Users** in
-the sidebar, beside Leaderboard. Both are about other members, which is why
-they sit together.
+A page listing every member whose profile is listed, reached from **Users**
+in the sidebar, beside Leaderboard. Both are about other members, which is
+why they sit together. Every account is listed unless its owner switches it
+off, since 17 Oct 2026 (see [the public profile](public-profile.md)), so the
+line under the title says "Everyone who focuses here. Leave the list any
+time in Settings, under Public page."
 
 - **A second switch**, separate from having a profile at all. Having a page
   and being in a directory other people browse are different wishes, which is

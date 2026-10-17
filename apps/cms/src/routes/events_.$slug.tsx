@@ -126,7 +126,7 @@ function EventRoute() {
             srcSet={mediaImageSrcSet(event.coverImage)}
             // The page's column, 1152px at most. Not lazy: it opens the page.
             sizes="(min-width: 1184px) 1152px, 100vw"
-            alt=""
+            alt={event.title}
             className="aspect-[3/1] w-full object-cover"
           />
         ) : null}

@@ -54,6 +54,8 @@ export function NearbyListings({
                     srcSet={mediaImageSrcSet(listing.featuredImage)}
                     // `size-20` on a phone, `size-28` above it.
                     sizes="(min-width: 768px) 112px, 80px"
+                    // Empty on purpose: the name is printed right beside the
+                    // thumbnail, and a screen reader would say it twice.
                     alt=""
                     loading="lazy"
                     className="size-full object-cover"

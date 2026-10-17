@@ -97,10 +97,14 @@ const everyPublicRead: Record<
     (
       await publicReads.readEventSuggestions(site.id, "market", at, database)
     ).map((row) => row.slug),
-  eventSitemapEntries: async () =>
-    (await publicReads.eventSitemapEntries(site.id, database, at)).map(
+  eventSitemapFile: async () =>
+    ((await publicReads.eventSitemapFile(site.id, 0, database, at)) ?? []).map(
       (entry) => entry.path.replace("/events/", "")
     ),
+  eventSitemapFiles: {
+    notAList:
+      "Counts the numbered files and never names an event. Proven by the sitemap tests, where a site of only private events has none.",
+  },
   newestEventsForFeed: async () =>
     (await publicReads.newestEventsForFeed(site.id, 20, database)).map(
       (row) => row.slug

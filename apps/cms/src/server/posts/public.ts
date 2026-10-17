@@ -24,7 +24,7 @@ import {
   type PostBody,
 } from "@/lib/posts/post-body"
 import { MORE_TO_READ_COUNT, POSTS_PAGE_SIZE } from "@/lib/posts/post-sort"
-import type { SitemapEntry } from "@/server/app-options"
+import type { SitemapChunkFile, SitemapEntry } from "@/server/app-options"
 import { readPageVisibility } from "@/server/content/pages"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -37,6 +37,11 @@ import {
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
 import { sitePostCoverImage } from "@/server/directory/settings"
 import { categories, categoryRelationships } from "@/server/directory/schema"
+import {
+  numberedSitemapChunk,
+  numberedSitemapFiles,
+  type NumberedSitemapSource,
+} from "@/server/directory/sitemap"
 import {
   featuredPostsFirst,
   postsArePublic,
@@ -335,23 +340,58 @@ export async function postSearchResults(
 }
 
 /**
- * Every published post's address, for the flat sitemap file. A site's posts are
- * written by hand, so they stay far below the size that needs numbered files.
+ * The posts in the sitemap: every published post, and none while the Posts
+ * page is not open to everyone. Numbered oldest first, so a new post lands in
+ * the last file and moves nothing.
  */
-export async function postSitemapEntries(
+async function postSitemapSource(
+  siteId: string,
+  database: CustomShellDb
+): Promise<{ source: NumberedSitemapSource; open: boolean }> {
+  const open = await postsArePublic(siteId, database)
+  const source: NumberedSitemapSource = {
+    table: sitePosts,
+    where: open ? publishedPostsOnSite(siteId) : sql`false`,
+    order: [sitePosts.createdAt, sitePosts.id],
+    slug: sitePosts.slug,
+    updatedAt: sitePosts.updatedAt,
+    folder: "/post-sitemaps",
+    pagePath: (slug) => `/posts/${slug}`,
+  }
+  return { source, open }
+}
+
+/**
+ * The numbered files this site's posts come in, for the sitemap index. None
+ * when there are no posts to list. Held by the public-page cache, which saving
+ * a post clears.
+ */
+export async function postSitemapFiles(
   siteId: string,
   database: CustomShellDb = db
-): Promise<SitemapEntry[]> {
-  if (!(await postsArePublic(siteId, database))) return []
-  const rows = await database
-    .select({ slug: sitePosts.slug, updatedAt: sitePosts.updatedAt })
-    .from(sitePosts)
-    .where(publishedPostsOnSite(siteId))
-    .orderBy(asc(sitePosts.slug))
-  return rows.map((row) => ({
-    path: `/posts/${row.slug}`,
-    updatedAt: row.updatedAt,
-  }))
+): Promise<readonly SitemapChunkFile[]> {
+  const { source, open } = await postSitemapSource(siteId, database)
+  return cachedPublicDirectoryRead(siteId, "post-sitemap-files", { open }, () =>
+    numberedSitemapFiles(source, database)
+  )
+}
+
+/**
+ * One numbered file's post addresses, or `null` when that file does not exist.
+ * File zero always exists, and is empty on a site with none to list.
+ */
+export async function postSitemapFile(
+  siteId: string,
+  chunk: number,
+  database: CustomShellDb = db
+): Promise<readonly SitemapEntry[] | null> {
+  const { source, open } = await postSitemapSource(siteId, database)
+  return cachedPublicDirectoryRead(
+    siteId,
+    "post-sitemap-file",
+    { chunk, open },
+    () => numberedSitemapChunk(source, chunk, database)
+  )
 }
 
 export type PostFeedRow = PublicPostCard & { body: PostBody }

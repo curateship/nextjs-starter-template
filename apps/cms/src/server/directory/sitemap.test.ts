@@ -9,8 +9,12 @@ import {
   updateListing,
 } from "@/server/directory/listings"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
+import { createEvent, updateEvent } from "@/server/events/events"
+import { eventSitemapFile, eventSitemapFiles } from "@/server/events/public"
+import { createPost, updatePost } from "@/server/posts/posts"
+import { postSitemapFile, postSitemapFiles } from "@/server/posts/public"
 import {
-  DIRECTORY_SITEMAP_CHUNK_SIZE,
+  SITEMAP_CHUNK_SIZE,
   directoryListingChunkEntries,
   directorySitemapChunkFiles,
   directorySitemapEntries,
@@ -182,7 +186,7 @@ describe("the numbered files an index points at", () => {
   })
 
   it("splits at five thousand and serves each part", async () => {
-    await bulkListings(alpha, DIRECTORY_SITEMAP_CHUNK_SIZE + 1)
+    await bulkListings(alpha, SITEMAP_CHUNK_SIZE + 1)
 
     const files = await directorySitemapChunkFiles(alpha, database)
     expect(files.map((file) => file.path)).toEqual([
@@ -193,11 +197,11 @@ describe("the numbered files an index points at", () => {
     const first = await directoryListingChunkEntries(alpha, 0, database)
     const second = await directoryListingChunkEntries(alpha, 1, database)
 
-    expect(first).toHaveLength(DIRECTORY_SITEMAP_CHUNK_SIZE)
+    expect(first).toHaveLength(SITEMAP_CHUNK_SIZE)
     expect(second).toHaveLength(1)
     expect(first?.[0]?.path).toBe("/directory/listing-0000000001")
     expect(second?.[0]?.path).toBe(
-      `/directory/listing-${String(DIRECTORY_SITEMAP_CHUNK_SIZE + 1).padStart(10, "0")}`
+      `/directory/listing-${String(SITEMAP_CHUNK_SIZE + 1).padStart(10, "0")}`
     )
 
     // No address is in two files and none is missed.
@@ -205,7 +209,7 @@ describe("the numbered files an index points at", () => {
       ...(first ?? []).map((entry) => entry.path),
       ...(second ?? []).map((entry) => entry.path),
     ])
-    expect(everything.size).toBe(DIRECTORY_SITEMAP_CHUNK_SIZE + 1)
+    expect(everything.size).toBe(SITEMAP_CHUNK_SIZE + 1)
 
     expect(await directoryListingChunkEntries(alpha, 2, database)).toBeNull()
   })
@@ -223,5 +227,131 @@ describe("the numbered files an index points at", () => {
 
     expect(alphaPaths).toEqual(["/directory/alpha-open"])
     expect(betaPaths).toEqual(["/directory/beta-open"])
+  })
+})
+
+describe("events and posts in numbered files", () => {
+  // A Saturday in the middle of the bulk events' run, so none is past its 30
+  // days and every one is listed.
+  const at = new Date("2026-09-26T16:00:00Z")
+
+  async function bulkEvents(workspaceId: string, count: number) {
+    await database.execute(sql`
+      INSERT INTO events
+        (id, workspace_id, title, slug, body, status, visibility, start_date,
+         start_time, published_at, created_at, updated_at)
+      SELECT
+        left(${workspaceId}, 8) || '-' || lpad(n::text, 10, '0'),
+        ${workspaceId},
+        'Event ' || n,
+        'event-' || lpad(n::text, 10, '0'),
+        '{}'::jsonb,
+        'published',
+        'public',
+        '2026-10-01',
+        '18:00',
+        now(),
+        timestamp '2026-01-01' + n * interval '1 second',
+        now()
+      FROM generate_series(1, ${count}) AS n
+    `)
+  }
+
+  async function event(
+    workspaceId: string,
+    title: string,
+    patch: { status: "draft" | "published"; visibility?: "public" | "private" }
+  ) {
+    const created = await createEvent(
+      workspaceId,
+      { title, when: { startDate: "2026-10-01", startTime: "18:00" } },
+      database
+    )
+    return updateEvent(workspaceId, created.id, patch, database)
+  }
+
+  async function post(
+    workspaceId: string,
+    title: string,
+    status: "draft" | "published"
+  ) {
+    const created = await createPost(workspaceId, { title }, database)
+    return updatePost(workspaceId, created.id, { status }, database)
+  }
+
+  async function paths(
+    read: (chunk: number) => Promise<readonly { path: string }[] | null>,
+    chunk: number
+  ) {
+    return ((await read(chunk)) ?? []).map((entry) => entry.path)
+  }
+
+  it("splits eleven thousand events into three files, and the index lists each once", async () => {
+    await bulkEvents(alpha, 11_000)
+
+    const files = await eventSitemapFiles(alpha, database, at)
+    expect(files.map((file) => file.path)).toEqual([
+      "/event-sitemaps/0",
+      "/event-sitemaps/1",
+      "/event-sitemaps/2",
+    ])
+
+    const read = (chunk: number) =>
+      eventSitemapFile(alpha, chunk, database, at)
+    const first = await paths(read, 0)
+    const second = await paths(read, 1)
+    const third = await paths(read, 2)
+    expect([first.length, second.length, third.length]).toEqual([
+      SITEMAP_CHUNK_SIZE,
+      SITEMAP_CHUNK_SIZE,
+      1000,
+    ])
+    // Oldest first, so the newest events are at the end of the last file.
+    expect(first[0]).toBe("/events/event-0000000001")
+    expect(third.at(-1)).toBe("/events/event-0000011000")
+    expect(new Set([...first, ...second, ...third]).size).toBe(11_000)
+
+    // Every file the index names answers, and nothing past the last does.
+    expect(await read(3)).toBeNull()
+  })
+
+  it("puts a dozen posts in one file that is not empty", async () => {
+    for (let n = 1; n <= 12; n += 1) await post(alpha, `Post ${n}`, "published")
+
+    const files = await postSitemapFiles(alpha, database)
+    expect(files.map((file) => file.path)).toEqual(["/post-sitemaps/0"])
+    expect(files[0]?.updatedAt).toBeInstanceOf(Date)
+
+    const read = (chunk: number) => postSitemapFile(alpha, chunk, database)
+    expect(await paths(read, 0)).toHaveLength(12)
+    expect(await read(1)).toBeNull()
+  })
+
+  it("never lists a private event or a draft post, nor counts a file for them", async () => {
+    await event(alpha, "Members market", {
+      status: "published",
+      visibility: "private",
+    })
+    await event(alpha, "Unfinished market", { status: "draft" })
+    await post(alpha, "Unfinished post", "draft")
+
+    expect(await eventSitemapFiles(alpha, database, at)).toEqual([])
+    expect(await postSitemapFiles(alpha, database)).toEqual([])
+    // File zero still answers, empty, rather than a 404.
+    expect(await eventSitemapFile(alpha, 0, database, at)).toEqual([])
+    expect(await postSitemapFile(alpha, 0, database)).toEqual([])
+
+    const open = await event(alpha, "Night market", { status: "published" })
+    const published = await post(alpha, "Night market guide", "published")
+    expect(
+      await paths((chunk) => eventSitemapFile(alpha, chunk, database, at), 0)
+    ).toEqual([`/events/${open.slug}`])
+    expect(
+      await paths((chunk) => postSitemapFile(alpha, chunk, database), 0)
+    ).toEqual([`/posts/${published.slug}`])
+
+    // Another site's are never in this site's files.
+    expect(await eventSitemapFile(beta, 0, database, at)).toEqual([])
+    expect(await postSitemapFile(beta, 0, database)).toEqual([])
   })
 })

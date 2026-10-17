@@ -62,6 +62,12 @@ describe("listing card", () => {
     expect(markup).toContain("400w")
   })
 
+  it("names its photo with the listing's title", () => {
+    expect(renderToStaticMarkup(<ListingCard listing={base} />)).toContain(
+      `alt="${base.title}"`
+    )
+  })
+
   it("drops the rating chip when a listing has no rating", () => {
     const markup = renderToStaticMarkup(
       <ListingCard listing={{ ...base, rating: null }} />

@@ -449,7 +449,7 @@ export default function PublicProfileSettingsPanel() {
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-6">
                 <section className="grid grid-cols-1 gap-3">
-                  <FieldLabel hint="Each one is off until you switch it on. Nobody sees a section until you do.">
+                  <FieldLabel hint="A new account starts with every one on. Switch off any you would rather keep to yourself.">
                     What your page shows
                   </FieldLabel>
                   {PROFILE_SECTIONS.map((section) => (

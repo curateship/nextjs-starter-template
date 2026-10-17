@@ -28,7 +28,7 @@ export const PRO_PERKS = {
     key: "longRangeReports",
     label: "Long history ranges",
     lockedReason:
-      "History beyond two weeks is a Pro perk. Upgrade to see the long ranges.",
+      "Stats beyond two weeks are a Pro perk. Upgrade to see the long ranges.",
   },
   aiCredits: {
     key: "aiCredits",

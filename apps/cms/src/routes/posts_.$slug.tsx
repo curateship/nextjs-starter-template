@@ -79,7 +79,7 @@ function PostRoute() {
               ? "(min-width: 1184px) 784px, (min-width: 1024px) 68vw, 100vw"
               : "(min-width: 1184px) 1152px, 100vw"
           }
-          alt=""
+          alt={post.title}
           className="aspect-[3/1] w-full rounded-xl object-cover"
         />
       ) : null}
