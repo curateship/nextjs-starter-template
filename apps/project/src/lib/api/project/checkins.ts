@@ -25,7 +25,6 @@ import {
   submitCheckin,
 } from "@/server/project/checkins"
 import { loadMyWeek } from "@/server/project/my-week"
-import { listInvitesForMe } from "@/server/project/invites"
 import { loadMyDashboard, setMyStatusOrder } from "@/server/project/my-dashboard"
 import { loadTeamDay, loadTeamMonth } from "@/server/project/team-days"
 import { setCalendarDueDates } from "@/server/project/team-due-dates"
@@ -51,15 +50,12 @@ const id = z.string().min(1).max(36)
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Pick a month like 2026-10.")
 const day = z.string().refine(isRealDay, "Pick a day like 2026-10-09.")
 
-/** My dashboard, plus what the page needs when there is no team yet. */
+/** My dashboard, or null when the person isn't on a team yet. */
 const loadMyDashboardFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => {
-    if (!(await findMembership(context.user.id))) {
-      return { dashboard: null, invites: await listInvitesForMe(context.user) }
-    }
-    return { dashboard: await loadMyDashboard(context.user.id), invites: [] }
-  })
+  .handler(async ({ context }) => ({
+    dashboard: (await findMembership(context.user.id)) ? await loadMyDashboard(context.user.id) : null,
+  }))
 
 const submitCheckinFn = createServerFn({ method: "POST" })
   .middleware([userPost])

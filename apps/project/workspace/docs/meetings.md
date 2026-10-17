@@ -8,7 +8,7 @@ page.
 ## Tyler's choices, 11 Oct 2026
 
 - **Anyone on the team makes a meeting.** Only the person who made it, the
-  owner and admins can change or delete it. Everyone else gets no cog on its
+  site admin can change or delete it. Everyone else gets no cog on its
   row, and the server refuses them too.
 - **A meeting belongs to the team.** Everyone on the team sees it on the
   calendar, invited or not. The people invited show as their photos.
@@ -47,15 +47,22 @@ page.
 
 ## On the calendar
 
-- **Each meeting is a short coloured chip** on its day, under the check-in
-  counts, cut with "…" when the name doesn't fit. Past two, the square says
+- **Each square, as Tyler drew it on 16 Oct 2026**
+  (`assets/pasted-image-1792198895998862000.png`): the day and a check-in
+  pill on one line, "4/4" in grey when everyone checked in, amber when some
+  did ("3/4") and red when nobody did ("0/5"); then a red "1 blocked" chip,
+  the meetings and who is away, each a chip as wide as the square. Squares
+  are white with a border, and days outside the month are grey. The square's
+  label says it all in words for a screen reader.
+- **Each meeting is a short coloured chip** on its day, under the blocked
+  count, cut with "…" when the name doesn't fit. Past two, the square says
   "+1 more". The name is always written, so colour is never the only sign.
 - **Days still to come can be clicked**, so next week's meetings can be read.
   The Check-ins tab on the right keeps showing today for a day still to come,
   and says "Wed, Oct 14 hasn't happened yet. Showing today."
 - **Who is away.** Each of the team's work days names whoever is on time
-  off with a palm-tree mark: "Leo Hart away", or "3 away" when more than
-  one is. A phone's square shows the mark and the count. It is always shown,
+  off: "Leo Hart away", or "3 away" when more than one is. A phone's square
+  shows a palm-tree mark and the count. It is always shown,
   to everyone on the team, with no switch (Tyler, 16 Oct 2026), and never
   says why, because no reason is kept. A day the team doesn't work, and
   anyone who has left the team, isn't named. The Week view's day headings
@@ -104,7 +111,7 @@ So a busy week of meetings can be read.
 
 ## Due dates on the calendar
 
-So an owner sees a crowded week coming.
+So the site admin sees a crowded week coming.
 
 - **"Due dates" is a switch** at the end of the row under the calendar's
   tabs. It is each person's own, off to begin with, and kept on the server,
@@ -150,7 +157,7 @@ Three cards:
   yet", and the count in the card's title.
 - **Notes.** That date's notes.
 
-The footer has **Change meeting** for the maker, the owner and admins, which
+The footer has **Change meeting** for the maker and the site admin, which
 closes this window and opens the one that changes the meeting, and Done.
 
 ### Add to my calendar
@@ -184,7 +191,7 @@ closes this window and opens the one that changes the meeting, and Done.
 - **Notes are kept per date.** A weekly meeting has a fresh page each Monday.
   The date is the one in the meeting's own calendar, so someone in Tokyo
   reading Tuesday's 8:30 AM sees the same notes as Toronto's Monday.
-- **Everyone on the team reads them. Only the maker, the owner and admins
+- **Everyone on the team reads them. Only the maker and the site admin
   write them**, the same people who can change the meeting. The server
   refuses anyone else, and a date the meeting doesn't fall on.
 - **The editor is the one task notes use**: select words for bold, a list or

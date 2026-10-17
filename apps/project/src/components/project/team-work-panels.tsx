@@ -1,13 +1,9 @@
 import * as React from "react"
-import { CircleAlertIcon } from "lucide-react"
 
 import { ClientFilterSelect } from "@/components/project/client-filter-select"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TeamSideCard } from "@/components/project/team-side-card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
-import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   loadAttention,
@@ -53,22 +49,66 @@ export function useAttention(enabled: boolean, reload: unknown) {
 }
 const loadNothing = async (): Promise<AttentionRow[]> => []
 
-/** Each kind's line, in Tyler's words: Stuck reads "blocked", as on the calendar. */
-const ATTENTION_GROUPS: { kind: AttentionKind; label: string; tint: string }[] = [
-  { kind: "overdue", label: "overdue", tint: "bg-red-500/10 text-red-600 dark:text-red-400" },
-  { kind: "stuck", label: "blocked", tint: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
-  { kind: "not_accepted", label: "handed over, not accepted", tint: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
-  { kind: "review_waiting", label: "waiting for review", tint: "bg-sky-500/10 text-sky-600 dark:text-sky-400" },
-  { kind: "picked_many", label: "picked on 3 days or more", tint: "bg-violet-500/10 text-violet-600 dark:text-violet-400" },
+/**
+ * Each kind's card, in the order and words Tyler drew on 16 Oct 2026
+ * (`workspace/docs/assets/pasted-image-1792198368279821000.png`). Stuck reads
+ * "Blocked", as on the calendar. `after` is the short "how long" at a row's
+ * end; overdue's is red.
+ */
+const ATTENTION_GROUPS: {
+  kind: AttentionKind
+  label: string
+  dot: string
+  chip: string
+  after: (days: number) => string
+}[] = [
+  {
+    kind: "overdue",
+    label: "Overdue",
+    dot: "bg-red-600",
+    chip: "bg-red-500/10 text-red-600 dark:text-red-400",
+    after: (days) => plural(days, "day"),
+  },
+  {
+    kind: "stuck",
+    label: "Blocked",
+    dot: "bg-amber-700 dark:bg-amber-500",
+    chip: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+    after: (days) => (days ? `Stuck ${plural(days, "day")}` : "Stuck today"),
+  },
+  {
+    kind: "not_accepted",
+    label: "Handed over, not accepted",
+    dot: "bg-blue-600",
+    chip: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    after: (days) => plural(days, "work day"),
+  },
+  {
+    kind: "review_waiting",
+    label: "Waiting for review",
+    dot: "bg-sky-700 dark:bg-sky-500",
+    chip: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
+    after: (days) => plural(days, "work day"),
+  },
+  {
+    kind: "picked_many",
+    label: "Picked on 3+ days",
+    dot: "bg-violet-600",
+    chip: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+    after: (days) => plural(days, "day"),
+  },
 ]
 
+function plural(count: number, one: string) {
+  return `${count} ${one}${count === 1 ? "" : "s"}`
+}
+
 /**
- * Every task that needs help, for the owner and admins, as Tyler drew it on
- * 14 Oct 2026: one card with a line per kind, "1 task overdue" by a tinted
- * mark, and under it each task with how long ("test · was due Oct 12"), which
- * opens it. Stuck counts from the day it's marked, not accepted and waiting
- * for review after a work day, picked on 3+ days and not Done, and overdue. The numbers for the
- * morning are in the bell; this gives the names.
+ * Every task that needs help, for the site admin: a card per kind with its
+ * count, each task a row with whose it is and how long, which opens it. Stuck
+ * counts from the day it's marked, not accepted and waiting for review after
+ * a work day, picked on 3+ days and not Done, and overdue. The numbers for
+ * the morning are in the bell; this gives the names.
  */
 export function AttentionPanel({
   attention,
@@ -81,64 +121,93 @@ export function AttentionPanel({
   if (loaded.state === "loading") return <LoadingRow label="Loading what needs attention…" />
   if (loaded.state === "error") return <ErrorRow message={loaded.message} onRetry={retry} />
   const rows = loaded.value
-  return (
-    <TeamSideCard>
-      {rows.length === 0 ? (
+  if (rows.length === 0) {
+    return (
+      <TeamSideCard>
         <p className="text-sm text-muted-foreground">
           Nothing needs attention: no task is stuck, unanswered, waiting for review, dragging or overdue.
         </p>
-      ) : (
-        <div className="grid gap-4">
-          {ATTENTION_GROUPS.map((group) => {
-            const mine = rows.filter((row) => row.kind === group.kind)
-            if (mine.length === 0) return null
-            const heading = `${mine.length} ${mine.length === 1 ? "task" : "tasks"} ${group.label}`
-            return (
-              <section key={group.kind} className="flex gap-3" aria-label={heading}>
-                <span
-                  aria-hidden
-                  className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", group.tint)}
-                >
-                  <CircleAlertIcon className="size-4" />
-                </span>
-                <div className="grid min-w-0 flex-1 gap-0.5">
-                  <h4 className="text-sm font-medium">{heading}</h4>
-                  <ul className="grid">
-                    {mine.map((row) => (
-                      <AttentionLine key={`${row.kind}-${row.taskId}`} row={row} onOpen={() => onOpenTask(row.taskId)} />
-                    ))}
-                  </ul>
-                </div>
-              </section>
-            )
-          })}
-        </div>
-      )}
-    </TeamSideCard>
+      </TeamSideCard>
+    )
+  }
+  return (
+    <>
+      {ATTENTION_GROUPS.map((group) => {
+        const mine = rows.filter((row) => row.kind === group.kind)
+        if (mine.length === 0) return null
+        return (
+          <section
+            key={group.kind}
+            aria-label={`${group.label}, ${mine.length}`}
+            className="min-w-0 overflow-hidden rounded-lg border bg-muted/40"
+          >
+            <div className="flex items-center gap-3 border-b px-4 py-3">
+              <span aria-hidden className={cn("size-2 shrink-0 rounded-full", group.dot)} />
+              <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold">{group.label}</h3>
+              <span className={cn("shrink-0 rounded-full px-2 text-xs font-medium tabular-nums", group.chip)}>
+                {mine.length}
+              </span>
+            </div>
+            <ul className="divide-y">
+              {mine.map((row) => (
+                <AttentionLine
+                  key={`${row.kind}-${row.taskId}`}
+                  row={row}
+                  after={group.after(row.days)}
+                  late={group.kind === "overdue"}
+                  onOpen={() => onOpenTask(row.taskId)}
+                />
+              ))}
+            </ul>
+          </section>
+        )
+      })}
+    </>
   )
 }
 
-/** "test · Admin · was due Oct 12", opening the task. */
-function AttentionLine({ row, onOpen }: { row: AttentionRow; onOpen: () => void }) {
+/** The task's title, then whose it is ("Ben → Sam" for a review) and how long; opens the task. */
+function AttentionLine({
+  row,
+  after,
+  late,
+  onOpen,
+}: {
+  row: AttentionRow
+  after: string
+  late: boolean
+  onOpen: () => void
+}) {
+  const who = row.reviewerName
+    ? `${row.personName ?? "Nobody"} → ${row.reviewerName}`
+    : (row.personName ?? "Nobody")
   return (
     <li>
       <button
         type="button"
         onClick={onOpen}
-        className="w-full rounded text-left text-sm break-words text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        aria-label={`${row.title}, ${who}, ${row.howLong}`}
+        className="grid w-full gap-0.5 px-4 py-3 text-left hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
       >
-        {row.title} · {row.personName ?? "Nobody"} · {row.howLong}
+        <span className="text-sm break-words">{row.title}</span>
+        <span className="flex min-w-0 items-baseline justify-between gap-3 text-xs">
+          <span className="min-w-0 truncate text-muted-foreground">{who}</span>
+          <span className={cn("shrink-0 tabular-nums", late ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+            {after}
+          </span>
+        </span>
       </button>
     </li>
   )
 }
 
-const BUCKETS: { bucket: WorkloadBucket; label: string }[] = [
-  { bucket: "open", label: "Open" },
-  { bucket: "doing", label: "Doing" },
-  { bucket: "stuck", label: "Stuck" },
-  { bucket: "overdue", label: "Overdue" },
-  { bucket: "week", label: "Due this week" },
+/** Each figure's word under it, and what a screen reader hears ("2 due this week"). */
+const BUCKETS: { bucket: WorkloadBucket; label: string; spoken: string }[] = [
+  { bucket: "open", label: "Open", spoken: "open" },
+  { bucket: "doing", label: "Doing", spoken: "doing" },
+  { bucket: "stuck", label: "Stuck", spoken: "stuck" },
+  { bucket: "overdue", label: "Overdue", spoken: "overdue" },
+  { bucket: "week", label: "This week", spoken: "due this week" },
 ]
 
 /**
@@ -164,23 +233,23 @@ export function WorkloadPanel({
   const [open, setOpen] = React.useState<{ person: string; bucket: WorkloadBucket } | null>(null)
   if (loaded.state === "loading") return <LoadingRow label="Loading the workload…" />
   if (loaded.state === "error") return <ErrorRow message={loaded.message} onRetry={retry} />
+  // As Tyler drew it on 16 Oct 2026 (`workspace/docs/assets/pasted-image-1792198613454502000.png`).
   return (
-    <TeamSideCard>
-      {clients.length || client ? (
-        <div className="flex items-center gap-3">
-          <Label htmlFor="workload-client" className="shrink-0 font-normal text-muted-foreground">
-            Client
-          </Label>
+    <section aria-label="Workload" className="min-w-0 overflow-hidden rounded-lg border bg-muted/40">
+      <div className="flex min-w-0 items-center justify-between gap-3 border-b px-4 py-3">
+        <h3 className="shrink-0 text-[15px] font-semibold">Workload</h3>
+        {clients.length || client ? (
           <ClientFilterSelect
             id="workload-client"
+            aria-label="Client"
             value={client}
             clients={clients}
             onChange={onClient}
-            className="sm:w-fit sm:min-w-40"
+            className="w-fit min-w-0 bg-background"
           />
-        </div>
-      ) : null}
-      <ul className="-mx-4 divide-y">
+        ) : null}
+      </div>
+      <ul className="divide-y">
         {loaded.value.map((row) => (
           <WorkloadLine
             key={row.person.id}
@@ -197,7 +266,7 @@ export function WorkloadPanel({
           />
         ))}
       </ul>
-    </TeamSideCard>
+    </section>
   )
 }
 
@@ -215,8 +284,8 @@ function WorkloadLine({
   const listed = openBucket ? row.tasks[openBucket] : []
   return (
     <li className="grid gap-3 px-4 py-3">
-      <div className="flex items-center gap-3">
-        <PersonAvatar name={row.person.name} avatarUrl={row.person.avatarUrl} />
+      <div className="flex min-w-0 items-center gap-3">
+        <PersonAvatar name={row.person.name} avatarUrl={row.person.avatarUrl} size="default" />
         <div className="grid min-w-0">
           <span className="truncate text-sm font-medium">{row.person.name}</span>
           {row.person.title ? (
@@ -224,26 +293,35 @@ function WorkloadLine({
           ) : null}
         </div>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {BUCKETS.map(({ bucket, label }) => (
-          <Button
-            key={bucket}
-            type="button"
-            variant={openBucket === bucket ? "secondary" : "outline"}
-            size="sm"
-            aria-pressed={openBucket === bucket}
-            aria-label={`${row.person.name}: ${row.counts[bucket]} ${label.toLowerCase()}`}
-            onClick={() => onBucket(bucket)}
-          >
-            {label}
-            <Badge
-              variant={row.counts[bucket] && (bucket === "stuck" || bucket === "overdue") ? "destructive" : "secondary"}
-              className="ml-0.5"
+      {/* Five figures in one white strip; pressing one lists those tasks under it. */}
+      <div className="grid grid-cols-5 overflow-hidden rounded-lg border bg-background">
+        {BUCKETS.map(({ bucket, label, spoken }) => {
+          const count = row.counts[bucket]
+          const bad = count > 0 && (bucket === "stuck" || bucket === "overdue")
+          return (
+            <button
+              key={bucket}
+              type="button"
+              aria-pressed={openBucket === bucket}
+              aria-label={`${row.person.name}: ${count} ${spoken}`}
+              onClick={() => onBucket(bucket)}
+              className={cn(
+                "grid min-w-0 content-start justify-items-center gap-0.5 px-0 py-1.5 hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
+                openBucket === bucket && "bg-accent"
+              )}
             >
-              {row.counts[bucket]}
-            </Badge>
-          </Button>
-        ))}
+              <span
+                className={cn(
+                  "text-base font-semibold tabular-nums",
+                  bad ? "text-red-600 dark:text-red-400" : count === 0 ? "text-muted-foreground/50" : "text-foreground"
+                )}
+              >
+                {count}
+              </span>
+              <span className="max-w-full text-center text-[11px] leading-tight text-muted-foreground">{label}</span>
+            </button>
+          )
+        })}
       </div>
       {openBucket ? (
         listed.length === 0 ? (

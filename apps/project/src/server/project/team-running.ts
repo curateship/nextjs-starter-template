@@ -1,9 +1,9 @@
-import { and, count, eq, gt, gte, inArray, isNotNull, isNull, lte, max, ne } from "drizzle-orm"
+import { and, count, eq, gte, inArray, isNotNull, isNull, lte, max, ne, sql } from "drizzle-orm"
 
 import { matchesClient } from "@/lib/project/clients"
 import { addDays, localNow, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
-import { teamJoinedHeading, MEMBERS_HREF } from "@/lib/project/notices"
+import { teamJoinedHeading, MEMBERS_HREF, onTeamHref } from "@/lib/project/notices"
 import {
   INVITE_LIFETIME_DAYS,
   JOINS_PER_LINK_PER_DAY,
@@ -11,13 +11,14 @@ import {
   runsTheTeam,
 } from "@/lib/project/rules"
 import { appUrlFor } from "@/server/app-url"
+import { RateLimitError, enforceRateLimit } from "@/server/auth/rate-limit"
 import { createSecretToken, hashToken, now } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
-  findMembership,
   isProjectMember,
   requireMembership,
   requireTeamRunner,
+  siteAdminIds,
   visibleProjectsWhere,
   type Membership,
   type ProjectDb,
@@ -33,11 +34,10 @@ import {
   projectTeams,
   projectTimeOff,
 } from "@/server/project/schema"
-import { giveStarterTasks } from "@/server/project/starter-tasks"
+import { addEmployee } from "@/server/project/invites"
 import { assignTask, listTaskCards, type Actor, type TaskCard } from "@/server/project/tasks"
 import { clearAssignee } from "@/server/project/teams"
 import { customShellUsers } from "@/server/schema"
-import { joinWholeTeamProjects } from "@/server/project/whole-team"
 
 /**
  * What the person running the team needs: tasks that need help, who has room
@@ -121,6 +121,8 @@ export type AttentionRow = {
   title: string
   projectName: string
   personName: string | null
+  /** Who should review it, for a task waiting for review; null for every other kind. */
+  reviewerName: string | null
   /** "Stuck for 3 days", "Not accepted for 2 work days", "Picked on 5 days", "4 days overdue". */
   howLong: string
   /** How many days, for ordering the longest first. */
@@ -178,6 +180,7 @@ export async function loadNeedsAttention(
     title: task.title,
     projectName: task.projectName,
     personName: task.assignee?.name ?? null,
+    reviewerName: kind === "review_waiting" ? (task.review.reviewer?.name ?? null) : null,
     howLong,
     days,
   })
@@ -481,7 +484,7 @@ export async function makeJoinLink(actorId: string, database = db) {
     .set({ joinTokenHash: hashToken(token), joinExpiresAt: expiresAt, updatedAt: now() })
     .where(eq(projectTeams.id, membership.teamId))
   return {
-    link: appUrlFor(`/projects/join/${encodeURIComponent(token)}`),
+    link: appUrlFor(`/join/${encodeURIComponent(token)}`),
     expiresAt: expiresAt.toISOString(),
   }
 }
@@ -496,84 +499,90 @@ export async function turnOffJoinLink(actorId: string, database = db) {
 
 export type JoinOffer = {
   teamName: string
-  /** Why the person can't join, or null when they can. */
-  blocker: "expired" | "already-on-team" | null
+  /** Why nobody can join through it right now, or null when they can. */
+  blocker: "expired" | null
 }
 
-/** The team behind a join link, as the signed-in person sees it. Null for a link that was reset or turned off. */
-export async function loadJoinOffer(userId: string, token: string, database = db): Promise<JoinOffer | null> {
+/** The team behind a join link. Null for a link that was reset or turned off. */
+export async function loadJoinOffer(token: string, database = db): Promise<JoinOffer | null> {
   const [team] = await database
     .select({ name: projectTeams.name, expiresAt: projectTeams.joinExpiresAt })
     .from(projectTeams)
     .where(eq(projectTeams.joinTokenHash, hashToken(token)))
   if (!team) return null
-  return {
-    teamName: team.name,
-    blocker:
-      team.expiresAt && team.expiresAt <= now()
-        ? "expired"
-        : (await findMembership(userId, database))
-          ? "already-on-team"
-          : null,
-  }
+  return { teamName: team.name, blocker: team.expiresAt && team.expiresAt <= now() ? "expired" : null }
 }
 
 /**
- * Joins the team behind a link, as a member, straight away (Tyler's choice:
- * no approval). Capped per link per day, so a link that leaks can't fill the
- * team, and the owner and admins hear about each join in the bell.
+ * Joins the team behind a link, straight away (Tyler's choice: no approval).
+ * Whoever opens it is signed out: they type their name and email, become an
+ * employee on the team, and get the "Set your password" email. An address
+ * that already has an account is refused, so a link can't move somebody
+ * else's account onto a team. Capped per link per day, so a link that leaks
+ * can't fill the team, and the site admin hears about each join in the bell.
  */
 export async function joinTeamByLink(
-  user: { id: string; name: string },
+  person: { name: string; email: string },
   token: string,
   database = db
-): Promise<{ teamId: string }> {
-  return database.transaction(async (tx) => {
-    const hash = hashToken(token)
-    const [team] = await tx
-      .select({ id: projectTeams.id, expiresAt: projectTeams.joinExpiresAt })
-      .from(projectTeams)
-      .where(eq(projectTeams.joinTokenHash, hash))
-      .for("update")
-    if (!team) throw new Error(PROJECT_ERRORS.joinLinkNotFound)
-    if (team.expiresAt && team.expiresAt <= now()) throw new Error(PROJECT_ERRORS.joinLinkExpired)
-    if (await findMembership(user.id, tx)) throw new Error(PROJECT_ERRORS.alreadyOnTeam)
-    const [{ joins }] = await tx
-      .select({ joins: count() })
-      .from(projectTeamJoins)
-      .where(
-        and(
-          eq(projectTeamJoins.tokenHash, hash),
-          gt(projectTeamJoins.joinedAt, new Date(now().getTime() - DAY_MS))
-        )
-      )
-    if (joins >= JOINS_PER_LINK_PER_DAY) throw new Error(PROJECT_ERRORS.joinLinkBusy)
-    const at = now()
-    await tx.insert(projectTeamMembers).values({ teamId: team.id, userId: user.id, role: "member", joinedAt: at })
-    await tx.insert(projectTeamJoins).values({ teamId: team.id, userId: user.id, tokenHash: hash, joinedAt: at })
-    await giveStarterTasks(team.id, user.id, tx)
-    await joinWholeTeamProjects(team.id, user.id, tx)
-    const runners = await tx
-      .select({ userId: projectTeamMembers.userId })
-      .from(projectTeamMembers)
-      .where(
-        and(eq(projectTeamMembers.teamId, team.id), inArray(projectTeamMembers.role, ["owner", "admin"]))
-      )
+): Promise<{ emailed: boolean }> {
+  const name = person.name.trim()
+  if (!name) throw new Error(PROJECT_ERRORS.joinNeedsName)
+  const email = person.email.trim().toLowerCase()
+  const hash = hashToken(token)
+  const [team] = await database
+    .select({ id: projectTeams.id, expiresAt: projectTeams.joinExpiresAt })
+    .from(projectTeams)
+    .where(eq(projectTeams.joinTokenHash, hash))
+  if (!team) throw new Error(PROJECT_ERRORS.joinLinkNotFound)
+  if (team.expiresAt && team.expiresAt <= now()) throw new Error(PROJECT_ERRORS.joinLinkExpired)
+  if (await accountExists(email, database)) throw new Error(PROJECT_ERRORS.joinEmailTaken)
+  // The day's cap is claimed in one statement, so two people joining at the
+  // same moment can't both slip past it.
+  try {
+    await enforceRateLimit(
+      `project-join-link:${hash}`,
+      { maxAttempts: JOINS_PER_LINK_PER_DAY, windowSeconds: DAY_MS / 1000 },
+      database
+    )
+  } catch (error) {
+    if (error instanceof RateLimitError) throw new Error(PROJECT_ERRORS.joinLinkBusy)
+    throw error
+  }
+
+  const sent = await addEmployee(
+    { email, name, teamId: team.id },
+    { inviterName: name, workspaceId: null },
+    database
+  )
+  await database.transaction(async (tx) => {
+    await tx
+      .insert(projectTeamJoins)
+      .values({ teamId: team.id, userId: sent.userId, tokenHash: hash, joinedAt: now() })
     await writeAppNotices(
       tx,
-      runners.map((runner) => ({
+      (await siteAdminIds(tx)).map((adminId) => ({
         kind: "team_joined",
-        recipientUserId: runner.userId,
-        message: teamJoinedHeading(user.name),
-        detail: "They're a member now. Change their role on the Members page.",
-        href: MEMBERS_HREF,
+        recipientUserId: adminId,
+        message: teamJoinedHeading(name),
+        detail: "They're on the team now and will set their password from their email.",
+        href: onTeamHref(team.id, MEMBERS_HREF),
       }))
     )
-    return { teamId: team.id }
   })
+  return { emailed: sent.emailed }
 }
 
-/** A member's job title: their own, or anyone's for the owner and admins. */
+async function accountExists(email: string, database: ProjectDb) {
+  const [row] = await database
+    .select({ id: customShellUsers.id })
+    .from(customShellUsers)
+    .where(eq(sql`lower(${customShellUsers.email})`, email))
+    .limit(1)
+  return Boolean(row)
+}
+
+/** A member's job title: their own, or anyone's for the site admin. */
 export async function setMemberTitle(
   actorId: string,
   input: { userId?: string; title: string | null },

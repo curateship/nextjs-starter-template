@@ -3,19 +3,19 @@ import { and, asc, eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { NO_CLIENT_FILTER, clientChoices, matchesClient } from "@/lib/project/clients"
+import { PROJECT_ERRORS } from "@/lib/project/errors"
+import { onTeamHref } from "@/lib/project/notices"
 import { savedViewFiltersSchema, viewFilters } from "@/lib/project/saved-views"
 import { filterTasks, readTaskFilters } from "@/lib/project/task-filters"
 import type { CustomShellDb } from "@/server/db"
 import { requireMembership } from "@/server/project/access"
 import { visibleClients } from "@/server/project/clients"
-import { acceptInvite, createInvite } from "@/server/project/invites"
 import { createMilestone, setTaskMilestone } from "@/server/project/milestones"
 import { setNoticeSwitch } from "@/server/project/notice-switches"
 import { setRepeat } from "@/server/project/planning"
 import { makeRepeatCopies } from "@/server/project/planning-jobs"
 import {
   addProjectMember,
-  createProject,
   loadProjectPage,
   removeProjectMember,
   setProjectArchived,
@@ -44,10 +44,10 @@ import {
   updateStep,
   updateTask,
 } from "@/server/project/tasks"
-import { createTeam } from "@/server/project/teams"
 import { addTimeOff, awayBetween } from "@/server/project/time-off"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { insertEmployee, projectFor, startTeam } from "@/server/project/test-people"
+import { createTestDatabase } from "@/server/test-support"
 
 /*
  * Features 16 Oct 2026. Dates are in 2099 so nothing meets the real today:
@@ -62,6 +62,7 @@ const at = (iso: string) => new Date(iso)
 
 let client: PGlite
 let database: CustomShellDb
+let admin: CustomShellUser
 let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
@@ -74,22 +75,17 @@ beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
-  anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
-  ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
-  carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  // Anna owns the team; Ben and Carla are members, both on Website.
-  teamId = (await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)).id
-  for (const person of [ben, carla]) {
-    const sent = await createInvite(
-      { ...actor(anna), currentWorkspaceId: anna.currentWorkspaceId },
-      { email: person.email, role: "member" },
-      database
-    )
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  website = (await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)).id
-  await addProjectMember(anna.id, website, ben.id, database)
-  await addProjectMember(anna.id, website, carla.id, database)
+  anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
+  ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
+  carla = await insertEmployee(database, { name: "Carla", email: "carla@example.test" })
+  // The site admin runs the team; Anna, Ben and Carla work on it, all on
+  // Website. Anna made Website, and the site admin put Ben and Carla on it.
+  const started = await startTeam(database, [anna, ben, carla])
+  admin = started.admin
+  teamId = started.team.id
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  await addProjectMember(admin.id, website, ben.id, database)
+  await addProjectMember(admin.id, website, carla.id, database)
 })
 
 afterEach(async () => {
@@ -126,40 +122,45 @@ async function task(title: string, input: { assignee?: CustomShellUser | null; d
 }
 
 describe("part 1: telling the project when its status changes", () => {
-  it("tells everyone on the project but whoever set it, with the reason", async () => {
-    await setProjectHealth(ben.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
-    expect(await noticesFor(ben, "project_health")).toEqual([])
-    for (const person of [anna, carla]) {
+  it("is the site admin's to set, and tells everyone on the project, with the reason", async () => {
+    // A project's status is one of its settings, so it is the site admin's alone.
+    await expect(
+      setProjectHealth(ben.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.onlySiteAdminSettings)
+    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
+    // The site admin set it and is on no project, so they hear nothing.
+    expect(await noticesFor(admin, "project_health")).toEqual([])
+    for (const person of [anna, ben, carla]) {
       expect(await noticesFor(person, "project_health")).toEqual([
-        { message: "Ben marked a project At risk", detail: "Website: Photos are late", href: `/projects/${website}` },
+        { message: "Tyler marked a project At risk", detail: "Website: Photos are late", href: `/projects/${website}` },
       ])
     }
   })
 
   it("tells them it is over when it goes back to On track or is cleared, and not otherwise", async () => {
     // On track from no status is not news.
-    await setProjectHealth(anna.id, { projectId: website, health: "on_track", note: "" }, database)
+    await setProjectHealth(admin.id, { projectId: website, health: "on_track", note: "" }, database)
     expect(await noticesFor(ben, "project_health")).toEqual([])
-    await setProjectHealth(anna.id, { projectId: website, health: "off_track", note: "Lost the designer" }, database)
+    await setProjectHealth(admin.id, { projectId: website, health: "off_track", note: "Lost the designer" }, database)
     // The same status again tells nobody twice.
-    await setProjectHealth(anna.id, { projectId: website, health: "off_track", note: "Still no designer" }, database)
+    await setProjectHealth(admin.id, { projectId: website, health: "off_track", note: "Still no designer" }, database)
     expect(await noticesFor(ben, "project_health")).toHaveLength(1)
-    await setProjectHealth(anna.id, { projectId: website, health: null, note: "" }, database)
+    await setProjectHealth(admin.id, { projectId: website, health: null, note: "" }, database)
     expect(await noticesFor(ben, "project_health")).toEqual([
-      { message: "Anna cleared a project's status", detail: "Website: Was Off track.", href: `/projects/${website}` },
+      { message: "Tyler cleared a project's status", detail: "Website: Was Off track.", href: `/projects/${website}` },
     ])
   })
 
   it("keeps one row per person per project within the hour, holding the latest status", async () => {
-    await setProjectHealth(anna.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
-    await setProjectHealth(anna.id, { projectId: website, health: "on_track", note: "" }, database)
+    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
+    await setProjectHealth(admin.id, { projectId: website, health: "on_track", note: "" }, database)
     const rows = await noticesFor(carla, "project_health")
-    expect(rows.map((row) => row.message)).toEqual(["Anna marked a project On track"])
+    expect(rows.map((row) => row.message)).toEqual(["Tyler marked a project On track"])
   })
 
   it("respects the person's own switch", async () => {
     await setNoticeSwitch(carla.id, { id: "project_health", on: false }, database)
-    await setProjectHealth(anna.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
+    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
     expect(await noticesFor(carla, "project_health")).toEqual([])
     expect(await noticesFor(ben, "project_health")).toHaveLength(1)
   })
@@ -169,14 +170,14 @@ describe("part 2: milestones and project due dates", () => {
   it("puts milestones not yet reached and projects due on the calendar's due dates", async () => {
     const launch = (await createMilestone(anna.id, { projectId: website, name: "Launch", dueDate: WEDNESDAY }, database)).id
     const design = (await createMilestone(anna.id, { projectId: website, name: "Design", dueDate: TUESDAY }, database)).id
-    await updateProject(anna.id, { projectId: website, dueDate: FRIDAY }, database)
+    await updateProject(admin.id, { projectId: website, dueDate: FRIDAY }, database)
     // Design's only task is Done, so Design is reached and leaves the calendar.
     const logo = await task("Logo")
     await setTaskMilestone(anna.id, { taskId: logo, milestoneId: design }, database)
     await setTaskStatus(actor(ben), { taskId: logo, status: "done", stuckReason: null }, database)
-    const archived = (await createProject(anna.id, { name: "Old", color: "red", description: "" }, database)).id
+    const archived = (await projectFor(admin, anna.id, { name: "Old", color: "red", description: "" }, database)).id
     await createMilestone(anna.id, { projectId: archived, name: "Gone", dueDate: WEDNESDAY }, database)
-    await setProjectArchived(anna.id, archived, true, database)
+    await setProjectArchived(admin.id, archived, true, database)
 
     const membership = await requireMembership(ben.id, database)
     expect((await loadTeamDueDates(membership, MONDAY, FRIDAY, database)).deadlines).toEqual([])
@@ -192,7 +193,7 @@ describe("part 2: milestones and project due dates", () => {
 
   it("tells the lead the day before, once per date, and nobody once it is reached", async () => {
     const launch = (await createMilestone(anna.id, { projectId: website, name: "Launch", dueDate: WEDNESDAY }, database)).id
-    await setProjectLead(anna.id, { projectId: website, userId: ben.id }, database)
+    await setProjectLead(admin.id, { projectId: website, userId: ben.id }, database)
 
     await sendMilestoneReminders(database, at(`${TUESDAY}T08:59:00Z`))
     expect(await noticesFor(ben, "milestone_due")).toEqual([])
@@ -201,8 +202,8 @@ describe("part 2: milestones and project due dates", () => {
     expect(await noticesFor(ben, "milestone_due")).toEqual([
       { message: "Milestone due tomorrow", detail: "Launch · Website", href: `/projects/${website}` },
     ])
-    // The lead gets it, so the owner doesn't.
-    expect(await noticesFor(anna, "milestone_due")).toEqual([])
+    // The lead gets it, so the site admin doesn't.
+    expect(await noticesFor(admin, "milestone_due")).toEqual([])
 
     // Moved to Thursday: a fresh one on Wednesday.
     await database.update(projectMilestones).set({ dueDate: "2099-03-05" }).where(eq(projectMilestones.id, launch))
@@ -218,18 +219,20 @@ describe("part 2: milestones and project due dates", () => {
     expect(await noticesFor(ben, "milestone_due")).toHaveLength(2)
   })
 
-  it("tells the owner and admins when the project has no lead, and says Monday before a weekend", async () => {
+  it("tells the site admin when the project has no lead, and says Monday before a weekend", async () => {
     await createMilestone(anna.id, { projectId: website, name: "Launch", dueDate: "2099-03-09" }, database)
     await sendMilestoneReminders(database, at(`${FRIDAY}T09:00:00Z`))
-    expect(await noticesFor(anna, "milestone_due")).toEqual([
-      { message: "Milestone due Monday", detail: "Launch · Website", href: `/projects/${website}` },
+    // The link first moves the site admin's team picker to this team.
+    expect(await noticesFor(admin, "milestone_due")).toEqual([
+      { message: "Milestone due Monday", detail: "Launch · Website", href: onTeamHref(teamId, `/projects/${website}`) },
     ])
-    expect(await noticesFor(ben, "milestone_due")).toEqual([])
+    for (const person of [anna, ben, carla]) expect(await noticesFor(person, "milestone_due")).toEqual([])
   })
 })
 
 describe("part 3: waiting for review in Needs attention", () => {
-  it("lists a Done task waiting for its reviewer after a work day, until it is confirmed", async () => {
+  it("shows the site admin a Done task waiting for its reviewer after a work day, until it is confirmed", async () => {
+    // Anna asks for the review, so she is the reviewer; Needs attention is the site admin's.
     const photos = await task("Pick the photos")
     await setNeedsReview(actor(anna), { taskId: photos, on: true }, database)
     await setTaskStatus(actor(ben), { taskId: photos, status: "done", stuckReason: null }, database)
@@ -238,10 +241,10 @@ describe("part 3: waiting for review in Needs attention", () => {
       .set({ reviewWaitingSince: at(`${MONDAY}T10:00:00Z`) })
       .where(eq(projectTasks.id, photos))
 
-    const sameDay = await loadNeedsAttention(anna.id, database, at(`${MONDAY}T15:00:00Z`))
+    const sameDay = await loadNeedsAttention(admin.id, database, at(`${MONDAY}T15:00:00Z`))
     expect(sameDay.filter((row) => row.kind === "review_waiting")).toEqual([])
 
-    const later = await loadNeedsAttention(anna.id, database, at(`${WEDNESDAY}T15:00:00Z`))
+    const later = await loadNeedsAttention(admin.id, database, at(`${WEDNESDAY}T15:00:00Z`))
     expect(later.filter((row) => row.kind === "review_waiting")).toEqual([
       expect.objectContaining({
         taskId: photos,
@@ -252,7 +255,7 @@ describe("part 3: waiting for review in Needs attention", () => {
     ])
 
     await reviewTask(actor(anna), { taskId: photos, action: "confirm" }, database)
-    const after = await loadNeedsAttention(anna.id, database, at(`${WEDNESDAY}T15:00:00Z`))
+    const after = await loadNeedsAttention(admin.id, database, at(`${WEDNESDAY}T15:00:00Z`))
     expect(after.filter((row) => row.kind === "review_waiting")).toEqual([])
   })
 })
@@ -300,7 +303,7 @@ describe("part 4: a repeating task's next copy keeps its whole setup", () => {
     await updateStep(actor(anna), { stepId: step.id, assigneeUserId: carla.id }, database)
     await setRepeat(actor(anna), { taskId: report, repeat: { every: "week", weekDays: [1] } }, database)
     await setTaskStatus(actor(ben), { taskId: report, status: "done", stuckReason: null }, database)
-    await removeProjectMember(anna.id, website, carla.id, database)
+    await removeProjectMember(admin.id, website, carla.id, database)
 
     await makeRepeatCopies(database, at(`${MONDAY}T00:00:30Z`))
     const copy = (await loadProjectPage(anna.id, website, database)).tasks.find((t) => t.id !== report)!
@@ -314,7 +317,7 @@ describe("part 5: the database says when something of the team's changed", () =>
     const heard: string[] = []
     const stop = await client.listen("project_team_live", (payload) => heard.push(payload))
     await addTimeOff(ben.id, { firstDay: FRIDAY, lastDay: FRIDAY }, database)
-    await setProjectHealth(anna.id, { projectId: website, health: "at_risk", note: "Late" }, database)
+    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Late" }, database)
     await createMilestone(anna.id, { projectId: website, name: "Launch", dueDate: FRIDAY }, database)
     // Notices arrive once the change is committed, on the next round trip.
     await client.query("SELECT 1")
@@ -343,8 +346,8 @@ describe("part 6: time off on the Team calendar", () => {
 
 describe("part 7: Person fields tell the person", () => {
   async function reviewType() {
-    const { id: typeId } = await createTaskType(anna.id, { name: "Video", icon: "video", color: "red" }, database)
-    const reviewer = (await createTypeField(anna.id, { typeId, name: "Reviewer", kind: "person" }, database)).id
+    const { id: typeId } = await createTaskType(admin.id, { name: "Video", icon: "video", color: "red" }, database)
+    const reviewer = (await createTypeField(admin.id, { typeId, name: "Reviewer", kind: "person" }, database)).id
     return { typeId, reviewer }
   }
 
@@ -433,9 +436,9 @@ describe("part 9: filtering by client", () => {
   })
 
   it("counts only the picked client's work on Workload, and lists only clients the person can see", async () => {
-    const shop = (await createProject(anna.id, { name: "Shop", color: "green", description: "" }, database)).id
-    await setProjectClient(anna.id, { projectId: website, client: "Hart Dental" }, database)
-    await setProjectClient(anna.id, { projectId: shop, client: "Secret Client" }, database)
+    const shop = (await projectFor(admin, anna.id, { name: "Shop", color: "green", description: "" }, database)).id
+    await setProjectClient(admin.id, { projectId: website, client: "Hart Dental" }, database)
+    await setProjectClient(admin.id, { projectId: shop, client: "Secret Client" }, database)
     await task("Website task")
     await createTask(
       actor(anna),

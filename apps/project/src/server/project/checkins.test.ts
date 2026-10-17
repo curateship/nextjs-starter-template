@@ -12,8 +12,7 @@ import {
   setMyCheckinTime,
   submitCheckin,
 } from "@/server/project/checkins"
-import { acceptInvite, createInvite } from "@/server/project/invites"
-import { addProjectMember, createProject, setProjectArchived } from "@/server/project/projects"
+import { addProjectMember, setProjectArchived } from "@/server/project/projects"
 import {
   projectCheckinItems,
   projectCheckins,
@@ -27,7 +26,8 @@ import {
   loadTaskDetail,
   setTaskStatus,
 } from "@/server/project/tasks"
-import { createTeam, removeTeamMember } from "@/server/project/teams"
+import { removeTeamMember } from "@/server/project/teams"
+import { projectFor, startTeam } from "@/server/project/test-people"
 import { loadTeamDay, loadTeamMonth } from "@/server/project/team-days"
 import { addTimeOff, loadCheckinRecord, removeTimeOff } from "@/server/project/time-off"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
@@ -47,6 +47,7 @@ let database: CustomShellDb
 let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
+let admin: CustomShellUser
 
 const actor = (user: CustomShellUser) => ({
   id: user.id,
@@ -61,11 +62,9 @@ beforeEach(async () => {
   anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
   ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  for (const person of [ben, carla]) {
-    const sent = await createInvite(actor(anna), { email: person.email, role: "member" }, database)
-    await acceptInvite(person, sent.inviteId, database)
-  }
+  // Tyler, the site admin, runs the team without being on it, so he is never
+  // reminded, counted or expected to check in.
+  admin = (await startTeam(database, [anna, ben, carla])).admin
 })
 
 afterEach(async () => {
@@ -87,8 +86,9 @@ async function remindersFor(userId: string) {
 
 /** Anna's project with Ben in it, and Carla left out; one task each for Ben. */
 async function benWithTasks(titles: string[]) {
-  const project = await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)
-  await addProjectMember(anna.id, project.id, ben.id, database)
+  const project = await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)
+  // A project's members are the site admin's to change.
+  await addProjectMember(admin.id, project.id, ben.id, database)
   const ids: string[] = []
   for (const title of titles) {
     const task = await createTask(
@@ -220,7 +220,7 @@ describe("checking in", () => {
   it("doesn't ask about a leftover whose project was archived", async () => {
     const { projectId, ids } = await benWithTasks(["Brief"])
     await submitCheckin(ben.id, { answers: [], picks: ids }, database, at(`${MONDAY}T09:00:00Z`))
-    await setProjectArchived(anna.id, projectId, true, database)
+    await setProjectArchived(admin.id, projectId, true, database)
     const tuesday = at(`${TUESDAY}T09:00:00Z`)
     expect((await loadCheckinPage(ben.id, database, tuesday)).leftovers).toBeNull()
     await submitCheckin(ben.id, { answers: [], picks: [] }, database, tuesday)
@@ -382,8 +382,8 @@ describe("history", () => {
   }
 
   it("shows every day a task was picked with its end-of-day status, and its hand-overs", async () => {
-    const project = await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)
-    await addProjectMember(anna.id, project.id, ben.id, database)
+    const project = await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)
+    await addProjectMember(admin.id, project.id, ben.id, database)
     const task = await createTask(
       actor(anna),
       { projectId: project.id, title: "Photos", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
@@ -424,7 +424,7 @@ describe("history", () => {
     })
 
     // Ben leaves the team; his days stay on the task.
-    await removeTeamMember(anna.id, ben.id, database)
+    await removeTeamMember(admin.id, ben.id, database)
     const kept = await loadTaskDetail(anna.id, task.id, database)
     expect(kept.history.filter((e) => e.kind === "picked")).toHaveLength(3)
     expect(kept.history.find((e) => e.kind === "picked")).toMatchObject({ personName: "Ben" })
@@ -464,11 +464,11 @@ describe("time off", () => {
     expect(day.people.find((p) => p.person.id === ben.id)?.state).toBe("missed")
   })
 
-  it("lets each person mark their own, and only the owner and admins mark someone else's", async () => {
+  it("lets each person mark their own, and only the site admin mark someone else's", async () => {
     await expect(addTimeOff(ben.id, { userId: carla.id, firstDay: MONDAY, lastDay: MONDAY }, database)).rejects.toThrow(
       PROJECT_ERRORS.notRunningTeam
     )
-    const entry = await addTimeOff(anna.id, { userId: carla.id, firstDay: MONDAY, lastDay: TUESDAY }, database)
+    const entry = await addTimeOff(admin.id, { userId: carla.id, firstDay: MONDAY, lastDay: TUESDAY }, database)
     await expect(removeTimeOff(ben.id, entry.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
     await expect(addTimeOff(ben.id, { firstDay: TUESDAY, lastDay: MONDAY }, database)).rejects.toThrow(
       PROJECT_ERRORS.timeOffBackwards

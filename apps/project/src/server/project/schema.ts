@@ -25,7 +25,6 @@ import type {
   TaskEventKind,
   TaskPriority,
   TaskStatus,
-  TeamInviteRole,
   TeamRole,
 } from "@/lib/project/rules"
 import type { SavedViewFilters, SavedViewNames } from "@/lib/project/saved-views"
@@ -60,6 +59,8 @@ export const projectTeams = pgTable("project_teams", {
   joinExpiresAt: timestamp("join_expires_at", { withTimezone: true }),
   /** The team's photo, a media library address (`drizzle/0105_project_team_dashboard.sql`). */
   photoUrl: text("photo_url"),
+  /** The team's square avatar beside its name; null shows its initials (`drizzle/0120_project_team_avatar.sql`). */
+  avatarUrl: text("avatar_url"),
   /** The team's own words for the check-in's boxes; null keeps the usual ones (`drizzle/0106_project_checkin_and_handing_out.sql`). */
   questionYesterday: varchar("question_yesterday", { length: 40 }),
   questionToday: varchar("question_today", { length: 40 }),
@@ -117,23 +118,6 @@ export const projectTeamMembers = pgTable(
   },
   (table) => [primaryKey({ columns: [table.teamId, table.userId] })]
 )
-
-export const projectTeamInvites = pgTable("project_team_invites", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  teamId: varchar("team_id", { length: 36 })
-    .notNull()
-    .references(() => projectTeams.id, { onDelete: "cascade" }),
-  email: text("email").notNull(),
-  role: varchar("role", { length: 16 }).$type<TeamInviteRole>().notNull(),
-  tokenHash: varchar("token_hash", { length: 64 }).notNull(),
-  invitedByUserId: varchar("invited_by_user_id", { length: 36 }).references(
-    userRef,
-    { onDelete: "set null" }
-  ),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: createdAt(),
-  sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
-})
 
 export const projectProjects = pgTable("project_projects", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -1046,3 +1030,20 @@ export const projectAnnouncementViews = pgTable(
   },
   (table) => [primaryKey({ columns: [table.announcementId, table.userId] })]
 )
+
+/**
+ * The team each site admin is looking at, changed with the header's team
+ * picker (`drizzle/0119_project_employees_and_site_admin.sql`). The site admin
+ * is on no team, so this row is what puts them in one.
+ */
+export const projectSiteAdminTeams = pgTable("project_site_admin_teams", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(userRef, { onDelete: "cascade" }),
+  teamId: varchar("team_id", { length: 36 })
+    .notNull()
+    .references(() => projectTeams.id, { onDelete: "cascade" }),
+  /** The Team calendar's "Due dates" switch, which an employee keeps on their team row. */
+  calendarDueDates: boolean("calendar_due_dates").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})

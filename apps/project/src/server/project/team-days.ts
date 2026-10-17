@@ -6,7 +6,6 @@ import {
   DEFAULT_CHECKIN_QUESTIONS,
   type CheckinNotes,
   type CheckinQuestions,
-  type TeamRole,
 } from "@/lib/project/rules"
 import { db } from "@/server/db"
 import { visibleProjectIds, type ProjectDb } from "@/server/project/access"
@@ -282,7 +281,7 @@ export type TeamDayTask = {
 }
 
 export type TeamDayPerson = {
-  person: { id: string; name: string; avatarUrl: string; role: TeamRole }
+  person: { id: string; name: string; avatarUrl: string }
   /** The check-in replies attach to; null without one. */
   checkinId: string | null
   /** The words the three boxes had that day. */
@@ -342,7 +341,6 @@ export async function loadTeamDay(
   const people = await database
     .select({
       id: projectTeamMembers.userId,
-      role: projectTeamMembers.role,
       name: customShellUsers.name,
       avatarUrl: customShellUsers.avatarUrl,
       teamTime: projectTeams.checkinTime,
@@ -470,7 +468,6 @@ export async function loadTeamDay(
         id: person.id,
         name: person.name,
         avatarUrl: person.avatarUrl ?? "",
-        role: person.role,
       },
       checkinId: row?.checkedInAt ? row.id : null,
       questions:

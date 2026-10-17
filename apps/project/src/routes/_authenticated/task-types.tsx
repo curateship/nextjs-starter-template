@@ -4,7 +4,6 @@ import { TaskTypesDashboard } from "@/components/project/task-types-dashboard"
 import { TeamStart } from "@/components/project/team-start"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { loadTaskTypes } from "@/lib/api/project/task-types"
-import { loadMyTeamInvites } from "@/lib/api/project/teams"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { pageTitleHead } from "@/lib/project/page-title"
 
@@ -26,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/task-types")({
   loaderDeps: () => ({}),
   loader: async () => {
     const page = await loadTaskTypes()
-    return { page, invites: page ? [] : await loadMyTeamInvites() }
+    return { page }
   },
   head: ({ matches }) => pageTitleHead("Task types", matches),
   component: TaskTypesRoute,
@@ -34,10 +33,10 @@ export const Route = createFileRoute("/_authenticated/task-types")({
 })
 
 function TaskTypesRoute() {
-  const { page, invites } = Route.useLoaderData()
+  const { page } = Route.useLoaderData()
   const { type } = Route.useSearch()
   const navigate = useNavigate()
-  if (!page) return <TeamStart invites={invites} />
+  if (!page) return <TeamStart />
   return (
     <TaskTypesDashboard
       page={page}

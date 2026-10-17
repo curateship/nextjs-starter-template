@@ -26,7 +26,7 @@ It works the same as a task's chat, except for who it tells (see
   [Teams and invites](teams-and-invites.md#a-teammates-page)) on the project
   page and My dashboard. Inside a task's window they stay plain.
 - **Who sees it:** everyone who can open the task, which is the project's
-  members plus the team's owner and admins. An archived project's chat can be
+  members plus the site admin. An archived project's chat can be
   read but not written in.
 - **Messages from before tags existed** read exactly as they were written.
 - **Typing indicators, read receipts, online status, custom reaction emoji
@@ -135,7 +135,7 @@ can see where the talk moved without opening every task.
   has loaded beside the Board or My tasks.
 - **Nothing old counts as new.** Without a "read up to" time of my own yet,
   the day I was added to the project counts, or the day I joined the team
-  for an owner or admin who isn't on it. Every message written before 13 Oct
+  for the site admin who isn't on it. Every message written before 13 Oct
   2026 counted as read for everyone on the team when the marks arrived.
 - **Saved as** one row per person per task chat in `project_task_reads`,
   and per project chat in `project_chat_reads`, each holding the time they
@@ -205,7 +205,7 @@ the launch?" is settled without twelve messages.
   stay links.
 - **Editing tells only people newly tagged.** Tyler chose this on 10 Oct 2026.
   Someone tagged before the edit is not told again.
-- **The writer, the owner and admins can delete a message.** It stays in its
+- **The writer and the site admin can delete a message.** It stays in its
   place as "Message deleted", so the conversation around it still makes sense.
   Its words, tags and reactions are wiped, and it no longer counts on the
   task's card.
@@ -337,7 +337,7 @@ the launch?" is settled without twelve messages.
 - **Downloads are always a download.** Only the four picture types are ever
   shown inside the page. Every other file, SVG included, is sent as a file to
   save, so nothing uploaded can run in the app.
-- **Deleting a file** is for whoever added it, the owner and admins, and takes
+- **Deleting a file** is for whoever added it and the site admin, and takes
   it out of storage as well.
 - **The pictures are fetched, then drawn.** The local dev server sends every
   image request a browser makes to its own static files, which answer 404 for

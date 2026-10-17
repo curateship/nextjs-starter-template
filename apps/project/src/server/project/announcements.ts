@@ -29,9 +29,9 @@ export type Announcement = {
   by: { name: string; avatarUrl: string } | null
   postedAt: string
   /**
-   * Who on the team has seen it and who hasn't, for the owner and admins
-   * only; null for everyone else. Everyone on the team now counts, whenever
-   * they joined, and the person looking counts as having seen it.
+   * Who on the team has seen it and who hasn't, for the site admin only;
+   * null for everyone else. Everyone on the team now counts, whenever they
+   * joined. The site admin is on no team, so they are never counted.
    */
   readers: { seen: Reader[]; notYet: Reader[] } | null
 }
@@ -51,7 +51,8 @@ export async function loadAnnouncement(
       hidden: projectTeamMembers.hiddenAnnouncementId,
     })
     .from(projectTeams)
-    .innerJoin(
+    // The site admin is on no team, so they have no row and see it always.
+    .leftJoin(
       projectTeamMembers,
       and(eq(projectTeamMembers.teamId, projectTeams.id), eq(projectTeamMembers.userId, membership.userId))
     )
@@ -92,8 +93,12 @@ async function readersOf(membership: Membership, announcementId: string, databas
   return { seen: rows.filter(seen).map(reader), notYet: rows.filter((row) => !seen(row)).map(reader) }
 }
 
-/** This person has seen the announcement, once; seeing it again changes nothing. */
+/**
+ * This person has seen the announcement, once; seeing it again changes
+ * nothing. The site admin's views are not kept: they are in no count.
+ */
 async function recordView(membership: Membership, announcementId: string, database: ProjectDb) {
+  if (membership.siteAdmin) return
   await database
     .insert(projectAnnouncementViews)
     .values({ teamId: membership.teamId, announcementId, userId: membership.userId, seenAt: now() })

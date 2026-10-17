@@ -13,7 +13,7 @@ import {
   setMyCheckinTime,
   submitCheckin,
 } from "@/server/project/checkins"
-import { acceptInvite, createInvite } from "@/server/project/invites"
+import { createInvite } from "@/server/project/invites"
 import {
   MEETING_SAVES,
   createMeeting,
@@ -22,18 +22,20 @@ import {
   updateMeeting,
   type MeetingInput,
 } from "@/server/project/meetings"
-import { addProjectMember, createProject } from "@/server/project/projects"
+import { addProjectMember } from "@/server/project/projects"
 import { projectNoticeLinks, projectTasks } from "@/server/project/schema"
 import { createTask, deleteTask, setTaskStatus } from "@/server/project/tasks"
 import { loadTeamFigures } from "@/server/project/team-figures"
 import { loadTeamDay, loadTeamMonth } from "@/server/project/team-days"
-import { changeMemberRole, createTeam, loadTeamDashboard, setTeamPhoto } from "@/server/project/teams"
+import { loadTeamDashboard, setTeamPhoto } from "@/server/project/teams"
+import { insertEmployee, projectFor, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { createTestDatabase } from "@/server/test-support"
 
 /*
  * Dates are in 2099 so nothing here meets the real today. 2 March 2099 is a
- * Monday. The team works Monday to Friday at 9:00 UTC.
+ * Monday. The team works Monday to Friday at 9:00 UTC. The site admin runs
+ * it; Anna, Ben and Carla work on it.
  */
 const MONDAY = "2099-03-02"
 const TUESDAY = "2099-03-03"
@@ -41,6 +43,7 @@ const at = (iso: string) => new Date(iso)
 
 let client: PGlite
 let database: CustomShellDb
+let admin: CustomShellUser
 let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
@@ -56,17 +59,13 @@ beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
-  anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
-  ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
-  carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  olga = await insertUser(database, { name: "Olga", email: "olga@example.test" })
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  for (const person of [ben, carla]) {
-    const sent = await createInvite(actor(anna), { email: person.email, role: "member" }, database)
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  // Olga runs a team of her own.
-  await createTeam(olga.id, { name: "Other", timeZone: "UTC" }, database)
+  anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
+  ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
+  carla = await insertEmployee(database, { name: "Carla", email: "carla@example.test" })
+  olga = await insertEmployee(database, { name: "Olga", email: "olga@example.test" })
+  admin = (await startTeam(database, [anna, ben, carla])).admin
+  // Olga works on another team.
+  await startTeam(database, [olga], { name: "Other" })
 })
 
 afterEach(async () => {
@@ -152,22 +151,24 @@ describe("meetings", () => {
     expect(benView.occurrences[0]).toMatchObject({ day: TUESDAY, startsAt: "2099-03-02T23:30:00.000Z" })
   })
 
-  it("lets its maker, the owner and admins change or delete it, and nobody else", async () => {
+  it("lets its maker and the site admin change or delete it, and nobody else", async () => {
     const { id } = await createMeeting(actor(ben), meeting(), database)
-    await expect(updateMeeting(actor(carla), id, meeting({ title: "Mine now" }), database)).rejects.toThrow(
-      PROJECT_ERRORS.cantChangeMeeting
-    )
-    await expect(deleteMeeting(carla.id, id, database)).rejects.toThrow(PROJECT_ERRORS.cantChangeMeeting)
+    for (const other of [anna, carla]) {
+      await expect(updateMeeting(actor(other), id, meeting({ title: "Mine now" }), database)).rejects.toThrow(
+        PROJECT_ERRORS.cantChangeMeeting
+      )
+      await expect(deleteMeeting(other.id, id, database)).rejects.toThrow(PROJECT_ERRORS.cantChangeMeeting)
+    }
 
     await updateMeeting(actor(ben), id, meeting({ title: "Planning" }), database)
-    await updateMeeting(actor(anna), id, meeting({ title: "Monday planning" }), database)
-    await changeMemberRole(anna.id, carla.id, "admin", database)
-    await updateMeeting(actor(carla), id, meeting({ title: "Team planning" }), database)
+    await updateMeeting(actor(admin), id, meeting({ title: "Team planning" }), database)
 
     const view = await loadTeamMeetings(ben.id, { month: "2099-03" }, database)
     expect(view.meetings.map((m) => [m.title, m.canEdit])).toEqual([["Team planning", true]])
+    const carlaView = await loadTeamMeetings(carla.id, { month: "2099-03" }, database)
+    expect(carlaView.meetings.map((m) => m.canEdit)).toEqual([false])
 
-    await deleteMeeting(carla.id, id, database)
+    await deleteMeeting(admin.id, id, database)
     const after = await loadTeamMeetings(ben.id, { month: "2099-03" }, database)
     expect(after).toMatchObject({ meetings: [], occurrences: [] })
   })
@@ -244,8 +245,8 @@ describe("meetings", () => {
 
 describe("the team figures", () => {
   async function projectWithTasks() {
-    const project = await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)
-    await addProjectMember(anna.id, project.id, ben.id, database)
+    const project = await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)
+    await addProjectMember(admin.id, project.id, ben.id, database)
     const ids: string[] = []
     for (const [title, dueDate] of [
       ["Brief", null],
@@ -264,7 +265,8 @@ describe("the team figures", () => {
 
   it("counts members, pending invites, and open tasks only in projects the viewer can see", async () => {
     const ids = await projectWithTasks()
-    await createInvite(actor(anna), { email: "dan@example.test", role: "member" }, database)
+    // An invite puts Dan on the team at once; he is pending until he sets a password.
+    await createInvite(actor(admin), { email: "dan@example.test" }, database)
     // Ben's "Just me" task never counts.
     await createTask(
       actor(ben),
@@ -274,11 +276,12 @@ describe("the team figures", () => {
     await deleteTask(actor(ben), ids[2], database)
 
     const ben_ = await loadTeamFigures(ben.id, database)
-    expect(ben_).toMatchObject({ members: 3, pendingInvites: 1, openTasks: 2 })
+    // Anna, Ben, Carla and Dan; the site admin is on no team, so isn't counted.
+    expect(ben_).toMatchObject({ members: 4, pendingInvites: 1, openTasks: 2 })
     // Carla isn't on the project.
     expect((await loadTeamFigures(carla.id, database)).openTasks).toBe(0)
-    // The owner sees every shared project.
-    expect((await loadTeamFigures(anna.id, database)).openTasks).toBe(2)
+    // The site admin sees every shared project without being on it.
+    expect((await loadTeamFigures(admin.id, database)).openTasks).toBe(2)
   })
 
   it("counts tasks due this week, Monday to Sunday", async () => {
@@ -332,8 +335,8 @@ describe("the team figures", () => {
 
 describe("check-in notes", () => {
   it("shows the notes to everyone on the team, and a Blocker note marks the person blocked", async () => {
-    const project = await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)
-    await addProjectMember(anna.id, project.id, ben.id, database)
+    const project = await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)
+    await addProjectMember(admin.id, project.id, ben.id, database)
     const task = await createTask(
       actor(ben),
       { projectId: project.id, title: "Members table", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
@@ -401,12 +404,14 @@ describe("check-in notes", () => {
 })
 
 describe("the team photo", () => {
-  it("is changed by the owner and admins only, and only to their own upload", async () => {
-    await expect(setTeamPhoto(ben.id, "", database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-    await expect(setTeamPhoto(anna.id, "https://example.com/cat.png", database)).rejects.toThrow(
+  it("is changed by the site admin only, and only to their own upload", async () => {
+    for (const person of [anna, ben]) {
+      await expect(setTeamPhoto(person.id, "", database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+    }
+    await expect(setTeamPhoto(admin.id, "https://example.com/cat.png", database)).rejects.toThrow(
       PROJECT_ERRORS.photoNotYours
     )
-    await setTeamPhoto(anna.id, "", database)
-    expect((await loadTeamDashboard(anna.id, database))?.team.photoUrl).toBeNull()
+    await setTeamPhoto(admin.id, "", database)
+    expect((await loadTeamDashboard(admin.id, database))?.team.photoUrl).toBeNull()
   })
 })

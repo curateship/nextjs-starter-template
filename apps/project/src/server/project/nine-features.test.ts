@@ -14,11 +14,9 @@ import {
   postAnnouncement,
 } from "@/server/project/announcements"
 import { checkOut, loadCheckinPage, submitCheckin } from "@/server/project/checkins"
-import { acceptInvite, createInvite } from "@/server/project/invites"
 import { loadMyDashboard } from "@/server/project/my-dashboard"
 import {
   addProjectMember,
-  createProject,
   loadProjectPage,
   removeProjectMember,
   setProjectArchived,
@@ -43,19 +41,20 @@ import { setCalendarDueDates } from "@/server/project/team-due-dates"
 import { addTaskFile, listProjectFiles, type FileStorage } from "@/server/project/task-files"
 import { loadTeammate } from "@/server/project/teammate"
 import { addTimeOff } from "@/server/project/time-off"
-import { createTeam } from "@/server/project/teams"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { insertEmployee, projectFor, startTeam } from "@/server/project/test-people"
+import { createTestDatabase } from "@/server/test-support"
 
 /*
- * Features 12 Oct task 01. Anna owns the team; Ben, Leo and Carla are
- * members. "Site" has Anna, Ben and Leo on it, not Carla. Anna hands Ben a
- * task in Site. Everyone joined an hour ago, so a message sent now is after
+ * Features 12 Oct task 01. The site admin runs the team; Anna, Ben, Leo and
+ * Carla work on it. "Site" is Anna's, and the site admin put Ben and Leo on
+ * it, not Carla. Anna hands Ben a task in Site. Everyone joined an hour ago, so a message sent now is after
  * it, whatever the clock's resolution.
  */
 
 let client: PGlite
 let database: CustomShellDb
+let admin: CustomShellUser
 let anna: CustomShellUser
 let ben: CustomShellUser
 let leo: CustomShellUser
@@ -67,18 +66,14 @@ beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
-  anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
-  ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
-  leo = await insertUser(database, { name: "Leo Park", email: "leo@example.test" })
-  carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  for (const person of [ben, leo, carla]) {
-    const sent = await createInvite(anna, { email: person.email, role: "member" }, database)
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  projectId = (await createProject(anna.id, { name: "Site", color: "blue", description: "" }, database)).id
-  await addProjectMember(anna.id, projectId, ben.id, database)
-  await addProjectMember(anna.id, projectId, leo.id, database)
+  anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
+  ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
+  leo = await insertEmployee(database, { name: "Leo Park", email: "leo@example.test" })
+  carla = await insertEmployee(database, { name: "Carla", email: "carla@example.test" })
+  admin = (await startTeam(database, [anna, ben, leo, carla])).admin
+  projectId = (await projectFor(admin, anna.id, { name: "Site", color: "blue", description: "" }, database)).id
+  await addProjectMember(admin.id, projectId, ben.id, database)
+  await addProjectMember(admin.id, projectId, leo.id, database)
   taskId = (
     await createTask(
       anna,
@@ -130,7 +125,7 @@ describe("unread marks", () => {
 
   it("starts someone added later with nothing new", async () => {
     await say(ben, "Before Carla came")
-    await addProjectMember(anna.id, projectId, carla.id, database)
+    await addProjectMember(admin.id, projectId, carla.id, database)
     expect(await unreadOn(carla)).toBe(0)
     await say(ben, "Welcome, Carla")
     expect(await unreadOn(carla)).toBe(1)
@@ -246,7 +241,7 @@ describe("polls", () => {
   it("keeps the vote of someone who leaves the project", async () => {
     const { id } = await ask()
     await voteOnPoll(leo, { commentId: id, choice: 0 }, database)
-    await removeProjectMember(anna.id, projectId, leo.id, database)
+    await removeProjectMember(admin.id, projectId, leo.id, database)
     expect((await pollAs(anna))?.choices[0].people).toEqual(["Leo Park"])
     await expect(voteOnPoll(leo, { commentId: id, choice: 1 }, database)).rejects.toThrow()
   })
@@ -265,28 +260,37 @@ describe("who has seen the announcement", () => {
     return (await loadAnnouncement(membership, database))!.id
   }
 
-  it("counts the poster, each viewer once, and hiding it", async () => {
-    await postAnnouncement(anna, "Office closed Friday", database)
+  it("counts each person on the team once, and hiding it, but never the site admin who posted it", async () => {
+    await postAnnouncement(admin, "Office closed Friday", database)
     const id = await currentId()
-    expect(await readers(anna)).toEqual({ seen: ["Anna"], notYet: ["Ben", "Carla", "Leo Park"] })
+    // The site admin is on no team, so they are in neither list.
+    expect(await readers(admin)).toEqual({ seen: [], notYet: ["Anna", "Ben", "Carla", "Leo Park"] })
     await markAnnouncementSeen(ben.id, id, database)
     await markAnnouncementSeen(ben.id, id, database)
+    await markAnnouncementSeen(admin.id, id, database)
     await hideAnnouncement(carla.id, id, database)
-    expect(await readers(anna)).toEqual({ seen: ["Anna", "Ben", "Carla"], notYet: ["Leo Park"] })
+    expect(await readers(admin)).toEqual({ seen: ["Ben", "Carla"], notYet: ["Anna", "Leo Park"] })
   })
 
-  it("shows the names to the owner and admins only", async () => {
-    await postAnnouncement(anna, "Office closed Friday", database)
+  it("shows the names to the site admin only", async () => {
+    await postAnnouncement(admin, "Office closed Friday", database)
+    expect(await readers(anna)).toBeNull()
     expect(await readers(ben)).toBeNull()
   })
 
+  it("is posted by the site admin only", async () => {
+    await expect(postAnnouncement(anna, "Office closed Friday", database)).rejects.toThrow(
+      PROJECT_ERRORS.notRunningTeam
+    )
+  })
+
   it("starts again at nobody for a new announcement, and ignores an old id", async () => {
-    await postAnnouncement(anna, "Office closed Friday", database)
+    await postAnnouncement(admin, "Office closed Friday", database)
     const first = await currentId()
     await markAnnouncementSeen(ben.id, first, database)
-    await postAnnouncement(anna, "Office open after all", database)
+    await postAnnouncement(admin, "Office open after all", database)
     await markAnnouncementSeen(leo.id, first, database)
-    expect(await readers(anna)).toEqual({ seen: ["Anna"], notYet: ["Ben", "Carla", "Leo Park"] })
+    expect(await readers(admin)).toEqual({ seen: [], notYet: ["Anna", "Ben", "Carla", "Leo Park"] })
   })
 })
 
@@ -318,12 +322,12 @@ describe("due dates on the Team calendar", () => {
     await setTaskStatus(anna, { taskId: done, status: "done", stuckReason: null }, database)
     const binned = await make(anna, projectId, "Binned", "2099-03-12")
     await deleteTask(anna, binned, database)
-    const secret = (await createProject(anna.id, { name: "Secret", color: "red", description: "" }, database)).id
+    const secret = (await projectFor(admin, anna.id, { name: "Secret", color: "red", description: "" }, database)).id
     await make(anna, secret, "Secret plan", "2099-03-13")
-    const old = (await createProject(anna.id, { name: "Old", color: "red", description: "" }, database)).id
-    await addProjectMember(anna.id, old, ben.id, database)
+    const old = (await projectFor(admin, anna.id, { name: "Old", color: "red", description: "" }, database)).id
+    await addProjectMember(admin.id, old, ben.id, database)
     await make(anna, old, "Old work", "2099-03-14")
-    await setProjectArchived(anna.id, old, true, database)
+    await setProjectArchived(admin.id, old, true, database)
     await make(ben, PERSONAL_PROJECT_ID, "Ben's own errand", "2099-03-15")
     await setCalendarDueDates(ben.id, true, database)
     expect((await dueTitles(ben)).titles).toEqual(["Still to do"])
@@ -340,8 +344,8 @@ describe("a teammate's page", () => {
     await make("Soon work", projectId, "2099-04-01")
     const finished = await make("Finished work", projectId, null)
     await setTaskStatus(anna, { taskId: finished.id, status: "done", stuckReason: null }, database)
-    const secret = (await createProject(anna.id, { name: "Secret", color: "red", description: "" }, database)).id
-    await addProjectMember(anna.id, secret, ben.id, database)
+    const secret = (await projectFor(admin, anna.id, { name: "Secret", color: "red", description: "" }, database)).id
+    await addProjectMember(admin.id, secret, ben.id, database)
     await make("Secret work", secret, null)
     await addTimeOff(ben.id, { firstDay: "2099-06-01", lastDay: "2099-06-03" }, database)
 
@@ -357,8 +361,8 @@ describe("a teammate's page", () => {
   })
 
   it("refuses someone on another team", async () => {
-    const olga = await insertUser(database, { name: "Olga", email: "olga@example.test" })
-    await createTeam(olga.id, { name: "Other", timeZone: "UTC" }, database)
+    const olga = await insertEmployee(database, { name: "Olga", email: "olga@example.test" })
+    await startTeam(database, [olga], { name: "Other" })
     await expect(loadTeammate(anna.id, olga.id, database)).rejects.toThrow(PROJECT_ERRORS.personNotOnTeam)
   })
 })

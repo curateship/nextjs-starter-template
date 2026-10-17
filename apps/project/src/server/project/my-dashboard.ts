@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { NoticeSwitchId } from "@/lib/project/notice-switches"
-import { boardStatusOrder, type TaskStatus, type TeamRole } from "@/lib/project/rules"
+import { boardStatusOrder, type TaskStatus } from "@/lib/project/rules"
 import { db } from "@/server/db"
 import { requireMembership } from "@/server/project/access"
 import { loadCheckinPage, type CheckinPage } from "@/server/project/checkins"
@@ -27,7 +27,6 @@ export type MyDashboard = {
     name: string
     email: string
     avatarUrl: string
-    role: TeamRole
     joinedAt: string
     teamName: string
     /** My job title, which I set here. */
@@ -58,7 +57,6 @@ export async function loadMyDashboard(userId: string, database = db): Promise<My
       name: customShellUsers.name,
       email: customShellUsers.email,
       avatarUrl: customShellUsers.avatarUrl,
-      role: projectTeamMembers.role,
       joinedAt: projectTeamMembers.joinedAt,
       teamName: projectTeams.name,
       title: projectTeamMembers.title,
@@ -76,7 +74,6 @@ export async function loadMyDashboard(userId: string, database = db): Promise<My
       name: row.name,
       email: row.email,
       avatarUrl: row.avatarUrl ?? "",
-      role: row.role,
       joinedAt: row.joinedAt.toISOString(),
       teamName: row.teamName,
       title: row.title,

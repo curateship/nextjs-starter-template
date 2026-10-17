@@ -403,6 +403,15 @@ export const MY_DASHBOARD_HREF = "/dashboard"
 /** The team's Members page. */
 export const MEMBERS_HREF = "/team/members"
 
+/**
+ * A notice for the site admin, who looks at one team at a time: opening it
+ * moves their team picker to the notice's team first, then goes to `href`
+ * (`routes/_authenticated/projects/team.$teamId.tsx`).
+ */
+export function onTeamHref(teamId: string, href: string) {
+  return `/projects/team/${encodeURIComponent(teamId)}?to=${encodeURIComponent(href)}`
+}
+
 /** A project's page. */
 export function projectHref(projectId: string) {
   return `/projects/${encodeURIComponent(projectId)}`

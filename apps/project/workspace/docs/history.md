@@ -42,7 +42,7 @@ A task ends with a History card, oldest first, wherever it opens.
   ([Projects and tasks](projects-and-tasks.md#activity)) reads these same
   rows. New moments get new kinds; saved kinds are never renamed.
 - **Who sees it:** the same people who can open the task. That is the
-  project's members, plus the team's owner and admins.
+  project's members, plus the site admin.
 - **People who left keep their lines.** A person removed from the team still
   shows by name on the days they picked the task.
 

@@ -11,8 +11,10 @@ version.
 
 ## Left: me
 
-- **The header** shows my photo, my name, and my role and team ("Owner · My
-  team"). The cog beside it opens My settings, a dropdown with my email and
+- **My dashboard is an employee's.** The site admin has no tasks or check-in,
+  so `/dashboard` sends them to the Team dashboard (Tyler, 16 Oct 2026).
+- **The header** shows my photo, my name, and my job title and team
+  ("Designer · Sample team"). The cog beside it opens My settings, a dropdown with my email and
   the day I joined, then three cards that fold open, the same as a task's
   cog (Tyler, 14 Oct 2026): Job title ("None"), Check-in time ("9:00 AM,
   America/Toronto") and Bell notices ("All on" or "3 off"), each with its
@@ -36,8 +38,8 @@ version.
   counted from my saved rows only: my last 20 work
   days, on time when I checked in by my check-in time. Days off and time off
   are saved as days off, so they're left out, and today counts once I've
-  checked in. **It's mine alone**: nobody else can read it, not the owner or
-  an admin, and it never shows on the Team dashboard. It's there to keep my
+  checked in. **Only I and the site admin read it**: no teammate can, and it
+  never shows on the Team dashboard. The site admin sees it on my page. It's there to keep my
   own streak going, not to watch anyone.
 - **My week · Oct 12 to 13**: "Checked in on 4 of 5 work days" with the
   arrows beside it and a bar filling the same share, then Finished, Carried
@@ -47,8 +49,9 @@ version.
   check-in rows: a pick counts as finished when its day ended Done, or is
   Done now on a day still going on, and each task shows once. Today counts as
   a work day once I've checked in, and a check-in on a day off doesn't count,
-  so it never reads "5 of 4". **Only I can read it**, not the owner or an
-  admin (`src/server/project/my-week.ts`, `my-week-card.tsx`). Tyler left out
+  so it never reads "5 of 4". **Only I and the site admin read it**: it says
+  "Only you and the site admin see this." (`src/server/project/my-week.ts`,
+  `my-week-card.tsx`). Tyler left out
   the weekly manager email; the check-in isn't for watching people.
 - **Time off**: my days off coming up, with Add time off (a first and last
   day) and a bin button that asks before taking one off. With none coming

@@ -14,7 +14,6 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ProjectMemberRow } from "@/lib/api/project/projects"
 import { plural } from "@/lib/format/plural"
-import { TEAM_ROLE_LABEL } from "@/lib/project/rules"
 import { DUE_FILTERS, NOBODY_FILTER, type DueFilter } from "@/lib/project/task-filters"
 import { cn } from "@/lib/utils"
 
@@ -220,7 +219,7 @@ export function MembersFilterMenu({
             onSelect={() => onChange(member.userId)}
             face={<PersonAvatar name={member.name} avatarUrl={member.avatarUrl} size="default" />}
             name={member.userId === myUserId ? `${member.name} (you)` : member.name}
-            detail={`${TEAM_ROLE_LABEL[member.role]} · ${openTasks(member.openTasks)}`}
+            detail={member.title ? `${member.title} · ${openTasks(member.openTasks)}` : openTasks(member.openTasks)}
           />
         ))}
         <MemberItem

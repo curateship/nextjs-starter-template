@@ -45,7 +45,6 @@ import {
   type NotificationItem,
 } from "@/lib/api/notification"
 import { saveMemberTitle } from "@/lib/api/project/team-running"
-import type { InviteForMe } from "@/lib/api/project/teams"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -58,7 +57,7 @@ import { MY_DASHBOARD_PANEL_LAYOUT_KEY, MY_TASK_VIEW_KEY } from "@/lib/project/p
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { clockIn, clockLabel } from "@/lib/project/days"
-import { LIMITS, TEAM_ROLE_LABEL, runsTheTeam, type TaskStatus } from "@/lib/project/rules"
+import { LIMITS, type TaskStatus } from "@/lib/project/rules"
 import {
   DUE_GROUPS,
   dueGroupOf,
@@ -95,16 +94,14 @@ const MY_DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
 
 export function MyDashboardScreen({
   dashboard,
-  invites,
   notifications,
   search,
 }: {
   dashboard: MyDashboardData | null
-  invites: InviteForMe[]
   notifications: NotificationItem[]
   search: MyDashboardSearch
 }) {
-  if (!dashboard) return <TeamStart invites={invites} />
+  if (!dashboard) return <TeamStart />
   return <Dashboard dashboard={dashboard} notifications={notifications} search={search} />
 }
 
@@ -261,7 +258,7 @@ function MePanel({
         <div className="grid min-w-0 flex-1">
           <span className="truncate text-sm font-medium">{me.name}</span>
           <span className="truncate text-xs text-muted-foreground">
-            {TEAM_ROLE_LABEL[me.role]} · {me.teamName}
+            {[me.title, me.teamName].filter(Boolean).join(" · ")}
           </span>
         </div>
         <MySettingsMenu dashboard={dashboard} />
@@ -289,7 +286,7 @@ function MePanel({
                 </>
               ) : null}
               {dashboard.record.of ? (
-                // Only I see this; it is never shown to the owner.
+                // Only I and the site admin see this; teammates never do.
                 <>
                   <dt className="text-muted-foreground">On time</dt>
                   <dd className="text-right">
@@ -394,7 +391,7 @@ function MySettingsMenu({ dashboard }: { dashboard: MyDashboardData }) {
               title="Bell notices"
               summary={dashboard.noticesOff.length ? `${dashboard.noticesOff.length} off` : "All on"}
             >
-              <MyNoticeSwitches off={dashboard.noticesOff} runsTheTeam={runsTheTeam(me.role)} />
+              <MyNoticeSwitches off={dashboard.noticesOff} />
             </OptionCard>
           </div>
         </ScrollArea>

@@ -12,8 +12,7 @@ import {
   takeDownAnnouncement,
 } from "@/server/project/announcements"
 import { findMembership } from "@/server/project/access"
-import { acceptInvite, createInvite } from "@/server/project/invites"
-import { addProjectMember, createProject, removeProjectMember } from "@/server/project/projects"
+import { addProjectMember, removeProjectMember } from "@/server/project/projects"
 import { projectNoticeLinks, projectTaskNoteVersions } from "@/server/project/schema"
 import {
   deleteComment,
@@ -25,7 +24,7 @@ import {
 import { loadTaskFileForDownload, type FileStorage } from "@/server/project/task-files"
 import { listNoteVersions, restoreNoteVersion } from "@/server/project/task-note-versions"
 import { createTask, deleteTask, loadTaskDetail, updateTask } from "@/server/project/tasks"
-import { createTeam } from "@/server/project/teams"
+import { projectFor, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
@@ -35,6 +34,7 @@ let anna: CustomShellUser
 let ben: CustomShellUser
 let leo: CustomShellUser
 let carla: CustomShellUser
+let admin: CustomShellUser
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
@@ -51,19 +51,16 @@ afterEach(async () => {
 })
 
 /**
- * Anna owns the team. Ben, Leo and Carla are members. "Site" has Anna, Ben
- * and Leo on it, not Carla. "Secret" has only Anna. Anna hands Ben a task in
- * Site, and makes one in Secret.
+ * Tyler, the site admin, runs the team. Anna, Ben, Leo and Carla are its
+ * employees. "Site" has Anna, Ben and Leo on it, not Carla. "Secret" has only
+ * Anna. Anna hands Ben a task in Site, and makes one in Secret.
  */
 async function setUp() {
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  for (const person of [ben, leo, carla]) {
-    const sent = await createInvite(anna, { email: person.email, role: "member" }, database)
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  const { id: projectId } = await createProject(anna.id, { name: "Site", color: "blue", description: "" }, database)
-  await addProjectMember(anna.id, projectId, ben.id, database)
-  await addProjectMember(anna.id, projectId, leo.id, database)
+  admin = (await startTeam(database, [anna, ben, leo, carla])).admin
+  const { id: projectId } = await projectFor(admin, anna.id, { name: "Site", color: "blue", description: "" }, database)
+  // A project's members are the site admin's to change.
+  await addProjectMember(admin.id, projectId, ben.id, database)
+  await addProjectMember(admin.id, projectId, leo.id, database)
   const task = (title: string, inProject = projectId) =>
     createTask(
       anna,
@@ -71,7 +68,7 @@ async function setUp() {
       database
     ).then((made) => made.id)
   const taskId = await task("Fix the checkout bug")
-  const { id: secretId } = await createProject(anna.id, { name: "Secret", color: "red", description: "" }, database)
+  const { id: secretId } = await projectFor(admin, anna.id, { name: "Secret", color: "red", description: "" }, database)
   const secretTaskId = await task("Plan the surprise party", secretId)
   await database.delete(customShellNotifications)
   return { projectId, taskId, secretId, secretTaskId, task }
@@ -252,13 +249,14 @@ describe("files in chat messages", () => {
     await deleteComment(ben, { commentId: kept, keepFiles: true }, database, storage)
     await deleteComment(ben, { commentId: dropped, keepFiles: false }, database, storage)
 
-    const detail = await loadTaskDetail(anna.id, taskId, database)
+    // The kept file stays under "Message deleted", where the site admin can
+    // still delete it: deleting someone else's message is theirs alone.
+    const detail = await loadTaskDetail(admin.id, taskId, database)
     expect(stored.size).toBe(1)
     expect(detail.files).toHaveLength(1)
-    // The kept file stays under "Message deleted", where it can still be deleted.
     expect(detail.comments[0]).toMatchObject({ deleted: true, canDelete: true })
     expect(detail.comments[0].files).toHaveLength(1)
-    await deleteComment(anna, { commentId: kept, keepFiles: false }, database, storage)
+    await deleteComment(admin, { commentId: kept, keepFiles: false }, database, storage)
     expect(stored.size).toBe(0)
   })
 })
@@ -351,7 +349,7 @@ describe("a project's own chat", () => {
     ])
     expect((await noticesFor(leo.id)).map((notice) => notice.message)).toEqual(["Ben replied to you in a project chat"])
 
-    await removeProjectMember(anna.id, projectId, leo.id, database)
+    await removeProjectMember(admin.id, projectId, leo.id, database)
     await database.delete(customShellNotifications)
     await sendMessage(ben, { chat: { projectId }, body: "Thanks", replyToId: id }, database)
     expect(await noticesFor(leo.id)).toEqual([])
@@ -416,24 +414,24 @@ describe("a project's own chat", () => {
 })
 
 describe("the team's announcement", () => {
-  it("is posted by the owner or an admin, tells everyone else, and shows to the whole team", async () => {
+  it("is posted by the site admin, tells the whole team, and shows to everyone on it", async () => {
     await setUp()
     await expect(postAnnouncement(ben, "Party", database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-    await postAnnouncement(anna, "Office closed Friday", database)
+    await postAnnouncement(admin, "Office closed Friday", database)
 
-    for (const person of [ben, leo, carla]) {
+    for (const person of [anna, ben, leo, carla]) {
       expect(await noticesFor(person.id)).toEqual([
-        { message: "Anna posted an announcement", detail: "Office closed Friday", kind: "team_announcement", href: "/team" },
+        { message: "Tyler posted an announcement", detail: "Office closed Friday", kind: "team_announcement", href: "/team" },
       ])
     }
-    expect(await noticesFor(anna.id)).toEqual([])
+    expect(await noticesFor(admin.id)).toEqual([])
     const membership = (await findMembership(carla.id, database))!
-    expect(await loadAnnouncement(membership, database)).toMatchObject({ text: "Office closed Friday", by: { name: "Anna" } })
+    expect(await loadAnnouncement(membership, database)).toMatchObject({ text: "Office closed Friday", by: { name: "Tyler" } })
   })
 
   it("keeps one at a time, hides for one person until the next, and comes down for everyone", async () => {
     await setUp()
-    await postAnnouncement(anna, "First", database)
+    await postAnnouncement(admin, "First", database)
     const benMembership = (await findMembership(ben.id, database))!
     const leoMembership = (await findMembership(leo.id, database))!
     const first = (await loadAnnouncement(benMembership, database))!
@@ -441,13 +439,13 @@ describe("the team's announcement", () => {
     expect(await loadAnnouncement(benMembership, database)).toBeNull()
     expect(await loadAnnouncement(leoMembership, database)).toMatchObject({ text: "First" })
 
-    await postAnnouncement(anna, "Second", database)
+    await postAnnouncement(admin, "Second", database)
     expect(await loadAnnouncement(benMembership, database)).toMatchObject({ text: "Second" })
 
     await expect(takeDownAnnouncement(ben, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-    await takeDownAnnouncement(anna, database)
+    await takeDownAnnouncement(admin, database)
     expect(await loadAnnouncement(leoMembership, database)).toBeNull()
-    await expect(takeDownAnnouncement(anna, database)).rejects.toThrow(PROJECT_ERRORS.noAnnouncement)
+    await expect(takeDownAnnouncement(admin, database)).rejects.toThrow(PROJECT_ERRORS.noAnnouncement)
   })
 })
 

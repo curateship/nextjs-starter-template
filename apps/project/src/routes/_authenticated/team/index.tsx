@@ -6,7 +6,7 @@ import { loadTeamCheckins } from "@/lib/api/project/checkins"
 import { loadMeetings } from "@/lib/api/project/meetings"
 import { readClientFilter } from "@/lib/project/clients"
 import { isRealDay } from "@/lib/project/days"
-import { loadFigures, loadMyTeamInvites, loadTeamDashboardPage } from "@/lib/api/project/teams"
+import { loadFigures, loadTeamDashboardPage } from "@/lib/api/project/teams"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { pageTitleHead } from "@/lib/project/page-title"
 
@@ -40,7 +40,7 @@ export const Route = createFileRoute("/_authenticated/team/")({
       loadMeetings({ month: deps.month, day: deps.day }),
       loadFigures(),
     ])
-    return { data, checkins, meetings, figures, invites: data ? [] : await loadMyTeamInvites() }
+    return { data, checkins, meetings, figures }
   },
   head: ({ matches }) => pageTitleHead("Team", matches),
   component: TeamRoute,
@@ -48,14 +48,13 @@ export const Route = createFileRoute("/_authenticated/team/")({
 })
 
 function TeamRoute() {
-  const { data, checkins, meetings, figures, invites } = Route.useLoaderData()
+  const { data, checkins, meetings, figures } = Route.useLoaderData()
   return (
     <TeamDashboardScreen
       data={data}
       checkins={checkins}
       meetings={meetings}
       figures={figures}
-      invites={invites}
       search={Route.useSearch()}
     />
   )

@@ -16,7 +16,8 @@ type Loaded = { state: "loading" } | { state: "error"; message: string } | { sta
  * My week, a card on My dashboard's left panel: from Monday to today, what I
  * finished, carried over and dropped, and how many work days I checked in.
  * Arrows step back a week at a time, up to 12 weeks. Read from my own saved
- * check-ins, and nobody else can read it, not the owner or an admin.
+ * check-ins. Only the site admin sees it besides me, on my page in their
+ * Members list; teammates never do.
  */
 export function MyWeekSection({ reload }: { reload: unknown }) {
   const [monday, setMonday] = React.useState<string | undefined>(undefined)
@@ -73,7 +74,7 @@ export function MyWeekSection({ reload }: { reload: unknown }) {
           }
         />
       ) : null}
-      <p className="text-xs text-muted-foreground">Only you see this.</p>
+      <p className="text-xs text-muted-foreground">Only you and the site admin see this.</p>
     </PanelCard>
   )
 }
@@ -88,7 +89,8 @@ function weekSpan(monday: string, lastDay: string) {
   return firstMonth === lastMonth && rest.length === 1 ? `${first} to ${rest[0]}` : `${first} to ${last}`
 }
 
-function WeekLines({ week, arrows }: { week: MyWeek; arrows: React.ReactNode }) {
+/** One week's lines, also drawn on a person's page for the site admin. */
+export function WeekLines({ week, arrows }: { week: MyWeek; arrows?: React.ReactNode }) {
   const share = week.workDays ? Math.round((week.checkedIn / week.workDays) * 100) : 0
   return (
     <div className="grid min-w-0 gap-3 text-sm">

@@ -1,7 +1,17 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { LIMITS, handOverAllSchema, holidaySchema, memberTitleSchema } from "@/lib/project/rules"
+import { PROJECT_ERRORS } from "@/lib/project/errors"
+import {
+  LIMITS,
+  handOverAllSchema,
+  holidaySchema,
+  joinByLinkSchema,
+  memberTitleSchema,
+} from "@/lib/project/rules"
+import { requestIp, requireAppOrigin } from "@/server/auth/origin"
+import { enforceRateLimit } from "@/server/auth/rate-limit"
+import { enforceHumanCheck } from "@/server/auth/turnstile"
 import { userGet, userPost } from "@/server/guards"
 import { addHoliday, removeHoliday } from "@/server/project/holidays"
 import {
@@ -66,15 +76,34 @@ const turnOffJoinLinkFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .handler(async ({ context }) => turnOffJoinLink(context.user.id))
 
+/** The team behind a join link. Signed out: the link is how a new person arrives. */
 const loadJoinOfferFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
   .inputValidator(z.object({ token }))
-  .handler(async ({ data, context }) => loadJoinOffer(context.user.id, data.token))
+  .handler(async ({ data }) => loadJoinOffer(data.token))
 
+/**
+ * Joins through a link, signed out. It makes an account and sends an email,
+ * so it takes the same guards as the shell's own sign-up: the app's own
+ * origin, 10 tries an hour from one address, and the human check.
+ */
 const joinByLinkFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ token }))
-  .handler(async ({ data, context }) => joinTeamByLink(context.user, data.token))
+  .inputValidator(
+    joinByLinkSchema.extend({ token, humanCheckToken: z.string().max(4096).optional() })
+  )
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    try {
+      await enforceRateLimit(`project-join:${requestIp()}`, { maxAttempts: 10, windowSeconds: 60 * 60 })
+      await enforceRateLimit(`project-invite-to:${data.email}`, { maxAttempts: 5, windowSeconds: 24 * 60 * 60 })
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("RATE_LIMITED")) {
+        throw new Error(PROJECT_ERRORS.joinLinkBusy)
+      }
+      throw error
+    }
+    await enforceHumanCheck(data.humanCheckToken)
+    return joinTeamByLink({ name: data.name, email: data.email }, data.token)
+  })
 
 const setTitleFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -100,8 +129,13 @@ export function stopJoinLink() {
 export function loadJoinLink(joinToken: string) {
   return loadJoinOfferFn({ data: { token: joinToken } })
 }
-export function joinThroughLink(joinToken: string) {
-  return joinByLinkFn({ data: { token: joinToken } })
+export function joinThroughLink(data: {
+  token: string
+  name: string
+  email: string
+  humanCheckToken?: string
+}) {
+  return joinByLinkFn({ data })
 }
 export function saveMemberTitle(data: z.input<typeof memberTitleSchema>) {
   return setTitleFn({ data })

@@ -7,8 +7,7 @@ import { messageText, tagPeople } from "@/lib/project/mentions"
 import { readTaskNotes, storedTaskNotes } from "@/lib/project/notes"
 import { LIMITS } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
-import { createInvite, acceptInvite } from "@/server/project/invites"
-import { addProjectMember, createProject, removeProjectMember } from "@/server/project/projects"
+import { addProjectMember, removeProjectMember } from "@/server/project/projects"
 import { projectNoticeLinks, projectProjects, projectTaskFiles } from "@/server/project/schema"
 import { deleteComment, editComment, sendMessage } from "@/server/project/task-chat"
 import {
@@ -26,7 +25,7 @@ import {
   setTaskStatus,
   updateTask,
 } from "@/server/project/tasks"
-import { createTeam } from "@/server/project/teams"
+import { projectFor, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { emptyProjectBin, loadProjectBin } from "@/server/project/planning"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -37,6 +36,7 @@ let anna: CustomShellUser
 let ben: CustomShellUser
 let leo: CustomShellUser
 let carla: CustomShellUser
+let admin: CustomShellUser
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
@@ -53,22 +53,21 @@ afterEach(async () => {
 })
 
 /**
- * Anna owns the team. Ben, Leo and Carla are members. The project has Anna,
- * Ben and Leo on it, not Carla. Anna hands Ben a task.
+ * Tyler, the site admin, runs the team. Anna, Ben, Leo and Carla are its
+ * employees. The project has Anna, Ben and Leo on it, not Carla. Anna hands
+ * Ben a task.
  */
 async function setUp() {
-  await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)
-  for (const person of [ben, leo, carla]) {
-    const sent = await createInvite(anna, { email: person.email, role: "member" }, database)
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  const { id: projectId } = await createProject(
+  admin = (await startTeam(database, [anna, ben, leo, carla])).admin
+  const { id: projectId } = await projectFor(
+    admin,
     anna.id,
     { name: "Site", color: "blue", description: "" },
     database
   )
-  await addProjectMember(anna.id, projectId, ben.id, database)
-  await addProjectMember(anna.id, projectId, leo.id, database)
+  // A project's members are the site admin's to change.
+  await addProjectMember(admin.id, projectId, ben.id, database)
+  await addProjectMember(admin.id, projectId, leo.id, database)
   const { id: taskId } = await createTask(
     anna,
     {
@@ -174,14 +173,17 @@ describe("editing and deleting messages", () => {
     expect(comment).toMatchObject({ canEdit: true, canDelete: true })
   })
 
-  it("lets the writer, the owner and admins delete, and leaves the message's place", async () => {
+  it("lets the writer and the site admin delete, and leaves the message's place", async () => {
     const { taskId } = await setUp()
     const { id } = await sendMessage(ben, { chat: { taskId: taskId }, body: `${tag(leo)} question`, replyToId: null }, database)
 
-    await expect(deleteComment(leo, { commentId: id, keepFiles: true }, database)).rejects.toThrow(
-      PROJECT_ERRORS.cantDeleteMessage
-    )
-    await deleteComment(anna, { commentId: id, keepFiles: true }, database)
+    // Anna made the task, but someone else's message is the site admin's alone.
+    for (const person of [leo, anna]) {
+      await expect(deleteComment(person, { commentId: id, keepFiles: true }, database)).rejects.toThrow(
+        PROJECT_ERRORS.cantDeleteMessage
+      )
+    }
+    await deleteComment(admin, { commentId: id, keepFiles: true }, database)
 
     const [comment] = (await loadTaskDetail(leo.id, taskId, database)).comments
     expect(comment).toMatchObject({ deleted: true, body: "", canEdit: false, canDelete: false })
@@ -229,7 +231,7 @@ describe("following a task", () => {
   it("stops telling a follower removed from the project", async () => {
     const { projectId, taskId } = await setUp()
     await followTask(leo.id, taskId, database)
-    await removeProjectMember(anna.id, projectId, leo.id, database)
+    await removeProjectMember(admin.id, projectId, leo.id, database)
     await sendMessage(ben, { chat: { taskId: taskId }, body: "Started", replyToId: null }, database)
     await setTaskStatus(ben, { taskId, status: "done", stuckReason: null }, database)
     expect(await noticesFor(leo.id)).toEqual([])
@@ -306,7 +308,7 @@ describe("files on a task", () => {
     await add(5)
   })
 
-  it("lets the uploader, the owner and admins delete a file, from storage too", async () => {
+  it("lets the uploader and the site admin delete a file, from storage too", async () => {
     const { taskId } = await setUp()
     const { stored, storage } = memoryStorage()
     const { id } = await addTaskFile(
@@ -315,10 +317,12 @@ describe("files on a task", () => {
       database,
       storage
     )
-    await expect(deleteTaskFile(leo, id, database, storage)).rejects.toThrow(
-      PROJECT_ERRORS.cantDeleteFile
-    )
-    await deleteTaskFile(anna, id, database, storage)
+    for (const person of [leo, anna]) {
+      await expect(deleteTaskFile(person, id, database, storage)).rejects.toThrow(
+        PROJECT_ERRORS.cantDeleteFile
+      )
+    }
+    await deleteTaskFile(admin, id, database, storage)
     expect(stored.size).toBe(0)
     expect((await loadTaskDetail(ben.id, taskId, database)).files).toEqual([])
   })
@@ -332,14 +336,15 @@ describe("files on a task", () => {
     await deleteTask(anna, taskId, database)
     expect(stored.size).toBe(1)
 
-    // Storage that can't remove the file leaves the task in the bin.
+    // Emptying the bin is the site admin's. Storage that can't remove the
+    // file leaves the task in the bin.
     const broken: FileStorage = { ...storage, remove: () => Promise.reject(new Error("down")) }
-    await expect(emptyProjectBin(anna.id, projectId, database, broken)).rejects.toThrow(
+    await expect(emptyProjectBin(admin.id, projectId, database, broken)).rejects.toThrow(
       PROJECT_ERRORS.fileNotRemoved
     )
     expect((await loadProjectBin(anna.id, projectId, database)).entries.map((e) => e.id)).toEqual([taskId])
 
-    await emptyProjectBin(anna.id, projectId, database, storage)
+    await emptyProjectBin(admin.id, projectId, database, storage)
     expect(stored.size).toBe(0)
     expect((await loadProjectBin(anna.id, projectId, database)).entries).toEqual([])
   })

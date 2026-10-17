@@ -24,7 +24,7 @@ import { db } from "@/server/db"
 import {
   findMembership,
   isProjectMember,
-  requireOpenProject,
+  requireProjectSettings,
   requireTaskAccess,
   requireTeamRunner,
   type Membership,
@@ -913,8 +913,8 @@ export async function clearPersonValuesOffProject(taskId: string, projectId: str
 
 /**
  * Which of the team's types this project offers, and the one New task starts
- * on. Unticking a type changes nothing on tasks that already have it. Anyone
- * who can change the project can change these, as with its sections.
+ * on. Unticking a type changes nothing on tasks that already have it. It is
+ * one of the project's settings, so only the site admin changes it.
  */
 export async function setProjectTypes(
   userId: string,
@@ -922,7 +922,7 @@ export async function setProjectTypes(
   database = db
 ) {
   await database.transaction(async (tx) => {
-    const { membership, project } = await requireOpenProject(userId, input.projectId, tx)
+    const { membership, project } = await requireProjectSettings(userId, input.projectId, tx)
     requireSharedProject(project)
     const hidden = input.hiddenTypeIds ? [...new Set(input.hiddenTypeIds)] : project.hiddenTypeIds
     const wanted = [...new Set([...hidden, ...(input.defaultTypeId ? [input.defaultTypeId] : [])])]

@@ -17,7 +17,6 @@ import {
   wholeTeamSchema,
 } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
-import { listInvitesForMe } from "@/server/project/invites"
 import {
   createMilestone,
   deleteMilestone,
@@ -66,16 +65,10 @@ export type {
 
 const id = z.string().min(1).max(36)
 
-/** The Projects dashboard, with any invites waiting for this person's email. */
+/** The Projects dashboard. */
 const loadProjectsPageFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => {
-    const [page, invites] = await Promise.all([
-      loadProjectsPage(context.user.id),
-      listInvitesForMe(context.user),
-    ])
-    return { ...page, invites }
-  })
+  .handler(async ({ context }) => loadProjectsPage(context.user.id))
 
 const loadProjectPageFn = createServerFn({ method: "GET" })
   .middleware([userGet])

@@ -6,7 +6,7 @@ on its own task; these put them in one place.
 
 ## Needs attention
 
-For the owner and admins only. Tyler chose a tab here, rather than a page of
+For the site admin only. Tyler chose a tab here, rather than a page of
 its own, on 10 Oct 2026. The tab reads "Attention" so three tabs fit the
 panel, and the list inside is headed "Needs attention". Three tabs fill the
 panel at its usual width, so the team's Activity went beside Calendar in the
@@ -23,9 +23,15 @@ middle panel instead (Tyler, 12 Oct 2026; see
   - **Picked on 3 days or more** and still not Done (the same mark as
     "Picked on 4 days" on the task).
   - **Overdue**: past its due date and not Done.
-- **Each row** names the task, the person, the project and how long ("Stuck
-  since today", "Stuck for 3 days", "Not accepted for 1 work day", "Waiting
-  for Sam's review for 2 work days", "Picked on 5 days", "4 days overdue"), longest first, and opens the task as a window.
+- **One card per kind**, as Tyler drew it on 16 Oct 2026
+  (`assets/pasted-image-1792198368279821000.png`), in this order: Overdue,
+  Blocked (Stuck), Handed over not accepted, Waiting for review, Picked on
+  3+ days. Each has a coloured dot and its count.
+- **Each row** is the task's title, then whose it is ("Ben Tester → Sam
+  Owner" for a review, naming the reviewer) and how long at the end ("7
+  days" in red when overdue, "Stuck 6 days", "24 work days"), longest first.
+  It opens the task as a window, and a screen reader hears the whole
+  sentence ("Waiting for Sam's review for 2 work days").
 - **A fixed task leaves the list**, because it is worked out again every time
   the tab opens and every time a task window opened from it closes. The old
   rows stay on screen until the new ones arrive. Workload reloads the same
@@ -35,7 +41,7 @@ middle panel instead (Tyler, 12 Oct 2026; see
   counts from its last change or from when it was made.
 - **What it leaves out:** Done tasks (except those waiting for review), archived projects, the bin, and "Just me"
   tasks, which only their person can see.
-- **The bell gives the numbers, this gives the names.** The owner's morning
+- **The bell gives the numbers, this gives the names.** The site admin's morning
   notice ("5 of 6 checked in, 1 blocked") is in
   [The morning check-in](morning-check-in.md#the-teams-morning).
 
@@ -43,14 +49,16 @@ middle panel instead (Tyler, 12 Oct 2026; see
 
 For everyone, to see who has room before handing out more work.
 
-- **For each person:** Open, Doing, Stuck, Overdue and Due this week (today and
-  the next seven days), across every project. Clicking a number lists those
-  tasks, and each opens as a window.
-- **Only what the viewer can see.** The owner and admins see every shared
+- **For each person:** Open, Doing, Stuck, Overdue and This week (due today
+  and the next seven days), across every project, as five figures in a white
+  strip under their name (Tyler's drawing, 16 Oct 2026). A zero is grey;
+  Stuck and Overdue above zero are red. Clicking a figure lists those tasks,
+  and each opens as a window.
+- **Only what the viewer can see.** The site admin sees every shared
   project, as everywhere else; a member sees counts and tasks from their own
   projects only. "Just me" tasks never count.
 - **Busiest first**, by open tasks.
-- **One client's work.** With a client picked in the Client choice at the
+- **One client's work.** With a client picked in the client choice beside the Workload heading, at the
   top of the tab, only that client's projects count, or those with no client
   (Features 16 Oct; see Clients in
   [Projects and tasks](projects-and-tasks.md#clients)). The same choice

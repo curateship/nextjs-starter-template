@@ -1,9 +1,16 @@
 import { and, asc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm"
 
 import type { ProjectColor, TaskStatus } from "@/lib/project/rules"
+import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { requireMembership, visibleProjectIds, type Membership, type ProjectDb } from "@/server/project/access"
-import { projectMilestones, projectProjects, projectTasks, projectTeamMembers } from "@/server/project/schema"
+import {
+  projectMilestones,
+  projectProjects,
+  projectSiteAdminTeams,
+  projectTasks,
+  projectTeamMembers,
+} from "@/server/project/schema"
 import { customShellUsers } from "@/server/schema"
 
 /**
@@ -56,11 +63,17 @@ export async function loadTeamDueDates(
   last: string,
   database: ProjectDb = db
 ): Promise<TeamDueDates> {
-  const [me] = await database
-    .select({ on: projectTeamMembers.calendarDueDates })
-    .from(projectTeamMembers)
-    .where(and(eq(projectTeamMembers.teamId, membership.teamId), eq(projectTeamMembers.userId, membership.userId)))
-    .limit(1)
+  const [me] = membership.siteAdmin
+    ? await database
+        .select({ on: projectSiteAdminTeams.calendarDueDates })
+        .from(projectSiteAdminTeams)
+        .where(eq(projectSiteAdminTeams.userId, membership.userId))
+        .limit(1)
+    : await database
+        .select({ on: projectTeamMembers.calendarDueDates })
+        .from(projectTeamMembers)
+        .where(and(eq(projectTeamMembers.teamId, membership.teamId), eq(projectTeamMembers.userId, membership.userId)))
+        .limit(1)
   if (!me?.on) return { on: false, tasks: [], deadlines: [] }
   const visible = [...(await visibleProjectIds(membership, database))]
   if (visible.length === 0) return { on: true, tasks: [], deadlines: [] }
@@ -136,6 +149,14 @@ async function loadDeadlines(visible: string[], first: string, last: string, dat
 /** Turns my own "Due dates" switch on the Team calendar on or off. */
 export async function setCalendarDueDates(userId: string, on: boolean, database = db) {
   const membership = await requireMembership(userId, database)
+  if (membership.siteAdmin) {
+    // The picker row exists once a team has been picked; make it if it hasn't.
+    await database
+      .insert(projectSiteAdminTeams)
+      .values({ userId, teamId: membership.teamId, calendarDueDates: on, updatedAt: now() })
+      .onConflictDoUpdate({ target: projectSiteAdminTeams.userId, set: { calendarDueDates: on } })
+    return
+  }
   await database
     .update(projectTeamMembers)
     .set({ calendarDueDates: on })

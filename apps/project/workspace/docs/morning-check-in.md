@@ -11,7 +11,7 @@ check in with its own dashboard".
 
 ## When a person checks in
 
-- **The team sets one time.** The owner or an admin sets the daily check-in
+- **The team sets one time.** The site admin sets the daily check-in
   time, time zone and work days on the Team dashboard.
 - **Each person can shift it.** "My check-in time" on the left of My
   dashboard holds a time and a time zone. Each saves when it is left
@@ -42,7 +42,7 @@ check in with its own dashboard".
 
 ### The team's morning
 
-- **One notice per work day** to the owner and each admin: "5 of 6 checked
+- **One notice per work day** to the site admin: "5 of 6 checked
   in, 1 blocked", or "5 of 6 checked in" when nobody is blocked. Clicking it
   opens the Team dashboard on that day.
 - **Its second line names who isn't in yet**: "Not yet: Ben Tester, Carla
@@ -51,8 +51,8 @@ check in with its own dashboard".
   expected.
 - **It waits for the last person.** It goes 30 minutes after the latest
   check-in time anyone in the team has, so every number is in. Tyler chose
-  this over the owner's own time plus an hour on 10 Oct 2026. A team spread
-  across time zones may get it late in the owner's day.
+  this over the site admin's own time plus an hour on 10 Oct 2026. A team
+  spread across time zones may get it late in the site admin's day.
 - **The numbers are the calendar's.** They are counted by the same code as
   today's square on the Team dashboard (`countTeamToday` in
   `src/server/project/team-days.ts`). The day is the team's, in the team's
@@ -164,7 +164,7 @@ check in with its own dashboard".
 
 ### The team's own words for the boxes
 
-- **The owner and admins rename the boxes** in Team settings, under
+- **The site admin renames the boxes** in Team settings, under
   "Check-in boxes", such as "Wins" and "Focus". Tyler chose renaming only on
   11 Oct 2026: there are always three boxes.
 - **The third box still marks someone Blocked**, whatever it is called.
@@ -184,7 +184,8 @@ check in with its own dashboard".
 
 ## The evening check-out
 
-Optional, and private to the person. Tyler's rule in
+Optional, and private to the person and the site admin, who reads the notes
+left on the person's page. Tyler's rule in
 [What this app is](what-this-app-is.md): "The evening check-out is optional".
 
 - **Check out** sits beside "Change today's picks" on My dashboard once the
@@ -243,11 +244,11 @@ Optional, and private to the person. Tyler's rule in
 
 A public holiday is a day off for everyone, set once.
 
-- **The owner and admins add them** in Team settings under "Team holidays":
+- **The site admin adds them** in Team settings under "Team holidays":
   a date and a name, such as "Christmas Day". Today or later only. Removing
   one asks first.
 - **On that date nobody is reminded**: no check-in reminder, no "Due
-  tomorrow" or "Overdue", and no morning notice to the owner.
+  tomorrow" or "Overdue", and no morning notice to the site admin.
 - **Saved as a day off.** The end-of-day job saves the day with `work_day`
   false, so nobody shows "Didn't check in" and the check-in rate leaves the
   day out.
@@ -267,7 +268,7 @@ A public holiday is a day off for everyone, set once.
 A person's own days off, such as a holiday, so they don't count as missed.
 
 - **Each person marks their own** on My dashboard's left panel, with a first
-  and last day. **The owner and admins can mark anyone's**, from that
+  and last day. **The site admin can mark anyone's**, from that
   person's window on the Members page. Tyler chose both on 10 Oct 2026. Up
   to a year at a time.
 - **No reminder** on those days of the person's own calendar, and no due-date
@@ -275,7 +276,7 @@ A person's own days off, such as a holiday, so they don't count as missed.
 - **Saved as a day off.** The end-of-day job saves the day with `work_day`
   false, not "Didn't check in".
 - **"Away" on the Team dashboard**, and they aren't counted as expected that
-  day: not in the calendar square, not in the owner's morning notice.
+  day: not in the calendar square, not in the site admin's morning notice.
 - **Days already saved don't change.** A day saved as "Didn't check in"
   before the time off was added stays that way.
 - **Checking in while away is allowed**, and is saved as a day off, so it is

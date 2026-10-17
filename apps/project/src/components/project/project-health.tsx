@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { Loader2Icon } from "lucide-react"
+import { InfoIcon, Loader2Icon } from "lucide-react"
 
 import { CardDropdownTitle } from "@/components/project/card-dropdown"
 import { Button } from "@/components/ui/button"
@@ -58,6 +58,39 @@ export function HealthSetBy({ health, className }: { health: ProjectHealthView; 
       </TooltipTrigger>
       <TooltipContent>{formatDateTime(health.at)}</TooltipContent>
     </Tooltip>
+  )
+}
+
+/**
+ * "At risk" with an "i" beside it, the reason and who set it in the "i"'s
+ * tooltip, so a table row stays one line (Tyler, 16 Oct 2026: "Put a 'i'
+ * icon here and show the risk with a tooltip instead").
+ */
+export function HealthWithInfo({ health }: { health: ProjectHealthView }) {
+  const ago = formatTimeAgo(health.at)
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <HealthMark health={health.value} className="text-foreground" />
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Why it's ${PROJECT_HEALTH_LABEL[health.value]}`}
+            // The row opens the project; the "i" only shows the reason.
+            onClick={(event) => event.stopPropagation()}
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            <InfoIcon className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="grid max-w-64 gap-0.5">
+          {health.note ? <span className="break-words">{health.note}</span> : null}
+          <span className="opacity-80">
+            Set by {health.byName}, {ago === "Just now" ? "just now" : ago}
+          </span>
+        </TooltipContent>
+      </Tooltip>
+    </span>
   )
 }
 

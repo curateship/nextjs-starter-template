@@ -197,10 +197,10 @@ const WHO_REFUSAL: Record<Exclude<WhoCanChange, "anyone">, string> = {
   handed_out_by: "whoever handed the task out",
 }
 
-/** "Only the person assigned, the owner or an admin can change Final cut." */
+/** "Only the person assigned or the site admin can change Final cut." */
 export function onlyWhoCanChange(field: { name: string; whoCanChange: WhoCanChange }) {
   if (field.whoCanChange === "anyone") return null
-  return `Only ${WHO_REFUSAL[field.whoCanChange]}, the owner or an admin can change ${field.name}.`
+  return `Only ${WHO_REFUSAL[field.whoCanChange]} or the site admin can change ${field.name}.`
 }
 
 type HandedOut = { firstHandedOutByUserId: string | null; createdByUserId: string | null }

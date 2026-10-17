@@ -1,7 +1,8 @@
 import * as React from "react"
 import { Link, useRouter } from "@tanstack/react-router"
-import { ArrowRightLeftIcon, Loader2Icon } from "lucide-react"
+import { ArrowRightLeftIcon } from "lucide-react"
 
+import { WeekLines } from "@/components/project/my-week-card"
 import { SaveLine } from "@/components/project/save-line"
 import { DueDate, PersonAvatar, StatusBadge } from "@/components/project/task-bits"
 import { TimeOffSection } from "@/components/project/time-off-card"
@@ -21,40 +22,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  changeTeamMemberRole,
-  makeTeamOwner,
-  type TeamMemberRow,
-} from "@/lib/api/project/teams"
+import type { TeamMemberRow } from "@/lib/api/project/teams"
 import { loadTeammatePage, saveMemberTitle, type Teammate } from "@/lib/api/project/team-running"
-import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { dayRangeLabel } from "@/lib/project/days"
+import { dayLabel, dayRangeLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import {
-  LIMITS,
-  runsTheTeam,
-  TEAM_INVITE_ROLES,
-  TEAM_ROLE_LABEL,
-  type TeamInviteRole,
-  type TeamRole,
-} from "@/lib/project/rules"
+import { LIMITS, runsTheTeam, type TeamRole } from "@/lib/project/rules"
 import { useSaveLine } from "@/lib/project/use-save-line"
 
 /**
  * A teammate's page, opened from their name on the Team dashboard or the
- * Members page: what they have open in projects I can see, their time off,
- * job title and role. It shows only what the app shows elsewhere; their
- * check-in record stays theirs alone (Tyler, 13 Oct 2026). The owner and
- * admins also change the role, the job title and the time off here, and the
- * owner can hand the team over. A role saves the moment it is picked.
+ * Members page: what they have open in projects I can see, their time off and
+ * job title. To a teammate it shows only what the app shows elsewhere (Tyler,
+ * 13 Oct 2026). The site admin also sees their private things, changes their
+ * job title and time off, and hands all their tasks on from here.
  */
 export function MemberDialog({
   member,
@@ -67,40 +48,14 @@ export function MemberDialog({
   myRole: TeamRole
   myUserId: string
   onClose: () => void
-  /** "Hand over all their tasks", for the owner and admins: this window closes first. */
+  /** "Hand over all their tasks", for the site admin: this window closes first. */
   onHandOver?: (member: TeamMemberRow) => void
 }) {
-  const router = useRouter()
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  const [confirmOwner, setConfirmOwner] = React.useState(false)
   const canRun = runsTheTeam(myRole)
   const isMe = member?.userId === myUserId
 
-  function close() {
-    setConfirmOwner(false)
-    onClose()
-  }
-
-  async function setRole(role: TeamInviteRole) {
-    if (!member || role === member.role) return
-    const ok = await run(
-      () => changeTeamMemberRole({ userId: member.userId, role }),
-      `${member.name} is now ${role === "admin" ? "an admin" : "a member"}.`
-    )
-    if (ok) await router.invalidate()
-  }
-
-  async function handOver() {
-    if (!member) return
-    const ok = await run(() => makeTeamOwner(member.userId), `${member.name} is now the owner.`)
-    if (ok) {
-      close()
-      await router.invalidate()
-    }
-  }
-
   return (
-    <Dialog open={Boolean(member)} onOpenChange={(open) => (open ? null : close())}>
+    <Dialog open={Boolean(member)} onOpenChange={(open) => (open ? null : onClose())}>
       <DialogContent variant="admin" className="sm:max-w-lg">
         {member ? (
           <>
@@ -111,78 +66,20 @@ export function MemberDialog({
                 {isMe ? " (you)" : ""}
               </DialogTitle>
               <DialogDescription>
-                {[member.title, TEAM_ROLE_LABEL[member.role], member.email].filter(Boolean).join(" · ")}
+                {[member.title, member.invited ? "Hasn't set a password yet" : null, member.email]
+                  .filter(Boolean)
+                  .join(" · ")}
               </DialogDescription>
             </DialogHeader>
             <DialogBody>
               <TeammateWork key={member.userId} member={member} editTimeOff={canRun} />
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>Role</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                  {canRun ? (
-                    <div className="grid gap-2">
-                      <Label htmlFor="member-role">Role</Label>
-                      <Select
-                        value={member.role}
-                        onValueChange={(value) => void setRole(value as TeamInviteRole)}
-                        disabled={busy || member.role === "owner" || isMe}
-                      >
-                        <SelectTrigger id="member-role" className="w-full sm:w-fit">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {member.role === "owner" ? (
-                            <SelectItem value="owner">{TEAM_ROLE_LABEL.owner}</SelectItem>
-                          ) : null}
-                          {TEAM_INVITE_ROLES.map((role) => (
-                            <SelectItem key={role} value={role}>
-                              {TEAM_ROLE_LABEL[role]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Admins can invite and remove people and change the team's settings.
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm">
-                      {TEAM_ROLE_LABEL[member.role]}
-                      {member.title ? ` · ${member.title}` : ""}
-                    </p>
-                  )}
-                  {canRun ? <JobTitleField member={member} /> : null}
-                </CardContent>
-              </Card>
-              {myRole === "owner" && member.role !== "owner" ? (
+              {canRun ? (
                 <Card size="sm">
                   <CardHeader>
-                    <CardTitle>Ownership</CardTitle>
+                    <CardTitle>Job title</CardTitle>
                   </CardHeader>
-                  <CardContent className="grid gap-4">
-                    <p className="text-sm text-muted-foreground">
-                      The owner can hand the team to someone else. You'll become an admin.
-                    </p>
-                    {confirmOwner ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm">Make {member.name} the owner?</span>
-                        <Button type="button" variant="outline" onClick={() => setConfirmOwner(false)}>
-                          Cancel
-                        </Button>
-                        <Button type="button" disabled={busy} onClick={() => void handOver()}>
-                          {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                          Make owner
-                        </Button>
-                      </div>
-                    ) : (
-                      <div>
-                        <Button type="button" variant="outline" onClick={() => setConfirmOwner(true)}>
-                          Make {member.name} the owner
-                        </Button>
-                      </div>
-                    )}
+                  <CardContent>
+                    <JobTitleField member={member} />
                   </CardContent>
                 </Card>
               ) : null}
@@ -194,7 +91,7 @@ export function MemberDialog({
                   variant="outline"
                   className="sm:mr-auto"
                   onClick={() => {
-                    close()
+                    onClose()
                     onHandOver(member)
                   }}
                 >
@@ -202,7 +99,7 @@ export function MemberDialog({
                   Hand over all their tasks
                 </Button>
               ) : null}
-              <Button type="button" onClick={close}>
+              <Button type="button" onClick={onClose}>
                 Done
               </Button>
             </DialogFooter>
@@ -217,8 +114,8 @@ type Loaded = { state: "loading" } | { state: "error"; message: string } | { sta
 
 /**
  * Their open tasks in shared projects I can see, soonest due first, each
- * opening on its project page; and their time off, which the owner and
- * admins can change.
+ * opening on its project page; their time off, which the site admin can
+ * change; and, for the site admin alone, their private things.
  */
 function TeammateWork({ member, editTimeOff }: { member: TeamMemberRow; editTimeOff: boolean }) {
   const [loaded, setLoaded] = React.useState<Loaded>({ state: "loading" })
@@ -300,7 +197,47 @@ function TeammateWork({ member, editTimeOff }: { member: TeamMemberRow; editTime
           )}
         </CardContent>
       </Card>
+      {loaded.state === "ready" && loaded.page.private ? <PrivateThings things={loaded.page.private} /> : null}
     </>
+  )
+}
+
+/**
+ * What only the person and the site admin see (Tyler, 16 Oct 2026: "Tyler
+ * sees private things too"): their check-in record, this week's check-ins and
+ * the notes they left at check-out.
+ */
+function PrivateThings({ things }: { things: NonNullable<Teammate["private"]> }) {
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Private</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 text-sm">
+        <p className="text-xs text-muted-foreground">Only they and you see this.</p>
+        <p>
+          {things.record.of
+            ? `On time ${things.record.onTime} of the last ${things.record.of} work ${things.record.of === 1 ? "day" : "days"}`
+            : "No work days saved yet"}
+        </p>
+        <WeekLines week={things.week} />
+        <div className="grid gap-1">
+          <span className="text-muted-foreground">Notes left at check-out</span>
+          {things.notesLeft.length ? (
+            <ul className="grid gap-1">
+              {things.notesLeft.map((entry) => (
+                <li key={entry.day} className="break-words">
+                  <span className="text-muted-foreground">{dayLabel(entry.day)}: </span>
+                  {entry.note}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <span>None yet</span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 

@@ -5,13 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { PERSONAL_PROJECT_ID } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
-import { acceptInvite, createInvite } from "@/server/project/invites"
 import { setRepeat } from "@/server/project/planning"
 import { makeRepeatCopies } from "@/server/project/planning-jobs"
 import {
   addProjectMember,
   copyProject,
-  createProject,
   loadProjectPage,
   removeProjectMember,
 } from "@/server/project/projects"
@@ -36,7 +34,7 @@ import {
   updateTypeField,
 } from "@/server/project/task-types"
 import { assignTask, createTask, loadTaskDetail, setTaskStatus } from "@/server/project/tasks"
-import { createTeam } from "@/server/project/teams"
+import { projectFor, startTeam } from "@/server/project/test-people"
 import type { CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
@@ -45,6 +43,7 @@ let database: CustomShellDb
 let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
+let admin: CustomShellUser
 let website: string
 let shop: string
 let teamId: string
@@ -58,19 +57,14 @@ beforeEach(async () => {
   anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
   ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
-  teamId = (await createTeam(anna.id, { name: "Acme", timeZone: "UTC" }, database)).id
-  for (const person of [ben, carla]) {
-    const sent = await createInvite(
-      { ...actor(anna), currentWorkspaceId: anna.currentWorkspaceId },
-      { email: person.email, role: "member" },
-      database
-    )
-    await acceptInvite(person, sent.inviteId, database)
-  }
-  website = (await createProject(anna.id, { name: "Website", color: "blue", description: "" }, database)).id
-  await addProjectMember(anna.id, website, ben.id, database)
-  shop = (await createProject(anna.id, { name: "Shop", color: "green", description: "" }, database)).id
-  await addProjectMember(anna.id, shop, carla.id, database)
+  const started = await startTeam(database, [anna, ben, carla])
+  teamId = started.team.id
+  admin = started.admin
+  // A project's members are the site admin's to change.
+  website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
+  await addProjectMember(admin.id, website, ben.id, database)
+  shop = (await projectFor(admin, anna.id, { name: "Shop", color: "green", description: "" }, database)).id
+  await addProjectMember(admin.id, shop, carla.id, database)
 })
 
 afterEach(async () => {
@@ -78,22 +72,23 @@ afterEach(async () => {
 })
 
 /**
- * Leo's "Video editing" from the task file: a Footage link only whoever
- * handed it out may change, filled when made; a Platform dropdown; a
+ * Leo's "Video editing" from the task file, set up by the site admin, whose
+ * task types are theirs alone: a Footage link only whoever handed it out may
+ * change, filled when made; a Platform dropdown; a
  * Thumbnail shown only for YouTube and needed before Done; and a Final cut
  * file needed before Done.
  */
 async function videoEditing() {
-  const { id: typeId } = await createTaskType(anna.id, { name: "Video editing", icon: "video", color: "red" }, database)
+  const { id: typeId } = await createTaskType(admin.id, { name: "Video editing", icon: "video", color: "red" }, database)
   const field = async (name: string, kind: Parameters<typeof createTypeField>[1]["kind"]) =>
-    (await createTypeField(anna.id, { typeId, name, kind }, database)).id
+    (await createTypeField(admin.id, { typeId, name, kind }, database)).id
   const footage = await field("Footage link", "link")
   const platform = await field("Platform", "dropdown")
   const thumbnail = await field("Thumbnail", "text")
   const finalCut = await field("Final cut", "file")
   const editor = await field("Editor", "person")
   await updateTypeField(
-    anna.id,
+    admin.id,
     { fieldId: platform, choices: [{ name: "YouTube" }, { name: "TikTok" }, { name: "Instagram" }] },
     database
   )
@@ -101,13 +96,13 @@ async function videoEditing() {
     .choices!
   const youtube = choices.find((c) => c.name === "YouTube")!.id
   const tiktok = choices.find((c) => c.name === "TikTok")!.id
-  await updateTypeField(anna.id, { fieldId: footage, neededWhenMade: true, whoCanChange: "handed_out_by" }, database)
+  await updateTypeField(admin.id, { fieldId: footage, neededWhenMade: true, whoCanChange: "handed_out_by" }, database)
   await updateTypeField(
-    anna.id,
+    admin.id,
     { fieldId: thumbnail, neededBeforeDone: true, showWhen: { fieldId: platform, choiceId: youtube } },
     database
   )
-  await updateTypeField(anna.id, { fieldId: finalCut, neededBeforeDone: true }, database)
+  await updateTypeField(admin.id, { fieldId: finalCut, neededBeforeDone: true }, database)
   return { typeId, footage, platform, thumbnail, finalCut, editor, youtube, tiktok }
 }
 
@@ -157,12 +152,14 @@ const card = async (taskId: string, userId = anna.id, projectId = website) =>
   (await loadProjectPage(userId, projectId, database)).tasks.find((t) => t.id === taskId)!
 
 describe("task types for the team", () => {
-  it("lets only the owner and admins make and change them", async () => {
-    await expect(createTaskType(ben.id, { name: "Research", icon: "search", color: "blue" }, database)).rejects.toThrow(
-      PROJECT_ERRORS.notRunningTeam
-    )
-    await createTaskType(anna.id, { name: "Research", icon: "search", color: "blue" }, database)
-    await expect(createTaskType(anna.id, { name: "research", icon: "book", color: "teal" }, database)).rejects.toThrow(
+  it("lets only the site admin make and change them", async () => {
+    for (const person of [ben, anna]) {
+      await expect(
+        createTaskType(person.id, { name: "Research", icon: "search", color: "blue" }, database)
+      ).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+    }
+    await createTaskType(admin.id, { name: "Research", icon: "search", color: "blue" }, database)
+    await expect(createTaskType(admin.id, { name: "research", icon: "book", color: "teal" }, database)).rejects.toThrow(
       PROJECT_ERRORS.typeNameTaken
     )
   })
@@ -177,7 +174,7 @@ describe("task types for the team", () => {
   it("archives a type: it leaves New task, and its tasks keep the type and values", async () => {
     const t = await videoEditing()
     const taskId = await videoTask(t)
-    await archiveTaskType(anna.id, { typeId: t.typeId, archived: true }, database)
+    await archiveTaskType(admin.id, { typeId: t.typeId, archived: true }, database)
     expect((await card(taskId)).type?.name).toBe("Video editing")
     expect((await card(taskId)).fieldValues[t.footage]).toBe("https://drive.example.test/raw")
     await expect(videoTask(t, "Another")).rejects.toThrow(PROJECT_ERRORS.typeArchived)
@@ -218,7 +215,7 @@ describe("fields for each type", () => {
     const t = await videoEditing()
     const taskId = await videoTask(t)
     await setTaskFieldValue(actor(ben), { taskId, fieldId: t.thumbnail, value: "Big red arrow" }, database)
-    await expect(updateTypeField(anna.id, { fieldId: t.thumbnail, kind: "number" }, database)).rejects.toThrow(
+    await expect(updateTypeField(admin.id, { fieldId: t.thumbnail, kind: "number" }, database)).rejects.toThrow(
       PROJECT_ERRORS.fieldKindLocked
     )
     expect((await listTeamTypes(teamId, database, { withUse: true }))[0].fields.find((f) => f.id === t.thumbnail)?.inUse).toBe(1)
@@ -231,7 +228,7 @@ describe("fields for each type", () => {
     const [tiktok, instagram] = (await listTeamTypes(teamId, database))[0].fields
       .find((f) => f.id === t.platform)!
       .settings.choices!.filter((c) => c.name !== "YouTube")
-    await updateTypeField(anna.id, { fieldId: t.platform, choices: [tiktok, instagram] }, database)
+    await updateTypeField(admin.id, { fieldId: t.platform, choices: [tiktok, instagram] }, database)
     const fields = (await listTeamTypes(teamId, database))[0].fields
     expect(fields.find((f) => f.id === t.platform)!.settings.choices!.find((c) => c.id === t.youtube)).toMatchObject({
       name: "YouTube",
@@ -252,7 +249,7 @@ describe("fields for each type", () => {
       storage
     )
     expect(stored.size).toBe(1)
-    await deleteTypeField(anna.id, t.finalCut, database, storage)
+    await deleteTypeField(admin.id, t.finalCut, database, storage)
     expect(stored.size).toBe(0)
     expect(await database.select().from(projectTaskTypeFields).where(eq(projectTaskTypeFields.id, t.finalCut))).toEqual([])
   })
@@ -289,16 +286,16 @@ describe("fields for each type", () => {
     const t = await videoEditing()
     const taskId = await videoTask(t)
     await setTaskFieldValue(actor(anna), { taskId, fieldId: t.editor, value: ben.id }, database)
-    await removeProjectMember(anna.id, website, ben.id, database)
+    await removeProjectMember(admin.id, website, ben.id, database)
     expect((await card(taskId)).fieldValues[t.editor]).toBeUndefined()
   })
 
-  it("copies types and values with Copy project, keeping a Person only when it's whoever copied", async () => {
+  it("copies types and values with Copy project, leaving Person fields empty since nobody is on the copy yet", async () => {
     const t = await videoEditing()
     const taskId = await videoTask(t)
     await setTaskFieldValue(actor(anna), { taskId, fieldId: t.editor, value: ben.id }, database)
-    const { id } = await copyProject(anna.id, { projectId: website, name: "Website 2" }, database)
-    const [copied] = (await loadProjectPage(anna.id, id, database)).tasks
+    const { id } = await copyProject(admin.id, { projectId: website, name: "Website 2" }, database)
+    const [copied] = (await loadProjectPage(admin.id, id, database)).tasks
     expect(copied.type?.id).toBe(t.typeId)
     expect(copied.fieldValues[t.footage]).toBe("https://drive.example.test/raw")
     expect(copied.fieldValues[t.editor]).toBeUndefined()
@@ -328,7 +325,7 @@ describe("needed before Done", () => {
   it("needs a field hidden by Show only when only while it shows", async () => {
     const t = await videoEditing()
     const taskId = await videoTask(t)
-    await updateTypeField(anna.id, { fieldId: t.finalCut, neededBeforeDone: false }, database)
+    await updateTypeField(admin.id, { fieldId: t.finalCut, neededBeforeDone: false }, database)
     await setTaskFieldValue(actor(ben), { taskId, fieldId: t.platform, value: t.youtube }, database)
     await expect(
       setTaskStatus(actor(ben), { taskId, status: "done", stuckReason: null }, database)
@@ -339,10 +336,10 @@ describe("needed before Done", () => {
 
   it("leaves a task already Done alone when a field is switched to needed later", async () => {
     const t = await videoEditing()
-    await updateTypeField(anna.id, { fieldId: t.finalCut, neededBeforeDone: false }, database)
+    await updateTypeField(admin.id, { fieldId: t.finalCut, neededBeforeDone: false }, database)
     const taskId = await videoTask(t)
     await setTaskStatus(actor(ben), { taskId, status: "done", stuckReason: null }, database)
-    await updateTypeField(anna.id, { fieldId: t.finalCut, neededBeforeDone: true }, database)
+    await updateTypeField(admin.id, { fieldId: t.finalCut, neededBeforeDone: true }, database)
     expect((await card(taskId)).status).toBe("done")
     await setTaskStatus(actor(ben), { taskId, status: "done", stuckReason: null }, database)
   })
@@ -385,22 +382,26 @@ describe("needed when made", () => {
 
   it("won't let a File field be needed when made", async () => {
     const t = await videoEditing()
-    await expect(updateTypeField(anna.id, { fieldId: t.finalCut, neededWhenMade: true }, database)).rejects.toThrow(
+    await expect(updateTypeField(admin.id, { fieldId: t.finalCut, neededWhenMade: true }, database)).rejects.toThrow(
       PROJECT_ERRORS.fileFieldWhenMade
     )
   })
 })
 
 describe("who can change a field", () => {
-  it("holds the rule on every save, and the owner can always change it", async () => {
+  it("holds the rule on every save, and the site admin can always change it", async () => {
     const t = await videoEditing()
     const taskId = await videoTask(t)
     await expect(
       setTaskFieldValue(actor(ben), { taskId, fieldId: t.footage, value: "https://other.example.test" }, database)
-    ).rejects.toThrow("Only whoever handed the task out, the owner or an admin can change Footage link.")
-    await updateTypeField(anna.id, { fieldId: t.thumbnail, whoCanChange: "assignee" }, database)
+    ).rejects.toThrow("Only whoever handed the task out or the site admin can change Footage link.")
+    await updateTypeField(admin.id, { fieldId: t.thumbnail, whoCanChange: "assignee" }, database)
     await setTaskFieldValue(actor(ben), { taskId, fieldId: t.thumbnail, value: "Arrow" }, database)
-    await setTaskFieldValue(actor(anna), { taskId, fieldId: t.thumbnail, value: "Circle" }, database)
+    // Anna handed the task out, but Thumbnail is the assignee's: only the site admin gets past that.
+    await expect(
+      setTaskFieldValue(actor(anna), { taskId, fieldId: t.thumbnail, value: "Square" }, database)
+    ).rejects.toThrow("Only the person assigned or the site admin can change Thumbnail.")
+    await setTaskFieldValue(actor(admin), { taskId, fieldId: t.thumbnail, value: "Circle" }, database)
     const detail = await loadTaskDetail(ben.id, taskId, database)
     expect(detail.fields.type?.fields.find((f) => f.id === t.footage)).toMatchObject({ canChange: false })
     expect(detail.fields.type?.fields.find((f) => f.id === t.thumbnail)).toMatchObject({ canChange: true })
@@ -409,18 +410,18 @@ describe("who can change a field", () => {
   it("keeps the brief with whoever first handed the task out, however it is handed around", async () => {
     const t = await videoEditing()
     const taskId = await videoTask(t)
-    await addProjectMember(anna.id, website, carla.id, database)
+    await addProjectMember(admin.id, website, carla.id, database)
     // Ben, who is doing it, hands it to Carla and takes it back.
     await assignTask(actor(ben), { taskId, assigneeUserId: carla.id }, database)
     await assignTask(actor(ben), { taskId, assigneeUserId: ben.id }, database)
     await expect(
       setTaskFieldValue(actor(ben), { taskId, fieldId: t.footage, value: "https://other.example.test" }, database)
-    ).rejects.toThrow("Only whoever handed the task out, the owner or an admin can change Footage link.")
+    ).rejects.toThrow("Only whoever handed the task out or the site admin can change Footage link.")
     const [row] = await database.select().from(projectTasks).where(eq(projectTasks.id, taskId))
     expect(row.firstHandedOutByUserId).toBe(anna.id)
   })
 
-  it("lets only whoever handed the task out, the owner or an admin change its type", async () => {
+  it("lets only whoever handed the task out or the site admin change its type", async () => {
     const t = await videoEditing()
     const taskId = await videoTask(t)
     // Switching to a plain task would get past "Needed before Done".
@@ -434,7 +435,7 @@ describe("who can change a field", () => {
 
   it("holds it for a file in a File field too", async () => {
     const t = await videoEditing()
-    await updateTypeField(anna.id, { fieldId: t.finalCut, whoCanChange: "assignee" }, database)
+    await updateTypeField(admin.id, { fieldId: t.finalCut, whoCanChange: "assignee" }, database)
     const taskId = await plainTask("Cut")
     await setTaskType(actor(anna), { taskId, typeId: t.typeId }, database)
     const { storage } = memoryStorage()
@@ -445,7 +446,7 @@ describe("who can change a field", () => {
         database,
         storage
       )
-    ).rejects.toThrow("Only the person assigned, the owner or an admin can change Final cut.")
+    ).rejects.toThrow("Only the person assigned or the site admin can change Final cut.")
   })
 })
 
@@ -453,14 +454,14 @@ describe("Show only when", () => {
   it("names a dropdown of the same type and never makes a loop", async () => {
     const t = await videoEditing()
     await expect(
-      updateTypeField(anna.id, { fieldId: t.platform, showWhen: { fieldId: t.footage, choiceId: t.youtube } }, database)
+      updateTypeField(admin.id, { fieldId: t.platform, showWhen: { fieldId: t.footage, choiceId: t.youtube } }, database)
     ).rejects.toThrow(PROJECT_ERRORS.showWhenWrong)
-    const { id: format } = await createTypeField(anna.id, { typeId: t.typeId, name: "Format", kind: "dropdown" }, database)
-    await updateTypeField(anna.id, { fieldId: format, choices: [{ name: "Short" }] }, database)
+    const { id: format } = await createTypeField(admin.id, { typeId: t.typeId, name: "Format", kind: "dropdown" }, database)
+    await updateTypeField(admin.id, { fieldId: format, choices: [{ name: "Short" }] }, database)
     const short = (await listTeamTypes(teamId, database))[0].fields.find((f) => f.id === format)!.settings.choices![0].id
-    await updateTypeField(anna.id, { fieldId: format, showWhen: { fieldId: t.platform, choiceId: t.tiktok } }, database)
+    await updateTypeField(admin.id, { fieldId: format, showWhen: { fieldId: t.platform, choiceId: t.tiktok } }, database)
     await expect(
-      updateTypeField(anna.id, { fieldId: t.platform, showWhen: { fieldId: format, choiceId: short } }, database)
+      updateTypeField(admin.id, { fieldId: t.platform, showWhen: { fieldId: format, choiceId: short } }, database)
     ).rejects.toThrow(PROJECT_ERRORS.showWhenLoop)
   })
 })
@@ -468,8 +469,8 @@ describe("Show only when", () => {
 describe("which types a project uses", () => {
   it("offers only the ticked types in New task, and a Just me task any type", async () => {
     const t = await videoEditing()
-    await setProjectTypes(anna.id, { projectId: website, defaultTypeId: t.typeId }, database)
-    await setProjectTypes(anna.id, { projectId: website, hiddenTypeIds: [t.typeId] }, database)
+    await setProjectTypes(admin.id, { projectId: website, defaultTypeId: t.typeId }, database)
+    await setProjectTypes(admin.id, { projectId: website, hiddenTypeIds: [t.typeId] }, database)
     // The default goes with the type it pointed at.
     expect((await loadProjectPage(anna.id, website, database)).project.defaultTypeId).toBeNull()
     await expect(videoTask(t)).rejects.toThrow(PROJECT_ERRORS.typeNotOffered)
@@ -492,7 +493,7 @@ describe("which types a project uses", () => {
   it("keeps a task's type when it moves into a project that doesn't offer it, and says so", async () => {
     const t = await videoEditing()
     const taskId = await videoTask(t)
-    await setProjectTypes(anna.id, { projectId: shop, hiddenTypeIds: [t.typeId] }, database)
+    await setProjectTypes(admin.id, { projectId: shop, hiddenTypeIds: [t.typeId] }, database)
     const detail = await loadTaskDetail(anna.id, taskId, database)
     expect(detail.moveTargets.find((target) => target.id === shop)?.offersType).toBe(false)
     await moveTask(actor(anna), { taskId, projectId: shop }, database)
@@ -501,7 +502,7 @@ describe("which types a project uses", () => {
 
   it("never adds steps or touches notes when a type is picked on a task that exists", async () => {
     const t = await videoEditing()
-    await updateTaskType(anna.id, { typeId: t.typeId, steps: ["Rough cut", "Colour"] }, database)
+    await updateTaskType(admin.id, { typeId: t.typeId, steps: ["Rough cut", "Colour"] }, database)
     const taskId = await plainTask("Cut")
     await setTaskType(actor(anna), { taskId, typeId: t.typeId }, database)
     const detail = await loadTaskDetail(anna.id, taskId, database)

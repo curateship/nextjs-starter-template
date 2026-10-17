@@ -34,7 +34,7 @@ export function TeamTemplatesCard({ templates, canEdit }: { templates: TemplateR
       <CardContent className="grid gap-4">
         <p className="text-sm text-muted-foreground">
           {templates.length === 0
-            ? "No templates yet. Anyone on the team can save a project as one from its Project settings."
+            ? "No templates yet. Save a project as one from its Project settings."
             : canEdit
               ? "Saved from a project's settings. Anyone on the team can start a new project from one."
               : "Saved from a project's settings. Only the owner and admins can rename or delete them."}

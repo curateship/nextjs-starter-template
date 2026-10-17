@@ -273,8 +273,8 @@ export function StarterTasksCard({ team, track }: { team: TeamSummary; track: Tr
       </CardHeader>
       <CardContent className="grid gap-4">
         <p className="text-sm text-muted-foreground">
-          Each person who joins gets these as their own "Just me" tasks, from the team's owner.
-          "Just me" tasks are private, so you won't see whether they're done.
+          Each person who joins gets these as their own "Just me" tasks, from you. You can see
+          whether they're done on Projects, where each person's Just me list is listed.
         </p>
         {titles.length ? (
           <ol className="grid gap-2">

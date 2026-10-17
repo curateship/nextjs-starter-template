@@ -4,13 +4,21 @@ import {
   createDefaultMemberSections,
   type ShellSection,
 } from "@/lib/custom-shell"
+import {
+  MY_DASHBOARD_ITEM_ID,
+  PROJECT_NAV_SECTION_ID,
+  TASK_TYPES_ITEM_ID,
+  projectNavSection,
+  taskTypesItem,
+} from "@/lib/project/menu"
 import { db, type CustomShellDb } from "@/server/db"
 import { projectNavigationAdded } from "@/server/project/schema"
 import { customShellSettings, customShellWorkspaces } from "@/server/schema"
 
 /**
  * Puts Project's dashboards in the left menu: My dashboard, Projects, Team
- * and Task types.
+ * and Task types, without My dashboard in the admins' menus (the site admin
+ * has no tasks). An employee's menu comes from `roles` in `src/app/options.ts`.
  *
  * The shell keeps its menus in the database, not in code. Members share one
  * list on the settings row and an admin sees their workspace's own list, and
@@ -27,55 +35,6 @@ import { customShellSettings, customShellWorkspaces } from "@/server/schema"
  * stands. A menu whose admin removed the whole section stays without it.
  */
 
-export const PROJECT_NAV_SECTION_ID = "section-project"
-
-function projectNavSection(): ShellSection {
-  return {
-    id: PROJECT_NAV_SECTION_ID,
-    title: "Work",
-    entries: [
-      {
-        type: "item",
-        id: "item-project-dashboard",
-        label: "My dashboard",
-        href: "/dashboard",
-        icon: "layout-dashboard",
-        visible: true,
-      },
-      {
-        type: "item",
-        id: "item-project-projects",
-        label: "Projects",
-        href: "/projects",
-        icon: "folder-kanban",
-        visible: true,
-      },
-      {
-        type: "item",
-        id: "item-project-team",
-        label: "Team",
-        href: "/team",
-        icon: "users",
-        visible: true,
-      },
-      taskTypesItem(),
-    ],
-  }
-}
-
-const TASK_TYPES_ITEM_ID = "item-project-task-types"
-
-function taskTypesItem(): ShellSection["entries"][number] {
-  return {
-    type: "item",
-    id: TASK_TYPES_ITEM_ID,
-    label: "Task types",
-    href: "/task-types",
-    icon: "shapes",
-    visible: true,
-  }
-}
-
 /** Task types goes after Team in the Work section, when that section is still there. */
 function withTaskTypesLink(sections: unknown): ShellSection[] | null {
   if (!Array.isArray(sections)) return null
@@ -90,11 +49,31 @@ function withTaskTypesLink(sections: unknown): ShellSection[] | null {
   })
 }
 
-/** Each change to the menus, with the marker that says a menu has had it. */
-const PASSES = [
+/**
+ * My dashboard leaves the admins' menus (Tyler, 16 Oct 2026: "remove my
+ * dashboard from my menu"). The site admin has no tasks or check-in, so the
+ * page only forwarded them to the Team dashboard.
+ */
+function withoutMyDashboard(sections: unknown): ShellSection[] | null {
+  if (!Array.isArray(sections)) return null
+  const list = sections as ShellSection[]
+  return list.map((section) =>
+    section?.id === PROJECT_NAV_SECTION_ID && Array.isArray(section.entries)
+      ? { ...section, entries: section.entries.filter((entry) => entry?.id !== MY_DASHBOARD_ITEM_ID) }
+      : section
+  )
+}
+
+/**
+ * Each change to the menus, with the marker that says a menu has had it.
+ * `adminsOnly` leaves the members' menu alone: a workspace's menu is the one
+ * its admins see.
+ */
+const PASSES: readonly { suffix: string; change: MenuChange; adminsOnly?: true }[] = [
   { suffix: "", change: withProjectSection },
   { suffix: ":task-types", change: withTaskTypesLink },
-] as const
+  { suffix: ":no-my-dashboard", change: withoutMyDashboard, adminsOnly: true },
+]
 
 /** The section goes first, ahead of whatever the menu already holds. */
 function withProjectSection(sections: unknown): ShellSection[] | null {
@@ -117,7 +96,7 @@ export async function addProjectNavigation(database: CustomShellDb = db) {
     .from(customShellWorkspaces)
   for (const pass of PASSES) {
     const members = `members${pass.suffix}`
-    if (!done.has(members)) await changeMemberMenu(members, pass.change, database)
+    if (!pass.adminsOnly && !done.has(members)) await changeMemberMenu(members, pass.change, database)
     for (const workspace of workspaces) {
       const scope = `${workspaceScope(workspace.id)}${pass.suffix}`
       if (!done.has(scope)) await changeWorkspaceMenu(scope, workspace.id, pass.change, database)

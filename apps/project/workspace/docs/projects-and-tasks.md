@@ -2,24 +2,34 @@
 
 ## Who sees a project
 
-- **Only a project's members see it.** Whoever creates a project is its first
-  member.
-- **The team's owner and admins see every project**, without being listed as
-  members. That way no project can be left with nobody able to open it.
-- **Anyone who can see a project can change it**, add a teammate to it, or
-  remove someone from it. One exception, which Tyler ticked on 11 Oct 2026: a
-  task type's field can be limited to the person assigned or to whoever
-  handed the task out (see [Task types](task-types.md)).
+- **Only the site admin makes projects** (Tyler, 16 Oct 2026: "only I
+  create projects"): New project, Copy project and Archive show to the site
+  admin alone on the Projects page, and the server refuses anyone else. A
+  new project starts with nobody on it; the site admin adds people in
+  Project settings.
+- **Only a project's members see it.**
+- **The site admin sees every project**, "Just me" lists included, without
+  being listed as a member, and isn't made a member of the projects they
+  create. That way no project can be left with nobody able to open it.
+- **A project's settings are the site admin's alone** (Tyler, 16 Oct 2026:
+  "Employees dont even see the settings cog or page. Only admin see it"):
+  the name, colour, description, due date, Doing limit, client, members,
+  lead, "Everyone on the team", status, sections, task types, Save as
+  template and Archive. Employees see no cog, and the server refuses each
+  one: "Only the site admin changes a project's settings."
+  (`requireProjectSettings` in `src/server/project/access.ts`). A person's
+  own "Just me" list keeps its sections in their hands.
+- **Everyone on a project works in it**: tasks, steps, milestones, chat and
+  files. A task type's field can be limited to the person assigned or to
+  whoever handed the task out (Tyler, 11 Oct 2026; see
+  [Task types](task-types.md)).
 - **A project you can't see answers like one that doesn't exist.** Guessing a
   project's or task's id from another team gets "doesn't exist or you can't
   see it", never the record.
 - **Archived projects are read-only.** Archive from Project settings (the cog
   on the project page) or from the Projects table. Bring back undoes it. The
-  details panel says "Bring it back from Project settings to work on it."
-- **Leaving a project.** Your own row in Project settings' Members card has a leave button
-  instead of a bin. It asks "Leave this project? You'll no longer see it.",
-  and an owner or admin is told they'll still see it, because they see every
-  project. After leaving, the page goes to Projects.
+  details panel tells the site admin "Bring it back from Project settings to
+  work on it." and an employee "The site admin can bring it back."
 - **An empty Members card** says "Nobody is on this project." and adds
   "Invite a teammate so tasks can be handed to them." only when Invite is
   there to do it.
@@ -47,9 +57,9 @@
   (unticked), types and field values, and the project's own pick of task
   types. The status, lead and client stay behind. Every task starts To do with
   nobody assigned and no due date (Tyler's choice, 10 Oct 2026). People,
-  chat, files and history stay behind, and a Person field keeps only the
-  person copying. The person copying is the new
-  project's only member, and the page opens on the copy.
+  chat, files and history stay behind, and Person fields start empty. Only
+  the site admin copies, and the copy starts with nobody on it, like a new
+  project. The page opens on the copy.
 - **A project's due date** sits in Project settings (the cog) and saves the
   moment one is picked (Tyler, 11 Oct 2026: "the due date should be in the
   settings cog"). Clear takes it off.
@@ -71,16 +81,18 @@ So anyone scanning the Projects table sees which jobs are in trouble, and why.
   with the exact time on hover, because a status nobody has touched for weeks
   shouldn't read as today's.
 - **Where it shows:** in a folding Status card at the bottom of the project
-  page's details panel, and in the Projects table's Status column. The
+  page's details panel, and in the Projects table's Status column, where it
+  is the status with an "i" beside it; the reason and "Set by" are in the
+  "i"'s tooltip, so the row stays one line (Tyler, 16 Oct 2026). The
   card's heading reads "Status  ● At risk", with a gap and no dot between,
   so a folded card still says it. Its cog shows only while the card is
   pointed at and opens a dropdown, not a window (Tyler, 15 Oct 2026). Sorting by Status puts
   Off track first, then At risk, On track and no status. A project with no
   status shows nothing in the column. On the panel, the card shows only to
   someone who can set a status, saying "No status yet".
-- **Who sets it.** With no lead, anyone on the project. With a lead, only
-  the lead, the owner and admins (Tyler, 15 Oct 2026). A "Just me" list has
-  no status.
+- **Who sets it.** The site admin alone, since a status is one of the
+  project's settings (Tyler, 16 Oct 2026). Before that the lead set it. A
+  "Just me" list has no status.
 - **Each change is a line on the Activity tab**: "Priya set the project's
   status to At risk: Client hasn't sent the photos", or "took the project's
   status off". These lines have no task to open.
@@ -151,7 +163,7 @@ So a long project shows whether it's on time well before its end date.
 - **"Milestone due tomorrow" reaches the lead** in the bell, at their own
   check-in time on the work day before ("Milestone due Monday" before a
   weekend), with "Launch · Website" under it, opening the project. With no
-  lead it goes to the owner and admins (Tyler, 16 Oct 2026). A milestone
+  lead it goes to the site admin (Tyler, 16 Oct 2026). A milestone
   whose tasks are all Done, or in an archived project, sends nothing. Moving
   the date sends a fresh one. Time off and team holidays wait, as for tasks.
   Each send is claimed in `project_milestone_reminders`
@@ -208,7 +220,7 @@ So a team that runs the same kind of job starts each one in a click.
   two fields hide once one is picked. Every task starts To do, with nobody
   assigned and no dates, and the person starting it is the only member.
 - **A template never shows on the Projects page.** Team settings lists them
-  under Project templates; the owner and admins rename and delete them there,
+  under Project templates; the site admin renames and deletes them there,
   everyone else reads the list. Deleting one leaves the projects already
   started from it.
 - **Templates stay inside one team.** Another team's template answers as
@@ -244,9 +256,9 @@ show out of the left panel and into that header.
   cog icon here and put all the project settings there". Each field saves when
   it is left, and the colour and due date the moment they are picked, so the window ends with
   Done. Closing it with Escape or a click outside saves the field being typed
-  in too. The Members card lists each member with their role and how many
-  open tasks they have, with leave or remove at the row's end. "+ Invite"
-  lists teammates not yet on the project, and for the owner and admins ends
+  in too. The Members card lists each member with their job title and how
+  many open tasks they have, with leave or remove at the row's end. "+ Invite"
+  lists teammates not yet on the project, and for the site admin ends
   with "Invite someone new to the team", the team's invite window.
 - **Middle: tasks.** Board, List, Calendar and Timeline tabs, then More, which
   holds Activity, Files, Chat and the Bin. While Activity, Files or Chat
@@ -298,7 +310,7 @@ show out of the left panel and into that header.
 - **A card's "..."** shows at its top right while it is pointed at (always on
   a touch screen). It opens Duplicate, which makes the copy and opens it on
   the right, and Delete, which asks the bin's question first. Delete shows
-  only to whoever made the task and the team's owner and admins, the same
+  only to whoever made the task and the site admin, the same
   people the server lets delete it. An archived project's cards have no "...".
 - **Right: the open task.** Clicking a task opens it here (see Opening a
   task below). With none open, the panel says "Click a task to see its steps
@@ -371,7 +383,7 @@ So a crowded week is obvious at a glance.
 
 ## The Timeline tab
 
-So an owner sees how a project's work overlaps over the coming weeks.
+So the site admin sees how a project's work overlaps over the coming weeks.
 
 - **A start day on any task.** Inside the task, "Start day" sits above
   "Due date" in the cog's Dates card. A set day shows a small cross at the
@@ -455,7 +467,7 @@ goes, so it no longer ends up on whatever task was open.
   editing and deleting, all as [Task chat](task-chat.md) describes, and it
   updates as messages are sent.
 - **Who can read and write it:** the people who can see the project, which is
-  its members and the team's owner and admins. Anyone else gets "That project
+  its members and the site admin. Anyone else gets "That project
   doesn't exist or you can't see it." An archived project's chat can be read
   but not written in.
 - **It tells people only when they're tagged or replied to.** "Anna tagged you
@@ -515,8 +527,8 @@ goes, so it no longer ends up on whatever task was open.
   says "Search or pick a filter first, then save it as a view." A search that
   finds nothing says so.
 - **Whose tasks show** is the dropdown with the members' faces: All members
-  with the project's open tasks, each member with their role and open tasks
-  ("Owner · 3 open tasks"), and Unassigned. The button shows the one picked.
+  with the project's open tasks, each member with their job title and open
+  tasks ("Designer · 3 open tasks"), and Unassigned. The button shows the one picked.
   A "Just me" list has none. A link naming someone who has left the project
   keeps filtering and reads "Someone no longer on the project".
 - **The due-date dropdown** is All time, Overdue, Today, This week, Next
@@ -667,7 +679,7 @@ Neither puts a window over the page.
 - **Saved step lists.** Under a task's steps, "Save these steps as a list"
   keeps them under a name, such as "Payroll", and "Add a step list" drops a
   saved list in after the steps already there. Lists belong to the team:
-  anyone on it makes or uses one, and the owner and admins rename and delete
+  anyone on it makes or uses one, and the site admin renames and deletes
   them in Team settings (Tyler's choice, 12 Oct 2026). Steps added from a
   list start unticked, with no person and no date. A list that would take a
   task past 50 steps is refused whole: "That list has 6 steps and this task
@@ -825,15 +837,17 @@ Each task has a Plan card with three fields that save the moment they change.
 ### Just me tasks
 
 - **A task can be "Just me"**, picked as the project in New task or in the
-  check-in's "Add a task for yourself". Only that person can see it, not even
-  the owner or an admin. It shows on their My dashboard and in their
-  check-in, and nowhere else.
+  check-in's "Add a task for yourself". Only that person and the site admin
+  see it (Tyler, 16 Oct 2026: "Tyler sees private things too"). It shows on
+  their My dashboard and in their check-in. The site admin finds each
+  person's list on Projects as "Just me · Ben Tester", and has no list of
+  their own.
 - **On the Team dashboard** it reads "1 personal task", never its title, for
   everyone.
 - **They live in a project of the person's own**, made the first time they
-  use it, which never shows on the Projects page and can't be shared,
-  renamed or archived. Its page (reached from a task's link) says only they
-  can see it.
+  use it, which never shows on an employee's Projects page and can't be
+  shared, renamed or archived. Its page (reached from a task's link) says
+  only they and the site admin see it.
 - **It can be moved into a project later** with Move to project (Tyler's
   choice, 10 Oct 2026), and then that project's members see it.
 
@@ -852,8 +866,8 @@ Each task has a Plan card with three fields that save the moment they change.
   by whom and when, with Bring back. A task comes back whole: steps, chat,
   files, labels and history.
 - **Who may bring it back:** the same people who may delete it, that is
-  whoever made it, the owner and admins (Tyler's choice, 10 Oct 2026).
-- **Empty bin** is for the owner and admins, and asks first in the Bin
+  whoever made it and the site admin (Tyler's choice, 10 Oct 2026).
+- **Empty bin** is for the site admin, and asks first in the Bin
   window's own footer: "Empty the bin? This can't be undone." with Keep them
   and Empty bin. Bring back spins on the row being brought back.
 - **A link to a binned task** says "That task is in the project's bin. Bring
@@ -910,7 +924,7 @@ Each task has a Plan card with three fields that save the moment they change.
   back with a one-line reason. A handed-back task returns to whoever handed it
   out, with "Ben handed this back: …" on it. If that person has left the
   project, the task is left with nobody assigned.
-- **Deleting** is for whoever made the task, the owner and admins. It moves
+- **Deleting** is for whoever made the task and the site admin. It moves
   the task to its project's bin (see The bin below).
 
 ## Asking for a review
@@ -923,7 +937,7 @@ So whoever hands out work can check it before it counts as finished.
 - **When it's marked Done** the task stays Done and shows "Waiting for
   review" on the task, the Board and the lists. The reviewer gets "Priya
   finished a task for your review" instead of "marked a task Done".
-- **Confirm or Send back.** The reviewer (or the owner or an admin) confirms
+- **Confirm or Send back.** The reviewer (or the site admin) confirms
   it, or sends it back to Doing with a one-line reason, and the person
   assigned gets "Anna sent a task back to you" with the reason. Both write
   history.
@@ -1011,7 +1025,7 @@ Four more come from the app itself, with nobody as the sender:
 - **"Overdue"** with the title, at their check-in time on the first work day
   after the date passed. Dates more than a week gone don't send one, so
   turning this on didn't flood anyone's bell with old dates.
-- **"5 of 6 checked in, 1 blocked"** to the owner and admins, once per work
+- **"5 of 6 checked in, 1 blocked"** to the site admin, once per work
   day (see [The morning check-in](morning-check-in.md)).
 - **"Reminder: Write the About page"** to whoever set Remind me on that task,
   on the day they picked (see Planning ahead above).
@@ -1043,7 +1057,7 @@ Each person picks which kinds reach their bell, in **My notices** on
   in a project chat", "mentioned you in their check-in").
 - **Every other kind has a switch**, "Due tomorrow" and "Overdue" included.
   "Gave you a task" also covers "gave you 3 tasks". The morning summary and
-  "joined the team through the link" go only to the owner and admins, so only
+  "joined the team through the link" go only to the site admin, so only
   they see those two switches.
 - **Everything starts on.** Only switched-off kinds are saved, one row each
   in `project_notices_off`. Reminders a switched-off kind would have sent are
@@ -1070,6 +1084,11 @@ Projects, Team and Task types to the members' menu and to each admin menu.
 - **Each menu gets the section once.** The job writes down which menus it has
   done in `project_navigation_added`. An admin who later removes a link in
   Settings keeps it removed.
+- **My dashboard left the admins' menus** on 16 Oct 2026 (Tyler: "remove my
+  dashboard from my menu"), by a pass of its own
+  (`workspace:<id>:no-my-dashboard`). The site admin has no tasks or
+  check-in, so the page only forwarded them to Team. The members' menu and
+  the employee menu keep it.
 - **A link added later gets its own pass.** Task types (12 Oct 2026) went
   after Team in menus that already had the section, once each, with a marker
   of its own (`members:task-types`, `workspace:<id>:task-types`). A menu

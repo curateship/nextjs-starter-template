@@ -13,11 +13,16 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS } from "@/lib/project/rules"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 /**
  * The replies under one blocker on the Check-ins tab, and a Reply button that
  * opens one line to answer it. Each reply is one line, so this never grows
  * into a second chat. A reply to a Stuck task also lands in its chat.
+ *
+ * Given `open` and `onOpenChange`, the caller draws the Reply button itself,
+ * such as the red blocked card's (Tyler, 16 Oct 2026), and this draws only
+ * the replies and the line to answer in.
  */
 export function BlockerReplies({
   replies,
@@ -25,6 +30,9 @@ export function BlockerReplies({
   taskId,
   blockedName,
   canReply,
+  open: openFromCaller,
+  onOpenChange,
+  className = "pl-3",
 }: {
   replies: BlockerReply[]
   checkinId: string | null
@@ -32,17 +40,26 @@ export function BlockerReplies({
   taskId: string | null
   blockedName: string
   canReply: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  className?: string
 }) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  const [open, setOpen] = React.useState(false)
+  const [openHere, setOpenHere] = React.useState(false)
+  const held = openFromCaller !== undefined
+  const open = held ? openFromCaller : openHere
+  const setOpen = React.useCallback(
+    (next: boolean) => (onOpenChange ? onOpenChange(next) : setOpenHere(next)),
+    [onOpenChange]
+  )
   const [text, setText] = React.useState("")
   const frame = React.useRef<HTMLFormElement>(null)
   const boxId = `reply-${checkinId}-${taskId ?? "note"}`
   const close = React.useCallback(() => {
     setOpen(false)
     setText("")
-  }, [])
+  }, [setOpen])
   useEscapeCancels(frame, close)
 
   async function send() {
@@ -61,8 +78,9 @@ export function BlockerReplies({
   }
 
   if (replies.length === 0 && !canReply) return null
+  if (held && replies.length === 0 && !open) return null
   return (
-    <div className="grid gap-2 pl-3">
+    <div className={cn("grid gap-2", className)}>
       {replies.length ? (
         <ul className="grid gap-2" aria-label="Replies">
           {replies.map((reply) => (
@@ -115,7 +133,7 @@ export function BlockerReplies({
               </div>
             </div>
           </form>
-        ) : (
+        ) : held ? null : (
           <div>
             <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(true)}>
               <MessageSquareReplyIcon className="size-4" />

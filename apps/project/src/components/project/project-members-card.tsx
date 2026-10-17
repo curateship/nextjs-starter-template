@@ -1,6 +1,6 @@
 import * as React from "react"
-import { useNavigate, useRouter } from "@tanstack/react-router"
-import { CrownIcon, LogOutIcon, MailIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { useRouter } from "@tanstack/react-router"
+import { CrownIcon, MailIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { InviteDialog } from "@/components/project/invite-dialog"
 import { PersonAvatar } from "@/components/project/task-bits"
@@ -26,21 +26,20 @@ import {
 } from "@/lib/api/project/projects"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { TEAM_ROLE_LABEL, runsTheTeam } from "@/lib/project/rules"
+import { runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
 
 /**
- * The project's members, as a card in Project settings. Only they see the
- * project, and only they can be handed its tasks. Invite adds a teammate to
- * the project, and owners and admins can invite someone new to the team from
- * the same menu. The list moved here from the left panel on 14 Oct 2026, when
+ * The project's members, as a card in Project settings, which only the site
+ * admin opens. Only members see the project, and only they can be handed its
+ * tasks. Invite adds a teammate to the project, or invites someone new to the
+ * team from the same menu. The list moved here from the left panel on 14 Oct 2026, when
  * picking whose tasks show became a dropdown in the tasks panel's header.
  * The crown names one member the lead, who hears every Stuck, unblocked and
- * Done on the project; anyone who can change the project can move it.
+ * Done on the project.
  */
 export function ProjectMembersCard({ page }: { page: ProjectPage }) {
   const router = useRouter()
-  const navigate = useNavigate()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [removing, setRemoving] = React.useState<ProjectMemberRow | null>(null)
   const [inviting, setInviting] = React.useState(false)
@@ -50,7 +49,6 @@ export function ProjectMembersCard({ page }: { page: ProjectPage }) {
   const wholeTeam = page.project.wholeTeam
   const canInviteToTeam = runsTheTeam(page.myRole)
   const canAdd = !readOnly && !wholeTeam && (page.addable.length > 0 || canInviteToTeam)
-  const leaving = removing?.userId === page.myUserId
 
   async function add(userId: string) {
     const person = page.addable.find((p) => p.userId === userId)
@@ -71,16 +69,13 @@ export function ProjectMembersCard({ page }: { page: ProjectPage }) {
   }
 
   async function remove(member: ProjectMemberRow) {
-    const self = member.userId === page.myUserId
     const ok = await run(
       () => removeMemberFromProject(page.project.id, member.userId),
-      self ? `You left ${page.project.name}.` : `${member.name} removed from the project.`
+      `${member.name} removed from the project.`
     )
     if (!ok) return
     setRemoving(null)
-    // Someone who left may no longer see the page, so they go to Projects.
-    if (self) await navigate({ to: "/projects" })
-    else await router.invalidate()
+    await router.invalidate()
   }
 
   return (
@@ -154,7 +149,7 @@ export function ProjectMembersCard({ page }: { page: ProjectPage }) {
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
                         {member.title ? `${member.title} · ` : ""}
-                        {TEAM_ROLE_LABEL[member.role]} · {member.openTasks} open{" "}
+                        {member.openTasks} open{" "}
                         {member.openTasks === 1 ? "task" : "tasks"}
                       </span>
                     </span>
@@ -188,23 +183,7 @@ export function ProjectMembersCard({ page }: { page: ProjectPage }) {
                       </TooltipContent>
                     </Tooltip>
                   )}
-                  {readOnly || wholeTeam ? null : member.userId === page.myUserId ? (
-                    // An icon, so the row keeps room for the name; the tooltip says what it does.
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Leave project"
-                          onClick={() => setRemoving(member)}
-                        >
-                          <LogOutIcon className="size-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Leave project</TooltipContent>
-                    </Tooltip>
-                  ) : (
+                  {readOnly || wholeTeam ? null : (
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -231,23 +210,13 @@ export function ProjectMembersCard({ page }: { page: ProjectPage }) {
         onOpenChange={(open) => {
           if (!open) setRemoving(null)
         }}
-        title={
-          leaving
-            ? "Leave this project?"
-            : removing
-              ? `Remove ${removing.name} from the project?`
-              : "Remove member?"
-        }
+        title={removing ? `Remove ${removing.name} from the project?` : "Remove member?"}
         description={
-          leaving
-            ? runsTheTeam(page.myRole)
-              ? "You'll still see it, because owners and admins see every project, but you won't be on it. Your tasks here stay, with nobody assigned and a note saying they were yours."
-              : "You'll no longer see it. Your tasks here stay, with nobody assigned and a note saying they were yours."
-            : removing
-              ? `${removing.name} will no longer see this project. Their tasks here stay, with nobody assigned and a note saying they were ${removing.name}'s.`
-              : null
+          removing
+            ? `${removing.name} will no longer see this project. Their tasks here stay, with nobody assigned and a note saying they were ${removing.name}'s.`
+            : null
         }
-        confirmLabel={leaving ? "Leave project" : "Remove"}
+        confirmLabel="Remove"
         loading={busy}
         onConfirm={async () => {
           if (removing) await remove(removing)

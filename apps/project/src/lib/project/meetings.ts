@@ -127,8 +127,8 @@ export function monthGrid(month: string) {
 /** A day square's frame. Days from the months either side are greyed out. */
 export function dayCellClassName(inMonth: boolean) {
   return cn(
-    "flex min-h-20 min-w-0 flex-col items-start gap-1 rounded-md border p-1.5 text-left text-xs sm:p-2",
-    !inMonth && "border-transparent bg-muted/60 text-muted-foreground"
+    "flex min-h-20 min-w-0 flex-col items-start gap-1.5 rounded-lg border bg-background p-1.5 text-left text-xs sm:p-2",
+    !inMonth && "border-transparent bg-muted/60 text-muted-foreground/60"
   )
 }
 

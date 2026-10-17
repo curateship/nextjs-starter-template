@@ -4,6 +4,7 @@ import { alias } from "drizzle-orm/pg-core"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { projectHealthHeading, projectHref } from "@/lib/project/notices"
 import {
+  PERSONAL_PROJECT_NAME,
   PROJECT_HEALTH_LABEL,
   boardStatusOrder,
   runsTheTeam,
@@ -17,9 +18,10 @@ import { db } from "@/server/db"
 import {
   findMembership,
   isProjectMember,
-  requireMembership,
+  requireTeamRunner,
   requireOpenProject,
   requireProjectAccess,
+  requireProjectSettings,
   visibleProjectsWhere,
   type ProjectDb,
   type ProjectRow,
@@ -56,6 +58,8 @@ export type ProjectListRow = {
   name: string
   color: ProjectColor
   archived: boolean
+  /** Someone's "Just me" list, which only the site admin sees listed. */
+  personal: boolean
   dueDate: string | null
   /** Starred by me. Stars are each person's own. */
   starred: boolean
@@ -93,9 +97,11 @@ export async function loadProjectsPage(
     .where(eq(projectTeams.id, membership.teamId))
     .limit(1)
 
-  // A "Just me" list is reached from My dashboard, never listed as a project.
+  // A "Just me" list is reached from My dashboard, never listed as a project,
+  // except to the site admin, who sees every one by its person's name.
   const lead = alias(customShellUsers, "lead")
   const setter = alias(customShellUsers, "setter")
+  const owner = alias(customShellUsers, "owner")
   const visible = (
     await database
       .select({
@@ -103,13 +109,25 @@ export async function loadProjectsPage(
         leadName: lead.name,
         leadAvatar: lead.avatarUrl,
         setterName: setter.name,
+        ownerName: owner.name,
       })
       .from(projectProjects)
       .leftJoin(lead, eq(lead.id, projectProjects.leadUserId))
       .leftJoin(setter, eq(setter.id, projectProjects.healthByUserId))
-      .where(and(visibleProjectsWhere(membership), isNull(projectProjects.personalUserId)))
+      .leftJoin(owner, eq(owner.id, projectProjects.personalUserId))
+      .where(
+        membership.siteAdmin
+          ? visibleProjectsWhere(membership)
+          : and(visibleProjectsWhere(membership), isNull(projectProjects.personalUserId))
+      )
       .orderBy(asc(projectProjects.name))
-  ).map((row) => ({ ...row.project, leadName: row.leadName, leadAvatar: row.leadAvatar, setterName: row.setterName }))
+  ).map((row) => ({
+    ...row.project,
+    name: row.project.personalUserId ? justMeName(row.ownerName) : row.project.name,
+    leadName: row.leadName,
+    leadAvatar: row.leadAvatar,
+    setterName: row.setterName,
+  }))
   const ids = visible.map((project) => project.id)
 
   const statusRows = ids.length
@@ -144,6 +162,7 @@ export async function loadProjectsPage(
         name: project.name,
         color: project.color,
         archived: Boolean(project.archivedAt),
+        personal: Boolean(project.personalUserId),
         dueDate: project.dueDate,
         starred: starred.has(project.id),
         memberCount: memberRows.find((row) => row.projectId === project.id)?.total ?? 0,
@@ -161,6 +180,11 @@ export async function loadProjectsPage(
 
 const FORMER_MEMBER = "A former member"
 
+/** How the site admin sees someone's "Just me" list: "Just me · Ben Tester". */
+function justMeName(personName: string | null) {
+  return `${PERSONAL_PROJECT_NAME} · ${personName ?? FORMER_MEMBER}`
+}
+
 function healthView(
   project: Pick<ProjectRow, "health" | "healthNote" | "healthAt">,
   setterName: string | null
@@ -176,7 +200,8 @@ function healthView(
 
 /**
  * A new project, empty or started from one of the team's saved templates.
- * A template brings its colour and description along with its plan.
+ * A template brings its colour and description along with its plan. Only the
+ * site admin makes projects (Tyler, 16 Oct 2026: "only I create projects").
  */
 export async function createProject(
   userId: string,
@@ -184,7 +209,7 @@ export async function createProject(
   database = db
 ): Promise<{ id: string }> {
   return database.transaction(async (tx) => {
-    const membership = await requireMembership(userId, tx)
+    const membership = await requireTeamRunner(userId, tx)
     const plan = input.templateId ? await loadTemplatePlan(membership.teamId, input.templateId, tx) : null
     const at = now()
     const id = uuid()
@@ -199,8 +224,8 @@ export async function createProject(
       updatedAt: at,
       ...(plan ? await planTypeChoices(membership.teamId, plan, tx) : {}),
     })
-    // Whoever creates a project is its first member.
-    await tx.insert(projectProjectMembers).values({ projectId: id, userId, addedAt: at })
+    // The site admin sees every project without being on any, so a new
+    // project starts with nobody on it until they add people.
     if (plan) await writeProjectPlan(tx, { id, teamId: membership.teamId }, plan, userId)
     return { id }
   })
@@ -224,7 +249,6 @@ export type ProjectMemberRow = {
   name: string
   email: string
   avatarUrl: string
-  role: TeamRole
   title: string | null
   openTasks: number
 }
@@ -252,7 +276,7 @@ export type ProjectPage = {
     client: string | null
     /** Everyone on the team is a member, people who join later included. */
     wholeTeam: boolean
-    /** I may change the status: the lead, the owner and admins, or anyone on it when it has no lead. */
+    /** I may change the status: the site admin alone, as it is one of the project's settings. */
     canSetHealth: boolean
   }
   sections: Section[]
@@ -291,7 +315,6 @@ export async function loadProjectPage(
       name: customShellUsers.name,
       email: customShellUsers.email,
       avatarUrl: customShellUsers.avatarUrl,
-      role: projectTeamMembers.role,
       title: projectTeamMembers.title,
     })
     .from(projectProjectMembers)
@@ -317,7 +340,11 @@ export async function loadProjectPage(
   return {
     project: {
       id: project.id,
-      name: project.name,
+      // The site admin opening someone's "Just me" list sees whose it is.
+      name:
+        project.personalUserId && project.personalUserId !== userId
+          ? justMeName(await nameOf(project.personalUserId, database))
+          : project.name,
       color: project.color,
       description: project.description,
       archived: Boolean(project.archivedAt),
@@ -332,7 +359,7 @@ export async function loadProjectPage(
       leadUserId: project.leadUserId,
       client: project.client,
       wholeTeam: project.wholeTeam,
-      canSetHealth: canSetHealth(project, membership.role, userId),
+      canSetHealth: canSetHealth(project, membership.role),
     },
     sections: await listSections(project.id, database),
     milestones: await listMilestones(project.id, database),
@@ -390,7 +417,7 @@ export async function updateProject(
   database = db
 ) {
   const { projectId, ...fields } = patch
-  const { project } = await requireOpenProject(userId, projectId, database)
+  const { project } = await requireProjectSettings(userId, projectId, database)
   requireSharedProject(project)
   await database
     .update(projectProjects)
@@ -414,14 +441,9 @@ export async function setStatusOrder(
     .where(eq(projectProjects.id, input.projectId))
 }
 
-/** The lead, the owner and admins set the status; with no lead, anyone on the project can. */
-export function canSetHealth(
-  project: Pick<ProjectRow, "leadUserId" | "personalUserId">,
-  role: TeamRole,
-  userId: string
-) {
-  if (project.personalUserId) return false
-  return !project.leadUserId || project.leadUserId === userId || runsTheTeam(role)
+/** A project's status is one of its settings, so the site admin alone sets it. */
+export function canSetHealth(project: Pick<ProjectRow, "personalUserId">, role: TeamRole) {
+  return !project.personalUserId && runsTheTeam(role)
 }
 
 /**
@@ -440,7 +462,7 @@ export async function setProjectHealth(
   await database.transaction(async (tx) => {
     const { membership, project } = await requireOpenProject(userId, input.projectId, tx)
     requireSharedProject(project)
-    if (!canSetHealth(project, membership.role, userId)) throw new Error(PROJECT_ERRORS.onlyLeadSetsHealth)
+    if (!canSetHealth(project, membership.role)) throw new Error(PROJECT_ERRORS.onlySiteAdminSettings)
     const at = now()
     const note = input.health ? input.note || null : null
     const from = project.health
@@ -545,7 +567,7 @@ export async function setProjectLead(
   input: { projectId: string; userId: string | null },
   database = db
 ) {
-  const { project } = await requireOpenProject(actorId, input.projectId, database)
+  const { project } = await requireProjectSettings(actorId, input.projectId, database)
   requireSharedProject(project)
   if (input.userId && !(await isProjectMember(project.id, input.userId, database))) {
     throw new Error(PROJECT_ERRORS.leadNotMember)
@@ -561,7 +583,7 @@ export async function setProjectClient(
   input: { projectId: string; client: string | null },
   database = db
 ) {
-  const { project } = await requireOpenProject(userId, input.projectId, database)
+  const { project } = await requireProjectSettings(userId, input.projectId, database)
   requireSharedProject(project)
   await database
     .update(projectProjects)
@@ -580,7 +602,7 @@ export async function setWholeTeam(
   database = db
 ) {
   await database.transaction(async (tx) => {
-    const { membership, project } = await requireOpenProject(userId, input.projectId, tx)
+    const { membership, project } = await requireProjectSettings(userId, input.projectId, tx)
     requireSharedProject(project)
     await tx
       .update(projectProjects)
@@ -591,6 +613,8 @@ export async function setWholeTeam(
       .select({ userId: projectTeamMembers.userId })
       .from(projectTeamMembers)
       .where(eq(projectTeamMembers.teamId, membership.teamId))
+    // A team can have nobody on it yet: the site admin who made it isn't.
+    if (teammates.length === 0) return
     const at = now()
     await tx
       .insert(projectProjectMembers)
@@ -615,7 +639,7 @@ export async function setProjectArchived(
   archived: boolean,
   database = db
 ) {
-  const { project } = await requireProjectAccess(userId, projectId, database)
+  const { project } = await requireProjectSettings(userId, projectId, database, { allowArchived: true })
   requireSharedProject(project)
   await database
     .update(projectProjects)
@@ -633,7 +657,7 @@ export async function addProjectMember(
   userId: string,
   database = db
 ) {
-  const { membership, project } = await requireOpenProject(actorId, projectId, database)
+  const { membership, project } = await requireProjectSettings(actorId, projectId, database)
   requireSharedProject(project)
   const [teammate] = await database
     .select({ userId: projectTeamMembers.userId })
@@ -701,7 +725,7 @@ export async function removeProjectMember(
   database = db
 ) {
   await database.transaction(async (tx) => {
-    const { project } = await requireOpenProject(actorId, projectId, tx)
+    const { project } = await requireProjectSettings(actorId, projectId, tx)
     requireSharedProject(project)
     // Nobody leaves a project that includes everyone; the switch goes off first.
     if (project.wholeTeam) throw new Error(PROJECT_ERRORS.wholeTeamProject)
@@ -743,9 +767,12 @@ export async function copyProject(
   database = db
 ): Promise<{ id: string }> {
   return database.transaction(async (tx) => {
-    const { membership, project: source } = await requireProjectAccess(userId, input.projectId, tx)
+    // A copy is a new project, which only the site admin makes.
+    const { membership, project: source } = await requireProjectSettings(userId, input.projectId, tx, {
+      allowArchived: true,
+    })
     requireSharedProject(source)
-    const plan = await readProjectPlan(tx, source, userId)
+    const plan = await readProjectPlan(tx, source)
     const at = now()
     const id = uuid()
     await tx.insert(projectProjects).values({
@@ -760,7 +787,6 @@ export async function copyProject(
       hiddenTypeIds: plan.hiddenTypeIds,
       defaultTypeId: plan.defaultTypeId,
     })
-    await tx.insert(projectProjectMembers).values({ projectId: id, userId, addedAt: at })
     await writeProjectPlan(tx, { id, teamId: membership.teamId }, plan, userId)
     return { id }
   })
