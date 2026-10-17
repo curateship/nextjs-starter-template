@@ -184,8 +184,9 @@ refused.
 - **The typed words** match a deal's own name, its headline and the name of the
   place running it. The small print and the description are left out, because a
   match a visitor cannot see on the card reads as a wrong result.
-- **Cuisine and Neighbourhood are buttons that drop down**, the same component
-  as the directory's browse page (`DirectoryFilterBar`). A group is a parent
+- **Cuisine and Neighbourhood are buttons that drop down** (`DirectoryFilterBar`).
+  The directory's browse page used the same buttons until 17 Oct 2026, when it
+  moved to one Filters panel of chips; Deals kept the buttons. A group is a parent
   category and its children are the tick boxes, so nothing new is stored and a
   site that adds a third parent gets a third button. Each box carries how many
   live deals are behind it, and a box with none is left out. Two boxes ticked in

@@ -29,6 +29,14 @@ import {
   type CustomSectionView,
 } from "@/lib/directory/custom-fields"
 import {
+  countedFieldFilters,
+  fieldFilterBoxes,
+  fieldFilterConditions,
+  fieldFilterToken,
+  type DirectoryFieldFilter,
+  type FieldFilterCondition,
+} from "@/lib/directory/field-filters"
+import {
   directoryFilterGroups,
   groupCategorySlugs,
   type CategoryPlacement,
@@ -63,6 +71,7 @@ import {
   featuredPriorityFor,
 } from "@/server/directory/featured"
 import { listCustomSections } from "@/server/directory/custom-sections"
+import type { CustomSection } from "@/lib/directory/custom-fields"
 import {
   publishedSubtreeCounts,
   readDirectoryCategoryCards,
@@ -294,6 +303,11 @@ export type PublicBrowse = {
    * rating rung alone.
    */
   filterGroups: DirectoryFilterGroup[]
+  /**
+   * The fields this site marked as filters, each a button beside the groups.
+   * Empty on a site that marked none.
+   */
+  fieldFilters: DirectoryFieldFilter[]
   browseTitle: string
   browseIntro: string
   sort: DirectorySort
@@ -403,6 +417,7 @@ export type PublicCategoryPage = {
   category: PublicCategory
   /** The rail's groups, without the one this category itself belongs to. */
   filterGroups: DirectoryFilterGroup[]
+  fieldFilters: DirectoryFieldFilter[]
   /** Home → … → this one, for the breadcrumb. Ends with the category itself. */
   ancestors: PublicCategoryLink[]
   children: PublicCategory[]
@@ -871,6 +886,8 @@ type BrowseQuery = {
   categoryGroups?: string[][]
   /** Stars and up. A listing with no rating at all is out. */
   minRating?: number
+  /** The site's own fields, ticked. Each one narrows; see `field-filters.ts`. */
+  fieldConditions?: FieldFilterCondition[]
   sort: DirectorySort
   featuredFirst: boolean
   /**
@@ -923,6 +940,10 @@ function browseQuery(
     filters.push(gte(directoryListings.rating, options.minRating))
   }
 
+  for (const condition of options.fieldConditions ?? []) {
+    filters.push(fieldFilterWhere(condition))
+  }
+
   const where = and(...filters)
   const distanceKm = options.near
     ? distanceKmFrom(
@@ -955,6 +976,128 @@ function browseQuery(
         : ordinaryOrder
 
   return { where: nearWhere, ordered, distanceKm }
+}
+
+/**
+ * One stored answer, asked as "does this listing's answers contain this".
+ * Containment rather than reading the value out, so the question means the
+ * same for a yes or no as for a choice, and Postgres can answer it from an
+ * index on the column if a site ever grows big enough to want one.
+ */
+function hasStoredAnswer(section: string, key: string, answer: unknown): SQL {
+  return sql`${directoryListings.customValues} @> ${JSON.stringify({
+    [section]: { [key]: answer },
+  })}::jsonb`
+}
+
+function fieldFilterWhere(condition: FieldFilterCondition): SQL {
+  if (condition.kind === "toggle") {
+    return hasStoredAnswer(condition.section, condition.key, true)
+  }
+  // Two answers to one choice mean either of them.
+  return sql`(${sql.join(
+    condition.answers.map((answer) =>
+      hasStoredAnswer(condition.section, condition.key, answer)
+    ),
+    sql` or `
+  )})`
+}
+
+/**
+ * The field filter buttons, each box with how many listings ticking it would
+ * show on this page.
+ *
+ * Counted under everything else the visitor has applied: the category page
+ * they are on, the boxes ticked in other groups, the search and the distance.
+ * "Has wifi (310)" on a page that then shows seven listings and no second page
+ * is a number the page cannot back up, and Tyler caught exactly that on 17 Oct
+ * 2026.
+ *
+ * A field's own ticks are left out of its own count, because two answers to
+ * one choice mean either. With "Cheap" ticked, "Fancy" still says how many
+ * fancy places there are, which is what ticking it as well would add.
+ *
+ * Fields with nothing ticked share one query. Each field with something ticked
+ * needs its own, because what it is counted under is different. A site with
+ * six filters and one of them on is two round trips.
+ */
+async function readFieldFilters(
+  siteId: string,
+  sections: CustomSection[],
+  context: BrowseQuery,
+  /** The ticked tokens. A ticked box stays drawn at 0 so it can be unticked. */
+  ticked: readonly string[],
+  database: CustomShellDb
+): Promise<DirectoryFieldFilter[]> {
+  const fields = fieldFilterBoxes(sections)
+  if (!fields.length) return []
+
+  const conditions = context.fieldConditions ?? []
+  type Field = (typeof fields)[number]
+  const isOwn = (field: Field, condition: FieldFilterCondition) =>
+    condition.section === field.section && condition.key === field.key
+  const batches = [
+    fields.filter((field) => !conditions.some((c) => isOwn(field, c))),
+    ...fields
+      .filter((field) => conditions.some((c) => isOwn(field, c)))
+      .map((field) => [field]),
+  ].filter((batch) => batch.length > 0)
+
+  const counts = new Map<string, number>()
+  await Promise.all(
+    batches.map(async (batch) => {
+      const { where } = browseQuery(
+        siteId,
+        {
+          ...context,
+          fieldConditions: conditions.filter(
+            (condition) => !batch.some((field) => isOwn(field, condition))
+          ),
+        },
+        database
+      )
+      // No alias on the table: `where` is written against its real name.
+      const result = await database.execute(sql`
+        SELECT
+          wanted.section AS "section",
+          wanted.key AS "key",
+          jsonb_typeof(directory_listings.custom_values -> wanted.section -> wanted.key)
+            AS "kind",
+          directory_listings.custom_values -> wanted.section ->> wanted.key
+            AS "answer",
+          count(*)::int AS "count"
+        FROM directory_listings
+        CROSS JOIN (VALUES ${sql.join(
+          batch.map((field) => sql`(${field.section}::text, ${field.key}::text)`),
+          sql`, `
+        )}) AS wanted(section, key)
+        WHERE ${where}
+          AND directory_listings.custom_values -> wanted.section ->> wanted.key
+            IS NOT NULL
+        GROUP BY 1, 2, 3, 4
+      `)
+
+      for (const row of result.rows as Array<{
+        section: string
+        key: string
+        kind: string
+        answer: string
+        count: number
+      }>) {
+        // Counted the way the filter asks: a yes is the JSON `true`, and an
+        // answer is a string. Anything else stored there matches neither box.
+        if (row.kind === "boolean" && row.answer === "true") {
+          counts.set(fieldFilterToken(row.section, row.key), row.count)
+        } else if (row.kind === "string") {
+          counts.set(
+            fieldFilterToken(row.section, row.key, row.answer),
+            row.count
+          )
+        }
+      }
+    })
+  )
+  return countedFieldFilters(fields, (token) => counts.get(token) ?? 0, ticked)
 }
 
 /** One page of published listings, ordered and counted. */
@@ -1017,6 +1160,8 @@ async function readPublicBrowseUncached(
     /** The ticked category slugs. Absent is none ticked, never "all". */
     categories?: string[]
     minRating?: number
+    /** The ticked field filter tokens, from `readDirectoryFieldFilters`. */
+    fields?: string[]
     sort?: DirectorySort
     page: number
     near?: DirectoryNearPoint
@@ -1024,34 +1169,33 @@ async function readPublicBrowseUncached(
   },
   database: CustomShellDb = db
 ): Promise<PublicBrowse> {
-  const [allCategories, settings] = await Promise.all([
+  const [allCategories, settings, sections] = await Promise.all([
     publicCategories(site.id, database),
     directorySettingsFor(site.id, database),
+    listCustomSections(site.id, database),
   ])
   const resolvedSort =
     options.sort ?? (options.near ? "distance" : settings.defaultSort)
 
   // A category address nobody has is treated as no filter rather than as an
   // error: a stale link should still show the directory.
-  const { listings, total, page } = await listingPage(
-    site.id,
-    {
-      search: options.search,
-      page: options.page,
-      near: options.near,
-      radius: options.radius,
-      minRating: options.minRating,
-      sort: resolvedSort,
-      categoryGroups: groupCategorySlugs(
-        allCategories,
-        options.categories ?? []
-      ),
-      pageSize: settings.pageSize,
-      featuredFirst: settings.featuredFirst,
-      neighbourhoodCategoryId: settings.neighbourhoodCategoryId,
-    },
-    database
-  )
+  const query = {
+    search: options.search,
+    page: options.page,
+    near: options.near,
+    radius: options.radius,
+    minRating: options.minRating,
+    fieldConditions: fieldFilterConditions(sections, options.fields ?? []),
+    sort: resolvedSort,
+    categoryGroups: groupCategorySlugs(allCategories, options.categories ?? []),
+    pageSize: settings.pageSize,
+    featuredFirst: settings.featuredFirst,
+    neighbourhoodCategoryId: settings.neighbourhoodCategoryId,
+  }
+  const [{ listings, total, page }, fieldFilters] = await Promise.all([
+    listingPage(site.id, query, database),
+    readFieldFilters(site.id, sections, query, options.fields ?? [], database),
+  ])
 
   return {
     site: { name: site.name, url: site.url },
@@ -1061,6 +1205,7 @@ async function readPublicBrowseUncached(
     pageSize: settings.pageSize,
     categories: allCategories.filter((category) => category.listingCount > 0),
     filterGroups: directoryFilterGroups(allCategories),
+    fieldFilters,
     browseTitle: settings.browseTitle,
     browseIntro: settings.browseIntro,
     sort: resolvedSort,
@@ -1089,6 +1234,7 @@ export function readPublicBrowse(
     /** The ticked category slugs. Absent is none ticked, never "all". */
     categories?: string[]
     minRating?: number
+    fields?: string[]
     sort?: DirectorySort
     page: number
     near?: DirectoryNearPoint
@@ -1114,6 +1260,7 @@ export function readPublicBrowse(
       // are one entry rather than two.
       categories: [...(resolvedOptions.categories ?? [])].sort().join(","),
       minRating: resolvedOptions.minRating ?? null,
+      fields: [...(resolvedOptions.fields ?? [])].sort().join(","),
       sort: resolvedOptions.sort ?? "",
       page: resolvedOptions.page,
       near: resolvedOptions.near ?? null,
@@ -1140,6 +1287,7 @@ async function readDirectoryMapUncached(
     /** The ticked category slugs. Absent is none ticked, never "all". */
     categories?: string[]
     minRating?: number
+    fields?: string[]
     sort?: DirectorySort
     near?: DirectoryNearPoint
     radius?: number
@@ -1152,6 +1300,9 @@ async function readDirectoryMapUncached(
   // its listing coordinates read by calling it directly.
   const settings = await directorySettingsFor(site.id, database)
   if (!settings.mapEnabled) return null
+  const sections = options.fields?.length
+    ? await listCustomSections(site.id, database)
+    : []
 
   // A category address nobody has is no filter rather than an error, the same
   // as the grid: a stale link should still show the map.
@@ -1167,6 +1318,7 @@ async function readDirectoryMapUncached(
       search: options.search,
       categoryGroups: groupCategorySlugs(placements, options.categories ?? []),
       minRating: options.minRating,
+      fieldConditions: fieldFilterConditions(sections, options.fields ?? []),
       sort: options.sort ?? (options.near ? "distance" : settings.defaultSort),
       featuredFirst: settings.featuredFirst,
       near: options.near,
@@ -1227,6 +1379,7 @@ export async function readDirectoryMap(
     /** The ticked category slugs. Absent is none ticked, never "all". */
     categories?: string[]
     minRating?: number
+    fields?: string[]
     sort?: DirectorySort
     near?: DirectoryNearPoint
     radius?: number
@@ -1247,6 +1400,7 @@ export async function readDirectoryMap(
       search: resolvedOptions.search ?? "",
       categories: [...(resolvedOptions.categories ?? [])].sort().join(","),
       minRating: resolvedOptions.minRating ?? null,
+      fields: [...(resolvedOptions.fields ?? [])].sort().join(","),
       sort: resolvedOptions.sort ?? "",
       near: resolvedOptions.near ?? null,
       radius: resolvedOptions.radius ?? null,
@@ -1591,57 +1745,69 @@ function ancestorsOf(
 async function readPublicCategoryUncached(
   site: VisitorSite,
   slug: string,
-  options: { page: number; categories?: string[]; minRating?: number },
+  options: {
+    page: number
+    categories?: string[]
+    minRating?: number
+    fields?: string[]
+  },
   database: CustomShellDb = db
 ): Promise<PublicCategoryPage | null> {
-  const [all, settings] = await Promise.all([
+  const [all, settings, sections] = await Promise.all([
     publicCategories(site.id, database),
     directorySettingsFor(site.id, database),
+    listCustomSections(site.id, database),
   ])
   const category = all.find((row) => row.slug === slug)
   if (!category) return null
   const children = all.filter((row) => row.parentId === category.id)
 
-  const [{ listings, total, page }, childCounts, posts] = await Promise.all([
-    listingPage(
-      site.id,
-      {
-        // The page's own category is a group of one, so the rail's groups sit
-        // beside it under the same "and" the browse page uses. Ticking the
-        // Annex on the Italian page means Italian and in the Annex.
-        categoryGroups: [
-          [category.id],
-          ...groupCategorySlugs(all, options.categories ?? []),
-        ],
-        minRating: options.minRating,
-        sort: settings.defaultSort,
-        page: options.page,
-        pageSize: settings.pageSize,
-        featuredFirst: settings.featuredFirst,
-        // The one page where a spot bought in this category counts. It leads
-        // the page and wears the badge; on the browse page and on every other
-        // category it sorts like anything else.
-        featuredCategoryId: category.id,
-        neighbourhoodCategoryId: settings.neighbourhoodCategoryId,
-      },
-      database
-    ),
-    publishedSubtreeCounts(
-      site.id,
-      children.map((row) => row.id),
-      database
-    ),
-    postsArePublic(site.id, database).then((open) =>
-      open
-        ? publicPostsInCategory(
-            site.id,
-            category.id,
-            CATEGORY_POST_LIMIT,
-            database
-          )
-        : []
-    ),
-  ])
+  const query = {
+    // The page's own category is a group of one, so the rail's groups sit
+    // beside it under the same "and" the browse page uses. Ticking the Annex
+    // on the Italian page means Italian and in the Annex.
+    categoryGroups: [
+      [category.id],
+      ...groupCategorySlugs(all, options.categories ?? []),
+    ],
+    minRating: options.minRating,
+    fieldConditions: fieldFilterConditions(sections, options.fields ?? []),
+    sort: settings.defaultSort,
+    page: options.page,
+    pageSize: settings.pageSize,
+    featuredFirst: settings.featuredFirst,
+    // The one page where a spot bought in this category counts. It leads the
+    // page and wears the badge; on the browse page and on every other category
+    // it sorts like anything else.
+    featuredCategoryId: category.id,
+    neighbourhoodCategoryId: settings.neighbourhoodCategoryId,
+  }
+  const [{ listings, total, page }, childCounts, posts, fieldFilters] =
+    await Promise.all([
+      listingPage(site.id, query, database),
+      publishedSubtreeCounts(
+        site.id,
+        children.map((row) => row.id),
+        database
+      ),
+      postsArePublic(site.id, database).then((open) =>
+        open
+          ? publicPostsInCategory(
+              site.id,
+              category.id,
+              CATEGORY_POST_LIMIT,
+              database
+            )
+          : []
+      ),
+      readFieldFilters(
+        site.id,
+        sections,
+        query,
+        options.fields ?? [],
+        database
+      ),
+    ])
 
   return {
     site: { name: site.name, url: site.url },
@@ -1652,6 +1818,7 @@ async function readPublicCategoryUncached(
     filterGroups: directoryFilterGroups(all).filter(
       (group) => group.id !== category.parentId
     ),
+    fieldFilters,
     ancestors: ancestorsOf(category, all),
     children: children.map((row) => ({
       ...row,
@@ -1669,7 +1836,12 @@ async function readPublicCategoryUncached(
 export function readPublicCategory(
   site: VisitorSite,
   slug: string,
-  options: { page: number; categories?: string[]; minRating?: number },
+  options: {
+    page: number
+    categories?: string[]
+    minRating?: number
+    fields?: string[]
+  },
   database: CustomShellDb = db
 ): Promise<PublicCategoryPage | null> {
   return cachedPublicDirectoryRead(
@@ -1681,6 +1853,7 @@ export function readPublicCategory(
       page: options.page,
       categories: [...(options.categories ?? [])].sort().join(","),
       minRating: options.minRating ?? null,
+      fields: [...(options.fields ?? [])].sort().join(","),
     },
     () => readPublicCategoryUncached(site, slug, options, database)
   )

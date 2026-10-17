@@ -80,6 +80,12 @@ export type DirectoryBrowseSearch = {
   /** Stars and up, from `DIRECTORY_MIN_RATINGS`. Absent means any rating. */
   minRating?: number
   /**
+   * The ticked fields this site invented, comma separated:
+   * `?filter=amenities.has_wifi`. `lib/directory/field-filters.ts` reads and
+   * writes it.
+   */
+  filter?: string
+  /**
    * Grid or map. In the address rather than in memory so a map somebody sends
    * opens as a map, which is the whole reason for having the switch.
    */

@@ -141,8 +141,8 @@ its row under another listing.
 The page is a band, then one column of listings. The band holds the directory's
 name and one bar carrying the search box, the town box, the "use my location"
 button, the distance and the Search button. Under it is one line — how many
-listings there are on the left, then a button per group of filters, then the
-order — and the cards fill the whole width below it, four across on a wide
+listings there are on the left, then a Filters button, then the order — and
+the cards fill the whole width below it, four across on a wide
 screen.
 
 The filters ran down a 16rem column on the left of the page until 27 Sep 2026,
@@ -150,6 +150,11 @@ when Tyler asked for them to sit at the top in buttons that drop down. A column
 of tick boxes was the first thing on the page and the listings had two thirds
 of the width; now the results are what a visitor sees, and the tools for
 narrowing them take a line.
+
+The buttons that dropped down, one per group, became one Filters button on
+17 Oct 2026, drawn to Tyler's mock: a panel with a heading per kind of filter
+and a row of chips under each. Once a site added its own fields as filters the
+row of buttons wrapped onto three lines on a phone.
 
 - **The band runs the whole width of the window** and starts where the header
   ends, with a dotted pattern over it. It is drawn inside the page's 1152px
@@ -180,18 +185,23 @@ narrowing them take a line.
   the whole width of the window, and its padding is on the band rather than on
   the column inside it, or the title would sit 16px further in than the header's
   logo and the cards below it.
-- **One button per group, and one for the rating**, each opening a panel of the
-  same tick boxes. A button carries how many of its boxes are on, in brackets
-  after its name, and is drawn in full contrast while any of them are, so the
-  row says which filters are doing something without opening any of them.
-- **A panel ends with Clear and Done.** Clear empties that group alone; Done
-  shuts the panel. Nothing waits to be applied — a tick changes the page and
-  the address straight away, and Done is only the way out.
-- **A panel's list scrolls at 288px**, with the height on the scrolling box
-  rather than the frame around it. A height on the frame clips the options past
-  it with no way to reach them.
-- **The same buttons on a phone**, wrapped onto as many lines as they need.
-  They were a Filters button opening a sheet while the filters were a column.
+- **Filters sits beside "Sort by"**, drawn the same way so the two read as a
+  pair. It carries how many filters are on, "Filters (3)", and is drawn in full
+  contrast while any are.
+- **The panel's headings come in a fixed order**: the category groups
+  ("Neighbourhood", "Cuisine"), then Rating, then each choice field the site
+  marked as a filter under its own name ("Price"), then the yes or no fields
+  under the name of the section they belong to ("Amenities").
+- **Each option is a chip**, filled while it is on. A long group shows its first
+  four and "More…", which opens the rest in place. A chip that is on is always
+  shown, or it could only be turned off by opening the group first.
+- **Every chip changes the page straight away**, and the address with it.
+  "Show results" shuts the panel over a list that has already changed, and
+  "Clear all" at its foot turns off every filter in the panel. The search and
+  the distance are not in the panel and stay.
+- **The panel stays 16px inside the window and is never taller than the room it
+  has.** On a phone it opens wherever there is more space, and its chips scroll
+  while Clear all and Show results stay in view.
 - **A group of filters is a parent category.** "Cuisine" and "Neighbourhood"
   are not settings anybody fills in. Any category that has children becomes a
   group and its children are the boxes, in the order an admin arranged them.
@@ -199,14 +209,7 @@ narrowing them take a line.
 - **A child with nothing published in it is left out**, and a parent left with
   no children after that is dropped whole. A box that can only ever return an
   empty page is a dead end.
-- **The count beside a box is the whole site's**, not what is left after the
-  other boxes. Toronto's Etobicoke says 197 while the list above says 8,
-  because the number answers "how much is there" rather than "how much is
-  left", and recounting every box on every keystroke would be a query per box.
-- **A group of more than eight gets a search box** that filters its own
-  options, never the listings. A ticked box stays in view even when it does not
-  match what is typed there, or unticking it would mean clearing the search
-  first to find it again.
+- **Category, rating and choice chips carry no count**, as the mock draws them.
 - **Ticking two boxes in one group means either of them. Ticking across two
   groups means both.** Italian or Portuguese, in the Annex. The address is one
   key holding a comma-separated list, `?category=italian,portuguese`, so every
@@ -214,7 +217,34 @@ narrowing them take a line.
   meant, and the server decides which group each slug belongs to.
 - **Rating is Any, 4.0+ or 4.5+.** A listing nobody has scored is out when a
   minimum is asked for: a place with no rating is not a place rated 4 and over.
-- **Clear all** sits beside the count, and only while something is on.
+- **A field the site invented can be a filter too.** In Admin → Listings →
+  Custom fields, a "Yes or no" field and a "Choice" field each carry a "Use as
+  a filter" box. Ticked, the field joins the panel. No other kind gets the box:
+  free text, numbers, tags and pictures have no short list of answers to tick,
+  and a field inside a repeating row holds a list of answers rather than one.
+- **A yes or no chip carries the number it would show**, "Has wifi (310)".
+  The number is counted under everything else already applied: the category
+  page, the other chips, the search and the distance. On the Asian page it
+  says 7, and ticking it shows 7. It said the whole site's 310 there at first,
+  over a list of 7 with no second page, and Tyler caught it on 17 Oct 2026.
+- **The field filters follow the category chips' rules.** Two answers to one
+  choice mean either, and two fields mean both. An answer that would empty the
+  page is left out, and a field left with no answers is dropped. A chip that is
+  on stays even at 0, so it can be turned off.
+- **They are in the address as one key**, `?filter=amenities.has_wifi,amenities.price:cheap`:
+  the section's name, the field's name, and for a choice the answer. A link
+  that names a field no longer marked as a filter, or an answer the field no
+  longer offers, is ignored rather than emptying the page.
+- **The sentence over the results names them**: "77 listings with Has wifi,
+  Price: Cheap, Patio". Clear all clears them with everything else.
+- **The category page and the map carry the same field filters.**
+- **No index was needed.** On 17 Oct 2026, 5,000 published listings on one
+  site took 2.8 ms to filter on wifi and two prices, and 6.3 ms to count every
+  box, timed in Postgres itself. Counting under the other filters adds one
+  more count for each field that has something on. A page load adds its own time around those.
+  Measure again before adding an index on the answers column.
+- **Clear all** also sits beside the count, only while something is on, and
+  clears the search and the distance as well as the filters.
 - **A category page opens with the same band as the browse page**, without the
   search bar: the trail, the category's name at the page's largest size, the
   line under it, and its picture beside the words where it has one. It was
@@ -223,14 +253,15 @@ narrowing them take a line.
   and any page that is a name and a line can use it.
 - **A category that only groups others shows its children and nothing else.**
   "Type" holds Bar and Italian restaurant and has nothing published under it
-  directly, so the page is its band and its cards: no count, no filter buttons,
+  directly, so the page is its band and its cards: no count, no Filters button,
   and no empty card telling a visitor to choose one of the cards in front of
   them. A parent that does hold listings of its own keeps all three. Tyler
   found this on 27 Sep 2026.
 - **A category page carries the same filters, without its own group.** Every
   listing on the Italian page is already Italian, so a Cuisine box there could
-  only narrow the page to itself or empty it. The Neighbourhood boxes still
-  work, and the page number keeps them.
+  only narrow the page to itself or empty it. The Neighbourhood chips still
+  work, and the page number keeps them. It has no order to pick, so its
+  Filters button stands alone at the end of the count's line.
 - **Every filter is in the address**, so a narrowed list can be sent to
   somebody, survives a refresh, and comes back with Back. The pager carries
   them too: page 2 of a narrowed list is still narrowed.

@@ -1581,3 +1581,291 @@ describe("browsing with several boxes ticked", () => {
     ])
   })
 })
+
+describe("filtering by the fields a site invented", () => {
+  /**
+   * A section with every case in it: two fields marked as filters, one yes or
+   * no left unmarked, and a text field marked as one, which the cleaner must
+   * refuse because a free answer has no boxes to tick.
+   */
+  async function amenitiesOn(site: { id: string }) {
+    const section = await createCustomSection(
+      site.id,
+      { name: "Amenities" },
+      database
+    )
+    return updateCustomSection(
+      site.id,
+      section.id,
+      {
+        fields: [
+          { label: "Has wifi", type: "toggle", filter: true },
+          {
+            label: "Price",
+            type: "select",
+            filter: true,
+            options: [
+              { label: "Cheap", value: "cheap" },
+              { label: "Fancy", value: "fancy" },
+              { label: "Free, honestly", value: "free, honestly" },
+            ],
+          },
+          { label: "Dog friendly", type: "toggle" },
+          { label: "Notes", type: "text", filter: true },
+        ],
+      },
+      database
+    )
+  }
+
+  async function placeWith(
+    site: { id: string },
+    slug: string,
+    answers: Record<string, unknown>,
+    status: "published" | "draft" = "published"
+  ) {
+    const listing = await createListing(
+      site.id,
+      { title: slug, slug },
+      database
+    )
+    return updateListing(
+      site.id,
+      listing.id,
+      { status, customValues: { amenities: answers } },
+      database
+    )
+  }
+
+  const slugsOf = (rows: { slug: string }[]) =>
+    rows.map((row) => row.slug).sort()
+
+  it("offers only the yes or no and choice fields marked as filters, counted", async () => {
+    const section = await amenitiesOn(alpha)
+    expect(
+      section.fields.map((field) => [
+        field.key,
+        field.type !== "repeater" && field.filter,
+      ])
+    ).toEqual([
+      ["has_wifi", true],
+      ["price", true],
+      ["dog_friendly", false],
+      ["notes", false],
+    ])
+    await placeWith(alpha, "cafe-a", { has_wifi: true, price: "cheap" })
+    await placeWith(alpha, "cafe-b", { has_wifi: true })
+    await placeWith(alpha, "cafe-c", { price: "cheap", dog_friendly: true })
+    // A draft is nobody's answer.
+    await placeWith(alpha, "cafe-draft", { price: "fancy" }, "draft")
+
+    const page = await browse(alpha)
+    // "Fancy" only has the draft and "Free, honestly" nobody, so neither is a
+    // box: a box that can only return an empty page is a dead end.
+    expect(page.fieldFilters).toEqual([
+      {
+        id: "amenities.has_wifi",
+        name: "Has wifi",
+        sectionName: "Amenities",
+        kind: "toggle",
+        options: [{ slug: "amenities.has_wifi", name: "Has wifi", count: 2 }],
+      },
+      {
+        id: "amenities.price",
+        name: "Price",
+        sectionName: "Amenities",
+        kind: "select",
+        options: [{ slug: "amenities.price:cheap", name: "Cheap", count: 2 }],
+      },
+    ])
+  })
+
+  it("means either inside one choice and both across two fields", async () => {
+    await amenitiesOn(alpha)
+    await placeWith(alpha, "cheap-wifi", { has_wifi: true, price: "cheap" })
+    await placeWith(alpha, "fancy-wifi", { has_wifi: true, price: "fancy" })
+    await placeWith(alpha, "cheap-only", { price: "cheap" })
+    await placeWith(alpha, "free-only", { price: "free, honestly" })
+    await placeWith(alpha, "nothing", {})
+
+    const wifi = await browse(alpha, { fields: ["amenities.has_wifi"] })
+    expect(slugsOf(wifi.listings)).toEqual(["cheap-wifi", "fancy-wifi"])
+    expect(wifi.total).toBe(2)
+
+    const either = await browse(alpha, {
+      fields: ["amenities.price:cheap", "amenities.price:fancy"],
+    })
+    expect(slugsOf(either.listings)).toEqual([
+      "cheap-only",
+      "cheap-wifi",
+      "fancy-wifi",
+    ])
+
+    const both = await browse(alpha, {
+      fields: ["amenities.has_wifi", "amenities.price:cheap"],
+    })
+    expect(slugsOf(both.listings)).toEqual(["cheap-wifi"])
+
+    // An answer with a comma in it travels encoded and still matches.
+    const odd = await browse(alpha, {
+      fields: [`amenities.price:${encodeURIComponent("free, honestly")}`],
+    })
+    expect(slugsOf(odd.listings)).toEqual(["free-only"])
+  })
+
+  it("keeps the filter on page two", async () => {
+    await amenitiesOn(alpha)
+    await saveDirectoryBrowseSettings(
+      alpha.id,
+      {
+        pageSize: 6,
+        defaultSort: "title",
+        browseTitle: "Alpha places",
+        browseIntro: "",
+        featuredFirst: false,
+      },
+      database
+    )
+    for (const index of [1, 2, 3, 4, 5, 6, 7]) {
+      await placeWith(alpha, `wifi-${index}`, { has_wifi: true })
+    }
+    await placeWith(alpha, "wifi-none", {})
+
+    const second = await readPublicBrowse(
+      alpha,
+      { sort: "title", page: 2, fields: ["amenities.has_wifi"] },
+      database
+    )
+    // Page 2 of the whole list would hold wifi-7 and wifi-none. Seven out of
+    // eight is the filter surviving the split into pages.
+    expect(second.listings.map((row) => row.slug)).toEqual(["wifi-7"])
+    expect(second.total).toBe(7)
+  })
+
+  it("ignores a filter the site has not offered, rather than emptying the page", async () => {
+    await amenitiesOn(alpha)
+    await placeWith(alpha, "dog-place", { dog_friendly: true })
+    await placeWith(alpha, "other", {})
+
+    for (const token of [
+      // A yes or no the admin did not mark as a filter.
+      "amenities.dog_friendly",
+      // An answer the choice does not offer.
+      "amenities.price:pricey",
+      // A field nobody defined.
+      "amenities.made_up",
+      "nonsense",
+    ]) {
+      const page = await browse(alpha, { fields: [token] })
+      expect(page.total).toBe(2)
+    }
+  })
+
+  it("never counts or returns another site's listings", async () => {
+    await amenitiesOn(alpha)
+    await amenitiesOn(beta)
+    await placeWith(alpha, "alpha-wifi", { has_wifi: true })
+    for (const slug of ["beta-1", "beta-2", "beta-3"]) {
+      await placeWith(beta, slug, { has_wifi: true })
+    }
+
+    const page = await browse(alpha, { fields: ["amenities.has_wifi"] })
+    expect(slugsOf(page.listings)).toEqual(["alpha-wifi"])
+    expect(page.fieldFilters[0]?.options[0]?.count).toBe(1)
+  })
+
+  it("counts a box as the number of listings ticking it would show", async () => {
+    await amenitiesOn(alpha)
+    const cafes = await createCategory(alpha.id, { name: "Cafes" }, database)
+    const cafeWifi = await placeWith(alpha, "cafe-wifi", {
+      has_wifi: true,
+      price: "cheap",
+    })
+    const cafePlain = await placeWith(alpha, "cafe-plain", { price: "fancy" })
+    await setListingCategories(alpha.id, cafeWifi.id, [cafes.id], null, database)
+    await setListingCategories(alpha.id, cafePlain.id, [cafes.id], null, database)
+    // Three wifi places outside the category: the whole site has four.
+    for (const slug of ["bar-1", "bar-2", "bar-3"]) {
+      await placeWith(alpha, slug, { has_wifi: true, price: "cheap" })
+    }
+
+    // The category page offers what the category holds, not the site.
+    const category = await readPublicCategory(
+      alpha,
+      cafes.slug,
+      { page: 1 },
+      database
+    )
+    const wifiBox = category?.fieldFilters[0]?.options[0]
+    expect(wifiBox?.count).toBe(1)
+    const ticked = await readPublicCategory(
+      alpha,
+      cafes.slug,
+      { page: 1, fields: [wifiBox?.slug ?? ""] },
+      database
+    )
+    expect(ticked?.total).toBe(wifiBox?.count)
+
+    // The same on the browse page with a search on.
+    const searched = await browse(alpha, { search: "bar" })
+    expect(searched.fieldFilters[0]?.options[0]?.count).toBe(3)
+    const searchedAndTicked = await browse(alpha, {
+      search: "bar",
+      fields: ["amenities.has_wifi"],
+    })
+    expect(searchedAndTicked.total).toBe(3)
+  })
+
+  it("counts the other answers of a ticked choice without it, and keeps a ticked box at nought", async () => {
+    await amenitiesOn(alpha)
+    await placeWith(alpha, "cheap-wifi", { has_wifi: true, price: "cheap" })
+    await placeWith(alpha, "fancy-1", { price: "fancy" })
+    await placeWith(alpha, "fancy-2", { price: "fancy" })
+
+    const cheap = await browse(alpha, { fields: ["amenities.price:cheap"] })
+    const price = cheap.fieldFilters.find((row) => row.id === "amenities.price")
+    // Ticking Fancy as well means cheap or fancy, so Fancy still says two.
+    expect(price?.options).toEqual([
+      { slug: "amenities.price:cheap", name: "Cheap", count: 1 },
+      { slug: "amenities.price:fancy", name: "Fancy", count: 2 },
+    ])
+    // Wifi is counted among the cheap places, which is what ticking it gives.
+    expect(
+      cheap.fieldFilters.find((row) => row.id === "amenities.has_wifi")
+        ?.options[0]?.count
+    ).toBe(1)
+
+    // Wifi and Fancy together match nothing. Both boxes stay, so either can
+    // be unticked.
+    const none = await browse(alpha, {
+      fields: ["amenities.has_wifi", "amenities.price:fancy"],
+    })
+    expect(none.total).toBe(0)
+    expect(
+      none.fieldFilters.find((row) => row.id === "amenities.has_wifi")
+        ?.options[0]
+    ).toEqual({ slug: "amenities.has_wifi", name: "Has wifi", count: 0 })
+  })
+
+  it("narrows a category page by a field", async () => {
+    await amenitiesOn(alpha)
+    const cafes = await createCategory(alpha.id, { name: "Cafes" }, database)
+    const inside = await placeWith(alpha, "cafe-wifi", { has_wifi: true })
+    const plain = await placeWith(alpha, "cafe-plain", {})
+    // In no category, so the page must not carry it however well it matches.
+    await placeWith(alpha, "bar-wifi", { has_wifi: true })
+    await setListingCategories(alpha.id, inside.id, [cafes.id], null, database)
+    await setListingCategories(alpha.id, plain.id, [cafes.id], null, database)
+
+    const page = await readPublicCategory(
+      alpha,
+      cafes.slug,
+      { page: 1, fields: ["amenities.has_wifi"] },
+      database
+    )
+    expect(page?.listings.map((row) => row.slug)).toEqual(["cafe-wifi"])
+    expect(page?.fieldFilters.map((filter) => filter.id)).toEqual([
+      "amenities.has_wifi",
+    ])
+  })
+})

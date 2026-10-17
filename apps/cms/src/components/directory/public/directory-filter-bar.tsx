@@ -1,5 +1,5 @@
 import * as React from "react"
-import { CheckIcon, ChevronDownIcon, SearchIcon } from "lucide-react"
+import { ChevronDownIcon, SearchIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -10,23 +10,20 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { DIRECTORY_MIN_RATINGS } from "@/lib/directory/public-search"
-import type { DirectoryFilterGroup } from "@/lib/directory/filter-groups"
+import type {
+  DirectoryFilterGroup,
+  DirectoryFilterOption,
+} from "@/lib/directory/filter-groups"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 /**
- * The row of filter buttons above the listings, one button per group.
+ * The Deals page's row of filter buttons, one button per category group, each
+ * opening a panel of tick boxes.
  *
- * It was a column of tick boxes down the left of the page until 27 Sep 2026,
- * when Tyler asked for the filters to sit at the top in buttons that drop
- * down. The listings get the whole width, and a visitor sees the results
- * rather than the tools for narrowing them.
- *
- * **It knows nothing about cuisines.** It takes a list of groups, each with a
- * name and its options, so the custom-field filters a site invents can be more
- * groups later without this being rewritten. Everything it changes it changes
- * through the two callbacks, which write to the address.
+ * The directory's browse and category pages used this row too until 17 Oct
+ * 2026, when Tyler drew them one "Filters" panel of chips instead
+ * (`directory-filters-panel.tsx`). Deals kept its buttons.
  *
  * Ticking two boxes in one group means either of them, and ticking across two
  * groups means both. That rule lives in the query on the server; what matters
@@ -40,22 +37,13 @@ export type DirectoryFilterBarProps = {
   groups: DirectoryFilterGroup[]
   /** The ticked slugs, from the address. */
   selected: string[]
-  /**
-   * Left out by a page with no ratings to filter on, like Deals, which gets
-   * the group buttons alone rather than a Rating button that cannot narrow
-   * anything.
-   */
-  minRating?: number | undefined
   onToggleCategory: (slug: string) => void
-  onMinRatingChange?: (rating: number | undefined) => void
 }
 
 export function DirectoryFilterBar({
   groups,
   selected,
-  minRating,
   onToggleCategory,
-  onMinRatingChange,
 }: DirectoryFilterBarProps) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -64,15 +52,9 @@ export function DirectoryFilterBar({
           key={group.id}
           group={group}
           selected={selected}
-          onToggleCategory={onToggleCategory}
+          onToggle={onToggleCategory}
         />
       ))}
-      {onMinRatingChange ? (
-        <RatingFilter
-          minRating={minRating}
-          onMinRatingChange={onMinRatingChange}
-        />
-      ) : null}
     </div>
   )
 }
@@ -148,11 +130,11 @@ function FilterPanel({
 function GroupFilter({
   group,
   selected,
-  onToggleCategory,
+  onToggle,
 }: {
   group: DirectoryFilterGroup
   selected: string[]
-  onToggleCategory: (slug: string) => void
+  onToggle: (slug: string) => void
 }) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
@@ -181,7 +163,7 @@ function GroupFilter({
       <FilterPanel
         onClear={
           ticked.length
-            ? () => ticked.forEach((option) => onToggleCategory(option.slug))
+            ? () => ticked.forEach((option) => onToggle(option.slug))
             : undefined
         }
         onDone={() => setOpen(false)}
@@ -218,33 +200,11 @@ function GroupFilter({
           // inside, so the options past the cap are clipped with no way to
           // scroll to them.
           <ScrollArea className="p-2.5" viewportClassName="max-h-72">
-            <ul className="flex flex-col">
-              {shown.map((option) => {
-                const id = `directory-filter-${group.id}-${option.slug}`
-                return (
-                  <li key={option.slug}>
-                    {/* The whole row is the label, so the count and the empty
-                        space beside it tick the box too. */}
-                    <label
-                      htmlFor={id}
-                      className="flex cursor-pointer items-center gap-2 rounded-md py-1.5 text-sm hover:bg-muted/60"
-                    >
-                      <Checkbox
-                        id={id}
-                        checked={selected.includes(option.slug)}
-                        onCheckedChange={() => onToggleCategory(option.slug)}
-                      />
-                      <span className="min-w-0 flex-1 truncate">
-                        {option.name}
-                      </span>
-                      <span className="text-muted-foreground tabular-nums">
-                        {option.count}
-                      </span>
-                    </label>
-                  </li>
-                )
-              })}
-            </ul>
+            <OptionRows
+              options={shown}
+              selected={selected}
+              onToggle={onToggle}
+            />
           </ScrollArea>
         ) : (
           <p className="p-2.5 text-sm text-muted-foreground">
@@ -257,63 +217,44 @@ function GroupFilter({
 }
 
 /**
- * Any, 4.0+ or 4.5+, in its own button beside the groups.
- *
- * Radios rather than tick boxes, because exactly one of the three is true at a
- * time and a screen reader should be told that before the visitor picks.
+ * One tick box per option. The whole row is the label, so the count and the
+ * empty space beside it tick the box too.
  */
-function RatingFilter({
-  minRating,
-  onMinRatingChange,
+function OptionRows({
+  options,
+  selected,
+  onToggle,
 }: {
-  minRating: number | undefined
-  onMinRatingChange: (rating: number | undefined) => void
+  options: DirectoryFilterOption[]
+  selected: string[]
+  onToggle: (slug: string) => void
 }) {
-  const [open, setOpen] = React.useState(false)
-
+  // Ids from React rather than from the slug: a field filter's token holds a
+  // dot, a colon and possibly an encoded answer, none of which belong in one.
+  const idPrefix = React.useId()
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <FilterTrigger label="Rating" count={minRating === undefined ? 0 : 1} />
-      <FilterPanel
-        onClear={
-          minRating === undefined
-            ? undefined
-            : () => onMinRatingChange(undefined)
-        }
-        onDone={() => setOpen(false)}
-      >
-        <div
-          role="radiogroup"
-          aria-label="Rating"
-          className="flex flex-col p-2.5"
-        >
-          {[undefined, ...DIRECTORY_MIN_RATINGS].map((rating) => {
-            const active = rating === minRating
-            return (
-              <button
-                key={rating ?? "any"}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => onMinRatingChange(rating)}
-                className={cn(
-                  "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted/60",
-                  focusRing,
-                  active ? "font-medium" : null
-                )}
-              >
-                {rating === undefined ? "Any rating" : `${rating.toFixed(1)}+`}
-                {active ? (
-                  <CheckIcon
-                    aria-hidden="true"
-                    className="size-4 text-muted-foreground"
-                  />
-                ) : null}
-              </button>
-            )
-          })}
-        </div>
-      </FilterPanel>
-    </Popover>
+    <ul className="flex flex-col">
+      {options.map((option, index) => {
+        const id = `${idPrefix}-${index}`
+        return (
+          <li key={option.slug}>
+            <label
+              htmlFor={id}
+              className="flex cursor-pointer items-center gap-2 rounded-md py-1.5 text-sm hover:bg-muted/60"
+            >
+              <Checkbox
+                id={id}
+                checked={selected.includes(option.slug)}
+                onCheckedChange={() => onToggle(option.slug)}
+              />
+              <span className="min-w-0 flex-1 truncate">{option.name}</span>
+              <span className="text-muted-foreground tabular-nums">
+                {option.count}
+              </span>
+            </label>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

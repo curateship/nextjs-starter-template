@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Card,
   CardContent,
@@ -47,6 +48,7 @@ import {
   MAX_CUSTOM_FIELDS_PER_SECTION,
   MAX_CUSTOM_OPTIONS,
   MAX_CUSTOM_REPEATER_FIELDS,
+  canFilterByType,
   type CustomField,
   type CustomFieldOption,
   type CustomFieldType,
@@ -87,7 +89,14 @@ function freshId(prefix: string) {
 function newField(): CustomSimpleField {
   // No key: a field the server has not seen has not been filed under one yet,
   // and letting the server make it is what keeps the two from disagreeing.
-  return { id: freshId("field"), key: "", label: "", type: "text", options: [] }
+  return {
+    id: freshId("field"),
+    key: "",
+    label: "",
+    type: "text",
+    options: [],
+    filter: false,
+  }
 }
 
 function newOption(): CustomFieldOption {
@@ -102,6 +111,7 @@ function fieldsSnapshot(fields: CustomField[]) {
       label: field.label.trim(),
       type: field.type,
       options: field.type === "select" ? field.options : [],
+      filter: field.type !== "repeater" && field.filter,
       fields:
         field.type === "repeater"
           ? field.fields.map((row) => ({
@@ -413,6 +423,7 @@ function FieldRow({
 }) {
   const labelId = `custom-field-label-${field.id}`
   const typeId = `custom-field-type-${field.id}`
+  const filterId = `custom-field-filter-${field.id}`
 
   return (
     <div className="grid gap-4 rounded-md border p-3">
@@ -487,6 +498,25 @@ function FieldRow({
         </div>
       </div>
 
+      {field.type !== "repeater" && canFilterByType(field.type) ? (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={filterId}
+            checked={field.filter}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              onChange({ filter: checked === true } as Partial<CustomField>)
+            }
+          />
+          <FieldLabel
+            htmlFor={filterId}
+            hint="Visitors can narrow the directory and category pages to the listings that gave this answer."
+          >
+            Use as a filter
+          </FieldLabel>
+        </div>
+      ) : null}
+
       {field.type === "select" ? (
         <OptionsEditor
           field={field}
@@ -523,6 +553,9 @@ function patchForType(
   return {
     type,
     options: type === "select" && field.type === "select" ? field.options : [],
+    // Only a yes or no and a choice can be filtered on, so a field turned into
+    // anything else stops being a filter rather than keeping a hidden tick.
+    filter: canFilterByType(type) && field.type !== "repeater" && field.filter,
   }
 }
 

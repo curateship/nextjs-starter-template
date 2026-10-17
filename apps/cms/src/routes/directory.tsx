@@ -4,7 +4,7 @@ import { DirectoryRouteError } from "@/components/directory/public/directory-err
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
 import { CategoryGrid } from "@/components/directory/public/category-grid"
-import { DirectoryFilterBar } from "@/components/directory/public/directory-filter-bar"
+import { DirectoryFiltersPanel } from "@/components/directory/public/directory-filters-panel"
 import { DirectoryHero } from "@/components/directory/public/directory-hero"
 import { DirectoryResultsHeader } from "@/components/directory/public/directory-results-header"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
@@ -39,6 +39,12 @@ import {
   directoryHead,
   directoryTitle,
 } from "@/lib/directory/public-seo"
+import {
+  formatDirectoryFieldFilters,
+  readDirectoryFieldFilters,
+  tickedFieldFilterNames,
+  toggleDirectoryFieldFilter,
+} from "@/lib/directory/field-filters"
 import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
 
 /**
@@ -69,6 +75,9 @@ export const Route = createFileRoute("/directory")({
         readDirectoryCategories(search.category)
       ),
       minRating: readDirectoryMinRating(search.minRating),
+      filter: formatDirectoryFieldFilters(
+        readDirectoryFieldFilters(search.filter)
+      ),
       sort: sort === "distance" && !near ? undefined : sort,
       page: readPage(search.page),
       near,
@@ -95,6 +104,7 @@ export const Route = createFileRoute("/directory")({
         search: deps.q,
         category: deps.category,
         minRating: deps.minRating,
+        filter: deps.filter,
         sort: deps.sort,
         page: deps.page,
         near: deps.near,
@@ -106,6 +116,7 @@ export const Route = createFileRoute("/directory")({
             search: deps.q,
             category: deps.category,
             minRating: deps.minRating,
+            filter: deps.filter,
             sort: deps.sort,
             near: deps.near,
             radius: deps.radius,
@@ -138,6 +149,7 @@ function DirectoryRoute() {
     listings,
     categories,
     filterGroups,
+    fieldFilters,
     total,
     page,
     pageSize,
@@ -166,8 +178,14 @@ function DirectoryRoute() {
   const tickedNames = ticked.map(
     (slug) => categories.find((row) => row.slug === slug)?.name ?? slug
   )
+  const tickedFields = readDirectoryFieldFilters(current.filter)
+  const tickedFieldNames = tickedFieldFilterNames(fieldFilters, tickedFields)
   const anythingApplied = Boolean(
-    current.q || ticked.length || current.near || current.minRating
+    current.q ||
+      ticked.length ||
+      tickedFields.length ||
+      current.near ||
+      current.minRating
   )
 
   /*
@@ -194,6 +212,9 @@ function DirectoryRoute() {
       {current.minRating ? (
         <> rated {current.minRating.toFixed(1)} and up</>
       ) : null}
+      {tickedFieldNames.length ? (
+        <> with {tickedFieldNames.join(", ")}</>
+      ) : null}
       {current.near && !current.q && !tickedNames.length ? <> nearby</> : null}
     </>
   ) : null
@@ -203,6 +224,7 @@ function DirectoryRoute() {
       q: undefined,
       category: undefined,
       minRating: undefined,
+      filter: undefined,
       near: undefined,
       place: undefined,
       radius: undefined,
@@ -211,7 +233,7 @@ function DirectoryRoute() {
     })
 
   const filters = (
-    <DirectoryFilterBar
+    <DirectoryFiltersPanel
       groups={filterGroups}
       selected={ticked}
       minRating={current.minRating}
@@ -225,6 +247,22 @@ function DirectoryRoute() {
       }
       onMinRatingChange={(minRating) =>
         setListSearch({ minRating, page: undefined })
+      }
+      fieldFilters={fieldFilters}
+      selectedFields={tickedFields}
+      onToggleField={(token) =>
+        setListSearch({
+          filter: toggleDirectoryFieldFilter(current.filter, token),
+          page: undefined,
+        })
+      }
+      onClearFilters={() =>
+        setListSearch({
+          category: undefined,
+          minRating: undefined,
+          filter: undefined,
+          page: undefined,
+        })
       }
     />
   )
@@ -379,6 +417,7 @@ function directoryPageHref(search: DirectoryBrowseSearch, page: number) {
   if (search.q) parameters.set("q", search.q)
   if (search.category) parameters.set("category", search.category)
   if (search.minRating) parameters.set("minRating", String(search.minRating))
+  if (search.filter) parameters.set("filter", search.filter)
   if (search.sort) parameters.set("sort", search.sort)
   if (search.near) parameters.set("near", search.near)
   if (search.place) parameters.set("place", search.place)

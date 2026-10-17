@@ -4,7 +4,6 @@ import { LayoutGridIcon, MapIcon } from "lucide-react"
 
 import { filterChipClass } from "@/components/directory/public/filter-chip"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import {
   Select,
   SelectContent,
@@ -27,8 +26,9 @@ import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 /**
- * The line above the results: how many there are on the left, then the filter
- * buttons, then how they are ordered.
+ * The line above the results: how many there are on the left, then the
+ * Filters button, then how they are ordered. The two sit side by side as a
+ * pair, as Tyler drew them on 17 Oct 2026.
  *
  * The count sits here rather than under the page's title because it is about
  * the list, and it changes every time a box is ticked. A number that moves
@@ -48,7 +48,7 @@ export function DirectoryResultsHeader({
 }: {
   /** "8 listings", or the sentence a search or a category makes. */
   count: React.ReactNode
-  /** The row of filter buttons, drawn between the count and the order. */
+  /** The Filters button, drawn between the count and the order. */
   filters: React.ReactNode
   /** Absent when there is nothing to clear, so no dead control is drawn. */
   onClearAll?: (() => void) | undefined
@@ -88,14 +88,6 @@ export function DirectoryResultsHeader({
             <ViewSwitch current={current} />
           </div>
         ) : null}
-        {/* The order is the last thing in the line and reads as a different
-            kind of control from the filters beside it, so a hairline stands
-            between them. */}
-        <Separator
-          orientation="vertical"
-          className="hidden h-6 sm:block"
-          aria-hidden="true"
-        />
         {/* `shrink-0` because the trigger is only as wide as its own words —
             without it the row squeezes it down to the arrow alone. */}
         <div className="shrink-0">

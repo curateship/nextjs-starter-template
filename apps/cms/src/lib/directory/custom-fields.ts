@@ -114,6 +114,12 @@ export type CustomSimpleField = {
   type: CustomSimpleFieldType
   /** Only a choice field uses these; every other type keeps an empty list. */
   options: CustomFieldOption[]
+  /**
+   * Offered as a filter on the public browse and category pages. Only a yes
+   * or no and a choice can be, and only outside a repeating row; every other
+   * field keeps false. See `lib/directory/field-filters.ts`.
+   */
+  filter: boolean
 }
 
 export type CustomRepeaterField = {
@@ -163,6 +169,15 @@ function isCustomSimpleFieldType(
   value: unknown
 ): value is CustomSimpleFieldType {
   return (CUSTOM_SIMPLE_FIELD_TYPES as readonly unknown[]).includes(value)
+}
+
+/**
+ * The kinds a visitor can filter by. A yes or no is one tick box and a choice
+ * is one box per answer; free text, numbers and the rest have no short list
+ * of answers to tick.
+ */
+export function canFilterByType(type: CustomFieldType): boolean {
+  return type === "toggle" || type === "select"
 }
 
 /**
@@ -258,7 +273,9 @@ function reservedKeys(fields: unknown[]): Set<string> {
 function cleanSimpleField(
   value: unknown,
   taken: Set<string>,
-  reserved: Set<string>
+  reserved: Set<string>,
+  /** False inside a repeating row, whose answers are a list, not one value. */
+  filterable: boolean
 ): CustomSimpleField | null {
   if (!value || typeof value !== "object") return null
   const entry = value as Record<string, unknown>
@@ -277,6 +294,7 @@ function cleanSimpleField(
     // A choice with nothing to choose from is still a definition; the form
     // says so rather than the cleaner quietly turning it into a text box.
     options: entry.type === "select" ? cleanOptions(entry.options) : [],
+    filter: filterable && canFilterByType(entry.type) && entry.filter === true,
   }
 }
 
@@ -308,7 +326,7 @@ export function cleanCustomFields(value: unknown): CustomField[] {
       const rowReserved = reservedKeys(rowSource)
       const rowFields: CustomSimpleField[] = []
       for (const rawRowField of rowSource) {
-        const field = cleanSimpleField(rawRowField, rowKeys, rowReserved)
+        const field = cleanSimpleField(rawRowField, rowKeys, rowReserved, false)
         if (field) rowFields.push(field)
         if (rowFields.length === MAX_CUSTOM_REPEATER_FIELDS) break
       }
@@ -321,7 +339,7 @@ export function cleanCustomFields(value: unknown): CustomField[] {
         fields: rowFields,
       })
     } else {
-      const field = cleanSimpleField(raw, taken, reserved)
+      const field = cleanSimpleField(raw, taken, reserved, true)
       if (field) fields.push(field)
     }
 

@@ -10,6 +10,7 @@ import {
   readDirectoryMinRating,
   readDirectoryNearRadius,
 } from "@/lib/directory/public-search"
+import { readDirectoryFieldFilters } from "@/lib/directory/field-filters"
 import { findCurrentUser } from "@/server/auth/security"
 import { readPageVisibility } from "@/server/content/pages"
 import {
@@ -99,6 +100,8 @@ const sortInput = z.enum(DIRECTORY_SORTS).optional()
  */
 const categoriesInput = z.string().max(2_000).optional()
 const minRatingInput = z.number().optional()
+/** The ticked field filters, comma separated, capped the same way. */
+const fieldFiltersInput = z.string().max(4_000).optional()
 const pageInput = z.number().int().min(1).max(10_000).optional()
 const slugInput = z.string().min(1).max(160)
 
@@ -108,6 +111,7 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
       search: z.string().max(120).optional(),
       category: categoriesInput,
       minRating: minRatingInput,
+      filter: fieldFiltersInput,
       sort: sortInput,
       page: pageInput,
       near: z.string().max(40).optional(),
@@ -125,6 +129,7 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
       // endpoint is a door of its own and anybody may knock on it.
       categories: readDirectoryCategories(data.category),
       minRating: readDirectoryMinRating(data.minRating),
+      fields: readDirectoryFieldFilters(data.filter),
       sort: data.sort,
       page: data.page ?? 1,
       near: parseDirectoryNearPoint(data.near) ?? undefined,
@@ -148,6 +153,8 @@ export function loadDirectoryBrowse(input: {
   /** The ticked categories, comma separated, straight from the address. */
   category?: string
   minRating?: number
+  /** The ticked field filters, comma separated, straight from the address. */
+  filter?: string
   sort?: DirectorySort
   page?: number
   near?: string
@@ -174,6 +181,7 @@ const readDirectoryMapFn = createServerFn({ method: "GET" })
       search: z.string().max(120).optional(),
       category: categoriesInput,
       minRating: minRatingInput,
+      filter: fieldFiltersInput,
       sort: sortInput,
       near: z.string().max(40).optional(),
       radius: z.number().int().optional(),
@@ -194,6 +202,7 @@ const readDirectoryMapFn = createServerFn({ method: "GET" })
       search: data.search,
       categories: readDirectoryCategories(data.category),
       minRating: readDirectoryMinRating(data.minRating),
+      fields: readDirectoryFieldFilters(data.filter),
       sort: data.sort,
       near: parseDirectoryNearPoint(data.near) ?? undefined,
       radius: readDirectoryNearRadius(data.radius),
@@ -219,6 +228,7 @@ export function loadDirectoryMap(input: {
   search?: string
   category?: string
   minRating?: number
+  filter?: string
   sort?: DirectorySort
   near?: string
   radius?: number
@@ -476,6 +486,7 @@ const readDirectoryCategoryFn = createServerFn({ method: "GET" })
       page: pageInput,
       category: categoriesInput,
       minRating: minRatingInput,
+      filter: fieldFiltersInput,
     })
   )
   .handler(
@@ -496,6 +507,7 @@ const readDirectoryCategoryFn = createServerFn({ method: "GET" })
         page: data.page ?? 1,
         categories: readDirectoryCategories(data.category),
         minRating: readDirectoryMinRating(data.minRating),
+        fields: readDirectoryFieldFilters(data.filter),
       })
       if (!cached) return null
       // One clock for the page. The row of deals above the listings is first
@@ -547,6 +559,7 @@ export function loadDirectoryCategory(input: {
   page?: number
   category?: string
   minRating?: number
+  filter?: string
 }) {
   return readDirectoryCategoryFn({ data: input })
 }

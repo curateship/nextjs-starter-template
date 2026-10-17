@@ -4,7 +4,7 @@ import {
   DirectoryBreadcrumbs,
   type Crumb,
 } from "@/components/directory/public/directory-breadcrumbs"
-import { DirectoryFilterBar } from "@/components/directory/public/directory-filter-bar"
+import { DirectoryFiltersPanel } from "@/components/directory/public/directory-filters-panel"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { mediaImageSrcSet } from "@/lib/media/image-sizes"
@@ -34,7 +34,21 @@ import {
   readDirectoryMinRating,
   toggleDirectoryCategory,
 } from "@/lib/directory/public-search"
+import {
+  formatDirectoryFieldFilters,
+  readDirectoryFieldFilters,
+  toggleDirectoryFieldFilter,
+} from "@/lib/directory/field-filters"
 import { readPage } from "@/lib/nav/list-search"
+
+/** What a category page's address may carry. Every key is optional. */
+type CategorySearch = {
+  page?: number
+  category?: string
+  minRating?: number
+  /** The ticked field filters; see `lib/directory/field-filters.ts`. */
+  filter?: string
+}
 
 /**
  * One category: what it is, the categories under it, its listings, the
@@ -52,14 +66,15 @@ export const Route = createFileRoute("/directory_/category/$slug")({
   // — but the boxes down the left narrow it the same way they narrow the
   // browse page. Every value is optional, so a plain link to a category does
   // not have to spell any of them out.
-  validateSearch: (
-    search: Record<string, unknown>
-  ): { page?: number; category?: string; minRating?: number } => ({
+  validateSearch: (search: Record<string, unknown>): CategorySearch => ({
     page: readPage(search.page),
     category: formatDirectoryCategories(
       readDirectoryCategories(search.category)
     ),
     minRating: readDirectoryMinRating(search.minRating),
+    filter: formatDirectoryFieldFilters(
+      readDirectoryFieldFilters(search.filter)
+    ),
   }),
   loaderDeps: ({ search }) => search,
   loader: async ({ params, deps }) => {
@@ -71,6 +86,7 @@ export const Route = createFileRoute("/directory_/category/$slug")({
         page: deps.page,
         category: deps.category,
         minRating: deps.minRating,
+        filter: deps.filter,
       }),
     ])
 
@@ -99,6 +115,7 @@ function CategoryRoute() {
     site,
     category,
     filterGroups,
+    fieldFilters,
     ancestors,
     children,
     listings,
@@ -114,19 +131,18 @@ function CategoryRoute() {
   const current = Route.useSearch()
   const navigate = Route.useNavigate()
   const ticked = readDirectoryCategories(current.category)
+  const tickedFields = readDirectoryFieldFilters(current.filter)
+  const narrowed = Boolean(
+    ticked.length || tickedFields.length || current.minRating !== undefined
+  )
   // A category that only groups others: it has children, and nothing is
   // published under it directly. Nothing is narrowed down here, so a total of
   // nought is the category's own and not what a filter left behind.
   const groupingOnly =
     children.length > 0 &&
     total === 0 &&
-    ticked.length === 0 &&
-    current.minRating === undefined
-  const setListSearch = (patch: {
-    category?: string
-    minRating?: number
-    page?: number
-  }) => {
+    !narrowed
+  const setListSearch = (patch: CategorySearch) => {
     void navigate({
       search: (previous) => ({ ...previous, ...patch }),
       replace: true,
@@ -216,7 +232,7 @@ function CategoryRoute() {
             <p className="mr-auto text-sm font-medium">
               {total} {plural(total, "listing", "listings")} in {category.name}
             </p>
-            {ticked.length || current.minRating ? (
+            {narrowed ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -225,6 +241,7 @@ function CategoryRoute() {
                   setListSearch({
                     category: undefined,
                     minRating: undefined,
+                    filter: undefined,
                     page: undefined,
                   })
                 }
@@ -232,7 +249,7 @@ function CategoryRoute() {
                 Clear all
               </Button>
             ) : null}
-            <DirectoryFilterBar
+            <DirectoryFiltersPanel
               groups={filterGroups}
               selected={ticked}
               minRating={current.minRating}
@@ -245,6 +262,22 @@ function CategoryRoute() {
               onMinRatingChange={(minRating) =>
                 setListSearch({ minRating, page: undefined })
               }
+              fieldFilters={fieldFilters}
+              selectedFields={tickedFields}
+              onToggleField={(token) =>
+                setListSearch({
+                  filter: toggleDirectoryFieldFilter(current.filter, token),
+                  page: undefined,
+                })
+              }
+              onClearFilters={() =>
+                setListSearch({
+                  category: undefined,
+                  minRating: undefined,
+                  filter: undefined,
+                  page: undefined,
+                })
+              }
             />
           </div>
 
@@ -254,7 +287,7 @@ function CategoryRoute() {
             <ListingGrid
               listings={listings}
               emptyMessage={
-                ticked.length || current.minRating
+                narrowed
                   ? "Nothing here matches those filters. Try fewer of them."
                   : `There is nothing in ${category.name} yet.`
               }
@@ -316,14 +349,11 @@ function CategoryRoute() {
  * send a visitor from page 2 of a narrowed list to page 2 of the whole
  * category, which is not the list they were reading.
  */
-function categoryPageHref(
-  slug: string,
-  search: { category?: string; minRating?: number },
-  page: number
-) {
+function categoryPageHref(slug: string, search: CategorySearch, page: number) {
   const parameters = new URLSearchParams()
   if (search.category) parameters.set("category", search.category)
   if (search.minRating) parameters.set("minRating", String(search.minRating))
+  if (search.filter) parameters.set("filter", search.filter)
   if (page > 1) parameters.set("page", String(page))
   const query = parameters.toString()
   return `/directory/category/${encodeURIComponent(slug)}${query ? `?${query}` : ""}`
