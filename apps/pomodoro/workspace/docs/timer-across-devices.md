@@ -34,6 +34,12 @@ read every few seconds is cheap (`focus_sessions_user_active_idx`, migration
 - **A press always beats a poll.** An answer that left before you pressed a
   button on this device is thrown away, and so is the answer to a press you
   have since overtaken with another press.
+- **Reset, a mode switch and Skip break hold the polls until their cancel
+  has landed.** Until then the row still reads as live, and a poll that read
+  it would put the reset timer straight back. A press that came while a start
+  was still on its way cancels that session as soon as its id arrives
+  (`cancelLiveSession` in `src/lib/pomodoro/use-pomodoro.ts`). Before 16 Oct
+  2026 both could make Reset look as if it did nothing.
 - **A session that ended elsewhere moves this page on the same way.** One
   that finished there sends this page to the next phase and refreshes today's
   count; one that was reset or skipped puts this page back at the start of the

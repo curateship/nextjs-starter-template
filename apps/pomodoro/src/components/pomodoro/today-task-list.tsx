@@ -533,24 +533,36 @@ function TaskRow({
           <TaskMarks task={task} flat={flat} />
         </span>
       ) : (
-        <button
-          className={cn(
-            "flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left",
-            // Less padding on the front page, so the rows sit closer.
-            flat ? "py-0.5" : "py-2",
-            focusRing
-          )}
-          disabled={!pomodoro.canSelectTask}
-          aria-pressed={selected}
-          // Tapping the chosen task again clears it, which is the only
-          // way to focus on nothing.
-          onClick={() => pomodoro.selectTask(selected ? null : task.id)}
+        <TaskTitleRename
+          title={task.title}
+          className={cn(flat ? "py-0.5 text-[15px]" : "py-1 text-sm")}
+          onRename={(title) => pomodoro.updateTaskDetails(task.id, { title })}
         >
-          <span className={cn("truncate", flat ? "text-[15px]" : "text-sm")}>
-            {task.title}
-          </span>
-          <TaskMarks task={task} flat={flat} />
-        </button>
+          <button
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left",
+              // Less padding on the front page, so the rows sit closer.
+              flat ? "py-0.5" : "py-2",
+              focusRing
+            )}
+            // aria-disabled rather than disabled: a disabled button swallows
+            // the double click that renames it, and renaming mid-focus is
+            // fine even though picking another task is not.
+            aria-disabled={!pomodoro.canSelectTask}
+            aria-pressed={selected}
+            // Tapping the chosen task again clears it, which is the only
+            // way to focus on nothing.
+            onClick={() => {
+              if (pomodoro.canSelectTask)
+                pomodoro.selectTask(selected ? null : task.id)
+            }}
+          >
+            <span className={cn("truncate", flat ? "text-[15px]" : "text-sm")}>
+              {task.title}
+            </span>
+            <TaskMarks task={task} flat={flat} />
+          </button>
+        </TaskTitleRename>
       )}
       {showSteps ? (
         <TaskStepsToggle
@@ -658,6 +670,76 @@ export function TaskRowFrame({
       </div>
       {steps}
     </div>
+  )
+}
+
+
+/**
+ * Double-clicking a task's title turns it into a box to rename it in place.
+ * Enter or clicking away saves, Escape puts the old title back. A blank or
+ * unchanged title saves nothing. A save that fails has already raised the
+ * error toast, and the box stays open with the typed title in it.
+ */
+export function TaskTitleRename({
+  title,
+  className,
+  onRename,
+  children,
+}: {
+  title: string
+  className?: string
+  onRename: (title: string) => Promise<boolean>
+  children: React.ReactNode
+}) {
+  const [draft, setDraft] = React.useState<string | null>(null)
+  const saving = React.useRef(false)
+
+  const finish = async () => {
+    if (draft === null || saving.current) return
+    const next = draft.trim()
+    if (!next || next === title) {
+      setDraft(null)
+      return
+    }
+    saving.current = true
+    const saved = await onRename(next)
+    saving.current = false
+    if (saved) setDraft(null)
+  }
+
+  if (draft === null)
+    return (
+      <span
+        className="flex min-w-0 flex-1"
+        onDoubleClick={() => setDraft(title)}
+      >
+        {children}
+      </span>
+    )
+
+  return (
+    <span className={cn("flex min-w-0 flex-1", className)}>
+      <Input
+        autoFocus
+        aria-label={`Rename ${title}`}
+        value={draft}
+        maxLength={160}
+        className="h-7"
+        onFocus={(event) => event.currentTarget.select()}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => void finish()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            void finish()
+          } else if (event.key === "Escape") {
+            event.preventDefault()
+            event.stopPropagation()
+            setDraft(null)
+          }
+        }}
+      />
+    </span>
   )
 }
 

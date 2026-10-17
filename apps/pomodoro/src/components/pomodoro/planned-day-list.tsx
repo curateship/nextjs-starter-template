@@ -11,6 +11,7 @@ import {
   TaskEditForm,
   TaskMarks,
   TaskRowFrame,
+  TaskTitleRename,
 } from "@/components/pomodoro/today-task-list"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -121,10 +122,23 @@ function PlannedTaskRow({
         ) : null
       }
     >
-      <span className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-1">
-        <span className="truncate text-sm">{task.title}</span>
-        <TaskMarks task={task} />
-      </span>
+      <TaskTitleRename
+        title={task.title}
+        className="py-1 text-sm"
+        onRename={(title) =>
+          day.updateTaskDetails(task.id, {
+            title,
+            priority: task.priority,
+            estimatedPomodoros: task.estimatedPomodoros,
+            projectId: task.projectId,
+          })
+        }
+      >
+        <span className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-1">
+          <span className="truncate text-sm">{task.title}</span>
+          <TaskMarks task={task} />
+        </span>
+      </TaskTitleRename>
       <TaskStepsToggle
         taskTitle={task.title}
         steps={task.steps}

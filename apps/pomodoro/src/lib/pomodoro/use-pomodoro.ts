@@ -216,6 +216,16 @@ let clockOffsetMs = 0
 let timerActionSeq = 0
 /** A start is on its way to the server and its session id is not known yet. */
 let startPending = false
+/**
+ * Reset, a mode switch or Skip break came while a start was still on its way,
+ * so the session it makes is cancelled the moment its id arrives.
+ */
+let startAbandoned = false
+/**
+ * Cancels on their way to the server. Until they land the row still reads as
+ * live, and a poll that read it would bring the reset timer back.
+ */
+let cancelsPending = 0
 let syncing = false
 let liveSyncTimer: number | null = null
 
@@ -294,7 +304,8 @@ function adoptLiveSession(session: LiveSession) {
  */
 export function syncLiveSession() {
   if (typeof window === "undefined" || !isAuthed()) return Promise.resolve()
-  if (syncing || completing || startPending) return Promise.resolve()
+  if (syncing || completing || startPending || cancelsPending > 0)
+    return Promise.resolve()
   syncing = true
   const seq = timerActionSeq
   const known = state.serverSessionId
@@ -302,7 +313,13 @@ export function syncLiveSession() {
   return loadLiveSession(known)
     .then(({ session, ending, serverNow }) => {
       noteServerClock(serverNow, sentAt)
-      if (seq !== timerActionSeq || completing || startPending) return
+      if (
+        seq !== timerActionSeq ||
+        completing ||
+        startPending ||
+        cancelsPending > 0
+      )
+        return
       if (session) {
         adoptLiveSession(session)
         return
@@ -458,6 +475,7 @@ function beginServerSession(
   // which with auto-start would be the same instant the prompt appeared.
   if (mode === "focus" && state.noteSession) setState({ noteSession: null })
   startPending = true
+  startAbandoned = false
   void startFocusSession({
     mode,
     plannedSeconds,
@@ -467,11 +485,31 @@ function beginServerSession(
   })
     .then((session) => {
       clearSyncError()
-      if (session) setState({ serverSessionId: session.id })
+      if (!session) return
+      if (startAbandoned) cancelLiveSession(session.id)
+      else setState({ serverSessionId: session.id })
     })
     .catch(() => setSyncError("Your focus session could not be saved to your account."))
     .finally(() => {
       startPending = false
+    })
+}
+
+/**
+ * Ends the live session this page is showing, for Reset, a mode switch and
+ * Skip break. A start still on its way is ended as soon as its id arrives.
+ */
+function cancelLiveSession(sessionId = state.serverSessionId) {
+  if (!isAuthed()) return
+  if (!sessionId) {
+    if (startPending) startAbandoned = true
+    return
+  }
+  cancelsPending += 1
+  void cancelFocusSession(sessionId)
+    .catch(() => undefined)
+    .finally(() => {
+      cancelsPending -= 1
     })
 }
 
@@ -860,8 +898,7 @@ function tick() {
 
 export function selectMode(mode: TimerMode) {
   timerActionSeq += 1
-  if (isAuthed() && state.serverSessionId)
-    void cancelFocusSession(state.serverSessionId).catch(() => undefined)
+  cancelLiveSession()
   const timer = createTimer(mode, state.durations[mode])
   setState({
     timer,
@@ -901,8 +938,7 @@ export function toggleTimer() {
 
 export function resetPomodoroTimer() {
   timerActionSeq += 1
-  if (isAuthed() && state.serverSessionId)
-    void cancelFocusSession(state.serverSessionId).catch(() => undefined)
+  cancelLiveSession()
   const timer = resetTimer(state.timer)
   setState({
     timer,
@@ -927,8 +963,7 @@ export function skipBreak() {
   const current = state
   if (current.timer.mode === "focus") return
   timerActionSeq += 1
-  if (isAuthed() && current.serverSessionId)
-    void cancelFocusSession(current.serverSessionId).catch(() => undefined)
+  cancelLiveSession(current.serverSessionId)
   const { nextMode, completedFocusSessions } = advanceCycle(
     current.timer.mode,
     current.cycleFocusSessions,

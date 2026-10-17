@@ -35,6 +35,14 @@ Drawn to Tyler's design of 7 Oct 2026
 ## How it behaves
 
 - **Create** with the "Add a task, press Enter…" field.
+- **Rename by double-clicking the title**, on the timer's Tasks card and on
+  every day of the Tasks page (Tyler, 16 Oct 2026: "Double clicking on task
+  should let me rename it"). The title becomes a box with the old title
+  selected. Enter or clicking away saves, Escape puts the old title back, and
+  a blank or unchanged title saves nothing. A failed save raises the error
+  toast and leaves the box open with what was typed. Renaming works
+  mid-focus too, while picking another task does not (`TaskTitleRename` in
+  `today-task-list.tsx`).
 - **Edit from the settings button** on a row. It opens a small window under
   the button, and the list stays where it is. The window holds labelled
   fields for title, priority, estimate, repeat, project and tags, and ends
