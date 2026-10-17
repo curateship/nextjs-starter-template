@@ -1200,7 +1200,9 @@ export async function deleteWorkspaceSegments(
     const graph = automationGraphSchema.safeParse(flow.graph)
     if (!graph.success) continue
     for (const node of graph.data.nodes) {
-      if (node.kind !== "joinedSegment" && node.kind !== "audience") continue
+      if (!["joinedSegment", "segmentDrip", "audience"].includes(node.kind)) {
+        continue
+      }
       const segmentId =
         typeof node.settings.segmentId === "string"
           ? node.settings.segmentId

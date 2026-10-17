@@ -13,6 +13,7 @@ import {
 import { runBillingTriggerScans } from "@/server/automations/billing-triggers"
 import { runTimeActivateTriggers } from "@/server/automations/time-triggers"
 import { runJoinedSegmentTriggers } from "@/server/automations/segment-triggers"
+import { runSegmentDripTriggers } from "@/server/automations/segment-drip"
 import { readAutomationsPaused } from "@/server/automations/pause"
 import { automationSubjectLabel } from "@/server/automations/triggers"
 import {
@@ -99,6 +100,11 @@ export async function runAutomationTick(database: CustomShellDb = db) {
     started += await runJoinedSegmentTriggers(database)
   } catch (error) {
     console.error("Joined-segment trigger scan failed", error)
+  }
+  try {
+    started += await runSegmentDripTriggers(database)
+  } catch (error) {
+    console.error("Segment drip scan failed", error)
   }
   try {
     started += await runTimeActivateTriggers(database)
@@ -503,6 +509,13 @@ async function processRun(
       output,
       startedAt,
     })
+
+    if (result.type === "sleep") {
+      // The run stays pointed at this step. Waking walks back into it, and the
+      // step reads the line just written to know it has done its waiting.
+      await release({ status: "active", attempts: 0, wakeAt: result.until })
+      return
+    }
 
     const next =
       result.type === "complete"

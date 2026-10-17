@@ -10,6 +10,8 @@ import {
 import { sendEmailNode } from "@/lib/automations/nodes/send-email"
 import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
 import { joinedSegmentNode } from "@/lib/automations/nodes/joined-segment"
+import { segmentDripNode } from "@/lib/automations/nodes/segment-drip"
+import { waitNode } from "@/lib/automations/nodes/wait"
 import {
   MEMBER_EVENT_LABELS,
   memberEventNode,
@@ -42,6 +44,7 @@ import {
 } from "@/lib/automations/schedule"
 import { executeSendEmailNode } from "@/server/automations/send-email"
 import { executeWebhookNode } from "@/server/automations/webhook"
+import { executeWaitNode } from "@/server/automations/wait"
 import { changeMemberTag } from "@/server/people/member-tags"
 import { normalizeMemberTag } from "@/lib/member-tags"
 
@@ -75,6 +78,17 @@ export type AutomationExecutorResult =
    * occupies nothing while it waits, and auto-rejects it at `deadlineAt`.
    */
   | { type: "park"; summary: string; deadlineAt: Date }
+  /**
+   * Done for now, and come back to this same step at `until`. The engine hands
+   * the claim back with the run's wake-up time moved, so a run asleep for two
+   * days occupies nothing, the same as one parked at an approval.
+   */
+  | {
+      type: "sleep"
+      summary: string
+      until: Date
+      output?: AutomationRunOutput
+    }
 
 export type AutomationExecutor = (
   context: AutomationExecutorContext
@@ -155,6 +169,25 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     return {
       type: "next",
       summary: `${who} joined the segment.`,
+    }
+  },
+
+  [segmentDripNode.kind]: async ({ run, testRun }) => {
+    const who = run.subjectLabel?.trim()
+    if (testRun && who) {
+      return {
+        type: "next",
+        summary: `Testing this flow with ${who}. They were not really let in from the segment.`,
+      }
+    }
+    if (!who) {
+      throw new Error(
+        "This segment run has no contact, so it cannot continue safely."
+      )
+    }
+    return {
+      type: "next",
+      summary: `${who} was let in from the segment.`,
     }
   },
 
@@ -310,6 +343,8 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
 
   [webhookNode.kind]: executeWebhookNode,
 
+  [waitNode.kind]: executeWaitNode,
+
   [waitForApprovalNode.kind]: async ({ settings, now }) => {
     const summary =
       typeof settings.summary === "string" ? settings.summary.trim() : ""
@@ -335,6 +370,8 @@ const TEST_RUN_SAFE_KINDS = new Set([
   memberEventNode.kind,
   memberTagNode.kind,
   timeActivateNode.kind,
+  segmentDripNode.kind,
+  waitNode.kind,
   audienceNode.kind,
   sendEmailNode.kind,
   webhookNode.kind,

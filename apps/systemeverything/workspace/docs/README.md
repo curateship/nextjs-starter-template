@@ -6,6 +6,9 @@ Custom Shell lives in the repo's `docs/`, and `docs/README.md` indexes it.
 - `courses.md` — written guides at `/courses`: the chapter editor, who can
   read what, free previews, held-back and dated chapters, what members can do
   in a chapter, Read aloud, and the Questions and Stats tabs.
+- `pomoder-email-sequence.md` — the seven-email Pomoder flow in Automations:
+  what it sends on which day, how long a list takes, and what to check before
+  switching it on.
 - `importing-the-old-contact-list.md` — the one-off script that brings
   systemeverything.com's 25,100 contacts across, what it carries, what it leaves
   behind, and the broken tags it repairs on the way in.

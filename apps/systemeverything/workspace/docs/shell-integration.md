@@ -129,3 +129,12 @@ opens with custom-shell's encryption key, because this database started as a
 copy of custom-shell's, so `.env.local` now carries custom-shell's value and the
 AI keys are stored under it. There is no live deployment of this app yet, so
 nothing was written anywhere but the local database.
+
+## Shell change copied in, 17 October 2026
+
+The Wait step and the "Segment, a few at a time" start were built in this
+worktree's custom-shell and copied here byte for byte, so this app and the shell
+carry identical files. Nine shell files were changed and eleven added, and
+each changed file was identical to the shell's copy before the change. No migration:
+both steps use tables that already exist. Trade, CMS and Video pick the steps up
+at their next shell merge.

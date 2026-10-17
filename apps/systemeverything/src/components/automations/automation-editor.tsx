@@ -579,6 +579,7 @@ export function AutomationEditor({
 
   const inspector = (
     <AutomationInspector
+      automationId={templateMode ? undefined : initial.id}
       selectedNode={selectedNode}
       graph={graph}
       errors={compiled.errors}
