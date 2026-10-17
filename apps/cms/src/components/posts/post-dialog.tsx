@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { Category } from "@/lib/api/directory/categories"
 import {
@@ -56,6 +57,7 @@ type PostFields = {
   summary: string
   coverImage: string
   status: "draft" | "published"
+  featured: boolean
   body: PostBody
   categoryIds: string[]
 }
@@ -67,6 +69,7 @@ function blankFields(): PostFields {
     summary: "",
     coverImage: "",
     status: "draft",
+    featured: false,
     body: emptyPostBody(),
     categoryIds: [],
   }
@@ -80,6 +83,7 @@ function fieldsFrom(data: PostForEdit): PostFields {
     summary: post.summary,
     coverImage: post.coverImage,
     status: post.status,
+    featured: post.featured,
     body: post.body,
     // Sorted so choosing a category and dropping it is not read as an edit.
     categoryIds: [...data.categoryIds].sort(),
@@ -394,6 +398,22 @@ export function PostDialog({
                         <SelectItem value="published">Published</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="post-featured"
+                      checked={fields.featured}
+                      disabled={saving}
+                      onCheckedChange={(checked) =>
+                        update("featured", checked)
+                      }
+                    />
+                    <FieldLabel
+                      htmlFor="post-featured"
+                      hint="A featured post sits at the top of the Posts page and first in a front page row of posts. With several featured, the newest goes first. Free, and it stays until you switch it off."
+                    >
+                      Featured
+                    </FieldLabel>
                   </div>
                   <div className="grid gap-2">
                     <FieldLabel hint="Shown at the top of the post, on its card in the posts list, and when it is shared.">

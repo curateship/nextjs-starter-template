@@ -8,6 +8,7 @@ import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { PostBody } from "@/components/posts/public/post-body"
 import { PostContents } from "@/components/posts/public/post-contents"
+import { PostGrid } from "@/components/posts/public/post-grid"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import { loadPost } from "@/lib/api/posts/public"
 import { forwardOldAddress } from "@/lib/api/directory/old-addresses"
@@ -55,8 +56,12 @@ export const Route = createFileRoute("/posts_/$slug")({
 })
 
 function PostRoute() {
-  const { site, post, listingCards, showCoverImage } = Route.useLoaderData()
+  const { site, post, listingCards, showCoverImage, moreToRead } =
+    Route.useLoaderData()
   const headings = postHeadings(post.body)
+  // Made per page rather than written out, because a heading inside the post
+  // takes its address from its own words and could be "More to read" too.
+  const moreToReadId = React.useId()
   // Where the contents list stops when it sticks. A site that keeps its header
   // on screen needs the card below it, or its first line is drawn underneath.
   const stickyTop = usePublicHeader().sticky ? "lg:top-24" : "lg:top-4"
@@ -160,6 +165,20 @@ function PostRoute() {
       ) : (
         article
       )}
+
+      {/* Under both columns, at the page's full width, so the cards line up
+          with the rest of the site's grids. The server sends three or none. */}
+      {moreToRead.length > 0 ? (
+        <section
+          className="grid gap-2 md:gap-3"
+          aria-labelledby={moreToReadId}
+        >
+          <h2 id={moreToReadId} className="text-lg font-semibold">
+            More to read
+          </h2>
+          <PostGrid posts={moreToRead} siteName={site.name} emptyMessage="" />
+        </section>
+      ) : null}
     </DirectoryFrame>
   )
 }

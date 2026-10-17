@@ -7,7 +7,9 @@ import { getPostErrorMessage, loadPostsPage } from "@/lib/api/posts/posts"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import {
   LISTING_STATUS_FILTERS,
+  readListingViewRange,
   type ListingStatusFilter,
+  type ListingViewRange,
 } from "@/lib/directory/listing-sort"
 import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import {
@@ -23,6 +25,8 @@ type PostsSearch = {
   status?: ListingStatusFilter
   sort?: PostSortColumn
   direction?: "asc" | "desc"
+  /** Which window the Views column counts. All time when left out. */
+  days?: ListingViewRange
   page?: number
   size?: number
   /** Which post's window is open, so a post can be linked to. */
@@ -36,6 +40,7 @@ function readPostsSearch(search: Record<string, unknown>): PostsSearch {
     status: readOneOf(search.status, LISTING_STATUS_FILTERS),
     sort: readOneOf(search.sort, POST_SORT_COLUMNS),
     direction: readDirection(search.direction),
+    days: readListingViewRange(search.days),
     page: readPage(search.page),
     size: readOneOf(
       String(search.size),
@@ -60,6 +65,7 @@ export const Route = createFileRoute("/_authenticated/admin/posts")({
         status: deps.status,
         sort: deps.sort,
         direction: deps.direction,
+        days: deps.days,
         page: deps.page,
         limit: deps.size,
       }),

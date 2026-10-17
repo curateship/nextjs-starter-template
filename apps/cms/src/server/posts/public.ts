@@ -1,4 +1,15 @@
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  ne,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm"
 
 import {
   searchSnippet,
@@ -12,7 +23,7 @@ import {
   postListingIds,
   type PostBody,
 } from "@/lib/posts/post-body"
-import { POSTS_PAGE_SIZE } from "@/lib/posts/post-sort"
+import { MORE_TO_READ_COUNT, POSTS_PAGE_SIZE } from "@/lib/posts/post-sort"
 import type { SitemapEntry } from "@/server/app-options"
 import { readPageVisibility } from "@/server/content/pages"
 import { db, type CustomShellDb } from "@/server/db"
@@ -27,6 +38,7 @@ import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
 import { sitePostCoverImage } from "@/server/directory/settings"
 import { categories, categoryRelationships } from "@/server/directory/schema"
 import {
+  featuredPostsFirst,
   postsArePublic,
   newestPostsFirst,
   postCardColumns,
@@ -84,6 +96,11 @@ export type PublicPostPage = {
    * address. This one is only whether the page shows it.
    */
   showCoverImage: boolean
+  /**
+   * "More to read" at the foot of the page: exactly `MORE_TO_READ_COUNT`
+   * other published posts, or none, so the block is never half empty.
+   */
+  moreToRead: PublicPostCard[]
 }
 
 async function readPublicPostsUncached(
@@ -96,7 +113,7 @@ async function readPublicPostsUncached(
       .select(postCardColumns)
       .from(sitePosts)
       .where(publishedPostsOnSite(site.id))
-      .orderBy(...newestPostsFirst)
+      .orderBy(...featuredPostsFirst)
       .limit(POSTS_PAGE_SIZE)
       .offset((page - 1) * POSTS_PAGE_SIZE),
     database
@@ -113,7 +130,7 @@ async function readPublicPostsUncached(
   }
 }
 
-/** One page of a site's published posts, newest first. */
+/** One page of a site's published posts, featured first, then newest first. */
 export function readPublicPosts(
   site: VisitorSite,
   page: number,
@@ -140,25 +157,27 @@ async function readPublicPostUncached(
   if (!row) return null
 
   const body = cleanPostBody(row.body)
-  const [categoryRows, directoryVisibility, showCover] = await Promise.all([
-    database
-      .select({ name: categories.name, slug: categories.slug })
-      .from(categoryRelationships)
-      .innerJoin(
-        categories,
-        eq(categories.id, categoryRelationships.categoryId)
-      )
-      .where(
-        and(
-          eq(categoryRelationships.workspaceId, site.id),
-          eq(categoryRelationships.contentType, POST_CONTENT_TYPE),
-          eq(categoryRelationships.contentId, row.id)
+  const [categoryRows, directoryVisibility, showCover, moreToRead] =
+    await Promise.all([
+      database
+        .select({ name: categories.name, slug: categories.slug })
+        .from(categoryRelationships)
+        .innerJoin(
+          categories,
+          eq(categories.id, categoryRelationships.categoryId)
         )
-      )
-      .orderBy(asc(categories.name)),
-    readPageVisibility(site.id, "/directory", database),
-    sitePostCoverImage(site.id, database),
-  ])
+        .where(
+          and(
+            eq(categoryRelationships.workspaceId, site.id),
+            eq(categoryRelationships.contentType, POST_CONTENT_TYPE),
+            eq(categoryRelationships.contentId, row.id)
+          )
+        )
+        .orderBy(asc(categories.name)),
+      readPageVisibility(site.id, "/directory", database),
+      sitePostCoverImage(site.id, database),
+      morePostsToRead(site.id, row.id, database),
+    ])
 
   // A card links to the listing's page, so while the directory is not open to
   // everyone the cards are left out rather than pointing at a closed door.
@@ -177,7 +196,78 @@ async function readPublicPostUncached(
     },
     listingCards,
     showCoverImage: showCover,
+    moreToRead,
   }
+}
+
+/**
+ * The posts under a post: other published posts that share a category with
+ * it, newest first, topped up with the site's newest posts when its categories
+ * hold too few. A post in no category is all top-up.
+ *
+ * Exactly `MORE_TO_READ_COUNT` or nothing. A site with only a post or two
+ * more would otherwise put one lonely card under every article.
+ *
+ * Read inside the post page's cached answer, so it costs nothing extra on a
+ * repeat visit. Saving any post clears that cache for the site, so a newly
+ * published post can appear here on the next read.
+ */
+async function morePostsToRead(
+  siteId: string,
+  postId: string,
+  database: CustomShellDb
+): Promise<PublicPostCard[]> {
+  const thisPostsCategories = database
+    .select({ id: categoryRelationships.categoryId })
+    .from(categoryRelationships)
+    .where(
+      and(
+        eq(categoryRelationships.workspaceId, siteId),
+        eq(categoryRelationships.contentType, POST_CONTENT_TYPE),
+        eq(categoryRelationships.contentId, postId)
+      )
+    )
+  const sharingACategory = database
+    .select({ id: categoryRelationships.contentId })
+    .from(categoryRelationships)
+    .where(
+      and(
+        eq(categoryRelationships.workspaceId, siteId),
+        eq(categoryRelationships.contentType, POST_CONTENT_TYPE),
+        inArray(categoryRelationships.categoryId, thisPostsCategories)
+      )
+    )
+  const otherPosts = and(publishedPostsOnSite(siteId), ne(sitePosts.id, postId))
+
+  const matched = await database
+    .select(postCardColumns)
+    .from(sitePosts)
+    .where(and(otherPosts, inArray(sitePosts.id, sharingACategory)))
+    .orderBy(...newestPostsFirst)
+    .limit(MORE_TO_READ_COUNT)
+  const topUp =
+    matched.length < MORE_TO_READ_COUNT
+      ? await database
+          .select(postCardColumns)
+          .from(sitePosts)
+          .where(
+            and(
+              otherPosts,
+              matched.length
+                ? notInArray(
+                    sitePosts.id,
+                    matched.map((each) => each.id)
+                  )
+                : undefined
+            )
+          )
+          .orderBy(...newestPostsFirst)
+          .limit(MORE_TO_READ_COUNT - matched.length)
+      : []
+
+  const rows = [...matched, ...topUp]
+  if (rows.length < MORE_TO_READ_COUNT) return []
+  return withCategories(siteId, rows.map(toPostCard), database)
 }
 
 /** One published post by its address, or null. */
