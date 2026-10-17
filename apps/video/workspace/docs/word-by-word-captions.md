@@ -6,7 +6,7 @@ someone picks another. It is off unless someone switches it on.
 
 ## Where it is switched on
 
-- **The Captions window** in the AI panel has "Light up each word as it is
+- **The Captions window** in the AI tools panel has "Light up each word as it is
   said" and "Spoken word colour". The switch starts off every time the window
   opens and is for that one run. The small sample colours its middle word to
   show the look.

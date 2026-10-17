@@ -181,7 +181,8 @@ export function TranslateDialog({
       }
       const words = await translateCaptionLines(
         language,
-        heard.captions.map((line) => line.text)
+        heard.captions.map((line) => line.text),
+        projectId
       )
       setLines(
         heard.captions.map((line, index) => ({
@@ -254,7 +255,7 @@ export function TranslateDialog({
 
     setBusy("speaking")
     try {
-      const said = await speakTranslation(script, voice)
+      const said = await speakTranslation(script, voice, projectId)
       const refusal = voiceoverRefusal(
         store.getSnapshot().state.tracks,
         said.captions

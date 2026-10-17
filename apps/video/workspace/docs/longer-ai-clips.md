@@ -44,11 +44,11 @@ The app joins clips rather than using Google's extension. Tyler chose this on
 costs and may refuse its people setting from some countries.
 
 - **The lengths on offer:** 4, 6, 8, 16, 24 or 32 seconds, in the Length list
-  of the Generate AI video window. 4, 6 and 8 are one clip. 16, 24 and 32 are
+  of step 3 of the editor's AI clip panel (see `ai-clip.md`). 4, 6 and 8 are one clip. 16, 24 and 32 are
   two, three or four pieces of 8 seconds (`SHOT_LENGTHS` in
   `src/lib/video/asset-factories.ts`).
 - **One direction per piece:** a longer shot shows one box for each 8
-  seconds, labelled "Direction for seconds 0 to 8" and so on, and every box
+  seconds, labelled "What happens, seconds 0 to 8" and so on, and every box
   must be filled. That lets a shot start one way and end another.
 - **Pieces run one at a time:** pressing Generate writes a row for every
   piece. The first is queued and the rest wait. When a piece arrives, the
@@ -61,23 +61,23 @@ costs and may refuse its people setting from some countries.
   of the one before, so the picture lines up. The movement can still change
   speed at a join, and the sound starts afresh, because Google sees a
   picture and not the clip.
-- **One card per shot:** the AI videos page shows a longer shot as one card
-  with its full length and "2 pieces", "3 pieces" or "4 pieces". While it is
-  being made the card says which piece is running. The player plays the
-  pieces one after another.
-- **Adding it to a project:** Add to project puts every piece on one new
-  track, the first at 0 seconds and each next one starting where the last
-  ends, so there is no gap. It is refused until every piece is ready.
+- **One row per shot:** the AI clip panel shows a longer shot as one row
+  with its full length. While it is being made the row says so.
+- **Putting it on the timeline:** dragging the shot lays every piece on one
+  lane, the first where it is dropped and each next one starting where the
+  last ends, so there is no gap. It moves to a new lane when the one it was
+  dropped on has no room, and one Undo takes all the pieces back. A shot can
+  only be dragged once every piece is ready.
 - **When a piece fails:** the shot stops there. The pieces before it are
-  kept, the card says "Stopped at piece 2 of 3", and Retry makes that piece
+  kept, the row says why, and Try again makes that piece
   again from the same picture, then carries on with the rest. A failed piece
   adds nothing to the meter. If it failed after Google finished it, because
   its last frame could not be read, Google has still charged for it.
-- **Deleting:** Delete removes every piece of the shot from the list. The
-  finished clips and frame pictures stay in Media.
+- **Deleting:** deleting a shot in the AI clip panel removes every piece of
+  it from the list. Clips already on the timeline stay there.
 - **One shot per project at a time:** a new video for a project is refused
-  while a shot for it is running or stopped with pieces still waiting. Retry
-  or delete the stopped shot first. Retry is refused the same way while
+  while a shot for it is running or stopped with pieces still waiting. Try
+  again or delete the stopped shot first. Try again is refused the same way while
   another video runs on the project, which can happen when a shot's last
   piece is the one that failed.
 

@@ -4,6 +4,7 @@ import path from "node:path"
 import { and, asc, desc, eq, inArray, isNull, lt, or } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
+import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import {
   assetPrompt,
   providerMessage,
@@ -13,7 +14,6 @@ import {
   type ShotLengthSeconds,
   type VideoDurationSeconds,
 } from "@/lib/video/asset-factories"
-import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
 import { styledPrompt } from "@/lib/video/visual-style"
 import {
   checkAiAllowance,
@@ -25,21 +25,26 @@ import { getAiKey } from "@/server/ai/keys"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { getFromR2 } from "@/server/media/storage"
-import { serializeMedia } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
 import { runFfmpeg } from "@/server/video/ffmpeg"
+import {
+  serializeVideoMedia,
+  type VideoMediaItem,
+} from "@/server/video/media-list"
 import { readProjectStyle } from "@/server/video/project-look"
-import { writeProjectTimeline } from "@/server/video/projects"
+import {
+  projectSpendMetadata,
+  requireProjectBudget,
+} from "@/server/video/project-spend"
+import { getOwnedProject } from "@/server/video/projects"
 import {
   videoAiGenerations,
   videoFirstFrames,
-  videoProjects,
   type VideoAiGenerationRow,
 } from "@/server/video/schema"
 import { discardGeneratedAsset, saveGeneratedAsset } from "./media"
 
 const outputMedia = alias(customShellMedia, "generation_output_media")
-const firstFrameMedia = alias(customShellMedia, "generation_first_frame_media")
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024
 const JOB_TIMEOUT_MS = 15 * 60 * 1000
 const JOB_LEASE_MS = 5 * 60 * 1000
@@ -69,15 +74,15 @@ export type GenerationPiece = {
   prompt: string
   duration_seconds: VideoDurationSeconds
   status: PieceStatus
-  output_url: string | null
+  /** The finished clip as the Media panel hands it out, so it can be dragged. */
+  output: VideoMediaItem | null
   error_message: string | null
 }
 
 /** One shot: a single clip, or up to four pieces that play back to back. */
 export type GenerationItem = {
   id: string
-  project_name: string
-  first_frame_image_url: string | null
+  first_frame_id: string
   aspect_ratio: AssetAspectRatio
   duration_seconds: number
   status: GenerationStatus
@@ -99,9 +104,7 @@ type VeoOperation = {
 
 type GenerationJoin = {
   generation: VideoAiGenerationRow
-  projectName: string
   output: typeof customShellMedia.$inferSelect | null
-  firstFrame: typeof customShellMedia.$inferSelect | null
 }
 
 async function serializePiece(row: GenerationJoin): Promise<GenerationPiece> {
@@ -110,7 +113,7 @@ async function serializePiece(row: GenerationJoin): Promise<GenerationPiece> {
     prompt: row.generation.prompt,
     duration_seconds: row.generation.durationSeconds as VideoDurationSeconds,
     status: row.generation.status as PieceStatus,
-    output_url: row.output ? (await serializeMedia(row.output)).url : null,
+    output: row.output ? (await serializeVideoMedia([row.output]))[0] : null,
     error_message: row.generation.errorMessage,
   }
 }
@@ -134,10 +137,7 @@ async function serializeShot(rows: GenerationJoin[]): Promise<GenerationItem> {
         : "queued"
   return {
     id: first.generation.shotId,
-    project_name: first.projectName,
-    first_frame_image_url: first.firstFrame
-      ? (await serializeMedia(first.firstFrame)).url
-      : null,
+    first_frame_id: first.generation.firstFrameId,
     aspect_ratio: first.generation.aspectRatio as AssetAspectRatio,
     duration_seconds: pieces.reduce((sum, piece) => sum + piece.duration_seconds, 0),
     status,
@@ -146,22 +146,13 @@ async function serializeShot(rows: GenerationJoin[]): Promise<GenerationItem> {
   }
 }
 
-function generationRows(userId: string, shotId?: string) {
+function generationRows(
+  userId: string,
+  where: { projectId: string } | { shotId: string }
+) {
   return db
-    .select({
-      generation: videoAiGenerations,
-      projectName: videoProjects.name,
-      output: outputMedia,
-      firstFrame: firstFrameMedia,
-    })
+    .select({ generation: videoAiGenerations, output: outputMedia })
     .from(videoAiGenerations)
-    .innerJoin(
-      videoProjects,
-      and(
-        eq(videoAiGenerations.projectId, videoProjects.id),
-        eq(videoProjects.userId, userId)
-      )
-    )
     .leftJoin(
       outputMedia,
       and(
@@ -169,17 +160,12 @@ function generationRows(userId: string, shotId?: string) {
         eq(outputMedia.userId, userId)
       )
     )
-    .leftJoin(
-      firstFrameMedia,
-      and(
-        eq(videoAiGenerations.firstFrameMediaId, firstFrameMedia.id),
-        eq(firstFrameMedia.userId, userId)
-      )
-    )
     .where(
       and(
         eq(videoAiGenerations.userId, userId),
-        shotId ? eq(videoAiGenerations.shotId, shotId) : undefined
+        "projectId" in where
+          ? eq(videoAiGenerations.projectId, where.projectId)
+          : eq(videoAiGenerations.shotId, where.shotId)
       )
     )
 }
@@ -194,9 +180,10 @@ function groupShots(rows: GenerationJoin[]) {
   return [...shots.values()]
 }
 
-/** Newest shot first, each shot's pieces in the order they play. */
-export async function listGenerations(userId: string) {
-  const rows = await generationRows(userId).orderBy(
+/** This project's shots, newest first, each shot's pieces in the order they play. */
+export async function listGenerations(userId: string, projectId: string) {
+  await getOwnedProject(userId, projectId)
+  const rows = await generationRows(userId, { projectId }).orderBy(
     desc(videoAiGenerations.createdAt),
     asc(videoAiGenerations.shotId),
     asc(videoAiGenerations.shotIndex)
@@ -205,7 +192,7 @@ export async function listGenerations(userId: string) {
 }
 
 async function getShot(userId: string, shotId: string) {
-  const rows = await generationRows(userId, shotId).orderBy(
+  const rows = await generationRows(userId, { shotId }).orderBy(
     asc(videoAiGenerations.shotIndex)
   )
   if (!rows.length) throw new Error("AI video generation not found")
@@ -226,14 +213,7 @@ export async function createGeneration(
     throw new Error("Write one direction for each piece of the shot")
   }
   const prompts = payload.prompts.map(assetPrompt)
-  const [project] = await db
-    .select({ id: videoProjects.id, name: videoProjects.name })
-    .from(videoProjects)
-    .where(
-      and(eq(videoProjects.id, payload.projectId), eq(videoProjects.userId, userId))
-    )
-    .limit(1)
-  if (!project) throw new Error("Project not found")
+  const project = await getOwnedProject(userId, payload.projectId)
 
   const [frame] = await db
     .select({ frame: videoFirstFrames, media: customShellMedia })
@@ -248,7 +228,9 @@ export async function createGeneration(
     .where(
       and(
         eq(videoFirstFrames.id, payload.firstFrameId),
-        eq(videoFirstFrames.userId, userId)
+        eq(videoFirstFrames.userId, userId),
+        // A first frame belongs to one project and only makes clips there.
+        eq(videoFirstFrames.projectId, project.id)
       )
     )
     .limit(1)
@@ -258,6 +240,11 @@ export async function createGeneration(
     throw new Error("Add a Google Gemini key in Settings first")
   }
   await checkAiAllowance(userId)
+  await requireProjectBudget(
+    userId,
+    project.id,
+    aiUnitCostCents(VEO_MODEL, payload.lengthSeconds)
+  )
 
   const active = await db
     .select({ id: videoAiGenerations.id })
@@ -303,12 +290,7 @@ export async function createGeneration(
     )
     .returning()
   return await serializeShot(
-    created.map((generation) => ({
-      generation,
-      projectName: project.name,
-      output: null,
-      firstFrame: generation.shotIndex === 1 ? frame.media : null,
-    }))
+    created.map((generation) => ({ generation, output: null }))
   )
 }
 
@@ -389,55 +371,6 @@ export async function deleteGenerations(userId: string, shotIds: string[]) {
   return { deleted_ids: [...new Set(rows.map((row) => row.shotId))] }
 }
 
-/**
- * Lays a finished shot on a new track of the project, every piece straight
- * after the one before, from the start of the timeline.
- */
-export async function insertGeneration(
-  userId: string,
-  shotId: string,
-  projectId: string
-) {
-  const shot = await getShot(userId, shotId)
-  const outputs = shot.flatMap((row) =>
-    row.generation.status === "ready" && row.output ? [row.output] : []
-  )
-  if (outputs.length !== shot[0].generation.shotPieces) {
-    throw new Error("Only ready generations can be inserted")
-  }
-  const [project] = await db
-    .select()
-    .from(videoProjects)
-    .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
-    .limit(1)
-  if (!project) throw new Error("Project not found")
-  const timeline = requireCanonicalTimeline(project.timeline)
-  if (timeline.tracks.length >= 50) throw new Error("Project timeline is full")
-  const durationMs = shot[0].generation.durationSeconds * 1_000
-  const clips = await Promise.all(
-    outputs.map(async (output, index) => {
-      const media = await serializeMedia(output)
-      return {
-        id: uuid(),
-        kind: "video" as const,
-        name: media.original_name,
-        startMs: index * durationMs,
-        durationMs,
-        trimStartMs: 0,
-        sourceDurationMs: durationMs,
-        mediaId: media.id,
-        url: media.url,
-      }
-    })
-  )
-  const next = requireCanonicalTimeline({
-    ...timeline,
-    tracks: [...timeline.tracks, { id: uuid(), muted: false, clips }],
-  })
-  await writeProjectTimeline(userId, project.id, next, project.version)
-  return { project_id: project.id, project_name: project.name }
-}
-
 async function failJob(job: ClaimedGeneration, error: unknown) {
   const message = error instanceof Error ? error.message : "AI video generation failed"
   const [failed] = await db
@@ -467,7 +400,11 @@ async function failJob(job: ClaimedGeneration, error: unknown) {
     inputTokens: 0,
     outputTokens: 0,
     status: isAiLimitError(error) ? "blocked" : "failed",
-    metadata: { generationId: job.id, error: message },
+    metadata: {
+      ...projectSpendMetadata(job.projectId),
+      generationId: job.id,
+      error: message,
+    },
   })
 }
 
@@ -750,7 +687,11 @@ async function pollJob(job: ClaimedGeneration) {
         provider: "gemini",
         model: VEO_MODEL,
         feature: "video-generation",
-        metadata: { generationId: job.id, shotId: job.shotId },
+        metadata: {
+          ...projectSpendMetadata(job.projectId),
+          generationId: job.id,
+          shotId: job.shotId,
+        },
       },
       { inputTokens: 0, outputTokens: 0, units: job.durationSeconds }
     )

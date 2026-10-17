@@ -486,7 +486,7 @@ function describeDelete(targets: RenderJobSummary[], sharedIds: Set<string>) {
  * Under the name of a row: why it has no file, how far it has got, or that a
  * share link opens it for anybody right now.
  */
-function ExportRowStatus({
+export function ExportRowStatus({
   item,
   shared,
 }: {

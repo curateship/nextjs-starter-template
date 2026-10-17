@@ -77,6 +77,7 @@ function settings(
       name: "Explainer",
       style: look.style ?? null,
       lookPictureUrl: look.lookPictureUrl ?? null,
+      spendLimitCents: null,
     },
     database
   )
@@ -144,7 +145,7 @@ describe("saving a project's settings", () => {
       saveOwnedProjectSettings(
         stranger.id,
         project.id,
-        { name: "Mine now", style: "Clay", lookPictureUrl: null },
+        { name: "Mine now", style: "Clay", lookPictureUrl: null, spendLimitCents: null },
         database
       )
     ).rejects.toThrow("Project not found")

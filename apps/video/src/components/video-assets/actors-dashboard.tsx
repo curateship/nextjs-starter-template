@@ -1,10 +1,8 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
-import { Loader2Icon, PlusIcon, SettingsIcon, SparklesIcon, Trash2Icon } from "lucide-react"
+import { PlusIcon, SettingsIcon, SparklesIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
-import { ImageUpload } from "@/components/shared/image-upload"
-import { ProjectLookSelect } from "@/components/video-assets/project-look-select"
+import { ActorFormDialog } from "@/components/video-assets/actor-form-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -15,58 +13,19 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { FormDialog } from "@/components/ui/form-dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  createActor,
-  DEFAULT_IMAGE_MODEL,
   deleteActors,
   getActorErrorMessage,
-  IMAGE_MODELS,
-  updateActor,
   type ActorItem,
-  type ActorPayload,
 } from "@/lib/api/video/actors"
 import type { ProjectItem } from "@/lib/api/video/projects"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import type { ImageModelId } from "@/lib/video/asset-factories"
 
-type FormState = {
-  name: string
-  prompt: string
-  model: ImageModelId
-  status: "active" | "inactive"
-  tags: string
-  referenceMediaUrl: string
-  /** A project id, or "" for no look. Used only when a picture is made. */
-  lookProjectId: string
-}
-
-const EMPTY_FORM: FormState = {
-  name: "",
-  prompt: "",
-  model: DEFAULT_IMAGE_MODEL,
-  status: "active",
-  tags: "",
-  referenceMediaUrl: "",
-  lookProjectId: "",
-}
-
+/**
+ * Every actor, across every project. An actor is shared: the same face is
+ * used in many videos, so this is where one is renamed, re-posed or deleted.
+ * First frames of an actor are made inside a project, on the editor's AI clip
+ * panel.
+ */
 export function ActorsDashboard({
   initial,
   projects,
@@ -77,9 +36,6 @@ export function ActorsDashboard({
   const [actors, setActors] = React.useState(initial.actors)
   const [search, setSearch] = React.useState("")
   const [editing, setEditing] = React.useState<ActorItem | "new" | null>(null)
-  const [form, setForm] = React.useState<FormState>(EMPTY_FORM)
-  const [busy, setBusy] = React.useState(false)
-  const [regenerate, setRegenerate] = React.useState(false)
   const [deleting, setDeleting] = React.useState<ActorItem | null>(null)
   const [deleteBusy, setDeleteBusy] = React.useState(false)
 
@@ -89,68 +45,17 @@ export function ActorsDashboard({
       .includes(search.trim().toLowerCase())
   )
 
-  function openCreate() {
-    setForm(EMPTY_FORM)
-    setEditing("new")
-  }
-
-  function openEdit(actor: ActorItem) {
-    setForm({
-      name: actor.name,
-      prompt: actor.prompt,
-      model: actor.model,
-      status: actor.status,
-      tags: actor.tags.join(", "),
-      referenceMediaUrl: actor.reference_media_url ?? "",
-      lookProjectId: "",
-    })
-    setEditing(actor)
-  }
-
-  const initialForm =
-    editing && editing !== "new"
-      ? {
-          name: editing.name,
-          prompt: editing.prompt,
-          model: editing.model,
-          status: editing.status,
-          tags: editing.tags.join(", "),
-          referenceMediaUrl: editing.reference_media_url ?? "",
-          lookProjectId: "",
-        }
-      : EMPTY_FORM
-  const dirty = JSON.stringify(form) !== JSON.stringify(initialForm)
-
-  async function submit(shouldRegenerate = false) {
-    if (!form.name.trim() || !form.prompt.trim()) {
-      showErrorToast("Name and description are required.")
-      return
+  function handleSaved(saved: ActorItem, reposed: boolean) {
+    if (editing === "new") {
+      setActors((current) => [saved, ...current])
+      toast.success("Actor created.")
+    } else {
+      setActors((current) =>
+        current.map((actor) => (actor.id === saved.id ? saved : actor))
+      )
+      toast.success(reposed ? "Actor re-posed." : "Actor saved.")
     }
-    setBusy(true)
-    try {
-      const payload: ActorPayload = {
-        ...form,
-        referenceMediaUrl: form.referenceMediaUrl || null,
-        lookProjectId: form.lookProjectId || null,
-      }
-      if (editing === "new") {
-        const created = await createActor(payload)
-        setActors((current) => [created, ...current])
-        toast.success("Actor created.")
-      } else if (editing) {
-        const updated = await updateActor(editing.id, payload, shouldRegenerate)
-        setActors((current) =>
-          current.map((actor) => (actor.id === updated.id ? updated : actor))
-        )
-        toast.success(shouldRegenerate ? "Actor re-posed." : "Actor saved.")
-      }
-      setEditing(null)
-      setRegenerate(false)
-    } catch (error) {
-      showErrorToast(getActorErrorMessage(error))
-    } finally {
-      setBusy(false)
-    }
+    setEditing(null)
   }
 
   async function confirmDelete() {
@@ -182,7 +87,7 @@ export function ActorsDashboard({
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-            <DashboardToolbarButton onClick={openCreate}>
+            <DashboardToolbarButton onClick={() => setEditing("new")}>
               <PlusIcon /> Create actor
             </DashboardToolbarButton>
           </>
@@ -208,15 +113,7 @@ export function ActorsDashboard({
                       {actor.prompt}
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      <Button size="sm" asChild>
-                        <Link
-                          to="/admin/video-editor/first-frames"
-                          search={{ actor: actor.id }}
-                        >
-                          <SparklesIcon /> Make first frame
-                        </Link>
-                      </Button>
-                      <Button size="icon-sm" variant="outline" onClick={() => openEdit(actor)} aria-label={`Edit ${actor.name}`}>
+                      <Button size="icon-sm" variant="outline" onClick={() => setEditing(actor)} aria-label={`Edit ${actor.name}`}>
                         <SettingsIcon />
                       </Button>
                       <Button size="icon-sm" variant="outline" onClick={() => setDeleting(actor)} aria-label={`Delete ${actor.name}`}>
@@ -236,96 +133,19 @@ export function ActorsDashboard({
         footer={{ type: "summary", count: visible.length, label: "actors" }}
       />
 
-      <FormDialog
+      <ActorFormDialog
         open={editing !== null}
-        dirty={dirty}
-        busy={busy}
-        onClose={() => {
-          setEditing(null)
-          setRegenerate(false)
-        }}
-      >
-        {(requestClose) => (
-          <DialogContent variant="admin">
-            <DialogHeader>
-              <DialogTitle>{editing === "new" ? "Create actor" : "Edit actor"}</DialogTitle>
-            </DialogHeader>
-            <DialogBody>
-              <Card size="sm">
-                <CardHeader><CardTitle>Character</CardTitle></CardHeader>
-                <CardContent className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="actor-name">Name</Label>
-                    <Input id="actor-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} aria-invalid={!form.name.trim() || undefined} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="actor-description">Description or new pose</Label>
-                    <Textarea id="actor-description" value={form.prompt} onChange={(event) => setForm({ ...form, prompt: event.target.value })} aria-invalid={!form.prompt.trim() || undefined} />
-                  </div>
-                  <ImageUpload
-                    label="Reference photo"
-                    value={form.referenceMediaUrl}
-                    onChange={(value) => setForm({ ...form, referenceMediaUrl: value })}
-                    aspect="square"
-                    fit="cover"
-                    disabled={busy}
-                    className="max-w-32"
-                    hint="Optional. Use a clear portrait to preserve a real person's appearance."
-                  />
-                </CardContent>
-              </Card>
-              <Card size="sm">
-                <CardHeader><CardTitle>Generation</CardTitle></CardHeader>
-                <CardContent className="grid gap-4 sm:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="actor-model">Model</Label>
-                    <Select value={form.model} onValueChange={(model) => setForm({ ...form, model: model as ImageModelId })}>
-                      <SelectTrigger id="actor-model"><SelectValue /></SelectTrigger>
-                      <SelectContent>{IMAGE_MODELS.map((model) => <SelectItem key={model.id} value={model.id}>{model.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="actor-status">Status</Label>
-                    <Select value={form.status} onValueChange={(status) => setForm({ ...form, status: status as FormState["status"] })}>
-                      <SelectTrigger id="actor-status"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2 sm:col-span-2">
-                    <Label htmlFor="actor-tags">Tags</Label>
-                    <Input id="actor-tags" value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="host, product, casual" />
-                  </div>
-                  <ProjectLookSelect
-                    id="actor-look"
-                    projects={projects}
-                    value={form.lookProjectId}
-                    onChange={(lookProjectId) => setForm({ ...form, lookProjectId })}
-                    disabled={busy}
-                  />
-                </CardContent>
-              </Card>
-            </DialogBody>
-            <DialogFooter>
-              <Button type="button" variant="outline" disabled={busy} onClick={requestClose}>Cancel</Button>
-              {editing !== "new" ? (
-                <Button type="button" variant="outline" disabled={busy} onClick={() => { setRegenerate(true); void submit(true) }}>
-                  {busy && regenerate ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />} Re-pose
-                </Button>
-              ) : null}
-              <Button type="button" disabled={busy} onClick={() => { setRegenerate(false); void submit(false) }}>
-                {busy && !regenerate ? <Loader2Icon className="animate-spin" /> : null}
-                {editing === "new" ? "Create actor" : "Save changes"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        )}
-      </FormDialog>
+        actor={editing === "new" ? null : editing}
+        look={{ projects }}
+        onClose={() => setEditing(null)}
+        onSaved={handleSaved}
+      />
 
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => { if (!open) setDeleting(null) }}
         title="Delete actor?"
-        description="The actor, its first-frame records, and their generation history are removed. Every generated picture and clip stays in Media and in projects that use it."
+        description="The actor goes, and so do its first frames in every project and the AI clips made from them. Pictures and clips already on a timeline stay there."
         confirmLabel="Delete actor"
         loading={deleteBusy}
         onConfirm={() => void confirmDelete()}

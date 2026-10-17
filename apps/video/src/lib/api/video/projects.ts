@@ -8,6 +8,7 @@ import {
   PROJECT_NOT_FOUND_MESSAGE,
 } from "@/lib/video/projects"
 import { FOLDER_NOT_FOUND_MESSAGE } from "@/lib/video/project-folders"
+import { PROJECT_SPEND_LIMIT_MAX_DOLLARS } from "@/lib/video/project-spend"
 import {
   LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE,
   MAX_STYLE_LENGTH,
@@ -19,6 +20,7 @@ import {
   type ProjectTimeline,
 } from "@/lib/video/timeline-schema"
 import { userGet, userPost } from "@/server/guards"
+import { readProjectSpend } from "@/server/video/project-spend"
 import {
   createOwnedProject,
   deleteOwnedProjects,
@@ -28,11 +30,18 @@ import {
   listOwnedProjects,
   renameOwnedProject,
   saveOwnedProjectSettings,
+  setProjectPinned,
+  setProjectsArchived,
+  summarizeProjectDelete,
   writeProjectTimeline,
+  type ProjectActor,
+  type ProjectDeleteSummary,
   type ProjectDetail,
   type ProjectItem,
   type ProjectListResponse,
+  type ProjectSource,
 } from "@/server/video/projects"
+import type { ProjectSpend } from "@/lib/video/project-spend"
 
 /**
  * The studio's project endpoints. Everything is per-person — a project belongs
@@ -40,7 +49,16 @@ import {
  * session rather than from the request.
  */
 
-export type { ProjectDetail, ProjectItem, ProjectListResponse, ProjectTimeline }
+export type {
+  ProjectActor,
+  ProjectDeleteSummary,
+  ProjectDetail,
+  ProjectItem,
+  ProjectListResponse,
+  ProjectSource,
+  ProjectSpend,
+  ProjectTimeline,
+}
 
 const KNOWN_MESSAGES = new Set([
   PROJECT_NOT_FOUND_MESSAGE,
@@ -74,6 +92,8 @@ const listSchema = z
     pageSize: z.number().int().optional(),
     search: z.string().trim().max(120).default(""),
     folderId: folderIdSchema,
+    archived: z.boolean().optional(),
+    actorId: z.string().min(1).max(36).optional(),
   })
   .optional()
 
@@ -94,6 +114,8 @@ const listProjectsFn = createServerFn({ method: "GET" })
       pageSize: data?.pageSize ?? 24,
       search: data?.search,
       folderId: data?.folderId,
+      archived: data?.archived,
+      actorId: data?.actorId,
     })
   })
 
@@ -162,6 +184,12 @@ const projectSettingsSchema = projectIdSchema.extend({
   name: nameSchema.shape.name,
   style: z.string().max(MAX_STYLE_LENGTH).nullable(),
   lookPictureUrl: z.string().url().max(2048).nullable(),
+  spendLimitCents: z
+    .number()
+    .int()
+    .min(1)
+    .max(PROJECT_SPEND_LIMIT_MAX_DOLLARS * 100)
+    .nullable(),
 })
 
 const saveProjectSettingsFn = createServerFn({ method: "POST" })
@@ -171,18 +199,76 @@ const saveProjectSettingsFn = createServerFn({ method: "POST" })
     return saveOwnedProjectSettings(context.user.id, data.projectId, data)
   })
 
+const projectIdsSchema = z.object({
+  projectIds: z.array(z.string().min(1).max(36)).min(1).max(100),
+})
+
+const archiveProjectsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(projectIdsSchema.extend({ archived: z.boolean() }))
+  .handler(async ({ data, context }) => {
+    return setProjectsArchived(context.user.id, data.projectIds, data.archived)
+  })
+
+const pinProjectFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(projectIdSchema.extend({ pinned: z.boolean() }))
+  .handler(async ({ data, context }) => {
+    return setProjectPinned(context.user.id, data.projectId, data.pinned)
+  })
+
+const deleteSummaryFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(projectIdsSchema)
+  .handler(async ({ data, context }): Promise<ProjectDeleteSummary> => {
+    return summarizeProjectDelete(context.user.id, data.projectIds)
+  })
+
+const projectSpendFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(projectIdSchema)
+  .handler(async ({ data, context }): Promise<ProjectSpend> => {
+    return readProjectSpend(context.user.id, data.projectId)
+  })
+
 export function listProjects({
   page = 1,
   pageSize = 24,
   search,
   folderId,
+  archived,
+  actorId,
 }: {
   page?: number
   pageSize?: number
   search?: string
   folderId?: string | null
+  /** True lists only the archived ones. */
+  archived?: boolean
+  actorId?: string
 } = {}) {
-  return listProjectsFn({ data: { page, pageSize, search, folderId } })
+  return listProjectsFn({
+    data: { page, pageSize, search, folderId, archived, actorId },
+  })
+}
+
+/** Archives projects, or brings them back with `archived: false`. */
+export function archiveProjects(projectIds: string[], archived: boolean) {
+  return archiveProjectsFn({ data: { projectIds, archived } })
+}
+
+export function pinProject(projectId: string, pinned: boolean) {
+  return pinProjectFn({ data: { projectId, pinned } })
+}
+
+/** How many first frames, AI clips and exports go with these projects. */
+export function loadProjectDeleteSummary(projectIds: string[]) {
+  return deleteSummaryFn({ data: { projectIds } })
+}
+
+/** What this project has spent on AI so far, and its limit. */
+export function loadProjectSpend(projectId: string) {
+  return projectSpendFn({ data: { projectId } })
 }
 
 export function getProject(projectId: string) {
@@ -222,7 +308,7 @@ export function keepRefusedProjectTimeline(
   return keepRefusedTimelineFn({ data: { projectId, timeline } })
 }
 
-/** The name and the look, from the project's Settings window. */
+/** The name, the look and the spend limit, from the project's Settings window. */
 export function saveProjectSettings(
   settings: z.infer<typeof projectSettingsSchema>
 ) {

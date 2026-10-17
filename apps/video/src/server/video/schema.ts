@@ -312,10 +312,25 @@ export const videoProjects = pgTable(
       () => customShellMedia.id,
       { onDelete: "set null" }
     ),
+    // The viral video this project copies, set by Copy this. Deleting the
+    // saved video blanks it and the project stays.
+    sourceViralVideoId: varchar("source_viral_video_id", {
+      length: 36,
+    }).references(() => videoViralVideos.id, { onDelete: "set null" }),
+    // An archived project leaves the list and keeps everything.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    // A pinned project sits at the top of the list whatever the sort.
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
+    // The most AI spending the project may reach, in cents. Null is no limit.
+    spendLimitCents: integer("spend_limit_cents"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
+    check(
+      "video_projects_spend_limit_check",
+      sql`${table.spendLimitCents} is null or ${table.spendLimitCents} between 1 and 10000000`
+    ),
     check(
       "video_projects_aspect_check",
       sql`${table.aspect} in ('16:9', '9:16', '1:1', '4:3')`
@@ -571,8 +586,9 @@ export const videoActors = pgTable(
 )
 
 /**
- * An opening image made from an actor. Its generated picture also remains in
- * the media library when this organizing record is removed.
+ * An opening image of an actor, made inside one project and belonging to it
+ * alone. Deleting the project deletes it. `projectId` is null only on frames
+ * made before 0112 that no timeline used; nothing shows those.
  */
 export const videoFirstFrames = pgTable(
   "video_first_frames",
@@ -581,6 +597,10 @@ export const videoFirstFrames = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 }).references(
+      () => videoProjects.id,
+      { onDelete: "cascade" }
+    ),
     actorId: varchar("actor_id", { length: 36 })
       .notNull()
       .references(() => videoActors.id, { onDelete: "cascade" }),
@@ -606,6 +626,10 @@ export const videoFirstFrames = pgTable(
     ),
     index("ix_video_first_frames_user_created").on(
       table.userId,
+      table.createdAt
+    ),
+    index("ix_video_first_frames_project_created").on(
+      table.projectId,
       table.createdAt
     ),
     index("ix_video_first_frames_actor_id").on(table.actorId),

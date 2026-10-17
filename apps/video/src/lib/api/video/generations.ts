@@ -3,6 +3,8 @@ import { z } from "zod"
 
 import { describeAuthError } from "@/lib/api/error-message"
 import { SHOT_LENGTHS, type ShotLengthSeconds } from "@/lib/video/asset-factories"
+import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
 import { userGet, userPost } from "@/server/guards"
 import type { GenerationItem } from "@/server/video/asset-factories/generations"
 
@@ -15,15 +17,14 @@ const idSchema = z.object({ generationId: z.string().min(1).max(36) })
 export function getGenerationErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ""
   if (message.startsWith("Google ")) return message
+  if (isProjectSpendLimitMessage(message)) return message
   if (
     [
+      PROJECT_NOT_FOUND_MESSAGE,
       "AI video generation not found",
       "Only failed generations can be retried",
-      "Only ready generations can be inserted",
-      "Project not found",
       "First frame not found",
       "First frame is not an image",
-      "Project timeline is full",
       "This project already has a video generating",
       "Write one direction for each piece of the shot",
       "A video that is still generating cannot be deleted",
@@ -36,7 +37,8 @@ export function getGenerationErrorMessage(error: unknown) {
 
 const listFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(({ context }) => import("@/server/video/asset-factories/generations").then((m) => m.listGenerations(context.user.id)))
+  .inputValidator(z.object({ projectId: z.string().min(1).max(36) }))
+  .handler(({ data, context }) => import("@/server/video/asset-factories/generations").then((m) => m.listGenerations(context.user.id, data.projectId)))
 
 const createFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -58,13 +60,8 @@ const deleteFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ generationIds: z.array(z.string().min(1).max(36)).min(1).max(100) }))
   .handler(({ data, context }) => import("@/server/video/asset-factories/generations").then((m) => m.deleteGenerations(context.user.id, data.generationIds)))
 
-const insertFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(idSchema.extend({ projectId: z.string().min(1).max(36) }))
-  .handler(({ data, context }) => import("@/server/video/asset-factories/generations").then((m) => m.insertGeneration(context.user.id, data.generationId, data.projectId)))
-
-export function listGenerations() { return listFn() }
+/** This project's shots, newest first. */
+export function listGenerations(projectId: string) { return listFn({ data: { projectId } }) }
 export function createGeneration(data: { projectId: string; firstFrameId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds }) { return createFn({ data }) }
 export function retryGeneration(generationId: string) { return retryFn({ data: { generationId } }) }
 export function deleteGenerations(generationIds: string[]) { return deleteFn({ data: { generationIds } }) }
-export function insertGeneration(generationId: string, projectId: string) { return insertFn({ data: { generationId, projectId } }) }

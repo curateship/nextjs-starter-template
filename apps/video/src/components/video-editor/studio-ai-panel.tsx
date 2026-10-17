@@ -135,7 +135,7 @@ export function AiPanel() {
     <div className="flex h-full min-h-0 flex-col">
       <DashboardCardTitleHeader
         icon={<SparklesIcon className="size-4" />}
-        title="AI"
+        title="AI tools"
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-4">

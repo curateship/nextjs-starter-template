@@ -146,7 +146,7 @@ export function HookDialog({
 
     setSaying(line)
     try {
-      const said = await speakHook(line, speaker)
+      const said = await speakHook(line, speaker, projectId)
       const spokenLength = said.durationMs || voice.durationMs
       dispatch({
         type: "REWRITE_HOOK",

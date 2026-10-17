@@ -50,12 +50,15 @@ export async function listOwnedExports({
   page = 1,
   pageSize = 24,
   search = "",
+  projectId,
   database = db,
 }: {
   userId: string
   page?: number
   pageSize?: number
   search?: string
+  /** Only this project's exports, for the project's Exports tab. */
+  projectId?: string
   database?: CustomShellDb
 }): Promise<ExportListResponse> {
   const safePage = Math.max(1, Math.floor(page))
@@ -65,6 +68,7 @@ export async function listOwnedExports({
     eq(videoRenderJobs.userId, userId),
     inArray(videoRenderJobs.status, ["ready", "error", "queued", "running"]),
   ]
+  if (projectId) filters.push(eq(videoRenderJobs.projectId, projectId))
   const cleanedSearch = search.trim()
   if (cleanedSearch) {
     // Wildcards are escaped, so searching for "%" finds a title with a percent

@@ -123,24 +123,7 @@ export async function listVideoMedia({
     database.select({ total: count() }).from(customShellMedia).where(where),
   ])
 
-  const mediaIds = rows.map((row) => row.id)
-  const [collections, proxies, filmstrips] = await Promise.all([
-    collectionIdsByMedia(mediaIds, database),
-    videoStateByMedia(videoMediaProxies, mediaIds, database),
-    videoStateByMedia(videoMediaFilmstrips, mediaIds, database),
-  ])
-
-  const media = await Promise.all(rows.map(async (row) => {
-    const base = await serializeMedia(row)
-    const proxy = proxies.get(row.id)
-    return {
-      ...base,
-      playback_url: await videoPlaybackUrl(base.url, proxy ?? null),
-      proxy_status: proxy?.status ?? null,
-      filmstrip_status: filmstrips.get(row.id)?.status ?? null,
-      collection_ids: collections.get(row.id) ?? [],
-    }
-  }))
+  const media = await serializeVideoMedia(rows, database)
 
   const total = totals?.total ?? 0
   return {
@@ -150,6 +133,37 @@ export async function listVideoMedia({
     page_size: safePageSize,
     total_pages: Math.max(1, Math.ceil(total / safePageSize)),
   }
+}
+
+/**
+ * Library rows as the studio hands them to the browser, in the order given:
+ * with the address to play and what the worker has made of each. Anything a
+ * panel lets you drag onto the timeline goes through here, so a dragged file
+ * becomes the same clip wherever it was dragged from.
+ */
+export async function serializeVideoMedia(
+  rows: (typeof customShellMedia.$inferSelect)[],
+  database: CustomShellDb = db
+): Promise<VideoMediaItem[]> {
+  const mediaIds = rows.map((row) => row.id)
+  const [collections, proxies, filmstrips] = await Promise.all([
+    collectionIdsByMedia(mediaIds, database),
+    videoStateByMedia(videoMediaProxies, mediaIds, database),
+    videoStateByMedia(videoMediaFilmstrips, mediaIds, database),
+  ])
+  return Promise.all(
+    rows.map(async (row) => {
+      const base = await serializeMedia(row)
+      const proxy = proxies.get(row.id)
+      return {
+        ...base,
+        playback_url: await videoPlaybackUrl(base.url, proxy ?? null),
+        proxy_status: proxy?.status ?? null,
+        filmstrip_status: filmstrips.get(row.id)?.status ?? null,
+        collection_ids: collections.get(row.id) ?? [],
+      }
+    })
+  )
 }
 
 /**

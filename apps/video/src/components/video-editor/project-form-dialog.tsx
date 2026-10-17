@@ -23,7 +23,16 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import type { ProjectFolderSummary } from "@/lib/api/video/project-folders"
+import { NO_FOLDER } from "@/lib/video/project-folders"
 import {
   createProject,
   getProjectErrorMessage,
@@ -31,28 +40,41 @@ import {
   type ProjectItem,
 } from "@/lib/api/video/projects"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { parseSpendLimit } from "@/lib/video/project-spend"
 import { MAX_STYLE_LENGTH } from "@/lib/video/visual-style"
 
-type ProjectDraft = { name: string; style: string; lookPictureUrl: string }
+type ProjectDraft = {
+  name: string
+  style: string
+  lookPictureUrl: string
+  /** Dollars as typed; empty is no limit. */
+  spendLimit: string
+}
 
 function draftOf(project: ProjectItem | null): ProjectDraft {
   return {
     name: project?.name ?? "",
     style: project?.look?.style ?? "",
     lookPictureUrl: project?.look?.picture_url ?? "",
+    spendLimit:
+      project?.spend_limit_cents != null
+        ? String(project.spend_limit_cents / 100)
+        : "",
   }
 }
 
 /**
  * A new project's name, or an existing project's settings from the cog on its
- * row: its name and its look (see workspace/docs/visual-style.md). Neither is
- * part of the timeline, so saving never clashes with an editor that has the
- * project open.
+ * row or the spend figure in the editor: its name, its look (see
+ * workspace/docs/visual-style.md) and its spend limit (see
+ * workspace/docs/project-first.md). None of them is part of the timeline, so
+ * saving never clashes with an editor that has the project open.
  */
 export function ProjectFormDialog({
   open,
   project,
   folderId,
+  folders = [],
   onClose,
   onCreated,
   onSaved,
@@ -60,21 +82,31 @@ export function ProjectFormDialog({
   open: boolean
   /** The project whose settings these are, or null when making a new one. */
   project: ProjectItem | null
-  /** The folder a new project goes into, the one the list is showing. */
+  /** The folder a new project starts in: the one the list is showing. */
   folderId: string | null
+  /** The folders a new project can be put in. Left out, there is no choice. */
+  folders?: ProjectFolderSummary[]
   onClose: () => void
   onCreated: (project: ProjectItem) => void
-  onSaved: () => void
+  /** Handed the saved project, for a caller that shows its settings. */
+  onSaved: (saved: ProjectItem) => void
 }) {
   const [draft, setDraft] = React.useState(() => draftOf(project))
   const [saving, setSaving] = React.useState(false)
+  const [limitInvalid, setLimitInvalid] = React.useState(false)
+  // A new project's folder, picked in the window. Starts on the open folder.
+  const [newFolderId, setNewFolderId] = React.useState(folderId)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   // Start from what is stored every time the window opens.
   const [wasOpen, setWasOpen] = React.useState(open)
   if (wasOpen !== open) {
     setWasOpen(open)
-    if (open) setDraft(draftOf(project))
+    if (open) {
+      setDraft(draftOf(project))
+      setLimitInvalid(false)
+      setNewFolderId(folderId)
+    }
   }
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(draftOf(project))
@@ -89,7 +121,7 @@ export function ProjectFormDialog({
     setSaving(true)
     try {
       if (!project) {
-        const created = await createProject(draft.name, folderId)
+        const created = await createProject(draft.name, newFolderId)
         dismissErrorToast()
         onCreated(created)
         onClose()
@@ -99,13 +131,22 @@ export function ProjectFormDialog({
         onClose()
         return
       }
-      await saveProjectSettings({
+      let spendLimitCents: number | null
+      try {
+        spendLimitCents = parseSpendLimit(draft.spendLimit)
+      } catch (error) {
+        setLimitInvalid(true)
+        showErrorToast(error instanceof Error ? error.message : "Check the limit.")
+        return
+      }
+      const saved = await saveProjectSettings({
         projectId: project.id,
         name: draft.name,
         style: draft.style || null,
         lookPictureUrl: draft.lookPictureUrl || null,
+        spendLimitCents,
       })
-      onSaved()
+      onSaved(saved)
       dismissErrorToast()
       toast.success("Project settings saved.")
       onClose()
@@ -136,7 +177,7 @@ export function ProjectFormDialog({
             <DialogTitle>{project ? "Project settings" : "New project"}</DialogTitle>
             <DialogDescription>
               {project
-                ? "What this project is called, and the look every AI picture or clip made for it starts from."
+                ? "What this project is called, the look every AI picture or clip made for it starts from, and the most it may spend on AI."
                 : "It opens empty and vertical — the aspect switch changes that in one click."}
             </DialogDescription>
           </DialogHeader>
@@ -169,6 +210,37 @@ export function ProjectFormDialog({
                   </div>
                 </CardContent>
               </Card>
+
+              {!project && folders.length ? (
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Folder</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="project-folder">Put it in</Label>
+                      <Select
+                        value={newFolderId ?? NO_FOLDER}
+                        onValueChange={(value) =>
+                          setNewFolderId(value === NO_FOLDER ? null : value)
+                        }
+                      >
+                        <SelectTrigger id="project-folder" className="sm:w-60">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NO_FOLDER}>No folder</SelectItem>
+                          {folders.map((folder) => (
+                            <SelectItem key={folder.id} value={folder.id}>
+                              {folder.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
 
               {project ? (
                 <Card size="sm">
@@ -227,6 +299,36 @@ export function ProjectFormDialog({
                         </Button>
                       </div>
                     ) : null}
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {project ? (
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Spending</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor="project-spend-limit"
+                        hint="Every AI tool used in this project stops and says so before it would take the project past this. Leave it empty for no limit."
+                      >
+                        Spend limit in dollars
+                      </FieldLabel>
+                      <Input
+                        id="project-spend-limit"
+                        inputMode="decimal"
+                        className="sm:max-w-40"
+                        value={draft.spendLimit}
+                        placeholder="No limit"
+                        aria-invalid={limitInvalid || undefined}
+                        onChange={(event) => {
+                          setDraft({ ...draft, spendLimit: event.target.value })
+                          setLimitInvalid(false)
+                        }}
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               ) : null}

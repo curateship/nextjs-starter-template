@@ -93,6 +93,7 @@ import {
 } from "@/lib/video/text-fonts"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { cn } from "@/lib/utils"
+import { ProjectSpendRow } from "@/components/video-editor/project-settings"
 import {
   ReplaceMediaDialog,
   type ReplacementMedia,
@@ -202,6 +203,7 @@ function ProjectProps() {
             ["Length", formatClock(durationMs)],
           ]}
         />
+        <ProjectSpendRow />
       </InspectorCard>
     </>
   )

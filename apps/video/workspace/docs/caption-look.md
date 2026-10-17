@@ -17,7 +17,7 @@ app on 13 Oct 2026.
 
 ## Which captions use it
 
-- **The Captions tool** in the AI panel. Its window opens on the standard look
+- **The Captions tool** in the AI tools panel. Its window opens on the standard look
   every time, with every setting there to change, and a sample beside them. A
   change is for that one run.
 - **The Voice tool.** The captions that come with a read-aloud voice take the

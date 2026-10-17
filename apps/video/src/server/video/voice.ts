@@ -31,6 +31,7 @@ import {
 import { ELEVENLABS_KEY_MISSING_MESSAGE } from "@/lib/video/ai-providers"
 import { getAiKey } from "@/server/ai/keys"
 import { runAiCall } from "@/server/ai/usage"
+import { projectSpendMetadata } from "@/server/video/project-spend"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { deleteFromR2, getPublicMediaUrl, uploadToR2 } from "@/server/media/storage"
@@ -181,6 +182,7 @@ export async function speak({
   settings,
   speaker,
   feature = "voiceover",
+  projectId,
 }: {
   userId: string
   voiceId: string
@@ -193,6 +195,8 @@ export async function speak({
   speaker?: VoiceSpeakerId
   /** The name the spend is filed under on the AI dashboard. */
   feature?: string
+  /** The project the voice is read for, so its spend line counts it. */
+  projectId?: string | null
 }): Promise<VoiceoverResult> {
   const script = spokenScript(text)
   if (!script) throw new Error(VOICE_NO_TEXT_MESSAGE)
@@ -213,6 +217,7 @@ export async function speak({
       script,
       settings,
       feature,
+      projectId,
     })
   }
 
@@ -228,7 +233,10 @@ export async function speak({
       provider: "elevenlabs",
       model: modelId,
       feature,
-      metadata: { characters: sent.length },
+      metadata: {
+        ...(projectId ? projectSpendMetadata(projectId) : {}),
+        characters: sent.length,
+      },
     },
     async () => {
       const response = await fetch(
@@ -330,6 +338,7 @@ async function speakWithOpenAi({
   script,
   settings,
   feature,
+  projectId,
 }: {
   userId: string
   voiceId: string
@@ -340,6 +349,7 @@ async function speakWithOpenAi({
   script: string
   settings?: VoiceSettings
   feature: string
+  projectId?: string | null
 }): Promise<VoiceoverResult> {
   const apiKey = await requireOpenAiKey()
   const model = "gpt-4o-mini-tts"
@@ -350,7 +360,10 @@ async function speakWithOpenAi({
       provider: "openai",
       model,
       feature,
-      metadata: { characters: text.length },
+      metadata: {
+        ...(projectId ? projectSpendMetadata(projectId) : {}),
+        characters: text.length,
+      },
     },
     async () => {
       const response = await fetch("https://api.openai.com/v1/audio/speech", {

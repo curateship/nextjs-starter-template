@@ -10,6 +10,7 @@ import {
   CAROUSEL_NAME_MAX,
   CAROUSEL_NAME_REQUIRED_MESSAGE,
   CAROUSEL_NOT_FOUND_MESSAGE,
+  FIRST_FRAMES_NOT_FOUND_MESSAGE,
   SAVED_CAROUSEL_INVALID_MESSAGE,
   carouselSlidesSchema,
   type CarouselFormat,
@@ -24,6 +25,7 @@ import {
 } from "@/lib/video/carousel-schema"
 import { userGet, userPost } from "@/server/guards"
 import {
+  createCarouselFromFrames,
   createOwnedCarousel,
   deleteOwnedCarousels,
   duplicateOwnedCarousel,
@@ -57,6 +59,8 @@ const KNOWN_MESSAGES = new Set([
   CAROUSEL_NOT_FOUND_MESSAGE,
   CAROUSEL_CONFLICT_MESSAGE,
   SAVED_CAROUSEL_INVALID_MESSAGE,
+  FIRST_FRAMES_NOT_FOUND_MESSAGE,
+  "Project not found",
   "A carousel needs at least one slide.",
   "A carousel can have at most 20 slides.",
   CAROUSEL_ITEM_LIMIT_MESSAGE,
@@ -186,6 +190,33 @@ export function getCarousel(carouselId: string) {
 
 export function createCarousel(name: string) {
   return createFn({ data: { name } })
+}
+
+const fromFramesFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      projectId: z.string().min(1).max(36),
+      firstFrameIds: z.array(z.string().min(1).max(36)).min(1).max(20),
+      format: z.enum(CAROUSEL_FORMATS),
+    })
+  )
+  .handler(async ({ data, context }) =>
+    createCarouselFromFrames(
+      context.user.id,
+      data.projectId,
+      data.firstFrameIds,
+      data.format
+    )
+  )
+
+/** A new carousel with one slide per first frame, in the order given. */
+export function createCarouselFromFirstFrames(
+  projectId: string,
+  firstFrameIds: string[],
+  format: CarouselFormat
+) {
+  return fromFramesFn({ data: { projectId, firstFrameIds, format } })
 }
 
 export function duplicateCarousel(carouselId: string) {

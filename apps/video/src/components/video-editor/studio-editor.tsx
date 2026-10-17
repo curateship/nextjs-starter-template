@@ -6,6 +6,8 @@ import {
   Check,
   FilmIcon,
   CaptionsIcon,
+  ClapperboardIcon,
+  CopyIcon,
   Loader2Icon,
   LockIcon,
   MicIcon,
@@ -28,6 +30,7 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { showErrorToast, useErrorToast } from "@/lib/toast/error-toast"
@@ -92,12 +95,22 @@ const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
   { id: "music", label: "Music", Icon: Music },
   { id: "voiceovers", label: "Voices", Icon: MicIcon },
   { id: "text", label: "Text", Icon: Type },
-  { id: "ai", label: "AI", Icon: SparklesIcon },
   { id: "transcript", label: "Transcript", Icon: CaptionsIcon },
+  { id: "ai", label: "AI tools", Icon: SparklesIcon },
+  { id: "ai-clip", label: "AI clip", Icon: ClapperboardIcon },
+]
+
+/**
+ * The panels pinned to the foot of the rail: the video this project copies,
+ * and what has been exported from it (Tyler, 17 Oct 2026).
+ */
+const RAIL_FOOT: typeof RAIL = [
+  { id: "copy", label: "Copy", Icon: CopyIcon },
+  { id: "exports", label: "Exports", Icon: Upload },
 ]
 
 function isRailPanel(name: string): name is StudioPanel {
-  return RAIL.some((item) => item.id === name)
+  return [...RAIL, ...RAIL_FOOT].some((item) => item.id === name)
 }
 
 export function StudioEditor({
@@ -323,6 +336,32 @@ export function StudioEditor({
   )
 }
 
+function RailButton({
+  id,
+  label,
+  Icon,
+  on,
+  onSelect,
+}: (typeof RAIL)[number] & {
+  on: boolean
+  onSelect: (panel: StudioPanel) => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => onSelect(id)}
+      className={cn(
+        "flex w-full flex-col items-center gap-1 py-1.5 transition-colors",
+        on ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+      )}
+    >
+      <Icon className="size-5" />
+      <span className="text-[0.625rem] font-medium">{label}</span>
+    </button>
+  )
+}
+
 /** The strip of panel buttons down the left edge of the first panel. */
 function ToolRail({
   panel,
@@ -335,28 +374,33 @@ function ToolRail({
     <nav
       data-screen-label="Tool rail"
       aria-label="Editor panels"
-      className="flex w-16 shrink-0 flex-col items-center gap-1 border-r py-3"
+      className="w-16 shrink-0 border-r"
     >
-      {RAIL.map(({ id, label, Icon }) => {
-        const on = panel === id
-        return (
-          <button
-            key={id}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onSelect(id)}
-            className={cn(
-              "flex w-full flex-col items-center gap-1 py-2 transition-colors",
-              on
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Icon className="size-5" />
-            <span className="text-[0.625rem] font-medium">{label}</span>
-          </button>
-        )
-      })}
+      {/* Scrolls when the window is too short for every button, and keeps
+          Copy and Exports at the foot when it is not. */}
+      <ScrollArea
+        className="h-full"
+        viewportClassName="[&>div]:flex! [&>div]:min-h-full [&>div]:flex-col [&>div]:items-center [&>div]:gap-1 [&>div]:py-2"
+      >
+        {RAIL.map((item) => (
+          <RailButton
+            key={item.id}
+            {...item}
+            on={panel === item.id}
+            onSelect={onSelect}
+          />
+        ))}
+        <div className="mt-auto flex w-full flex-col items-center gap-1 border-t pt-2">
+          {RAIL_FOOT.map((item) => (
+            <RailButton
+              key={item.id}
+              {...item}
+              on={panel === item.id}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      </ScrollArea>
     </nav>
   )
 }

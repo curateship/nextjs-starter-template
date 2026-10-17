@@ -7,10 +7,12 @@ import {
   ilike,
   inArray,
   isNotNull,
+  isNull,
   notInArray,
   sql,
   type SQL,
 } from "drizzle-orm"
+import { alias } from "drizzle-orm/pg-core"
 
 import {
   PROJECT_NAME_MAX,
@@ -29,21 +31,30 @@ import {
 import { LOOK_PICTURE_NOT_AN_IMAGE_MESSAGE } from "@/lib/video/visual-style"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { findOwnedImageByUrl, serializeMedia } from "@/server/media/library"
+import {
+  deleteMediaAsAdmin,
+  findOwnedImageByUrl,
+  serializeMedia,
+} from "@/server/media/library"
 import { deleteFromR2, getPublicMediaUrl } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
 import { removeExportFiles } from "@/server/video/export-files"
+import { mediaStillInUse } from "@/server/video/media-in-use"
 import { videoPlaybackUrl } from "@/server/video/media-urls"
 import {
   folderIdOfProject,
   requireOwnedFolder,
 } from "@/server/video/project-folders"
 import {
+  videoActors,
+  videoAiGenerations,
+  videoFirstFrames,
   videoMediaProxies,
   videoProjectFolderItems,
   videoProjects,
   videoProjectThumbnails,
   videoRenderJobs,
+  videoViralVideos,
   type VideoProjectRow,
 } from "@/server/video/schema"
 
@@ -77,8 +88,24 @@ export type ProjectItem = {
    * when it has neither a style line nor a look picture.
    */
   look: { style: string | null; picture_url: string | null } | null
+  /** The most AI spending allowed, in cents; null is no limit. */
+  spend_limit_cents: number | null
+  pinned: boolean
+  archived: boolean
+  /** The actors with a first frame in this project, earliest first. */
+  actors: ProjectActor[]
+  /** The viral video this project copies, from Copy this. */
+  source: ProjectSource | null
   created_at: string
   updated_at: string
+}
+
+export type ProjectActor = { id: string; name: string; image_url: string }
+
+export type ProjectSource = {
+  id: string
+  title: string | null
+  cover_url: string | null
 }
 
 /** What the editor opens with: the summary plus the timeline to draw. */
@@ -208,10 +235,17 @@ type ProjectThumbnail = { url: string | null; pending: boolean }
 // has no row. It gets one on the next tick, so it counts as waiting.
 const NOT_LOOKED_AT_YET: ProjectThumbnail = { url: null, pending: true }
 
+/** What a list row shows beside the project's own columns. */
+type ProjectExtras = {
+  thumbnail: ProjectThumbnail
+  lookPictures: Map<string, string>
+  actors: ProjectActor[]
+  source: ProjectSource | null
+}
+
 function serializeProject(
   row: VideoProjectRow,
-  thumbnail: ProjectThumbnail,
-  lookPictures: Map<string, string>
+  { thumbnail, lookPictures, actors, source }: ProjectExtras
 ): ProjectItem {
   const lookPicture = row.styleMediaId
     ? (lookPictures.get(row.styleMediaId) ?? null)
@@ -232,6 +266,11 @@ function serializeProject(
       row.style || lookPicture
         ? { style: row.style, picture_url: lookPicture }
         : null,
+    spend_limit_cents: row.spendLimitCents,
+    pinned: row.pinnedAt !== null,
+    archived: row.archivedAt !== null,
+    actors,
+    source,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
@@ -306,20 +345,123 @@ async function lookPicturesFor(
   return pictures
 }
 
+const actorPicture = alias(customShellMedia, "project_actor_picture")
+
+/**
+ * The actors with a first frame in each of a page of projects, in one query.
+ * An actor whose picture is gone is left out rather than drawn broken.
+ */
+async function actorsFor(rows: VideoProjectRow[], database: CustomShellDb) {
+  const actors = new Map<string, ProjectActor[]>()
+  if (!rows.length) return actors
+  const found = await database
+    .selectDistinctOn([videoFirstFrames.projectId, videoActors.id], {
+      projectId: videoFirstFrames.projectId,
+      actor: videoActors,
+      picture: actorPicture,
+      firstAt: videoFirstFrames.createdAt,
+    })
+    .from(videoFirstFrames)
+    .innerJoin(videoActors, eq(videoActors.id, videoFirstFrames.actorId))
+    .innerJoin(
+      actorPicture,
+      and(
+        eq(actorPicture.id, videoActors.imageMediaId),
+        eq(actorPicture.userId, videoActors.userId)
+      )
+    )
+    .where(
+      inArray(
+        videoFirstFrames.projectId,
+        rows.map((row) => row.id)
+      )
+    )
+    .orderBy(
+      videoFirstFrames.projectId,
+      videoActors.id,
+      videoFirstFrames.createdAt
+    )
+  found.sort((a, b) => a.firstAt.getTime() - b.firstAt.getTime())
+  for (const row of found) {
+    if (!row.projectId) continue
+    const list = actors.get(row.projectId) ?? []
+    list.push({
+      id: row.actor.id,
+      name: row.actor.name,
+      image_url: (await serializeMedia(row.picture)).url,
+    })
+    actors.set(row.projectId, list)
+  }
+  return actors
+}
+
+/** The viral videos a page of projects copies, in one query. */
+async function sourcesFor(rows: VideoProjectRow[], database: CustomShellDb) {
+  const sources = new Map<string, ProjectSource>()
+  const ids = [
+    ...new Set(rows.flatMap((row) => row.sourceViralVideoId ?? [])),
+  ]
+  if (!ids.length) return sources
+  const found = await database
+    .select({
+      id: videoViralVideos.id,
+      title: videoViralVideos.title,
+      cover: videoViralVideos.thumbnailStoragePath,
+    })
+    .from(videoViralVideos)
+    // Only ever the project owner's own saved video, the same as the look
+    // picture above.
+    .where(
+      and(
+        inArray(videoViralVideos.id, ids),
+        inArray(videoViralVideos.ownerId, [
+          ...new Set(rows.map((row) => row.userId)),
+        ])
+      )
+    )
+  for (const row of found) {
+    sources.set(row.id, {
+      id: row.id,
+      title: row.title,
+      cover_url: await pictureUrl(row.cover),
+    })
+  }
+  return sources
+}
+
+/**
+ * Everything a page of rows shows besides its own columns, in four queries.
+ * A save already knows its picture, so it skips that one.
+ */
+async function extrasFor(
+  rows: VideoProjectRow[],
+  database: CustomShellDb,
+  withThumbnails = true
+) {
+  const [thumbnails, lookPictures, actors, sources] = await Promise.all([
+    withThumbnails
+      ? thumbnailsFor(rows, database)
+      : new Map<string, ProjectThumbnail>(),
+    lookPicturesFor(rows, database),
+    actorsFor(rows, database),
+    sourcesFor(rows, database),
+  ])
+  return (row: VideoProjectRow): ProjectExtras => ({
+    thumbnail: thumbnails.get(row.id) ?? NOT_LOOKED_AT_YET,
+    lookPictures,
+    actors: actors.get(row.id) ?? [],
+    source: row.sourceViralVideoId
+      ? (sources.get(row.sourceViralVideoId) ?? null)
+      : null,
+  })
+}
+
 /** One row, pictures included — every single-project answer goes through here. */
 async function serializeOneProject(
   row: VideoProjectRow,
   database: CustomShellDb
 ) {
-  const [thumbnails, lookPictures] = await Promise.all([
-    thumbnailsFor([row], database),
-    lookPicturesFor([row], database),
-  ])
-  return serializeProject(
-    row,
-    thumbnails.get(row.id) ?? NOT_LOOKED_AT_YET,
-    lookPictures
-  )
+  return serializeProject(row, (await extrasFor([row], database))(row))
 }
 
 export async function listOwnedProjects({
@@ -328,6 +470,8 @@ export async function listOwnedProjects({
   pageSize = 24,
   search = "",
   folderId,
+  archived = false,
+  actorId,
   database = db,
 }: {
   userId: string
@@ -336,12 +480,37 @@ export async function listOwnedProjects({
   search?: string
   /** Absent lists every project; null only those in no folder. */
   folderId?: string | null
+  /** True lists only archived projects; the list leaves them out otherwise. */
+  archived?: boolean
+  /** Only projects with a first frame of this actor. */
+  actorId?: string
   database?: CustomShellDb
 }): Promise<ProjectListResponse> {
   const safePage = Math.max(1, Math.floor(page))
   const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)))
 
-  const filters: SQL[] = [eq(videoProjects.userId, userId)]
+  const filters: SQL[] = [
+    eq(videoProjects.userId, userId),
+    archived
+      ? isNotNull(videoProjects.archivedAt)
+      : isNull(videoProjects.archivedAt),
+  ]
+  if (actorId) {
+    filters.push(
+      inArray(
+        videoProjects.id,
+        database
+          .select({ id: sql<string>`${videoFirstFrames.projectId}` })
+          .from(videoFirstFrames)
+          .where(
+            and(
+              eq(videoFirstFrames.userId, userId),
+              eq(videoFirstFrames.actorId, actorId)
+            )
+          )
+      )
+    )
+  }
   const cleanedSearch = search.trim()
   if (cleanedSearch) {
     // The wildcards are escaped so a search for "%" finds a project called
@@ -372,25 +541,21 @@ export async function listOwnedProjects({
       .select()
       .from(videoProjects)
       .where(where)
-      .orderBy(desc(videoProjects.updatedAt), desc(videoProjects.id))
+      // Pinned projects first, so a page never leaves one out.
+      .orderBy(
+        sql`${videoProjects.pinnedAt} is null`,
+        desc(videoProjects.updatedAt),
+        desc(videoProjects.id)
+      )
       .limit(safePageSize)
       .offset((safePage - 1) * safePageSize),
     database.select({ total: count() }).from(videoProjects).where(where),
   ])
 
-  const [thumbnails, lookPictures] = await Promise.all([
-    thumbnailsFor(rows, database),
-    lookPicturesFor(rows, database),
-  ])
+  const extras = await extrasFor(rows, database)
   const total = totals?.total ?? 0
   return {
-    projects: rows.map((row) =>
-      serializeProject(
-        row,
-        thumbnails.get(row.id) ?? NOT_LOOKED_AT_YET,
-        lookPictures
-      )
-    ),
+    projects: rows.map((row) => serializeProject(row, extras(row))),
     total,
     page: safePage,
     page_size: safePageSize,
@@ -419,7 +584,9 @@ export async function createOwnedProject(
   userId: string,
   name: string,
   database: CustomShellDb = db,
-  folderId: string | null = null
+  folderId: string | null = null,
+  /** The saved viral video the project copies, from Copy this. */
+  sourceViralVideoId: string | null = null
 ): Promise<ProjectItem> {
   const createdAt = now()
   const cleanedName = cleanProjectName(name)
@@ -436,6 +603,7 @@ export async function createOwnedProject(
         name: cleanedName,
         aspect: timeline.aspect,
         timeline,
+        sourceViralVideoId,
         createdAt,
         updatedAt: createdAt,
       })
@@ -511,6 +679,9 @@ async function insertProjectCopy(
         // series starts from the same one.
         style: source.style,
         styleMediaId: source.styleMediaId,
+        // So do the viral video it copies and its spend limit.
+        sourceViralVideoId: source.sourceViralVideoId,
+        spendLimitCents: source.spendLimitCents,
         // The copy is its own project from version 1; it shares nothing with
         // the original after this moment, and the background worker makes its
         // picture on the next pass, the same as any new project.
@@ -519,6 +690,17 @@ async function insertProjectCopy(
         updatedAt: createdAt,
       })
       .returning()
+    // Its first frames come too, as new records of its own that show the
+    // same pictures. A picture leaves storage only once nothing uses it.
+    const frames = await tx
+      .select()
+      .from(videoFirstFrames)
+      .where(eq(videoFirstFrames.projectId, source.id))
+    if (frames.length) {
+      await tx.insert(videoFirstFrames).values(
+        frames.map((frame) => ({ ...frame, id: uuid(), projectId: row.id }))
+      )
+    }
     // The copy sits in the original's folder, so it appears beside it.
     const folderId = await folderIdOfProject(source.id, tx)
     if (folderId) {
@@ -549,7 +731,7 @@ export async function renameOwnedProject(
 }
 
 /**
- * Project settings: the name and the look, saved together. None of them is
+ * Project settings: the name, the look and the spend limit, saved together. None of them is
  * part of the timeline, so `version` stays where it is and an editor open on
  * the project carries on saving. The look picture arrives as the address the
  * Media picker handed back and is kept by its library id; anything that is not
@@ -558,7 +740,12 @@ export async function renameOwnedProject(
 export async function saveOwnedProjectSettings(
   userId: string,
   projectId: string,
-  settings: { name: string; style: string | null; lookPictureUrl: string | null },
+  settings: {
+    name: string
+    style: string | null
+    lookPictureUrl: string | null
+    spendLimitCents: number | null
+  },
   database: CustomShellDb = db
 ): Promise<ProjectItem> {
   let styleMediaId: string | null = null
@@ -579,6 +766,7 @@ export async function saveOwnedProjectSettings(
       name: cleanProjectName(settings.name),
       style: settings.style?.trim() || null,
       styleMediaId,
+      spendLimitCents: settings.spendLimitCents,
       updatedAt: now(),
     })
     .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
@@ -586,6 +774,53 @@ export async function saveOwnedProjectSettings(
   if (!row) {
     throw new Error(PROJECT_NOT_FOUND_MESSAGE)
   }
+  return serializeOneProject(row, database)
+}
+
+/**
+ * Archives projects, or brings them back. An archived project keeps
+ * everything and leaves the list. A project that is not the caller's, or is
+ * already where it was asked to go, comes back in `skipped_ids`.
+ */
+export async function setProjectsArchived(
+  userId: string,
+  projectIds: string[],
+  archived: boolean,
+  database: CustomShellDb = db
+): Promise<{ done_ids: string[]; skipped_ids: string[] }> {
+  const ids = [...new Set(projectIds)]
+  if (!ids.length) return { done_ids: [], skipped_ids: [] }
+  const rows = await database
+    .update(videoProjects)
+    // Archiving unpins: a pin is for what is being worked on now.
+    .set(archived ? { archivedAt: now(), pinnedAt: null } : { archivedAt: null })
+    .where(
+      and(
+        eq(videoProjects.userId, userId),
+        inArray(videoProjects.id, ids),
+        archived
+          ? isNull(videoProjects.archivedAt)
+          : isNotNull(videoProjects.archivedAt)
+      )
+    )
+    .returning({ id: videoProjects.id })
+  const done = rows.map((row) => row.id)
+  return { done_ids: done, skipped_ids: ids.filter((id) => !done.includes(id)) }
+}
+
+/** Pins a project to the top of the list, or takes the pin off. */
+export async function setProjectPinned(
+  userId: string,
+  projectId: string,
+  pinned: boolean,
+  database: CustomShellDb = db
+): Promise<ProjectItem> {
+  const [row] = await database
+    .update(videoProjects)
+    .set({ pinnedAt: pinned ? now() : null })
+    .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
+    .returning()
+  if (!row) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
   return serializeOneProject(row, database)
 }
 
@@ -631,15 +866,14 @@ export async function writeProjectTimeline(
 
   if (saved) {
     const { thumbnailPath, ...row } = saved
-    return serializeProject(
-      row,
-      {
+    return serializeProject(row, {
+      ...(await extrasFor([row], database, false))(row),
+      thumbnail: {
         url: await pictureUrl(thumbnailPath),
         // Saved this instant, so the worker has not looked at it yet.
         pending: true,
       },
-      await lookPicturesFor([row], database)
-    )
+    })
   }
 
   // Nothing was updated: either the project is gone (or never ours), or it has
@@ -653,10 +887,88 @@ export async function writeProjectTimeline(
   throw new Error(existing ? PROJECT_CONFLICT_MESSAGE : PROJECT_NOT_FOUND_MESSAGE)
 }
 
+/** What deleting these projects takes with it, counted for the delete window. */
+export type ProjectDeleteSummary = {
+  first_frames: number
+  ai_clips: number
+  exports: number
+}
+
+export async function summarizeProjectDelete(
+  userId: string,
+  projectIds: string[],
+  database: CustomShellDb = db
+): Promise<ProjectDeleteSummary> {
+  const ids = [...new Set(projectIds)]
+  if (!ids.length) return { first_frames: 0, ai_clips: 0, exports: 0 }
+  const owned = and(
+    eq(videoProjects.userId, userId),
+    inArray(videoProjects.id, ids)
+  )
+  const [[frames], [clips], [exports]] = await Promise.all([
+    database
+      .select({ total: count() })
+      .from(videoFirstFrames)
+      .innerJoin(videoProjects, eq(videoProjects.id, videoFirstFrames.projectId))
+      .where(owned),
+    database
+      .select({ total: sql<number>`count(distinct ${videoAiGenerations.shotId})::int` })
+      .from(videoAiGenerations)
+      .innerJoin(videoProjects, eq(videoProjects.id, videoAiGenerations.projectId))
+      .where(owned),
+    database
+      .select({ total: count() })
+      .from(videoRenderJobs)
+      .innerJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
+      .where(owned),
+  ])
+  return {
+    first_frames: frames?.total ?? 0,
+    ai_clips: clips?.total ?? 0,
+    exports: exports?.total ?? 0,
+  }
+}
+
 /**
- * Deleting projects. The media they used is left alone on purpose — it is the
- * person's own library, shared with every other project, and a delete here must
- * never take footage away from somewhere else.
+ * The pictures and clips a project's first frames and AI clips were made as.
+ * They belong to the project, so they go when it goes, unless something else
+ * uses them by then (see `mediaStillInUse`).
+ */
+async function madeForProjects(projectIds: string[], database: CustomShellDb) {
+  if (!projectIds.length) return []
+  const [frames, clips] = await Promise.all([
+    database
+      .select({ id: videoFirstFrames.imageMediaId })
+      .from(videoFirstFrames)
+      .where(inArray(videoFirstFrames.projectId, projectIds)),
+    database
+      .select({
+        output: videoAiGenerations.outputMediaId,
+        start: videoAiGenerations.firstFrameMediaId,
+      })
+      .from(videoAiGenerations)
+      .where(inArray(videoAiGenerations.projectId, projectIds)),
+  ])
+  return [
+    ...new Set([
+      ...frames.map((row) => row.id),
+      ...clips.flatMap((row) => [row.output, row.start]).filter(
+        (id): id is string => !!id
+      ),
+    ]),
+  ]
+}
+
+/**
+ * Deleting projects. The library files a project merely used are left alone
+ * on purpose: they are the person's own library, shared with every other
+ * project, and a delete here must never take footage away from somewhere else.
+ *
+ * What was made for the project does go. Its first frames and AI clips go with
+ * the row, and their pictures and clips leave storage afterwards unless
+ * another project, an actor or a carousel still uses them. A picture that will
+ * not come out is logged and left in the library, where it can be deleted by
+ * hand; the project is gone either way.
  *
  * The project's exports and its picture do go, because their rows go with it.
  * Their files are removed from storage first, the same way deleting an export
@@ -715,6 +1027,7 @@ export async function deleteOwnedProjects(
   const deletable = uniqueIds.filter((id) => !failed.has(id))
   if (!deletable.length) return { deleted_ids: [], failed_ids: failedIds }
 
+  const made = await madeForProjects(deletable, database)
   const rows = await database
     .delete(videoProjects)
     .where(
@@ -724,6 +1037,16 @@ export async function deleteOwnedProjects(
       )
     )
     .returning({ id: videoProjects.id })
+
+  const inUse = await mediaStillInUse(userId, made, database)
+  const unused = made.filter((id) => !inUse.has(id))
+  if (unused.length) {
+    try {
+      await deleteMediaAsAdmin(unused, database)
+    } catch (error) {
+      console.error("A deleted project's AI pictures stayed in storage", error)
+    }
+  }
 
   return { deleted_ids: rows.map((row) => row.id), failed_ids: failedIds }
 }
