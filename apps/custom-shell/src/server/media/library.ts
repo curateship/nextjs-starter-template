@@ -13,6 +13,7 @@ import {
 } from "drizzle-orm"
 
 import { isGeneratedFaviconStoragePath } from "@/lib/favicon"
+import { VIDEO_MAX_BYTES } from "@/lib/media/media-upload"
 import {
   isResizedMediaStoragePath,
   MEDIA_IMAGE_WIDTHS,
@@ -68,7 +69,6 @@ export const ALLOWED_TYPES = new Set([
 ])
 
 const IMAGE_MAX_BYTES = 10 * 1024 * 1024
-const VIDEO_MAX_BYTES = 100 * 1024 * 1024
 const AUDIO_MAX_BYTES = 50 * 1024 * 1024
 const FILENAME_SAFE_CHARS = /[^a-zA-Z0-9.-]+/g
 
@@ -122,7 +122,7 @@ export function validateMediaFile(mimeType: string, size: number) {
         ? AUDIO_MAX_BYTES
         : VIDEO_MAX_BYTES
   const maxSizeLabel =
-    fileType === "image" ? "10MB" : fileType === "audio" ? "50MB" : "100MB"
+    fileType === "image" ? "10MB" : fileType === "audio" ? "50MB" : "5GB"
   if (size > maxSize) {
     throw new Error(`File size too large. Maximum size is ${maxSizeLabel}.`)
   }
