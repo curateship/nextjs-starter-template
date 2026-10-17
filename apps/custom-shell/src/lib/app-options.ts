@@ -16,7 +16,7 @@ import {
 } from "@/lib/public-theme"
 import type { AppFrontPageRowSettings } from "@/lib/pages/front-page"
 import type { AppSettingsTab } from "@/lib/settings-tab"
-import type { ShellSection } from "@/lib/custom-shell"
+import type { ShellSection, ShellTopRightAppAction } from "@/lib/custom-shell"
 import {
   isShellRole,
   ROLE_ID_PATTERN,
@@ -149,6 +149,16 @@ export type AppHeaderAction = {
    */
   foldsOnPhone?: boolean
   /**
+   * Lets Settings → Top right menu move this control between the row and the
+   * three-dot dropdown on a phone. The chip gets a phone button saying where
+   * it goes, and the saved choice wins over `foldsOnPhone`, which stays where
+   * it starts and where Reset puts it back.
+   *
+   * Unset means the app decides alone. Leave it off a control that only draws
+   * in one place, such as one that is drawn somewhere else on a wide screen.
+   */
+  phoneChoice?: boolean
+  /**
    * A line of its own, under its `label` as a heading, at the top of the
    * phone's three-dot dropdown.
    *
@@ -163,6 +173,22 @@ export type AppHeaderAction = {
   component: () => Promise<{
     default: ComponentType<AppHeaderActionProps>
   }>
+}
+
+/**
+ * Whether a control leaves the row for the three-dot dropdown on a phone.
+ *
+ * The app's `foldsOnPhone` decides, unless it gave the control a `phoneChoice`
+ * and somebody picked a place for it in the Top right menu.
+ */
+export function appActionFoldsOnPhone(
+  item: ShellTopRightAppAction,
+  action: AppHeaderAction
+) {
+  if (action.phoneChoice && typeof item.foldsOnPhone === "boolean") {
+    return item.foldsOnPhone
+  }
+  return action.foldsOnPhone === true
 }
 
 /** What the shell hands one app-owned row inside the quick settings menu. */

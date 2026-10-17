@@ -21,6 +21,12 @@ the active-trades figure stayed in the row and squeezed the sidebar toggle to
 each one in `src/app/options.ts`. The cog folding with them is the shell's, and
 it is written down once in the repo's `docs/shell/shell-and-apps.md`.
 
+- **Goal and Active trades can come back into the row.** Each one's chip in
+  Settings → Top right menu has a phone button reading "Dropdown" or "Menu
+  bar". A press moves it, and it saves itself. Both start in the dropdown.
+  Tyler asked for the choice on 17 Oct 2026: "I want an option to bring it out
+  of the dropdown in mobile or not to the navigation". With both in the row a
+  390px phone is tight, and the exchange's name is what gives way first.
 - **The exchange's name is never cut short.** The button takes the room the
   name needs and gives way only when the row genuinely runs out.
 
@@ -132,7 +138,8 @@ Open `/protocols/hyper-liquid` at 390×844 and check:
 3. Open orders opens the table over the chart, with Close all beside the tabs
    and no words sitting on top of each other.
 4. The top row is the sidebar toggle, the exchange's name, the search
-   magnifier if it is switched on, the bell and three dots, with no cog. The
+   magnifier if it is switched on, the bell and three dots, with no cog
+   (plus Goal and Active trades if either is set to "Menu bar"). The
    three dots hold, in order, the pinned markets under their heading, the goal
    and active-trades buttons on one line, the three settings rows and colour
    mode. Nothing in there wraps onto a second line.

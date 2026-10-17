@@ -19,6 +19,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import {
+  appActionFoldsOnPhone,
   appHeaderRightActionsForRole,
   type AppHeaderAction,
   type AppHeaderActionProps,
@@ -224,15 +225,16 @@ export function StickyHeaderRightNav({
     items,
     appActions.map((action) => action.id)
   )
-  // On a phone the controls the app marked `foldsOnPhone` leave the row and
-  // fold into the three-dot button drawn at the end of it, below, and the cog
-  // folds in with them. The rest keep their place at every width.
+  // On a phone the controls the app marked `foldsOnPhone`, or that somebody
+  // moved there in the Top right menu, leave the row and fold into the
+  // three-dot button drawn at the end of it, below, and the cog folds in with
+  // them. The rest keep their place at every width.
   const isMobile = useIsMobile()
   const foldedActions = isMobile
     ? navItems.flatMap((item) => {
         if (item.type !== "app" || !item.visible) return []
         const action = appActions.find((one) => one.id === item.id)
-        return action?.foldsOnPhone ? action : []
+        return action && appActionFoldsOnPhone(item, action) ? action : []
       })
     : []
 
@@ -256,7 +258,7 @@ export function StickyHeaderRightNav({
           const action = appActions.find((one) => one.id === item.id)
           if (!action) return null
           // Drawn inside the three-dot button after the cog instead.
-          if (isMobile && action.foldsOnPhone) return null
+          if (isMobile && appActionFoldsOnPhone(item, action)) return null
           return (
             <AppHeaderRightAction key={item.id} action={action} role={role} />
           )
