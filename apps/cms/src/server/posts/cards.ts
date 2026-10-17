@@ -50,6 +50,17 @@ export function publishedPostsOnSite(siteId: string) {
 /** Newest first, with the id breaking ties so pages never overlap. */
 export const newestPostsFirst = [desc(sitePosts.publishedAt), asc(sitePosts.id)]
 
+/**
+ * Featured posts first, newest first among themselves, then the rest newest
+ * first. With no post featured this is exactly `newestPostsFirst`. Only the
+ * Posts page and a front page row of posts read it. A category page, the feed
+ * and "More to read" stay newest first.
+ */
+export const featuredPostsFirst = [
+  desc(sitePosts.featured),
+  ...newestPostsFirst,
+]
+
 export function toPostCard(row: {
   id: string
   title: string
@@ -145,36 +156,13 @@ export async function postsArePublic(
   return (await readPageVisibility(siteId, "/posts", database)) === "everyone"
 }
 
-/**
- * The newest published posts for a home page row: every one of them, or only
- * those filed under one category.
- */
-export async function newestPosts(
-  siteId: string,
-  limit: number,
-  categoryId: string | null,
-  database: CustomShellDb = db
-): Promise<PublicPostCard[]> {
-  if (categoryId) {
-    return publicPostsInCategory(siteId, categoryId, limit, database)
-  }
-  const rows = await database
-    .select(postCardColumns)
-    .from(sitePosts)
-    .where(publishedPostsOnSite(siteId))
-    .orderBy(...newestPostsFirst)
-    .limit(limit)
-  return withCategories(siteId, rows.map(toPostCard), database)
-}
-
-/** The newest published posts filed under one category. */
-export async function publicPostsInCategory(
+/** The ids of the posts filed under one category, as a subquery. */
+function postIdsInCategory(
   siteId: string,
   categoryId: string,
-  limit: number,
-  database: CustomShellDb = db
-): Promise<PublicPostCard[]> {
-  const inCategory = database
+  database: CustomShellDb
+) {
+  return database
     .select({ id: categoryRelationships.contentId })
     .from(categoryRelationships)
     .where(
@@ -184,10 +172,54 @@ export async function publicPostsInCategory(
         eq(categoryRelationships.categoryId, categoryId)
       )
     )
+}
+
+/**
+ * The posts for a front page row: every published one, or only those filed
+ * under one category. Featured posts come first. A featured post outside the
+ * row's category stays out of it, because the row is about that category.
+ */
+export async function frontPageRowPosts(
+  siteId: string,
+  limit: number,
+  categoryId: string | null,
+  database: CustomShellDb = db
+): Promise<PublicPostCard[]> {
   const rows = await database
     .select(postCardColumns)
     .from(sitePosts)
-    .where(and(publishedPostsOnSite(siteId), inArray(sitePosts.id, inCategory)))
+    .where(
+      and(
+        publishedPostsOnSite(siteId),
+        categoryId
+          ? inArray(
+              sitePosts.id,
+              postIdsInCategory(siteId, categoryId, database)
+            )
+          : undefined
+      )
+    )
+    .orderBy(...featuredPostsFirst)
+    .limit(limit)
+  return withCategories(siteId, rows.map(toPostCard), database)
+}
+
+/** The newest published posts filed under one category, for its page. */
+export async function publicPostsInCategory(
+  siteId: string,
+  categoryId: string,
+  limit: number,
+  database: CustomShellDb = db
+): Promise<PublicPostCard[]> {
+  const rows = await database
+    .select(postCardColumns)
+    .from(sitePosts)
+    .where(
+      and(
+        publishedPostsOnSite(siteId),
+        inArray(sitePosts.id, postIdsInCategory(siteId, categoryId, database))
+      )
+    )
     .orderBy(...newestPostsFirst)
     .limit(limit)
   return withCategories(siteId, rows.map(toPostCard), database)

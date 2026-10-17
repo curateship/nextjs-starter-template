@@ -40,10 +40,11 @@ visitors read them at `/posts`, with each post at `/posts/<address>`.
 - **Where:** Admin → Posts, at `/admin/posts`. The sidebar link is not added
   automatically. Add it in Settings the same way the Listings link was added.
 - **The list:** search by title or address, filter by status, sort by title,
-  status, published date or last change. Drafts have no published date, so
-  they sort last in both directions.
-- **The window:** title, address, summary, status, cover image, categories and
-  the body.
+  status, published date, views or last change. Drafts have no published date,
+  so they sort last in both directions. "How often a post is read" below
+  covers the Views column.
+- **The window:** title, address, summary, status, the Featured switch, cover
+  image, categories and the body. "Featured posts" below covers the switch.
 - **Formatting:** select words and the floating bar offers bold, italic,
   headings 2 to 4, lists, quote and link. This bar is a copy of the shell's,
   in `src/components/posts/post-editor.tsx`, so a later change to the shell's
@@ -117,13 +118,94 @@ nothing drawn around them, and a contents list in a card on the right.
 - **The rules live in `src/lib/posts/post-headings.ts`**, and both the contents
   list and the body read them, so a link always has something to land on.
 
+## More to read
+
+Every post page ends with three more posts under the heading "More to read",
+drawn with the same card as the Posts page. A reader who finishes one article
+about patios is offered a second one instead of a dead end.
+
+- **Picked from the post's own categories first**, newest first. A post in
+  Patios and Brunch can be followed by a post from either.
+- **Topped up with the site's newest posts** when its categories hold fewer
+  than three others. A post in no category gets the three newest posts.
+- **Three or nothing.** A site with only one or two other published posts
+  shows no block at all, rather than one lonely card under every article.
+- **Never the post being read, and never a draft.** Posts on another site are
+  never offered either.
+- **Not worked out from what anybody read.** Same categories, newest first,
+  and nothing else. Featured posts are not lifted here.
+- **Laid out like every other card grid:** three across on a wide screen, two
+  then one on a tablet, one under another on a phone. It runs under both
+  columns, at the page's full width.
+- **It is part of the post page's cached answer.** Saving or deleting any post
+  clears that cache for the site, so a newly published post can show up here
+  on the next read.
+- **The rule lives in `morePostsToRead` in `src/server/posts/public.ts`**, and
+  `MORE_TO_READ_COUNT` in `src/lib/posts/post-sort.ts` holds the three.
+
+## Featured posts
+
+A post can be featured with the Featured switch in its window. It is a free
+editorial flag. Featured listings and events are bought through Stripe; a
+featured post is not, and switching it on creates no plan, checkout or paid
+spot.
+
+- **A featured post goes to the top of `/posts`** and first in a front page
+  row of posts.
+- **Several featured posts go newest first among themselves**, then the rest
+  follow newest first.
+- **With nothing featured, both lists are exactly what they were before.**
+- **A category row stays about its category.** A front page row set to one
+  category puts that category's featured posts first, and a featured post
+  from another category does not join it.
+- **Everywhere else keeps newest first:** category pages, the feed and "More
+  to read". A featured draft appears nowhere, like any draft.
+- **It stays until it is switched off.** There is no end date.
+- **The Posts screen marks it** with a Featured badge beside the status.
+- **No mark on the public card.** A featured post is moved, not labelled.
+- **Where it lives:** `drizzle/0131_cms_featured_posts.sql` adds `featured` to
+  `posts`. The order is `featuredPostsFirst` in `src/server/posts/cards.ts`.
+  Nothing in `src/server/directory/featured.ts` reads or writes it.
+
+## How often a post is read
+
+Admin → Posts has a Views column, from the same daily traffic counts the
+Listings and Events screens read. It answers "which posts do people actually
+open". The Traffic screen still owns trends and charts.
+
+- **The ranges are the listings ones:** All, 7 days, 30 days and Year, from the
+  picker beside the status filter. The column heading names the range, such as
+  "30-day views".
+- **Sorting by views sorts the whole list**, on the server, before it is split
+  into pages. The range and the sort are kept in the address, so they survive a
+  reload or a shared link.
+- **A view is one opening of the post's page** at `/posts/<address>`, reported
+  by the same small ping every public page sends. The Posts page itself,
+  `/posts`, is not added to any post.
+- **An admin's own visits are not counted**, and neither are search engines
+  and other robots. Open a post signed out, or in a private window, to see the
+  number move.
+- **A day nobody opened the post has no row.** The counts only add up the days
+  the tracker actually wrote, so nothing is padded with made-up zero days. A
+  post nobody has opened shows 0, the same as an unvisited listing.
+- **Counts follow the post's current address.** Views from before a rename stay
+  with the old address and are not added to the new one.
+- **One site's counts stay on that site**, even when another site has a post
+  at the same address.
+- **A very busy day can lose a post's views to "(other)".** The tracker keeps
+  200 different addresses a day per site, and the rest of that day's addresses
+  are lumped together. That is the shell's tracker and applies to listings
+  and events too.
+- **Where it lives:** `src/server/posts/views.ts`, beside the listing and event
+  readers.
+
 ## Where posts appear
 
 A published post appears in all of these and a draft in none of them.
 
-- **`/posts`:** newest first, 12 per page.
+- **`/posts`:** featured posts first, then newest first, 12 per page.
 - **`/posts/<address>`:** the cover image, title, date, category links, summary
-  and body, with a contents list beside them. Its tab title, description, share
+  and body, with a contents list beside them and "More to read" under them. Its tab title, description, share
   image and search-engine block (`BlogPosting`) come from the post. "Reading a
   post" below describes the page.
 - **Category pages:** the 6 newest posts filed under a category show below its
@@ -138,13 +220,15 @@ A published post appears in all of these and a draft in none of them.
   "Post".
 - **A home page row:** "Latest posts" in Settings → Public pages → Front page, beside Listings, Category cards, Upcoming events and Current deals. It
   takes a heading, an introduction, a category or "Every post", and how many,
-  1 to 12. The newest come first, and the row carries a "See all posts" button.
+  1 to 12. Featured posts come first, then the newest, and the row carries a
+  "See all posts" button.
   It is left off the page while there are no posts, and while this visitor may
   not see the Posts page, because every card on it leads there.
 
 ## The post card
 
-The same card draws on the Posts page, under a category and in a home page row.
+The same card draws on the Posts page, under a category, in a home page row and
+under "More to read".
 
 - **The photo fills the card** and the title sits in white over the bottom of
   it, with the site's name on the left and the published date on the right

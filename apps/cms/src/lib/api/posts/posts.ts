@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { LISTING_STATUS_FILTERS } from "@/lib/directory/listing-sort"
+import {
+  LISTING_STATUS_FILTERS,
+  type ListingViewRange,
+} from "@/lib/directory/listing-sort"
 import { POST_SORT_COLUMNS, type PostSortColumn } from "@/lib/posts/post-sort"
 import {
   bulkIdsInput,
@@ -66,6 +69,9 @@ const loadPostsPageFn = createServerFn({ method: "GET" })
       status: z.enum(LISTING_STATUS_FILTERS).optional(),
       sort: z.enum(POST_SORT_COLUMNS).optional(),
       direction: z.enum(["asc", "desc"]).optional(),
+      days: z
+        .union([z.literal("all"), z.literal(7), z.literal(30), z.literal(365)])
+        .optional(),
       page: z.number().int().min(1).max(10_000).optional(),
       limit: z.number().int().min(1).max(200).optional(),
     })
@@ -79,6 +85,7 @@ const loadPostsPageFn = createServerFn({ method: "GET" })
       status: data.status,
       sort: data.sort,
       direction: data.direction,
+      viewDays: data.days,
       limit: pageSize,
       offset: (page - 1) * pageSize,
     })
@@ -90,6 +97,7 @@ export function loadPostsPage(input: {
   status?: PostStatus
   sort?: PostSortColumn
   direction?: "asc" | "desc"
+  days?: ListingViewRange
   page?: number
   limit?: number
 }) {
@@ -150,6 +158,7 @@ const updatePostFn = createServerFn({ method: "POST" })
       coverImage: z.string().max(600).optional(),
       summary: z.string().max(MAX_POST_SUMMARY).optional(),
       status: z.enum(["draft", "published"]).optional(),
+      featured: z.boolean().optional(),
       // A tree whose rule is "keep only what is allowed", which the server's
       // cleaner says better than a schema.
       body: z.unknown().optional(),
@@ -173,6 +182,7 @@ export function savePost(input: {
   coverImage?: string
   summary?: string
   status?: PostStatus
+  featured?: boolean
   body?: unknown
   categoryIds?: string[]
 }) {

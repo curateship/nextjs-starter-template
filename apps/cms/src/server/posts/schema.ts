@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm"
 import {
+  boolean,
   check,
   index,
   integer,
@@ -13,7 +14,8 @@ import {
 import { customShellWorkspaces } from "@/server/schema"
 
 /**
- * Each site's posts. The matching SQL is `drizzle/0080_cms_posts.sql`.
+ * Each site's posts. The matching SQL is `drizzle/0080_cms_posts.sql`, and
+ * `drizzle/0131_cms_featured_posts.sql` for `featured`.
  *
  * Categories are not a column: a post is filed through the directory's shared
  * `categoryRelationships` table under `POST_CONTENT_TYPE`.
@@ -41,6 +43,13 @@ export const sitePosts = pgTable(
     readMinutes: integer("read_minutes").notNull().default(1),
     /** 'draft' or 'published'. Drafts never reach a visitor. */
     status: varchar("status", { length: 20 }).notNull().default("draft"),
+    /**
+     * The admin's free featured switch. A featured post goes to the top of the
+     * Posts page and first in a front page row. Nothing is bought: featured
+     * listings and events are paid placements in their own tables, and a post
+     * has none.
+     */
+    featured: boolean("featured").notNull().default(false),
     /** Set on first publish and kept, so republishing does not re-date a post. */
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),

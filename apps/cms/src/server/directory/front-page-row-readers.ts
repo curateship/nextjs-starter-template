@@ -34,7 +34,7 @@ import {
 } from "@/server/directory/settings"
 import { eventsAccessFor, readUpcomingEvents } from "@/server/events/public"
 import { findCurrentUser } from "@/server/auth/security"
-import { newestPosts, postsAccessFor } from "@/server/posts/cards"
+import { frontPageRowPosts, postsAccessFor } from "@/server/posts/cards"
 import { listedDealsAt } from "@/server/promotions/deal-view"
 import { dealsAccessFor, readNewestDeals } from "@/server/promotions/public"
 import { categories } from "@/server/directory/schema"
@@ -413,7 +413,7 @@ export async function readPostsRow(
   const site = await siteById(workspaceId, database)
   if (!site) return null
 
-  const posts = await newestPosts(
+  const posts = await frontPageRowPosts(
     workspaceId,
     row.count,
     row.categoryId,

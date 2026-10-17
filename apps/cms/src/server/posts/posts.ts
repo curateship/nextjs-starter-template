@@ -8,6 +8,7 @@ import {
   postListingIds,
   type PostBody,
 } from "@/lib/posts/post-body"
+import type { ListingViewRange } from "@/lib/directory/listing-sort"
 import type { PostSortColumn } from "@/lib/posts/post-sort"
 import { readMinutes } from "@/lib/posts/read-time"
 import {
@@ -42,6 +43,7 @@ import {
   POST_CONTENT_TYPE,
   type PostRow,
 } from "@/server/posts/schema"
+import { POST_PATH_PREFIX, postViewTotals } from "@/server/posts/views"
 
 /**
  * The admin's side of posts. Every read and write takes the site first and
@@ -64,13 +66,21 @@ export type SitePost = {
   summary: string
   body: PostBody
   status: PostStatus
+  /** The free featured switch. No money is involved. */
+  featured: boolean
   publishedAt: Date | null
   createdAt: Date
   updatedAt: Date
 }
 
-/** A Posts screen row: the post without its body, plus its category names. */
-export type PostSummary = Omit<SitePost, "body"> & { categories: string[] }
+/**
+ * A Posts screen row: the post without its body, plus its category names and
+ * how often its page was opened in the chosen range.
+ */
+export type PostSummary = Omit<SitePost, "body"> & {
+  categories: string[]
+  views: number
+}
 
 /** A listing as the editor's card picker and card preview show it. */
 export type ListingChoice = {
@@ -91,6 +101,7 @@ function toPost(row: PostRow): SitePost {
     summary: row.summary,
     body: cleanPostBody(row.body),
     status: row.status === "published" ? "published" : "draft",
+    featured: row.featured,
     publishedAt: row.publishedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -132,6 +143,8 @@ export async function listPosts(
     status?: PostStatus
     sort?: PostSortColumn
     direction?: "asc" | "desc"
+    /** Which window the Views column counts. All time when left out. */
+    viewDays?: ListingViewRange
     limit?: number
     offset?: number
   } = {},
@@ -153,28 +166,47 @@ export async function listPosts(
   if (options.status) filters.push(eq(sitePosts.status, options.status))
   const where = and(...filters)
 
-  const order = options.direction === "asc" ? asc : desc
   const sort = options.sort ?? "updated"
+  // Newest or biggest first when no direction is given, which is what the
+  // screen's arrow shows on a fresh list.
+  const direction = options.direction ?? "desc"
+  const order = direction === "asc" ? asc : desc
+  // Counted here rather than in the browser, because the page holds one page
+  // of posts: sorting what already arrived would shuffle those rows and leave
+  // the rest of the list where it was.
+  const viewTotals = postViewTotals(
+    workspaceId,
+    options.viewDays ?? "all",
+    database
+  )
+  const views = sql<number>`coalesce(${viewTotals.views}, 0)::int`.mapWith(
+    Number
+  )
   const ordering =
     sort === "published"
       ? // A draft has no date, so drafts go last whichever way the list runs.
         [
-          sql`${sitePosts.publishedAt} ${sql.raw(options.direction === "asc" ? "ASC" : "DESC")} NULLS LAST`,
+          sql`${sitePosts.publishedAt} ${sql.raw(direction === "asc" ? "ASC" : "DESC")} NULLS LAST`,
         ]
       : [
           order(
             {
               title: sitePosts.title,
               status: sitePosts.status,
+              views,
               updated: sitePosts.updatedAt,
             }[sort]
           ),
         ]
 
-  const [rows, [countRow]] = await Promise.all([
+  const [found, [countRow]] = await Promise.all([
     database
-      .select()
+      .select({ row: sitePosts, views })
       .from(sitePosts)
+      .leftJoin(
+        viewTotals,
+        eq(viewTotals.key, sql`${POST_PATH_PREFIX} || ${sitePosts.slug}`)
+      )
       .where(where)
       // The id breaks ties, so a page boundary never shows a post twice.
       .orderBy(...ordering, asc(sitePosts.id))
@@ -189,13 +221,13 @@ export async function listPosts(
   const names = await categoryNamesFor(
     workspaceId,
     POST_CONTENT_TYPE,
-    rows.map((row) => row.id),
+    found.map(({ row }) => row.id),
     database
   )
   return {
-    posts: rows.map((row) => {
+    posts: found.map(({ row, views }) => {
       const { body: _body, ...rest } = toPost(row)
-      return { ...rest, categories: names.get(row.id) ?? [] }
+      return { ...rest, categories: names.get(row.id) ?? [], views }
     }),
     total: countRow?.total ?? 0,
   }
@@ -263,6 +295,8 @@ export async function updatePost(
     summary?: string
     body?: unknown
     status?: PostStatus
+    /** The free featured switch. Nothing is bought or placed by it. */
+    featured?: boolean
   },
   database: CustomShellDb = db
 ): Promise<SitePost> {
@@ -291,6 +325,7 @@ export async function updatePost(
     // Counted on the way in, so the card query never selects a whole article.
     values.readMinutes = readMinutes(body)
   }
+  if (input.featured !== undefined) values.featured = input.featured
   if (input.status !== undefined) {
     values.status = input.status
     // The first publish dates the post; later ones keep that date.

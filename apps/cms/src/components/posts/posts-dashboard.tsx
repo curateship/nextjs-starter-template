@@ -37,7 +37,10 @@ import {
 import {
   LISTING_STATUS_FILTERS,
   LISTING_STATUS_LABELS,
+  LISTING_VIEW_RANGE_LABELS,
+  LISTING_VIEW_RANGES,
   type ListingStatusFilter,
+  type ListingViewRange,
 } from "@/lib/directory/listing-sort"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
@@ -52,17 +55,32 @@ import {
 } from "@/lib/nav/list-search"
 import { postSortDirection, type PostSortColumn } from "@/lib/posts/post-sort"
 
-const COLUMNS: SortableColumn<PostSortColumn>[] = [
-  { key: "title", label: "Post", column: "main" },
-  { key: "status", label: "Status", column: "meta" },
-  { key: "published", label: "Published", column: "meta" },
-  {
-    key: "updated",
-    label: "Updated",
-    column: "meta",
-    className: "hidden md:table-cell",
-  },
-]
+/** The Views heading names its range, in the listings screen's words. */
+function columnsFor(
+  viewDays: ListingViewRange
+): SortableColumn<PostSortColumn>[] {
+  return [
+    { key: "title", label: "Post", column: "main" },
+    { key: "status", label: "Status", column: "meta" },
+    { key: "published", label: "Published", column: "meta" },
+    {
+      key: "views",
+      label:
+        viewDays === "all"
+          ? "Views"
+          : viewDays === 365
+            ? "Year views"
+            : `${viewDays}-day views`,
+      column: "meta",
+    },
+    {
+      key: "updated",
+      label: "Updated",
+      column: "meta",
+      className: "hidden md:table-cell",
+    },
+  ]
+}
 
 /**
  * The admin's Posts screen: this site's posts, searched, filtered by status,
@@ -81,6 +99,7 @@ export function PostsDashboard({
     status?: ListingStatusFilter
     sort?: PostSortColumn
     direction?: "asc" | "desc"
+    days?: ListingViewRange
     open?: string
   }
 }) {
@@ -93,6 +112,8 @@ export function PostsDashboard({
 
   const sort = search.sort ?? "updated"
   const direction = search.direction ?? "desc"
+  const viewDays = search.days ?? "all"
+  const columns = React.useMemo(() => columnsFor(viewDays), [viewDays])
   const toggleSort = useListSort<PostSortColumn>(
     { sort, direction },
     postSortDirection
@@ -107,7 +128,7 @@ export function PostsDashboard({
     title: string | null
   } | null>(null)
 
-  const listKey = `${search.q ?? ""}|${search.status ?? ""}|${sort}|${direction}|${data.page}|${data.pageSize}`
+  const listKey = `${search.q ?? ""}|${search.status ?? ""}|${sort}|${direction}|${viewDays}|${data.page}|${data.pageSize}`
   useClearSelectionOnListChange(selection.setSelected, listKey)
 
   const visibleIds = React.useMemo(
@@ -233,6 +254,26 @@ export function PostsDashboard({
                 ))}
               </SelectContent>
             </Select>
+            <Select
+              value={String(viewDays)}
+              onValueChange={(value) =>
+                setListSearch({
+                  days: value === "all" ? undefined : Number(value),
+                  page: undefined,
+                })
+              }
+            >
+              <SelectTrigger className="w-fit" aria-label="Choose view range">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LISTING_VIEW_RANGES.map((days) => (
+                  <SelectItem key={days} value={String(days)}>
+                    {LISTING_VIEW_RANGE_LABELS[days]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <DashboardToolbarButton
               type="button"
               onClick={() => setCreating(true)}
@@ -244,7 +285,7 @@ export function PostsDashboard({
         }
         header={
           <SortableTableHeader
-            columns={COLUMNS}
+            columns={columns}
             sort={sort}
             direction={direction}
             onSort={toggleSort}
@@ -266,7 +307,7 @@ export function PostsDashboard({
             ? "No post matches that search."
             : "No posts yet. Write the first one."
         }
-        emptyColSpan={6}
+        emptyColSpan={7}
         footer={{
           type: "pagination",
           page: data.page,
@@ -307,13 +348,19 @@ export function PostsDashboard({
               </span>
             </TableCell>
             <TableCell column="meta">
-              {post.status === "published" ? (
-                <Badge variant="secondary">Published</Badge>
-              ) : (
-                <Badge variant="outline">Draft</Badge>
-              )}
+              <div className="flex items-center gap-1">
+                {post.status === "published" ? (
+                  <Badge variant="secondary">Published</Badge>
+                ) : (
+                  <Badge variant="outline">Draft</Badge>
+                )}
+                {post.featured ? (
+                  <Badge variant="outline">Featured</Badge>
+                ) : null}
+              </div>
             </TableCell>
             <TableCell column="meta">{formatDate(post.publishedAt)}</TableCell>
+            <TableCell column="meta">{post.views.toLocaleString()}</TableCell>
             <TableCell column="meta" className="hidden md:table-cell">
               {formatDate(post.updatedAt)}
             </TableCell>
