@@ -6,7 +6,7 @@ tags: ui, design-system, standards
 
 # UI standards
 
-Custom Shell (`apps/custom-shell`) is the reference implementation. Reuse its
+Custom Shell (`apps/shell`) is the reference implementation. Reuse its
 working patterns instead of inventing parallel buttons, forms, tables, cards,
 modals, loaders, or scroll areas.
 

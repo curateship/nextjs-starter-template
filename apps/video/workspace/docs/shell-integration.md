@@ -7,7 +7,7 @@ tools are Video's own.
 
 **Never edit a shell file here.** A shell file edited in Video is a fork that
 conflicts on every future merge. A change the shell needs is made in
-`apps/custom-shell` and carried over. The repo's `docs/shell/shell-and-apps.md`
+`apps/shell` and carried over. The repo's `docs/shell/shell-and-apps.md`
 is the rulebook.
 
 ## The 3 October 2026 hero background merge
@@ -134,7 +134,7 @@ with the shell's copy breaks `db:setup`, because the shell's imports
 
 ## Shell merge, 5 October 2026
 
-The shell was merged in again on 5 Oct 2026, from `apps/custom-shell` in ws-4.
+The shell was merged in again on 5 Oct 2026, from `apps/shell` in ws-4.
 Shell-origin files were replaced wholesale after each one was proved to be an
 unmodified older shell version: the app's copy was hashed and matched against
 every version of that file in the repository's history. A file with no match is
@@ -252,7 +252,7 @@ keys. The live site gets its keys from the deploy, which copies them from
 
 **One script test fails, in the shell too.** `worker-page-registry.test.mjs`
 expects a page entry without the `blocks: false` field the registry now
-writes. It fails the same way in `apps/custom-shell` and the merge did not
+writes. It fails the same way in `apps/shell` and the merge did not
 touch either file.
 
 ## Shell merge, 15 October 2026
@@ -283,4 +283,4 @@ took `/manifest.webmanifest` the same way. `scripts/setup-database.mjs` and
 **Tests.** The type check is clean. Eight tests failed only when three apps'
 suites ran at once, and pass alone. **One test fails in the shell too.** `public-branding.test.ts` expects the
 public header settings without the `menuFontSize` field the shell now writes.
-It fails the same way in `apps/custom-shell`.
+It fails the same way in `apps/shell`.

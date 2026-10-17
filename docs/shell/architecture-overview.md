@@ -1,6 +1,6 @@
 # Architecture Overview
 
-`custom-shell` is a scaffolding app.
+`shell` (the folder `apps/shell`) is a scaffolding app.
 
 Its job is to be the base UI for future admin and internal apps in this repo, so new products start from a working shell instead of rebuilding layout, navigation, theme, and shared UI from scratch.
 
@@ -49,6 +49,6 @@ test them, and how another app adopts them.
 
 ## Current Baseline
 
-Today, `custom-shell` is a small Vite + React + TypeScript app using `shadcn/ui` primitives, a shared sidebar/header layout, and a config-driven shell model through `ShellConfig`.
+Today, `shell` is a small Vite + React + TypeScript app using `shadcn/ui` primitives, a shared sidebar/header layout, and a config-driven shell model through `ShellConfig`.
 
 The current placeholder routes and demo content exist to prove the shell works. Future apps should keep the shell frame and replace the content with real product features.

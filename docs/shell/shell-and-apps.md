@@ -7,7 +7,7 @@ edits. Read it before building an app on the shell or adding an option to it.
 
 ## How apps are made, and why it constrains you
 
-A new app is a **copy of the whole `apps/custom-shell` folder**. Improvements
+A new app is a **copy of the whole `apps/shell` folder**. Improvements
 made in the shell reach those apps later by merging the shell into them — one
 way, shell → app, forever.
 
@@ -253,7 +253,7 @@ the guess that one might:
   content that names no `roles` is for admins and members only, so an app role
   sees one only when the app names it. Unset declares no roles, and every
   account is an admin or a member as before. The app's doc lives in
-  `apps/custom-shell/workspace/docs/accounts/app-roles.md`.
+  `apps/shell/workspace/docs/accounts/app-roles.md`.
 
 An app adds a step; it never replaces one of the shell's. A `kind` or a palette
 key the shell already uses is refused out loud.
@@ -367,7 +367,7 @@ Steps 1 and 2 settle most of these without touching the shell at all.
    `memberHomeRoute` and `adminRoute` already point anywhere, and every sidebar
    item already has `visible` and `roles` — a surprising amount is already
    possible without code.
-3. **Otherwise the change is made here, in custom-shell.** Add the option to the
+3. **Otherwise the change is made here, in the shell.** Add the option to the
    type with a doc comment, add its reader with **the default equal to today's
    behaviour**, and change the shell's call site to read through the reader.
 4. **Prove the shell did not change.** With the option unset: `npm run test`,

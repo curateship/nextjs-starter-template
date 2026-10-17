@@ -32,8 +32,8 @@ From the repository root, not the app folder — this is a pnpm workspace and th
 lockfile lives at the top.
 
 ```sh
-docker build --target web    --build-arg APP=custom-shell -t custom-shell-web .
-docker build --target worker --build-arg APP=custom-shell -t custom-shell-worker .
+docker build --target web    --build-arg APP=shell -t shell-web .
+docker build --target worker --build-arg APP=shell -t shell-worker .
 ```
 
 `APP` is the app's folder under `apps/`, which is also its name in
@@ -244,14 +244,14 @@ docker network create shell-check
 docker run -d --name check-db --network shell-check \
   -e POSTGRES_PASSWORD=localdev -e POSTGRES_DB=shellcheck postgres:18
 
-docker build --target web    --build-arg APP=custom-shell -t custom-shell-web .
-docker build --target worker --build-arg APP=custom-shell -t custom-shell-worker .
+docker build --target web    --build-arg APP=shell -t shell-web .
+docker build --target worker --build-arg APP=shell -t shell-worker .
 
 URL=postgresql://postgres:localdev@check-db:5432/shellcheck
 docker run -d --name check-web --network shell-check -p 3999:3000 \
-  -e CUSTOM_SHELL_DATABASE_URL=$URL custom-shell-web
+  -e CUSTOM_SHELL_DATABASE_URL=$URL shell-web
 docker run -d --name check-worker --network shell-check \
-  -e CUSTOM_SHELL_DATABASE_URL=$URL custom-shell-worker
+  -e CUSTOM_SHELL_DATABASE_URL=$URL shell-worker
 
 curl http://127.0.0.1:3999/api/health
 docker inspect --format '{{.State.Health.Status}}' check-web check-worker
@@ -262,7 +262,7 @@ Tear it down with `docker rm -f check-web check-worker check-db` and
 
 ## Checks before a release
 
-`.github/workflows/custom-shell-ci.yml` runs on every pull request touching the
+`.github/workflows/shell-ci.yml` runs on every pull request touching the
 app: lint, typecheck, tests, the web build, the worker build, and then both
 Docker images. The images are built and thrown away — nothing there pushes,
 tags, or deploys.

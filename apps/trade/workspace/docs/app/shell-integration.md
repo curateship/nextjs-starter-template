@@ -7,7 +7,7 @@ engine is Trade's own, and lives in Trade's own files.
 
 **Never edit a shell file here.** A shell file edited in Trade is a fork that
 conflicts on every future merge. A change the shell needs is made in
-`apps/custom-shell` and carried over. The repo's `docs/shell/shell-and-apps.md`
+`apps/shell` and carried over. The repo's `docs/shell/shell-and-apps.md`
 is the rulebook.
 
 ## The 3 October 2026 hero background merge
@@ -122,7 +122,7 @@ the live one, so sample data here would be sample data in production.
 
 ## Shell merge, 5 October 2026
 
-The shell was merged in again on 5 Oct 2026, from `apps/custom-shell` in ws-4.
+The shell was merged in again on 5 Oct 2026, from `apps/shell` in ws-4.
 Shell-origin files were replaced wholesale after each one was proved to be an
 unmodified older shell version: the app's copy was hashed and matched against
 every version of that file in the repository's history. A file with no match is
@@ -243,4 +243,4 @@ conflicts.
 trading screens and the exchange code, and the same 41 fail on the tree from
 before this merge. **One test fails in the shell too.** `public-branding.test.ts` expects the
 public header settings without the `menuFontSize` field the shell now writes.
-It fails the same way in `apps/custom-shell`.
+It fails the same way in `apps/shell`.

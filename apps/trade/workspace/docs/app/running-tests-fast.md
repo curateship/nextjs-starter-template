@@ -8,10 +8,10 @@ Tyler explicitly asks for a full suite in the current request.
 
 ## What it skips and why that is safe
 
-- Any test file whose path also exists in `apps/custom-shell` is the shell's
+- Any test file whose path also exists in `apps/shell` is the shell's
   test, not this app's. Those files only change during a shell merge, so a
   normal trade change cannot break them. The skip list is computed on every
-  run by comparing paths against `../custom-shell`, so a file the trade app
+  run by comparing paths against `../shell`, so a file the trade app
   later takes over is picked up again automatically.
 - No test is deleted and no assertion is weakened. Every skipped file still
   runs under plain `npm run test` with the same saved database setup.

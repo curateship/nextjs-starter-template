@@ -93,7 +93,7 @@ at beside it.
 
 ## Shell merge, 5 October 2026
 
-The shell was merged in again on 5 Oct 2026, from `apps/custom-shell` in ws-4.
+The shell was merged in again on 5 Oct 2026, from `apps/shell` in ws-4.
 Shell-origin files were replaced wholesale after each one was proved to be an
 unmodified older shell version: the app's copy was hashed and matched against
 every version of that file in the repository's history. A file with no match is
@@ -171,7 +171,7 @@ into the shell's own copy, and this merge confirms the two are identical again.
 
 ## Shell merge, 10 October 2026
 
-Done the same way as the 5 Oct merge, from `apps/custom-shell` in ws-4. 43 shell
+Done the same way as the 5 Oct merge, from `apps/shell` in ws-4. 43 shell
 files were older shell copies and were replaced, 6 new shell files arrived, and
 nothing was deleted or forked. No routes were added, so the route tree was left
 as it is.

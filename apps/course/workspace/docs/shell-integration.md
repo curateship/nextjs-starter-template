@@ -6,7 +6,7 @@ migrations and app options belong to it.
 
 ## Shell merge, 5 October 2026
 
-The shell was merged in again on 5 Oct 2026, from `apps/custom-shell` in ws-4.
+The shell was merged in again on 5 Oct 2026, from `apps/shell` in ws-4.
 Shell-origin files were replaced wholesale after each one was proved to be an
 unmodified older shell version: the app's copy was hashed and matched against
 every version of that file in the repository's history. A file with no match is
