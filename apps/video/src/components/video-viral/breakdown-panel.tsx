@@ -12,8 +12,8 @@ import {
 /**
  * What Gemini made of a saved video: its parts, its cuts and every word in it.
  *
- * Built once and mounted twice — here in the research dashboard's right panel,
- * and in the Viral page's detail window. Clicking any line jumps the player to
+ * Built once and mounted twice: under the player on a Viral project, and in
+ * the editor's Copy panel. Clicking any line jumps the player to
  * that moment, which is the whole point of reading it beside the video rather
  * than under it.
  */

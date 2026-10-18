@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { ChartNoAxesCombinedIcon, CopyIcon, Loader2Icon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { BreakdownPanel } from "@/components/video-creators/breakdown-panel"
+import { BreakdownPanel } from "@/components/video-viral/breakdown-panel"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -112,16 +112,11 @@ export function CopyPanel() {
         ) : !video ? (
           <div className="grid justify-items-center gap-3 p-4 text-center text-sm text-muted-foreground">
             <p>
-              This project copies no video. Find one that went viral on the
-              Viral page or the Creators dashboard and press Copy this. It
-              opens as a new project with the video here.
+              This project copies no video. Find one that went viral in a
+              Viral project and press Copy this under it. It opens as a new
+              project with the video here.
             </p>
-            <Button asChild variant="outline">
-              <Link to="/admin/video-viral">
-                <ChartNoAxesCombinedIcon />
-                Open Viral
-              </Link>
-            </Button>
+            <OpenViralButton viral={detail?.viral ?? null} />
           </div>
         ) : (
           <div className="grid grid-cols-[minmax(0,1fr)]">
@@ -162,11 +157,14 @@ export function CopyPanel() {
                   </Button>
                 </div>
               ) : null}
-              <Button asChild variant="ghost" size="sm" className="justify-self-start">
-                <a href={video.sourceUrl} target="_blank" rel="noreferrer noopener">
-                  Open the original
-                </a>
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {detail?.viral ? <OpenViralButton viral={detail.viral} /> : null}
+                <Button asChild variant="ghost" size="sm">
+                  <a href={video.sourceUrl} target="_blank" rel="noreferrer noopener">
+                    Open the original
+                  </a>
+                </Button>
+              </div>
             </div>
             {video.breakdown ? (
               <BreakdownPanel
@@ -185,5 +183,32 @@ export function CopyPanel() {
         )}
       </ScrollArea>
     </div>
+  )
+}
+
+/**
+ * Back to the research: the Viral project this one was copied from, with the
+ * copied video playing, or the list of Viral projects when it came from
+ * nowhere or that project was deleted.
+ */
+function OpenViralButton({ viral }: { viral: ProjectSourceDetail["viral"] }) {
+  return (
+    <Button asChild variant="outline" size="sm">
+      {viral ? (
+        <Link
+          to="/admin/video-viral/$projectId"
+          params={{ projectId: viral.projectId }}
+          search={viral.videoKey ? { video: viral.videoKey } : {}}
+        >
+          <ChartNoAxesCombinedIcon />
+          Open Viral
+        </Link>
+      ) : (
+        <Link to="/admin/video-viral">
+          <ChartNoAxesCombinedIcon />
+          Open Viral
+        </Link>
+      )}
+    </Button>
   )
 }

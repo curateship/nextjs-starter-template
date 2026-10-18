@@ -586,7 +586,9 @@ export async function createOwnedProject(
   database: CustomShellDb = db,
   folderId: string | null = null,
   /** The saved viral video the project copies, from Copy this. */
-  sourceViralVideoId: string | null = null
+  sourceViralVideoId: string | null = null,
+  /** The Viral project Copy this was pressed in. */
+  sourceViralProjectId: string | null = null
 ): Promise<ProjectItem> {
   const createdAt = now()
   const cleanedName = cleanProjectName(name)
@@ -604,6 +606,7 @@ export async function createOwnedProject(
         aspect: timeline.aspect,
         timeline,
         sourceViralVideoId,
+        sourceViralProjectId,
         createdAt,
         updatedAt: createdAt,
       })
@@ -679,8 +682,10 @@ async function insertProjectCopy(
         // series starts from the same one.
         style: source.style,
         styleMediaId: source.styleMediaId,
-        // So do the viral video it copies and its spend limit.
+        // So do the viral video it copies, the Viral project it came from,
+        // and its spend limit.
         sourceViralVideoId: source.sourceViralVideoId,
+        sourceViralProjectId: source.sourceViralProjectId,
         spendLimitCents: source.spendLimitCents,
         // The copy is its own project from version 1; it shares nothing with
         // the original after this moment, and the background worker makes its

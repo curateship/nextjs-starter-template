@@ -1,61 +1,27 @@
-# The creator research dashboard
+# Followed creators, the watch timer and saving videos
 
-`/admin/video-creators` is one screen for studying other people's videos: the
-creators you follow on the left, every video they have posted in the middle,
-and the one you picked playing on the right with an AI breakdown beside it.
-
-It is admin-only, the same as the Viral page, because the watch timer spends
-YouTube's daily allowance and each breakdown spends AI credits.
-
-## The three panels
-
-The layout is the editor's: three resizable panels, dividers you can drag, and
-sizes that come back next time. Double-clicking the empty part of a side panel
-shuts it, and a tab on the middle panel's edge opens it again. Below the wide
-breakpoint the same three stack in the same order.
-
-- **Left — creators.** An "Everyone" row, then your folders, then an "In no
-  folder" group. Each creator row shows their picture, name, follower count,
-  how many views a day their recent videos are getting, and their watch switch.
-- **Middle — what they posted.** Every video from the creators in scope, newest
-  first, 50 at a time. Clicking a folder or a creator on the left narrows this
-  list; clicking the same one again widens it back out.
-- **Right — the video.** Plays whatever is picked, with the breakdown under it
-  once there is one.
-
-Picking a creator turns the middle panel's own header into theirs: a back arrow
-out to everyone, their picture and handle, their follower count, the watch
-switch, a link to their profile and an unfollow button. That header is the
-creator's detail view, and there is no separate page for one creator. It is the
-card header itself rather than a second row under it, so the panel never has
-two header bars stacked up.
+The Creators page is gone: following creators now happens inside a Viral
+project, and how that screen works is in `viral-projects.md`. This file is
+what sits underneath it: following somebody, the timer that checks them for
+new videos, and what Save & break down downloads, spends and writes down.
 
 ## Following somebody
 
-Paste the link to their profile: a YouTube channel, a TikTok profile or an
-Instagram profile. A link to one of their videos is refused with a line saying
-so, and so is a link to any other site.
+A creator is followed from a Viral project's Creators tab, either by pressing
+Follow on a channel the search found or by pasting the link to a profile: a
+YouTube channel, a TikTok profile or an Instagram profile. A link to one of
+their videos is refused with a sentence saying so, and so is a link to any
+other site.
 
 - The handle is stored lowercased, so @Alice and @alice are one creator rather
   than two.
 - A YouTube link spends one unit of the day's YouTube allowance, to turn the
-  handle into the channel id that listing uploads needs. With no key saved, the
-  window says so and only TikTok and Instagram work.
+  handle into the channel id that listing uploads needs.
 - Their picture is fetched once and served by the app, not by the platform.
   Platform addresses expire, and asking for one tells the platform who is
   looking at whom.
-
-## Folders
-
-A creator can sit in several folders at once, which is why the folder button on
-their row opens a list of checkboxes rather than a single choice. Somebody can
-be both a competitor and worth studying for hooks.
-
-- The cog in the panel header opens the manage window: drag folders into order,
-  rename one, hide one from the panel with the eye, or delete it.
-- **Deleting a folder keeps its creators.** Only the grouping goes, and the
-  confirmation says so.
-- Names are unique per person, ignoring case, and 100 folders is the limit.
+- A creator is stored once per person and linked to each project they are in.
+  Unfollowing in the last of those projects unfollows them for good.
 
 ## The watch timer
 
@@ -95,27 +61,40 @@ button.
   not marked broken, so Save & break down on a pasted reel link should still
   work. That one has not been measured.
 
-A video already on the feed has its view and like counts updated rather than
+## Covers
+
+TikTok and Instagram hand out cover addresses that stop working after a set
+date: one saved on 2 Oct 2026 stopped on 15 Oct, and its card went blank. So
+the app keeps its own copy of each cover picture (`video_creator_posts.
+thumbnail_storage_path`, migration 0116), and every card and favourites
+collection shows that copy when there is one.
+
+- **No video is downloaded and no AI runs.** The `video-creator-covers`
+  worker takes five posts a pass. It fetches the picture from the address
+  already saved. If that address has expired, it asks yt-dlp for the post's
+  cover address as the page gives it today, with `--skip-download`. Measured
+  17 Oct 2026: 2 seconds and one 151 KB picture.
+- **It runs whether or not the watch timer is on**, because it only touches
+  posts already saved. On the local database it kept all 10 of Zach King's
+  covers in under a minute.
+- **A cover it cannot get is tried again a day later**, not on every pass.
+- **YouTube covers never expire**, so YouTube posts are left alone.
+
+A video the timer already saved has its view and like counts updated rather than
 being added again, so numbers stay current without the list piling up copies.
 
 Each person gets at most **one notice per check**, however many creators
-posted: "4 new videos from 2 creators you follow". It goes to the notification
-tray as an app activity notice, which each person can switch off in
-Settings → Notifications. A video you have already been told about never
-produces a second notice.
+posted: "4 new videos from 2 creators you follow", with "Open their project in
+Viral to watch them." It goes to the notification tray as an app activity
+notice, which each person can switch off in Settings → Notifications. A video
+you have already been told about never produces a second notice.
+
+A YouTube check counts its 2 units in the app's own tally of the day's
+allowance (`viral-projects.md`), so a busy watch timer leaves less room for
+searches and the allowance check says so.
 
 Five creators are checked per tick, so thirty creators spread their platform
 requests out instead of firing all at once and being rate-limited for it.
-
-## Watching a video
-
-**Clicking a video in the feed costs nothing.** No download, no AI call.
-
-- A **YouTube** video plays in YouTube's own embed, through the no-cookie
-  domain so looking at research does not get the viewer tracked.
-- **TikTok** and **Instagram** show the video's cover and a button out to their
-  own site. Their embeds need third-party scripts that are not worth loading to
-  watch one clip.
 
 ## Save & break down
 
@@ -136,23 +115,25 @@ Pressing it writes a row and returns straight away. A background worker then:
 **Closing the browser does not stop it.** A row left half-done by a restart is
 put back in the queue on the next tick, because its claim has expired.
 
-Pressing the button twice is one row, never two. Saving the same video from the
-Viral page and from here is also one row: both are keyed on who you are, which
-platform it is on and the platform's own id for the video.
+Pressing the button twice is one row, never two. Saving the same video from
+two projects is also one row: it is keyed on who you are, which platform it is
+on and the platform's own id for the video. The first project it was saved
+from is the one whose spend limit its AI cost counts against.
 
 ### What you get back
 
 The right panel shows the parts with their time ranges and a line on what each
 one does, then the cuts, then every word. **Clicking any of them jumps the
-player there.** That display is one component, used both here and in the Viral
-page's detail window.
+player there.** That display is one component, used under the player on a
+Viral project and in the editor's Copy panel.
 
 ### Copy this
 
 Above Save & break down sits **Copy this**. It saves and breaks the video down
 the same way, makes a new project that copies it, and opens that project in the
-editor on its Copy panel (see `project-first.md`). It works before or after the
-video is saved; a video already saved is not downloaded again.
+editor on its Copy panel (see `project-first.md` and `viral-projects.md`). It
+works before or after the video is saved; a video already saved is not
+downloaded again.
 
 ### When it fails
 
@@ -162,26 +143,32 @@ where there is one, so "this post is private" reaches the screen rather than
 
 If yt-dlp or ffmpeg is not installed, the error names the missing program.
 
+The breakdown asks `gemini-3.8-flash`. When Google answers that the model is
+"experiencing high demand", the breakdown waits 5 seconds and then 20 before
+giving up, and then says "Google is turning requests away right now — wait a
+minute and try again" rather than an error number. On 17 Oct 2026 two asks
+in three got that answer.
+
 ## What deleting keeps
 
-- **Unfollowing a creator** removes them, their folder memberships and every
-  feed row of theirs. **Any video you already saved and broke down stays**,
-  with its file and its breakdown. The confirmation says this before you press
-  it. A saved video belongs to whoever saved it, not to whoever they happened
-  to be following, which is why the archive holds the channel as plain text
-  rather than pointing at the creator.
-- **Deleting a folder** keeps the creators in it.
+- **Unfollowing a creator for good** (in the last project they are in)
+  removes them and every post of theirs the timer saved. **Any video you
+  already saved and broke down stays**, with its file and its breakdown. A
+  saved video belongs to whoever saved it, not to whoever they happened to be
+  following, which is why the archive holds the channel as plain text rather
+  than pointing at the creator.
+- **Deleting a Viral project** keeps every creator still followed in another
+  project, and every saved breakdown.
 
 There is no way to throw a saved video away yet. Everything saved stays until
 somebody adds one.
 
 ## Where the "Saved" chip comes from
 
-Nothing stores whether a feed video has been broken down. The feed joins the
-saved-videos table on the three columns both tables are unique on: owner,
-platform and the platform's video id. A video saved from the Viral page
-therefore shows as saved on the dashboard too, with nothing to keep in step and
-nothing to get out of step.
+Nothing stores whether a video has been broken down. The project screen joins
+the saved-videos table on the three columns that make a video one row: owner,
+platform and the platform's video id. A video saved from one project therefore
+shows as saved in every project, with nothing to keep in step.
 
 ## Deployment
 
@@ -193,4 +180,4 @@ nothing to get out of step.
   yt-dlp. ffmpeg must be there too, as it already is for exports. Both are on
   the development machine (yt-dlp 2026.06.09, via Homebrew); whether they are
   on the Hetzner server is still unanswered.
-- The YouTube key is the one in Settings → YouTube, shared with the Viral page.
+- The YouTube key is the one in Settings → YouTube (`viral-search.md`).
