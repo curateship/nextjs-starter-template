@@ -19,7 +19,9 @@ the sidebars or top nav".
   to add navigation directly inline from the sidebar and top navigation
   anyways."
 - **Local only for now.** Going live waits for every app to share one domain
-  and for a sign-in in front of the menu. `app-panels.md` says why.
+  and for a server of its own. `app-panels.md` says why.
+- **One password guards it.** Nothing shows until it is typed, and a sign-in
+  lasts 30 days. `sign-in.md` has the rest.
 
 ## Docs
 
@@ -32,3 +34,6 @@ the sidebars or top nav".
   top bar row that mirrors them, resizing the menu, adding, editing, renaming
   in place, dragging links between lists and sections into order, links that
   open in their own tab, the start screen, and the file the menu is kept in.
+- [Signing in](sign-in.md): the one password, where it is kept, 30-day
+  sign-ins, wrong passwords and the 15-minute lock-out, signing out, and what
+  the sign-in does not cover.

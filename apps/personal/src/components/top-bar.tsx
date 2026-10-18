@@ -8,6 +8,7 @@ import {
   ExternalLinkIcon,
   HistoryIcon,
   Loader2Icon,
+  LogOutIcon,
   MenuIcon,
   PinIcon,
   RotateCwIcon,
@@ -284,19 +285,21 @@ function StepOutItem({ label, onStep }: { label: string; onStep: () => void }) {
 }
 
 /**
- * The cog: the zoom, phone view and "Edit the menu" at every width. On a
- * phone, where the bar has no room for them, the panel's buttons are here
- * too. The recent screens, the pin places and the zoom are lists the dropdown
+ * The cog: the zoom, phone view, "Edit the menu" and Sign out at every
+ * width. On a phone, where the bar has no room for them, the panel's buttons
+ * are here too. The recent screens, the pin places and the zoom are lists the dropdown
  * steps into, since the shell's dropdown has no sub-menus.
  */
 function CogMenu({
   panel,
   editing,
   onEditingChange,
+  onSignOut,
 }: {
   panel: PanelControls
   editing: boolean
   onEditingChange: (editing: boolean) => void
+  onSignOut: () => void
 }) {
   const [view, setView] = React.useState<CogView>("main")
   const { screen } = panel
@@ -406,6 +409,11 @@ function CogMenu({
             <DropdownMenuCheckboxItem checked={editing} onCheckedChange={onEditingChange}>
               Edit the menu
             </DropdownMenuCheckboxItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onSignOut}>
+              <LogOutIcon />
+              Sign out
+            </DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>
@@ -429,6 +437,7 @@ export function TopBar({
   editing,
   onEditingChange,
   panel,
+  onSignOut,
 }: {
   menu: Menu
   /** The open link and its sub-links, or null. */
@@ -439,6 +448,7 @@ export function TopBar({
   editing: boolean
   onEditingChange: (editing: boolean) => void
   panel: PanelControls
+  onSignOut: () => void
 }) {
   const { screen } = panel
 
@@ -517,7 +527,12 @@ export function TopBar({
       </div>
       <div className="flex shrink-0 items-center justify-end gap-2 sm:max-w-80">
         <SaveState status={saveStatus} onRetry={onRetrySave} />
-        <CogMenu panel={panel} editing={editing} onEditingChange={onEditingChange} />
+        <CogMenu
+          panel={panel}
+          editing={editing}
+          onEditingChange={onEditingChange}
+          onSignOut={onSignOut}
+        />
       </div>
     </header>
   )

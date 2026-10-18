@@ -154,5 +154,5 @@ Everything here needs editing switched on.
 ## Before it goes live
 
 The menu file only exists on the dev server. A live Personal needs a small
-server for `/api/menu` and a sign-in in front of it, or anyone with the address
-could rearrange the menu.
+server for `/api/menu`, with `signInGate` from `server/sign-in.ts` in front of
+it the way `vite.config.ts` has it (`sign-in.md`).

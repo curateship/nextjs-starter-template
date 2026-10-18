@@ -5,6 +5,7 @@ import type { PlaceChoice } from "@/components/link-editor"
 import { MenuDrag } from "@/components/menu-drag"
 import { MenuActionsContext } from "@/components/menu-links"
 import { PanelFrames } from "@/components/panel-frame"
+import { SignIn } from "@/components/sign-in"
 import { Sidebar } from "@/components/sidebar"
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle"
 import { TopBar, type PanelControls } from "@/components/top-bar"
@@ -24,6 +25,7 @@ import {
 import { useMenu } from "@/lib/use-menu"
 import { useOpenScreen } from "@/lib/use-open-screen"
 import { usePanelView } from "@/lib/use-panel-view"
+import { useSession } from "@/lib/use-session"
 import { cn } from "@/lib/utils"
 
 /** Where a link can be put: the top bar, each section, and under each left-menu link. */
@@ -48,31 +50,59 @@ function placesOf(menu: Menu): PlaceChoice[] {
  * another app's screen. `workspace/docs/README.md` says what it is for.
  */
 export function App() {
-  const { loaded, reload, update, saveStatus, retrySave } = useMenu()
+  const { session, check, signIn, signOut, expired } = useSession()
+  // The menu lives above the sign-in, so a change the sign-in running out
+  // stopped is still here to save once signed in again.
+  const { loaded, reload, update, saveStatus, retrySave } = useMenu(
+    session.state === "signed-in",
+    expired
+  )
 
-  if (loaded.state !== "ready") {
-    return (
-      <main className="shell-canvas flex min-h-svh items-center justify-center p-4">
-        {loaded.state === "loading" ? (
-          <span role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2Icon className="size-4 animate-spin" />
-            Loading the menu
-          </span>
-        ) : (
-          <div role="alert" className="flex max-w-md flex-col items-start gap-3 rounded-lg border bg-card p-4 text-sm">
-            <p className="font-medium">The menu did not load.</p>
-            <p className="text-muted-foreground">{loaded.error}</p>
-            <Button size="sm" onClick={reload}>
-              Try again
-            </Button>
-          </div>
-        )}
-      </main>
-    )
+  if (session.state === "signed-out") {
+    return <SignIn passwordSet={session.passwordSet} onSignIn={signIn} onCheckAgain={check} />
+  }
+  if (session.state === "checking") return <Waiting>Checking your sign-in</Waiting>
+  if (session.state === "failed") {
+    return <Failed title="The sign-in check did not finish." error={session.error} onRetry={check} />
+  }
+  if (loaded.state === "loading") return <Waiting>Loading the menu</Waiting>
+  if (loaded.state === "failed") {
+    return <Failed title="The menu did not load." error={loaded.error} onRetry={reload} />
   }
 
   return (
-    <Personal menu={loaded.menu} update={update} saveStatus={saveStatus} retrySave={retrySave} />
+    <Personal
+      menu={loaded.menu}
+      update={update}
+      saveStatus={saveStatus}
+      retrySave={retrySave}
+      onSignOut={() => void signOut()}
+    />
+  )
+}
+
+function Waiting({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="shell-canvas flex min-h-svh items-center justify-center p-4">
+      <span role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2Icon className="size-4 animate-spin" />
+        {children}
+      </span>
+    </main>
+  )
+}
+
+function Failed({ title, error, onRetry }: { title: string; error: string; onRetry: () => void }) {
+  return (
+    <main className="shell-canvas flex min-h-svh items-center justify-center p-4">
+      <div role="alert" className="flex max-w-md flex-col items-start gap-3 rounded-lg border bg-card p-4 text-sm">
+        <p className="font-medium">{title}</p>
+        <p className="text-muted-foreground">{error}</p>
+        <Button size="sm" onClick={onRetry}>
+          Try again
+        </Button>
+      </div>
+    </main>
   )
 }
 
@@ -85,9 +115,11 @@ function Personal({
   update,
   saveStatus,
   retrySave,
+  onSignOut,
 }: {
   menu: Menu
   update: (change: (menu: Menu) => Menu) => void
+  onSignOut: () => void
 } & Pick<ReturnType<typeof useMenu>, "saveStatus" | "retrySave">) {
   const screens = useOpenScreen(startLink(menu)?.url ?? null)
   const { frames, screen, open, goHome, report } = screens
@@ -194,6 +226,7 @@ function Personal({
                 editing={editing}
                 onEditingChange={setEditing}
                 panel={panel}
+                onSignOut={onSignOut}
               />
               <main id="main-content" className="shell-canvas flex min-h-0 flex-1 flex-col">
                 <PanelFrames

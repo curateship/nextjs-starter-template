@@ -4,12 +4,13 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { defaultMenu, menuSchema, type Menu } from "../src/lib/menu"
+import { readBody, send } from "./http"
 
 /**
  * The menu lives in one JSON file on this Mac, so every browser sees the same
  * one. The dev server answers `/api/menu`: GET reads it, PUT replaces it.
- * Local only. Going live needs a sign-in in front of PUT first, or anyone with
- * the address could rearrange the menu.
+ * Both need a sign-in, which `signInGate` in `server/sign-in.ts` checks before
+ * a request reaches this file.
  */
 
 export const MENU_FILE = path.resolve(
@@ -49,24 +50,6 @@ export async function writeMenu(file: string, value: unknown): Promise<Menu> {
   return menu
 }
 
-function send(response: ServerResponse, status: number, body: unknown) {
-  response.statusCode = status
-  response.setHeader("Content-Type", "application/json")
-  response.setHeader("Cache-Control", "no-store")
-  response.end(JSON.stringify(body))
-}
-
-async function readBody(request: IncomingMessage) {
-  const chunks: Buffer[] = []
-  let size = 0
-  for await (const chunk of request) {
-    size += (chunk as Buffer).length
-    if (size > MAX_BODY_BYTES) throw new Error("too-large")
-    chunks.push(chunk as Buffer)
-  }
-  return Buffer.concat(chunks).toString("utf8")
-}
-
 /**
  * `/api/menu` for the dev server. A save must come from Personal's own page:
  * another site open in the same browser could otherwise post to this address.
@@ -93,7 +76,7 @@ export function menuApi(file: string, allowedOrigins: string[]) {
       }
       let value: unknown
       try {
-        value = JSON.parse(await readBody(request))
+        value = JSON.parse(await readBody(request, MAX_BODY_BYTES))
       } catch (error) {
         const tooLarge = error instanceof Error && error.message === "too-large"
         return send(response, tooLarge ? 413 : 400, {
