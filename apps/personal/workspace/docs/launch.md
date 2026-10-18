@@ -105,3 +105,4 @@ apps' real addresses in live's Edit the menu.
 | Date | Commit | Deployment | Notes |
 | --- | --- | --- | --- |
 | 18 Oct 2026 | `8653c6f8f` | `hlty6s2wioe3mc1ampujzk5i` (98 s) | First launch. `npm run deploy` pushed `develop` but Coolify 4.4 refused the script's GET to start the build (405), so the build was started through the Coolify connection. The script now falls back to POST. Menu copied from this Mac once (3 sections). Checked live in a browser. |
+| 18 Oct 2026 | `5a7091fab` | `ngmmo7bii0bju7ny28fkdjkw` (108 s) | No top bar: apps show their own top navigation, Personal's controls at the bottom of the menu, no notes to apps. Live code checked for the new menu parts and none of the old notes. Signed-in browser check left to Tyler. |
