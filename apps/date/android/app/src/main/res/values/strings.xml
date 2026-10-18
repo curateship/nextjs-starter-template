@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Date</string>
+    <string name="intro">This phone runs your Tinder for the Date dashboard. Date reads the screen, swipes and types in Tinder only while the switch below is on.</string>
+    <string name="server_label">Server address</string>
+    <string name="server_hint">https://your-date-site.com</string>
+    <string name="code_label">Code from the Phone screen on the dashboard</string>
+    <string name="code_hint">123456</string>
+    <string name="pair">Pair</string>
+    <string name="in_control">Date is in control</string>
+    <string name="unpair">Unpair on this phone</string>
+    <string name="accessibility_explain">Date needs the accessibility switch to read what is on the screen and to tap, swipe and type in Tinder. Turn on Date in the list that opens.</string>
+    <string name="open_accessibility">Open accessibility settings</string>
+    <string name="accessibility_description">Lets Date read what is on the screen and tap, swipe and type in Tinder for you, while the switch in the Date app is on. Date sends what it reads to your own Date server and nowhere else.</string>
+    <string name="link_service_subtype">Keeps the phone linked to the person\'s own Date server so it can carry out the Tinder actions they asked for from their dashboard while the phone is in their pocket.</string>
+    <string name="notification_channel">Date link</string>
+    <string name="notification_title">Date is linked</string>
+    <string name="notification_text">Date can use this phone while its switch is on.</string>
+</resources>

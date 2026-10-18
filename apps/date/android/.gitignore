@@ -1,0 +1,10 @@
+# What Android Studio and Gradle make while building. None of it is source.
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
