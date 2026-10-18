@@ -7,24 +7,12 @@ import { z } from "zod"
  * `workspace/docs/menu.md` explains it.
  */
 
-/** The icons a link may use. Their pictures are in `components/link-icon.tsx`. */
-export const LINK_ICONS = [
-  "layout-dashboard",
-  "list",
-  "folder",
-  "file-text",
-  "newspaper",
-  "calendar",
-  "users",
-  "inbox",
-  "chart",
-  "store",
-  "star",
-  "settings",
-  "link",
-] as const
-
-export type LinkIcon = (typeof LINK_ICONS)[number]
+/**
+ * A link's icon: any Lucide icon, kept by its name ("calendar", "octagon-x"),
+ * or none. The first menus also saved "chart", which still draws a chart. The
+ * pictures are drawn in `components/link-icon.tsx`.
+ */
+export type LinkIcon = string
 
 /** Where a link opens: the middle panel, or a tab of its own. */
 export const LINK_OPENS = ["panel", "tab"] as const
@@ -51,7 +39,12 @@ const linkSchema = z.object({
   id: z.string().min(1).max(64),
   label: z.string().trim().min(1).max(60),
   url: appUrl,
-  icon: z.enum(LINK_ICONS),
+  /** A Lucide icon's name. Missing means the link shows no icon. */
+  icon: z
+    .string()
+    .max(64)
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+    .optional(),
   /**
    * Where the link opens: the middle panel, or a tab of its own for a site
    * that refuses to be framed. Missing means the panel.

@@ -222,19 +222,13 @@ function SubLinks({ links }: { links: MenuLink[] }) {
 }
 
 function SaveState({ status, onRetry }: { status: SaveStatus; onRetry: () => void }) {
-  if (status === "idle") return null
+  // A finished save says nothing: only a save under way or one that failed shows.
+  if (status === "idle" || status === "saved") return null
   if (status === "saving") {
     return (
       <span role="status" className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Loader2Icon className="size-3.5 animate-spin" />
         Saving
-      </span>
-    )
-  }
-  if (status === "saved") {
-    return (
-      <span role="status" className="text-xs text-muted-foreground">
-        Saved
       </span>
     )
   }
@@ -496,6 +490,10 @@ export function TopBar({
           <AddLinkButton place={{ kind: "top" }} label="Add a link to the top bar" look="icon" />
         </SortableLinks>
       </nav>
+      {/* A line between the bar's own links and the buttons that work on the
+          open screen, so the + reads as the links' and Reload as the
+          screen's. Tyler asked for it on 18 Oct 2026. */}
+      <div aria-hidden className="mx-1 hidden h-5 shrink-0 border-l md:block" />
       {screen ? (
         <div className="hidden shrink-0 items-center md:flex">
           <BarButton label="Reload" onClick={panel.reload}>

@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Trash2Icon } from "lucide-react"
 
-import { LINK_ICON_PICTURES, LinkIconPicture } from "@/components/link-icon"
+import { IconPicker } from "@/components/icon-picker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import {
-  LINK_ICONS,
   LINK_OPENS,
   parseAppUrl,
   placeKey,
@@ -26,7 +25,8 @@ import {
 export type LinkDraft = {
   label: string
   url: string
-  icon: LinkIcon
+  /** A Lucide icon's name, or undefined for no icon. */
+  icon: LinkIcon | undefined
   opens: LinkOpens
   /** Whether Personal opens on this link's screen. */
   start: boolean
@@ -128,22 +128,11 @@ export function LinkEditor({
       <div className="grid grid-cols-2 gap-4">
         <div className="flex min-w-0 flex-col gap-2">
           <Label htmlFor={`${id}-icon`}>Icon</Label>
-          <Select
+          <IconPicker
+            id={`${id}-icon`}
             value={draft.icon}
-            onValueChange={(icon) => setDraft({ ...draft, icon: icon as LinkIcon })}
-          >
-            <SelectTrigger id={`${id}-icon`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LINK_ICONS.map((name) => (
-                <SelectItem key={name} value={name}>
-                  <LinkIconPicture name={name} />
-                  {LINK_ICON_PICTURES[name].label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onValueChange={(icon) => setDraft({ ...draft, icon })}
+          />
         </div>
         <div className="flex min-w-0 flex-col gap-2">
           <Label htmlFor={`${id}-place`}>Shows in</Label>

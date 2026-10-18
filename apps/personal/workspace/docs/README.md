@@ -34,8 +34,8 @@ the sidebars or top nav".
   this Mac today.
 - [The menu](menu.md): the edit switch, folding sections, sub-links and the
   top bar row that mirrors them, resizing the menu, adding, editing, renaming
-  in place, dragging links between lists and sections into order, links that
-  open in their own tab, the start screen, and the file the menu is kept in.
+  in place, choosing any Lucide icon or none, dragging links between lists and
+  sections into order, links that open in their own tab, the start screen, and the file the menu is kept in.
 - [Signing in](sign-in.md): the one password, where it is kept, 30-day
   sign-ins, wrong passwords and the 15-minute lock-out, signing out, and what
   the sign-in does not cover.

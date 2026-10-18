@@ -51,10 +51,13 @@ edited where it stands, with no settings screen.
     dropdown holds the rest.
   - The logic is `subLinksOf` in `src/lib/menu.ts`, and the row is `SubLinks`
     in `src/components/top-bar.tsx`.
-- **The top bar's own links sit at its right end**, just left of Saved and
-  the cog, with the + to add one after them while editing. The left end is
+- **The top bar's own links sit at its right end**, just left of the cog, with the + to add one after them while editing. The left end is
   kept for the sub-link row. Tyler asked for this on 16 Oct 2026: "the
   permanent top bar links should be alignd to right".
+- **A thin line stands after the top bar's links**, between them (and their +)
+  and the buttons that work on the open screen: Reload, pop-out, pin and
+  recent screens. It is a plain `border-l` in `src/components/top-bar.tsx`, so
+  it takes the theme's line colour. Tyler asked for it on 18 Oct 2026.
 - **The menu's right edge and the top bar's bottom edge are faint:** the
   theme's menu line colour at half strength (`border-sidebar-border/50` in
   `src/app.tsx` and `src/components/top-bar.tsx`). Tyler asked for them
@@ -70,6 +73,20 @@ Everything here needs editing switched on.
   top bar. Give it a name, the screen's full address (such as
   `http://localhost:3015/admin/posts`), an icon, and where it shows. "Use the
   open page" fills in the address of the screen in the middle panel.
+- **Choose a link's icon** with the Icon button in the link's form. It opens a
+  window laid out like Custom Shell's icon picker:
+  - **The grid** starts with 35 common icons. Typing in the search box searches
+    every Lucide icon by name instead, showing the first 70 that match.
+  - **The +** takes any Lucide icon by name, written as `octagon-x`,
+    `OctagonX` or a lucide.dev address. It says "Found Octagon X." when the
+    name is real and "Lucide has no icon by that name." when it isn't.
+  - **The "None" tile** leaves the link with no icon, just its name.
+  - The menu file keeps the icon's Lucide name, and leaves it out for no icon.
+    Links saved before 18 Oct keep their icons, and the old name "chart" still
+    draws the chart. The picker is `src/components/icon-picker.tsx`, the
+    names are `src/lib/link-icons.ts`, and the drawing is
+    `src/components/link-icon.tsx`: the first 14 icons draw at once, any other
+    loads the first time it shows.
 - **Add a sub-link:** hover a left-menu link and press its +. The new link goes
   at the end of that link's sub-links, which unfold to show it. "Under <link>"
   in any link's "Shows in" does the same for a link that already exists.
@@ -136,7 +153,8 @@ Everything here needs editing switched on.
 
 - **Every change saves itself.** It shows at once and is written to the file
   0.4 seconds after the last edit, so typing is one save. The top bar says
-  Saving, then Saved. A failed save says "Not saved" with the reason and a
+  Saving while it writes and nothing once it is done; Tyler had the "Saved"
+  word taken out on 18 Oct 2026. A failed save says "Not saved" with the reason and a
   Retry button, and the change stays on screen.
 - **The menu is one file on this Mac**, `apps/personal/data/menu.json`, so every
   browser sees the same menu. Git ignores it, because it is Tyler's own.
