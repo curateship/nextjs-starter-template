@@ -20,4 +20,17 @@ import type { AppServerOptions } from "@/server/app-options"
  * only walks that folder, so an endpoint declared here would be an unguarded
  * door nobody is told about.
  */
-export const appServerOptions: AppServerOptions = {}
+export const appServerOptions: AppServerOptions = {
+  background: {
+    workers: [
+      {
+        // Downloads a pasted link, looks at an upload, and analyses a video
+        // somebody pressed Analyse on, one job at a time, started without
+        // holding up the rest of the pass. Imported on the tick, not up here,
+        // so loading this file never drags yt-dlp, ffmpeg and Gemini into boot.
+        name: "note-videos",
+        tick: () => import("@/server/note/jobs").then((jobs) => jobs.tick()),
+      },
+    ],
+  },
+}

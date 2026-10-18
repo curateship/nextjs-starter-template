@@ -15,4 +15,21 @@ import type { AppOptions } from "@/lib/app-options"
  * The type is written as an annotation rather than `satisfies` so that an empty
  * object still reads as the full shape. Both catch a misspelled option.
  */
-export const appOptions: AppOptions = {}
+export const appOptions: AppOptions = {
+  notifications: {
+    /**
+     * A video notice ("Ready to analyse", "Analysed", "Failed") opens
+     * `/videos?open=<id>` with that video picked. The video it is about is
+     * kept on the server beside the notice, so it is asked for once per page
+     * of notices. A failed read only loses the links; the rows are already
+     * drawn from their own words.
+     */
+    detailsFor: async (notices) => {
+      const mine = notices.filter((notice) => notice.type === "app_activity")
+      if (!mine.length) return {}
+      const { loadVideoNoticeLinks } = await import("@/lib/api/note/notices")
+      const links = await loadVideoNoticeLinks(mine.map((notice) => notice.id)).catch(() => [])
+      return Object.fromEntries(links.map((link) => [link.id, { href: link.href }]))
+    },
+  },
+}
