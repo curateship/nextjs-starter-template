@@ -11,6 +11,7 @@ import {
   type Frames,
 } from "@/lib/frames"
 import { appUrlFromPersonalPath, DEFAULT_BRAND_NAME, personalPath } from "@/lib/menu"
+import type { PanelReport } from "@/lib/panel"
 import {
   addRecentScreen,
   readRecentScreens,
@@ -160,19 +161,6 @@ export function useOpenScreen(startUrl: string | null, appName = DEFAULT_BRAND_N
     commit(closeAll(framesRef.current))
   }, [commit, push])
 
-  /**
-   * The open frame's app didn't report changing page in time, so it can't
-   * change page itself (an older copy of the app): load the page instead.
-   */
-  const goFailed = React.useCallback(
-    (frameId: number, url: string) => {
-      if (framesRef.current.openId !== frameId) return
-      push(personalPath(url))
-      commit(reloadOpen(framesRef.current, url))
-    },
-    [commit, push]
-  )
-
   /** Loads the page the open frame is on now. */
   const reload = React.useCallback(() => commit(reloadOpen(framesRef.current)), [commit])
 
@@ -188,9 +176,9 @@ export function useOpenScreen(startUrl: string | null, appName = DEFAULT_BRAND_N
 
   /** A frame's app says it moved to `path`. */
   const report = React.useCallback(
-    (frameId: number, path: string, title: string) => {
+    (frameId: number, { path, title, canGo }: PanelReport) => {
       const before = framesRef.current.kept.find((frame) => frame.id === frameId)
-      const next = reportMove(framesRef.current, frameId, path, title)
+      const next = reportMove(framesRef.current, frameId, path, title, canGo)
       const after = next.kept.find((frame) => frame.id === frameId)
       // A page name that arrives while its frame is hidden still names the
       // screen in the recent list, without moving it up.
@@ -249,6 +237,5 @@ export function useOpenScreen(startUrl: string | null, appName = DEFAULT_BRAND_N
     back,
     forward,
     report,
-    goFailed,
   }
 }

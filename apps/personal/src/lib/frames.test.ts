@@ -23,7 +23,7 @@ describe("kept frames", () => {
   it("shows a kept frame again as it was, with no reload", () => {
     let state = openScreen(NO_FRAMES, listings)
     const first = openFrame(state)!
-    state = reportMove(state, first.id, "/admin/listings/abc", "Pasta night")
+    state = reportMove(state, first.id, "/admin/listings/abc", "Pasta night", true)
     state = openScreen(state, project)
     state = openScreen(state, listings, underListings)
     const back = openFrame(state)!
@@ -36,7 +36,7 @@ describe("kept frames", () => {
 
   it("reloads the open frame on a second click of the screen it is on", () => {
     let state = openScreen(NO_FRAMES, listings)
-    state = reportMove(state, openFrame(state)!.id, "/admin/listings", "Listings")
+    state = reportMove(state, openFrame(state)!.id, "/admin/listings", "Listings", true)
     state = openScreen(state, listings, underListings)
     const open = openFrame(state)!
     expect(open.load).toBe(1)
@@ -64,14 +64,14 @@ describe("kept frames", () => {
     let state = openScreen(NO_FRAMES, listings)
     const hidden = openFrame(state)!.id
     state = openScreen(state, project)
-    state = reportMove(state, hidden, "/admin/listings/xyz", "Taco Tuesday")
+    state = reportMove(state, hidden, "/admin/listings/xyz", "Taco Tuesday", true)
     expect(openFrame(state)!.url).toBe(project)
     expect(state.kept.find((frame) => frame.id === hidden)!.url).toBe(`${listings}/xyz`)
   })
 
   it("reloads the page the frame is on now, not the one its link opened", () => {
     let state = openScreen(NO_FRAMES, dashboard)
-    state = reportMove(state, openFrame(state)!.id, "/admin/listings/abc", "Pasta night")
+    state = reportMove(state, openFrame(state)!.id, "/admin/listings/abc", "Pasta night", true)
     state = reloadOpen(state)
     const open = openFrame(state)!
     expect(open.frameUrl).toBe(`${listings}/abc`)
@@ -98,7 +98,7 @@ describe("changing page inside the open app", () => {
   it("asks the open app to change page instead of loading a new copy", () => {
     let state = openScreen(NO_FRAMES, listings)
     const id = openFrame(state)!.id
-    state = reportMove(state, id, "/admin/listings", "Listings")
+    state = reportMove(state, id, "/admin/listings", "Listings", true)
     state = openScreen(state, `${dashboard}?tab=week`)
     const open = openFrame(state)!
     expect(state.kept).toHaveLength(1)
@@ -107,21 +107,29 @@ describe("changing page inside the open app", () => {
     expect(open.goTo).toEqual({ path: "/admin/dashboard?tab=week", n: 1 })
     // Where it is stays put until the app reports the move.
     expect(open.url).toBe(listings)
-    state = reportMove(state, id, "/admin/dashboard", "Dashboard")
+    state = reportMove(state, id, "/admin/dashboard", "Dashboard", true)
     expect(openFrame(state)!.url).toBe(dashboard)
   })
 
   it("changes page in place on a link's click when its frame has moved deeper", () => {
     let state = openScreen(NO_FRAMES, listings)
-    state = reportMove(state, openFrame(state)!.id, "/admin/listings/abc", "Pasta night")
+    state = reportMove(state, openFrame(state)!.id, "/admin/listings/abc", "Pasta night", true)
     state = openScreen(state, listings, underListings)
     expect(openFrame(state)!.load).toBe(0)
     expect(openFrame(state)!.goTo?.path).toBe("/admin/listings")
   })
 
+  it("loads the page at once in an app that doesn't take the note", () => {
+    let state = openScreen(NO_FRAMES, listings)
+    state = reportMove(state, openFrame(state)!.id, "/admin/listings", "Listings", false)
+    state = openScreen(state, dashboard)
+    expect(state.kept).toHaveLength(2)
+    expect(openFrame(state)!.goTo).toBeNull()
+  })
+
   it("still opens another app in a frame of its own", () => {
     let state = openScreen(NO_FRAMES, listings)
-    state = reportMove(state, openFrame(state)!.id, "/admin/listings", "Listings")
+    state = reportMove(state, openFrame(state)!.id, "/admin/listings", "Listings", true)
     state = openScreen(state, project)
     expect(state.kept).toHaveLength(2)
     expect(openFrame(state)!.goTo).toBeNull()

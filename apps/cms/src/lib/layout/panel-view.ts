@@ -30,6 +30,12 @@ export type PanelMessage = {
   path: string
   /** The page's name, the same one the left menu gives it. */
   title: string
+  /**
+   * This app takes the "change page" note (`PANEL_GO_TYPE`). The page around
+   * the frame only sends it to an app that says so, and loads the page the old
+   * way for any other, instead of waiting for an answer that never comes.
+   */
+  canGo: true
 }
 
 /**
@@ -78,7 +84,12 @@ export function usePanelReport(
 ) {
   React.useEffect(() => {
     if (!panelView || window.parent === window) return
-    const message: PanelMessage = { type: PANEL_MESSAGE_TYPE, path, title }
+    const message: PanelMessage = {
+      type: PANEL_MESSAGE_TYPE,
+      path,
+      title,
+      canGo: true,
+    }
     window.parent.postMessage(message, "*")
   }, [panelView, path, title])
 }

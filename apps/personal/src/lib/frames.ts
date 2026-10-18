@@ -19,10 +19,11 @@ export type Frame = {
   /** When it was last shown, to pick the one to drop past the cap. */
   shownAt: number
   /**
-   * Whether its app has reported a move. Only an app built on the shell
-   * reports, and only that app can be asked to change page itself.
+   * Whether its app said, in its last report, that it takes the "change page"
+   * note. Only then is it asked to change page itself; any other app has the
+   * page loaded the old way, at once.
    */
-  reported: boolean
+  canGo: boolean
   /**
    * A page this frame's app was asked to change to in place, with no reload.
    * `n` counts the asks, so asking for the same page twice asks twice.
@@ -63,7 +64,7 @@ function addFrame(state: Frames, url: string): Frames {
     url,
     title: "",
     shownAt: state.tick,
-    reported: false,
+    canGo: false,
     goTo: null,
   }
   let kept = [...state.kept, frame]
@@ -97,14 +98,13 @@ export function reloadOpen(state: Frames, url?: string): Frames {
 
 /** Whether the open frame's app can be asked to change to `url` itself. */
 function canGoInPlace(frame: Frame, url: string) {
-  return frame.reported && frame.url !== url && new URL(frame.url).origin === new URL(url).origin
+  return frame.canGo && frame.url !== url && new URL(frame.url).origin === new URL(url).origin
 }
 
 /**
  * Asks the open frame's app to change to `url` itself, the way a click inside
  * it would, so nothing reloads. Where the frame is stays as it was until the
- * app reports the move; `PanelFrame` loads the page the old way if no report
- * comes.
+ * app reports the move.
  */
 function goInPlace(state: Frames, frame: Frame, url: string): Frames {
   const target = new URL(url)
@@ -156,13 +156,19 @@ export function closeAll(state: Frames): Frames {
 }
 
 /** A frame's app says it moved to `path`, which it has already checked is a path. */
-export function reportMove(state: Frames, id: number, path: string, title: string): Frames {
+export function reportMove(
+  state: Frames,
+  id: number,
+  path: string,
+  title: string,
+  canGo: boolean
+): Frames {
   const frame = state.kept.find((f) => f.id === id)
   if (!frame) return state
   const url = new URL(path, new URL(frame.url).origin).href
-  if (url === frame.url && title === frame.title && frame.reported) return state
+  if (url === frame.url && title === frame.title && canGo === frame.canGo) return state
   return {
     ...state,
-    kept: state.kept.map((f) => (f.id === id ? { ...f, url, title, reported: true } : f)),
+    kept: state.kept.map((f) => (f.id === id ? { ...f, url, title, canGo } : f)),
   }
 }

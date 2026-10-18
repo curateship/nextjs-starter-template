@@ -42,10 +42,12 @@ account window and feedback still work, and open inside the frame.
 In panel view, after every move, the shell posts this to `window.parent`:
 
 ```ts
-{ type: "shell-panel", path: "/dashboard", title: "My dashboard" }
+{ type: "shell-panel", path: "/dashboard", title: "My dashboard", canGo: true }
 ```
 
-`path` is the address inside the app, without its search. `title` is the page's
+`canGo: true` says the app takes the "change page" note below; the page
+around the frame only sends that note to an app that says so. `path` is the
+address inside the app, without its search. `title` is the page's
 name from the left menu, the same one the hidden page heading uses. The page
 around the frame uses it to keep its own address and tab title in step.
 

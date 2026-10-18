@@ -16,7 +16,12 @@ const PANEL_MESSAGE_TYPE = "shell-panel"
  */
 export const PANEL_GO_TYPE = "shell-panel-go"
 
-export type PanelReport = { path: string; title: string }
+export type PanelReport = {
+  path: string
+  title: string
+  /** The app takes the "change page" note. Apps from before 18 Oct 2026 don't. */
+  canGo: boolean
+}
 
 /**
  * Reads where the framed app says it is now. Anything not from the open app's
@@ -32,7 +37,7 @@ export function readPanelReport(
   if (!frame || event.source !== frame) return null
   const data: unknown = event.data
   if (typeof data !== "object" || data === null) return null
-  const { type, path, title } = data as Record<string, unknown>
+  const { type, path, title, canGo } = data as Record<string, unknown>
   if (type !== PANEL_MESSAGE_TYPE) return null
   if (typeof path !== "string" || !path.startsWith("/") || path.startsWith("//")) {
     return null
@@ -40,5 +45,6 @@ export function readPanelReport(
   return {
     path,
     title: typeof title === "string" ? title.slice(0, 120) : "",
+    canGo: canGo === true,
   }
 }

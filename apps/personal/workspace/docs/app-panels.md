@@ -37,12 +37,14 @@ keeps its own left menu and top bar around it. The frame is
   app's router moves as if the link were clicked inside it, and its usual
   report moves Personal's address. The app adds its own history step, so
   Personal adds none, and Back steps back inside the app.
-  - It only happens for an app that has reported a move in this frame, so an
-    app not built on the shell, or one still on its sign-in page, loads the
-    page as before.
-  - An app whose copy is older than this (live Trade and CMS until they are
-    deployed) doesn't answer. If no report comes within 2.5 seconds, Personal
-    loads the page the old way.
+  - It only happens for an app whose last report said `canGo: true`, meaning
+    it takes the note. Any other app loads the page at once, as before: one
+    not built on the shell, one still on its sign-in page, or a copy older
+    than this (live Trade and CMS until they are deployed).
+  - Personal first waited 2.5 seconds for an answer from any app that
+    reported, and loaded the page if none came. Against live Trade, which
+    doesn't answer yet, that made every top-row click take over 2 seconds.
+    Tyler found it on 18 Oct 2026, and the wait was replaced by `canGo`.
   - The rule is `openScreen` in `src/lib/frames.ts`; the app side is the
     repo's `docs/shell/panel-view.md`, "The note the frame takes".
 - **Only Personal's own moves reload the frame**: a menu click on a screen in
