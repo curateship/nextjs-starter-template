@@ -120,11 +120,6 @@ import { setToastSeconds } from "@/lib/toast/toast-duration"
 import { plural } from "@/lib/format/plural"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { focusRing } from "@/lib/layout/focus-ring"
-import {
-  usePanelGo,
-  usePanelReport,
-  usePanelView,
-} from "@/lib/layout/panel-view"
 import { cn } from "@/lib/utils"
 
 // Debounce window before an edit on the settings page is auto-saved.
@@ -214,13 +209,6 @@ export function ShellLayout({
   const currentRouteId = useRouterState({
     select: (state) => state.matches.at(-1)?.routeId,
   })
-  // Another app showing this page in a frame named `shell-panel` gets the
-  // middle panel alone, with no left menu or top bar. See
-  // lib/layout/panel-view.ts.
-  const searchStr = useRouterState({
-    select: (state) => state.location.searchStr,
-  })
-  const panelView = usePanelView(searchStr)
   const navigate = useNavigate()
   const router = useRouter()
   const { account: accountTab } = useSearch({ from: "/_authenticated" })
@@ -613,14 +601,6 @@ export function ShellLayout({
       ? { "--border": dividerColor, "--sidebar-border": dividerColor }
       : {}),
   } as React.CSSProperties
-  const pageTitle = getCurrentPageTitle(
-    config,
-    currentPath,
-    currentRouteId,
-    user.role
-  )
-  usePanelReport(panelView, currentPath, pageTitle)
-  usePanelGo(panelView, (path) => void navigate({ href: path }))
   const headerLeftContent = appHeaderLeftContentForRole(user.role)
   const topLeftContent = getTopLeftContent(
     config,
@@ -638,86 +618,80 @@ export function ShellLayout({
           sidebarWidth={config.sidebarWidth}
           onSidebarWidthCommit={handleSidebarWidthCommit}
         >
-          {panelView ? null : (
-            <>
-              <a
-                href="#main-content"
-                className={cn(
-                  "sr-only fixed top-2 left-2 z-[60] rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground focus:not-sr-only",
-                  focusRing
-                )}
-                onClick={(event) => {
-                  const main = document.getElementById("main-content")
-                  if (!main) return
-                  event.preventDefault()
-                  main.focus()
-                }}
-              >
-                Skip to content
-              </a>
-              <AppSidebar
-                config={config}
-                user={user}
-                plan={plan}
-                workspaces={workspaces.workspaces}
-                baseDomain={workspaces.baseDomain}
-                copyChoices={workspaces.copyChoices}
-                viewingAsMember={Boolean(viewedBy)}
-                onLogout={handleLogout}
-              />
-            </>
-          )}
-          <SidebarInset>
-            {panelView ? null : (
-              <StickyHeader
-                navContent={
-                  headerLeftContent ? (
-                    <AppHeaderLeftContent
-                      action={headerLeftContent}
-                      role={user.role}
-                      fallback={topLeftContent}
-                    />
-                  ) : (
-                    topLeftContent
-                  )
-                }
-                rightNavItems={config.topRightNavigation}
-                role={user.role}
-                unseenNotifications={unseenNotifications}
-                liveNotifications={config.liveNotifications}
-                saveStatus={pageSaveStatus ?? saveStatus}
-                maintenanceOn={
-                  user.role === "admin" && config.maintenance.enabled
-                }
-                maintenanceBusy={maintenanceBusy}
-                automationPause={
-                  user.role === "admin" && config.automationPause.enabled
-                    ? config.automationPause
-                    : null
-                }
-                automationPauseBusy={automationPauseBusy}
-                viewingAs={
-                  viewedBy
-                    ? {
-                        memberName: user.name,
-                        memberEmail: user.email,
-                        adminName: viewedBy.name,
-                      }
-                    : null
-                }
-                onTurnOffMaintenance={() =>
-                  void handleMaintenanceChange({
-                    ...config.maintenance,
-                    enabled: false,
-                  })
-                }
-                onResumeAutomations={() =>
-                  void handleAutomationPauseChange(false)
-                }
-                onOpenFeedback={() => openFeedback()}
-                onOpenFeedbackThread={openFeedback}
-              />
+          <a
+            href="#main-content"
+            className={cn(
+              "sr-only fixed top-2 left-2 z-[60] rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground focus:not-sr-only",
+              focusRing
             )}
+            onClick={(event) => {
+              const main = document.getElementById("main-content")
+              if (!main) return
+              event.preventDefault()
+              main.focus()
+            }}
+          >
+            Skip to content
+          </a>
+          <AppSidebar
+            config={config}
+            user={user}
+            plan={plan}
+            workspaces={workspaces.workspaces}
+            baseDomain={workspaces.baseDomain}
+            copyChoices={workspaces.copyChoices}
+            viewingAsMember={Boolean(viewedBy)}
+            onLogout={handleLogout}
+          />
+          <SidebarInset>
+            <StickyHeader
+              navContent={
+                headerLeftContent ? (
+                  <AppHeaderLeftContent
+                    action={headerLeftContent}
+                    role={user.role}
+                    fallback={topLeftContent}
+                  />
+                ) : (
+                  topLeftContent
+                )
+              }
+              rightNavItems={config.topRightNavigation}
+              role={user.role}
+              unseenNotifications={unseenNotifications}
+              liveNotifications={config.liveNotifications}
+              saveStatus={pageSaveStatus ?? saveStatus}
+              maintenanceOn={
+                user.role === "admin" && config.maintenance.enabled
+              }
+              maintenanceBusy={maintenanceBusy}
+              automationPause={
+                user.role === "admin" && config.automationPause.enabled
+                  ? config.automationPause
+                  : null
+              }
+              automationPauseBusy={automationPauseBusy}
+              viewingAs={
+                viewedBy
+                  ? {
+                      memberName: user.name,
+                      memberEmail: user.email,
+                      adminName: viewedBy.name,
+                    }
+                  : null
+              }
+              onTurnOffMaintenance={() =>
+                void handleMaintenanceChange({
+                  ...config.maintenance,
+                  enabled: false,
+                })
+              }
+              onResumeAutomations={() =>
+                void handleAutomationPauseChange(false)
+              }
+              onOpenFeedback={() => openFeedback()}
+              onOpenFeedbackThread={openFeedback}
+            />
             <DashboardContent
               id="main-content"
               // Settings pages are taller than the viewport and already make
@@ -730,7 +704,12 @@ export function ShellLayout({
                   : undefined
               }
               styling={config.styling}
-              pageTitle={pageTitle}
+              pageTitle={getCurrentPageTitle(
+                config,
+                currentPath,
+                currentRouteId,
+                user.role
+              )}
             >
               {/* First cards on the page, so a broadcast rides the content
                   gutter and the workspace's own card styling. Remounted per set
