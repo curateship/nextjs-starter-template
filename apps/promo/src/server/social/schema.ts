@@ -284,6 +284,13 @@ export const promoAccounts = pgTable(
      * is meant to end. Added by `drizzle/0110_promo_new_features.sql`.
      */
     pausedAt: timestamp("paused_at", { withTimezone: true }),
+    /**
+     * When Promo last asked the phone to open this account's inbox of its
+     * own accord. An iPhone hands no notifications to the rack, so in waking
+     * hours each inbox is opened once an hour (Tyler, 18 Oct 2026). Null on
+     * an Android account. Added by `drizzle/0122_promo_iphone_promo_side.sql`.
+     */
+    inboxAskedAt: timestamp("inbox_asked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

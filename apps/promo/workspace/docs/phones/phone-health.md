@@ -18,7 +18,10 @@ phone farm.
   window shows them on its Health tab.
 - **The SIM's service** is Android's own word for it: in service, out of
   service, emergency calls only, or radio off. A phone with two SIM slots
-  counts as having a signal when either slot does.
+  counts as having a signal when either slot does. An iPhone gives the rack
+  none, and reads "Not reported", never a guess; its battery, heat, storage
+  and uptime arrive over Apple's diagnostics channel into the same reading
+  ([iPhones on the rack](iphones.md)).
 
 ## The bell
 
@@ -34,6 +37,7 @@ not one per sweep.
 | Phone has no signal | A SIM phone with no service for ten minutes. A phone on Wi-Fi never rings. | Service again. |
 | Phone storage nearly full | More than 90 out of 100 full. | 90 or less. |
 | Rack not checking in | The rack itself silent for five minutes. Once for the rack, not once per phone. | It checks in. |
+| WebDriverAgent on the rack | Within a day of the rack's WebDriverAgent signature running out ("runs out tomorrow; re-sign it in Xcode"), and once more once it has ("has run out; its iPhones are offline until it is re-signed"). Each rings once. The detail says to run `bash ~/Library/Application Support/PromoRack/wda.sh` on the rack Mac. | A check-in reports a later date. |
 
 - **The heading names the shelf slot,** such as "Phone offline: Pixel 8a in
   slot 4", so the right phone is picked up first time. A phone with no slot

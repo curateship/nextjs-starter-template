@@ -36,7 +36,7 @@ export async function queuePhoneAction(
     throw new Error("The rack has not checked in for a minute. Check the computer the phones are plugged into.")
   }
   if (phone.adbState !== "device" || !phone.lastSeenAt || now.getTime() - phone.lastSeenAt.getTime() > PHONE_STALE_MS) {
-    throw new Error("That phone is offline. Plug it in and allow USB debugging on its screen.")
+    throw new Error("That phone is offline. Plug it in and answer the question on its screen: Allow USB debugging on an Android, Trust this computer on an iPhone.")
   }
 
   const [waiting] = await db

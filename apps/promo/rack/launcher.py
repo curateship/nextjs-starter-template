@@ -172,12 +172,15 @@ def version_of(path):
     return found.group(1)
 
 
-def pair(url, code, program, name):
-    """Puts the downloaded program in place and lets it pair itself."""
+def pair(url, code, program, name, driver=""):
+    """Puts the downloaded program in place, with the iPhone driver beside it
+    when one was downloaded, and lets it pair itself."""
     version = version_of(program)
     folder = os.path.dirname(program_path(version))
     os.makedirs(folder, exist_ok=True)
     shutil.copyfile(program, program_path(version))
+    if driver and os.path.exists(driver):
+        shutil.copyfile(driver, os.path.join(folder, "iphone.py"))
     command = [sys.executable, program_path(version), "pair", "--url", url, "--code", code]
     if name:
         command += ["--name", name]
@@ -216,11 +219,12 @@ def main():
     pairing.add_argument("--code", required=True)
     pairing.add_argument("--program", required=True)
     pairing.add_argument("--name", default="")
+    pairing.add_argument("--driver", default="")
     commands.add_parser("selftest-rollback")
     arguments = parser.parse_args()
     os.makedirs(HOME, exist_ok=True)
     if arguments.command == "pair":
-        pair(arguments.url, arguments.code, arguments.program, arguments.name)
+        pair(arguments.url, arguments.code, arguments.program, arguments.name, arguments.driver)
     elif arguments.command == "selftest-rollback":
         selftest_rollback()
     else:

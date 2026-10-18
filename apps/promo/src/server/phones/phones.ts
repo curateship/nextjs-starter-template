@@ -1,9 +1,11 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm"
 
 import {
+  OLDEST_IOS,
   PHONE_STALE_MS,
   slotWords,
   type PhoneConnection,
+  type PhoneKind,
   type PhoneStatus,
   type TrackedApp,
 } from "@/lib/phones/options"
@@ -33,7 +35,9 @@ import { promoPhoneActions, promoPhones, promoPhoneSettings, promoRacks } from "
 
 export type PhoneInput = {
   name: string
+  kind: PhoneKind
   model: string
+  /** The system version, Android's or iOS's. */
   androidVersion: string
   serial: string
   simCarrier: string
@@ -72,6 +76,7 @@ async function assertOwned(
 function cleanInput(input: PhoneInput) {
   return {
     name: input.name.trim().slice(0, 120) || "Phone",
+    kind: input.kind,
     model: input.model.trim().slice(0, 120),
     androidVersion: input.androidVersion.trim().slice(0, 40),
     serial: input.serial.trim().slice(0, 120),
@@ -287,12 +292,16 @@ export function inUse(phone: { controlUntil?: Date | null }, now: Date = new Dat
  * The shelf slot is not in here: the dashboard shows it beside the status.
  */
 export function offlineReason(
-  phone: { adbState: string; lastSeenAt: Date | null; rackId: string | null },
+  phone: { kind: PhoneKind; adbState: string; lastSeenAt: Date | null; rackId: string | null },
   rackLive: boolean
 ): string {
   if (!phone.lastSeenAt || !phone.rackId) return "Never seen by the rack"
   if (!rackLive) return "Its rack is not connected"
-  if (phone.adbState === "unauthorized") return "Allow USB debugging on its screen"
+  if (phone.adbState === "unauthorized") {
+    return phone.kind === "iphone" ? "Tap Trust this computer on its screen" : "Allow USB debugging on its screen"
+  }
+  if (phone.adbState === "too_old") return `Its iOS is too old for the rack; ${OLDEST_IOS} or newer`
+  if (phone.adbState === "no_driver") return "WebDriverAgent is not running on the rack; see the Rack window"
   if (phone.adbState === "restarting") return "Restarting"
   if (phone.adbState === "gone") return "Not plugged in"
   return "Not seen for a minute"
@@ -301,7 +310,9 @@ export function offlineReason(
 export type PhoneRecord = {
   id: string
   name: string
+  kind: PhoneKind
   model: string
+  /** The system version, Android's or iOS's; `systemWords` says which. */
   androidVersion: string
   serial: string
   simCarrier: string
@@ -398,6 +409,7 @@ export async function listPhones(
     return {
       id: phone.id,
       name: phone.name,
+      kind: phone.kind,
       model: phone.model,
       androidVersion: phone.androidVersion,
       serial: phone.serial,
@@ -506,11 +518,13 @@ export async function phonesFreeFor(
       setupCheckedAt: promoPhones.setupCheckedAt,
     })
     .from(promoPhones)
-    .where(eq(promoPhones.userId, userId))
+    // An iPhone under iOS 17 is too old for the rack and takes no account (part 48).
+    .where(and(eq(promoPhones.userId, userId), sql`${promoPhones.adbState} <> 'too_old'`))
     .orderBy(asc(promoPhones.name), asc(promoPhones.id))
   const holders = await accountsByPhone(userId, phones.map((phone) => phone.id), db)
+  // The test phones of both kinds never take a real account.
   const [settings] = await db
-    .select({ testPhoneId: promoPhoneSettings.testPhoneId })
+    .select({ testPhoneId: promoPhoneSettings.testPhoneId, testPhoneIphoneId: promoPhoneSettings.testPhoneIphoneId })
     .from(promoPhoneSettings)
     .where(eq(promoPhoneSettings.id, "default"))
     .limit(1)
@@ -518,6 +532,7 @@ export async function phonesFreeFor(
     .filter(
       (phone) =>
         phone.id !== settings?.testPhoneId &&
+        phone.id !== settings?.testPhoneIphoneId &&
         (holders.get(phone.id) ?? []).every((other) => other.platform !== platform || other.id === accountId)
     )
     .map((phone) => {
@@ -550,7 +565,7 @@ export async function phoneForJob(
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<
-  | { ready: true; target: { phone: { id: string; userId: string; rackId: string; name: string } }; timeZone: string }
+  | { ready: true; target: { phone: { id: string; userId: string; rackId: string; name: string; kind: PhoneKind } }; timeZone: string }
   | { ready: false; held: true }
 > {
   const [row] = await db
@@ -571,7 +586,7 @@ export async function phoneForJob(
   }
   return {
     ready: true,
-    target: { phone: { id: phone.id, userId, rackId: phone.rackId, name: phone.name } },
+    target: { phone: { id: phone.id, userId, rackId: phone.rackId, name: phone.name, kind: phone.kind } },
     timeZone: phone.timeZone,
   }
 }

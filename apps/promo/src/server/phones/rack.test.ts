@@ -46,7 +46,7 @@ const later = (seconds: number) => new Date(T0.getTime() + seconds * 1000)
 const stamp = (at: Date) => Math.floor(at.getTime() / 1000)
 
 function device(serial: string, usb = "usb:1-1", state = "device"): ReportedPhone {
-  return { serial, state, usb, model: "Pixel 8a", android: "16" }
+  return { serial, state, usb, model: "Pixel 8a", android: "16", kind: "android" }
 }
 
 /**
@@ -234,7 +234,7 @@ describe("the rack", () => {
     it("ties a phone typed in by hand to the plugged-in phone by its serial", async () => {
       const rack = await paired()
       const id = await createPhone(userId, {
-        name: "Tyler's Galaxy", model: "Galaxy A15", androidVersion: "", serial: "A1", simCarrier: "", simNumber: "",
+        name: "Tyler's Galaxy", kind: "android", model: "Galaxy A15", androidVersion: "", serial: "A1", simCarrier: "", simNumber: "",
         connection: "sim", proxyId: null, notes: "", folderId: null, labelId: null, tags: [], shelfSlot: "",
       }, db)
       await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [device("A1")], rolledBack: null }, db, T0)
@@ -281,7 +281,7 @@ describe("the rack", () => {
       const [view] = await phoneActions(userId, phoneId, db)
       expect(view).toMatchObject({
         status: "done",
-        answer: "Settings says Android 16, the same as Android itself reports.",
+        answer: "Settings says Android 16, the same as the phone itself reports.",
         steps: ["Opened About phone", "Read Android 16"],
       })
       // Kept in R2 encrypted, never as the picture itself.

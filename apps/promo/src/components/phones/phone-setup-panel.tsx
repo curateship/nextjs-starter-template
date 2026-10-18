@@ -1,12 +1,14 @@
 import * as React from "react"
-import { CheckIcon, InfoIcon, Loader2Icon, RefreshCwIcon, Trash2Icon, XIcon } from "lucide-react"
+import { CheckIcon, CloudIcon, InfoIcon, Loader2Icon, RefreshCwIcon, Trash2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { checkIcloud, getPhoneHealthErrorMessage, loadIcloudState, type IcloudState } from "@/lib/api/phones/health"
 import { getPhoneErrorMessage, runSetupCheck, wipePhone, type PhoneRecord } from "@/lib/api/phones/phones"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
+import { storeWords } from "@/lib/phones/options"
 import type { SeenVerdict, SetupVerdict } from "@/lib/phones/setup-check"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -20,6 +22,11 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * and the language. Under them, wiping: a phone an account left needs one
  * before it takes another, and a wiped phone takes one again once its setup
  * check passes.
+ *
+ * On an iPhone (part 54), wiping needs the Apple ID signed out first, or the
+ * erased phone is locked to it. Check iCloud asks the rack to read whether
+ * one is signed in; the last answer shows beside it, and Promo refuses the
+ * wipe until a read newer than the last wipe says signed out.
  */
 export function PhoneSetupPanel({
   phone,
@@ -29,9 +36,29 @@ export function PhoneSetupPanel({
   /** The check or the wipe was asked for, so the list is read again. */
   onChanged: () => Promise<void>
 }) {
-  const [busy, setBusy] = React.useState<null | "check" | "wipe">(null)
+  const [busy, setBusy] = React.useState<null | "check" | "wipe" | "icloud">(null)
   const [confirming, setConfirming] = React.useState(false)
+  const [icloud, setIcloud] = React.useState<IcloudState | null | undefined>(undefined)
   const check = phone.setupCheck
+  const iphone = phone.kind === "iphone"
+
+  // The last iCloud read, from the phone's finished actions, so it survives a reload.
+  React.useEffect(() => {
+    if (!iphone) return
+    let live = true
+    loadIcloudState(phone.id).then(
+      (state) => {
+        if (live) setIcloud(state)
+      },
+      () => {
+        if (live) setIcloud(null)
+      }
+    )
+    return () => {
+      live = false
+    }
+  }, [iphone, phone.id, phone.setupChecking, phone.wipedAt])
+
   const checking = busy === "check" || phone.setupChecking
   const setUpSinceWipe = Boolean(
     phone.wipedAt && check?.passed && new Date(check.checkedAt).getTime() > new Date(phone.wipedAt).getTime()
@@ -45,6 +72,19 @@ export function PhoneSetupPanel({
       await onChanged()
     } catch (error) {
       showErrorToast(getPhoneErrorMessage(error))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function askIcloud() {
+    setBusy("icloud")
+    try {
+      await checkIcloud(phone.id)
+      toast.success("Asked the rack to read whether an Apple ID is signed in. The answer shows here in a minute.")
+      await onChanged()
+    } catch (error) {
+      showErrorToast(getPhoneHealthErrorMessage(error))
     } finally {
       setBusy(null)
     }
@@ -107,7 +147,8 @@ export function PhoneSetupPanel({
           ) : (
             <p className="text-sm text-muted-foreground">
               Not checked yet. Check now asks the rack to read the phone&apos;s Wi-Fi, location
-              permissions, clock, language and Play Store setting, and the address apps see.
+              permissions, clock, language and {storeWords(phone.kind).replace(/^the /, "")} setting,
+              and the address apps see.
             </p>
           )}
           <div>
@@ -149,7 +190,20 @@ export function PhoneSetupPanel({
         </CardHeader>
         <CardContent className="grid gap-4">
           <p className="text-sm text-muted-foreground">{wipeWords(phone, setUpSinceWipe)}</p>
-          <div>
+          {iphone ? (
+            <p className="text-sm text-muted-foreground">
+              {icloudWords(icloud, phone.wipedAt)} An iPhone erased while signed in to an Apple ID is
+              locked to it, so sign out on its screen first (Settings, your name, Sign Out) through
+              the screen window, then press Check iCloud.
+            </p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {iphone ? (
+              <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void askIcloud()}>
+                {busy === "icloud" ? <Loader2Icon className="animate-spin" /> : <CloudIcon />}
+                Check iCloud
+              </Button>
+            ) : null}
             <Button type="button" variant="destructive" disabled={busy !== null} onClick={() => setConfirming(true)}>
               <Trash2Icon />
               Wipe the phone
@@ -162,13 +216,29 @@ export function PhoneSetupPanel({
         open={confirming}
         onOpenChange={setConfirming}
         title={`Wipe ${phone.name}?`}
-        description="The rack factory-resets it: every app, account, photo and setting on it is erased, and USB debugging goes off. Afterwards it is held while you set it up by hand (USB debugging, Google, the apps), then release it and run its setup check. It takes an account again once that check passes."
+        description={
+          iphone
+            ? "The rack walks Settings to Erase All Content and Settings and presses it: every app, account, photo and setting on it is erased. It goes only if the rack read the phone as signed out of iCloud since its last wipe. Afterwards it is held while you set it up by hand (tap Trust this computer, sign in to an Apple ID, put the apps on from the App Store), then release it and run its setup check. It takes an account again once that check passes."
+            : "The rack factory-resets it: every app, account, photo and setting on it is erased, and USB debugging goes off. Afterwards it is held while you set it up by hand (USB debugging, Google, the apps), then release it and run its setup check. It takes an account again once that check passes."
+        }
         confirmLabel="Wipe the phone"
         loading={busy === "wipe"}
         onConfirm={() => void wipe()}
       />
     </div>
   )
+}
+
+/** The last iCloud read in words, or that there is none worth anything. */
+function icloudWords(state: IcloudState | null | undefined, wipedAt: Date | string | null): string {
+  if (state === undefined) return "Reading the last iCloud check."
+  if (!state) return "The rack has not read whether an Apple ID is signed in yet."
+  const stale = wipedAt !== null && new Date(state.checkedAt).getTime() <= new Date(wipedAt).getTime()
+  const when = formatDateTime(new Date(state.checkedAt))
+  if (stale) return `The last iCloud read, ${when}, is from before its last wipe, so it does not count.`
+  return state.signedOut
+    ? `Read as signed out of iCloud ${when}, so it can be wiped.`
+    : `Read as signed in to an Apple ID${state.appleId ? ` (${state.appleId})` : ""} ${when}, so a wipe is refused.`
 }
 
 /** One sentence on the whole check: passing, and any line that could not be read. */

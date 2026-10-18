@@ -97,7 +97,7 @@ describe("phone farm files 04 and 05", () => {
       {
         version: RACK_VERSION,
         platform: "",
-        phones: serials.map((serial) => ({ serial, state: "device", usb: "usb:1", model: `Phone ${serial}`, android: "16", timezone: "UTC" })),
+        phones: serials.map((serial) => ({ serial, state: "device", usb: "usb:1", model: `Phone ${serial}`, android: "16", kind: "android" as const, timezone: "UTC" })),
         rolledBack: null,
       },
       db
@@ -197,6 +197,7 @@ describe("phone farm files 04 and 05", () => {
       const input = {
         name: "Phone A1",
         model: "",
+        kind: "android" as const,
         androidVersion: "",
         serial: "A1",
         simCarrier: "",
@@ -573,7 +574,7 @@ describe("phone farm files 04 and 05", () => {
   describe("waiting on a phone, moves that change meanwhile, and dates", () => {
     it("calls off a phone step only while it waits its turn, and once started waits its whole time from the start", async () => {
       const { A1 } = await plugIn("A1")
-      const target = { phone: { id: A1, userId, rackId: rack.id, name: "Phone A1" } }
+      const target = { phone: { id: A1, userId, rackId: rack.id, name: "Phone A1", kind: "android" as const } }
       const realNow = Date.now.bind(Date)
       let ahead = 0
       const clock = vi.spyOn(Date, "now").mockImplementation(() => realNow() + ahead)

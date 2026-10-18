@@ -69,7 +69,7 @@ describe("jobs on phones", () => {
       {
         version: RACK_VERSION,
         platform: "",
-        phones: serials.map((serial) => ({ serial, state: "device", usb: "usb:1", model: `Phone ${serial}`, android: "16", timezone: "UTC" })),
+        phones: serials.map((serial) => ({ serial, state: "device", usb: "usb:1", model: `Phone ${serial}`, android: "16", kind: "android" as const, timezone: "UTC" })),
         rolledBack: null,
       },
       db
@@ -386,6 +386,33 @@ describe("jobs on phones", () => {
       expect(comments).toHaveLength(1)
     }, 30_000)
 
+    it("judges an iPhone's step by the iPhone self-test, so a step broken on Android still runs on an iPhone", { timeout: 30_000 }, async () => {
+      await checkIn(
+        rack,
+        {
+          version: RACK_VERSION,
+          platform: "",
+          phones: [{ serial: "I1", state: "device", usb: "usb:1", model: "iPhone 12", android: "17.6", kind: "iphone", timezone: "UTC" }],
+          rolledBack: null,
+        },
+        db
+      )
+      const [iphone] = await db.select().from(promoPhones)
+      const accountId = await accountOn(iphone.id)
+      await db.insert(promoPhoneActionChecks).values([
+        { userId, action: "reddit/health", kind: "android", passed: false, step: "Open the profile", error: "Not on screen." },
+        { userId, action: "reddit/health", kind: "iphone", passed: true },
+      ])
+      await queueJob(userId, "health", { accountId }, db)
+      // The rack the test stands in for does not know the step, so the job
+      // fails on the rack's words, never on a refusal: the step reached the iPhone.
+      const fake = fakeRack(unknown)
+      const result = await runOneJob("phone-lane", db, "phone")
+      await fake.stop()
+      expect(fake.seen.map((one) => [one.action, one.serial])).toContainEqual(["reddit/health", "I1"])
+      expect(result).toMatchObject({ did: "job", ok: false, error: "This rack does not know the action reddit/health." })
+    })
+
     it("refuses a job whose action the self-test found broken, before anything reaches the phone", { timeout: 30_000 }, async () => {
       const { A1 } = await plugIn("A1")
       const accountId = await accountOn(A1)
@@ -424,14 +451,25 @@ describe("the rack's settings", () => {
   })
 
   it("saves the numbers and refuses one out of range in words", async () => {
-    expect(await readPhoneSettings(db)).toEqual({ maxWorking: 5, screenshotDays: 7, pausedAt: null, testPhoneId: null })
-    await savePhoneSettings({ maxWorking: 8, screenshotDays: 30 }, db)
-    expect(await readPhoneSettings(db)).toMatchObject({ maxWorking: 8, screenshotDays: 30 })
-    await expect(savePhoneSettings({ maxWorking: 0, screenshotDays: 30 }, db)).rejects.toThrow(
+    expect(await readPhoneSettings(db)).toEqual({
+      maxWorking: 5,
+      screenshotDays: 7,
+      shelfRows: 2,
+      shelfColumns: 5,
+      pausedAt: null,
+      testPhoneId: null,
+      testPhoneIphoneId: null,
+    })
+    await savePhoneSettings({ maxWorking: 8, screenshotDays: 30, shelfRows: 3, shelfColumns: 4 }, db)
+    expect(await readPhoneSettings(db)).toMatchObject({ maxWorking: 8, screenshotDays: 30, shelfRows: 3, shelfColumns: 4 })
+    await expect(savePhoneSettings({ maxWorking: 0, screenshotDays: 30, shelfRows: 2, shelfColumns: 5 }, db)).rejects.toThrow(
       "The number of phones has to be a whole number from 1 to 50."
     )
-    await expect(savePhoneSettings({ maxWorking: 5, screenshotDays: 91 }, db)).rejects.toThrow(
+    await expect(savePhoneSettings({ maxWorking: 5, screenshotDays: 91, shelfRows: 2, shelfColumns: 5 }, db)).rejects.toThrow(
       "The days has to be a whole number from 1 to 90."
+    )
+    await expect(savePhoneSettings({ maxWorking: 5, screenshotDays: 7, shelfRows: 0, shelfColumns: 5 }, db)).rejects.toThrow(
+      "The shelf's rows has to be a whole number from 1 to 20."
     )
   })
 })
@@ -452,7 +490,7 @@ describe("a phone's screen window", () => {
     const { code } = await createPairingCode(userId, db)
     const paired = await pairRack({ code, name: "Mac", platform: "", version: RACK_VERSION }, db)
     rack = { id: paired.rackId, userId, key: paired.key }
-    await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [{ serial: "A1", state: "device", usb: "", model: "Pixel", android: "16" }], rolledBack: null }, db)
+    await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [{ serial: "A1", state: "device", usb: "", model: "Pixel", android: "16", kind: "android" }], rolledBack: null }, db)
     phoneId = (await db.select().from(promoPhones))[0].id
   })
 
@@ -463,7 +501,7 @@ describe("a phone's screen window", () => {
   })
 
   it("asks the rack for a watched phone only, and hands the picture to the window", async () => {
-    expect(await exchangeScreens(rack, { frames: [], texts: [] }, db)).toEqual({ wanted: [], inputs: {} })
+    expect(await exchangeScreens(rack, { frames: [], texts: [] }, db)).toEqual({ wanted: [], inputs: {}, wall: [], control: [] })
     watchScreen(phoneId)
     expect((await exchangeScreens(rack, { frames: [], texts: [] }, db)).wanted).toEqual(["A1"])
 
@@ -499,7 +537,7 @@ describe("a phone's screen window", () => {
   it("refuses a window for another person's phone", async () => {
     const stranger = (await insertUser(db, { role: "admin" })).id
     const theirs = await createPhone(stranger, {
-      name: "Theirs", model: "", androidVersion: "", serial: "", simCarrier: "", simNumber: "", connection: "sim",
+      name: "Theirs", kind: "android", model: "", androidVersion: "", serial: "", simCarrier: "", simNumber: "", connection: "sim",
       proxyId: null, notes: "", folderId: null, labelId: null, tags: [], shelfSlot: "",
     }, db)
     await expect(setControl(userId, theirs, true, db)).rejects.toThrow("does not exist")

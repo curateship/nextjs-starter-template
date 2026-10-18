@@ -93,6 +93,7 @@ export async function recordSetupCheck(
   const check = buildSetupCheck(
     facts,
     {
+      kind: phone.kind,
       connection: phone.connection,
       proxy: proxyReference(proxy, tested),
       battery: { highest: battery?.highest ?? null, readings: Number(battery?.readings ?? 0) },

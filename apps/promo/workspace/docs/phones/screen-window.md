@@ -28,7 +28,11 @@ Tyler's choice, 14 Oct 2026: pictures a few times a second rather than video.
   off.
 - **Switched on,** a tap or a swipe on the picture, the Back, Home, Recent
   apps, Enter and Delete keys, and typing reach the phone. Taps are placed in
-  the phone's own pixels, whatever size the picture is drawn.
+  the phone's own pixels, whatever size the picture is drawn. On an iPhone the
+  keys read "Back (swipe)" and "App switcher (swipe)": the rack turns them
+  into the iPhone's own swipes, in from the left edge and up from the bottom
+  and hold, and a phone with a home button gets Home as a press. The key
+  names on the wire are the same for both kinds.
 - **While control is on the phone is held.** It shows Held, "In use on its
   screen", on the dashboard, and its jobs wait, so a person and a job never
   tap at once.
@@ -54,7 +58,12 @@ Tyler's choice, 14 Oct 2026: pictures a few times a second rather than video.
   message's notification instead. Texts are never written down: the code is
   kept in memory for ten minutes, and closing the window stops the reading.
   Whether a given phone model allows either way has to be tried on that
-  phone.
+  phone. On an iPhone, which gives a computer neither, the rack opens the
+  Messages app every few seconds while the window is open with control on
+  and reads the newest code off the screen; the window says so
+  ([iPhones on the rack](iphones.md)). Promo tells the rack which watched
+  phones a person has control of in every screen reply (`control`), so
+  looking at an iPhone never opens Messages.
 
 ## Where it is
 

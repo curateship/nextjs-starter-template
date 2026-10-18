@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 import unittest
+import xml.etree.ElementTree as ElementTree
 from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -49,8 +50,8 @@ class DevicesTest(unittest.TestCase):
             "\n"
         )
         self.assertEqual(promo_rack.parse_devices(output), [
-            {"serial": "35091FDH2000A1", "state": "device", "usb": "usb:1-1.2", "model": "Pixel 8a", "android": ""},
-            {"serial": "R58N12ABCDE", "state": "unauthorized", "usb": "usb:1-1.3", "model": "", "android": ""},
+            {"serial": "35091FDH2000A1", "state": "device", "usb": "usb:1-1.2", "model": "Pixel 8a", "android": "", "kind": "android"},
+            {"serial": "R58N12ABCDE", "state": "unauthorized", "usb": "usb:1-1.3", "model": "", "android": "", "kind": "android"},
         ])
 
     def test_ignores_the_daemon_starting(self):
@@ -902,6 +903,32 @@ class AppScreensTest(unittest.TestCase):
             {"from": "sam.reads", "text": "thanks! does it work offline too?", "mine": False},
         ])
 
+    def test_a_long_android_message_taller_than_half_the_screen_is_still_a_line(self):
+        long_text = "This is a long message. " * 40
+        tall = (
+            '<hierarchy><node text="" class="android.widget.FrameLayout" package="com.instagram.android" bounds="[0,0][1080,2400]">'
+            '<node text="sam.reads" class="android.widget.TextView" package="com.instagram.android" bounds="[160,100][600,180]" />'
+            '<node text="%s" class="android.widget.TextView" package="com.instagram.android" bounds="[60,400][760,1800]" />'
+            '<node text="ok" class="android.widget.TextView" package="com.instagram.android" bounds="[420,1850][1040,1950]" />'
+            '</node></hierarchy>'
+        ) % long_text.strip()
+        conversation = promo_rack.conversation_from_screen(tall, "instagram")
+        self.assertEqual([line["text"] for line in conversation["lines"]], [long_text.strip(), "ok"])
+        comments = (
+            '<hierarchy><node text="" class="android.widget.FrameLayout" package="com.instagram.android" bounds="[0,0][1080,2400]">'
+            '<node text="quiet.maple Our new night mode is out." class="android.widget.TextView" package="com.instagram.android" bounds="[60,300][900,380]" />'
+            '<node text="sam.reads %s" class="android.widget.TextView" package="com.instagram.android" bounds="[60,400][900,1900]" />'
+            '</node></hierarchy>'
+        ) % long_text.strip()
+        self.assertEqual(
+            promo_rack.comments_from_screen(comments, "instagram", "quiet.maple"),
+            [{"author": "sam.reads", "text": long_text.strip(), "thread": "Our new night mode is out."}],
+        )
+        # The same height on an iPhone is the app's own root, not a line.
+        ios_tall = {"type": "XCUIElementTypeOther", "bounds": "[0,0][1170,2000]"}
+        self.assertTrue(promo_rack.not_a_line(ios_tall, 2532))
+        self.assertFalse(promo_rack.not_a_line({"class": "android.widget.TextView", "bounds": "[0,0][1080,2000]"}, 2400))
+
     def test_comments_leave_out_the_accounts_own_caption_which_names_the_post(self):
         comments = promo_rack.comments_from_screen(fixture(INSTAGRAM_FIXTURES, "comments.xml"), "instagram", "quiet.maple")
         self.assertEqual(comments, [
@@ -1251,6 +1278,1002 @@ class LauncherRollbackTest(unittest.TestCase):
             self.assertEqual(state.get("current"), "1.0.0")
             self.assertEqual(state["rolledBack"]["why"], "did not check in within two minutes")
             self.assertIn("2.0.0", state["failed"])
+
+
+# ---------------------------------------------------------------------------
+# iPhones (phone farm file 08 and parts 57 and 61). The driver is stood in
+# for; a real iPhone on the rack is the only proof the driver itself works.
+
+import iphone  # noqa: E402
+
+IPHONE = "00008030-000A1B2C3D4E5F67"
+
+ABOUT_SCREEN = """<hierarchy><node text="" type="XCUIElementTypeTable" bounds="[0,0][1170,2532]">
+  <node text="" type="XCUIElementTypeCell" bounds="[0,300][1170,420]">
+    <node text="Name" label="Name" type="XCUIElementTypeStaticText" bounds="[40,330][300,390]" />
+    <node text="Tyler's iPhone" label="Tyler's iPhone" type="XCUIElementTypeStaticText" bounds="[600,330][1130,390]" />
+  </node>
+  <node text="" type="XCUIElementTypeCell" bounds="[0,420][1170,540]">
+    <node text="iOS Version" label="iOS Version" type="XCUIElementTypeStaticText" bounds="[40,450][400,510]" />
+    <node text="17.6.1" label="17.6.1" type="XCUIElementTypeStaticText" bounds="[700,450][1130,510]" />
+  </node>
+  <node text="" type="XCUIElementTypeCell" bounds="[0,540][1170,660]">
+    <node text="Model Name" label="Model Name" type="XCUIElementTypeStaticText" bounds="[40,570][400,630]" />
+    <node text="iPhone 12" label="iPhone 12" type="XCUIElementTypeStaticText" bounds="[700,570][1130,630]" />
+  </node></node></hierarchy>"""
+
+MESSAGES_SCREEN = """<hierarchy><node text="" type="XCUIElementTypeTable" bounds="[0,0][1170,2532]">
+  <node text="" type="XCUIElementTypeCell" bounds="[0,300][1170,500]">
+    <node text="Reddit" label="Reddit" type="XCUIElementTypeStaticText" bounds="[40,330][300,390]" />
+    <node text="Now" label="Now" type="XCUIElementTypeStaticText" bounds="[900,330][1130,390]" />
+    <node text="Your Reddit code is 482913. Don't share it." label="Your Reddit code is 482913. Don't share it." type="XCUIElementTypeStaticText" bounds="[40,400][1130,480]" />
+  </node>
+  <node text="" type="XCUIElementTypeCell" bounds="[0,500][1170,700]">
+    <node text="Mum" label="Mum" type="XCUIElementTypeStaticText" bounds="[40,530][300,590]" />
+    <node text="Yesterday" label="Yesterday" type="XCUIElementTypeStaticText" bounds="[900,530][1130,590]" />
+    <node text="Call me on 555123456" label="Call me on 555123456" type="XCUIElementTypeStaticText" bounds="[40,600][1130,680]" />
+  </node></node></hierarchy>"""
+
+
+class FakeIphoneElement(object):
+    def __init__(self, screen, selector):
+        self.screen, self.selector = screen, selector
+
+    @property
+    def label(self):
+        return self.selector.get("text", "")
+
+    @property
+    def exists(self):
+        return self.label in self.screen.texts
+
+    @property
+    def info(self):
+        return {"bounds": {"left": 100, "top": 500, "right": 1000, "bottom": 620}, "text": self.label}
+
+    def wait(self, timeout=10):
+        return self.exists
+
+    def click(self):
+        self.screen.calls.append(("element_click", self.label))
+
+
+class FakeIphoneScreen(object):
+    """A stand-in for iphone.IphoneScreen that writes down every call."""
+
+    def __init__(self, udid, texts=(), hierarchy=""):
+        self.udid, self.texts, self.hierarchy, self.calls = udid, set(texts), hierarchy, []
+        self.alive, self.front = True, ""
+
+    def __call__(self, **selector):
+        return FakeIphoneElement(self, selector)
+
+    def answers(self):
+        self.calls.append(("answers",))
+        return self.alive
+
+    def active_app(self):
+        return self.front
+
+    def click(self, x, y):
+        self.calls.append(("click", x, y))
+
+    def swipe(self, x1, y1, x2, y2, duration=0.3):
+        self.calls.append(("swipe", x1, y1, x2, y2))
+
+    def screenshot(self):
+        return FakeImage()
+
+    def dump_hierarchy(self):
+        return self.hierarchy
+
+    def window_size(self):
+        return 1170, 2532
+
+    def press(self, key):
+        self.calls.append(("press", key))
+
+    def screen_on(self):
+        self.calls.append(("screen_on",))
+
+    def app_start(self, bundle_id):
+        self.calls.append(("app_start", bundle_id))
+
+    def app_stop(self, bundle_id):
+        self.calls.append(("app_stop", bundle_id))
+
+    def open_url(self, url):
+        self.calls.append(("open_url", url))
+
+    def send_keys(self, text, clear=False):
+        self.calls.append(("send_keys", text))
+
+
+def no_adb(*args, **kwargs):
+    raise AssertionError("adb was called for an iPhone: %r" % (args,))
+
+
+IOS_FIXTURES = os.path.join(HERE, "fixtures", "ios")
+IOS_SETTINGS = promo_rack.IOS_SETTINGS
+
+
+def ios_tree(bundle, *items, **options):
+    """An iPhone screen the way the driver converts one: the items given, one
+    under another from 500 pixels down, each (type, label) or (type, label,
+    value), or ("Cell", [lines]) where a line is words or a (type, label,
+    value) tuple. The container is a table, or a web view with web=True."""
+    from xml.sax.saxutils import quoteattr
+
+    def node(kind, label="", value="", name="", bounds=(40, 0, 1130, 0), inner="", scrollable=False):
+        name = name or (label if kind in ("NavigationBar", "Switch", "Button") else "")
+        checkable = kind in ("Switch", "CheckBox", "RadioButton")
+        return (
+            '<node text=%s label=%s name=%s value=%s type="XCUIElementType%s" class="XCUIElementType%s" package=%s '
+            'content-desc=%s checkable="%s" checked="%s" scrollable="%s" enabled="true" visible="true" bounds="[%d,%d][%d,%d]">%s</node>'
+        ) % (
+            quoteattr(label or value or name), quoteattr(label), quoteattr(name), quoteattr(value), kind, kind, quoteattr(bundle),
+            quoteattr(label), "true" if checkable else "false",
+            "true" if checkable and value in ("1", "true", "on") else "false", "true" if scrollable else "false",
+            bounds[0], bounds[1], bounds[2], bounds[3], inner,
+        )
+
+    rows = []
+    top = 500
+    for item in items:
+        kind, rest = item[0], item[1:]
+        if kind == "Cell":
+            lines = rest[0]
+            inner = ""
+            for index, line in enumerate(lines):
+                line = ("StaticText", line, "") if isinstance(line, str) else line
+                inner += node(line[0], line[1], line[2] if len(line) > 2 else "", bounds=(40, top + index * 45, 1130, top + index * 45 + 40))
+            height = 45 * len(lines) + 10
+            rows.append(node("Cell", bounds=(40, top, 1130, top + height), inner=inner))
+            top += height + 20
+        elif kind == "NavigationBar":
+            # The title bar sits at the top of the screen, whatever its place in the list.
+            rows.append(node(kind, rest[0], bounds=(0, 100, 1170, 200)))
+        else:
+            rows.append(node(kind, rest[0], rest[1] if len(rest) > 1 else "", bounds=(40, top, 1130, top + 100)))
+            top += 120
+    holder = "WebView" if options.get("web") else "Table"
+    return '<hierarchy>%s</hierarchy>' % node(
+        "Application", name=bundle, bounds=(0, 0, 1170, 2532),
+        inner=node(holder, bounds=(0, 200, 1170, 2532), inner="".join(rows), scrollable=not options.get("web")),
+    )
+
+
+class TreeIphoneElement(object):
+    """An element found the way the driver finds one: iphone.matches on the tree."""
+
+    def __init__(self, screen, selector):
+        self.screen, self.selector = screen, selector
+
+    def _node(self):
+        found = iphone.find_nodes(iphone.nodes_of(self.screen.hierarchy), self.selector)
+        return found[0] if found else None
+
+    @property
+    def exists(self):
+        return self._node() is not None
+
+    def wait(self, timeout=10):
+        return self.exists
+
+    @property
+    def info(self):
+        node = self._node()
+        if node is None:
+            raise AssertionError("Nothing matches %r" % (self.selector,))
+        return {"bounds": iphone.parse_bounds(node.get("bounds")), "text": node.get("text", "")}
+
+    def click(self):
+        bounds = self.info["bounds"]
+        self.screen.click((bounds["left"] + bounds["right"]) // 2, (bounds["top"] + bounds["bottom"]) // 2)
+
+    def clear_text(self):
+        pass
+
+    @property
+    def scroll(self):
+        screen = self.screen
+
+        class Scroll(object):
+            def forward(self, steps=None):
+                screen.calls.append(("scroll",))
+
+        return Scroll()
+
+
+class TreeIphone(FakeIphoneScreen):
+    """An iPhone whose screen is a tree read with the driver's own matcher.
+    `pages` maps a word to a screen: pressing a line with that word, opening
+    an app with that bundle id, opening that address, or holding a thumb
+    ("hold") turns to that page."""
+
+    def __init__(self, udid, pages, start, clipboard=""):
+        FakeIphoneScreen.__init__(self, udid)
+        self.pages, self.hierarchy, self.pressed, self.clipboard = pages, pages[start], [], clipboard
+
+    def __call__(self, **selector):
+        return TreeIphoneElement(self, selector)
+
+    def _turn_to(self, key):
+        if key in self.pages:
+            self.hierarchy = self.pages[key]
+
+    def click(self, x, y):
+        self.calls.append(("click", x, y))
+        chain = []
+        for node in iphone.nodes_of(self.hierarchy):
+            bounds = iphone.parse_bounds(node.get("bounds"))
+            if bounds["left"] <= x < bounds["right"] and bounds["top"] <= y < bounds["bottom"]:
+                chain.append(node)
+        # The holders (the app, its table) are not lines a thumb pressed.
+        chain = [node for node in chain if node.get("type") not in ("XCUIElementTypeApplication", "XCUIElementTypeTable", "XCUIElementTypeWebView")]
+        root = ElementTree.fromstring(self.hierarchy)
+
+        def lines_of(node):
+            """The node's own words, then its lines': a tap between a cell's
+            two lines still presses the cell, whose first line names it."""
+            candidates = [node.get("text")]
+            for element in root.iter("node"):
+                if element.get("bounds") == node.get("bounds") and element.get("type") == node.get("type"):
+                    candidates += [child.get("text") for child in element.iter("node") if child.get("text")]
+                    break
+            return [text for text in candidates if text]
+
+        words = next((text for node in reversed(chain) for text in lines_of(node)[:1]), "")
+        self.pressed.append(words)
+        # The deepest line's words name the page, else its cell's first line.
+        for node in reversed(chain):
+            page = next((text for text in lines_of(node) if text in self.pages), None)
+            if page:
+                self._turn_to(page)
+                return
+
+    def swipe(self, x1, y1, x2, y2, duration=0.3):
+        self.calls.append(("swipe", x1, y1, x2, y2, duration))
+        if (x1, y1) == (x2, y2):
+            self._turn_to("hold")
+
+    def app_start(self, bundle_id):
+        self.calls.append(("app_start", bundle_id))
+        self._turn_to(bundle_id)
+
+    def open_url(self, url):
+        self.calls.append(("open_url", url))
+        self._turn_to(url)
+
+
+class IphoneTest(unittest.TestCase):
+    def setUp(self):
+        promo_rack._KINDS.clear()
+        promo_rack._PROPS.clear()
+        promo_rack._IPHONE_SCREENS.clear()
+        promo_rack._IPHONE_WARNED.clear()
+        promo_rack._RUNNING_SERIALS.clear()
+        self.screen = FakeIphoneScreen(IPHONE)
+        promo_rack._KINDS[IPHONE] = "iphone"
+        promo_rack._IPHONE_SCREENS[IPHONE] = self.screen
+
+    def tearDown(self):
+        promo_rack._KINDS.clear()
+        promo_rack._IPHONE_SCREENS.clear()
+        promo_rack._IPHONE_WARNED.clear()
+        promo_rack._RUNNING_SERIALS.clear()
+
+    ADB_LIST = "List of devices attached\n35091FDH2000A1 device usb:1-1.2 model:Pixel_8a\n"
+
+    def test_the_list_merges_iphones_after_the_androids(self):
+        listed = [{"serial": IPHONE, "state": "device", "usb": "", "model": "iPhone 12", "android": "17.6.1", "timezone": "America/Toronto", "kind": "iphone"}]
+        props = {"ro.product.model": "Pixel 8a", "ro.build.version.release": "16", "persist.sys.timezone": "America/Toronto"}
+        with mock.patch.object(promo_rack, "adb", lambda args, serial=None, timeout=30: self.ADB_LIST), \
+                mock.patch.object(promo_rack, "shell", lambda serial, command, timeout=30: props[command.split()[-1]]), \
+                mock.patch.object(iphone, "list_iphones", lambda: listed):
+            phones = promo_rack.list_phones()
+        self.assertEqual([(phone["serial"], phone["kind"], phone["android"]) for phone in phones], [
+            ("35091FDH2000A1", "android", "16"),
+            (IPHONE, "iphone", "17.6.1"),
+        ])
+        self.assertTrue(promo_rack.is_iphone(IPHONE))
+        self.assertFalse(promo_rack.is_iphone("35091FDH2000A1"))
+        self.assertEqual(promo_rack.iphone_system_version(IPHONE), "17.6.1")
+
+    def test_a_driver_that_fails_leaves_the_androids_listed_and_is_logged_once(self):
+        def broken():
+            raise RuntimeError("pymobiledevice3 is not installed")
+
+        logged = []
+        with mock.patch.object(promo_rack, "adb", lambda args, serial=None, timeout=30: self.ADB_LIST), \
+                mock.patch.object(promo_rack, "shell", lambda serial, command, timeout=30: "x"), \
+                mock.patch.object(promo_rack, "log", logged.append), \
+                mock.patch.object(iphone, "list_iphones", broken):
+            first = promo_rack.list_phones()
+            second = promo_rack.list_phones()
+        self.assertEqual([phone["serial"] for phone in first], ["35091FDH2000A1"])
+        self.assertEqual(len(second), 1)
+        self.assertEqual(len([line for line in logged if "could not list iPhones" in line]), 1)
+        self.assertIn("pymobiledevice3 is not installed", logged[0])
+
+    def test_no_driver_file_is_no_iphones_and_no_wda_date(self):
+        with mock.patch.object(promo_rack, "iphone", None), mock.patch.object(promo_rack, "log", lambda words: None):
+            self.assertEqual(promo_rack.list_iphones_safely(), [])
+            self.assertIsNone(promo_rack.wda_expires_at())
+            with self.assertRaises(RuntimeError):
+                promo_rack.connect_screen(IPHONE)
+
+    def test_the_check_in_carries_each_phones_kind_and_when_wda_runs_out(self):
+        sent = []
+        phones = [
+            {"serial": "A1", "state": "device", "usb": "", "model": "", "android": "16", "kind": "android"},
+            {"serial": IPHONE, "state": "device", "usb": "", "model": "iPhone 12", "android": "17.6.1", "kind": "iphone"},
+        ]
+
+        def answer(config, path, payload):
+            sent.append(payload)
+            return {}
+
+        with mock.patch.object(promo_rack, "list_phones", lambda: [dict(phone) for phone in phones]), \
+                mock.patch.object(promo_rack, "take_reading", lambda serial: None), \
+                mock.patch.object(promo_rack, "load_state", lambda: {"checkedIn": promo_rack.VERSION}), \
+                mock.patch.object(promo_rack, "call", answer), \
+                mock.patch.object(iphone, "wda_expires_at", lambda: "2026-10-25T14:00:00+00:00"):
+            promo_rack.check_in({})
+        self.assertEqual([phone["kind"] for phone in sent[0]["phones"]], ["android", "iphone"])
+        self.assertEqual(sent[0]["wdaExpiresAt"], "2026-10-25T14:00:00+00:00")
+
+    def test_the_screen_routes_to_the_driver_and_never_adb(self):
+        with mock.patch.object(promo_rack, "shell", no_adb), mock.patch.object(promo_rack, "adb", no_adb), \
+                mock.patch.object(promo_rack.time, "sleep", lambda seconds: None):
+            self.assertIs(promo_rack.connect_screen(IPHONE), self.screen)
+            promo_rack.go_home(IPHONE)
+            promo_rack.go_back(IPHONE)
+            promo_rack.open_app(IPHONE, "reddit")
+            promo_rack.open_link(IPHONE, "instagram", "https://www.instagram.com/p/abc/")
+            promo_rack.type_like_a_person(IPHONE, self.screen, "hi\n")
+            promo_rack.swipe_like_a_person(IPHONE, self.screen, 500, 1800, 500, 600)
+            promo_rack.reopen_app(IPHONE, "com.reddit.Reddit")
+            self.assertEqual(promo_rack.close_not_responding(IPHONE, "reddit/comment"), "")
+        self.assertEqual(self.screen.calls[:7], [
+            ("press", "home"),
+            ("press", "back"),
+            ("app_start", "com.reddit.Reddit"),
+            ("open_url", "https://www.instagram.com/p/abc/"),
+            ("send_keys", "h"),
+            ("send_keys", "i"),
+            ("press", "enter"),
+        ])
+        self.assertEqual(self.screen.calls[7][:1], ("swipe",))
+        self.assertEqual(self.screen.calls[8:], [("app_stop", "com.reddit.Reddit"), ("app_start", "com.reddit.Reddit")])
+        self.assertEqual(promo_rack.package_for(IPHONE, "tiktok"), "com.zhiliaoapp.musically")
+        self.screen.front = "com.reddit.Reddit"
+        with mock.patch.object(promo_rack, "shell", no_adb):
+            self.assertEqual(promo_rack.foreground_package(IPHONE), "com.reddit.Reddit")
+
+    def test_a_frozen_iphone_is_one_whose_driver_does_not_answer_right_now(self):
+        with mock.patch.object(promo_rack, "shell", no_adb):
+            self.assertTrue(promo_rack.phone_answers(IPHONE))
+            self.screen.alive = False
+            self.assertFalse(promo_rack.phone_answers(IPHONE))
+        # Each answer was asked for live, never remembered from the time before.
+        self.assertEqual(self.screen.calls, [("answers",), ("answers",)])
+        self.assertEqual(promo_rack.package_for("A1", "reddit"), "com.reddit.frontpage")
+        self.assertEqual(promo_rack.action_package("phone/android-version", IPHONE), "com.apple.Preferences")
+
+    def test_the_ios_version_is_read_beside_its_label(self):
+        self.assertEqual(promo_rack.ios_version_beside_label(ABOUT_SCREEN), "17.6.1")
+        one_label = '<hierarchy><node text="iOS Version, 18.0.1" label="iOS Version, 18.0.1" type="XCUIElementTypeCell" /></hierarchy>'
+        self.assertEqual(promo_rack.ios_version_beside_label(one_label), "18.0.1")
+        self.assertIsNone(promo_rack.ios_version_beside_label('<hierarchy><node text="General" /></hierarchy>'))
+
+    def test_android_version_on_an_iphone_walks_settings_and_checks_the_phone(self):
+        self.screen.texts = {"General", "About"}
+        self.screen.hierarchy = ABOUT_SCREEN
+        promo_rack._PROPS[IPHONE] = {"model": "iPhone 12", "android": "17.6.1", "timezone": ""}
+        walk = promo_rack.Walk(IPHONE, connect=lambda serial: self.screen)
+        with mock.patch.object(promo_rack, "shell", no_adb), mock.patch.object(promo_rack.time, "sleep", lambda seconds: None):
+            result = promo_rack.action_android_version(IPHONE, {}, walk)
+        self.assertEqual(result, {"fromScreen": "17.6.1", "fromSystem": "17.6.1", "match": True, "kind": "iphone"})
+        self.assertEqual(self.screen.calls[0], ("screen_on",))
+        self.assertEqual(self.screen.calls[1], ("app_start", "com.apple.Preferences"))
+        self.assertEqual([call for call in self.screen.calls if call[0] == "click"].__len__(), 2)
+        self.assertEqual(self.screen.calls[-1], ("press", "home"))
+        self.assertEqual([step for step, _ in walk.steps], ["Opened Settings", "Open General", "Open About", "Read iOS 17.6.1"])
+
+    def test_health_and_the_minute_reading_come_from_the_driver_with_no_signal_guessed(self):
+        raw = {"batteryPercent": 64, "temperatureC": 31.5, "storageUsedPercent": 41, "signal": "not_reported", "upSeconds": 5000, "apps": None}
+        state = {"read_at": {}, "apps_at": {}, "missed": {}, "alerts": {}}
+        listed = [{"serial": IPHONE, "state": "device", "kind": "iphone", "model": "iPhone 12", "android": "17.6.1"}]
+        promo_rack._VITALS.clear()
+        with mock.patch.object(promo_rack, "adb", lambda args, serial=None, timeout=30: "List of devices attached\n"), \
+                mock.patch.object(promo_rack, "shell", no_adb), \
+                mock.patch.object(iphone, "list_iphones", lambda: listed), \
+                mock.patch.object(iphone, "app_versions", lambda udid: {"reddit": "2025.40.0"}), \
+                mock.patch.object(iphone, "vitals", lambda udid: dict(raw)):
+            promo_rack.vitals_turn(state, now=1000)
+            reading = promo_rack.take_reading(IPHONE)
+            health = promo_rack.action_health(IPHONE, {}, None)
+        self.assertEqual(reading, dict(raw, restartWhy="", apps={"reddit": "2025.40.0"}))
+        self.assertEqual(state["alerts"], {})
+        # A driver that could not read the versions says None, which is "not read", never an empty list of apps.
+        with mock.patch.object(iphone, "app_versions", lambda udid: None):
+            self.assertIsNone(promo_rack.iphone_app_versions(IPHONE))
+        self.assertEqual((health["batteryPercent"], health["signal"], health["upHours"], health["kind"]), (64, "not_reported", 1.4, "iphone"))
+
+    def test_the_windows_taps_go_through_the_driver(self):
+        with mock.patch.object(promo_rack, "shell", no_adb):
+            promo_rack.apply_input(IPHONE, {"kind": "tap", "x": 0.5, "y": 0.25}, (1170, 2532))
+            promo_rack.apply_input(IPHONE, {"kind": "swipe", "x1": 0.5, "y1": 0.8, "x2": 0.5, "y2": 0.2}, (1170, 2532))
+            promo_rack.apply_input(IPHONE, {"kind": "text", "text": "hello"}, (1170, 2532))
+            promo_rack.apply_input(IPHONE, {"kind": "key", "key": "back"}, (1170, 2532))
+            promo_rack.apply_input(IPHONE, {"kind": "key", "key": "reboot"}, (1170, 2532))
+        self.assertEqual(self.screen.calls, [
+            ("click", 585, 633),
+            ("swipe", 585, 2026, 585, 506),
+            ("send_keys", "hello"),
+            ("press", "back"),
+        ])
+
+    def test_a_texted_code_is_read_off_messages_and_the_phone_goes_home(self):
+        self.screen.hierarchy = MESSAGES_SCREEN
+        now_ms = int(time.time() * 1000)
+        self.assertEqual(promo_rack.messages_from_ios_screen(MESSAGES_SCREEN, now_ms)[0][:2], ("Reddit", "Your Reddit code is 482913. Don't share it."))
+        self.assertEqual(len(promo_rack.messages_from_ios_screen(MESSAGES_SCREEN, now_ms)), 1)
+        with mock.patch.object(promo_rack, "shell", no_adb), mock.patch.object(promo_rack.time, "sleep", lambda seconds: None):
+            self.assertEqual(promo_rack.read_texted_code(IPHONE), {"code": "482913", "from": "Reddit"})
+        self.assertEqual(self.screen.calls, [("app_start", "com.apple.MobileSMS"), ("press", "home")])
+
+    def test_a_clock_time_later_than_now_is_yesterdays(self):
+        local = lambda seconds: time.struct_time((2026, 10, 18, 9, 41, 0, 6, 291, -1))
+        now_ms = int(time.mktime((2026, 10, 18, 9, 41, 0, 0, 0, -1)) * 1000)
+        self.assertEqual(promo_rack.ios_row_time_ms("Now", now_ms, local), now_ms)
+        self.assertEqual(promo_rack.ios_row_time_ms("9:35 AM", now_ms, local), now_ms - 6 * 60 * 1000)
+        self.assertEqual(promo_rack.ios_row_time_ms("9:50 AM", now_ms, local), now_ms + 9 * 60 * 1000 - 24 * 3600 * 1000)
+
+    def test_messages_is_never_opened_while_an_action_runs_or_with_control_off(self):
+        self.screen.hierarchy = MESSAGES_SCREEN
+        promo_rack._RUNNING_SERIALS[IPHONE] = 1
+        with mock.patch.object(promo_rack, "shell", no_adb):
+            self.assertIsNone(promo_rack.read_texted_code(IPHONE))
+        self.assertEqual(self.screen.calls, [])
+        promo_rack._RUNNING_SERIALS.clear()
+        now = time.time()
+        self.assertFalse(promo_rack.may_read_texts(IPHONE, {}, now))
+        self.assertTrue(promo_rack.may_read_texts(IPHONE, {IPHONE: now - 60}, now))
+        self.assertFalse(promo_rack.may_read_texts(IPHONE, {IPHONE: now - 16 * 60}, now))
+        self.assertTrue(promo_rack.may_read_texts("A1", {}, now))
+        # Promo's own word on who has control outranks the tap reading, either way.
+        self.assertTrue(promo_rack.may_read_texts(IPHONE, {}, now, control=[IPHONE]))
+        self.assertFalse(promo_rack.may_read_texts(IPHONE, {IPHONE: now - 60}, now, control=[]))
+        # A tap or key in the last 20 seconds means someone is driving the phone, so
+        # Messages is left alone even with control on; an Android's inbox needs no screen.
+        self.assertFalse(promo_rack.may_read_texts(IPHONE, {IPHONE: now - 5}, now, control=[IPHONE]))
+        self.assertFalse(promo_rack.may_read_texts(IPHONE, {IPHONE: now - 19}, now))
+        self.assertTrue(promo_rack.may_read_texts(IPHONE, {IPHONE: now - 21}, now, control=[IPHONE]))
+        self.assertTrue(promo_rack.may_read_texts("A1", {"A1": now - 5}, now))
+        # A turn with the window open and control off takes the picture and leaves Messages alone.
+        state = {"wanted": [IPHONE], "devices": {}, "sizes": {}, "texts_read_at": {}, "warned": set()}
+        sent = []
+
+        def fake_call(config, path, payload):
+            sent.append(payload)
+            return {"wanted": [IPHONE], "inputs": {}}
+
+        with mock.patch.object(promo_rack, "call", fake_call), mock.patch.object(promo_rack, "shell", no_adb):
+            promo_rack.screen_turn({}, state)
+        self.assertEqual(sent[0]["texts"], [])
+        self.assertEqual([frame["lane"] for frame in sent[0]["frames"]], ["window"])
+        self.assertEqual(self.screen.calls, [])
+        # An older Promo names nobody: the reply had no control list.
+        self.assertIsNone(state["control"])
+        # A reply that names the phone lets the next turn read Messages, no tap needed.
+        state["texts_read_at"] = {}
+        with mock.patch.object(promo_rack, "call", lambda config, path, payload: sent.append(payload) or {"wanted": [IPHONE], "control": [IPHONE], "inputs": {}}), \
+                mock.patch.object(promo_rack, "shell", no_adb), mock.patch.object(promo_rack.time, "sleep", lambda seconds: None):
+            promo_rack.screen_turn({}, state)
+            promo_rack.screen_turn({}, state)
+        self.assertEqual(state["control"], [IPHONE])
+        self.assertEqual(sent[-1]["texts"], [{"code": "482913", "from": "Reddit", "serial": IPHONE}])
+        self.assertEqual(self.screen.calls, [("app_start", "com.apple.MobileSMS"), ("press", "home")])
+
+    def test_the_wall_gets_a_small_picture_every_five_seconds_beside_the_window(self):
+        sent = []
+        android = FakeDevice([])
+        resized = []
+
+        class WideImage(FakeImage):
+            width, height = 1080, 2400
+
+            def resize(self, size):
+                resized.append(size)
+                return self
+
+        android.screenshot = lambda: WideImage()
+        self.screen.screenshot = lambda: WideImage()
+
+        def fake_call(config, path, payload):
+            sent.append(payload)
+            return {"wanted": ["A1"], "wall": ["A1", IPHONE], "inputs": {}}
+
+        state = {"wanted": ["A1"], "wall": ["A1", IPHONE], "devices": {"A1": android}, "sizes": {}, "texts_read_at": {"A1": time.time()}, "warned": set()}
+        with mock.patch.object(promo_rack, "call", fake_call), mock.patch.object(promo_rack, "shell", no_adb):
+            gap = promo_rack.screen_turn({}, state)
+            lanes_first = [(frame["serial"], frame["lane"]) for frame in sent[-1]["frames"]]
+            promo_rack.screen_turn({}, state)
+            lanes_second = [(frame["serial"], frame["lane"]) for frame in sent[-1]["frames"]]
+            state["wall_sent_at"] = {serial: at - promo_rack.WALL_GAP_SECONDS for serial, at in state["wall_sent_at"].items()}
+            promo_rack.screen_turn({}, state)
+            lanes_third = [(frame["serial"], frame["lane"]) for frame in sent[-1]["frames"]]
+        self.assertEqual(gap, promo_rack.SCREEN_GAP_SECONDS)
+        self.assertEqual(lanes_first, [("A1", "window"), ("A1", "wall"), (IPHONE, "wall")])
+        self.assertEqual(lanes_second, [("A1", "window")])
+        self.assertEqual(lanes_third, [("A1", "window"), ("A1", "wall"), (IPHONE, "wall")])
+        self.assertIn((270, 600), resized)
+        self.assertIn((540, 1200), resized)
+        self.assertIs(state["devices"][IPHONE], self.screen)
+        # Only the wall open: slower turns, and the devices are kept.
+        state["wanted"] = []
+        with mock.patch.object(promo_rack, "call", lambda config, path, payload: {"wanted": [], "wall": [IPHONE], "inputs": {}}):
+            self.assertEqual(promo_rack.screen_turn({}, state), promo_rack.WALL_TURN_SECONDS)
+        self.assertEqual(set(state["devices"]), {IPHONE})
+
+    def test_the_log_is_posted_when_the_action_poll_asks(self):
+        sent = []
+        home = tempfile.mkdtemp()
+        path = os.path.join(home, "rack.log")
+        with open(path, "w", encoding="utf-8") as handle:
+            for index in range(350):
+                handle.write("line %d %s\n" % (index, "x" * (2100 if index == 349 else 0)))
+        with mock.patch.object(promo_rack, "LOG_PATH", path), \
+                mock.patch.object(promo_rack, "call", lambda config, path, payload: sent.append((path, payload)) or {}):
+            self.assertIsNone(promo_rack.maybe_send_log({}, {"action": None, "sendLog": False}))
+            thread = promo_rack.maybe_send_log({}, {"action": None, "sendLog": True})
+            thread.join(5)
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0][0], "/api/rack/log")
+        lines = sent[0][1]["lines"]
+        self.assertEqual(len(lines), 300)
+        self.assertEqual(lines[0], "line 50 ")
+        self.assertEqual(len(lines[-1]), 2000)
+        with mock.patch.object(promo_rack, "LOG_PATH", os.path.join(home, "missing.log")), \
+                mock.patch.object(promo_rack, "call", lambda config, path, payload: sent.append((path, payload)) or {}):
+            promo_rack.send_log({})
+        self.assertEqual(sent[-1][1], {"lines": []})
+
+    def test_an_update_writes_the_driver_beside_the_program_after_checking_it(self):
+        home = tempfile.mkdtemp()
+        source = 'VERSION = "9.9.9"\n'
+        driver = "# the driver\n"
+        release = {
+            "version": "9.9.9",
+            "source": source,
+            "sha256": promo_rack.sha256_hex(source.encode("utf-8")),
+            "driver": driver,
+            "driverSha256": promo_rack.sha256_hex(driver.encode("utf-8")),
+        }
+        with mock.patch.object(promo_rack, "HOME", home), \
+                mock.patch.object(promo_rack, "STATE_PATH", os.path.join(home, "state.json")), \
+                mock.patch.object(promo_rack, "call", lambda config, path, payload: dict(release)):
+            with self.assertRaises(SystemExit):
+                promo_rack.install_update({}, "9.9.9")
+            with open(os.path.join(home, "versions", "9.9.9", "iphone.py"), encoding="utf-8") as handle:
+                self.assertEqual(handle.read(), driver)
+            release["driverSha256"] = "0" * 64
+            with self.assertRaises(promo_rack.CallFailed):
+                promo_rack.install_update({}, "9.9.9")
+
+    def test_a_frozen_iphone_the_driver_cannot_restart_is_said_in_words(self):
+        promo_rack._RESTARTED_AT.clear()
+        asked = []
+
+        def refuse(udid):
+            asked.append(udid)
+            raise iphone.IphoneError("iPhone %s is not trusted or is locked, so it cannot be restarted" % udid)
+
+        with mock.patch.object(promo_rack, "phone_answers", lambda serial: False), \
+                mock.patch.object(promo_rack, "adb", no_adb), \
+                mock.patch.object(iphone, "restart", refuse), \
+                mock.patch.object(promo_rack, "log", lambda words: None):
+            recovered, words = promo_rack.recover_frozen(IPHONE, "reddit/comment")
+        self.assertEqual(asked, [IPHONE])
+        self.assertEqual(recovered, "")
+        self.assertIn("could not restart it", words)
+        self.assertIn("not trusted or is locked", words)
+        self.assertIn("reddit/comment was not finished", words)
+        promo_rack._RESTARTED_AT.clear()
+        promo_rack._RESTART_WHY.clear()
+
+    def test_a_frozen_iphone_is_restarted_through_the_driver_when_it_offers_that(self):
+        promo_rack._RESTARTED_AT.clear()
+        restarted = []
+        with mock.patch.object(promo_rack, "phone_answers", lambda serial: False), \
+                mock.patch.object(promo_rack, "adb", no_adb), \
+                mock.patch.object(iphone, "restart", restarted.append), \
+                mock.patch.object(promo_rack, "log", lambda words: None):
+            recovered, words = promo_rack.recover_frozen(IPHONE, "reddit/comment")
+        self.assertEqual(recovered, "phone")
+        self.assertIn("restarted it", words)
+        self.assertEqual(restarted, [IPHONE])
+        self.assertEqual([(phone["serial"], phone["state"], phone["kind"]) for phone in promo_rack.restarting_as_such([])], [(IPHONE, "restarting", "iphone")])
+        promo_rack._RESTARTED_AT.clear()
+        promo_rack._RESTART_WHY.clear()
+
+
+IOS_REDDIT, IOS_INSTAGRAM, IOS_TIKTOK = promo_rack.IOS_REDDIT, promo_rack.IOS_INSTAGRAM, promo_rack.IOS_TIKTOK
+WIFI = u"Wi‑Fi"
+
+
+def ios_fixture(name):
+    return fixture(IOS_FIXTURES, name)
+
+
+class IphoneAppsTest(unittest.TestCase):
+    """File 08, parts 51, 53, 54 and 55: the three apps, the setup check, the
+    App Store, iCloud, the wipe and Safari on an iPhone. Every screen here is
+    written from how the apps are known to look; a real iPhone is the proof."""
+
+    def setUp(self):
+        promo_rack._KINDS.clear()
+        promo_rack._PROPS.clear()
+        promo_rack._IPHONE_SCREENS.clear()
+        promo_rack._RUNNING_SERIALS.clear()
+        promo_rack._KINDS[IPHONE] = "iphone"
+        promo_rack._KINDS["A1"] = "android"
+
+    def tearDown(self):
+        promo_rack._KINDS.clear()
+        promo_rack._PROPS.clear()
+        promo_rack._IPHONE_SCREENS.clear()
+
+    def phone(self, pages, start, clipboard=""):
+        screen = TreeIphone(IPHONE, pages, start, clipboard)
+        promo_rack._IPHONE_SCREENS[IPHONE] = screen
+        return screen
+
+    def run_action(self, handler, screen, args, rehearse=False, **patches):
+        walk = promo_rack.Walk(IPHONE, rehearse=rehearse, connect=lambda serial: screen)
+        patched = [
+            mock.patch.object(promo_rack, "shell", no_adb),
+            mock.patch.object(promo_rack, "adb", no_adb),
+            mock.patch.object(promo_rack, "APP_FEED_AFTER_SECONDS", (0, 0)),
+            mock.patch.object(promo_rack, "APP_READ_FEED_SECONDS", (0, 0)),
+            mock.patch.object(promo_rack, "FEED_BEFORE_SECONDS", (0, 0)),
+            mock.patch.object(promo_rack, "FEED_AFTER_SECONDS", (0, 0)),
+            mock.patch.object(promo_rack, "POSTS_BEFORE", (0, 0)),
+            mock.patch.object(promo_rack, "READ_SECONDS", (0, 0)),
+            mock.patch.object(promo_rack, "POST_LANDED_APP_SECONDS", 0.05),
+            mock.patch.object(promo_rack, "POST_LANDED_SECONDS", 0.05),
+            mock.patch.object(promo_rack, "MEDIA_SHOW_SECONDS", 2),
+            mock.patch.object(promo_rack.time, "sleep", lambda seconds: None),
+        ] + [mock.patch.object(promo_rack, name, value) for name, value in patches.items()]
+        for patch in patched:
+            patch.start()
+        try:
+            return handler(IPHONE, args, walk), walk
+        except Exception as failure:  # Handed back with the walk.
+            return failure, walk
+        finally:
+            for patch in patched:
+                patch.stop()
+
+    # --- part 51: the apps ---------------------------------------------------
+
+    def instagram_pages(self):
+        return {
+            IOS_INSTAGRAM: ios_tree(IOS_INSTAGRAM, ("Button", "Home"), ("Button", "Create"), ("Button", "Profile")),
+            "Create": ios_tree(IOS_INSTAGRAM, ("Cell", ["IMG_0002"]), ("Cell", ["IMG_0001"]), ("Button", "Next")),
+            "IMG_0002": ios_tree(IOS_INSTAGRAM, ("Button", "Feed"), ("Button", "Next")),
+            "Next": ios_tree(IOS_INSTAGRAM, ("TextView", "Write a caption..."), ("Button", "OK"), ("Button", "Share")),
+            "Share": ios_tree(IOS_INSTAGRAM, ("StaticText", "Your post has been shared")),
+            "Profile": ios_fixture("instagram-profile.xml"),
+            "Photo by quiet.maple": ios_tree(IOS_INSTAGRAM, ("Button", "More")),
+            "More": ios_tree(IOS_INSTAGRAM, ("Button", "Copy link")),
+            "https://media.example/one-time/abc.jpg": ios_fixture("safari-image.xml"),
+            "hold": ios_tree("com.apple.mobilesafari", ("Button", "Save to Photos"), ("Button", "Copy"), web=True),
+            "Save to Photos": ios_tree("com.apple.mobilesafari", ("Button", "Allow"), web=True),
+        }
+
+    def test_an_instagram_post_from_an_iphone_goes_through_safari_and_the_apps_own_picker(self):
+        screen = self.phone(self.instagram_pages(), IOS_INSTAGRAM, clipboard="https://www.instagram.com/p/ABC123/")
+        result, walk = self.run_action(
+            promo_rack.action_app_post("instagram"), screen,
+            {"mediaUrl": "https://media.example/one-time/abc.jpg", "mediaFromSafari": True, "mediaKind": "photo", "caption": "Hi. Ok"},
+        )
+        self.assertEqual(result, {"postUrl": "https://www.instagram.com/p/ABC123/"})
+        self.assertEqual(screen.calls[1], ("open_url", "https://media.example/one-time/abc.jpg"))
+        # The long press is a swipe with no distance, held for a second.
+        holds = [call for call in screen.calls if call[0] == "swipe" and call[1:3] == call[3:5]]
+        self.assertEqual(len(holds), 1)
+        self.assertEqual(holds[0][5], promo_rack.LONG_PRESS_SECONDS)
+        self.assertEqual(screen.pressed[:2], ["Save to Photos", "Allow"])
+        self.assertEqual(screen.pressed.count("Share"), 1)
+        self.assertEqual(screen.pressed.count("IMG_0002"), 1)
+        self.assertEqual([call[1] for call in screen.calls if call[0] == "send_keys"], list("Hi. Ok"))
+        self.assertIn("Saved to Photos", [step for step, _ in walk.steps])
+        self.assertIn("Press Share", [step for step, _ in walk.steps])
+
+    def test_a_rehearsed_instagram_post_on_an_iphone_downloads_nothing_and_never_presses_share(self):
+        screen = self.phone(self.instagram_pages(), IOS_INSTAGRAM)
+        result, walk = self.run_action(promo_rack.action_app_post("instagram"), screen, {"mediaUrl": "", "mediaKind": "photo", "caption": ""}, rehearse=True)
+        self.assertEqual(result, {"postUrl": ""})
+        self.assertFalse([call for call in screen.calls if call[0] == "open_url"])
+        self.assertFalse([call for call in screen.calls if call[0] == "send_keys"])
+        self.assertNotIn("Share", screen.pressed)
+        self.assertNotIn("Save to Photos", screen.pressed)
+        self.assertIn("Press Share (found, not pressed)", [step for step, _ in walk.steps])
+        # Backing out closes the app, so no draft is left open.
+        self.assertIn(("app_stop", IOS_INSTAGRAM), screen.calls)
+
+    def test_a_post_without_the_safari_link_is_refused_before_anything_opens(self):
+        screen = self.phone(self.instagram_pages(), IOS_INSTAGRAM)
+        failure, _ = self.run_action(promo_rack.action_app_post("instagram"), screen, {"mediaUrl": "https://media.example/a.jpg", "caption": "Hi"})
+        self.assertIn("mediaFromSafari", str(failure))
+        self.assertEqual(screen.pressed, [])
+
+    def reddit_pages(self):
+        post = "https://www.reddit.com/r/study/comments/abc12/night_timers/"
+        return {
+            IOS_REDDIT: ios_tree(IOS_REDDIT, ("Button", "Open profile menu"), ("StaticText", "A long post title from the home feed about something")),
+            "Open profile menu": ios_tree(IOS_REDDIT, ("StaticText", "u/quiet_maple"), ("StaticText", "12 karma"), ("StaticText", "2y Reddit age")),
+            post: ios_tree(IOS_REDDIT, ("StaticText", "Night timers?"), ("Button", "Add a comment")),
+            "Add a comment": ios_tree(IOS_REDDIT, ("TextView", "Add a comment"), ("Button", "Post")),
+            "Post": ios_tree(IOS_REDDIT, ("StaticText", "Night timers?"), ("StaticText", "Comment posted")),
+        }
+
+    def test_a_reddit_comment_from_an_iphone_presses_post_once(self):
+        screen = self.phone(self.reddit_pages(), IOS_REDDIT)
+        result, walk = self.run_action(
+            promo_rack.action_reddit_comment, screen,
+            {"permalink": "/r/study/comments/abc12/night_timers/", "text": "Yes."},
+        )
+        self.assertEqual(result["commentUrl"], "")
+        self.assertEqual(screen.pressed.count("Post"), 1)
+        self.assertEqual(screen.pressed[0], "Open profile menu")
+        self.assertIn(("open_url", "https://www.reddit.com/r/study/comments/abc12/night_timers/"), screen.calls)
+        self.assertEqual([call[1] for call in screen.calls if call[0] == "send_keys"], list("Yes."))
+
+    def test_a_rehearsed_reddit_comment_on_an_iphone_finds_post_and_never_presses_it(self):
+        screen = self.phone(self.reddit_pages(), IOS_REDDIT)
+        result, walk = self.run_action(promo_rack.action_reddit_comment, screen, {"permalink": "/r/study/comments/abc12/night_timers/", "text": ""}, rehearse=True)
+        self.assertEqual(result["commentUrl"], "")
+        self.assertEqual(screen.pressed, ["Add a comment"])
+        self.assertIn("Press Post (found, not pressed)", [step for step, _ in walk.steps])
+
+    def tiktok_pages(self):
+        return {
+            IOS_TIKTOK: ios_tree(IOS_TIKTOK, ("Button", "Home"), ("Button", "Inbox"), ("Button", "Profile")),
+            "Inbox": ios_tree(IOS_TIKTOK, ("Cell", ["sam.reads", "does it work offline?"]), ("Cell", ["ana", "hey"])),
+            "sam.reads": ios_tree(IOS_TIKTOK, ("NavigationBar", "sam.reads"), ("StaticText", "does it work offline?"), ("TextView", "Send a message"), ("Button", "Send")),
+            "Send": ios_tree(IOS_TIKTOK, ("NavigationBar", "sam.reads"), ("StaticText", "does it work offline?"), ("StaticText", "Yes, offline too."), ("TextView", "Send a message"), ("Button", "Send")),
+        }
+
+    def test_a_tiktok_reply_from_an_iphone_presses_send_once(self):
+        screen = self.phone(self.tiktok_pages(), IOS_TIKTOK)
+        result, _ = self.run_action(
+            promo_rack.action_app_reply("tiktok"), screen,
+            {"kind": "message", "thread": "sam.reads", "author": "sam.reads", "quote": "does it work offline?", "text": "Yes, offline too."},
+        )
+        self.assertEqual(result, {"sent": True})
+        self.assertEqual(screen.pressed.count("Send"), 1)
+        self.assertEqual(screen.pressed[:2], ["Inbox", "sam.reads"])
+        self.assertEqual("".join(call[1] for call in screen.calls if call[0] == "send_keys"), "Yes, offline too.")
+
+    def test_a_rehearsed_tiktok_reply_on_an_iphone_opens_the_first_chat_and_never_presses_send(self):
+        screen = self.phone(self.tiktok_pages(), IOS_TIKTOK)
+        result, walk = self.run_action(
+            promo_rack.action_app_reply("tiktok"), screen,
+            {"kind": "message", "thread": "", "author": "", "quote": "", "text": ""}, rehearse=True,
+        )
+        self.assertEqual(result, {"sent": False})
+        self.assertNotIn("Send", screen.pressed)
+        # The first chat's row was opened, whichever of its lines the thumb landed on.
+        self.assertEqual(screen.pressed[0], "Inbox")
+        self.assertIn(screen.pressed[1], ("sam.reads", "does it work offline?"))
+        self.assertIn("Press Send (found, not pressed)", [step for step, _ in walk.steps])
+
+    def test_the_readers_read_the_iphone_tree(self):
+        profile = ios_fixture("instagram-profile.xml")
+        self.assertEqual(promo_rack.app_profile_from_screen(profile, "instagram"), {"handle": "quiet.maple", "followers": 1204, "following": 310, "posts": 12})
+        self.assertFalse(promo_rack.signed_out(profile, "instagram"))
+        self.assertTrue(promo_rack.signed_out(ios_tree(IOS_INSTAGRAM, ("Button", "Log in"), ("Button", "Sign up")), "instagram"))
+        self.assertEqual(promo_rack.account_from_screen(self.reddit_pages()["Open profile menu"], now=1000)["handle"], "quiet_maple")
+        conversation = promo_rack.conversation_from_screen(self.tiktok_pages()["Send"], "tiktok", 2532, 1170)
+        self.assertEqual(conversation["thread"], "sam.reads")
+        # The text view is the box, not a line someone wrote.
+        self.assertEqual([line["text"] for line in conversation["lines"]], ["does it work offline?", "Yes, offline too."])
+        self.assertTrue(promo_rack.unread_in_inbox(ios_tree(IOS_INSTAGRAM, ("Button", "Messenger, 2 unread")), "instagram"))
+        hidden = ios_tree(IOS_INSTAGRAM, ("StaticText", "Account status"), ("StaticText", "Your account can't be recommended to people who don't follow you"))
+        self.assertTrue(promo_rack.shadowban_from_screen(hidden, "instagram")["hidden"])
+        self.assertEqual(promo_rack.post_numbers_from_screen(ios_tree(IOS_TIKTOK, ("StaticText", "1.2K likes"), ("StaticText", "34 comments")), "tiktok"), {"views": None, "likes": 1200, "comments": 34})
+        comments = promo_rack.comments_from_screen(ios_tree(IOS_INSTAGRAM, ("StaticText", "quiet.maple"), ("StaticText", "Night timers."), ("StaticText", "ana"), ("StaticText", "love it")), "instagram", "quiet.maple", 2532)
+        self.assertEqual(comments, [{"author": "ana", "text": "love it", "thread": "Night timers."}])
+        ban = ios_tree(IOS_REDDIT, ("StaticText", "Your account has been suspended"))
+        self.assertEqual(promo_rack.ban_screen_in(ban, "reddit", IOS_REDDIT)["kind"], "suspended")
+
+    def test_a_switch_value_is_no_line_but_a_text_box_value_is(self):
+        self.assertNotIn("1", promo_rack.screen_lines(ios_fixture("settings-wifi.xml"), IOS_SETTINGS))
+        self.assertIn(WIFI, promo_rack.screen_lines(ios_fixture("settings-wifi.xml"), IOS_SETTINGS))
+        screen = ios_tree(IOS_REDDIT, ("Switch", "Dark mode", "1"), ("Switch", "Autoplay", "0"), ("TextField", "Search", "night timers"), ("StaticText", "Your account has been suspended"))
+        lines = promo_rack.screen_lines(screen, IOS_REDDIT)
+        self.assertEqual(lines, ["com.reddit.Reddit", "Dark mode", "Autoplay", "Search", "night timers", "Your account has been suspended"])
+        # The two switches' values did not push the ban screen past its line limit.
+        self.assertEqual(promo_rack.ban_screen_in(screen, "reddit", IOS_REDDIT)["kind"], "suspended")
+
+    def test_leaving_a_screen_on_an_iphone_closes_the_app_given_not_whatever_is_in_front(self):
+        screen = self.phone({"start": ios_tree("com.apple.mobilesafari", ("StaticText", "A page"), web=True)}, "start")
+        walk = promo_rack.Walk(IPHONE, connect=lambda serial: screen)
+        with mock.patch.object(promo_rack, "shell", no_adb), mock.patch.object(promo_rack.time, "sleep", lambda seconds: None):
+            promo_rack.leave_app_screen(IPHONE, walk, "instagram", times=1)
+        self.assertEqual([call for call in screen.calls if call[0] == "app_stop"], [("app_stop", IOS_INSTAGRAM)])
+
+    def test_each_app_action_picks_the_iphone_shapes_by_the_phone(self):
+        self.assertIs(promo_rack.app_screens(IPHONE, "tiktok"), promo_rack.APP_SCREENS[IOS_TIKTOK])
+        self.assertIs(promo_rack.app_screens("A1", "tiktok"), promo_rack.APP_SCREENS["tiktok"])
+        self.assertEqual(promo_rack.screens_for("reddit", IPHONE)["package"], IOS_REDDIT)
+        self.assertEqual(promo_rack.screens_for("reddit")["package"], promo_rack.REDDIT)
+        for bundle in (IOS_REDDIT, IOS_INSTAGRAM, IOS_TIKTOK):
+            for selectors in promo_rack.APP_SCREENS[bundle].values():
+                for selector in selectors if isinstance(selectors, list) else []:
+                    if "packageName" in selector:
+                        self.assertEqual(selector["packageName"], bundle)
+        # Install and Erase are last buttons a rehearsal can never tap.
+        self.assertTrue(promo_rack.could_be_last_button({"text": "Install"}))
+        walk = promo_rack.Walk(IPHONE, rehearse=True, connect=lambda serial: self.phone({"x": ios_tree(IOS_SETTINGS, ("Button", "Erase"))}, "x"))
+        with self.assertRaises(RuntimeError):
+            walk.tap("Press Erase", text="Erase")
+
+    # --- part 53: the setup check and the App Store --------------------------
+
+    def settings_pages(self):
+        return {
+            IOS_SETTINGS: ios_fixture("settings-signed-in.xml"),
+            WIFI: ios_fixture("settings-wifi.xml"),
+            "General": ios_tree(IOS_SETTINGS, ("Cell", ["About"]), ("Cell", ["Language & Region"]), ("Cell", ["Transfer or Reset iPhone"])),
+            "About": ios_fixture("about.xml"),
+            "Language & Region": ios_fixture("language-region.xml"),
+            "Privacy & Security": ios_tree(IOS_SETTINGS, ("Cell", ["Location Services", "On"]), ("Cell", ["Tracking"])),
+            "Location Services": ios_fixture("location-services.xml"),
+            "App Store": ios_fixture("app-store-settings.xml"),
+            promo_rack.IPINFO_URL: ios_fixture("safari-ipinfo.xml"),
+            "Transfer or Reset iPhone": ios_tree(IOS_SETTINGS, ("Cell", ["Reset"]), ("Cell", ["Erase All Content and Settings"])),
+            "Erase All Content and Settings": ios_tree(IOS_SETTINGS, ("StaticText", "Erase All Content & Settings"), ("Button", "Continue")),
+            "Continue": ios_tree(IOS_SETTINGS, ("StaticText", "This will erase everything."), ("Button", "Erase iPhone")),
+            "Erase iPhone": ios_tree(IOS_SETTINGS, ("StaticText", "Erasing...")),
+        }
+
+    def test_the_setup_facts_are_read_off_ios_screens(self):
+        self.assertTrue(promo_rack.ios_switch_on(ios_fixture("settings-wifi.xml"), "wi-fi"))
+        self.assertFalse(promo_rack.ios_switch_on(ios_fixture("app-store-settings.xml"), "app updates"))
+        self.assertIsNone(promo_rack.ios_switch_on(ios_fixture("about.xml"), "app updates"))
+        location = ios_fixture("location-services.xml")
+        self.assertTrue(promo_rack.ios_switch_on(location, "location services"))
+        self.assertEqual([promo_rack.ios_location_allowed(location, name) for name in ("Reddit", "Instagram", "TikTok")], [True, False, None])
+        language = ios_fixture("language-region.xml")
+        self.assertEqual(promo_rack.ios_cell_value(language, "Region"), "Canada")
+        self.assertEqual(promo_rack.ios_locale("English", "Canada"), "en-CA")
+        self.assertEqual(promo_rack.ios_locale("English (US)", ""), "en-US")
+        self.assertEqual(promo_rack.ios_locale("Klingon", "Canada"), "")
+        self.assertEqual(promo_rack.carrier_name("Rogers 59.0.1"), "Rogers")
+        self.assertEqual(promo_rack.outside_from_screen(ios_fixture("safari-ipinfo.xml"))["ip"], "172.56.21.9")
+        self.assertEqual(promo_rack.store_version_from_screen(ios_fixture("app-store-reddit-update.xml")), "2025.41.0")
+
+    def test_the_setup_check_on_an_iphone_fills_the_same_facts_and_a_failing_part_leaves_the_rest(self):
+        pages = self.settings_pages()
+        del pages["App Store"]  # The row leads nowhere: that part stays blank.
+        screen = self.phone(pages, IOS_SETTINGS)
+        promo_rack._PROPS[IPHONE] = {"model": "iPhone 12", "android": "17.6.1", "timezone": "America/Toronto"}
+        logged = []
+        with mock.patch.object(iphone, "vitals", lambda udid: {"batteryPercent": 64}), \
+                mock.patch.object(iphone, "app_versions", lambda udid: None):
+            result, walk = self.run_action(
+                promo_rack.action_setup_check, screen, {},
+                read_home_address=lambda: {"ip": "203.0.113.4", "country": "CA", "timezone": "America/Toronto", "org": "", "error": ""},
+                zone_country=lambda zone: "CA",
+                log=logged.append,
+            )
+        self.assertEqual(result, {
+            "wifiOn": True,
+            "locationApps": {"instagram": False, "reddit": True},
+            "timezone": "America/Toronto",
+            "timezoneCountry": "CA",
+            "locale": "en-CA",
+            "sim": {"country": "", "carrier": "Rogers"},
+            "network": {"carrier": "Rogers"},
+            "autoUpdate": "",
+            "autoUpdateError": "No App Updates switch was found on the App Store settings screen.",
+            "battery": {"percent": 64, "charging": None},
+            "outside": {"ip": "172.56.21.9", "country": "CA", "timezone": "America/Toronto", "org": "AS812 Rogers Communications Canada Inc.", "error": ""},
+            "home": {"ip": "203.0.113.4", "country": "CA", "timezone": "America/Toronto", "org": "", "error": ""},
+        })
+        self.assertIn(("open_url", promo_rack.IPINFO_URL), screen.calls)
+        # Settings is closed and opened for each part, so each starts on the first screen.
+        self.assertGreaterEqual(screen.calls.count(("app_stop", IOS_SETTINGS)), 5)
+        self.assertEqual(logged, [])
+
+    def test_check_updates_on_an_iphone_reads_each_store_page_and_presses_nothing(self):
+        store = {
+            "itms-apps://apps.apple.com/app/id1064216828": ios_fixture("app-store-reddit-update.xml"),
+            "itms-apps://apps.apple.com/app/id389801252": ios_tree(promo_rack.APP_STORE, ("Button", "Open"), ("StaticText", "Version 400.0")),
+            "itms-apps://apps.apple.com/app/id835599320": ios_tree(promo_rack.APP_STORE, ("Button", "Get"), ("StaticText", "Version 41.0")),
+        }
+        screen = self.phone(dict(store, start=ios_tree(IOS_SETTINGS)), "start")
+        with mock.patch.object(iphone, "app_versions", lambda udid: {"reddit": "2025.40.0", "instagram": "400.0"}):
+            result, _ = self.run_action(promo_rack.action_check_updates, screen, {})
+        self.assertEqual(result, {"apps": {"reddit": {"version": "2025.40.0", "update": True}, "instagram": {"version": "400.0", "update": False}}})
+        self.assertEqual(screen.pressed, [])
+        # Without the driver's versions the page is read, and Get means not installed.
+        screen = self.phone(dict(store, start=ios_tree(IOS_SETTINGS)), "start")
+        with mock.patch.object(iphone, "app_versions", lambda udid: None):
+            result, _ = self.run_action(promo_rack.action_check_updates, screen, {})
+        self.assertEqual(result, {"apps": {"reddit": {"version": "2025.41.0", "update": True}, "instagram": {"version": "400.0", "update": False}}})
+
+    def test_update_app_on_an_iphone_presses_update_once_and_waits_for_the_version(self):
+        page = "itms-apps://apps.apple.com/app/id1064216828"
+        screen = self.phone({page: ios_fixture("app-store-reddit-update.xml"), "start": ios_tree(IOS_SETTINGS)}, "start")
+        versions = lambda udid: {"reddit": "2025.41.0" if "Update" in screen.pressed else "2025.40.0"}
+        with mock.patch.object(iphone, "app_versions", versions):
+            result, walk = self.run_action(promo_rack.action_update_app, screen, {"app": "reddit"})
+        self.assertEqual(result, {"app": "reddit", "from": "2025.40.0", "to": "2025.41.0"})
+        self.assertEqual(screen.pressed, ["Update"])
+        self.assertEqual(screen.calls[0], ("open_url", page))
+        self.assertIn("Updated to 2025.41.0", [step for step, _ in walk.steps])
+
+    # --- part 54: iCloud and the wipe ----------------------------------------
+
+    def test_icloud_state_reads_settings_top_row_both_ways(self):
+        self.assertEqual(promo_rack.icloud_from_screen(ios_fixture("settings-signed-in.xml")), {"signedOut": False, "appleId": "Tyler Pham"})
+        self.assertEqual(promo_rack.icloud_from_screen(ios_fixture("settings-signed-out.xml")), {"signedOut": True, "appleId": ""})
+        self.assertIsNone(promo_rack.icloud_from_screen(ios_fixture("about.xml")))
+        screen = self.phone({IOS_SETTINGS: ios_fixture("settings-signed-out.xml")}, IOS_SETTINGS)
+        result, walk = self.run_action(promo_rack.action_icloud_state, screen, {})
+        self.assertEqual(result, {"signedOut": True, "appleId": ""})
+        self.assertEqual(screen.pressed, [])
+        self.assertEqual(screen.calls[-1], ("press", "home"))
+        self.assertIn("phone/icloud-state", promo_rack.REHEARSALS)
+        self.assertIs(promo_rack.ACTIONS["phone/icloud-state"], promo_rack.action_icloud_state)
+        with self.assertRaises(RuntimeError):
+            promo_rack.action_icloud_state("A1", {}, promo_rack.Walk("A1", connect=lambda serial: FakeDevice([])))
+
+    def test_an_iphone_wipe_is_refused_until_promo_says_the_apple_id_is_signed_out(self):
+        screen = self.phone(self.settings_pages(), IOS_SETTINGS)
+        for args in ({}, {"icloudSignedOut": False}, {"icloudSignedOut": "yes"}):
+            failure, _ = self.run_action(promo_rack.action_wipe, screen, args)
+            self.assertIsInstance(failure, RuntimeError)
+            self.assertIn("signed out", str(failure))
+        self.assertEqual(screen.pressed, [])
+        self.assertNotIn("phone/wipe", promo_rack.REHEARSALS)
+
+    def test_an_iphone_wipe_walks_to_erase_and_a_rehearsal_never_presses_it(self):
+        screen = self.phone(self.settings_pages(), IOS_SETTINGS)
+        result, walk = self.run_action(promo_rack.action_wipe, screen, {"icloudSignedOut": True})
+        self.assertEqual(result, {"wiped": True})
+        self.assertEqual(screen.pressed, ["General", "Transfer or Reset iPhone", "Erase All Content and Settings", "Continue", "Erase iPhone"])
+        screen = self.phone(self.settings_pages(), IOS_SETTINGS)
+        result, walk = self.run_action(promo_rack.action_wipe, screen, {"icloudSignedOut": True}, rehearse=True)
+        self.assertEqual(result, {"wiped": False})
+        self.assertNotIn("Erase iPhone", screen.pressed)
+        self.assertEqual(walk.steps[-1][0], "Press Erase iPhone (found, not pressed)")
+
+    def test_a_passcode_prompt_stops_the_wipe_with_a_picture(self):
+        pages = self.settings_pages()
+        pages["Continue"] = ios_tree(IOS_SETTINGS, ("StaticText", "Enter Passcode"), ("SecureTextField", ""))
+        screen = self.phone(pages, IOS_SETTINGS)
+        failure, walk = self.run_action(promo_rack.action_wipe, screen, {"icloudSignedOut": True})
+        self.assertIsInstance(failure, promo_rack.StepFailed)
+        self.assertEqual(str(failure), "The phone asks for its passcode; wipe it by hand.")
+        self.assertNotIn("Erase iPhone", screen.pressed)
+        self.assertEqual(walk.steps[-1][0], "The phone asks for its passcode")
+
+    # --- part 55: Safari -----------------------------------------------------
+
+    def test_the_picture_in_safari_is_found_and_a_bad_address_is_refused(self):
+        self.assertEqual(promo_rack.media_on_screen(ios_fixture("safari-image.xml"), 2532), (40, 620, 1130, 720))
+        self.assertIsNone(promo_rack.media_on_screen(ios_tree(IOS_SETTINGS, ("Cell", ["General"])), 2532))
+        screen = self.phone({"x": ios_tree(IOS_SETTINGS)}, "x")
+        with self.assertRaises(RuntimeError):
+            promo_rack.save_from_safari(IPHONE, promo_rack.Walk(IPHONE, connect=lambda serial: screen), "http://media.example/a.jpg")
+        self.assertEqual(screen.calls, [])
 
 
 if __name__ == "__main__":
