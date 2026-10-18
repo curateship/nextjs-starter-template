@@ -16,6 +16,8 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
+  ChevronDown,
+  ChevronRight,
   Eye,
   EyeOff,
   FolderOpen,
@@ -26,13 +28,15 @@ import {
   Square,
   Trash2,
 } from "lucide-react"
-import { type FormEvent, useMemo, useState } from "react"
+import { type FormEvent, useEffect, useMemo, useState } from "react"
 
+import { loadWorkspaceNotes, saveWorkspaceNotes } from "@/app/preferences"
 import { serverPortsForWorkspaces } from "@/app/server"
 import type { WorkspaceInfo, WorkspaceStatus } from "@/app/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useDismissibleMenu } from "@/hooks/use-dismissible-menu"
 import { cn } from "@/lib/utils"
@@ -241,6 +245,10 @@ export function WorkspacesPanel({
         )}
       </div>
 
+      <div className="mt-3">
+        <NotesBox />
+      </div>
+
       {activeWorkspace ? (
         <div className="mt-3 flex min-w-0 items-center gap-2 pt-3">
           {activeWorkspace.isTauri ? (
@@ -285,6 +293,44 @@ export function WorkspacesPanel({
             </>
           )}
         </div>
+      ) : null}
+    </div>
+  )
+}
+
+function NotesBox() {
+  const [notes, setNotes] = useState(loadWorkspaceNotes)
+
+  useEffect(() => {
+    saveWorkspaceNotes(notes)
+  }, [notes])
+
+  return (
+    <div className="rounded-lg bg-background p-3">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 text-left text-sm font-medium"
+        onClick={() => setNotes((current) => ({ ...current, open: !current.open }))}
+        aria-expanded={notes.open}
+      >
+        {notes.open ? (
+          <ChevronDown className="size-4 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="size-4 text-muted-foreground" />
+        )}
+        Notes
+      </button>
+      {notes.open ? (
+        <Textarea
+          className="mt-2 min-h-32 resize-y"
+          value={notes.text}
+          onChange={(event) => {
+            const text = event.target.value
+            setNotes((current) => ({ ...current, text }))
+          }}
+          placeholder="Write a note"
+          aria-label="Notes"
+        />
       ) : null}
     </div>
   )
