@@ -59,6 +59,28 @@ and `event.source` against its own frame, since any page can post a message to
 any window. Personal's `readPanelReport` in `apps/personal/src/lib/panel.ts`
 does both.
 
+## The note the frame takes
+
+The page around the frame can ask the app to change page itself, the way a
+click inside it would, so the frame doesn't load the whole app again:
+
+```ts
+frame.contentWindow.postMessage(
+  { type: "shell-panel-go", path: "/admin/posts" },
+  "http://localhost:3015"
+)
+```
+
+`usePanelGo` in `src/lib/layout/panel-view.ts` listens while the page is a
+panel, and `shell-layout.tsx` hands the path to the router's `navigate`. The
+move then sends the usual note back. `readPanelGo` takes the note only from
+`window.parent` and only for an address inside the app: it must start with one
+`/`, with no `//` or `\` that could point at another site. The page around the
+frame could load any address in it anyway, so the note adds nothing it couldn't
+already do; it only skips the reload. Personal sends it when a link is in the
+app already open (`apps/personal/workspace/docs/app-panels.md`). Added 18 Oct
+2026 and copied unchanged into Trade and CMS.
+
 ## Sign-in
 
 Each app signs people in on its own. The first time a frame opens an app, the

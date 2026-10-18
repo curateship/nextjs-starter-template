@@ -142,8 +142,13 @@ export function useOpenScreen(startUrl: string | null) {
    */
   const open = React.useCallback(
     (url: string, sameLink?: (frameUrl: string) => boolean) => {
+      const before = openFrame(framesRef.current)
       const next = openScreen(framesRef.current, url, sameLink)
-      push(personalPath(openFrame(next)?.url ?? url))
+      const after = openFrame(next)
+      // An app asked to change page itself adds its own history entry, the
+      // same as a click inside it, and Personal's address follows its report.
+      const inPlace = Boolean(after?.goTo && after.goTo !== before?.goTo)
+      if (!inPlace) push(personalPath(after?.url ?? url))
       commit(next)
     },
     [commit, push]
@@ -154,6 +159,19 @@ export function useOpenScreen(startUrl: string | null) {
     if (currentAddress() !== "/") push("/")
     commit(closeAll(framesRef.current))
   }, [commit, push])
+
+  /**
+   * The open frame's app didn't report changing page in time, so it can't
+   * change page itself (an older copy of the app): load the page instead.
+   */
+  const goFailed = React.useCallback(
+    (frameId: number, url: string) => {
+      if (framesRef.current.openId !== frameId) return
+      push(personalPath(url))
+      commit(reloadOpen(framesRef.current, url))
+    },
+    [commit, push]
+  )
 
   /** Loads the page the open frame is on now. */
   const reload = React.useCallback(() => commit(reloadOpen(framesRef.current)), [commit])
@@ -231,5 +249,6 @@ export function useOpenScreen(startUrl: string | null) {
     back,
     forward,
     report,
+    goFailed,
   }
 }

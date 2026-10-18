@@ -30,8 +30,24 @@ keeps its own left menu and top bar around it. The frame is
   match, without reloading the frame, and the browser tab reads like
   "Notifications · Personal". Personal only listens to reports from the open
   app's address and its own frame (`readPanelReport` in `src/lib/panel.ts`).
-- **Only Personal's own moves reload the frame**: a menu click on a screen
-  that isn't kept, Reload, or clicking the link of the screen already open.
+- **A link in the app already open changes page inside it, with no reload.**
+  Tyler asked for this on 18 Oct 2026, after the top row's links each loaded
+  the whole app again. Personal sends the open app
+  `{ type: "shell-panel-go", path }` (`src/components/panel-frame.tsx`), the
+  app's router moves as if the link were clicked inside it, and its usual
+  report moves Personal's address. The app adds its own history step, so
+  Personal adds none, and Back steps back inside the app.
+  - It only happens for an app that has reported a move in this frame, so an
+    app not built on the shell, or one still on its sign-in page, loads the
+    page as before.
+  - An app whose copy is older than this (live Trade and CMS until they are
+    deployed) doesn't answer. If no report comes within 2.5 seconds, Personal
+    loads the page the old way.
+  - The rule is `openScreen` in `src/lib/frames.ts`; the app side is the
+    repo's `docs/shell/panel-view.md`, "The note the frame takes".
+- **Only Personal's own moves reload the frame**: a menu click on a screen in
+  another app that isn't kept, Reload, or clicking the link of the screen
+  already open.
 - **"Opening localhost:3015"** with a spinner shows until the frame's page has
   loaded.
 

@@ -34,15 +34,20 @@ describe("kept frames", () => {
     expect(state.kept).toHaveLength(2)
   })
 
-  it("reloads the open frame on a second click of its link", () => {
+  it("reloads the open frame on a second click of the screen it is on", () => {
     let state = openScreen(NO_FRAMES, listings)
-    state = reportMove(state, openFrame(state)!.id, "/admin/listings/abc", "Pasta night")
+    state = reportMove(state, openFrame(state)!.id, "/admin/listings", "Listings")
     state = openScreen(state, listings, underListings)
     const open = openFrame(state)!
     expect(open.load).toBe(1)
-    expect(open.frameUrl).toBe(listings)
-    expect(open.url).toBe(listings)
-    expect(open.title).toBe("")
+    expect(open.goTo).toBeNull()
+  })
+
+  it("reloads an app that has never reported, as it can't change page itself", () => {
+    let state = openScreen(NO_FRAMES, listings)
+    state = openScreen(state, dashboard)
+    expect(state.kept).toHaveLength(2)
+    expect(openFrame(state)!.load).toBe(0)
   })
 
   it("drops the frame shown longest ago past three, and never re-sorts the rest", () => {
@@ -86,6 +91,40 @@ describe("kept frames", () => {
     state = showAddress(state, null)
     expect(openFrame(state)).toBeNull()
     expect(state.kept).toHaveLength(2)
+  })
+})
+
+describe("changing page inside the open app", () => {
+  it("asks the open app to change page instead of loading a new copy", () => {
+    let state = openScreen(NO_FRAMES, listings)
+    const id = openFrame(state)!.id
+    state = reportMove(state, id, "/admin/listings", "Listings")
+    state = openScreen(state, `${dashboard}?tab=week`)
+    const open = openFrame(state)!
+    expect(state.kept).toHaveLength(1)
+    expect(open.id).toBe(id)
+    expect(open.load).toBe(0)
+    expect(open.goTo).toEqual({ path: "/admin/dashboard?tab=week", n: 1 })
+    // Where it is stays put until the app reports the move.
+    expect(open.url).toBe(listings)
+    state = reportMove(state, id, "/admin/dashboard", "Dashboard")
+    expect(openFrame(state)!.url).toBe(dashboard)
+  })
+
+  it("changes page in place on a link's click when its frame has moved deeper", () => {
+    let state = openScreen(NO_FRAMES, listings)
+    state = reportMove(state, openFrame(state)!.id, "/admin/listings/abc", "Pasta night")
+    state = openScreen(state, listings, underListings)
+    expect(openFrame(state)!.load).toBe(0)
+    expect(openFrame(state)!.goTo?.path).toBe("/admin/listings")
+  })
+
+  it("still opens another app in a frame of its own", () => {
+    let state = openScreen(NO_FRAMES, listings)
+    state = reportMove(state, openFrame(state)!.id, "/admin/listings", "Listings")
+    state = openScreen(state, project)
+    expect(state.kept).toHaveLength(2)
+    expect(openFrame(state)!.goTo).toBeNull()
   })
 })
 

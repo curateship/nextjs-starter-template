@@ -18,6 +18,16 @@ export type Frame = {
   title: string
   /** When it was last shown, to pick the one to drop past the cap. */
   shownAt: number
+  /**
+   * Whether its app has reported a move. Only an app built on the shell
+   * reports, and only that app can be asked to change page itself.
+   */
+  reported: boolean
+  /**
+   * A page this frame's app was asked to change to in place, with no reload.
+   * `n` counts the asks, so asking for the same page twice asks twice.
+   */
+  goTo: { path: string; n: number } | null
 }
 
 export type Frames = {
@@ -46,7 +56,16 @@ function show(state: Frames, id: number): Frames {
 }
 
 function addFrame(state: Frames, url: string): Frames {
-  const frame: Frame = { id: state.tick, frameUrl: url, load: 0, url, title: "", shownAt: state.tick }
+  const frame: Frame = {
+    id: state.tick,
+    frameUrl: url,
+    load: 0,
+    url,
+    title: "",
+    shownAt: state.tick,
+    reported: false,
+    goTo: null,
+  }
   let kept = [...state.kept, frame]
   if (kept.length > MAX_KEPT_FRAMES) {
     const oldest = kept.reduce((a, b) => (b.shownAt < a.shownAt ? b : a))
@@ -76,12 +95,35 @@ export function reloadOpen(state: Frames, url?: string): Frames {
   }
 }
 
+/** Whether the open frame's app can be asked to change to `url` itself. */
+function canGoInPlace(frame: Frame, url: string) {
+  return frame.reported && frame.url !== url && new URL(frame.url).origin === new URL(url).origin
+}
+
+/**
+ * Asks the open frame's app to change to `url` itself, the way a click inside
+ * it would, so nothing reloads. Where the frame is stays as it was until the
+ * app reports the move; `PanelFrame` loads the page the old way if no report
+ * comes.
+ */
+function goInPlace(state: Frames, frame: Frame, url: string): Frames {
+  const target = new URL(url)
+  const path = target.pathname + target.search + target.hash
+  return {
+    ...state,
+    kept: state.kept.map((f) =>
+      f.id === frame.id ? { ...f, goTo: { path, n: (frame.goTo?.n ?? 0) + 1 } } : f
+    ),
+  }
+}
+
 /**
  * Opens a screen. A kept frame already on that address, or for a menu link
- * one still on that link's screens (`sameLink`), is shown as it was. If that
- * frame is the open one it reloads instead, as a second click on a link
- * always has. Anything else gets a new frame, and past the cap the frame shown
- * longest ago goes.
+ * one still on that link's screens (`sameLink`), is shown as it was. A screen
+ * in the same app as the open frame is changed to inside that frame, with no
+ * reload, when the app is built on the shell. A second click on the screen
+ * already open reloads it, as it always has. Anything else gets a new frame,
+ * and past the cap the frame shown longest ago goes.
  */
 export function openScreen(
   state: Frames,
@@ -91,8 +133,10 @@ export function openScreen(
   const found =
     state.kept.find((frame) => frame.url === url) ??
     (sameLink ? state.kept.find((frame) => sameLink(frame.url)) : undefined)
-  if (found?.id === state.openId) return reloadOpen(state, url)
-  return found ? show(state, found.id) : addFrame(state, url)
+  if (found && found.id !== state.openId) return show(state, found.id)
+  const open = openFrame(state)
+  if (open && canGoInPlace(open, url)) return goInPlace(state, open, url)
+  return found ? reloadOpen(state, url) : addFrame(state, url)
 }
 
 /**
@@ -116,9 +160,9 @@ export function reportMove(state: Frames, id: number, path: string, title: strin
   const frame = state.kept.find((f) => f.id === id)
   if (!frame) return state
   const url = new URL(path, new URL(frame.url).origin).href
-  if (url === frame.url && title === frame.title) return state
+  if (url === frame.url && title === frame.title && frame.reported) return state
   return {
     ...state,
-    kept: state.kept.map((f) => (f.id === id ? { ...f, url, title } : f)),
+    kept: state.kept.map((f) => (f.id === id ? { ...f, url, title, reported: true } : f)),
   }
 }

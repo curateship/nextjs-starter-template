@@ -45,3 +45,13 @@ app has no `src/start.ts` (`createStartHandler.js` in
 Trade's server functions with the visitor's sign-in. Trade now has a start
 file, so the check is listed there again, unchanged. Removing it from
 `start.ts` would switch it off.
+
+## Changing page without a reload
+
+Since 18 Oct 2026 Trade also takes Personal's "change page" note
+(`usePanelGo` in `src/lib/layout/panel-view.ts`, copied unchanged from the
+shell), so a Personal link to another Trade page moves inside the open frame
+instead of loading Trade again. `docs/shell/panel-view.md` in the repo has the
+details. Live Trade needs a deploy before it answers; until then Personal
+falls back to loading the page.
+

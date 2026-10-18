@@ -10,6 +10,12 @@
 export const PANEL_FRAME_NAME = "shell-panel"
 const PANEL_MESSAGE_TYPE = "shell-panel"
 
+/**
+ * The note Personal sends the framed app to change page itself, with no
+ * reload: `{ type: "shell-panel-go", path }`. The shell's `usePanelGo` reads it.
+ */
+export const PANEL_GO_TYPE = "shell-panel-go"
+
 export type PanelReport = { path: string; title: string }
 
 /**

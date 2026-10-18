@@ -3,11 +3,14 @@ import { Loader2Icon } from "lucide-react"
 
 import type { Frame } from "@/lib/frames"
 import { frameSrc, parseAppUrl } from "@/lib/menu"
-import { PANEL_FRAME_NAME, readPanelReport } from "@/lib/panel"
+import { PANEL_FRAME_NAME, PANEL_GO_TYPE, readPanelReport } from "@/lib/panel"
 import { PHONE_WIDTH, type PanelZoom } from "@/lib/use-panel-view"
 import { cn } from "@/lib/utils"
 
 type View = { zoom: PanelZoom; phone: boolean }
+
+/** How long an app asked to change page has to report it before the page is loaded instead. */
+const GO_REPORT_MS = 2500
 
 /**
  * One kept frame: another app's real screen. A spinner shows until its page
@@ -20,11 +23,13 @@ function PanelFrame({
   shown,
   view,
   onReport,
+  onGoFailed,
 }: {
   frame: Frame
   shown: boolean
   view: View
   onReport: (frameId: number, path: string, title: string) => void
+  onGoFailed: (frameId: number, url: string) => void
 }) {
   const frameRef = React.useRef<HTMLIFrameElement>(null)
   const [loadedKey, setLoadedKey] = React.useState<number | null>(null)
@@ -47,6 +52,26 @@ function PanelFrame({
     if (target) target.location.replace(src)
     else if (frameRef.current) frameRef.current.src = src
   }, [frame.load, frame.frameUrl])
+
+  // Asks the app to change page itself, as a click inside it would. Only the
+  // path goes, and only to this app's address. An app that doesn't report the
+  // move in time can't do this yet, so the page loads the old way.
+  const urlRef = React.useRef(frame.url)
+  React.useEffect(() => {
+    urlRef.current = frame.url
+  }, [frame.url])
+  const goTo = frame.goTo
+  React.useEffect(() => {
+    if (!goTo) return
+    frameRef.current?.contentWindow?.postMessage({ type: PANEL_GO_TYPE, path: goTo.path }, origin)
+    const target = new URL(goTo.path, origin)
+    const timer = window.setTimeout(() => {
+      if (new URL(urlRef.current).pathname !== target.pathname) onGoFailed(frame.id, target.href)
+    }, GO_REPORT_MS)
+    return () => window.clearTimeout(timer)
+    // Runs once per ask: `goTo` is a new object only when Personal asks again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goTo])
 
   React.useEffect(() => {
     function onMessage(event: MessageEvent) {
@@ -114,12 +139,14 @@ export function PanelFrames({
   openId,
   view,
   onReport,
+  onGoFailed,
   children,
 }: {
   frames: Frame[]
   openId: number | null
   view: View
   onReport: (frameId: number, path: string, title: string) => void
+  onGoFailed: (frameId: number, url: string) => void
   children: React.ReactNode
 }) {
   return (
@@ -132,6 +159,7 @@ export function PanelFrames({
           shown={frame.id === openId}
           view={view}
           onReport={onReport}
+          onGoFailed={onGoFailed}
         />
       ))}
     </div>

@@ -122,7 +122,7 @@ function Personal({
   onSignOut: () => void
 } & Pick<ReturnType<typeof useMenu>, "saveStatus" | "retrySave">) {
   const screens = useOpenScreen(startLink(menu)?.url ?? null)
-  const { frames, screen, open, goHome, report } = screens
+  const { frames, screen, open, goHome, report, goFailed } = screens
   const view = usePanelView()
   const [menuOpen, setMenuOpen] = React.useState(false)
   // Adding, editing and dragging links only show while this is on. It starts
@@ -234,6 +234,7 @@ function Personal({
                   openId={frames.openId}
                   view={{ zoom: view.zoom, phone: view.phone }}
                   onReport={report}
+                  onGoFailed={goFailed}
                 >
                   <div className="absolute inset-0 flex items-center justify-center p-4">
                     <p className="max-w-sm text-center text-sm text-muted-foreground">

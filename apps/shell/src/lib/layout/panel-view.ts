@@ -32,6 +32,12 @@ export type PanelMessage = {
   title: string
 }
 
+/**
+ * The note the page around the frame sends to change this page, as a click
+ * inside it would, so the frame does not load the whole app again.
+ */
+export const PANEL_GO_TYPE = "shell-panel-go"
+
 type PanelWindow = Pick<Window, "self" | "top" | "name">
 
 export function addressAsksForPanelView(searchStr: string) {
@@ -75,4 +81,41 @@ export function usePanelReport(
     const message: PanelMessage = { type: PANEL_MESSAGE_TYPE, path, title }
     window.parent.postMessage(message, "*")
   }, [panelView, path, title])
+}
+
+/**
+ * Reads a "change page" note: only from the page around this frame, and only
+ * an address inside this app. That page could load any address in the frame
+ * anyway, so the note lets it do nothing new, only do it without a reload.
+ */
+export function readPanelGo(
+  event: Pick<MessageEvent, "source" | "data">,
+  parent: unknown
+): string | null {
+  if (!parent || event.source !== parent) return null
+  const data: unknown = event.data
+  if (typeof data !== "object" || data === null) return null
+  const { type, path } = data as Record<string, unknown>
+  if (type !== PANEL_GO_TYPE || typeof path !== "string") return null
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) {
+    return null
+  }
+  return path.slice(0, 2000)
+}
+
+/** In panel view, changes page when the page around the frame asks. */
+export function usePanelGo(panelView: boolean, go: (path: string) => void) {
+  const goRef = React.useRef(go)
+  React.useEffect(() => {
+    goRef.current = go
+  }, [go])
+  React.useEffect(() => {
+    if (!panelView || window.parent === window) return
+    function onMessage(event: MessageEvent) {
+      const path = readPanelGo(event, window.parent)
+      if (path) goRef.current(path)
+    }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  }, [panelView])
 }

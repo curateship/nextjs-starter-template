@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import {
   PANEL_FRAME_NAME,
+  PANEL_GO_TYPE,
   addressAsksForPanelView,
   panelViewInBrowser,
+  readPanelGo,
 } from "@/lib/layout/panel-view"
 
 /** A window inside a frame (its top is another window) or a tab of its own. */
@@ -45,5 +47,30 @@ describe("panel view", () => {
     expect(
       panelViewInBrowser("", fakeWindow({ framed: true, name: "preview" }))
     ).toBe(false)
+  })
+})
+
+describe("change page note", () => {
+  const parent = {}
+  const note = (path: unknown, source: unknown = parent) => ({
+    source: source as MessageEventSource,
+    data: { type: PANEL_GO_TYPE, path },
+  })
+
+  it("takes an address inside this app from the page around the frame", () => {
+    expect(readPanelGo(note("/admin/posts?tab=draft"), parent)).toBe(
+      "/admin/posts?tab=draft"
+    )
+  })
+
+  it("ignores any other sender, another site, or another shape", () => {
+    expect(readPanelGo(note("/admin/posts", {}), parent)).toBeNull()
+    expect(readPanelGo(note("https://evil.example/"), parent)).toBeNull()
+    expect(readPanelGo(note("//evil.example/"), parent)).toBeNull()
+    expect(readPanelGo(note("/\\evil.example/"), parent)).toBeNull()
+    expect(readPanelGo(note(42), parent)).toBeNull()
+    expect(
+      readPanelGo({ source: parent as MessageEventSource, data: "go" }, parent)
+    ).toBeNull()
   })
 })
