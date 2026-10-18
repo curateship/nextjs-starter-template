@@ -115,12 +115,16 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   seconds, what Google's Veo 3.1 offers for a longer shot, and what it costs.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
-- [viral-search.md](viral-search.md) — the Viral page's YouTube keyword search:
-  where the API key goes, what one search costs out of the free 10,000 daily
-  units, why Shorts means 3 minutes or less, and how every search is kept so
-  reopening it is free.
+- [viral-projects.md](viral-projects.md) — Viral as projects, one niche
+  each: the description and keywords, the three panels, the background search
+  and what it costs, the allowance check, the New badge, the topic match,
+  creators found and followed, hidden channels, favourites, and what the move
+  from the old Viral and Creators pages did.
+- [viral-search.md](viral-search.md) — the YouTube key behind Viral: where it
+  goes, the three calls one keyword makes, and why Shorts means 3 minutes or
+  less.
 - [viral-score.md](viral-score.md) — the 0 to 100 viral score on every Viral
-  page result: its five parts and their weights, one worked example, what
+  video: its five parts and their weights, one worked example, what
   "sure: medium" means, and why the score is worked out on every read.
 - [project-first.md](project-first.md) — what belongs to a project and what
   is shared, the Copy and Exports panels at the foot of the rail, Copy this,
@@ -132,9 +136,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [visual-style.md](visual-style.md) — a project's look: the style line and
   look picture set in a project's Settings window, which AI tools send them, and
   why a bad style line spoils every scene at once.
-- [creator-research.md](creator-research.md) — the research dashboard: creators
-  in folders, the feed of everything they post, the six-hourly watch timer and
-  what it costs, and what Save & break down downloads, spends and writes down.
+- [creator-research.md](creator-research.md) — following a creator, the
+  six-hourly watch timer and what it costs, and what Save & break down
+  downloads, spends and writes down.
 
 The AI tools, the credit ledger and the rest of the export and render path were
 built before this folder existed, and none of them is written up.

@@ -1,22 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router"
-
-import { routeErrorComponent } from "@/components/shell/route-error"
-import { ResearchPage } from "@/components/video-creators/research-page"
-import {
-  getCreatorErrorMessage,
-  loadResearchData,
-} from "@/lib/api/video/creators"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
 /**
- * The creator research dashboard. Everything it opens with is read before the
- * page draws, so there is no empty frame filling itself in.
+ * The Creators page folded into Viral: each creator folder became a Viral
+ * project. An old link or bookmark lands on the projects list.
  */
 export const Route = createFileRoute("/_authenticated/admin/video-creators")({
-  loader: () => loadResearchData(),
-  component: AdminVideoCreatorsRoute,
-  errorComponent: routeErrorComponent(getCreatorErrorMessage),
+  beforeLoad: () => {
+    throw redirect({ to: "/admin/video-viral", replace: true })
+  },
 })
-
-function AdminVideoCreatorsRoute() {
-  return <ResearchPage initial={Route.useLoaderData()} />
-}

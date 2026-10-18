@@ -1,12 +1,16 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import type { PhoneStatus } from "@/lib/phones/options"
 import { adminGet, adminPost } from "@/server/guards"
+import { listPhones } from "@/server/phones/phones"
 import {
   closeScreen,
   ownedPhones,
   sendScreenInput,
   setControl,
+  wallFrame,
+  wantWall,
   watchScreen,
   type ScreenInput,
 } from "@/server/phones/screens"
@@ -107,4 +111,44 @@ const closeFn = createServerFn({ method: "POST" })
 /** The window closed: control lets go and the rack stops sending pictures. */
 export function closeScreenWindow(id: string) {
   return closeFn({ data: { id } })
+}
+
+export type WallView = {
+  phones: Array<{
+    id: string
+    name: string
+    status: PhoneStatus
+    /** The newest small picture, or null for a held or offline phone, or before the first picture arrives. */
+    src: string | null
+    /** When that picture was taken, or null. */
+    at: Date | null
+  }>
+}
+
+const wallFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }): Promise<WallView> => {
+    wantWall(context.user.id)
+    const phones = await listPhones(context.user.id)
+    return {
+      phones: phones.map((phone) => {
+        const frame = phone.status === "connected" || phone.status === "busy" ? wallFrame(phone.id) : null
+        return {
+          id: phone.id,
+          name: phone.name,
+          status: phone.status,
+          src: frame ? `data:image/jpeg;base64,${frame.jpeg}` : null,
+          at: frame ? new Date(frame.at) : null,
+        }
+      }),
+    }
+  })
+
+/**
+ * The wall of every phone (part 57): one small picture of each connected
+ * phone, asked for every 5 seconds while the wall is open. Asking is what
+ * keeps the rack sending; ten seconds without an ask and it stops.
+ */
+export function loadWall() {
+  return wallFn()
 }

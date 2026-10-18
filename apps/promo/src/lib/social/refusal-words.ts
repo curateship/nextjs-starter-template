@@ -12,6 +12,8 @@
  *   phone (`src/server/social/move-to-phone.ts`).
  * - "yet: on a phone, the Reddit app": a Reddit step a phone does not do
  *   (`phoneStepRefusal` in `src/lib/phones/options.ts`).
+ * - "Sign out of iCloud": an iPhone wipe refused while an Apple ID is signed
+ *   in (`src/server/phones/wipe.ts`).
  */
 const WRITTEN_FOR_THE_READER = [
   "kept apart",
@@ -25,6 +27,7 @@ const WRITTEN_FOR_THE_READER = [
   "one on its way. One Reddit account per phone",
   "self-test has not walked",
   "yet: on a phone, the Reddit app",
+  "Sign out of iCloud",
 ]
 
 /** The refusal's own words when it is one of these, or null. */

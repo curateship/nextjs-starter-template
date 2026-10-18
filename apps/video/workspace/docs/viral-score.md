@@ -1,7 +1,7 @@
 # The viral score
 
-Every result on the Viral page gets a score from 0 to 100 for how viral it
-is, and the table sorts by it unless you pick another column. The formula is
+Every video in a Viral project gets a score from 0 to 100 for how viral it
+is, and the grid sorts by it unless you pick another order. The formula is
 the old app's (`apps/ai-video/src/server/trend-score.ts`), copied with every
 weight and threshold unchanged. It lives in `src/lib/video/viral-score.ts`.
 
@@ -72,8 +72,8 @@ saved copy never counts.
 
 ## Worked out on read, never stored
 
-The score is calculated each time results are read, in
-`src/server/video/viral/saved-searches.ts`, and there is no score column in
+The score is calculated each time a project is read, in
+`src/server/video/viral/project-view.ts`, and there is no score column in
 the database. That is why it moves as a video ages: the views and likes are
 the snapshot from when the search ran, but "days since posting" and "how
 recent" are measured from now.

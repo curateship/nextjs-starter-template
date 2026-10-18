@@ -1,12 +1,5 @@
 import { PHONE_STATUS_WORDS, slotWords, type PhoneStatus } from "@/lib/phones/options"
-
-/** The status dot's colour. The word beside it says the same, so colour is never alone. */
-const STATUS_DOT: Record<PhoneStatus, string> = {
-  connected: "bg-emerald-500",
-  busy: "bg-blue-500",
-  held: "bg-amber-500",
-  offline: "bg-destructive",
-}
+import { STATUS_DOT } from "@/lib/phones/status-dot"
 
 /**
  * A phone's status in words, with why it is offline and, for a phone that

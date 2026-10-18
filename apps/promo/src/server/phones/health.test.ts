@@ -72,11 +72,16 @@ describe("phone health", () => {
   })
 
   function phone(serial: string, patch: Partial<ReportedPhone> = {}): ReportedPhone {
-    return { serial, state: "device", usb: "usb:1-1", model: "Pixel 8a", android: "16", ...patch }
+    return { serial, state: "device", usb: "usb:1-1", model: "Pixel 8a", android: "16", kind: "android", ...patch }
   }
 
   async function report(at: Date, ...phones: ReportedPhone[]) {
     await checkIn(rack, { version: RACK_VERSION, platform: "", phones, rolledBack: null }, db, at)
+  }
+
+  /** A check-in carrying when the rack's WebDriverAgent signature runs out. */
+  async function reportWda(at: Date, wdaExpiresAt: Date | null, ...phones: ReportedPhone[]) {
+    await checkIn(rack, { version: RACK_VERSION, platform: "", phones, rolledBack: null, wdaExpiresAt: wdaExpiresAt?.toISOString() ?? null }, db, at)
   }
 
   async function notices() {
@@ -213,6 +218,32 @@ describe("phone health", () => {
       expect(await notices()).toEqual([])
     })
 
+    it("rings a day before the rack's WebDriverAgent runs out, once more when it has, and clears once it is re-signed", async () => {
+      const hours = (count: number) => later(count * 3600)
+      await reportWda(T0, hours(30), phone("I1", { kind: "iphone", model: "iPhone 12", android: "17.6" }))
+      await sweepPhoneHealth(db, later(1))
+      expect(await notices()).toEqual([])
+
+      await reportWda(hours(7), hours(30), phone("I1", { kind: "iphone", model: "iPhone 12", android: "17.6" }))
+      await sweepPhoneHealth(db, hours(7))
+      const [soon] = await notices()
+      expect(soon.message).toBe("WebDriverAgent on the rack runs out tomorrow; re-sign it in Xcode")
+      expect(soon.detail).toContain("bash ~/Library/Application Support/PromoRack/wda.sh")
+      await sweepPhoneHealth(db, later(7 * 3600 + 30))
+      expect(await notices()).toHaveLength(1)
+
+      await reportWda(hours(31), hours(30), phone("I1", { kind: "iphone", model: "iPhone 12", android: "17.6", state: "no_driver" }))
+      await sweepPhoneHealth(db, hours(31))
+      expect((await notices()).map((notice) => notice.message)).toEqual([
+        "WebDriverAgent on the rack has run out; its iPhones are offline until it is re-signed",
+      ])
+
+      // Re-signed: the rack reports a date a week on, and the notices go.
+      await reportWda(hours(32), hours(32 + 7 * 24), phone("I1", { kind: "iphone", model: "iPhone 12", android: "17.6" }))
+      await sweepPhoneHealth(db, hours(32))
+      expect(await notices()).toEqual([])
+    })
+
     it("rings once for a rack not checking in, not for each of its phones, and clears when it is back", async () => {
       await report(T0, phone("A1"), phone("B2", { usb: "usb:1-2" }))
       await sweepPhoneHealth(db, minutes(4))
@@ -273,8 +304,17 @@ describe("phone health", () => {
     async function testPhone() {
       await report(T0, phone("T1", { vitals: vitals({ apps: { reddit: "2025.39.0" } }) }), phone("A1", { usb: "usb:1-2", vitals: vitals({ apps: { reddit: "2025.39.0" } }) }), phone("B2", { usb: "usb:1-3", vitals: vitals({ apps: { reddit: "2025.39.0" } }) }))
       const id = await phoneId("T1")
-      await setTestPhone(userId, id, db)
+      await setTestPhone(userId, id, "android", db)
       return id
+    }
+
+    /** Hands the next action to the rack and answers it by what it is. */
+    async function answerEach(at: Date, reply: (action: { action: string; serial: string }) => { ok: boolean; result?: Record<string, unknown>; error?: string }) {
+      const action = await nextAction(rack, db, at)
+      if (!action) throw new Error("Nothing was waiting for the rack.")
+      const answer = reply(action)
+      await finishAction(rack, { id: action.id, ok: answer.ok, result: answer.result ?? {}, error: answer.error ?? "" }, db, at)
+      return action
     }
 
     /** Hands the next action to the rack and answers it. */
@@ -288,9 +328,9 @@ describe("phone health", () => {
     it("refuses a phone with an account as the test phone, and keeps the test phone out of Runs on", async () => {
       await report(T0, phone("A1"), phone("T1", { usb: "usb:1-2" }))
       await addAccount(userId, { profileId: null, phoneId: await phoneId("A1"), voiceId: null }, db)
-      await expect(setTestPhone(userId, await phoneId("A1"), db)).rejects.toThrow("must be a spare one")
+      await expect(setTestPhone(userId, await phoneId("A1"), "android", db)).rejects.toThrow("must be a spare one")
       const test = await phoneId("T1")
-      await setTestPhone(userId, test, db)
+      await setTestPhone(userId, test, "android", db)
       expect((await phonesFreeFor(userId, null, db)).map((one) => one.id)).not.toContain(test)
       await expect(addAccount(userId, { profileId: null, phoneId: test, voiceId: null }, db)).rejects.toThrow("is the self-test phone")
     })
@@ -316,14 +356,14 @@ describe("phone health", () => {
       const [notice] = await notices()
       expect(notice.message).toBe("Self-test failed: Post a Reddit comment")
       expect(notice.detail).toContain('It stopped at "Open the reply box": Could not find "Reply" on the screen.')
-      await expect(refuseBrokenAction(userId, "reddit/comment", db)).rejects.toThrow('broken on 2099-01-01, at "Open the reply box"')
-      await expect(refuseBrokenAction(userId, "reddit/search", db)).resolves.toBeUndefined()
+      await expect(refuseBrokenAction(userId, "reddit/comment", "android", db)).rejects.toThrow('broken on 2099-01-01, at "Open the reply box"')
+      await expect(refuseBrokenAction(userId, "reddit/search", "android", db)).resolves.toBeUndefined()
 
       await db.delete(promoPhoneActions).where(eq(promoPhoneActions.phoneId, id))
       await db.update(promoPhoneSettings).set({ selfTestAt: null })
       await queueDailySelfTest(db, later(10))
       await answer(later(11), { ok: true, result: { actions: [{ action: "reddit/comment", passed: true }] } })
-      await expect(refuseBrokenAction(userId, "reddit/comment", db)).resolves.toBeUndefined()
+      await expect(refuseBrokenAction(userId, "reddit/comment", "android", db)).resolves.toBeUndefined()
       expect(await notices()).toEqual([])
       const [check] = await db.select().from(promoPhoneActionChecks)
       expect(check).toMatchObject({ passed: true, step: "" })
@@ -336,21 +376,21 @@ describe("phone health", () => {
       await answer(later(3), { ok: true, result: { apps: { reddit: { version: "2025.39.0", update: true } } } })
       expect((await notices()).map((notice) => notice.message)).toContain("App update out: Reddit")
 
-      await expect(updateOtherPhones(userId, "reddit", db, later(4))).rejects.toThrow("has to pass the self-test")
-      await updateTestPhone(userId, "reddit", db, later(5))
+      await expect(updateOtherPhones(userId, "reddit", "android", db, later(4))).rejects.toThrow("has to pass the self-test")
+      await updateTestPhone(userId, "reddit", "android", db, later(5))
       const update = await answer(later(6), { ok: true, result: { app: "reddit", from: "2025.39.0", to: "2025.40.0" } })
       expect(update).toMatchObject({ action: "phone/update-app", args: { app: "reddit" }, serial: "T1" })
       const [testing] = await db.select().from(promoAppRollouts)
       expect(testing).toMatchObject({ status: "testing", fromVersion: "2025.39.0", toVersion: "2025.40.0" })
       // Still testing, so still refused.
-      await expect(updateOtherPhones(userId, "reddit", db, later(7))).rejects.toThrow("has to pass the self-test")
+      await expect(updateOtherPhones(userId, "reddit", "android", db, later(7))).rejects.toThrow("has to pass the self-test")
 
       const selfTest = await answer(later(8), { ok: true, result: { actions: [{ action: "phone/android-version", passed: true }] } })
       expect(selfTest.action).toBe("phone/self-test")
       const [passed] = await db.select().from(promoAppRollouts)
       expect(passed.status).toBe("passed")
 
-      const { queued } = await updateOtherPhones(userId, "reddit", db, later(9))
+      const { queued } = await updateOtherPhones(userId, "reddit", "android", db, later(9))
       expect(queued).toHaveLength(2)
       const waiting = await db.select().from(promoPhoneActions).where(eq(promoPhoneActions.status, "queued"))
       expect(waiting.map((row) => [row.action, row.args])).toEqual([
@@ -364,15 +404,71 @@ describe("phone health", () => {
       await queueDailySelfTest(db, later(1))
       await answer(later(2), { ok: true, result: { actions: [] } })
       await answer(later(3), { ok: true, result: { apps: { reddit: { version: "2025.39.0", update: true } } } })
-      await updateTestPhone(userId, "reddit", db, later(4))
+      await updateTestPhone(userId, "reddit", "android", db, later(4))
       await answer(later(5), { ok: true, result: { app: "reddit", from: "2025.39.0", to: "2025.40.0" } })
       await answer(later(6), {
         ok: true,
         result: { actions: [{ action: "phone/android-version", passed: false, step: "Find the Android version", error: "Not on screen." }] },
       })
       const [round] = await db.select().from(promoAppRollouts)
-      expect(round).toMatchObject({ status: "failed", note: "The self-test on the new version failed: Read the Android version from Settings." })
-      await expect(updateOtherPhones(userId, "reddit", db, later(7))).rejects.toThrow("has to pass the self-test")
+      expect(round).toMatchObject({ status: "failed", note: "The self-test on the new version failed: Read the system version from Settings." })
+      await expect(updateOtherPhones(userId, "reddit", "android", db, later(7))).rejects.toThrow("has to pass the self-test")
+    })
+
+    it("keeps the iPhone self-test apart: its broken step refuses iPhone jobs only, and its updates go round the iPhones", async () => {
+      const iphone = (serial: string, usb: string) =>
+        phone(serial, { usb, kind: "iphone", model: "iPhone 12", android: "17.6", vitals: vitals({ apps: { reddit: "2025.39.0" } }) })
+      await report(T0, phone("T1", { vitals: vitals({ apps: { reddit: "2025.39.0" } }) }), iphone("I1", "usb:1-2"), iphone("I2", "usb:1-3"), phone("A1", { usb: "usb:1-4", vitals: vitals({ apps: { reddit: "2025.39.0" } }) }))
+      const [T1, I1, I2] = await Promise.all([phoneId("T1"), phoneId("I1"), phoneId("I2")])
+      // An iPhone cannot be the Android test phone, nor the other way round.
+      await expect(setTestPhone(userId, I1, "android", db)).rejects.toThrow("other slot")
+      await expect(setTestPhone(userId, T1, "iphone", db)).rejects.toThrow("other slot")
+      await setTestPhone(userId, T1, "android", db)
+      await setTestPhone(userId, I1, "iphone", db)
+      const free = (await phonesFreeFor(userId, null, db)).map((one) => one.id)
+      expect(free).not.toContain(T1)
+      expect(free).not.toContain(I1)
+      expect(free).toContain(I2)
+
+      // Both test phones get their day's self-test and store look.
+      expect(await queueDailySelfTest(db, later(1))).toBe(true)
+      expect(await queueDailySelfTest(db, later(2))).toBe(false)
+      const waiting = await db.select().from(promoPhoneActions)
+      expect(waiting.map((row) => [row.phoneId, row.action]).sort()).toEqual(
+        [[T1, "phone/self-test"], [T1, "phone/check-updates"], [I1, "phone/self-test"], [I1, "phone/check-updates"]].sort()
+      )
+      for (let turn = 0; turn < 4; turn += 1) {
+        await answerEach(later(10 + turn), (action) => {
+          if (action.action === "phone/self-test") {
+            return action.serial === "I1"
+              ? { ok: true, result: { actions: [{ action: "reddit/comment", passed: false, step: "Open the reply box", error: "Not on screen." }] } }
+              : { ok: true, result: { actions: [{ action: "reddit/comment", passed: true }] } }
+          }
+          return { ok: true, result: { apps: { reddit: { version: "2025.39.0", update: action.serial === "I1" } } } }
+        })
+      }
+      // The iPhone step is refused on iPhones only; the Android one passed.
+      await expect(refuseBrokenAction(userId, "reddit/comment", "iphone", db)).rejects.toThrow("on the iPhone test phone")
+      await expect(refuseBrokenAction(userId, "reddit/comment", "android", db)).resolves.toBeUndefined()
+      const messages = (await notices()).map((notice) => notice.message).sort()
+      expect(messages).toEqual(["App update out: Reddit on iPhone", "Self-test failed on iPhone: Post a Reddit comment"])
+      const checks = await db.select().from(promoPhoneActionChecks)
+      expect(checks.map((check) => [check.kind, check.passed]).sort()).toEqual([["android", true], ["iphone", false]])
+
+      // The iPhone round: the iPhone test phone first, then the other iPhones only.
+      const [round] = await db.select().from(promoAppRollouts)
+      expect(round).toMatchObject({ kind: "iphone", status: "available" })
+      await updateTestPhone(userId, "reddit", "iphone", db, later(20))
+      const update = await answerEach(later(21), () => ({ ok: true, result: { app: "reddit", from: "2025.39.0", to: "2025.40.0" } }))
+      expect(update).toMatchObject({ action: "phone/update-app", serial: "I1" })
+      await answerEach(later(22), () => ({ ok: true, result: { actions: [{ action: "reddit/comment", passed: true }] } }))
+      expect((await db.select().from(promoAppRollouts))[0]).toMatchObject({ kind: "iphone", status: "passed", toVersion: "2025.40.0" })
+      await expect(refuseBrokenAction(userId, "reddit/comment", "iphone", db)).resolves.toBeUndefined()
+      await expect(updateOtherPhones(userId, "reddit", "android", db, later(23))).rejects.toThrow("has to pass the self-test")
+      const { queued } = await updateOtherPhones(userId, "reddit", "iphone", db, later(23))
+      expect(queued).toEqual(["iPhone 12"])
+      const others = await db.select().from(promoPhoneActions).where(eq(promoPhoneActions.status, "queued"))
+      expect(others.map((row) => row.phoneId)).toEqual([I2])
     })
   })
 

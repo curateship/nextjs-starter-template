@@ -15,6 +15,7 @@ const checkInShape = z.object({
         usb: z.string().max(120).default(""),
         model: z.string().max(120).default(""),
         android: z.string().max(40).default(""),
+        kind: z.enum(["android", "iphone"]).default("android"),
         timezone: z.string().max(64).default(""),
         vitals: z
           .object({
@@ -43,6 +44,7 @@ const checkInShape = z.object({
     .object({ from: z.string().max(40), to: z.string().max(40), at: z.string().max(40), why: z.string().max(200) })
     .nullable()
     .default(null),
+  wdaExpiresAt: z.string().datetime({ offset: true }).max(40).nullable().default(null),
 })
 
 /**

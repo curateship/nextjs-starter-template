@@ -64,7 +64,16 @@ shows within a minute without a reload.
 Tyler types each phone's shelf slot once. The rack reports the USB port on
 every check-in, so moving the cable to another port updates the port by
 itself. An offline phone shows "slot 4" beside its status, so the right phone
-gets picked up first time.
+gets picked up first time, and **Map** in the toolbar draws the whole shelf
+by slot ([seeing the rack](seeing-the-rack.md)).
+
+## Filters and the search box
+
+The toolbar filters by status, kind, carrier, project and "Needs wiping",
+beside the folder, label and tag filters, and the search box covers the
+name, serial and the rest of the row. Every filter lives in the address, so
+`/admin/phones?status=offline` opens the list filtered and the back button
+undoes a filter. [Seeing the rack](seeing-the-rack.md) has the rules.
 
 ## The bell
 
@@ -96,7 +105,7 @@ account per phone is a unique index, the same rule as profiles.
 
 A phone opens as a window over the list and keeps `?open=<id>` in the address,
 which is where its bell notice leads. The screen button on a row opens the
-phone's live screen ([the screen window](screen-window.md)). It has five tabs:
+phone's live screen ([the screen window](screen-window.md)). It has six tabs:
 
 - **Settings:** the fields above.
 - **Setup:** the setup check, what the platform sees, and wiping the phone.
@@ -110,6 +119,9 @@ phone's live screen ([the screen window](screen-window.md)). It has five tabs:
   is refused for a held phone, an offline phone, and a rack that has not
   checked in for a minute. [The rack program](rack-program.md) explains both
   checks.
+- **Jobs:** the jobs waiting for, running on and finished on this phone,
+  newest first, with the Jobs window's own Cancel and Try again
+  ([seeing the rack](seeing-the-rack.md)).
 - **History:** everything that happened to the phone, newest first.
 
 ## The rows and Self-test
@@ -123,6 +135,10 @@ phone's live screen ([the screen window](screen-window.md)). It has five tabs:
   version, and turns amber when more than half of four or more share one.
 - **Self-test** in the toolbar opens the daily self-test's answers and app
   updates: [the self-test and app updates](self-test-and-app-updates.md).
+- **Wall** in the toolbar opens a live picture of every connected phone, new
+  every 5 seconds, and **Map** the shelf drawn by slot. The Rack window's
+  Log tab shows the rack program's own log. All three are in
+  [seeing the rack](seeing-the-rack.md).
 
 Deleting a phone deletes only the record. Nothing on the phone changes, the
 accounts on it run on nothing until another place is picked, and a phone still
@@ -132,9 +148,11 @@ plugged in comes back as a new record on the next check-in.
 
 - The page: `src/components/phones/phones-dashboard.tsx`, the window
   `phone-dialog.tsx` with `phone-setup-panel.tsx`, `phone-health-panel.tsx`,
-  `phone-actions-panel.tsx` and `phone-history-panel.tsx`, the Rack window
-  `rack-dialog.tsx`, the Self-test window `self-test-dialog.tsx` and the Mix
-  window `rack-mix-dialog.tsx`.
+  `phone-actions-panel.tsx`, `phone-jobs-panel.tsx` and
+  `phone-history-panel.tsx`, the Rack window `rack-dialog.tsx`, the Self-test
+  window `self-test-dialog.tsx`, the Mix window `rack-mix-dialog.tsx`, the
+  Wall `phone-wall-dialog.tsx` and the Map `rack-map-dialog.tsx`. The filters
+  in the address are read by `src/lib/phones/phones-search.ts`.
 - The endpoints: `src/lib/api/phones/phones.ts` and `health.ts`. The server:
   `src/server/phones/phones.ts`, with the bell in `src/server/phones/health.ts`.
 - The tables: `promo_phones` and `promo_accounts.phone_id`, in

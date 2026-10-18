@@ -26,6 +26,12 @@ suspicious?" So the phones do not check the inbox on a clock.
   conversation with a message box, it goes in through the inbox instead.
 - **The daily health reading glances at the inbox** in case a notification was
   missed, and asks for a read if something is unread.
+- **An iPhone is the exception, on a clock:** it hands the rack no
+  notifications, so in waking hours Promo queues a read of each iPhone
+  account's inbox once an hour (Tyler, 18 Oct 2026), one for messages and one
+  for comments, recorded as the inbox being opened rather than a notification
+  being tapped, and the list here fills the same way. At night nothing is opened
+  ([iPhones on the rack](phones/iphones.md)).
 
 ## The list
 

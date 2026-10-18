@@ -30,7 +30,7 @@ export const TRANSCRIBERS = [
     id: "gemini",
     label: "Gemini",
     provider: "gemini",
-    model: "gemini-2.5-flash",
+    model: "gemini-3.8-flash",
   },
 ] as const
 
@@ -42,7 +42,7 @@ export const WRITERS = [
     id: "gemini",
     label: "Gemini Flash",
     provider: "gemini",
-    model: "gemini-2.5-flash",
+    model: "gemini-3.8-flash",
   },
   {
     id: "openai",

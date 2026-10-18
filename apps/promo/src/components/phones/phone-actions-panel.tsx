@@ -42,7 +42,7 @@ const RECOVERED_WORDS: Record<string, string> = {
 type ManualAction = (typeof MANUAL_PHONE_ACTIONS)[number]
 
 /**
- * The phone's actions: ask the rack to read the Android version off the
+ * The phone's actions: ask the rack to read the system version off the
  * phone's own Settings screen, or take a health reading, and see the last
  * twenty actions, including a job's Reddit steps and the daily self-test.
  *
@@ -119,7 +119,7 @@ export function PhoneActionsPanel({ phone, onChanged }: { phone: PhoneRecord; on
               onClick={() => void ask("phone/android-version")}
             >
               {asking === "phone/android-version" ? <Loader2Icon className="animate-spin" /> : <SmartphoneIcon />}
-              Read the Android version from Settings
+              Read the system version from Settings
             </Button>
             <Button type="button" variant="outline" disabled={asking !== null} onClick={() => void ask("phone/health")}>
               {asking === "phone/health" ? <Loader2Icon className="animate-spin" /> : <HeartPulseIcon />}

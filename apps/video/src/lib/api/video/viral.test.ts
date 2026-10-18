@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest"
 
-import { getViralErrorMessage, QUOTA_MESSAGE } from "@/lib/api/video/viral"
+import { getViralErrorMessage } from "@/lib/api/video/viral"
+import { YOUTUBE_QUOTA_MESSAGE } from "@/lib/video/viral"
 
 describe("what a failed search tells you", () => {
   it("words a used-up quota, with when it comes back", () => {
-    expect(getViralErrorMessage(new Error("YOUTUBE_QUOTA"))).toBe(QUOTA_MESSAGE)
-    expect(QUOTA_MESSAGE).toBe(
-      "Today's 100 free YouTube searches are used up. They reset at midnight Pacific time."
+    expect(getViralErrorMessage(new Error("YOUTUBE_QUOTA"))).toBe(
+      "Today's free YouTube allowance is used up. It resets at midnight Pacific time."
+    )
+    expect(YOUTUBE_QUOTA_MESSAGE).toBe(
+      "Today's free YouTube allowance is used up. It resets at midnight Pacific time."
     )
   })
 
@@ -16,6 +19,12 @@ describe("what a failed search tells you", () => {
         new Error("YouTube said: API key not valid. Please pass a valid API key.")
       )
     ).toBe("YouTube said: API key not valid. Please pass a valid API key.")
+  })
+
+  it("shows a sentence the server already wrote, without its marker", () => {
+    expect(
+      getViralErrorMessage(new Error("VIRAL_SAYS: Add a keyword first."))
+    ).toBe("Add a keyword first.")
   })
 
   it("still gives a reason for machine noise", () => {

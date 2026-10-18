@@ -1,3 +1,4 @@
+import driverSource from "../../../rack/iphone.py?raw"
 import installScript from "../../../rack/install.sh?raw"
 import launcherSource from "../../../rack/launcher.py?raw"
 import programSource from "../../../rack/promo_rack.py?raw"
@@ -22,10 +23,25 @@ function versionOf(source: string): string {
 
 export const RACK_VERSION = versionOf(programSource)
 
-export type RackRelease = { version: string; source: string; sha256: string }
+/**
+ * The program and, beside it, the iPhone driver (`rack/iphone.py`), which the
+ * program imports from its own folder. The driver carries no version line of
+ * its own: it travels with every release and is checked by its checksum.
+ */
+export type RackRelease = { version: string; source: string; sha256: string; driver: string; driverSha256: string }
 
 export function rackRelease(): RackRelease {
-  return { version: RACK_VERSION, source: programSource, sha256: sha256Hex(programSource) }
+  return {
+    version: RACK_VERSION,
+    source: programSource,
+    sha256: sha256Hex(programSource),
+    driver: driverSource,
+    driverSha256: sha256Hex(driverSource),
+  }
+}
+
+export function rackDriverSource(): string {
+  return driverSource
 }
 
 export function rackLauncherSource(): string {
