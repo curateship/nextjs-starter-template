@@ -14,7 +14,7 @@ import * as React from "react"
  * order sizes and coin prices stay readable, because somebody hiding their
  * profit from the person beside them still has to be able to trade.
  */
-const STORAGE_KEY = "trade:hide-pnl"
+export const HIDE_PNL_STORAGE_KEY = "trade:hide-pnl"
 
 let hidden = false
 /**
@@ -45,7 +45,7 @@ const listeners = new Set<() => void>()
 export function startHidePnl(): boolean | null {
   if (typeof window === "undefined") return null
   try {
-    const saved = window.localStorage.getItem(STORAGE_KEY)
+    const saved = window.localStorage.getItem(HIDE_PNL_STORAGE_KEY)
     return saved === null ? null : saved === "true"
   } catch {
     return null
@@ -62,7 +62,7 @@ export function setHidePnl(next: boolean) {
   version += 1
   if (typeof window !== "undefined") {
     try {
-      window.localStorage.setItem(STORAGE_KEY, String(next))
+      window.localStorage.setItem(HIDE_PNL_STORAGE_KEY, String(next))
     } catch {
       // A browser with site data switched off still gets the switch. It just
       // cannot remember it, which is the smaller of the two failures.

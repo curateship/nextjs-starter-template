@@ -1,6 +1,13 @@
+import * as React from "react"
+
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { loadHidePnl } from "@/lib/api/trade/hide-pnl"
-import { hidePnlVersion, setHidePnl, startHidePnl } from "@/lib/trade/hide-pnl"
+import {
+  HIDE_PNL_STORAGE_KEY,
+  hidePnlVersion,
+  setHidePnl,
+  startHidePnl,
+} from "@/lib/trade/hide-pnl"
 
 /**
  * Brings the saved Hide profit and loss choice into the browser, once a page.
@@ -34,5 +41,20 @@ export function useHidePnlSync() {
       .catch(() => {
         asked = false
       })
+  }, [])
+  // Every other open copy of Trade follows the switch at once: another tab,
+  // or another Trade screen kept loaded in Personal's middle panel. Each copy
+  // keeps the answer in its own memory and reads the saved one only as it
+  // opens, so before this a copy opened earlier kept showing the figures
+  // until it was loaded again. The browser tells every other page of the
+  // same address when the remembered answer changes. Tyler found it on
+  // 18 Oct 2026, with the switch off in one copy and on in Personal's.
+  React.useEffect(() => {
+    function onStorage(event: StorageEvent) {
+      if (event.key !== HIDE_PNL_STORAGE_KEY || event.newValue === null) return
+      setHidePnl(event.newValue === "true")
+    }
+    window.addEventListener("storage", onStorage)
+    return () => window.removeEventListener("storage", onStorage)
   }, [])
 }

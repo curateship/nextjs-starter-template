@@ -75,3 +75,15 @@ than a React context, because these figures are on nearly every screen and a
 context would need a provider wrapped round a tree the shell owns. Every hidden
 figure is drawn by `src/components/trade/pnl-amount.tsx`, so there is one answer
 to "is this hidden" rather than thirty.
+
+## Every open copy follows the switch
+
+Each open copy of Trade keeps the answer in its own memory and reads the saved
+one only as it opens. So a copy opened earlier, such as another tab or a Trade
+screen kept loaded in Personal's middle panel, used to keep showing the figures
+after the switch was turned on somewhere else, until it was loaded again. Tyler
+found this on 18 Oct 2026. `useHidePnlSync` in
+`src/lib/trade/use-hide-pnl-sync.ts` now listens for the browser's note that
+the remembered answer (`trade:hide-pnl`) changed in another page, and applies
+it at once. Not yet checked in a browser, because no Trade server runs from
+this worktree.
