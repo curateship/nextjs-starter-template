@@ -7,14 +7,13 @@ import {
   renderBroadcastEmailHtml,
 } from "@/lib/broadcasts/render"
 import {
+  contactMatchesAutomationAudience,
   listAutomationAudienceContacts,
-  memberMatchesAutomationAudience,
   readAutomationAudience,
   type AutomationAudienceContact,
 } from "@/server/automations/audience"
 import { syncContactsFromUsers } from "@/server/people/contacts"
 import { markQuietContacts } from "@/server/people/quiet-contacts"
-import { userBelongsToWorkspaceCondition } from "@/server/people/workspace-users"
 import { workspaceForRun } from "@/server/automations/runs"
 import type { CustomShellDb } from "@/server/db"
 import { getEmailProvider, type EmailProvider } from "@/server/email/provider"
@@ -51,11 +50,6 @@ type SendEmailContext = {
 type Recipient = Pick<
   AutomationAudienceContact,
   "id" | "userId" | "email" | "firstName" | "lastName" | "emailVerifiedAt"
->
-
-type TestRecipient = Pick<
-  Recipient,
-  "email" | "firstName" | "lastName" | "emailVerifiedAt"
 >
 
 /** The closest upstream Audience step this run actually completed, if any. */
@@ -152,54 +146,6 @@ async function subjectRecipient(
     .limit(1)
 
   return recipient ?? null
-}
-
-/**
- * The member as a normal send would see them after contact sync, without
- * writing that sync during a test. An existing opt-out still wins.
- */
-async function testSubjectRecipient(
-  userId: string,
-  workspaceId: string,
-  database: CustomShellDb
-): Promise<TestRecipient | null> {
-  const [recipient] = await database
-    .select({
-      email: customShellUsers.email,
-      name: customShellUsers.name,
-      emailVerifiedAt: customShellUsers.emailVerifiedAt,
-      contactStatus: customShellContacts.status,
-    })
-    .from(customShellUsers)
-    .leftJoin(
-      customShellContacts,
-      and(
-        eq(customShellContacts.workspaceId, workspaceId),
-        eq(customShellContacts.userId, customShellUsers.id)
-      )
-    )
-    .where(
-      and(
-        await userBelongsToWorkspaceCondition(workspaceId, database),
-        eq(customShellUsers.id, userId),
-        // Members only: member emails never go to an admin or to an app
-        // role's account.
-        eq(customShellUsers.role, "member"),
-        eq(customShellUsers.status, "active")
-      )
-    )
-    .limit(1)
-
-  if (!recipient || (recipient.contactStatus && recipient.contactStatus !== "subscribed")) {
-    return null
-  }
-  const parts = recipient.name.trim().split(/\s+/).filter(Boolean)
-  return {
-    email: recipient.email,
-    firstName: parts[0] ?? null,
-    lastName: parts.length > 1 ? parts.slice(1).join(" ") : null,
-    emailVerifiedAt: recipient.emailVerifiedAt,
-  }
 }
 
 function isProduction() {
@@ -511,44 +457,45 @@ async function executeTestEmail({
   now: () => Date
 }) {
   const destination = run.testRecipientEmail?.trim()
-  if (!destination || !run.subjectUserId) {
+  const contactId = run.subjectContactId
+  if (!destination || !contactId) {
     throw new Error(
-      "This test run has no safe destination or chosen member, so no email was sent."
+      "This test has no safe destination or chosen contact, so no email was sent. Start a new test."
     )
   }
 
-  const recipient = await testSubjectRecipient(
-    run.subjectUserId,
-    workspaceId,
-    database
-  )
+  // The contact exactly as a real send would read it, so a test that reaches
+  // the admin is a send that would have reached the contact.
+  const recipient = await subjectRecipient(run, workspaceId, database)
   if (!recipient) {
     return {
       type: "next" as const,
       summary:
-        "No test email was sent because the chosen member could not receive this email. The member received nothing.",
+        "No test email was sent because the chosen contact could not receive this email. The contact received nothing.",
     }
   }
   if (audience) {
-    const matches = await memberMatchesAutomationAudience(
+    const matches = await contactMatchesAutomationAudience(
       audience,
       workspaceId,
-      run.subjectUserId,
+      contactId,
       database,
       now()
     )
     if (!matches) {
       return {
         type: "next" as const,
-        summary: `${run.subjectLabel ?? "The chosen member"} did not match this email's audience, so no test email was sent.`,
+        summary: `${run.subjectLabel ?? "The chosen contact"} did not match this email's audience, so no test email was sent.`,
       }
     }
   }
-  if (!recipient.emailVerifiedAt) {
+  // The same rule a real send skips by: an account must have confirmed its
+  // email, and an address with no account has nothing to confirm.
+  if (recipient.userId && !recipient.emailVerifiedAt) {
     return {
       type: "next" as const,
       summary:
-        "No test email was sent because the chosen member's email is not confirmed. The member received nothing.",
+        "No test email was sent because the chosen contact's email is not confirmed. The contact received nothing.",
     }
   }
 
@@ -587,7 +534,7 @@ async function executeTestEmail({
   if (!reserved) {
     return {
       type: "next" as const,
-      summary: `The test email for ${recipient.email} was already attempted. The member received nothing.`,
+      summary: `The test email for ${recipient.email} was already attempted. The contact received nothing.`,
     }
   }
 
@@ -619,7 +566,7 @@ async function executeTestEmail({
   return {
     type: "next" as const,
     summary: result.success
-      ? `Sent a test email to ${destination} for ${recipient.email}. The member received nothing.`
-      : `The test email to ${destination} failed: ${result.error ?? "the send did not go through"}. The member received nothing.`,
+      ? `Sent a test email to ${destination} for ${recipient.email}. The contact received nothing.`
+      : `The test email to ${destination} failed: ${result.error ?? "the send did not go through"}. The contact received nothing.`,
   }
 }

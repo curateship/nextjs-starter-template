@@ -1274,8 +1274,10 @@ export const customShellAutomationRuns = pgTable(
       { onDelete: "set null" }
     ),
     /**
-     * A rehearsal against `subjectUserId`. Outside actions are redirected or
+     * A rehearsal against `subjectContactId`. Outside actions are redirected or
      * skipped, and the copied address is the only address an email may reach.
+     * Test runs from before 17 Oct 2026 name only `subjectUserId`; they are
+     * history, which is why the check still accepts them.
      */
     testRun: boolean("test_run").notNull().default(false),
     testRecipientEmail: varchar("test_recipient_email", { length: 255 }),
@@ -1311,7 +1313,7 @@ export const customShellAutomationRuns = pgTable(
     ),
     check(
       "automation_runs_test_recipient_check",
-      sql`${table.testRun} = (${table.testRecipientEmail} is not null) and (${table.testRun} = false or ${table.subjectUserId} is not null)`
+      sql`${table.testRun} = (${table.testRecipientEmail} is not null) and (${table.testRun} = false or ${table.subjectContactId} is not null or ${table.subjectUserId} is not null)`
     ),
     index("ix_automation_runs_status_wake").on(table.status, table.wakeAt),
     index("ix_automation_runs_approval_deadline")

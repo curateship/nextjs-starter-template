@@ -643,12 +643,14 @@ type AutomationOptions = {
    */
   runButton?: "shown" | "hidden"
   /**
-   * Which flows offer "Test with member…". Unset means every flow does, which
-   * is what every app did before this existed.
+   * Which flows offer "Test with contact…". Unset means every flow does, which
+   * is what every app did before this existed. Named from when the test picked
+   * a member's account; it picks a contact now, and the name stays so no app
+   * that sets it breaks.
    *
-   * The button runs the flow against one chosen member, which is the right way
-   * to try a welcome sequence and a meaningless thing to offer a flow with no
-   * member in it at all. The shell cannot tell the two apart: it would have to
+   * The button runs the flow against one chosen contact, which is the right
+   * way to try a welcome sequence and a meaningless thing to offer a flow with
+   * nobody in it at all. The shell cannot tell the two apart: it would have to
    * know what an app's own steps are about. Trade's backtest is exactly that —
    * it walks a strategy over price history, and there is nobody to test it
    * with.
@@ -1044,7 +1046,7 @@ export function appShowsRunButton(options: AppOptions = appOptions): boolean {
 }
 
 /**
- * Whether this flow offers "Test with member…".
+ * Whether this flow offers "Test with contact…".
  *
  * True unless the app says otherwise, so an app that has never heard of this
  * option behaves exactly as it did before.

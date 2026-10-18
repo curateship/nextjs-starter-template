@@ -4,7 +4,7 @@ The automation list lets an admin:
 
 - Create a flow from a blank canvas or template.
 - Search, duplicate, rename, and delete flows.
-- Test a flow against a member.
+- Test a flow against one contact.
 - Turn a flow live or take it offline.
 
 The editor has a node palette, a canvas, an inspector, and a resizable Runs
@@ -52,6 +52,30 @@ background pass continue eligible work.
 See [Automation run refresh](run-refresh.md) for live history updates and
 [App-owned automation run results](app-owned-run-results.md) for app-specific
 reports inside a completed step.
+
+## Testing with one contact
+
+"Test with contact…" walks a flow as if it were about one real contact. Tyler
+asked for contacts on 17 Oct 2026: "it should search contacts, not users".
+
+- **Who can be picked.** Any contact in this site that a real send could
+  reach: subscribed or cold, with no account behind it or with an active
+  member's account. An admin's or an app role's account is never offered.
+- **Where the emails go.** Every email goes to the admin who started the test,
+  with "[TEST for their address]" in front of the subject. The contact gets
+  nothing.
+- **The same checks as a real send.** The email is skipped when the contact
+  is not in the email's audience, or has an account whose email is not
+  confirmed. A contact with no account has nothing to confirm.
+- **Tags, waits and webhooks are skipped.** The history says what they would
+  have done, such as "Would have called https://… Skipped in this test." A step
+  an app adds is skipped unless the app marks it safe for tests.
+- **A step that needs an account.** On a contact with no account, the tag step
+  says it would stop a real run there, then the test carries on.
+
+The picker reads from `src/server/automations/test-contacts.ts`. Apps can hide
+the button on flows with nobody in them through the `memberTest` option, which
+keeps its older name so no app breaks.
 
 ## Sequences: a segment a few at a time, and Wait
 
@@ -103,7 +127,7 @@ its own line, and decides whether to carry on.
   only way to stop a running sequence would be to delete it. A run somebody
   started by hand is not stopped, because a flow that only runs by hand is
   always off.
-- **A test with one member does not wait.** The step says "Would wait 2 days.
+- **A test with one contact does not wait.** The step says "Would wait 2 days.
   Skipped in this test." and the test carries straight on, so every email in
   the sequence arrives within seconds.
 
