@@ -221,11 +221,20 @@ checks that each picture belongs to the signed-in admin's library, and it checks
 the ones a Visibility switch has turned off as well: switching a picture back on
 must never be a way to show a file nobody checked.
 
-**A page with no blocks draws the shell's built-in pricing front page**, so an
-app that has never touched this screen looks exactly as it did. The exception is
-a visitor on a site's own domain: that site gets a header and a footer with
-nothing between them, because the shell's pricing page is the template's front
-door and not that site's.
+**A page with no blocks draws the sign-in card and nothing else.** There is no
+menu, no plans and no footer, only the sign-in card in the middle of the page.
+`/login` is drawn the same way, the card alone, and it wins over an app's own
+`signIn.frame`. Register, password reset and the other signed-out pages keep
+the menu and footer. Somebody already signed in sees "You are logged in. Redirecting in
+5 seconds." with a countdown, and is then sent to their dashboard: the overview
+for an admin, home for everybody else. A "Go to dashboard" button under the
+message skips the wait. Tyler asked for this on 18 Oct 2026; until then the
+empty front page was a headline over the public plans.
+
+The exception is a visitor on a site's own domain: that site gets a header and
+a footer with nothing between them, because the shell's front page is the
+template's front door and not that site's. An app that sets `landing.page` in
+its options replaces all of this with its own page.
 
 ## The page's own settings
 
