@@ -134,8 +134,10 @@ describe("the checker's answer", () => {
 
 describe("what a check costs", () => {
   it("prices a 5,000-character script in cents for each writer", () => {
+    // gemini-3.8-flash: 1,850 tokens in at $0.75 a million and 300 out at
+    // $3.75 a million is $0.0025.
     expect(formatCheckCost(scriptCheckCostCents(5_000, "gemini"))).toBe(
-      "about 0.1¢"
+      "about 0.3¢"
     )
     expect(formatCheckCost(scriptCheckCostCents(5_000, "openai"))).toBe(
       "about 0.6¢"

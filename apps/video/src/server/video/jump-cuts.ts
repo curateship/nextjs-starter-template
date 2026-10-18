@@ -58,7 +58,7 @@ import { downloadToFile } from "@/server/video/storage-files"
  * cutting is the editor's job, and one press of undo puts it all back.
  */
 
-const WORDS_MODEL = "gemini-2.5-flash"
+const WORDS_MODEL = "gemini-3.8-flash"
 const WORDS_LABEL = "Filler words"
 
 /** Below this, for at least this long, counts as quiet. */

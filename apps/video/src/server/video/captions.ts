@@ -51,7 +51,7 @@ import { downloadToFile } from "@/server/video/storage-files"
  * the times come back tighter for it.
  */
 
-const CAPTIONS_MODEL = "gemini-2.5-flash"
+const CAPTIONS_MODEL = "gemini-3.8-flash"
 const CAPTIONS_LABEL = "Captions"
 
 /** What comes back. Anything longer than this is not a caption. */

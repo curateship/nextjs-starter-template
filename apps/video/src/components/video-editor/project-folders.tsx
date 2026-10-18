@@ -62,15 +62,44 @@ function projectsWord(count: number) {
   return `${count} ${plural(count, "project")}`
 }
 
+/**
+ * The folder doors a list uses. The editor's projects and Viral's projects
+ * keep separate folders, so each list hands its own set to these menus.
+ */
+export type FolderApi = {
+  create: (name: string) => Promise<{ id: string; name: string }>
+  rename: (folderId: string, name: string) => Promise<{ id: string; name: string }>
+  remove: (folderId: string) => Promise<{ loose_count: number }>
+  move: (
+    projectIds: string[],
+    folderId: string | null
+  ) => Promise<{
+    moved_ids: string[]
+    unchanged_ids: string[]
+    skipped_ids: string[]
+  }>
+  errorMessage: (error: unknown) => string
+}
+
+const editorFolderApi: FolderApi = {
+  create: createProjectFolder,
+  rename: renameProjectFolder,
+  remove: deleteProjectFolder,
+  move: moveProjectsToFolder,
+  errorMessage: getProjectFolderErrorMessage,
+}
+
 // ------------------------------------------------------ Name window -------
 
 /** Creates a folder when `folder` is null, renames it otherwise. */
 function FolderNameDialog({
+  api,
   open,
   onOpenChange,
   folder,
   onSaved,
 }: {
+  api: FolderApi
   open: boolean
   onOpenChange: (open: boolean) => void
   folder: ProjectFolderSummary | null
@@ -97,7 +126,7 @@ function FolderNameDialog({
       cleaned = cleanFolderName(name)
     } catch (error) {
       setInvalid(true)
-      showErrorToast(getProjectFolderErrorMessage(error))
+      showErrorToast(api.errorMessage(error))
       return
     }
     if (folder && cleaned === folder.name) {
@@ -109,14 +138,14 @@ function FolderNameDialog({
     try {
       await onSaved(
         folder
-          ? await renameProjectFolder(folder.id, cleaned)
-          : await createProjectFolder(cleaned)
+          ? await api.rename(folder.id, cleaned)
+          : await api.create(cleaned)
       )
       onOpenChange(false)
     } catch (error) {
       // A taken name is the usual reason, and the server's sentence says so.
       setInvalid(true)
-      showErrorToast(getProjectFolderErrorMessage(error))
+      showErrorToast(api.errorMessage(error))
     } finally {
       setBusy(false)
     }
@@ -201,11 +230,14 @@ function FolderNameDialog({
  * picking it first (Tyler, 17 Oct 2026: "there is no delete button").
  */
 export function FolderMenu({
+  api = editorFolderApi,
   folders,
   value,
   onChange,
   onFoldersChanged,
 }: {
+  /** Whose folders these are. Left out, the editor's. */
+  api?: FolderApi
   folders: ProjectFolderSummary[]
   /** Absent for every project, `none`, `archived`, or a folder's id. */
   value: string | undefined
@@ -234,7 +266,7 @@ export function FolderMenu({
     setDeleteBusy(true)
     dismissErrorToast()
     try {
-      const { loose_count: loose } = await deleteProjectFolder(deleting.id)
+      const { loose_count: loose } = await api.remove(deleting.id)
       // The reload finds the picked folder gone and the route falls back to
       // every project, so nothing here has to change the address.
       await onFoldersChanged()
@@ -245,7 +277,7 @@ export function FolderMenu({
       )
       setDeleting(null)
     } catch (error) {
-      showErrorToast(getProjectFolderErrorMessage(error))
+      showErrorToast(api.errorMessage(error))
     } finally {
       setDeleteBusy(false)
     }
@@ -327,6 +359,7 @@ export function FolderMenu({
       </DropdownMenu>
 
       <FolderNameDialog
+        api={api}
         open={naming !== null}
         onOpenChange={(open) => {
           if (!open) setNaming(null)
@@ -444,11 +477,14 @@ function describeMove(
  * in the same go.
  */
 export function MoveToFolderMenu({
+  api = editorFolderApi,
   projectIds,
   folders,
   disabled,
   onMoved,
 }: {
+  /** Whose folders these are. Left out, the editor's. */
+  api?: FolderApi
   projectIds: string[]
   folders: ProjectFolderSummary[]
   disabled?: boolean
@@ -459,7 +495,7 @@ export function MoveToFolderMenu({
   const [creating, setCreating] = React.useState(false)
 
   async function move(folder: { id: string; name: string } | null) {
-    const result = await moveProjectsToFolder(projectIds, folder?.id ?? null)
+    const result = await api.move(projectIds, folder?.id ?? null)
     await onMoved()
     toast.success(describeMove(result, folder))
   }
@@ -471,7 +507,7 @@ export function MoveToFolderMenu({
     try {
       await move(folder)
     } catch (error) {
-      showErrorToast(getProjectFolderErrorMessage(error))
+      showErrorToast(api.errorMessage(error))
     } finally {
       setBusy(false)
     }
@@ -515,6 +551,7 @@ export function MoveToFolderMenu({
       </DropdownMenu>
 
       <FolderNameDialog
+        api={api}
         open={creating}
         onOpenChange={setCreating}
         folder={null}
@@ -526,7 +563,7 @@ export function MoveToFolderMenu({
           } catch (error) {
             await onMoved()
             showErrorToast(
-              `Created “${created.name}”, but the projects were not moved: ${getProjectFolderErrorMessage(error)}`
+              `Created “${created.name}”, but the projects were not moved: ${api.errorMessage(error)}`
             )
           }
         }}

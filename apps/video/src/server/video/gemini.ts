@@ -25,10 +25,14 @@ const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com"
  * Google answers "busy, try again" often enough that giving up on the first
  * one would make the feature feel broken.
  *
- * 500 and 503 are Google having a moment and clear in a second. 429 is
+ * 500 and 503 are usually Google having a moment and clear in a second. 429 is
  * different: it means "you are asking too often", and the allowance it refers
  * to is usually counted per minute, so a wait of a second is no wait at all.
  * When Google says how long to leave it, that is what is waited.
+ *
+ * A 503 that says the model is "experiencing high demand" is waited out like a
+ * 429. Measured 17 Oct 2026 on gemini-3.8-flash: two asks in three came back
+ * with it, and it outlasts a wait of a few seconds.
  */
 const RETRYABLE_STATUSES = new Set([429, 500, 503])
 const RETRY_DELAYS_MS = [1_000, 3_000]
@@ -146,7 +150,9 @@ async function askOnce<T>({
 
     const trouble = await safeBody(response)
     console.error(`Gemini ${label} failed`, trouble)
-    const busy = response.status === 429
+    const busy =
+      response.status === 429 ||
+      (response.status === 503 && /high demand|overloaded/i.test(trouble.body))
     // A day's allowance does not come back in a minute, so it is not something
     // to wait out — it is something to be told about.
     const dayUsedUp = busy && /free_tier|per day|PerDay/i.test(trouble.body)

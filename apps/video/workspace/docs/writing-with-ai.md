@@ -28,7 +28,7 @@ Opus 5. Each one needs its own provider's key in Settings → AI.
 
 | Writer | Model | Needs |
 | --- | --- | --- |
-| Gemini Flash | `gemini-2.5-flash` | a Google Gemini key |
+| Gemini Flash | `gemini-3.8-flash` | a Google Gemini key |
 | GPT-5 mini | `gpt-5-mini` | an OpenAI key |
 | Claude Opus 5 | `claude-opus-5` | an Anthropic key |
 
@@ -72,5 +72,12 @@ provider and model beside it. The prices come from `src/lib/ai/ai-models.ts`.
 
 - **A hook rewrite with Claude:** about 250 tokens in and 80 tokens
   out, which is 250 × $5 + 80 × $25 per million, or about $0.003, plus thinking.
-- **The same with Gemini Flash:** about $0.0003, ten times less.
+- **The same with Gemini Flash:** 250 × $0.75 + 80 × $3.75 per million, or
+  about $0.0005, six times less.
+- **Gemini Flash is `gemini-3.8-flash` since 17 Oct 2026.** Google stopped
+  serving `gemini-2.5-flash` to this key: every call answered "This model
+  models/gemini-2.5-flash is no longer available to new users" (HTTP 404),
+  which is what broke Save & break down, captions, Tighten and the Gemini
+  writer. Usage rows from before that date still say 2.5 and are priced at its
+  old rate.
 - **A refused request** costs nothing and is recorded as a failed row.
