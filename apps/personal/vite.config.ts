@@ -31,6 +31,9 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },
+  // The live server (`vite build --ssr server/main.ts`) carries its packages
+  // inside it, so the Docker image needs no node_modules.
+  ssr: { noExternal: true },
   server: {
     port: DEV_APP_PORT,
     strictPort: true,

@@ -151,8 +151,8 @@ Everything here needs editing switched on.
 - **A file Personal cannot read** shows "The menu did not load" with the reason
   and Try again. Personal never overwrites it on its own.
 
-## Before it goes live
+## On live
 
-The menu file only exists on the dev server. A live Personal needs a small
-server for `/api/menu`, with `signInGate` from `server/sign-in.ts` in front of
-it the way `vite.config.ts` has it (`sign-in.md`).
+On live the menu file sits on a Coolify volume at `/data/menu.json`, served
+by `server/live.ts` behind the same sign-in (`launch.md`). Live and this Mac
+keep separate menus.

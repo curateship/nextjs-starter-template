@@ -15,7 +15,14 @@ import { readBody, send } from "./http"
 
 const COOKIE = "personal_session"
 const SESSION_MS = 30 * 24 * 60 * 60 * 1000
+/** Wrong passwords one visitor may make in LOCK_MS before they are locked out. */
 const MAX_WRONG = 10
+/**
+ * Wrong passwords from everyone together before sign-in stops for everyone.
+ * A visitor is named by a header someone reaching the server around
+ * Cloudflare could fake, so this caps guessing however many names they use.
+ */
+const MAX_WRONG_ALL = 100
 const LOCK_MS = 15 * 60 * 1000
 const MAX_BODY_BYTES = 4 * 1024
 
@@ -29,6 +36,8 @@ type Options = {
   now?: () => number
   /** How long a wrong password waits before it is answered. */
   wrongPasswordDelayMs?: number
+  /** Who is signing in, for counting wrong passwords. Everyone is one visitor without it. */
+  visitorOf?: (request: IncomingMessage) => string
 }
 
 function sha256(text: string) {
@@ -83,12 +92,40 @@ export function signInGate({
   allowedOrigins,
   now = Date.now,
   wrongPasswordDelayMs = 1000,
+  visitorOf = () => "",
 }: Options) {
   // Made once per password. scrypt is slow on purpose, so a copied cookie
   // can't be used to try passwords quickly.
   const key = password ? scryptSync(password, "personal-session", 32) : null
-  let wrong: number[] = []
-  let lockedUntil = 0
+  // Times of recent wrong passwords and lock-out ends, per visitor and for
+  // everyone. The ceiling keeps both maps small: at most MAX_WRONG_ALL wrong
+  // passwords are counted in any LOCK_MS.
+  const wrongBy = new Map<string, number[]>()
+  const lockedBy = new Map<string, number>()
+  let wrongAll: number[] = []
+  let lockedAllUntil = 0
+
+  const lockLeft = (visitor: string) =>
+    Math.max(lockedAllUntil, lockedBy.get(visitor) ?? 0) - now()
+
+  const countWrong = (visitor: string) => {
+    const time = now()
+    const recent = (at: number) => time - at < LOCK_MS
+    for (const [name, until] of lockedBy) if (until <= time) lockedBy.delete(name)
+    for (const [name, times] of wrongBy) if (!times.some(recent)) wrongBy.delete(name)
+    const mine = [...(wrongBy.get(visitor) ?? []).filter(recent), time]
+    if (mine.length >= MAX_WRONG) {
+      lockedBy.set(visitor, time + LOCK_MS)
+      wrongBy.delete(visitor)
+    } else {
+      wrongBy.set(visitor, mine)
+    }
+    wrongAll = [...wrongAll.filter(recent), time]
+    if (wrongAll.length >= MAX_WRONG_ALL) {
+      lockedAllUntil = time + LOCK_MS
+      wrongAll = []
+    }
+  }
 
   const signedIn = (request: IncomingMessage) => {
     if (!key) return false
@@ -100,7 +137,9 @@ export function signInGate({
 
   const signIn = async (request: IncomingMessage, response: ServerResponse) => {
     if (!key || !password) return send(response, 503, { error: NO_PASSWORD })
-    if (lockedUntil > now()) return send(response, 429, { error: lockedMessage(lockedUntil - now()) })
+    const visitor = visitorOf(request)
+    const locked = lockLeft(visitor)
+    if (locked > 0) return send(response, 429, { error: lockedMessage(locked) })
     if (!request.headers["content-type"]?.startsWith("application/json")) {
       return send(response, 415, { error: "Send the password as JSON." })
     }
@@ -113,20 +152,16 @@ export function signInGate({
     if (typeof given !== "string") return send(response, 400, { error: "Send the password." })
 
     if (sameText(given, password)) {
-      wrong = []
+      wrongBy.delete(visitor)
       const expires = now() + SESSION_MS
       setCookie(request, response, `${expires}.${signature(key, expires)}`, SESSION_MS)
       return send(response, 200, { signedIn: true })
     }
 
-    const time = now()
-    wrong = [...wrong.filter((at) => time - at < LOCK_MS), time]
-    if (wrong.length >= MAX_WRONG) {
-      lockedUntil = time + LOCK_MS
-      wrong = []
-    }
+    countWrong(visitor)
     await new Promise((resolve) => setTimeout(resolve, wrongPasswordDelayMs))
-    if (lockedUntil > now()) return send(response, 429, { error: lockedMessage(lockedUntil - now()) })
+    const nowLocked = lockLeft(visitor)
+    if (nowLocked > 0) return send(response, 429, { error: lockedMessage(nowLocked) })
     return send(response, 401, { error: "That password is wrong." })
   }
 

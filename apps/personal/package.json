@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build --ssr server/main.ts --outDir dist-server",
+    "start": "node dist-server/main.js",
+    "deploy": "node ../../.agents/skills/deploy-app/scripts/deploy.mjs --push",
     "lint": "eslint .",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.app.json"

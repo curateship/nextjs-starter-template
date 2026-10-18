@@ -10,7 +10,7 @@ it on his Mac now rather than waiting for going live.
 
 - **One password, no accounts.** The password is the `PERSONAL_PASSWORD` line
   in `apps/personal/.env.local` on this Mac. That file never goes into git.
-  When Personal goes live, it is a Coolify setting of the same name.
+  On live it is a Coolify setting of the same name (`launch.md`).
 - **Changing it** is editing that line. The dev server notices the file
   change and restarts itself. Every browser is signed out, because the
   sign-in cookie is signed with a key made from the password.
@@ -23,10 +23,17 @@ it on his Mac now rather than waiting for going live.
   page reload.
 - **A wrong password** says "That password is wrong." under the box, keeps the
   typed text selected and waits one second before answering.
-- **After 10 wrong passwords in 15 minutes**, sign-in stops for 15 minutes and
-  says how many minutes are left. The right password is refused too until
-  then. The count lives in the server's memory, so a server restart clears
-  it.
+- **After 10 wrong passwords in 15 minutes from one visitor**, sign-in stops
+  for that visitor for 15 minutes and says how many minutes are left. The
+  right password is refused too until then. Other visitors can still sign
+  in. On live a visitor is named by Cloudflare's `CF-Connecting-IP` header;
+  on this Mac everyone is one visitor.
+- **After 100 wrong passwords in 15 minutes from everyone together**,
+  sign-in stops for everyone for 15 minutes. Someone reaching the server
+  around Cloudflare could fake the visitor header, and this ceiling caps
+  their guessing however many names they use. Browsers already signed in
+  stay signed in.
+- **The counts live in the server's memory**, so a restart clears them.
 - **Sign out** is the last item in the cog dropdown at the top right. It
   clears the cookie and shows the sign-in screen. The browser's Back button
   doesn't bring the menu back.
@@ -72,7 +79,6 @@ it on his Mac now rather than waiting for going live.
   password, and when a save meets a sign-in that ran out. That line is Chrome
   reporting the server's refusal, which is the sign-in doing its job. The app
   itself logs nothing.
-- **The lock-out is for everyone at once**, not per computer. On the live site
-  someone guessing could keep Tyler out for 15 minutes at a time. Per-computer
-  counting needs the visitor's real address from the live proxy, so it waits
-  for going live.
+- **The ceiling can still lock Tyler out** if a stranger makes 100 wrong
+  guesses in 15 minutes. That needs a deliberate attack, and a browser that is
+  already signed in is not affected.

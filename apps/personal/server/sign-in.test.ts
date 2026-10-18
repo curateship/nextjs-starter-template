@@ -10,12 +10,13 @@ let servers: Server[] = []
 let clock = 1_800_000_000_000
 
 /** A server with the gate in front of a stand-in for `/api/menu`. */
-async function start(password: string | undefined) {
+async function start(password: string | undefined, perVisitor = false) {
   const gate = signInGate({
     password,
     allowedOrigins: [origin],
     now: () => clock,
     wrongPasswordDelayMs: 0,
+    ...(perVisitor ? { visitorOf: (request) => String(request.headers["x-visitor"]) } : {}),
   })
   const server = createServer((request, response) => {
     void gate(request, response, () => {
@@ -156,6 +157,26 @@ describe("signInGate", () => {
     for (let i = 0; i < 9; i++) await signIn(base, "guess")
     clock += 15 * 60 * 1000
     expect((await signIn(base, "guess")).status).toBe(401)
+  })
+
+  it("locks only the visitor who made 10 wrong guesses", async () => {
+    const base = await start("open sesame", true)
+    const as = (visitor: string) => ({ "x-visitor": visitor })
+    for (let i = 0; i < 10; i++) await signIn(base, "guess", as("stranger"))
+    expect((await signIn(base, "open sesame", as("stranger"))).status).toBe(429)
+    expect((await signIn(base, "open sesame", as("tyler"))).status).toBe(200)
+  })
+
+  it("locks everyone after 100 wrong guesses from many visitors", async () => {
+    const base = await start("open sesame", true)
+    for (let i = 0; i < 99; i++) {
+      expect((await signIn(base, "guess", { "x-visitor": `fake-${i}` })).status).toBe(401)
+    }
+    const hundredth = await signIn(base, "guess", { "x-visitor": "fake-99" })
+    expect(hundredth.status).toBe(429)
+    expect((await signIn(base, "open sesame", { "x-visitor": "tyler" })).status).toBe(429)
+    clock += 15 * 60 * 1000
+    expect((await signIn(base, "open sesame", { "x-visitor": "tyler" })).status).toBe(200)
   })
 
   it("only signs in or out from Personal's own page", async () => {
