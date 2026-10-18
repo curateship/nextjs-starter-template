@@ -7,9 +7,10 @@ import {
   CopyIcon,
   Loader2Icon,
   PauseIcon,
+  PencilIcon,
   PlayIcon,
   SettingsIcon,
-  Share2Icon,
+  ShareIcon,
   Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -20,7 +21,6 @@ import type { ProgramPageData } from "@/components/fitness/program/program-data"
 import { dateToDay, dayToDate } from "@/components/fitness/program/program-data"
 import { StartingData } from "@/components/fitness/program/starting-data"
 import { StrengthSettings } from "@/components/fitness/program/strength-rules"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -52,7 +52,6 @@ import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { changeProgram } from "@/lib/api/fitness/programs"
 import { formatDay } from "@/lib/fitness/dates"
-import { routineTypeLabel } from "@/lib/fitness/routine-types"
 import { reportFitnessError } from "@/lib/fitness/report-error"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -74,9 +73,12 @@ const PAUSE_REASONS = [
  */
 export function ProgramSettingsMenu({
   data,
+  triggerClassName,
   onDeleted,
 }: {
   data: ProgramPageData
+  /** Extra look for the cog, such as the pale backing it needs on the banner. */
+  triggerClassName?: string
   /** Called once the program is gone, so the dashboard can show another. */
   onDeleted: () => void
 }) {
@@ -115,7 +117,7 @@ export function ProgramSettingsMenu({
     }
   }
 
-  const row = "h-8 w-full justify-start gap-2 px-2 font-normal"
+  const row = "h-9 w-full justify-start gap-3 px-3 font-normal"
 
   return (
     <>
@@ -128,7 +130,7 @@ export function ProgramSettingsMenu({
                 variant="ghost"
                 size="icon"
                 aria-label="Program settings"
-                className={cn(open && "bg-muted")}
+                className={cn(triggerClassName, open && "bg-muted")}
               >
                 {busy ? <Loader2Icon className="animate-spin" /> : <SettingsIcon />}
               </Button>
@@ -141,85 +143,88 @@ export function ProgramSettingsMenu({
           align="start"
           collisionPadding={16}
           aria-label="Program settings"
-          className="w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
+          className="flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-0 p-2"
         >
-          <ScrollArea className="min-h-0" viewportClassName="max-h-[min(75vh,44rem)]">
-            <div className="grid gap-2 p-3">
-              <div className="grid">
-                <Button type="button" variant="ghost" className={row} onClick={() => openWindow(setRenaming)}>
-                  <SettingsIcon />
-                  Rename
-                </Button>
-                {!program.isActive && !program.archived ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className={row}
-                    disabled={busy}
-                    onClick={() =>
-                      void act(
-                        () => changeProgram({ action: "activate", programId: program.id }),
-                        program.mine ? "This is now your active program." : "This is now their active program."
-                      )
-                    }
-                  >
-                    <CircleCheckIcon />
-                    Make active
-                  </Button>
-                ) : null}
-                {pause ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className={row}
-                    disabled={busy}
-                    onClick={() => void act(() => changeProgram({ action: "resume", programId: program.id }), "Program resumed.")}
-                  >
-                    <PlayIcon />
-                    Resume
-                  </Button>
-                ) : !program.archived ? (
-                  <Button type="button" variant="ghost" className={row} onClick={() => openWindow(setPausing)}>
-                    <PauseIcon />
-                    Pause
-                  </Button>
-                ) : null}
-                {program.mine && !program.archived ? (
-                  <Button type="button" variant="ghost" className={row} onClick={() => openWindow(setSharing)}>
-                    <Share2Icon />
-                    Share
-                  </Button>
-                ) : null}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className={row}
-                  disabled={busy}
-                  onClick={() =>
-                    void act(
-                      () => changeProgram({ action: "archive", programId: program.id, archived: !program.archived }),
-                      program.archived ? "Program brought back." : "Program archived."
-                    )
-                  }
-                >
-                  {program.archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
-                  {program.archived ? "Bring back" : "Archive"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className={cn(row, "text-destructive hover:text-destructive")}
-                  onClick={() => openWindow(setDeleting)}
-                >
-                  <Trash2Icon />
-                  Delete
-                </Button>
-              </div>
-              <div className="-mx-3 border-t" />
+          {/* Tyler, 18 Oct 2026: the program's settings cards at the top,
+              scrolling on their own, and its actions as a plain menu under
+              them, Delete last and apart. */}
+          <ScrollArea className="min-h-0" viewportClassName="max-h-[min(55vh,32rem)]">
+            <div className="grid gap-2">
               <StartingData key={`start-${program.id}`} data={data} />
               <StrengthSettings key={`rules-${program.id}`} data={data} />
             </div>
           </ScrollArea>
+          <div className="grid pt-1">
+            <Button type="button" variant="ghost" className={row} onClick={() => openWindow(setRenaming)}>
+              <PencilIcon />
+              Rename
+            </Button>
+            {!program.isActive && !program.archived ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className={row}
+                disabled={busy}
+                onClick={() =>
+                  void act(
+                    () => changeProgram({ action: "activate", programId: program.id }),
+                    program.mine ? "This is now your active program." : "This is now their active program."
+                  )
+                }
+              >
+                <CircleCheckIcon />
+                Make it the active program
+              </Button>
+            ) : null}
+            {pause ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className={row}
+                disabled={busy}
+                onClick={() => void act(() => changeProgram({ action: "resume", programId: program.id }), "Program resumed.")}
+              >
+                <PlayIcon />
+                Resume program
+              </Button>
+            ) : !program.archived ? (
+              <Button type="button" variant="ghost" className={row} onClick={() => openWindow(setPausing)}>
+                <PauseIcon />
+                Pause program
+              </Button>
+            ) : null}
+            {program.mine && !program.archived ? (
+              <Button type="button" variant="ghost" className={row} onClick={() => openWindow(setSharing)}>
+                <ShareIcon />
+                Share
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              className={row}
+              disabled={busy}
+              onClick={() =>
+                void act(
+                  () => changeProgram({ action: "archive", programId: program.id, archived: !program.archived }),
+                  program.archived ? "Program brought back." : "Program archived."
+                )
+              }
+            >
+              {program.archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
+              {program.archived ? "Bring back" : "Archive"}
+            </Button>
+            <div className="mx-1 my-1 border-t" />
+            <Button
+              type="button"
+              variant="ghost"
+              className={cn(row, "text-destructive hover:text-destructive")}
+              onClick={() => openWindow(setDeleting)}
+            >
+              <Trash2Icon />
+              Delete program
+            </Button>
+          </div>
         </PopoverContent>
       </Popover>
 
@@ -331,19 +336,6 @@ export function ProgramStateLine({ data }: { data: ProgramPageData }) {
         </Button>
       ) : null}
     </div>
-  )
-}
-
-/** The program's strength and badges, beside its name in the right panel's header. */
-export function ProgramBadges({ data }: { data: ProgramPageData }) {
-  const { program } = data
-  return (
-    <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-      <span className="truncate">{routineTypeLabel(program.routineType)}</span>
-      {program.isActive ? <Badge variant="secondary">Active</Badge> : null}
-      {data.pause ? <Badge variant="outline">Paused</Badge> : null}
-      {program.archived ? <Badge variant="outline">Archived</Badge> : null}
-    </span>
   )
 }
 

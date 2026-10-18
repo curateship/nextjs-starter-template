@@ -4,16 +4,27 @@ Every program has its own three-panel dashboard at `/programs/<id>`, reached fro
 
 ## The three panels
 
-- **Left: the program and its week.** A back arrow to Programs, the program's name, its routine type, Active, Paused or Archived, and the cog with everything about the program (see "The cog" below). Under it, the week Monday to Sunday (`the-week.md`).
-- **Middle: the view.** Tabs for Day, Calendar, History, Progress and Photos; on a phone the same choice is a dropdown. While a workout is being logged the tabs give way to the live workout (`workout-logger.md`).
+Tyler redrew all three on 18 Oct 2026, and the screens follow his drawings.
+
+- **Left: the program and its week.** A banner across the top with the back arrow to Programs and the cog on it (see "The cog" below). The program's square picture overlaps the banner's foot, with its name beside it, then its routine type and a green Active tag (or Paused or Archived). Under that, the This week card (`the-week.md`).
+- **Middle: the view.** Tabs for Day, Calendar, History, Progress and Photos; on a phone the same choice is a dropdown. The same row holds the day's menu (the three dots) and Start workout on every view, as Tyler drew Progress on 18 Oct 2026; away from the Day view they act on the weekday last picked, today's by default. While a workout is being logged the tabs give way to the live workout (`workout-logger.md`).
 - **Right: what is picked.** An exercise in the day, a calendar date, a workout, a lift or a photo day. With nothing picked it only says what to pick.
+
+## Banner and picture
+
+Both are optional and both come from the person's own uploads, through the shell's media picker (`drizzle/0099_fitness_program_pictures.sql`).
+
+- **The banner:** while the pointer is over the top of the panel, a picture button shows beside the cog, and a second one to take the banner off when there is one. The picture button opens the media picker straight away; Tyler, 18 Oct 2026: "why not just open the picker". Clicking the banner itself does nothing, after a menu that opened over the name was a bug. With no banner, the top is a soft grey fade into the panel.
+- **The picture:** clicking it opens the media picker straight away. While the pointer is over the panel, a small x on its corner takes it off. With none, it shows the program's initials: "fsf" is FS, "Push Pull Legs" is PP.
+- The server refuses any address that isn't one of the uploads of the person saving it, the same rule as a profile photo, so a program never shows an outside picture (`setProgramPictures` in `src/server/fitness/programs.ts`).
+- Whoever can change the program can change them: the owner, or their coach. An archived program can't.
 
 ## The cog
 
-Everything about the program as a whole sits in one dropdown under the cog beside its name, at the top of the left panel. Tyler, 18 Oct 2026: "All of these settings should be in a cog icon dropdown here and all the other options should live within this dropdown". It opens to the right of the cog, over the middle panel, not back over the left menu. It is the same shape as Project's My settings:
+Everything about the program as a whole sits in one dropdown under the cog on the banner. Tyler, 18 Oct 2026: "All of these settings should be in a cog icon dropdown here and all the other options should live within this dropdown". It opens to the right of the cog, over the middle panel, not back over the left menu. Laid out as Tyler drew it the same day:
 
-- **The actions at the top:** Rename, Make active, Pause or Resume, Share (the owner's alone), Archive or Bring back, and Delete. Rename, Pause, Share and Delete open their own window, so the dropdown closes first.
-- **The program's settings below, as cards that fold open:** Starting data, Weight rules and Training blocks. Each field saves as it changes, and closing the dropdown saves the field being typed in.
+- **The program's settings at the top, as cards that fold open, scrolling on their own:** Starting data, then Weight rules and Training blocks under it. Starting data has a summary line under its heading ("66 kg · 172 cm · Build muscle"), then Body (bodyweight, height and five measurements, two to a row, each with its unit written inside the box), Training (what you want most and how long you have lifted, each a segmented row), the equipment you have and your best lifts. Each field saves as it changes, and closing the dropdown saves the field being typed in. Nothing says Saved: Tyler took that word out on 18 Oct 2026, and a save that fails says so in a toast.
+- **The actions under them, as a plain menu:** Rename, Make it the active program (only when it isn't), Pause program or Resume program, Share (the owner's alone), Archive or Bring back, a line, then Delete program in red. Rename, Pause, Share and Delete open their own window, so the dropdown closes first.
 
 The panels resize by dragging the lines between them, and the widths are remembered in this browser (`fitness-program-horizontal`). A side panel shuts when dragged closed, and a tab on the edge brings it back. Below 1280px wide one panel shows at a time, with a tab for each; picking something switches to the right panel's tab.
 

@@ -1,24 +1,27 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { ArrowLeftRightIcon, Loader2Icon, Trash2Icon, XIcon } from "lucide-react"
+import { ArrowDownIcon, ArrowLeftRightIcon, ArrowUpIcon, Loader2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PanelBody, PanelHeader } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
 import { ExercisePicker } from "@/components/fitness/exercise-picker"
 import { PanelCard } from "@/components/fitness/panel-card"
-import { saveStateLabel, useAutoSave } from "@/components/fitness/program/program-data"
+import { useAutoSave } from "@/components/fitness/program/program-data"
+import { SegmentedChoice } from "@/components/fitness/segmented-choice"
+import { TONE } from "@/components/fitness/status-tones"
+import { StepperField } from "@/components/fitness/stepper-field"
 import { WeightInput } from "@/components/fitness/weight-input"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
-import { NumberField } from "@/components/ui/number-field"
+import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { changeWeek, type DayExercise, type WeekDay } from "@/lib/api/fitness/programs"
-import { WEEKDAY_NAMES } from "@/lib/fitness/dates"
 import { reportFitnessError } from "@/lib/fitness/report-error"
 import { formatWeight, roundToStep } from "@/lib/fitness/weights"
+import { cn } from "@/lib/utils"
 
 /** "3 min", "90 s", "1 min 30 s". */
 function restLabel(seconds: number) {
@@ -29,8 +32,30 @@ function restLabel(seconds: number) {
   return left ? `${minutes} min ${left} s` : `${minutes} min`
 }
 
+const REST_CHOICES = [
+  { value: "60", label: "1 min" },
+  { value: "90", label: "1:30" },
+  { value: "120", label: "2 min" },
+  { value: "180", label: "3 min" },
+]
+
+/** One line of Next time: an arrow in its tone, what has to happen, and the weight it leads to. */
+function NextTimeRow({ tone, text, value }: { tone: keyof typeof TONE; text: string; value: string }) {
+  const Icon = tone === "positive" ? ArrowUpIcon : ArrowDownIcon
+  return (
+    <li className="flex items-center gap-3 px-4 py-3">
+      <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-md", TONE[tone])}>
+        <Icon className="size-4" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1 text-sm text-muted-foreground">{text}</span>
+      <span className="shrink-0 text-sm font-semibold tabular-nums">{value}</span>
+    </li>
+  )
+}
+
 /**
- * The right panel on the Day view with an exercise picked: its sets, reps,
+ * The right panel on the Day view with an exercise picked, laid out as Tyler
+ * drew it on 18 Oct 2026: its sets, reps,
  * weight and rest, saving as they change; whether it joins the one above as
  * a superset; what happens to its weight next time, in numbers; and Swap and
  * Remove.
@@ -62,7 +87,6 @@ export function DayExercisePanel({
   const [removing, setRemoving] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const base = `day-exercise-${row.id}`
-  const status = saveStateLabel(autoSave.state) || undefined
   const joined = row.groupKey !== null && day.exercises[day.exercises.findIndex((entry) => entry.id === row.id) - 1]?.groupKey === row.groupKey
 
   function save(field: "sets" | "reps" | "restSeconds" | "weightKg", value: number, at: "soon" | "now") {
@@ -94,13 +118,16 @@ export function DayExercisePanel({
   const missesLeft = Math.max(strength.missesBeforeDrop - row.missStreak, 1)
   const weightWord = exercise?.isBodyweight ? "the added weight" : "it"
 
+  const position = day.exercises.findIndex((entry) => entry.id === row.id) + 1
+  const restChoice = REST_CHOICES.some((choice) => choice.value === String(rest)) ? String(rest) : null
+
   return (
     <>
-      <PanelHeader>
+      <PanelHeader plain>
         <div className="grid min-w-0 flex-1">
-          <h2 className="truncate text-sm font-semibold">{name}</h2>
-          <span className="truncate text-xs text-muted-foreground">
-            {WEEKDAY_NAMES[day.weekday]} · {day.name}
+          <h2 className="truncate text-lg font-semibold tracking-tight">{name}</h2>
+          <span className="truncate text-[13px] text-muted-foreground">
+            Exercise {position} of {day.exercises.length} · {day.name}
           </span>
         </div>
         <Tooltip>
@@ -113,9 +140,9 @@ export function DayExercisePanel({
         </Tooltip>
       </PanelHeader>
       <PanelBody>
-        <PanelCard storageId="fitness-right-exercise-sets" title="Sets and weight" meta={status}>
-          <div className="grid grid-cols-2 gap-4">
-            <NumberField
+        <PanelCard storageId="fitness-right-exercise-sets" title="Sets and weight">
+          <div className="grid grid-cols-2 gap-3">
+            <StepperField
               id={`${base}-sets`}
               label="Sets"
               value={sets}
@@ -126,9 +153,8 @@ export function DayExercisePanel({
                 setSets(value)
                 save("sets", value, "soon")
               }}
-              onCommit={() => save("sets", sets, "now")}
             />
-            <NumberField
+            <StepperField
               id={`${base}-reps`}
               label="Reps"
               value={reps}
@@ -139,45 +165,43 @@ export function DayExercisePanel({
                 setReps(value)
                 save("reps", value, "soon")
               }}
-              onCommit={() => save("reps", reps, "now")}
             />
           </div>
           <div className="grid gap-2">
-            <FieldLabel
-              htmlFor={`${base}-weight`}
-              hint={
-                exercise?.isBodyweight
-                  ? "Only what hangs from a belt or sits in a vest. Your bodyweight is added on top when you log it."
-                  : "The weight the next workout starts with. The weight rules move it after each session."
-              }
-            >
-              {exercise?.isBodyweight ? `Added weight (${unit})` : `Weight (${unit})`}
-            </FieldLabel>
+            <Label htmlFor={`${base}-weight`}>{exercise?.isBodyweight ? "Added weight" : "Weight"}</Label>
             <WeightInput
               id={`${base}-weight`}
               valueKg={weightKg}
               unit={unit}
+              showUnit
               placeholder="0"
               onCommit={(kg) => {
                 setWeightKg(kg ?? 0)
                 save("weightKg", kg ?? 0, "now")
               }}
             />
+            <p className="text-[13px] text-muted-foreground">
+              {exercise?.isBodyweight
+                ? "Only what hangs from a belt or sits in a vest. Leave at 0 for bodyweight alone."
+                : "Leave at 0 for bodyweight or assisted."}
+            </p>
           </div>
-          <NumberField
-            id={`${base}-rest`}
-            label="Rest between sets (seconds)"
-            hint={`The rest timer counts this down after each set. ${restLabel(rest)} now.`}
-            value={rest}
-            min={0}
-            max={900}
-            disabled={!canChange}
-            onChange={(value) => {
-              setRest(value)
-              save("restSeconds", value, "soon")
-            }}
-            onCommit={() => save("restSeconds", rest, "now")}
-          />
+          <div className="grid gap-2">
+            <Label id={`${base}-rest`}>Rest between sets</Label>
+            <SegmentedChoice
+              label="Rest between sets"
+              value={restChoice}
+              options={REST_CHOICES}
+              disabled={!canChange}
+              onChange={(value) => {
+                setRest(Number(value))
+                save("restSeconds", Number(value), "now")
+              }}
+            />
+            {restChoice === null ? (
+              <p className="text-[13px] text-muted-foreground">{restLabel(rest)} now. Pick one to change it.</p>
+            ) : null}
+          </div>
           {!first && canChange ? (
             <div className="flex items-center gap-2">
               <Switch
@@ -198,25 +222,23 @@ export function DayExercisePanel({
           ) : null}
         </PanelCard>
 
-        <PanelCard storageId="fitness-right-exercise-next" title="Next time">
+        <PanelCard storageId="fitness-right-exercise-next" title="Next time" flush>
           {strength.autoIncrease ? (
-            <ul className="grid gap-2 text-sm">
-              <li>
-                Hit all {sets} sets of {reps} and {weightWord} goes to{" "}
-                <span className="font-medium">{formatWeight(up, unit)}</span>.
-              </li>
-              <li>
-                Miss reps {missesLeft === 1 ? "once more" : `${missesLeft} sessions in a row`} and {weightWord} drops to{" "}
-                <span className="font-medium">{formatWeight(down, unit)}</span>.
-              </li>
+            <ul className="divide-y">
+              <NextTimeRow tone="positive" text={`Hit all ${sets} sets of ${reps}`} value={formatWeight(up, unit)} />
+              <NextTimeRow
+                tone="warning"
+                text={missesLeft === 1 ? "Miss reps once more" : `Miss reps ${missesLeft} sessions in a row`}
+                value={formatWeight(down, unit)}
+              />
               {row.missStreak > 0 ? (
-                <li className="text-muted-foreground">
+                <li className="px-4 py-3 text-[13px] text-muted-foreground">
                   Reps were missed {row.missStreak} {row.missStreak === 1 ? "session" : "sessions"} in a row so far.
                 </li>
               ) : null}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="p-4 text-sm text-muted-foreground">
               Automatic changes are off for this program, so {weightWord} stays at {formatWeight(weightKg, unit)} until
               you change it.
             </p>
@@ -224,13 +246,19 @@ export function DayExercisePanel({
         </PanelCard>
 
         {canChange ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button type="button" variant="outline" disabled={busy} onClick={() => setSwapping(true)}>
               <ArrowLeftRightIcon />
               Swap exercise
             </Button>
-            <Button type="button" variant="outline" disabled={busy} onClick={() => setRemoving(true)}>
-              {busy ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
+              onClick={() => setRemoving(true)}
+            >
+              {busy ? <Loader2Icon className="animate-spin" /> : null}
               Remove
             </Button>
           </div>

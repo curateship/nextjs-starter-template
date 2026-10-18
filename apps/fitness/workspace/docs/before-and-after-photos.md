@@ -35,18 +35,26 @@ These are the most private thing in the app.
 
 ## Using it
 
-- **The middle panel** lists every photo day, newest first, each with its
-  three photos small and its figures in one line. A line above says who can
-  see them. Clicking a day opens it on the right and sets `?pick=<day>`.
-- **New photo day** (in the middle panel's toolbar) asks for the date,
+Laid out as Tyler drew it on 18 Oct 2026.
+
+- **The middle panel** starts with a lock and a line saying who can see the
+  photos, then Timeline or Compare, and New photo day. Under them, every photo
+  day newest first, each a card: the date and "0 of 3 photos", three boxes for
+  Front, Side and Back ("or browse files"; a photo file can also be dropped on
+  a box), and its figures as small tags, "Waist **84 cm**". Clicking a card
+  outlines it, opens it on the right and sets `?pick=<day>`. A photo added in
+  the middle opens that day too.
+- **New photo day** (beside Timeline and Compare) asks for the date,
   bodyweight, chest, waist, hips, arm and thigh in centimetres, and a note.
   All but the date are optional. The new day opens on the right, where its
   photos go in one slot at a time; each slot opens the phone's camera or
   photo library.
-- **The right panel** shows the picked day: its three photos with replace and
-  remove on each, its figures and what changed since the day before it, such
-  as "Waist 84 cm, down 3 cm", and Compare with another day. The cog edits
-  the date and figures; the bin deletes the day.
+- **The right panel** shows the picked day: the date large with "Photo day"
+  under it, the cog (edit the date and figures) and the bin (delete the day).
+  Then Photos, "0 of 3", with a box each to add, replace or remove a photo,
+  and Measurements: bodyweight and the five tape measurements as figures two
+  by two, each with what changed since the day before it ("Down 3 cm since
+  Oct 1"), and the note under them.
 - **Replace and remove** work per photo. A replaced or removed photo is deleted
   from storage too.
 - **Delete a photo day** asks first, then deletes the day, its figures and its
@@ -54,10 +62,10 @@ These are the most private thing in the app.
 
 ## Compare
 
-Compare (in the toolbar) opens on the earliest day and the picked one, or the
-latest, and puts `?compare=<a>,<b>` in the address; "Compare with" on the
-right picks the second day directly. The comparison fills the middle panel,
-and either day can be changed there. Two ways to look:
+Compare (beside Timeline) opens on the earliest day and the picked one, or the
+latest, and puts `?compare=<a>,<b>` in the address. Timeline goes back to the
+list. The comparison fills the middle panel, and either day can be changed
+there. Two ways to look:
 
 - **Side by side**: front, side and back, earlier day on the left.
 - **Slider**: the later photo laid over the earlier one, showing only to the

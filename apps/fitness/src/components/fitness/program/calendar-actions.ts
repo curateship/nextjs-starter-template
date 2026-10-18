@@ -1,5 +1,3 @@
-import type * as React from "react"
-import { CalendarIcon, CheckIcon, PauseIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { calendarChanged } from "@/components/fitness/program/calendar-version"
@@ -8,15 +6,12 @@ import { formatDay, type Day } from "@/lib/fitness/dates"
 import { reportFitnessError } from "@/lib/fitness/report-error"
 import type { ScheduleStatus } from "@/lib/fitness/schedule"
 
-/** How each calendar status is named and drawn. Always a word beside the icon, never colour alone. */
-export const SCHEDULE_STATUS: Record<
-  ScheduleStatus,
-  { label: string; icon: React.ComponentType<{ className?: string }> }
-> = {
-  planned: { label: "Planned", icon: CalendarIcon },
-  done: { label: "Done", icon: CheckIcon },
-  missed: { label: "Missed", icon: XIcon },
-  paused: { label: "Paused", icon: PauseIcon },
+/** How each calendar status is named. The dot beside it (`status-dot.tsx`) is never the only sign. */
+export const SCHEDULE_STATUS: Record<ScheduleStatus, { label: string }> = {
+  planned: { label: "Planned" },
+  done: { label: "Done" },
+  missed: { label: "Missed" },
+  paused: { label: "Paused" },
 }
 
 /**

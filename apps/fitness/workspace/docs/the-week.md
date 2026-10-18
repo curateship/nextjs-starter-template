@@ -4,8 +4,10 @@ A program is one fixed week. Each weekday, Monday to Sunday, is either a workout
 
 ## Where it lives
 
-- **Left panel:** the week, Monday first. Each row says the weekday, the workout's name or "Rest", "Today" on today's weekday, and this week's status for that date when it isn't simply planned: Done, Missed or Paused, each as an icon and a word. Picking a row opens that day in the middle. Under the list: "2 of 3 workouts this week · 4 weeks in a row", from the weekly goal in Settings, App settings. It counts only this program's workouts, and skips only the weeks this program was paused.
-- **Middle, Day view:** the picked weekday. The toolbar reads "Wednesday · Pull" with the day's actions and Start workout. The exercises are listed in order, one compact row each: "5 x 5 · 80 kg · rest 3 min". A handle drags a row to reorder, and a superset is marked with a line down the left and "Superset: no rest until the last one". Clicking a row opens it on the right. Add exercise offers only the lifts of the program's routine type.
+Tyler redrew all of this on 18 Oct 2026, and the screens follow his drawings.
+
+- **Left panel, This week:** first two figures side by side. Workouts is "1 / 3", this week's workouts against the weekly goal in Settings, App settings, with a bar under it. Streak is "4 weeks in a row". Both count only this program's workouts, and skip only the weeks this program was paused. Under them the week, Monday first: the weekday, a dot, the workout's name or "Rest", and a word at the right. The dot is green when done, amber when missed, dark for today, and an empty ring when planned or resting. The word says Done, Missed, Paused or Today, so the dot is never the only sign. The picked day sits on a white row. Picking a day opens it in the middle.
+- **Middle, Day view:** the picked weekday's workout as a large heading, "Chest day". Under it: "Sunday · Today · 3 exercises · 9 sets · about 25 min", where the minutes allow 45 seconds a set, the rest between sets and a minute between exercises, rounded to 5. Add exercise sits at its right, and offers only the lifts of the program's routine type. The day's menu (three dots) and Start workout sit up in the row with the tabs. The exercises are cards in order. Each card has a drag handle, its number, the name, "Rest 3 min · Last: 3 × 5 on Oct 11" (or "Not logged yet"), the sets and reps, and the weight: "80 kg", "+10 kg" on a bodyweight lift, "Bodyweight", or "No weight" in amber when none is set. A superset says "Superset: no rest until the last one" above its first card. Clicking a card opens it on the right, with a dark outline on the card.
 - **Right panel:** the picked exercise. See below.
 
 ## Making the week
@@ -19,12 +21,12 @@ A program is one fixed week. Each weekday, Monday to Sunday, is either a workout
 
 The right panel shows the exercise's name and its day, then:
 
-- **Sets and weight:** sets, reps, weight in the unit from Settings, App settings ("Added weight" for a pull-up or dip, which is only what hangs from the belt), and rest in seconds. Each saves as it changes.
+- **Sets and weight:** sets and reps with minus and plus buttons; weight in the unit from Settings, App settings, with the unit written in the box ("Added weight" for a pull-up or dip, which is only what hangs from the belt; "Leave at 0 for bodyweight or assisted" under the plain one); and rest between sets as four choices, 1 min, 1:30, 2 min or 3 min, whose raised part slides across like the tabs. A rest set to anything else before then shows "4 min now. Pick one to change it." Each saves as it changes, with no Saved word beside the heading (Tyler took it out on 18 Oct 2026); a save that fails says so in a toast.
 - **Join with the one above:** makes it a superset with the exercise above it. Taking one out of the middle of a group splits the group, so the ends never stay joined.
-- **Next time:** the weight rules as numbers for this exercise ("Hit all 3 sets of 5 and it goes to 65 kg. Miss reps 3 sessions in a row and it drops to 57.5 kg"), or that automatic changes are off.
-- **Swap exercise** keeps the sets, reps, weight and rest and changes the lift. **Remove** asks first.
+- **Next time:** the weight rules as numbers for this exercise, a row each: a green up arrow, "Hit all 3 sets of 5", 65 kg; an amber down arrow, "Miss reps 3 sessions in a row", 57.5 kg. Or that automatic changes are off.
+- **Swap exercise** and **Remove** side by side at the foot. Swap keeps the sets, reps, weight and rest and changes the lift; Remove, in red, asks first.
 
-With nothing picked, the right panel says what to pick. The program's own settings (Starting data, Weight rules and Training blocks) live in the cog beside its name (`program-dashboard.md`).
+With nothing picked, the right panel says what to pick. The program's own settings (Starting data, Weight rules and Training blocks) live in the cog on the banner (`program-dashboard.md`).
 
 ## Starting a workout
 
@@ -39,13 +41,13 @@ Start workout on the Day view opens the workout in the middle panel of the same 
 
 ## The calendar
 
-The Calendar view repeats the week through the month, four weeks ahead at a time. Each date shows the workout and its status: Planned, Done, Missed (a planned date in the past with nothing logged) or Paused, plus "Light" in a light week, each as an icon and a word. Picking a date opens it on the right with "Start this workout", "Open workout" for one already logged, and "Move to another day". A planned date can also be dragged onto another date. A moved date stays where it was put; the rest of the week is untouched. Changing which weekdays are workouts lays the calendar out again from today, with three things it never touches:
+The Calendar view repeats the week through the month, four weeks ahead at a time, laid out as Tyler drew it on 18 Oct 2026. The month's name is large between its arrows, with Today beside it and a key at the right: Done, Missed, Planned, and Paused when the month has any. The grid has MON to SUN across the top, and days outside the month are greyed. Each workout is a small card with a dot in the same colours as the week: green done, amber missed (its name greyed), an empty ring planned, and dark for today, whose card also has a dark outline. A feather marks a light week. Each card's full name and status are read out to a screen reader. On a narrow panel the month is a list of cards, each with its status in words. At 1440 wide with all three panels open, long names are cut short; widening the middle panel shows them whole. Picking a date opens it on the right with "Start this workout", "Open workout" for one already logged, and "Move to another day". A planned date can also be dragged onto another date. A moved date stays where it was put; the rest of the week is untouched. Changing which weekdays are workouts lays the calendar out again from today, with three things it never touches:
 
 - **A date with a workout on it.** A finished one stays Done, and one started but not finished keeps its date, so finishing it still marks that day.
 - **A moved workout.** It stays on the date it was moved to, and the date it left stays empty: the week is never laid back onto it (`moved_from` on `fitness_scheduled_workouts`).
 - **History.** Making a weekday a rest day, or replacing the week with a template or the AI, keeps that weekday's finished dates, named after the workout that was done (`drizzle/0098_fitness_calendar_keeps_history.sql`). Its dates still to come, and its missed dates, leave the calendar.
 
-A pause (the program's actions in the left panel) takes its dates off the calendar: no missed days, no reminders, no weight drops. Resume puts the week back from today.
+A pause (Pause program in the cog) takes its dates off the calendar: no missed days, no reminders, no weight drops. Resume puts the week back from today.
 
 ## Code
 

@@ -6,7 +6,7 @@ import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props
 import { HistoryMiddle, HistoryRight } from "@/components/fitness/history/history-views"
 import { PhotosMiddle, PhotosRight } from "@/components/fitness/photos/photos-views"
 import { CalendarMiddle, CalendarRight } from "@/components/fitness/program/calendar-views"
-import { DayMiddle, DayRight, WeekLeft } from "@/components/fitness/program/week-views"
+import { DayActions, DayMiddle, DayRight, WeekLeft } from "@/components/fitness/program/week-views"
 import { ProgressMiddle, ProgressRight } from "@/components/fitness/progress/progress-views"
 import { ThreePanels } from "@/components/fitness/three-panels"
 import { WorkoutMiddle, WorkoutRight } from "@/components/fitness/workout/logger-views"
@@ -84,7 +84,7 @@ export function ProgramDashboard({ page, search }: { page: ProgramPage; search: 
           <Middle {...props} />
         ) : (
           <>
-            <PanelHeader>
+            <PanelHeader plain>
               {/* Five tabs don't fit a phone, so below 640px the same choice is a dropdown. */}
               <Tabs value={view} onValueChange={(next) => switchView(next as ProgramView)} className="hidden min-w-0 sm:flex">
                 <TabsList className="max-w-full justify-start">
@@ -107,6 +107,12 @@ export function ProgramDashboard({ page, search }: { page: ProgramPage; search: 
                   ))}
                 </SelectContent>
               </Select>
+              {/* The day's menu and Start workout sit beside the tabs on every
+                  view, as Tyler drew Progress on 18 Oct 2026. Away from the Day
+                  view they act on the weekday last picked, today by default. */}
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                <DayActions {...props} />
+              </div>
             </PanelHeader>
             <Middle {...props} />
           </>

@@ -9,10 +9,7 @@ import { canReachPerson } from "@/server/fitness/access"
 import { loadCalendar, pauseProgram, todayFor } from "@/server/fitness/calendar"
 import { calendarFeedFor } from "@/server/fitness/calendar-feed"
 import { answerCoach, inviteClient, removeClients, setCoachPhotos } from "@/server/fitness/coach"
-import { builtInBySlug } from "@/server/fitness/exercises"
-import { previewImport, runImport } from "@/server/fitness/import"
 import { addFitnessNavigation } from "@/server/fitness/navigation"
-import { loadHistory } from "@/server/fitness/workouts"
 import { canSeePhotos } from "@/server/fitness/photos"
 import { applyTemplate, loadWeek } from "@/server/fitness/week"
 import { resetCalendarToken } from "@/server/fitness/profile"
@@ -192,57 +189,5 @@ describe("coaching", () => {
     await expect(inviteClient(ben.id, "anna@example.test", database)).rejects.toThrow(FITNESS_ERRORS.notACoach)
     await expect(inviteClient(coach.id, "cleo@example.test", database)).rejects.toThrow(FITNESS_ERRORS.clientNotMember)
     await expect(inviteClient(coach.id, "nobody@example.test", database)).rejects.toThrow(FITNESS_ERRORS.clientNotMember)
-  })
-})
-
-describe("import", () => {
-  const strong = [
-    "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,Notes,Workout Notes,RPE",
-    "2099-01-05 07:30:00,Morning,45m,Squat (Barbell),W,60,5,0,0,,,",
-    "2099-01-05 07:30:00,Morning,45m,Squat (Barbell),1,100,5,0,0,,,",
-    "2099-01-05 07:30:00,Morning,45m,Squat (Barbell),2,100,5,0,0,,,",
-    "2099-01-05 07:30:00,Morning,45m,Zercher Squat,1,80,5,0,0,,,",
-  ].join("\n")
-
-  it("matches known names, creates the rest, and adds nothing the second time", async () => {
-    const lifts = await builtInBySlug(database)
-    const programId = await annasProgram()
-    const preview = await previewImport(anna.id, { text: strong, unit: "kg", programId }, database)
-    expect(preview).toMatchObject({ source: "strong", workouts: 1, sets: 4, alreadyImported: 0 })
-    expect(preview.names).toEqual([
-      { name: "Squat (Barbell)", exerciseId: lifts.get("back-squat")!.id },
-      { name: "Zercher Squat", exerciseId: null },
-    ])
-    const first = await runImport(anna.id, { text: strong, unit: "kg", programId, matches: preview.names }, database)
-    expect(first).toEqual({ imported: 1, skipped: 0 })
-    const second = await runImport(anna.id, { text: strong, unit: "kg", programId, matches: preview.names }, database)
-    expect(second).toEqual({ imported: 0, skipped: 1 })
-    // The imported workout lands in the program the import was started from.
-    const rows = await loadHistory(anna.id, anna.id, database)
-    expect(rows.map((row) => row.programId)).toEqual([programId])
-  })
-
-  it("refuses a file that would add more than 300 new lifts", async () => {
-    const programId = await annasProgram()
-    const rows = Array.from({ length: 301 }, (_, index) => `2099-01-05 07:30:00,Morning,45m,Made Up Lift ${index},1,50,5,0,0,,,`)
-    const text = [strong.split("\n")[0], ...rows].join("\n")
-    const preview = await previewImport(anna.id, { text, unit: "kg", programId }, database)
-    await expect(runImport(anna.id, { text, unit: "kg", programId, matches: preview.names }, database)).rejects.toThrow(
-      FITNESS_ERRORS.importTooManyLifts
-    )
-  })
-
-  it("refuses an import into somebody else's program", async () => {
-    const programId = await annasProgram()
-    await expect(previewImport(ben.id, { text: strong, unit: "kg", programId }, database)).rejects.toThrow(
-      FITNESS_ERRORS.programNotFound
-    )
-  })
-
-  it("refuses a file it can't read", async () => {
-    const programId = await annasProgram()
-    await expect(previewImport(anna.id, { text: "a,b\n1,2", unit: "kg", programId }, database)).rejects.toThrow(
-      FITNESS_ERRORS.importUnreadable
-    )
   })
 })

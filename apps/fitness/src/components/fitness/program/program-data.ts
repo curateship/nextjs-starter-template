@@ -19,16 +19,14 @@ export function dateToDay(date: Date): Day {
   return `${date.getFullYear()}-${month}-${day}`
 }
 
-type SaveState = "idle" | "saving" | "saved" | "failed"
-
 /**
  * The program cards' save-as-you-go: `soon` waits 700ms after the last change to a
  * field, `now` saves at once (a switch, a pick, a field being left). Saves
- * run one after another, so two quick edits never land out of order. A
- * refused save says why in the error toast and leaves the typed value alone.
+ * run one after another, so two quick edits never land out of order. Nothing
+ * says Saved: Tyler took that word out on 18 Oct 2026. A refused save says
+ * why in the error toast and leaves the typed value alone.
  */
 export function useAutoSave() {
-  const [state, setState] = React.useState<SaveState>("idle")
   const timers = React.useRef(
     new Map<string, { timer: ReturnType<typeof setTimeout>; action: () => Promise<unknown> }>()
   )
@@ -39,13 +37,10 @@ export function useAutoSave() {
     if (pending) clearTimeout(pending.timer)
     timers.current.delete(key)
     const run = queue.current.then(async () => {
-      setState("saving")
       try {
         await action()
-        setState("saved")
         return true
       } catch (error) {
-        setState("failed")
         reportFitnessError(error)
         return false
       }
@@ -75,9 +70,5 @@ export function useAutoSave() {
     }
   }, [])
 
-  return { state, now, soon }
-}
-
-export function saveStateLabel(state: SaveState) {
-  return state === "saving" ? "Saving…" : state === "saved" ? "Saved" : state === "failed" ? "Not saved" : ""
+  return { now, soon }
 }

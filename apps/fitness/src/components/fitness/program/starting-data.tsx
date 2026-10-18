@@ -3,32 +3,29 @@ import { PlusIcon, Trash2Icon } from "lucide-react"
 
 import { ExercisePicker } from "@/components/fitness/exercise-picker"
 import { DecimalInput } from "@/components/fitness/program/decimal-input"
-import { saveStateLabel, useAutoSave, type ProgramPageData } from "@/components/fitness/program/program-data"
+import { useAutoSave, type ProgramPageData } from "@/components/fitness/program/program-data"
 import { WeightInput } from "@/components/fitness/weight-input"
 import { PanelCard } from "@/components/fitness/panel-card"
+import { SegmentedChoice } from "@/components/fitness/segmented-choice"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { NumberField } from "@/components/ui/number-field"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { changeBaselineLift, saveProgramBaseline, type Baseline } from "@/lib/api/fitness/programs"
 import { EQUIPMENT, EQUIPMENT_LABELS, type Equipment } from "@/lib/fitness/exercise-catalog"
-import { EXPERIENCE, GOALS, MEASUREMENTS, type ExperienceId, type GoalId } from "@/lib/fitness/templates"
+import { GOALS, MEASUREMENTS, type ExperienceId } from "@/lib/fitness/templates"
 import { estimateOneRepMax, formatWeight, type WeightUnit } from "@/lib/fitness/weights"
 
 type BaselineChange = Parameters<typeof saveProgramBaseline>[0]["change"]
 
 /**
- * The program's starting data, as one card in the right panel: what the
- * person brought on day one. It saves as it is typed, with no Save button.
+ * The program's starting data, as the first card in the program's cog
+ * dropdown, laid out the way Tyler drew it on 18 Oct 2026: a summary line under
+ * the heading, then Body and Training, each field with its unit inside the
+ * box and each choice as a segmented row. It saves as it is typed, with no
+ * Save button.
  * The best lifts feed the templates' and the AI's starting weights, and the
  * measurements are the "before" the photos compare against. Fields stack one
  * under another so they fit a narrow panel.
@@ -63,20 +60,29 @@ export function StartingData({ data }: { data: ProgramPageData }) {
 
   const liftIds = [...baseline.lifts.map((lift) => lift.exerciseId), ...pending]
 
+  const summary = [
+    baseline.bodyweightKg ? formatWeight(baseline.bodyweightKg, unit) : null,
+    baseline.heightCm ? `${Math.round(baseline.heightCm)} cm` : null,
+    GOALS.find((goal) => goal.id === baseline.goal)?.label ?? null,
+  ].filter(Boolean)
+
   return (
     <PanelCard
       storageId="fitness-program-starting-data"
       title="Starting data"
-      meta={saveStateLabel(autoSave.state) || undefined}
+      subtitle={summary.join(" · ") || "Nothing filled in yet"}
     >
-      <section className="grid gap-4" aria-label="Body">
+      <section className="grid gap-3" aria-labelledby={`${base}-body`}>
+        <SectionLabel id={`${base}-body`}>Body</SectionLabel>
         <div className="grid grid-cols-2 items-end gap-3">
           <div className="grid gap-2">
-            <Label htmlFor={`${base}-bodyweight`}>Bodyweight ({unit})</Label>
+            <Label htmlFor={`${base}-bodyweight`}>Bodyweight</Label>
             <WeightInput
               id={`${base}-bodyweight`}
               valueKg={baseline.bodyweightKg}
               unit={unit}
+              showUnit
+              placeholder={"\u2013"}
               onCommit={(kg) => {
                 setBaseline((current) => ({ ...current, bodyweightKg: kg }))
                 save("bodyweight", { bodyweightKg: kg }, "now")
@@ -84,25 +90,30 @@ export function StartingData({ data }: { data: ProgramPageData }) {
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor={`${base}-height`}>Height (cm)</Label>
+            <Label htmlFor={`${base}-height`}>Height</Label>
             <DecimalInput
               id={`${base}-height`}
               value={baseline.heightCm}
               min={50}
               max={260}
+              unit="cm"
               what="your height"
-              onValue={(value) => save("height", { heightCm: value }, "soon")}
+              onValue={(value) => {
+                setBaseline((current) => ({ ...current, heightCm: value }))
+                save("height", { heightCm: value }, "soon")
+              }}
               onCommit={(value) => save("height", { heightCm: value }, "now")}
             />
           </div>
           {MEASUREMENTS.map((measurement) => (
             <div key={measurement.key} className="grid gap-2">
-              <Label htmlFor={`${base}-${measurement.key}`}>{measurement.label} (cm)</Label>
+              <Label htmlFor={`${base}-${measurement.key}`}>{measurement.label}</Label>
               <DecimalInput
                 id={`${base}-${measurement.key}`}
                 value={baseline[measurement.key]}
                 min={10}
                 max={250}
+                unit="cm"
                 what={`your ${measurement.label.toLowerCase()}`}
                 onValue={(value) => save(measurement.key, { [measurement.key]: value }, "soon")}
                 onCommit={(value) => save(measurement.key, { [measurement.key]: value }, "now")}
@@ -110,54 +121,44 @@ export function StartingData({ data }: { data: ProgramPageData }) {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="grid gap-3" aria-labelledby={`${base}-training`}>
+        <SectionLabel id={`${base}-training`}>Training</SectionLabel>
         <div className="grid gap-2">
-          <Label htmlFor={`${base}-goal`}>What you want most</Label>
-          <Select
-            value={baseline.goal ?? undefined}
-            onValueChange={(value) => {
-              setBaseline((current) => ({ ...current, goal: value as GoalId }))
-              save("goal", { goal: value }, "now")
+          <Label id={`${base}-goal`}>What you want most</Label>
+          <SegmentedChoice
+            label="What you want most"
+            value={baseline.goal}
+            options={GOAL_CHOICES}
+            className="grid h-auto grid-cols-2 gap-0.5"
+            onChange={(goal) => {
+              setBaseline((current) => ({ ...current, goal }))
+              save("goal", { goal }, "now")
             }}
-          >
-            <SelectTrigger id={`${base}-goal`} className="w-full">
-              <SelectValue placeholder="Pick a goal" />
-            </SelectTrigger>
-            <SelectContent>
-              {GOALS.map((goal) => (
-                <SelectItem key={goal.id} value={goal.id}>
-                  {goal.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor={`${base}-experience`}>How long you have lifted</Label>
-          <Select
-            value={baseline.experience ?? undefined}
-            onValueChange={(value) => {
-              setBaseline((current) => ({ ...current, experience: value as ExperienceId }))
-              save("experience", { experience: value }, "now")
+          <Label id={`${base}-experience`}>How long you have lifted</Label>
+          <SegmentedChoice
+            label="How long you have lifted"
+            value={baseline.experience}
+            options={EXPERIENCE_CHOICES}
+            onChange={(experience) => {
+              setBaseline((current) => ({ ...current, experience }))
+              save("experience", { experience }, "now")
             }}
-          >
-            <SelectTrigger id={`${base}-experience`} className="w-full">
-              <SelectValue placeholder="Pick one" />
-            </SelectTrigger>
-            <SelectContent>
-              {EXPERIENCE.map((entry) => (
-                <SelectItem key={entry.id} value={entry.id}>
-                  {entry.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         </div>
       </section>
 
-      <section className="grid gap-2" aria-label="Equipment you have">
-        <FieldLabel hint="Exercise swaps and the AI plan only offer lifts you can do with these. Tick none and every lift is offered.">
+      <section className="grid gap-2" aria-labelledby={`${base}-equipment`}>
+        <SectionLabel
+          id={`${base}-equipment`}
+          hint="Exercise swaps and the AI plan only offer lifts you can do with these. Tick none and every lift is offered."
+        >
           Equipment you have
-        </FieldLabel>
+        </SectionLabel>
         <div className="grid gap-2">
           {EQUIPMENT.filter((item) => item !== "bodyweight").map((item) => {
             const id = `${base}-equipment-${item}`
@@ -183,11 +184,14 @@ export function StartingData({ data }: { data: ProgramPageData }) {
         </div>
       </section>
 
-      <section className="grid gap-2" aria-label="Best lifts">
+      <section className="grid gap-2" aria-labelledby={`${base}-lifts`}>
         <div className="flex items-center justify-between gap-2">
-          <FieldLabel hint="Templates and the AI start each lift at 75 out of 100 of the best you can lift once.">
+          <SectionLabel
+            id={`${base}-lifts`}
+            hint="Templates and the AI start each lift at 75 out of 100 of the best you can lift once."
+          >
             Best lifts
-          </FieldLabel>
+          </SectionLabel>
           <Button type="button" variant="outline" size="sm" onClick={() => setPicking(true)}>
             <PlusIcon />
             Add lift
@@ -236,6 +240,29 @@ export function StartingData({ data }: { data: ProgramPageData }) {
       />
     </PanelCard>
   )
+}
+
+/** The goals in the order Tyler drew them, then the one his drawing had no room for. */
+const GOAL_CHOICES = (["muscle", "strength", "fat_loss", "general"] as const).map((id) => ({
+  value: id,
+  label: GOALS.find((goal) => goal.id === id)!.label,
+}))
+
+/** Short enough for three to sit side by side in the dropdown. */
+const EXPERIENCE_CHOICES: { value: ExperienceId; label: string }[] = [
+  { value: "beginner", label: "Under a year" },
+  { value: "intermediate", label: "1 to 3 years" },
+  { value: "advanced", label: "Over 3 years" },
+]
+
+/** "BODY", "TRAINING": a quiet heading over a group of fields. */
+function SectionLabel({ id, hint, children }: { id: string; hint?: string; children: React.ReactNode }) {
+  const text = (
+    <span id={id} className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      {children}
+    </span>
+  )
+  return hint ? <FieldLabel hint={hint}>{text}</FieldLabel> : text
 }
 
 function BestLiftRow({

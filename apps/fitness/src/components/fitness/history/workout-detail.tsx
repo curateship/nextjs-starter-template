@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { CopyIcon, ExternalLinkIcon, Loader2Icon, SquareMousePointerIcon, Trash2Icon, XIcon } from "lucide-react"
+import { CopyIcon, ExternalLinkIcon, Loader2Icon, Trash2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PanelCard } from "@/components/fitness/panel-card"
@@ -66,22 +66,35 @@ function NothingPicked({ rows, unit, timeZone }: { rows: HistoryRow[]; unit: Wei
         <h2 className="text-sm font-semibold">Workout</h2>
       </PanelHeader>
       <PanelBody>
-        <div className="grid justify-items-center gap-2 py-6 text-center">
-          <SquareMousePointerIcon className="size-5 text-muted-foreground" aria-hidden />
-          <p className="max-w-56 text-sm text-muted-foreground">Pick a workout to see it here.</p>
-        </div>
-        <PanelCard storageId="fitness-history-totals" title="Last four weeks">
-          <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 text-[13px]">
-            <dt className="text-muted-foreground">Workouts finished</dt>
-            <dd>{recent.length}</dd>
-            <dt className="text-muted-foreground">Sets done</dt>
-            <dd>{recent.reduce((sum, row) => sum + row.setsDone, 0)}</dd>
-            <dt className="text-muted-foreground">Total lifted</dt>
-            <dd>{formatWeight(recent.reduce((sum, row) => sum + row.totalKg, 0), unit)}</dd>
-            <dt className="text-muted-foreground">All time</dt>
-            <dd>
-              {finished.length} {finished.length === 1 ? "workout" : "workouts"}
-            </dd>
+        <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+          Pick a workout to see it here.
+        </p>
+        <PanelCard storageId="fitness-history-totals" title="Last four weeks" flush>
+          <dl className="grid grid-cols-2 [&>div]:grid [&>div]:gap-1 [&>div]:p-4 [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(odd)]:border-r">
+            <div>
+              <dt className="text-[13px] text-muted-foreground">Workouts finished</dt>
+              <dd className="text-2xl font-semibold tabular-nums">{recent.length}</dd>
+            </div>
+            <div>
+              <dt className="text-[13px] text-muted-foreground">Sets done</dt>
+              <dd className="text-2xl font-semibold tabular-nums">{recent.reduce((sum, row) => sum + row.setsDone, 0)}</dd>
+            </div>
+            <div>
+              <dt className="text-[13px] text-muted-foreground">Total lifted</dt>
+              <dd className="text-2xl font-semibold tabular-nums">
+                {formatWeightNumber(recent.reduce((sum, row) => sum + row.totalKg, 0), unit)}
+                <span className="ml-1 text-base font-normal text-muted-foreground">{unit}</span>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[13px] text-muted-foreground">All time</dt>
+              <dd className="text-2xl font-semibold tabular-nums">
+                {finished.length}
+                <span className="ml-1 text-base font-normal text-muted-foreground">
+                  {finished.length === 1 ? "workout" : "workouts"}
+                </span>
+              </dd>
+            </div>
           </dl>
         </PanelCard>
       </PanelBody>

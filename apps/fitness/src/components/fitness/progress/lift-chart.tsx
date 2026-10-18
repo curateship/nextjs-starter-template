@@ -3,38 +3,37 @@ import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import { ChartLegend } from "@/components/fitness/progress/chart-legend"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { Switch } from "@/components/ui/switch"
 import { loadLiftChart, type LiftPoint, type LiftRecord } from "@/lib/api/fitness/progress"
 import { seriesColour } from "@/lib/dashboard/chart-colours"
 import { formatDay } from "@/lib/fitness/dates"
 import { getFitnessErrorMessage } from "@/lib/fitness/errors"
 import { fromKg, type WeightUnit } from "@/lib/fitness/weights"
 
+export type LiftMetric = "oneRepMax" | "heaviest"
+
 /**
- * One lift's estimated one-rep max (the heaviest it could likely lift once,
- * worked out from its sets) for each day it was trained. With "Heaviest" on,
- * the heaviest weight actually lifted that day is a second, dashed line.
- *
- * Drawn as a section of the program dashboard's Progress view, with no card
- * of its own: the panel is the surface. Ticking lifts in the records list
- * compares up to four of them, one line each. A filter never repaints a lift: each keeps the colour of its place in
- * the comparison.
+ * The chart in the Progress view's lift card: for each day a lift was
+ * trained, its best one-rep max (the heaviest it could likely lift once,
+ * worked out from its sets) or the heaviest weight actually lifted, as the
+ * card's One-rep max and Heaviest choice says. Comparing draws up to four
+ * lifts, one line each, and a lift keeps the colour of its place in the
+ * comparison. The card around it holds the heading and the choices.
  */
 export function LiftChart({
   personId,
   records,
   exerciseIds,
+  metric,
   unit,
 }: {
   personId: string
   records: readonly LiftRecord[]
   /** One lift, or up to four to compare. */
   exerciseIds: readonly string[]
+  metric: LiftMetric
   unit: WeightUnit
 }) {
-  const [showHeaviest, setShowHeaviest] = React.useState(false)
   const key = `${personId}:${exerciseIds.join(",")}`
   const [result, setResult] = React.useState<{
     key: string | null
@@ -67,100 +66,78 @@ export function LiftChart({
     }
   }, [key])
 
-  const comparing = exerciseIds.length > 1
   const names = new Map(records.map((record) => [record.exerciseId, record.name]))
-  const title = comparing
-    ? "Lifts compared · best one-rep max"
-    : exerciseIds[0]
-      ? (names.get(exerciseIds[0]) ?? "Lift")
-      : "Lift"
-  const answered = result.key === key
-
+  if (exerciseIds.length === 0) return <Waiting>Finish a workout and its lifts show here, one line each.</Waiting>
+  if (result.key !== key) return <LoadingRow label="Loading the lift" />
+  if (result.error) return <Waiting>{result.error}</Waiting>
   return (
-    <section className="grid gap-3 border-b p-3" aria-label="Lift chart">
-      <div className="flex min-h-8 items-center gap-2">
-        <h3 className="min-w-0 flex-1 truncate text-sm font-semibold">
-          {title}
-          {comparing || exerciseIds.length === 0 ? null : (
-            <span className="font-normal text-muted-foreground"> · best one-rep max</span>
-          )}
-        </h3>
-        {comparing || exerciseIds.length === 0 ? null : (
-          <div className="flex items-center gap-2">
-            <Switch id="lift-chart-heaviest" checked={showHeaviest} onCheckedChange={setShowHeaviest} />
-            <Label htmlFor="lift-chart-heaviest" className="text-xs font-normal">
-              Heaviest
-            </Label>
-          </div>
-        )}
-      </div>
-      {exerciseIds.length === 0 ? (
-        <Message>Finish a workout and its lifts show here, one line each.</Message>
-      ) : !answered ? (
-        <LoadingRow label="Loading the lift" />
-      ) : result.error ? (
-        <Message>{result.error}</Message>
-      ) : (
-        <LiftLines
-          exerciseIds={exerciseIds}
-          histories={result.histories ?? {}}
-          names={names}
-          unit={unit}
-          showHeaviest={showHeaviest && !comparing}
-        />
-      )}
-    </section>
+    <LiftLines
+      exerciseIds={exerciseIds}
+      histories={result.histories ?? {}}
+      names={names}
+      metric={metric}
+      unit={unit}
+    />
   )
 }
 
-function Message({ children }: { children: React.ReactNode }) {
-  return <p className="py-10 text-center text-sm text-muted-foreground">{children}</p>
+/**
+ * A chart with no line yet, as Tyler drew it on 18 Oct 2026: a dashed box with
+ * a dot, a dotted path and an empty ring, over the sentence that says why.
+ */
+function Waiting({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid min-h-48 place-content-center justify-items-center gap-3 rounded-xl border border-dashed p-6 text-center">
+      <span aria-hidden className="flex items-center gap-1.5">
+        <span className="size-2.5 rounded-full bg-foreground" />
+        <span className="w-20 border-t-2 border-dotted border-muted-foreground/50" />
+        <span className="size-2.5 rounded-full border-2 border-dashed border-muted-foreground/60" />
+      </span>
+      <p className="max-w-64 text-sm text-muted-foreground">{children}</p>
+    </div>
+  )
 }
 
 function LiftLines({
   exerciseIds,
   histories,
   names,
+  metric,
   unit,
-  showHeaviest,
 }: {
   exerciseIds: readonly string[]
   histories: Record<string, LiftPoint[]>
   names: Map<string, string>
+  metric: LiftMetric
   unit: WeightUnit
-  showHeaviest: boolean
 }) {
   const days = [...new Set(exerciseIds.flatMap((id) => (histories[id] ?? []).map((point) => point.day)))].sort()
   const enoughPoints = exerciseIds.some((id) => (histories[id]?.length ?? 0) >= 2)
-  if (!enoughPoints) return <Message>Log this lift twice to see a line.</Message>
+  if (!enoughPoints) return <Waiting>Log this lift twice to see a line.</Waiting>
 
   const round = (kg: number) => Math.round(fromKg(kg, unit) * 10) / 10
   const data = days.map((day) => {
     const row: Record<string, string | number | null> = { day, label: formatDay(day) }
     exerciseIds.forEach((id, index) => {
       const point = histories[id]?.find((entry) => entry.day === day)
-      row[`lift${index}`] = point ? round(point.oneRepMaxKg) : null
-      if (index === 0) row.heaviest = point ? round(point.heaviestKg) : null
+      row[`lift${index}`] = point ? round(metric === "heaviest" ? point.heaviestKg : point.oneRepMaxKg) : null
     })
     return row
   })
 
-  const config: ChartConfig = Object.fromEntries([
-    ...exerciseIds.map((id, index) => [
+  const metricLabel = metric === "heaviest" ? "Heaviest lifted" : "Best one-rep max"
+  const config: ChartConfig = Object.fromEntries(
+    exerciseIds.map((id, index) => [
       `lift${index}`,
-      { label: exerciseIds.length > 1 ? (names.get(id) ?? "Lift") : "Best one-rep max", color: seriesColour(index) },
-    ]),
-    ["heaviest", { label: "Heaviest", color: seriesColour(2) }],
-  ])
-  const legend = [
-    ...exerciseIds.map((_, index) => ({
-      key: `lift${index}`,
-      label: String(config[`lift${index}`].label),
-      color: seriesColour(index),
-      mark: "line" as const,
-    })),
-    ...(showHeaviest ? [{ key: "heaviest", label: "Heaviest", color: seriesColour(2), mark: "dashed" as const }] : []),
-  ]
+      { label: exerciseIds.length > 1 ? (names.get(id) ?? "Lift") : metricLabel, color: seriesColour(index) },
+    ])
+  )
+  const legend = exerciseIds.map((_, index) => ({
+    key: `lift${index}`,
+    label: String(config[`lift${index}`].label),
+    color: seriesColour(index),
+    mark: "line" as const,
+  }))
 
   return (
     <div className="grid gap-3">
@@ -205,18 +182,6 @@ function LiftLines({
                 isAnimationActive={false}
               />
             ))}
-            {showHeaviest ? (
-              <Line
-                dataKey="heaviest"
-                type="monotone"
-                stroke="var(--color-heaviest)"
-                strokeWidth={2}
-                strokeDasharray="5 4"
-                dot={false}
-                connectNulls
-                isAnimationActive={false}
-              />
-            ) : null}
           </LineChart>
         </ChartContainer>
       </div>

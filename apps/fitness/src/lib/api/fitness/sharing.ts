@@ -1,14 +1,10 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { WEIGHT_UNITS } from "@/lib/fitness/weights"
-import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { userPost } from "@/server/guards"
-import { previewImport, runImport } from "@/server/fitness/import"
 import { copySharedProgram, loadSharedProgram } from "@/server/fitness/sharing"
 
 export type { SharedProgram } from "@/server/fitness/sharing"
-export type { ImportPreview } from "@/server/fitness/import"
 
 const code = z.string().min(8).max(24)
 
@@ -33,40 +29,4 @@ const copyFn = createServerFn({ method: "POST" })
 
 export function copyShared(shareCode: string) {
   return copyFn({ data: { code: shareCode } })
-}
-
-const importInput = z.object({
-  text: z.string().min(1).max(5 * 1024 * 1024),
-  unit: z.enum(WEIGHT_UNITS),
-  programId: z.string().min(1).max(36),
-})
-
-const previewFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(importInput)
-  .handler(async ({ data, context }) => {
-    await enforceRateLimit(`fitness-import:${context.user.id}`, { maxAttempts: 30, windowSeconds: 60 * 60 })
-    return previewImport(context.user.id, data)
-  })
-
-export function previewWorkoutImport(text: string, unit: (typeof WEIGHT_UNITS)[number], programId: string) {
-  return previewFn({ data: { text, unit, programId } })
-}
-
-const runFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(
-    importInput.extend({
-      matches: z
-        .array(z.object({ name: z.string().max(80), exerciseId: z.string().min(1).max(36).nullable() }))
-        .max(500),
-    })
-  )
-  .handler(async ({ data, context }) => {
-    await enforceRateLimit(`fitness-import:${context.user.id}`, { maxAttempts: 30, windowSeconds: 60 * 60 })
-    return runImport(context.user.id, data)
-  })
-
-export function runWorkoutImport(data: Parameters<typeof runFn>[0]["data"]) {
-  return runFn({ data })
 }
