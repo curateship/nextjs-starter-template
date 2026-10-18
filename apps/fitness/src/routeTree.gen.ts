@@ -31,9 +31,12 @@ import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
+import { Route as AuthenticatedExercisesRouteImport } from './routes/_authenticated/exercises'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedProgramsRouteImport } from './routes/_authenticated/programs'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as RCodeRouteImport } from './routes/r.$code'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
@@ -58,6 +61,7 @@ import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
+import { Route as AuthenticatedProgramsProgramIdRouteImport } from './routes/_authenticated/programs_.$programId'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
@@ -69,10 +73,12 @@ import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
+import { Route as ApiFitnessCalendarTokenRouteImport } from './routes/api/fitness/calendar.$token'
 import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
+import { Route as ApiFitnessPhotosSessionIdSlotRouteImport } from './routes/api/fitness/photos.$sessionId.$slot'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
 const IndexRoute = IndexRouteImport.update({
@@ -184,9 +190,19 @@ const AuthenticatedChangelogRoute = AuthenticatedChangelogRouteImport.update({
   path: '/changelog',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedExercisesRoute = AuthenticatedExercisesRouteImport.update({
+  id: '/exercises',
+  path: '/exercises',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedProgramsRoute = AuthenticatedProgramsRouteImport.update({
+  id: '/programs',
+  path: '/programs',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
@@ -197,6 +213,11 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RCodeRoute = RCodeRouteImport.update({
+  id: '/r/$code',
+  path: '/r/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -336,6 +357,12 @@ const AuthenticatedChangelogWhatsNewRoute =
     path: '/whats-new',
     getParentRoute: () => AuthenticatedChangelogRoute,
   } as any)
+const AuthenticatedProgramsProgramIdRoute =
+  AuthenticatedProgramsProgramIdRouteImport.update({
+    id: '/programs_/$programId',
+    path: '/programs/$programId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   id: '/api/auth/google',
   path: '/api/auth/google',
@@ -398,6 +425,11 @@ const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   path: '/api/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFitnessCalendarTokenRoute = ApiFitnessCalendarTokenRouteImport.update({
+  id: '/api/fitness/calendar/$token',
+  path: '/api/fitness/calendar/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1MediaResizedRoute = ApiV1MediaResizedRouteImport.update({
   id: '/api/v1/media/resized',
   path: '/api/v1/media/resized',
@@ -419,6 +451,12 @@ const AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute =
     id: '/automations_/templates_/$templateKey',
     path: '/automations/templates/$templateKey',
     getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const ApiFitnessPhotosSessionIdSlotRoute =
+  ApiFitnessPhotosSessionIdSlotRouteImport.update({
+    id: '/api/fitness/photos/$sessionId/$slot',
+    path: '/api/fitness/photos/$sessionId/$slot',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
@@ -448,9 +486,12 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
+  '/exercises': typeof AuthenticatedExercisesRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/programs': typeof AuthenticatedProgramsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/r/$code': typeof RCodeRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -473,6 +514,7 @@ export interface FileRoutesByFullPath {
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/programs/$programId': typeof AuthenticatedProgramsProgramIdRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -486,10 +528,12 @@ export interface FileRoutesByFullPath {
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/fitness/calendar/$token': typeof ApiFitnessCalendarTokenRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/fitness/photos/$sessionId/$slot': typeof ApiFitnessPhotosSessionIdSlotRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesByTo {
@@ -512,9 +556,12 @@ export interface FileRoutesByTo {
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
+  '/exercises': typeof AuthenticatedExercisesRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/programs': typeof AuthenticatedProgramsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/r/$code': typeof RCodeRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -537,6 +584,7 @@ export interface FileRoutesByTo {
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/programs/$programId': typeof AuthenticatedProgramsProgramIdRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -550,10 +598,12 @@ export interface FileRoutesByTo {
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/fitness/calendar/$token': typeof ApiFitnessCalendarTokenRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/fitness/photos/$sessionId/$slot': typeof ApiFitnessPhotosSessionIdSlotRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesById {
@@ -580,9 +630,12 @@ export interface FileRoutesById {
   '/_authenticated/account': typeof AuthenticatedAccountRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
+  '/_authenticated/exercises': typeof AuthenticatedExercisesRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/programs': typeof AuthenticatedProgramsRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/r/$code': typeof RCodeRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -605,6 +658,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/_authenticated/programs_/$programId': typeof AuthenticatedProgramsProgramIdRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -618,10 +672,12 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/fitness/calendar/$token': typeof ApiFitnessCalendarTokenRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/api/fitness/photos/$sessionId/$slot': typeof ApiFitnessPhotosSessionIdSlotRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRouteTypes {
@@ -648,9 +704,12 @@ export interface FileRouteTypes {
     | '/account'
     | '/admin'
     | '/changelog'
+    | '/exercises'
     | '/home'
+    | '/programs'
     | '/workspaces'
     | '/api/health'
+    | '/r/$code'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -673,6 +732,7 @@ export interface FileRouteTypes {
     | '/admin/traffic'
     | '/admin/users'
     | '/changelog/whats-new'
+    | '/programs/$programId'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -686,10 +746,12 @@ export interface FileRouteTypes {
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
     | '/api/auth/google/callback'
+    | '/api/fitness/calendar/$token'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
+    | '/api/fitness/photos/$sessionId/$slot'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -712,9 +774,12 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/verify-email'
     | '/account'
+    | '/exercises'
     | '/home'
+    | '/programs'
     | '/workspaces'
     | '/api/health'
+    | '/r/$code'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -737,6 +802,7 @@ export interface FileRouteTypes {
     | '/admin/traffic'
     | '/admin/users'
     | '/changelog/whats-new'
+    | '/programs/$programId'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -750,10 +816,12 @@ export interface FileRouteTypes {
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
     | '/api/auth/google/callback'
+    | '/api/fitness/calendar/$token'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
+    | '/api/fitness/photos/$sessionId/$slot'
     | '/api/v1/media/$mediaId/file'
   id:
     | '__root__'
@@ -779,9 +847,12 @@ export interface FileRouteTypes {
     | '/_authenticated/account'
     | '/_authenticated/admin'
     | '/_authenticated/changelog'
+    | '/_authenticated/exercises'
     | '/_authenticated/home'
+    | '/_authenticated/programs'
     | '/_authenticated/workspaces'
     | '/api/health'
+    | '/r/$code'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
@@ -804,6 +875,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
     | '/_authenticated/changelog/whats-new'
+    | '/_authenticated/programs_/$programId'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -817,10 +889,12 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
     | '/api/auth/google_/callback'
+    | '/api/fitness/calendar/$token'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/_authenticated/admin/automations_/templates_/$templateKey'
+    | '/api/fitness/photos/$sessionId/$slot'
     | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
 }
@@ -845,13 +919,16 @@ export interface RootRouteChildren {
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  RCodeRoute: typeof RCodeRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+  ApiFitnessCalendarTokenRoute: typeof ApiFitnessCalendarTokenRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
+  ApiFitnessPhotosSessionIdSlotRoute: typeof ApiFitnessPhotosSessionIdSlotRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
 }
 
@@ -1011,11 +1088,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChangelogRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/exercises': {
+      id: '/_authenticated/exercises'
+      path: '/exercises'
+      fullPath: '/exercises'
+      preLoaderRoute: typeof AuthenticatedExercisesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/home': {
       id: '/_authenticated/home'
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/programs': {
+      id: '/_authenticated/programs'
+      path: '/programs'
+      fullPath: '/programs'
+      preLoaderRoute: typeof AuthenticatedProgramsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/workspaces': {
@@ -1030,6 +1121,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r/$code': {
+      id: '/r/$code'
+      path: '/r/$code'
+      fullPath: '/r/$code'
+      preLoaderRoute: typeof RCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -1200,6 +1298,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChangelogWhatsNewRouteImport
       parentRoute: typeof AuthenticatedChangelogRoute
     }
+    '/_authenticated/programs_/$programId': {
+      id: '/_authenticated/programs_/$programId'
+      path: '/programs/$programId'
+      fullPath: '/programs/$programId'
+      preLoaderRoute: typeof AuthenticatedProgramsProgramIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/auth/google': {
       id: '/api/auth/google'
       path: '/api/auth/google'
@@ -1277,6 +1382,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/fitness/calendar/$token': {
+      id: '/api/fitness/calendar/$token'
+      path: '/api/fitness/calendar/$token'
+      fullPath: '/api/fitness/calendar/$token'
+      preLoaderRoute: typeof ApiFitnessCalendarTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/media/resized': {
       id: '/api/v1/media/resized'
       path: '/api/v1/media/resized'
@@ -1304,6 +1416,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/automations/templates/$templateKey'
       preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/api/fitness/photos/$sessionId/$slot': {
+      id: '/api/fitness/photos/$sessionId/$slot'
+      path: '/api/fitness/photos/$sessionId/$slot'
+      fullPath: '/api/fitness/photos/$sessionId/$slot'
+      preLoaderRoute: typeof ApiFitnessPhotosSessionIdSlotRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
@@ -1431,16 +1550,22 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRouteWithChildren
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
+  AuthenticatedExercisesRoute: typeof AuthenticatedExercisesRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedProgramsRoute: typeof AuthenticatedProgramsRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
+  AuthenticatedProgramsProgramIdRoute: typeof AuthenticatedProgramsProgramIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRouteWithChildren,
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
+  AuthenticatedExercisesRoute: AuthenticatedExercisesRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedProgramsRoute: AuthenticatedProgramsRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
+  AuthenticatedProgramsProgramIdRoute: AuthenticatedProgramsProgramIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -1468,13 +1593,16 @@ const rootRouteChildren: RootRouteChildren = {
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
+  RCodeRoute: RCodeRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+  ApiFitnessCalendarTokenRoute: ApiFitnessCalendarTokenRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
+  ApiFitnessPhotosSessionIdSlotRoute: ApiFitnessPhotosSessionIdSlotRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
 }
 export const routeTree = rootRouteImport
