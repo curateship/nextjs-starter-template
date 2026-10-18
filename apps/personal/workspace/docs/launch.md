@@ -71,9 +71,8 @@ the plan without deploying. A deploy ships the whole branch.
 
 ## The live menu
 
-The first deploy starts with no menu file, so live shows the starting menu.
-Straight after it, a one-off script signs in and sends this Mac's
-`data/menu.json` to live. After that the two menus are separate, as Tyler
+The first deploy started with no menu file. Straight after it, on 18 Oct
+2026, a one-off script signed in and sent this Mac's `data/menu.json` to live. After that the two menus are separate, as Tyler
 chose on 18 Oct 2026. The local `http://localhost` links show an empty panel
 on live, because an https page can't frame an http one. Change them to the
 apps' real addresses in live's Edit the menu.
@@ -87,8 +86,22 @@ apps' real addresses in live's Edit the menu.
   behind https. A saved menu survived a restart, and Docker marked it
   healthy. A browser signed in and reloaded on it with no console errors.
 
+## Checked after the first deploy
+
+- `/health` answers `ok`. The page and a deep address answer 200, and
+  `/api/menu` answers 401 "Sign in first." when signed out.
+- `X-Frame-Options: DENY` and `frame-ancestors 'none'` are on every answer.
+- `/data/menu.json` on live is the page, not the menu: the image has no
+  `data/` folder.
+- In a browser: the sign-in card with no menu, a wrong password, the right
+  one, a cookie that is Secure, HttpOnly and SameSite=Strict for 30 days,
+  the three sections from this Mac, a reload that stays signed in, Sign out
+  with Back showing the sign-in card, and no sideways scroll at 390px in
+  dark mode. The only console line is Chrome's own note of the wrong
+  password's 401.
+
 ## Release record
 
 | Date | Commit | Deployment | Notes |
 | --- | --- | --- | --- |
-| Not deployed yet | | | Waits for Tyler to say "deploy". |
+| 18 Oct 2026 | `8653c6f8f` | `hlty6s2wioe3mc1ampujzk5i` (98 s) | First launch. `npm run deploy` pushed `develop` but Coolify 4.4 refused the script's GET to start the build (405), so the build was started through the Coolify connection. The script now falls back to POST. Menu copied from this Mac once (3 sections). Checked live in a browser. |

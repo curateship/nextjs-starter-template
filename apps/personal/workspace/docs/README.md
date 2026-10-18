@@ -18,7 +18,7 @@ the sidebars or top nav".
   want a 200k LOC for a simple iframe app. Also we'll need a more robust system
   to add navigation directly inline from the sidebar and top navigation
   anyways."
-- **Going live at `https://personal.barelycompany.com`**, on the German
+- **Live at `https://personal.barelycompany.com`** since 18 Oct 2026, on the German
   server next to Trade, so apps on `barelycompany.com` can sign in inside its
   panel. `launch.md` has the setup; `app-panels.md` says why the domain
   matters.
