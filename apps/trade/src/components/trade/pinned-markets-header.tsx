@@ -20,7 +20,6 @@ import { moneyTone } from "@/lib/trade/money-tone"
 import { usePinnedMarkets } from "@/lib/trade/use-pinned-markets"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { useHidePnlSync } from "@/lib/trade/use-hide-pnl-sync"
 import { PublicProfileDialogHost } from "@/components/social/public-profile-setting"
 
 export default function PinnedMarketsHeader({
@@ -29,14 +28,9 @@ export default function PinnedMarketsHeader({
   const { pins, failed, store } = usePinnedMarkets()
   // The chips leave this row on a phone and are drawn in the header's
   // three-dot dropdown instead, by `pinned-markets-menu.tsx`. Everything else
-  // in here stays mounted at every width: the reading clock below, the saved
-  // Hide profit and loss choice, and the settings cog's own window.
+  // in here stays mounted at every width: the reading clock below and the
+  // settings cog's own window.
   const phone = useIsMobile()
-  // Not about pinned markets at all. This is the app's own control on the
-  // signed-in header, so it is the one component drawn on every screen — and
-  // the saved Hide profit and loss choice has to reach the page before any
-  // figure is painted, whether or not anybody opens the settings cog.
-  useHidePnlSync()
   React.useEffect(() => {
     let running = false
     const refresh = () => {

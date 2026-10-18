@@ -62,11 +62,12 @@ that jumps is a row somebody has to find again.
   showing one that did.
 - **A saved panel layout still carries it.** Applying a named layout sets the
   switch to what it was when the layout was saved, exactly as before.
-- **The reading happens in the header's pinned-markets control**, not in the
-  switch itself. A menu draws nothing until it is opened, so a switch that read
-  its own setting would leave every figure readable until somebody opened the
-  cog. `src/lib/trade/use-hide-pnl-sync.ts` is that reader, and it asks the
-  server once per page.
+- **Whatever draws a figure reads the saved choice**, not the header or the
+  switch. `useHidePnl` in `src/lib/trade/hide-pnl.ts` starts the read the
+  first time anything on the page uses it, and asks the server once per page.
+  It used to run from the header's pinned-markets control, but Trade draws no
+  header inside Personal's middle panel, so there every figure showed whatever
+  had been saved. Tyler found this on 18 Oct 2026.
 
 ## The code
 
@@ -78,12 +79,12 @@ to "is this hidden" rather than thirty.
 
 ## Every open copy follows the switch
 
-Each open copy of Trade keeps the answer in its own memory and reads the saved
-one only as it opens. So a copy opened earlier, such as another tab or a Trade
-screen kept loaded in Personal's middle panel, used to keep showing the figures
-after the switch was turned on somewhere else, until it was loaded again. Tyler
-found this on 18 Oct 2026. `useHidePnlSync` in
-`src/lib/trade/use-hide-pnl-sync.ts` now listens for the browser's note that
-the remembered answer (`trade:hide-pnl`) changed in another page, and applies
-it at once. Not yet checked in a browser, because no Trade server runs from
-this worktree.
+Each open copy of Trade keeps the answer in its own memory. So a copy opened
+earlier, such as another tab or a Trade screen inside Personal, used to keep
+showing the figures after the switch was turned on somewhere else, until it was
+loaded again. Trade inside Personal has no header and so no switch of its own,
+so this is also how a choice made in Trade's own tab reaches it. The same
+`useHidePnl` start listens for the browser's note that the remembered answer
+(`trade:hide-pnl`) changed in another page, and applies it at once. Found by
+Tyler on 18 Oct 2026. Not yet checked in a browser, because no Trade server
+runs from this worktree.

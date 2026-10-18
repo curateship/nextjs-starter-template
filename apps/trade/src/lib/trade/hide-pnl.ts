@@ -1,5 +1,8 @@
 import * as React from "react"
 
+import { loadHidePnl } from "@/lib/api/trade/hide-pnl"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
+
 /**
  * The one switch that hides every figure saying what you made or lost.
  *
@@ -14,7 +17,7 @@ import * as React from "react"
  * order sizes and coin prices stay readable, because somebody hiding their
  * profit from the person beside them still has to be able to trade.
  */
-export const HIDE_PNL_STORAGE_KEY = "trade:hide-pnl"
+const STORAGE_KEY = "trade:hide-pnl"
 
 let hidden = false
 /**
@@ -45,7 +48,7 @@ const listeners = new Set<() => void>()
 export function startHidePnl(): boolean | null {
   if (typeof window === "undefined") return null
   try {
-    const saved = window.localStorage.getItem(HIDE_PNL_STORAGE_KEY)
+    const saved = window.localStorage.getItem(STORAGE_KEY)
     return saved === null ? null : saved === "true"
   } catch {
     return null
@@ -62,7 +65,7 @@ export function setHidePnl(next: boolean) {
   version += 1
   if (typeof window !== "undefined") {
     try {
-      window.localStorage.setItem(HIDE_PNL_STORAGE_KEY, String(next))
+      window.localStorage.setItem(STORAGE_KEY, String(next))
     } catch {
       // A browser with site data switched off still gets the switch. It just
       // cannot remember it, which is the smaller of the two failures.
@@ -84,13 +87,58 @@ function subscribe(listener: () => void) {
 }
 
 /**
+ * Brings the saved choice into this page, once, the first time anything that
+ * reads the switch is drawn: the browser's remembered answer before the first
+ * paint, then the server's, which wins.
+ *
+ * **Every reader starts it, not the header.** It used to run from Trade's top
+ * bar, which is on every screen of Trade on its own. Inside Personal's middle
+ * panel Trade draws no top bar, so the saved choice never arrived and every
+ * figure showed. Tyler found it on 18 Oct 2026.
+ *
+ * **Every other open copy of Trade follows the switch at once**: another tab,
+ * or a Trade screen kept loaded in Personal. Each copy keeps the answer in its
+ * own memory, so the browser's note that the remembered answer changed in
+ * another page is applied here too. That is also how a choice made in Trade's
+ * own tab reaches a copy inside Personal, which has no switch of its own.
+ */
+let started = false
+/** The server read is asked for once a page; a refused read lets the next reader try again. */
+let asked = false
+
+function startSync() {
+  if (!started) {
+    started = true
+    const remembered = startHidePnl()
+    if (remembered !== null) setHidePnl(remembered)
+    window.addEventListener("storage", (event) => {
+      if (event.key !== STORAGE_KEY || event.newValue === null) return
+      setHidePnl(event.newValue === "true")
+    })
+  }
+  if (asked) return
+  asked = true
+  // Read after the remembered answer has been applied, so only a person
+  // pressing the switch in the meantime counts as newer than this read.
+  const at = version
+  void loadHidePnl()
+    .then((answer) => {
+      if (version === at) setHidePnl(answer.hidden)
+    })
+    .catch(() => {
+      asked = false
+    })
+}
+
+/**
  * True while profit and loss is hidden.
  *
  * Always false on the server, so the page hydrates from the answer it was
- * rendered with. The remembered choice is applied a beat later, by the
- * header's own switch, before the browser paints.
+ * rendered with. The saved choice is applied a beat later, before the browser
+ * paints, by `startSync`.
  */
 export function useHidePnl(): boolean {
+  useEffectBeforePaint(startSync, [])
   return React.useSyncExternalStore(
     subscribe,
     () => hidden,
