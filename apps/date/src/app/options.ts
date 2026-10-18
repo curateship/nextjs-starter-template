@@ -1,4 +1,5 @@
 import type { AppOptions } from "@/lib/app-options"
+import { defineSettingsTab } from "@/lib/settings-tab"
 
 /**
  * What this app changes about the shell.
@@ -15,4 +16,19 @@ import type { AppOptions } from "@/lib/app-options"
  * The type is written as an annotation rather than `satisfies` so that an empty
  * object still reads as the full shape. Both catch a misspelled option.
  */
-export const appOptions: AppOptions = {}
+export const appOptions: AppOptions = {
+  settings: {
+    tabs: [
+      defineSettingsTab({
+        id: "dating",
+        label: "Dating",
+        /**
+         * What the AI is told about the member, how it decides, the limits on
+         * the phone and the spend cap. A pointer, never the component: this
+         * file is read by the server during boot.
+         */
+        panel: () => import("@/components/dating/dating-settings"),
+      }),
+    ],
+  },
+}

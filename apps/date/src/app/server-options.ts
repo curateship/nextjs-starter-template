@@ -1,3 +1,5 @@
+import { createServerOnlyFn } from "@tanstack/react-start"
+
 import type { AppServerOptions } from "@/server/app-options"
 
 /**
@@ -20,4 +22,25 @@ import type { AppServerOptions } from "@/server/app-options"
  * only walks that folder, so an endpoint declared here would be an unguarded
  * door nobody is told about.
  */
-export const appServerOptions: AppServerOptions = {}
+
+/**
+ * Date's one background job: the next Tinder walk on each phone, the AI's
+ * reads and drafts, automated replies whose time has come, and one step of
+ * the swipe loop while a phone runs. The slow parts are started and not waited
+ * for, so this pass returns in moments and never holds up the shell's jobs.
+ *
+ * Inside `createServerOnlyFn` because the browser build can reach this file
+ * through the shell's options, and a dynamic import there would otherwise
+ * become a browser file holding the database.
+ */
+const datingTick = createServerOnlyFn(async () => {
+  const { runDatingPass } = await import("@/server/dating/worker")
+  const { work } = await runDatingPass()
+  void Promise.allSettled(work)
+})
+
+export const appServerOptions: AppServerOptions = {
+  background: {
+    workers: [{ name: "dating", tick: datingTick }],
+  },
+}

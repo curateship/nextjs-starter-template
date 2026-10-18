@@ -42,6 +42,7 @@ import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
 import { Route as AuthenticatedAdminCrmRouteImport } from './routes/_authenticated/admin/crm'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
+import { Route as AuthenticatedAdminDatingRouteImport } from './routes/_authenticated/admin/dating'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
@@ -59,16 +60,23 @@ import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authentic
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
+import { Route as ApiPhoneCheckInRouteImport } from './routes/api/phone/check-in'
+import { Route as ApiPhoneNextRouteImport } from './routes/api/phone/next'
+import { Route as ApiPhonePairRouteImport } from './routes/api/phone/pair'
+import { Route as ApiPhoneResultRouteImport } from './routes/api/phone/result'
+import { Route as ApiPhoneScreenRouteImport } from './routes/api/phone/screen'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
+import { Route as AuthenticatedAdminDatingPhoneRouteImport } from './routes/_authenticated/admin/dating_.phone'
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
+import { Route as ApiDatingPicturePictureIdRouteImport } from './routes/api/dating/picture.$pictureId'
 import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
@@ -244,6 +252,12 @@ const AuthenticatedAdminDashboardRoute =
     path: '/dashboard',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminDatingRoute =
+  AuthenticatedAdminDatingRouteImport.update({
+    id: '/dating',
+    path: '/dating',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminDevOutboxRoute =
   AuthenticatedAdminDevOutboxRouteImport.update({
     id: '/dev-outbox',
@@ -341,6 +355,31 @@ const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   path: '/api/auth/google',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPhoneCheckInRoute = ApiPhoneCheckInRouteImport.update({
+  id: '/api/phone/check-in',
+  path: '/api/phone/check-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPhoneNextRoute = ApiPhoneNextRouteImport.update({
+  id: '/api/phone/next',
+  path: '/api/phone/next',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPhonePairRoute = ApiPhonePairRouteImport.update({
+  id: '/api/phone/pair',
+  path: '/api/phone/pair',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPhoneResultRoute = ApiPhoneResultRouteImport.update({
+  id: '/api/phone/result',
+  path: '/api/phone/result',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPhoneScreenRoute = ApiPhoneScreenRouteImport.update({
+  id: '/api/phone/screen',
+  path: '/api/phone/screen',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWebhooksResendRoute = ApiWebhooksResendRouteImport.update({
   id: '/api/webhooks/resend',
   path: '/api/webhooks/resend',
@@ -367,6 +406,12 @@ const AuthenticatedAdminAutomationsTemplatesRoute =
   AuthenticatedAdminAutomationsTemplatesRouteImport.update({
     id: '/automations_/templates',
     path: '/automations/templates',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminDatingPhoneRoute =
+  AuthenticatedAdminDatingPhoneRouteImport.update({
+    id: '/dating_/phone',
+    path: '/dating/phone',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminNewsletterBroadcastIdRoute =
@@ -398,6 +443,12 @@ const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   path: '/api/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDatingPicturePictureIdRoute =
+  ApiDatingPicturePictureIdRouteImport.update({
+    id: '/api/dating/picture/$pictureId',
+    path: '/api/dating/picture/$pictureId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1MediaResizedRoute = ApiV1MediaResizedRouteImport.update({
   id: '/api/v1/media/resized',
   path: '/api/v1/media/resized',
@@ -458,6 +509,7 @@ export interface FileRoutesByFullPath {
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
+  '/admin/dating': typeof AuthenticatedAdminDatingRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
@@ -474,6 +526,11 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/phone/check-in': typeof ApiPhoneCheckInRoute
+  '/api/phone/next': typeof ApiPhoneNextRoute
+  '/api/phone/pair': typeof ApiPhonePairRoute
+  '/api/phone/result': typeof ApiPhoneResultRoute
+  '/api/phone/screen': typeof ApiPhoneScreenRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -481,11 +538,13 @@ export interface FileRoutesByFullPath {
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
+  '/admin/dating/phone': typeof AuthenticatedAdminDatingPhoneRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/dating/picture/$pictureId': typeof ApiDatingPicturePictureIdRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
@@ -522,6 +581,7 @@ export interface FileRoutesByTo {
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
+  '/admin/dating': typeof AuthenticatedAdminDatingRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
@@ -538,6 +598,11 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/phone/check-in': typeof ApiPhoneCheckInRoute
+  '/api/phone/next': typeof ApiPhoneNextRoute
+  '/api/phone/pair': typeof ApiPhonePairRoute
+  '/api/phone/result': typeof ApiPhoneResultRoute
+  '/api/phone/screen': typeof ApiPhoneScreenRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -545,11 +610,13 @@ export interface FileRoutesByTo {
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
+  '/admin/dating/phone': typeof AuthenticatedAdminDatingPhoneRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/dating/picture/$pictureId': typeof ApiDatingPicturePictureIdRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
@@ -590,6 +657,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/_authenticated/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
+  '/_authenticated/admin/dating': typeof AuthenticatedAdminDatingRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
@@ -606,6 +674,11 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/phone/check-in': typeof ApiPhoneCheckInRoute
+  '/api/phone/next': typeof ApiPhoneNextRoute
+  '/api/phone/pair': typeof ApiPhonePairRoute
+  '/api/phone/result': typeof ApiPhoneResultRoute
+  '/api/phone/screen': typeof ApiPhoneScreenRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -613,11 +686,13 @@ export interface FileRoutesById {
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
+  '/_authenticated/admin/dating_/phone': typeof AuthenticatedAdminDatingPhoneRoute
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/dating/picture/$pictureId': typeof ApiDatingPicturePictureIdRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
@@ -658,6 +733,7 @@ export interface FileRouteTypes {
     | '/admin/contacts'
     | '/admin/crm'
     | '/admin/dashboard'
+    | '/admin/dating'
     | '/admin/dev-outbox'
     | '/admin/feedback'
     | '/admin/media'
@@ -674,6 +750,11 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/changelog/whats-new'
     | '/api/auth/google'
+    | '/api/phone/check-in'
+    | '/api/phone/next'
+    | '/api/phone/pair'
+    | '/api/phone/result'
+    | '/api/phone/screen'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin/'
@@ -681,11 +762,13 @@ export interface FileRouteTypes {
     | '/account/billing/success'
     | '/admin/automations/$automationId'
     | '/admin/automations/templates'
+    | '/admin/dating/phone'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
     | '/api/auth/google/callback'
+    | '/api/dating/picture/$pictureId'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
@@ -722,6 +805,7 @@ export interface FileRouteTypes {
     | '/admin/contacts'
     | '/admin/crm'
     | '/admin/dashboard'
+    | '/admin/dating'
     | '/admin/dev-outbox'
     | '/admin/feedback'
     | '/admin/media'
@@ -738,6 +822,11 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/changelog/whats-new'
     | '/api/auth/google'
+    | '/api/phone/check-in'
+    | '/api/phone/next'
+    | '/api/phone/pair'
+    | '/api/phone/result'
+    | '/api/phone/screen'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/admin'
@@ -745,11 +834,13 @@ export interface FileRouteTypes {
     | '/account/billing/success'
     | '/admin/automations/$automationId'
     | '/admin/automations/templates'
+    | '/admin/dating/phone'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
     | '/api/auth/google/callback'
+    | '/api/dating/picture/$pictureId'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
@@ -789,6 +880,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/contacts'
     | '/_authenticated/admin/crm'
     | '/_authenticated/admin/dashboard'
+    | '/_authenticated/admin/dating'
     | '/_authenticated/admin/dev-outbox'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/media'
@@ -805,6 +897,11 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/_authenticated/changelog/whats-new'
     | '/api/auth/google'
+    | '/api/phone/check-in'
+    | '/api/phone/next'
+    | '/api/phone/pair'
+    | '/api/phone/result'
+    | '/api/phone/screen'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/_authenticated/admin/'
@@ -812,11 +909,13 @@ export interface FileRouteTypes {
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/automations_/$automationId'
     | '/_authenticated/admin/automations_/templates'
+    | '/_authenticated/admin/dating_/phone'
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/pages_/edit'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
     | '/api/auth/google_/callback'
+    | '/api/dating/picture/$pictureId'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
@@ -846,9 +945,15 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
+  ApiPhoneCheckInRoute: typeof ApiPhoneCheckInRoute
+  ApiPhoneNextRoute: typeof ApiPhoneNextRoute
+  ApiPhonePairRoute: typeof ApiPhonePairRoute
+  ApiPhoneResultRoute: typeof ApiPhoneResultRoute
+  ApiPhoneScreenRoute: typeof ApiPhoneScreenRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+  ApiDatingPicturePictureIdRoute: typeof ApiDatingPicturePictureIdRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
@@ -1088,6 +1193,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminDashboardRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/dating': {
+      id: '/_authenticated/admin/dating'
+      path: '/dating'
+      fullPath: '/admin/dating'
+      preLoaderRoute: typeof AuthenticatedAdminDatingRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/dev-outbox': {
       id: '/_authenticated/admin/dev-outbox'
       path: '/dev-outbox'
@@ -1207,6 +1319,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthGoogleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/phone/check-in': {
+      id: '/api/phone/check-in'
+      path: '/api/phone/check-in'
+      fullPath: '/api/phone/check-in'
+      preLoaderRoute: typeof ApiPhoneCheckInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/phone/next': {
+      id: '/api/phone/next'
+      path: '/api/phone/next'
+      fullPath: '/api/phone/next'
+      preLoaderRoute: typeof ApiPhoneNextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/phone/pair': {
+      id: '/api/phone/pair'
+      path: '/api/phone/pair'
+      fullPath: '/api/phone/pair'
+      preLoaderRoute: typeof ApiPhonePairRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/phone/result': {
+      id: '/api/phone/result'
+      path: '/api/phone/result'
+      fullPath: '/api/phone/result'
+      preLoaderRoute: typeof ApiPhoneResultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/phone/screen': {
+      id: '/api/phone/screen'
+      path: '/api/phone/screen'
+      fullPath: '/api/phone/screen'
+      preLoaderRoute: typeof ApiPhoneScreenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/webhooks/resend': {
       id: '/api/webhooks/resend'
       path: '/api/webhooks/resend'
@@ -1242,6 +1389,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/dating_/phone': {
+      id: '/_authenticated/admin/dating_/phone'
+      path: '/dating/phone'
+      fullPath: '/admin/dating/phone'
+      preLoaderRoute: typeof AuthenticatedAdminDatingPhoneRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/newsletter_/$broadcastId': {
       id: '/_authenticated/admin/newsletter_/$broadcastId'
       path: '/newsletter/$broadcastId'
@@ -1275,6 +1429,13 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/google/callback'
       fullPath: '/api/auth/google/callback'
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/dating/picture/$pictureId': {
+      id: '/api/dating/picture/$pictureId'
+      path: '/api/dating/picture/$pictureId'
+      fullPath: '/api/dating/picture/$pictureId'
+      preLoaderRoute: typeof ApiDatingPicturePictureIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/media/resized': {
@@ -1349,6 +1510,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
   AuthenticatedAdminCrmRoute: typeof AuthenticatedAdminCrmRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
+  AuthenticatedAdminDatingRoute: typeof AuthenticatedAdminDatingRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
@@ -1366,6 +1528,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
   AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
+  AuthenticatedAdminDatingPhoneRoute: typeof AuthenticatedAdminDatingPhoneRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminPagesEditRoute: typeof AuthenticatedAdminPagesEditRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
@@ -1380,6 +1543,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
   AuthenticatedAdminCrmRoute: AuthenticatedAdminCrmRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
+  AuthenticatedAdminDatingRoute: AuthenticatedAdminDatingRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
@@ -1399,6 +1563,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminAutomationsAutomationIdRoute,
   AuthenticatedAdminAutomationsTemplatesRoute:
     AuthenticatedAdminAutomationsTemplatesRoute,
+  AuthenticatedAdminDatingPhoneRoute: AuthenticatedAdminDatingPhoneRoute,
   AuthenticatedAdminNewsletterBroadcastIdRoute:
     AuthenticatedAdminNewsletterBroadcastIdRoute,
   AuthenticatedAdminPagesEditRoute: AuthenticatedAdminPagesEditRoute,
@@ -1469,9 +1634,15 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
+  ApiPhoneCheckInRoute: ApiPhoneCheckInRoute,
+  ApiPhoneNextRoute: ApiPhoneNextRoute,
+  ApiPhonePairRoute: ApiPhonePairRoute,
+  ApiPhoneResultRoute: ApiPhoneResultRoute,
+  ApiPhoneScreenRoute: ApiPhoneScreenRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+  ApiDatingPicturePictureIdRoute: ApiDatingPicturePictureIdRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
