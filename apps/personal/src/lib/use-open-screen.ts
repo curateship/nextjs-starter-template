@@ -10,7 +10,7 @@ import {
   showAddress,
   type Frames,
 } from "@/lib/frames"
-import { appUrlFromPersonalPath, personalPath } from "@/lib/menu"
+import { appUrlFromPersonalPath, DEFAULT_BRAND_NAME, personalPath } from "@/lib/menu"
 import {
   addRecentScreen,
   readRecentScreens,
@@ -58,7 +58,7 @@ const PENDING_MS = 1500
  * and a reload of Personal lands on the same screen. `startUrl` is the screen
  * a visit to Personal's bare address opens, if one is chosen.
  */
-export function useOpenScreen(startUrl: string | null) {
+export function useOpenScreen(startUrl: string | null, appName = DEFAULT_BRAND_NAME) {
   const [frames, setFrames] = React.useState<Frames>(() => {
     const url =
       appUrlFromPersonalPath(currentAddress()) ?? (currentAddress() === "/" ? startUrl : null)
@@ -234,8 +234,8 @@ export function useOpenScreen(startUrl: string | null) {
   }, [screen])
 
   React.useEffect(() => {
-    document.title = screen?.title ? `${screen.title} · Personal` : "Personal"
-  }, [screen?.title])
+    document.title = screen?.title ? `${screen.title} · ${appName}` : appName
+  }, [screen?.title, appName])
 
   return {
     frames,

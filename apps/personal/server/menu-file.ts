@@ -19,7 +19,7 @@ export const MENU_FILE = path.resolve(
 )
 
 /** Larger than any menu the limits in `menuSchema` allow. */
-const MAX_BODY_BYTES = 512 * 1024
+const MAX_BODY_BYTES = 1024 * 1024
 
 /** The saved menu, or the starting one when nothing is saved yet. */
 export async function readMenu(file: string): Promise<Menu> {

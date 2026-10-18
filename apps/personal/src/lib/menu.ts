@@ -67,6 +67,37 @@ const sectionSchema = z.object({
   links: z.array(sectionLinkSchema).max(100),
 })
 
+/** The name Personal shows when none is chosen. */
+export const DEFAULT_BRAND_NAME = "Personal"
+
+/** The largest logo, as the picture's text in the menu file: about a 190 KB image. */
+export const MAX_LOGO_CHARS = 256 * 1024
+
+/**
+ * A logo picture kept inside the menu file as a data address, so it travels
+ * with the menu. Only the picture kinds a browser shows in an `<img>`, where
+ * an SVG's scripts never run.
+ */
+const logoSchema = z
+  .string()
+  .max(MAX_LOGO_CHARS)
+  .regex(/^data:image\/(png|jpeg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/)
+
+/**
+ * The logo row at the top of the left menu: its name, its picture, and the
+ * screen it opens. Missing means "Personal", the Personal logo, and the empty
+ * start page.
+ */
+const brandSchema = z.object({
+  name: z.string().trim().min(1).max(40),
+  /** Missing means the Personal logo. */
+  logo: logoSchema.optional(),
+  /** Missing means Personal's start page. */
+  url: appUrl.optional(),
+})
+
+export type Brand = z.infer<typeof brandSchema>
+
 export const menuSchema = z.object({
   version: z.literal(1),
   top: z.array(linkSchema).max(30),
@@ -75,6 +106,8 @@ export const menuSchema = z.object({
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH).optional(),
   /** The link Personal opens on a visit to its bare address. Missing means the empty start page. */
   startLinkId: z.string().min(1).max(64).optional(),
+  /** The logo row's name, picture and link. Missing means Personal's own. */
+  brand: brandSchema.optional(),
 })
 
 export type MenuLink = z.infer<typeof sectionLinkSchema>

@@ -121,7 +121,7 @@ function Personal({
   update: (change: (menu: Menu) => Menu) => void
   onSignOut: () => void
 } & Pick<ReturnType<typeof useMenu>, "saveStatus" | "retrySave">) {
-  const screens = useOpenScreen(startLink(menu)?.url ?? null)
+  const screens = useOpenScreen(startLink(menu)?.url ?? null, menu.brand?.name)
   const { frames, screen, open, goHome, report, goFailed } = screens
   const view = usePanelView()
   const [menuOpen, setMenuOpen] = React.useState(false)

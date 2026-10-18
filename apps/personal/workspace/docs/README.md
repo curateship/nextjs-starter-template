@@ -32,7 +32,7 @@ the sidebars or top nav".
   loaded, the top bar's name, Back, Forward, Reload, pop-out, recent screens,
   pin, zoom and phone view, signing in once per app, and why it only works on
   this Mac today.
-- [The menu](menu.md): the edit switch, folding sections, sub-links and the
+- [The menu](menu.md): the logo row's name, logo and link, the edit switch, folding sections, sub-links and the
   top bar row that mirrors them, resizing the menu, adding, editing, renaming
   in place, choosing any Lucide icon or none, dragging links between lists and
   sections into order, links that open in their own tab, the start screen, and the file the menu is kept in.

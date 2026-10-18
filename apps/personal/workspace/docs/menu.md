@@ -69,6 +69,21 @@ edited where it stands, with no settings screen.
 
 Everything here needs editing switched on.
 
+- **Change the logo row:** hover the logo and name at the top of the left menu
+  and press its cog. Tyler asked for this on 18 Oct 2026.
+  - **Name** replaces "Personal" there and in the browser tab's title.
+  - **Logo** takes an uploaded PNG, JPG, WebP, GIF or SVG under about 190 KB.
+    "Personal logo" goes back to Personal's own, which keeps its white version
+    for dark mode. An uploaded picture is one picture for both.
+  - **Opens** is the screen a click on the logo and name shows in the middle
+    panel. Empty keeps Personal's start page.
+  - All three are kept in the menu file as `brand`, the picture inside it as
+    a data address, so the file grew a 1 MB ceiling (`server/menu-file.ts`).
+    Personal's own name, logo and start page together save as no `brand` at
+    all. The form is `src/components/brand-editor.tsx`, the rules are
+    `brandSchema` in `src/lib/menu.ts`.
+  - The browser tab's little icon is still Personal's logo.
+
 - **Add a link:** press "Add link" under a section, or the + at the end of the
   top bar. Give it a name, the screen's full address (such as
   `http://localhost:3015/admin/posts`), an icon, and where it shows. "Use the

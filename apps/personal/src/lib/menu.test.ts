@@ -339,3 +339,22 @@ describe("dragging a link to another list", () => {
     expect(moveLinkTo(menu, "gone", { kind: "top" }, null)).toBe(menu)
   })
 })
+
+describe("the logo row", () => {
+  const withBrand = (brand: unknown) => menuSchema.safeParse({ ...defaultMenu(), brand }).success
+  const png = "data:image/png;base64,iVBORw0KGgo="
+
+  it("keeps a name, a picture and a screen, each but the name optional", () => {
+    expect(withBrand({ name: "Tyler" })).toBe(true)
+    expect(withBrand({ name: "Tyler", logo: png, url: "http://localhost:3020/dashboard" })).toBe(true)
+    expect(menuSchema.safeParse(defaultMenu()).success).toBe(true)
+  })
+
+  it("refuses an empty name, a non-picture, a picture too big, or a bad address", () => {
+    expect(withBrand({ name: "  " })).toBe(false)
+    expect(withBrand({ name: "T", logo: "data:text/html;base64,PGI+" })).toBe(false)
+    expect(withBrand({ name: "T", logo: "javascript:alert(1)" })).toBe(false)
+    expect(withBrand({ name: "T", logo: png + "A".repeat(300 * 1024) })).toBe(false)
+    expect(withBrand({ name: "T", url: "javascript:alert(1)" })).toBe(false)
+  })
+})

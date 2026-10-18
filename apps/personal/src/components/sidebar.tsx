@@ -9,8 +9,9 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { BrandEditor, BrandLogo } from "@/components/brand-editor"
 import { sectionDragId, SECTIONS_LIST_ID, type SectionDragData } from "@/components/menu-drag"
-import { AddLinkButton, SortableLinks } from "@/components/menu-links"
+import { AddLinkButton, SortableLinks, useMenuActions } from "@/components/menu-links"
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
@@ -19,10 +20,13 @@ import {
 } from "@/components/ui/collapsible"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   addSection,
+  DEFAULT_BRAND_NAME,
   newId,
+  personalPath,
   removeSection,
   renameSection,
   type Menu,
@@ -185,7 +189,7 @@ export function Sidebar({
   menu: Menu
   update: (change: (menu: Menu) => Menu) => void
   editing: boolean
-  /** The logo and name go back to Personal's start page. */
+  /** The logo and name go back to Personal's start page, when no screen is chosen for them. */
   onHome: () => void
 }) {
   const [renamingId, setRenamingId] = React.useState<string | null>(null)
@@ -197,26 +201,59 @@ export function Sidebar({
     if (!editing) setRenamingId(null)
   }
   const [deleting, setDeleting] = React.useState<MenuSection | null>(null)
+  const [brandOpen, setBrandOpen] = React.useState(false)
+  const { open, openUrl } = useMenuActions()
+  const brand = menu.brand
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-16 shrink-0 items-center p-2">
-        {/* The whole logo row is one link to the start page. The logo has a
-            white version for dark mode, both cut from the logo the old
-            Personal OS used. */}
+      <div className="group/brand relative flex h-16 shrink-0 items-center p-2">
+        {/* The whole logo row is one link: to the screen chosen for it, or
+            else the start page. Its name, logo and link are changed with the
+            cog that shows while editing (Tyler asked for this on 18 Oct
+            2026). Personal's own logo has a white version for dark mode,
+            both cut from the logo the old Personal OS used. */}
         <a
-          href="/"
+          href={brand?.url ? personalPath(brand.url) : "/"}
           onClick={(event) => {
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return
             event.preventDefault()
-            onHome()
+            if (brand?.url) open(brand.url)
+            else onHome()
           }}
           className="flex h-12 w-full min-w-0 items-center gap-2 rounded-md px-2 outline-hidden hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
-          <img src="/logo.png" alt="" className="size-6 shrink-0 dark:hidden" />
-          <img src="/logo-dark.png" alt="" className="hidden size-6 shrink-0 dark:block" />
-          <span className="truncate text-sm font-semibold">Personal</span>
+          <BrandLogo logo={brand?.logo} />
+          <span className="truncate text-sm font-semibold">{brand?.name ?? DEFAULT_BRAND_NAME}</span>
         </a>
+        {editing ? (
+          <Popover open={brandOpen} onOpenChange={setBrandOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Change the name, logo and link"
+                className="absolute top-1/2 right-4 -translate-y-1/2 bg-sidebar-accent opacity-0 group-hover/brand:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+              >
+                <SettingsIcon />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent side="right" align="start" className="w-80">
+              <BrandEditor
+                brand={brand}
+                openUrl={openUrl}
+                onSubmit={(next) => {
+                  update((m) => {
+                    const { brand: _old, ...rest } = m
+                    return next ? { ...rest, brand: next } : rest
+                  })
+                  setBrandOpen(false)
+                }}
+                onCancel={() => setBrandOpen(false)}
+              />
+            </PopoverContent>
+          </Popover>
+        ) : null}
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <nav aria-label="Screens" className="flex flex-col p-2">
