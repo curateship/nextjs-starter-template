@@ -31,6 +31,9 @@ screen: anything not written there has not been agreed yet.
 - `database-link-encryption.md` — the TLS on the database connection: what the
   server presents, the exact connection-string suffix, why a bare
   `sslmode=require` refuses, and how to check every connection is encrypted.
+- `shown-in-personal.md` — Trade inside Personal's middle panel: the panel
+  view, signing in inside the frame, who may frame Trade, and the CSRF check
+  `src/start.ts` keeps.
 
 ## screens/ — what each screen shows
 

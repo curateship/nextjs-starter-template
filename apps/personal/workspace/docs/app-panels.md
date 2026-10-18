@@ -128,7 +128,9 @@ screens and Pin move into the cog's dropdown, so the bar still fits at 390px.
 - **An app that refuses frames** shows "localhost refused to connect" in the
   panel. CMS refused every frame from another address, so in development it
   now lets `http://localhost:3021` frame it (CMS's `who-may-frame-cms.md`).
-  Project, Trade and Video send no such rule.
+  Trade lets only itself and Personal frame it: `http://localhost:3021` on
+  this Mac, `https://personal.barelycompany.com` live (Trade's
+  `shown-in-personal.md`). Project and Video send no such rule.
 
 ## Signing in
 
@@ -140,6 +142,9 @@ This only works locally. The browser treats `localhost:3021` and
 `localhost:3015` as one site, because ports don't count, so it sends the app's
 sign-in into the frame. On the live sites each app has its own domain, and the
 browser keeps an app's sign-in out of a frame on a different domain, so the
-panel would only ever show the sign-in page. The fix is to give each app a
-second address under one domain of Tyler's, such as `cms.<his domain>`: a DNS
-entry and a Coolify domain per app, no code. That decision waits for Tyler.
+panel would only ever show the sign-in page. The fix is an address for each
+app under `barelycompany.com`, the domain live Personal is on
+(`https://personal.barelycompany.com`, `launch.md`). Trade is the first:
+`trade.barelycompany.com` is the same site, so live Trade signs in inside
+live Personal's panel. Each app also needs the panel view and a framing rule
+that names Personal, as Trade has.
