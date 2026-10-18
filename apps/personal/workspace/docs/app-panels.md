@@ -31,6 +31,34 @@ So Personal asks nothing of an app:
   menu, not the page you moved to inside the app. Trade on live went back to
   its morning code the same day (commit 91feda5b5).
 
+## Hiding an app's own left menu
+
+Tyler, 18 Oct 2026: "trade sidebar should be hidden", without changing Trade.
+
+- **Personal slides the app's left edge out of sight.** The app's page is
+  made wider by the hidden width and moved left by the same amount, inside a
+  panel that clips at its edge, so the app's own menu sits behind Personal's
+  and its top navigation and page fill the panel. The app itself is
+  untouched, and opened in its own tab it is unchanged.
+- **The width is dragged into place once per app.** Personal can't read
+  another site's layout, so it can't find the menu's width itself. With Edit
+  the menu on, a line at the panel's left edge, labelled "Drag the line to
+  hide this app's menu", slides the open app as you drag it. The width is
+  saved for that app (by host, so every screen of it) when you let go. Drag
+  it back to the left edge to show the whole page again. The arrow keys move
+  it 8 pixels a press. `src/components/app-menu-handle.tsx`.
+- **Trade's left menu is 180 pixels wide** (measured in Arc, 18 Oct 2026).
+- **Saved in the menu file** as `appMenuWidths`, such as
+  `{ "trade.barelycompany.com": 180 }`, in the app's own pixels, so zoom
+  doesn't change it. `appMenuWidth` and `setAppMenuWidth` in
+  `src/lib/menu.ts`.
+- **What it can't know:** if the app's own menu is made wider or narrower
+  inside the app, the width needs dragging again. The app's pop-ups centre on
+  the whole page, hidden part included, so they sit half the hidden width
+  right of centre. A page narrow enough to fold the app's menu away (under
+  768 pixels, page plus hidden part) loses that much of its left edge.
+- **Phone view hides nothing**, because a phone-sized page has no side menu.
+
 ## Addresses
 
 - **Personal's address names the screen.** `http://localhost:3021/localhost:3015/admin/listings`

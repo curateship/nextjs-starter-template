@@ -4,6 +4,7 @@ import {
   activeLinkId,
   addLink,
   addSection,
+  appMenuWidth,
   appUrlFromPersonalPath,
   clampSidebarWidth,
   defaultMenu,
@@ -17,6 +18,7 @@ import {
   removeSection,
   renameSection,
   screenName,
+  setAppMenuWidth,
   setStartLink,
   startLink,
   updateLink,
@@ -332,5 +334,38 @@ describe("the logo row", () => {
     expect(withBrand({ name: "T", logo: "javascript:alert(1)" })).toBe(false)
     expect(withBrand({ name: "T", logo: png + "A".repeat(300 * 1024) })).toBe(false)
     expect(withBrand({ name: "T", url: "javascript:alert(1)" })).toBe(false)
+  })
+})
+
+describe("hiding an app's own left menu", () => {
+  const trade = "https://trade.barelycompany.com/protocols/aster"
+
+  it("hides nothing until a width is dragged in", () => {
+    expect(appMenuWidth(defaultMenu(), trade)).toBe(0)
+  })
+
+  it("keeps one width per app, for every screen of it", () => {
+    const menu = setAppMenuWidth(defaultMenu(), "trade.barelycompany.com", 180.4)
+    expect(appMenuWidth(menu, trade)).toBe(180)
+    expect(appMenuWidth(menu, "https://trade.barelycompany.com/admin")).toBe(180)
+    expect(appMenuWidth(menu, "http://localhost:3015/admin")).toBe(0)
+    expect(menuSchema.safeParse(menu).success).toBe(true)
+  })
+
+  it("drops the app, and the field once empty, at 0", () => {
+    const menu = setAppMenuWidth(defaultMenu(), "trade.barelycompany.com", 180)
+    const cleared = setAppMenuWidth(menu, "trade.barelycompany.com", -20)
+    expect(cleared.appMenuWidths).toBeUndefined()
+    expect(appMenuWidth(cleared, trade)).toBe(0)
+  })
+
+  it("caps the width and leaves the menu alone when nothing changes", () => {
+    const menu = setAppMenuWidth(defaultMenu(), "trade.barelycompany.com", 5000)
+    expect(menu.appMenuWidths?.["trade.barelycompany.com"]).toBe(600)
+    expect(setAppMenuWidth(menu, "trade.barelycompany.com", 600)).toBe(menu)
+  })
+
+  it("loads a menu file saved before the field existed", () => {
+    expect(menuSchema.safeParse({ version: 1, top: [], sections: [] }).success).toBe(true)
   })
 })

@@ -23,6 +23,8 @@ export type LinkOpens = (typeof LINK_OPENS)[number]
 export const DEFAULT_SIDEBAR_WIDTH = 218
 export const MIN_SIDEBAR_WIDTH = 144
 export const MAX_SIDEBAR_WIDTH = 420
+/** The widest app menu Personal will hide, in the app's own pixels. */
+export const MAX_APP_MENU_WIDTH = 600
 
 export function clampSidebarWidth(value: number) {
   return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(value)))
@@ -108,6 +110,15 @@ export const menuSchema = z.object({
   startLinkId: z.string().min(1).max(64).optional(),
   /** The logo row's name, picture and link. Missing means Personal's own. */
   brand: brandSchema.optional(),
+  /**
+   * How much of each app's left edge the panel hides, by host, so an app's own
+   * left menu sits out of sight. Personal can't read another site's layout,
+   * so the width is dragged into place once per app. Missing hides nothing.
+   */
+  appMenuWidths: z
+    .record(z.string().min(1).max(253), z.number().int().min(1).max(MAX_APP_MENU_WIDTH))
+    .refine((widths) => Object.keys(widths).length <= 100, "Too many apps.")
+    .optional(),
 })
 
 export type MenuLink = z.infer<typeof sectionLinkSchema>
@@ -267,6 +278,22 @@ export function hasLinkTo(menu: Menu, openUrl: string) {
 export function screenName(menu: Menu, url: string) {
   const id = activeLinkId(menu, url)
   return (id && allLinks(menu).find((link) => link.id === id)?.label) || ""
+}
+
+/** How many of the app's own pixels the panel hides at its left edge, for the screen at `url`. */
+export function appMenuWidth(menu: Menu, url: string) {
+  const host = parseAppUrl(url)?.host
+  return (host && menu.appMenuWidths?.[host]) || 0
+}
+
+/** Saves how much of an app's left edge to hide. 0 shows its whole page again. */
+export function setAppMenuWidth(menu: Menu, host: string, width: number): Menu {
+  const clamped = Math.round(Math.min(Math.max(width, 0), MAX_APP_MENU_WIDTH))
+  const { [host]: _old, ...rest } = menu.appMenuWidths ?? {}
+  const widths = clamped ? { ...rest, [host]: clamped } : rest
+  if ((menu.appMenuWidths?.[host] ?? 0) === clamped) return menu
+  const { appMenuWidths: _all, ...plain } = menu
+  return Object.keys(widths).length ? { ...plain, appMenuWidths: widths } : plain
 }
 
 /** The link Personal opens on its bare address, if it still exists and fills the panel. */

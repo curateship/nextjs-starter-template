@@ -31,7 +31,7 @@ the sidebars or top nav".
 ## Docs
 
 - [App panels](app-panels.md): why each app shows its own top navigation,
-  Personal's addresses, keeping the last three screens loaded, the controls at
+  hiding an app's own left menu, Personal's addresses, keeping the last three screens loaded, the controls at
   the bottom of the menu (Back, Forward, Reload and the cog's pop-out, recent
   screens, pin, zoom, phone view and sign-out), apps that refuse frames, and
   signing in once per app.

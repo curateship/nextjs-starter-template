@@ -4,7 +4,7 @@ import { Loader2Icon, MenuIcon } from "lucide-react"
 import type { PlaceChoice } from "@/components/link-editor"
 import { MenuDrag } from "@/components/menu-drag"
 import { MenuActionsContext } from "@/components/menu-links"
-import { PanelFrames } from "@/components/panel-frame"
+import { PanelFrames, type AppMenuControls } from "@/components/panel-frame"
 import { SignIn } from "@/components/sign-in"
 import { Sidebar } from "@/components/sidebar"
 import { SidebarFooter, type PanelControls } from "@/components/sidebar-footer"
@@ -14,11 +14,13 @@ import {
   activeLinkId,
   addLink,
   allLinks,
+  appMenuWidth,
   DEFAULT_SIDEBAR_WIDTH,
   hasLinkTo,
   newId,
   parseAppUrl,
   screenName,
+  setAppMenuWidth,
   startLink,
   type Menu,
 } from "@/lib/menu"
@@ -176,6 +178,12 @@ function Personal({
     setPhone: view.setPhone,
   }
 
+  const appMenu: AppMenuControls = {
+    widthOf: (url) => appMenuWidth(menu, url),
+    editing,
+    setWidth: (host, width) => update((m) => setAppMenuWidth(m, host, width)),
+  }
+
   return (
     <MenuActionsContext.Provider value={actions}>
       <MenuDrag menu={menu} update={update}>
@@ -235,6 +243,7 @@ function Personal({
                 frames={frames.kept}
                 openId={frames.openId}
                 view={{ zoom: view.zoom, phone: view.phone }}
+                appMenu={appMenu}
               >
                 <div className="absolute inset-0 flex items-center justify-center p-4">
                   <p className="max-w-sm text-center text-sm text-muted-foreground">

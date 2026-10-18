@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
+import { AppMenuHandle } from "@/components/app-menu-handle"
 import type { Frame } from "@/lib/frames"
 import { parseAppUrl } from "@/lib/menu"
 import { PHONE_WIDTH, type PanelZoom } from "@/lib/use-panel-view"
@@ -13,17 +14,42 @@ function frameSrc(url: string) {
   return parseAppUrl(url)?.href ?? "about:blank"
 }
 
+/** How the panel hides an app's own left menu: the width saved for its app, and saving a new one. */
+export type AppMenuControls = {
+  widthOf: (url: string) => number
+  /** Shows the drag handle at the panel's left edge. */
+  editing: boolean
+  setWidth: (host: string, width: number) => void
+}
+
 /**
  * One kept frame: another app's real screen, exactly as it shows in its own
  * tab, its own top navigation included. A spinner shows until its page has
  * loaded.
  */
-function PanelFrame({ frame, shown, view }: { frame: Frame; shown: boolean; view: View }) {
+function PanelFrame({
+  frame,
+  shown,
+  view,
+  appMenu,
+}: {
+  frame: Frame
+  shown: boolean
+  view: View
+  appMenu: AppMenuControls
+}) {
   const frameRef = React.useRef<HTMLIFrameElement>(null)
   const [loadedKey, setLoadedKey] = React.useState<number | null>(null)
+  const [dragged, setDragged] = React.useState<number | null>(null)
   // Zoom draws the page larger by 1/zoom and scales it back down from the top
   // left, so it still fills the panel exactly. Phone view ignores zoom.
   const zoom = view.phone ? 1 : view.zoom
+  const host = parseAppUrl(frame.url)?.host ?? ""
+  const savedWidth = appMenu.widthOf(frame.url)
+  // The app's own left menu is slid out of sight by making the page that much
+  // wider and moving it left, so its top navigation and page fill the panel.
+  // A phone-sized page has no side menu, so phone view hides nothing.
+  const hidden = view.phone ? 0 : (dragged ?? savedWidth)
 
   // A reload loads the page again inside the same frame, swapping its address
   // in place, rather than making a new frame. A new frame would take the
@@ -62,12 +88,12 @@ function PanelFrame({ frame, shown, view }: { frame: Frame; shown: boolean; view
           allow="clipboard-write"
           className="block size-full origin-top-left border-0"
           style={
-            zoom === 1
+            zoom === 1 && hidden === 0
               ? undefined
               : {
-                  width: `${100 / zoom}%`,
+                  width: `calc(${100 / zoom}% + ${hidden}px)`,
                   height: `${100 / zoom}%`,
-                  transform: `scale(${zoom})`,
+                  transform: `translateX(${-hidden * zoom}px) scale(${zoom})`,
                 }
           }
           onLoad={() => setLoadedKey(frame.load)}
@@ -78,9 +104,18 @@ function PanelFrame({ frame, shown, view }: { frame: Frame; shown: boolean; view
             className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground"
           >
             <Loader2Icon className="size-4 animate-spin" />
-            Opening {parseAppUrl(frame.url)?.host}
+            Opening {host}
           </div>
         )}
+        {shown && appMenu.editing && !view.phone && host ? (
+          <AppMenuHandle
+            host={host}
+            width={savedWidth}
+            zoom={view.zoom}
+            onPreview={setDragged}
+            onCommit={(width) => appMenu.setWidth(host, width)}
+          />
+        ) : null}
       </div>
     </div>
   )
@@ -95,11 +130,13 @@ export function PanelFrames({
   frames,
   openId,
   view,
+  appMenu,
   children,
 }: {
   frames: Frame[]
   openId: number | null
   view: View
+  appMenu: AppMenuControls
   children: React.ReactNode
 }) {
   return (
@@ -111,6 +148,7 @@ export function PanelFrames({
           frame={frame}
           shown={frame.id === openId}
           view={view}
+          appMenu={appMenu}
         />
       ))}
     </div>
