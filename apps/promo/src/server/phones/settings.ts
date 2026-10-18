@@ -1,6 +1,12 @@
 import { and, asc, eq, inArray, like } from "drizzle-orm"
 
-import { MAX_WORKING_RANGE, PHONE_LANE_PREFIX, RACK_PAUSED_NOTICE, SCREENSHOT_DAYS_RANGE } from "@/lib/phones/options"
+import {
+  MAX_WORKING_RANGE,
+  PHONE_LANE_PREFIX,
+  RACK_PAUSED_NOTICE,
+  SCREENSHOT_DAYS_RANGE,
+  SHELF_RANGE,
+} from "@/lib/phones/options"
 import type { JobKind } from "@/lib/social/options"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
@@ -19,24 +25,28 @@ import { promoPhones, promoPhoneSettings } from "./schema"
  * because the program that runs the jobs reads them with nobody signed in.
  */
 
-export type PhoneSettings = { maxWorking: number; screenshotDays: number }
+/** The numbers on the tab: phones working at once, days pictures are kept, and the shelf's rows and columns for the rack map. */
+export type PhoneSettings = { maxWorking: number; screenshotDays: number; shelfRows: number; shelfColumns: number }
 
-const DEFAULTS: PhoneSettings = { maxWorking: 5, screenshotDays: 7 }
+const DEFAULTS: PhoneSettings = { maxWorking: 5, screenshotDays: 7, shelfRows: 2, shelfColumns: 5 }
 
 export async function readPhoneSettings(
   db: CustomShellDb = defaultDb
-): Promise<PhoneSettings & { pausedAt: Date | null; testPhoneId: string | null }> {
+): Promise<PhoneSettings & { pausedAt: Date | null; testPhoneId: string | null; testPhoneIphoneId: string | null }> {
   const [row] = await db
     .select({
       maxWorking: promoPhoneSettings.maxWorking,
       screenshotDays: promoPhoneSettings.screenshotDays,
+      shelfRows: promoPhoneSettings.shelfRows,
+      shelfColumns: promoPhoneSettings.shelfColumns,
       pausedAt: promoPhoneSettings.pausedAt,
       testPhoneId: promoPhoneSettings.testPhoneId,
+      testPhoneIphoneId: promoPhoneSettings.testPhoneIphoneId,
     })
     .from(promoPhoneSettings)
     .where(eq(promoPhoneSettings.id, "default"))
     .limit(1)
-  return row ?? { ...DEFAULTS, pausedAt: null, testPhoneId: null }
+  return row ?? { ...DEFAULTS, pausedAt: null, testPhoneId: null, testPhoneIphoneId: null }
 }
 
 export async function savePhoneSettings(input: PhoneSettings, db: CustomShellDb = defaultDb): Promise<PhoneSettings> {
@@ -49,6 +59,8 @@ export async function savePhoneSettings(input: PhoneSettings, db: CustomShellDb 
   const values = {
     maxWorking: within(input.maxWorking, MAX_WORKING_RANGE, "The number of phones"),
     screenshotDays: within(input.screenshotDays, SCREENSHOT_DAYS_RANGE, "The days"),
+    shelfRows: within(input.shelfRows, SHELF_RANGE, "The shelf's rows"),
+    shelfColumns: within(input.shelfColumns, SHELF_RANGE, "The shelf's columns"),
   }
   await db
     .insert(promoPhoneSettings)

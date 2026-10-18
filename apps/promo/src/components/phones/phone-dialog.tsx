@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { PhoneActionsPanel } from "@/components/phones/phone-actions-panel"
 import { PhoneHealthPanel } from "@/components/phones/phone-health-panel"
 import { PhoneHistoryPanel } from "@/components/phones/phone-history-panel"
+import { PhoneJobsPanel } from "@/components/phones/phone-jobs-panel"
 import { PhoneSetupPanel } from "@/components/phones/phone-setup-panel"
 import { PhoneStatusText } from "@/components/phones/phone-status"
 import { Button } from "@/components/ui/button"
@@ -31,11 +32,12 @@ import {
 } from "@/lib/api/phones/phones"
 import { NONE } from "@/lib/browser/sorting"
 import { signedInWords } from "@/lib/browser/wording"
-import type { PhoneConnection } from "@/lib/phones/options"
+import { PHONE_KINDS, PHONE_KIND_WORDS, type PhoneConnection, type PhoneKind } from "@/lib/phones/options"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 type Form = {
   name: string
+  kind: PhoneKind
   model: string
   androidVersion: string
   serial: string
@@ -53,6 +55,7 @@ type Form = {
 function formFrom(phone: PhoneRecord | null): Form {
   return {
     name: phone?.name ?? "",
+    kind: phone?.kind ?? "android",
     model: phone?.model ?? "",
     androidVersion: phone?.androidVersion ?? "",
     serial: phone?.serial ?? "",
@@ -70,18 +73,19 @@ function formFrom(phone: PhoneRecord | null): Form {
 
 const orNull = (value: string) => (value === NONE ? null : value)
 
-type Tab = "settings" | "setup" | "health" | "actions" | "history"
+type Tab = "settings" | "setup" | "health" | "actions" | "jobs" | "history"
 
 /**
  * One phone, as a window over the list: its settings, its setup (the setup
  * check, what the platform sees, and wiping), its health (battery,
  * heat, storage, signal, the four-week chart and its app versions), its
- * actions with a picture of each step, and its history. A new phone has only
- * the settings: the rest need the rack to have seen it.
+ * actions with a picture of each step, its jobs (waiting, running and
+ * finished on it, part 58), and its history. A new phone has only the
+ * settings: the rest need the rack to have seen it.
  *
- * The model, Android version and serial fill in by themselves when the phone
- * is plugged into the rack. Typing the serial by hand ties a record made
- * here to the phone when it is plugged in later.
+ * The kind, model, system version and serial fill in by themselves when the
+ * phone is plugged into the rack. Typing the serial (an iPhone's UDID) by
+ * hand ties a record made here to the phone when it is plugged in later.
  */
 export function PhoneDialog({
   open,
@@ -125,6 +129,7 @@ export function PhoneDialog({
     try {
       const { id } = await savePhone(phone?.id ?? null, {
         name: form.name,
+        kind: form.kind,
         model: form.model,
         androidVersion: form.androidVersion,
         serial: form.serial,
@@ -165,13 +170,14 @@ export function PhoneDialog({
                     <TabsTrigger value="setup">Setup</TabsTrigger>
                     <TabsTrigger value="health">Health</TabsTrigger>
                     <TabsTrigger value="actions">Actions</TabsTrigger>
+                    <TabsTrigger value="jobs">Jobs</TabsTrigger>
                     <TabsTrigger value="history">History</TabsTrigger>
                   </TabsList>
                 ) : null}
               </div>
               <DialogDescription>
-                A real Android phone on the rack. A Reddit account runs on it in place of a
-                browser profile, picked on the Reddit accounts dashboard.
+                A real phone on the rack, Android or iPhone. An account runs on it in place of a
+                browser profile, picked on the Accounts dashboard.
               </DialogDescription>
             </DialogHeader>
 
@@ -205,22 +211,38 @@ export function PhoneDialog({
                             }}
                           />
                         </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="phone-kind">Kind</Label>
+                          <Select value={form.kind} onValueChange={(value) => set("kind", value as PhoneKind)}>
+                            <SelectTrigger id="phone-kind" className="w-full sm:w-fit sm:min-w-64">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PHONE_KINDS.map((kind) => (
+                                <SelectItem key={kind} value={kind}>
+                                  {PHONE_KIND_WORDS[kind]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="grid gap-2">
                             <Label htmlFor="phone-model">Model</Label>
                             <Input id="phone-model" value={form.model} onChange={(event) => set("model", event.target.value)} />
                           </div>
                           <div className="grid gap-2">
-                            <Label htmlFor="phone-android">Android version</Label>
+                            <Label htmlFor="phone-android">{form.kind === "iphone" ? "iOS version" : "Android version"}</Label>
                             <Input
                               id="phone-android"
                               value={form.androidVersion}
+                              placeholder={form.kind === "iphone" ? "17.6" : "16"}
                               onChange={(event) => set("androidVersion", event.target.value)}
                             />
                           </div>
                         </div>
                         <div className="grid gap-2">
-                          <Label htmlFor="phone-serial">Serial number</Label>
+                          <Label htmlFor="phone-serial">{form.kind === "iphone" ? "UDID" : "Serial number"}</Label>
                           <Input
                             id="phone-serial"
                             value={form.serial}
@@ -398,6 +420,9 @@ export function PhoneDialog({
                     </TabsContent>
                     <TabsContent value="actions" className="min-w-0">
                       {tab === "actions" ? <PhoneActionsPanel phone={phone} onChanged={onChanged} /> : null}
+                    </TabsContent>
+                    <TabsContent value="jobs" className="min-w-0">
+                      {tab === "jobs" ? <PhoneJobsPanel phoneId={phone.id} /> : null}
                     </TabsContent>
                     <TabsContent value="history" className="min-w-0">
                       {tab === "history" ? <PhoneHistoryPanel phoneId={phone.id} /> : null}

@@ -44,7 +44,7 @@ export async function askWriter<T>({
   // ask for: it is the one every words tool can use.
   if (!writer || writer.provider === "gemini") {
     const apiKey = await requireGeminiKey()
-    const model = writer?.model ?? "gemini-2.5-flash"
+    const model = writer?.model ?? "gemini-3.8-flash"
     return runAiCall(
       { userId, provider: "gemini", model, feature, metadata },
       async () => {

@@ -37,6 +37,7 @@ import {
 } from "@/lib/api/phones/screen"
 import type { PhoneRecord } from "@/lib/api/phones/phones"
 import { formatTimeAgo } from "@/lib/format/format-time"
+import type { PhoneKind } from "@/lib/phones/options"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -51,13 +52,22 @@ const FAILING_POLL_MS = 3_000
 /** A press that moves less than this share of the picture is a tap, not a swipe. */
 const TAP_SLOP = 0.02
 
-const KEYS: Array<{ key: Extract<ScreenInput, { kind: "key" }>["key"]; label: string; icon: React.ReactNode }> = [
-  { key: "back", label: "Back", icon: <ArrowLeftIcon /> },
-  { key: "home", label: "Home", icon: <CircleIcon /> },
-  { key: "recents", label: "Recent apps", icon: <SquareStackIcon /> },
-  { key: "enter", label: "Enter", icon: <CornerDownLeftIcon /> },
-  { key: "delete", label: "Delete a letter", icon: <DeleteIcon /> },
-]
+/**
+ * The keys, named by kind. The key names on the wire are the same for both:
+ * on an iPhone the rack turns Back into a swipe in from the left edge and
+ * Recent apps into a swipe up from the bottom and hold, which is how an
+ * iPhone does them (part 50).
+ */
+function keysFor(kind: PhoneKind): Array<{ key: Extract<ScreenInput, { kind: "key" }>["key"]; label: string; icon: React.ReactNode }> {
+  const iphone = kind === "iphone"
+  return [
+    { key: "back", label: iphone ? "Back (swipe)" : "Back", icon: <ArrowLeftIcon /> },
+    { key: "home", label: "Home", icon: <CircleIcon /> },
+    { key: "recents", label: iphone ? "App switcher (swipe)" : "Recent apps", icon: <SquareStackIcon /> },
+    { key: "enter", label: "Enter", icon: <CornerDownLeftIcon /> },
+    { key: "delete", label: "Delete a letter", icon: <DeleteIcon /> },
+  ]
+}
 
 /**
  * A phone's live screen, inside Promo. The rack sends a picture a few times a
@@ -92,6 +102,8 @@ export function PhoneScreenDialog({
   const seq = React.useRef(0)
   const press = React.useRef<{ x: number; y: number } | null>(null)
   const control = Boolean(view?.controlUntil)
+  const iphone = phone?.kind === "iphone"
+  const keys = keysFor(phone?.kind ?? "android")
 
   React.useEffect(() => {
     if (!phoneId) return
@@ -254,7 +266,7 @@ export function PhoneScreenDialog({
                     {frame ? ` Picture from ${formatTimeAgo(frame.at)}.` : ""}
                   </p>
                   <div className="flex flex-wrap gap-1">
-                    {KEYS.map((key) => (
+                    {keys.map((key) => (
                       <Hint key={key.key} label={key.label}>
                         <Button
                           type="button"
@@ -322,8 +334,10 @@ export function PhoneScreenDialog({
                   {view && !view.codes.length && !view.texted ? (
                     <p className="text-muted-foreground">
                       No codes. An account&apos;s authenticator secret is saved from its settings on
-                      the Reddit accounts dashboard; a code texted to this phone shows here while
-                      the window is open.
+                      the Reddit accounts dashboard;{" "}
+                      {iphone
+                        ? "the rack reads the newest code off the Messages app while this window is open with control on, and shows it here."
+                        : "a code texted to this phone shows here while the window is open."}
                     </p>
                   ) : null}
                 </CardContent>

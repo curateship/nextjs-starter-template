@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm"
 
-import { phoneStepRefusal } from "@/lib/phones/options"
+import { phoneStepRefusal, type PhoneKind } from "@/lib/phones/options"
 import { uuid } from "@/server/auth/security"
 import { Refusal } from "@/server/browser/refusal"
 import { db } from "@/server/db"
@@ -25,7 +25,7 @@ import { clearStepPictures } from "./trail"
  */
 
 export type PhoneTarget = {
-  phone: { id: string; userId: string; rackId: string; name: string }
+  phone: { id: string; userId: string; rackId: string; name: string; kind: PhoneKind }
 }
 
 /** How often the row is read while waiting. */
@@ -76,7 +76,8 @@ export async function callPhone(
 ): Promise<unknown> {
   const cannot = phoneStepRefusal(routine, target.phone.name)
   if (cannot) throw new Refusal(cannot)
-  await refuseBrokenAction(target.phone.userId, routine)
+  // The self-test's verdict is per kind, so an iPhone's step is judged by the iPhone self-test.
+  await refuseBrokenAction(target.phone.userId, routine, target.phone.kind)
   const id = uuid()
   await db.insert(promoPhoneActions).values({
     id,

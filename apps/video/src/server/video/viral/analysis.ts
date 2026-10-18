@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { runAiCall } from "@/server/ai/usage"
+import { viralProjectSpendMetadata } from "@/server/video/project-spend"
 import {
   generateJson,
   requireGeminiKey,
@@ -21,7 +22,7 @@ import { SEGMENT_ROLES, type ViralBreakdown } from "@/lib/video/viral-breakdown"
  */
 
 /** Flash reads video, and is cheap enough to run on every saved video. */
-const ANALYSIS_MODEL = "gemini-2.5-flash"
+const ANALYSIS_MODEL = "gemini-3.8-flash"
 
 /** Starts every error this can throw, so the row says which step failed. */
 const LABEL = "The breakdown"
@@ -97,12 +98,15 @@ export async function breakDownVideo({
   mimeType,
   durationSeconds,
   savedVideoId,
+  viralProjectId,
 }: {
   userId: string
   bytes: Uint8Array
   mimeType: string
   durationSeconds: number | null
   savedVideoId: string
+  /** The Viral project it was saved from, whose spend limit it counts on. */
+  viralProjectId: string | null
 }): Promise<ViralBreakdown> {
   const apiKey = await requireGeminiKey()
   const durationMs = durationSeconds ? Math.round(durationSeconds * 1000) : null
@@ -113,7 +117,9 @@ export async function breakDownVideo({
       provider: "gemini",
       model: ANALYSIS_MODEL,
       feature: "viral_breakdown",
-      metadata: { savedVideoId },
+      metadata: viralProjectId
+        ? { savedVideoId, ...viralProjectSpendMetadata(viralProjectId) }
+        : { savedVideoId },
     },
     async () => {
       const result = await withGeminiFile(

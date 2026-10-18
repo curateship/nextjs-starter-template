@@ -1,7 +1,9 @@
-import { and, desc, eq, gte, inArray, or } from "drizzle-orm"
+import { and, desc, eq, gte, inArray, notInArray, or } from "drizzle-orm"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoProfiles } from "@/server/browser/schema"
+import { promoPhones } from "@/server/phones/schema"
+import { PHONE_LANE_PREFIX } from "@/lib/phones/options"
 import { canRetryJob, JOB_KIND_WORDS } from "@/lib/social/job-words"
 import { WRITE_JOB_KINDS, type JobKind, type JobStatus } from "@/lib/social/options"
 
@@ -31,8 +33,10 @@ export type JobRow = {
   status: JobStatus
   /** What it does, with the kind's own words first: `Search a keyword: "czxvcv"`. */
   what: string
-  /** Who it works as and in which browser: "u/test_ready · Profile 1". Empty when neither is known. */
+  /** Who it works as and in which browser or on which phone: "u/test_ready · Profile 1". Empty when neither is known. */
   where: string
+  /** The project it is for: the one its payload names, or its account's. Empty when there is none. */
+  project: string
   attempts: number
   maxAttempts: number
   lastError: string
@@ -79,15 +83,66 @@ export async function listJobs(
       .limit(FINISHED_LIMIT),
     readBrowserProgram(db, now),
   ])
-  const rows = [...active, ...finished]
+  return { program, jobs: await describeJobs(userId, [...active, ...finished], db) }
+}
 
-  // Every id the payloads name, looked up once per table rather than per row.
+/**
+ * The jobs in one lane, newest first: a phone's lane for the Jobs tab on its
+ * window (part 58 of the phone farm). Waiting, running and finished alike,
+ * at most `limit`, with the same words, Cancel and Try again as the Jobs
+ * window.
+ */
+export async function listLaneJobs(
+  userId: string,
+  lane: string,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date(),
+  limit = 100
+): Promise<JobList> {
+  // Every job still waiting or running is listed whatever its age, so Cancel
+  // can always reach it; only the finished ones are cut to the limit.
+  const [active, finished, program] = await Promise.all([
+    db
+      .select()
+      .from(promoJobs)
+      .where(and(eq(promoJobs.userId, userId), eq(promoJobs.lane, lane), inArray(promoJobs.status, ["queued", "running"])))
+      .orderBy(desc(promoJobs.createdAt)),
+    db
+      .select()
+      .from(promoJobs)
+      .where(and(eq(promoJobs.userId, userId), eq(promoJobs.lane, lane), notInArray(promoJobs.status, ["queued", "running"])))
+      .orderBy(desc(promoJobs.createdAt))
+      .limit(limit),
+    readBrowserProgram(db, now),
+  ])
+  return { program, jobs: await describeJobs(userId, [...active, ...finished], db) }
+}
+
+/** Puts names to the ids in each row's payload and lane, looked up once per table rather than per row. */
+async function describeJobs(
+  userId: string,
+  rows: Array<typeof promoJobs.$inferSelect>,
+  db: CustomShellDb
+): Promise<JobRow[]> {
   const ids = (key: string) => [...new Set(rows.map((row) => text(row.payload[key])).filter(Boolean))]
   const commentIds = ids("commentId")
+  const accountIds = ids("accountId")
+  const accounts = accountIds.length
+    ? await db
+        .select({ id: promoAccounts.id, handle: promoAccounts.handle, projectId: promoAccounts.projectId })
+        .from(promoAccounts)
+        .where(and(eq(promoAccounts.userId, userId), inArray(promoAccounts.id, accountIds)))
+    : []
+  const accountById = new Map(accounts.map((row) => [row.id, row]))
+  // A project the payload names, or the account's own, so a phone job says which project it is for.
+  const projectIds = [
+    ...new Set([...ids("projectId"), ...accounts.map((row) => row.projectId ?? "").filter(Boolean)]),
+  ]
+
   const [keywords, finds, projects, comments] = await Promise.all([
     named(db, promoKeywords, promoKeywords.term, ids("keywordId"), userId),
     named(db, promoFinds, promoFinds.title, ids("findId"), userId),
-    named(db, promoProjects, promoProjects.name, ids("projectId"), userId),
+    named(db, promoProjects, promoProjects.name, projectIds, userId),
     commentIds.length
       ? db
           .select({ id: promoComments.id, title: promoFinds.title })
@@ -98,33 +153,33 @@ export async function listJobs(
   ])
   const commentTitles = new Map(comments.map((row) => [row.id, row.title ?? ""]))
 
-  const accountIds = ids("accountId")
-  const accounts = accountIds.length
-    ? await db
-        .select({ id: promoAccounts.id, handle: promoAccounts.handle })
-        .from(promoAccounts)
-        .where(and(eq(promoAccounts.userId, userId), inArray(promoAccounts.id, accountIds)))
-    : []
-  const accountById = new Map(accounts.map((row) => [row.id, row]))
-
+  const lanes = [...new Set(rows.map((row) => row.lane ?? "").filter(Boolean))]
+  const phoneIds = lanes
+    .filter((lane) => lane.startsWith(PHONE_LANE_PREFIX))
+    .map((lane) => lane.slice(PHONE_LANE_PREFIX.length))
   const profileIds = [
-    ...new Set(
-      rows
-        .flatMap((row) => [row.lane, text(row.payload.profileId)])
-        .filter((id): id is string => Boolean(id))
-    ),
+    ...new Set([...lanes.filter((lane) => !lane.startsWith(PHONE_LANE_PREFIX)), ...ids("profileId")]),
   ]
-  const profiles = profileIds.length
-    ? await db
-        .select({ id: promoProfiles.id, name: promoProfiles.name })
-        .from(promoProfiles)
-        .where(and(eq(promoProfiles.userId, userId), inArray(promoProfiles.id, profileIds)))
-    : []
+  const [profiles, phones] = await Promise.all([
+    profileIds.length
+      ? db
+          .select({ id: promoProfiles.id, name: promoProfiles.name })
+          .from(promoProfiles)
+          .where(and(eq(promoProfiles.userId, userId), inArray(promoProfiles.id, profileIds)))
+      : Promise.resolve([]),
+    phoneIds.length
+      ? db
+          .select({ id: promoPhones.id, name: promoPhones.name })
+          .from(promoPhones)
+          .where(and(eq(promoPhones.userId, userId), inArray(promoPhones.id, phoneIds)))
+      : Promise.resolve([]),
+  ])
   const profileName = new Map(profiles.map((row) => [row.id, row.name]))
+  const phoneName = new Map(phones.map((row) => [PHONE_LANE_PREFIX + row.id, row.name]))
 
   const busyLanes = new Set(rows.filter((row) => row.status === "running" && row.lane).map((row) => row.lane))
 
-  const jobs = rows.map((row): JobRow => {
+  return rows.map((row): JobRow => {
     const payload = row.payload
     const about = aboutText(row.kind, payload, {
       keyword: keywords.get(text(payload.keywordId)),
@@ -133,14 +188,16 @@ export async function listJobs(
       comment: commentTitles.get(text(payload.commentId)),
     })
     const account = accountById.get(text(payload.accountId))
-    const profile = profileName.get(row.lane ?? "") ?? profileName.get(text(payload.profileId))
+    const place =
+      phoneName.get(row.lane ?? "") ?? profileName.get(row.lane ?? "") ?? profileName.get(text(payload.profileId))
     const who = account ? (account.handle ? `u/${account.handle}` : "An account not signed in") : ""
     return {
       id: row.id,
       kind: row.kind,
       status: row.status,
       what: about ? `${JOB_KIND_WORDS[row.kind]}: ${about}` : JOB_KIND_WORDS[row.kind],
-      where: [who, profile].filter(Boolean).join(" · "),
+      where: [who, place].filter(Boolean).join(" · "),
+      project: projects.get(text(payload.projectId)) ?? projects.get(account?.projectId ?? "") ?? "",
       attempts: row.attempts,
       // A job that writes to Reddit gets one go, because a second could post twice.
       maxAttempts: WRITE_JOB_KINDS.includes(row.kind) ? 1 : JOB_MAX_ATTEMPTS,
@@ -153,8 +210,6 @@ export async function listJobs(
       canRetry: row.status === "failed" && canRetryJob(row.kind),
     }
   })
-
-  return { program, jobs }
 }
 
 /** Names by id from one of the person's own tables. */

@@ -70,9 +70,12 @@ import { Route as AuthenticatedAdminVoicesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
+import { Route as ApiMediaLinkTokenRouteImport } from './routes/api/media-link/$token'
 import { Route as ApiRackCheckInRouteImport } from './routes/api/rack/check-in'
 import { Route as ApiRackInstallDotshRouteImport } from './routes/api/rack/install[.]sh'
+import { Route as ApiRackIphoneDotpyRouteImport } from './routes/api/rack/iphone[.]py'
 import { Route as ApiRackLauncherDotpyRouteImport } from './routes/api/rack/launcher[.]py'
+import { Route as ApiRackLogRouteImport } from './routes/api/rack/log'
 import { Route as ApiRackNextRouteImport } from './routes/api/rack/next'
 import { Route as ApiRackPairRouteImport } from './routes/api/rack/pair'
 import { Route as ApiRackProgramDotpyRouteImport } from './routes/api/rack/program[.]py'
@@ -427,6 +430,11 @@ const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   path: '/api/auth/google',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMediaLinkTokenRoute = ApiMediaLinkTokenRouteImport.update({
+  id: '/api/media-link/$token',
+  path: '/api/media-link/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiRackCheckInRoute = ApiRackCheckInRouteImport.update({
   id: '/api/rack/check-in',
   path: '/api/rack/check-in',
@@ -437,9 +445,19 @@ const ApiRackInstallDotshRoute = ApiRackInstallDotshRouteImport.update({
   path: '/api/rack/install.sh',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRackIphoneDotpyRoute = ApiRackIphoneDotpyRouteImport.update({
+  id: '/api/rack/iphone.py',
+  path: '/api/rack/iphone.py',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiRackLauncherDotpyRoute = ApiRackLauncherDotpyRouteImport.update({
   id: '/api/rack/launcher.py',
   path: '/api/rack/launcher.py',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRackLogRoute = ApiRackLogRouteImport.update({
+  id: '/api/rack/log',
+  path: '/api/rack/log',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiRackNextRoute = ApiRackNextRouteImport.update({
@@ -622,9 +640,12 @@ export interface FileRoutesByFullPath {
   '/admin/voices': typeof AuthenticatedAdminVoicesRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/media-link/$token': typeof ApiMediaLinkTokenRoute
   '/api/rack/check-in': typeof ApiRackCheckInRoute
   '/api/rack/install.sh': typeof ApiRackInstallDotshRoute
+  '/api/rack/iphone.py': typeof ApiRackIphoneDotpyRoute
   '/api/rack/launcher.py': typeof ApiRackLauncherDotpyRoute
+  '/api/rack/log': typeof ApiRackLogRoute
   '/api/rack/next': typeof ApiRackNextRoute
   '/api/rack/pair': typeof ApiRackPairRoute
   '/api/rack/program.py': typeof ApiRackProgramDotpyRoute
@@ -707,9 +728,12 @@ export interface FileRoutesByTo {
   '/admin/voices': typeof AuthenticatedAdminVoicesRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/media-link/$token': typeof ApiMediaLinkTokenRoute
   '/api/rack/check-in': typeof ApiRackCheckInRoute
   '/api/rack/install.sh': typeof ApiRackInstallDotshRoute
+  '/api/rack/iphone.py': typeof ApiRackIphoneDotpyRoute
   '/api/rack/launcher.py': typeof ApiRackLauncherDotpyRoute
+  '/api/rack/log': typeof ApiRackLogRoute
   '/api/rack/next': typeof ApiRackNextRoute
   '/api/rack/pair': typeof ApiRackPairRoute
   '/api/rack/program.py': typeof ApiRackProgramDotpyRoute
@@ -796,9 +820,12 @@ export interface FileRoutesById {
   '/_authenticated/admin/voices': typeof AuthenticatedAdminVoicesRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
+  '/api/media-link/$token': typeof ApiMediaLinkTokenRoute
   '/api/rack/check-in': typeof ApiRackCheckInRoute
   '/api/rack/install.sh': typeof ApiRackInstallDotshRoute
+  '/api/rack/iphone.py': typeof ApiRackIphoneDotpyRoute
   '/api/rack/launcher.py': typeof ApiRackLauncherDotpyRoute
+  '/api/rack/log': typeof ApiRackLogRoute
   '/api/rack/next': typeof ApiRackNextRoute
   '/api/rack/pair': typeof ApiRackPairRoute
   '/api/rack/program.py': typeof ApiRackProgramDotpyRoute
@@ -885,9 +912,12 @@ export interface FileRouteTypes {
     | '/admin/voices'
     | '/changelog/whats-new'
     | '/api/auth/google'
+    | '/api/media-link/$token'
     | '/api/rack/check-in'
     | '/api/rack/install.sh'
+    | '/api/rack/iphone.py'
     | '/api/rack/launcher.py'
+    | '/api/rack/log'
     | '/api/rack/next'
     | '/api/rack/pair'
     | '/api/rack/program.py'
@@ -970,9 +1000,12 @@ export interface FileRouteTypes {
     | '/admin/voices'
     | '/changelog/whats-new'
     | '/api/auth/google'
+    | '/api/media-link/$token'
     | '/api/rack/check-in'
     | '/api/rack/install.sh'
+    | '/api/rack/iphone.py'
     | '/api/rack/launcher.py'
+    | '/api/rack/log'
     | '/api/rack/next'
     | '/api/rack/pair'
     | '/api/rack/program.py'
@@ -1058,9 +1091,12 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/voices'
     | '/_authenticated/changelog/whats-new'
     | '/api/auth/google'
+    | '/api/media-link/$token'
     | '/api/rack/check-in'
     | '/api/rack/install.sh'
+    | '/api/rack/iphone.py'
     | '/api/rack/launcher.py'
+    | '/api/rack/log'
     | '/api/rack/next'
     | '/api/rack/pair'
     | '/api/rack/program.py'
@@ -1108,9 +1144,12 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
+  ApiMediaLinkTokenRoute: typeof ApiMediaLinkTokenRoute
   ApiRackCheckInRoute: typeof ApiRackCheckInRoute
   ApiRackInstallDotshRoute: typeof ApiRackInstallDotshRoute
+  ApiRackIphoneDotpyRoute: typeof ApiRackIphoneDotpyRoute
   ApiRackLauncherDotpyRoute: typeof ApiRackLauncherDotpyRoute
+  ApiRackLogRoute: typeof ApiRackLogRoute
   ApiRackNextRoute: typeof ApiRackNextRoute
   ApiRackPairRoute: typeof ApiRackPairRoute
   ApiRackProgramDotpyRoute: typeof ApiRackProgramDotpyRoute
@@ -1555,6 +1594,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthGoogleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/media-link/$token': {
+      id: '/api/media-link/$token'
+      path: '/api/media-link/$token'
+      fullPath: '/api/media-link/$token'
+      preLoaderRoute: typeof ApiMediaLinkTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/rack/check-in': {
       id: '/api/rack/check-in'
       path: '/api/rack/check-in'
@@ -1569,11 +1615,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRackInstallDotshRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/rack/iphone.py': {
+      id: '/api/rack/iphone.py'
+      path: '/api/rack/iphone.py'
+      fullPath: '/api/rack/iphone.py'
+      preLoaderRoute: typeof ApiRackIphoneDotpyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/rack/launcher.py': {
       id: '/api/rack/launcher.py'
       path: '/api/rack/launcher.py'
       fullPath: '/api/rack/launcher.py'
       preLoaderRoute: typeof ApiRackLauncherDotpyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rack/log': {
+      id: '/api/rack/log'
+      path: '/api/rack/log'
+      fullPath: '/api/rack/log'
+      preLoaderRoute: typeof ApiRackLogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/rack/next': {
@@ -1913,9 +1973,12 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
+  ApiMediaLinkTokenRoute: ApiMediaLinkTokenRoute,
   ApiRackCheckInRoute: ApiRackCheckInRoute,
   ApiRackInstallDotshRoute: ApiRackInstallDotshRoute,
+  ApiRackIphoneDotpyRoute: ApiRackIphoneDotpyRoute,
   ApiRackLauncherDotpyRoute: ApiRackLauncherDotpyRoute,
+  ApiRackLogRoute: ApiRackLogRoute,
   ApiRackNextRoute: ApiRackNextRoute,
   ApiRackPairRoute: ApiRackPairRoute,
   ApiRackProgramDotpyRoute: ApiRackProgramDotpyRoute,

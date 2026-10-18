@@ -28,6 +28,9 @@ const TOOL_LABELS: Record<string, string> = {
   translation: "Another language",
   translation_voice: "Another language voice",
   script_check: "Script check",
+  viral_keyword_ideas: "Keyword ideas",
+  viral_topic_match: "Topic match",
+  viral_breakdown: "Breakdowns",
 }
 
 export function projectSpendToolLabel(feature: string) {

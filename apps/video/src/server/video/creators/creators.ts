@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm"
+import { and, eq, isNotNull } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { now, uuid } from "@/server/auth/security"
@@ -11,11 +11,7 @@ import {
   parseCreatorProfileLink,
 } from "@/server/video/creators/profile-url"
 import { readYoutubeChannel } from "@/server/video/creators/uploads"
-import {
-  CREATOR_PACE_SAMPLE,
-  isCreatorPlatform,
-  type ResearchCreator,
-} from "@/lib/video/creators"
+import { recordYoutubeUnits } from "@/server/video/viral/youtube-units"
 
 /**
  * The creators somebody follows.
@@ -37,13 +33,6 @@ const AVATAR_TIMEOUT_MS = 10_000
 /** An avatar bigger than this is not an avatar. */
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024
 
-/**
- * How far back the views-a-day figure looks. Long enough that a creator who
- * posts monthly still has a few posts in it, short enough that the query stays
- * small however long somebody has been followed.
- */
-const PACE_WINDOW_DAYS = 90
-
 /** Picture formats a profile picture may be. Deliberately no SVG. */
 const AVATAR_TYPES = new Set([
   "image/jpeg",
@@ -51,110 +40,6 @@ const AVATAR_TYPES = new Set([
   "image/webp",
   "image/gif",
 ])
-
-export async function listCreators(
-  ownerId: string
-): Promise<ResearchCreator[]> {
-  const rows = await db
-    .select()
-    .from(videoCreators)
-    .where(eq(videoCreators.ownerId, ownerId))
-    .orderBy(videoCreators.handle)
-  if (rows.length === 0) return []
-
-  const pace = await readViewsPerDay(
-    ownerId,
-    rows.map((row) => row.id)
-  )
-
-  return rows.flatMap((row) => {
-    if (!isCreatorPlatform(row.platform)) return []
-    return [
-      {
-        id: row.id,
-        platform: row.platform,
-        handle: row.handle,
-        displayName: row.displayName,
-        followerCount: row.followerCount,
-        profileUrl: row.profileUrl || creatorProfileUrl(row),
-        watch: row.watch,
-        lastCheckedAt: row.lastCheckedAt?.toISOString() ?? null,
-        // Served by the app's own route, which checks the session, rather than
-        // the platform's address: those expire and leak who is looking.
-        avatarUrl: row.avatarStoragePath
-          ? `/api/v1/video/creators/${row.id}/avatar`
-          : null,
-        viewsPerDay: pace.get(row.id) ?? null,
-      },
-    ]
-  })
-}
-
-/**
- * How fast each creator's recent work is being watched: views a day across
- * their newest posts. Worked out on the way past rather than stored, so it is
- * never a stale number nobody recalculated, and it reads only what the watch
- * timer already fetched.
- */
-async function readViewsPerDay(
-  ownerId: string,
-  creatorIds: string[]
-): Promise<Map<string, number>> {
-  // Only the recent window is read. Without it this would pull every post
-  // anybody has ever made — a year of thirty watched creators is tens of
-  // thousands of rows, fetched on every load of the page, to work out an
-  // average over ten of them. The window is also what the figure means: how
-  // fast their *recent* work is being watched.
-  const since = new Date(Date.now() - PACE_WINDOW_DAYS * 24 * 60 * 60 * 1000)
-  const rows = await db
-    .select({
-      creatorId: videoCreatorPosts.creatorId,
-      views: videoCreatorPosts.views,
-      postedAt: videoCreatorPosts.postedAt,
-      firstSeenAt: videoCreatorPosts.firstSeenAt,
-    })
-    .from(videoCreatorPosts)
-    .where(
-      and(
-        eq(videoCreatorPosts.ownerId, ownerId),
-        inArray(videoCreatorPosts.creatorId, creatorIds),
-        gte(
-          sql`coalesce(${videoCreatorPosts.postedAt}, ${videoCreatorPosts.firstSeenAt})`,
-          since
-        )
-      )
-    )
-    .orderBy(desc(videoCreatorPosts.postedAt))
-
-  const seen = new Map<string, { views: number; days: number }>()
-  const counted = new Map<string, number>()
-  const today = Date.now()
-
-  for (const row of rows) {
-    const taken = counted.get(row.creatorId) ?? 0
-    if (taken >= CREATOR_PACE_SAMPLE) continue
-    counted.set(row.creatorId, taken + 1)
-    if (row.views === null) continue
-
-    const posted = (row.postedAt ?? row.firstSeenAt).getTime()
-    // A post from today has not had a day to be watched yet, so it counts as
-    // one day rather than a fraction that would read as a huge pace.
-    const days = Math.max(1, (today - posted) / (24 * 60 * 60 * 1000))
-    const running = seen.get(row.creatorId) ?? { views: 0, days: 0 }
-    seen.set(row.creatorId, {
-      views: running.views + row.views,
-      days: running.days + days,
-    })
-  }
-
-  const pace = new Map<string, number>()
-  for (const [creatorId, totals] of seen) {
-    if (totals.days > 0) {
-      pace.set(creatorId, Math.round(totals.views / totals.days))
-    }
-  }
-  return pace
-}
 
 /**
  * Follows a creator from a pasted profile link.
@@ -167,7 +52,7 @@ export async function addCreatorByLink(
   ownerId: string,
   link: string,
   source: string | null = null
-): Promise<ResearchCreator> {
+): Promise<{ id: string }> {
   const parsed = parseCreatorProfileLink(link)
 
   let handle = parsed.handle
@@ -183,6 +68,7 @@ export async function addCreatorByLink(
       channelId ? { channelId } : { handle },
       apiKey
     )
+    await recordYoutubeUnits(1, "creator_follow")
     if (!channel) throw new Error(CREATOR_ERRORS.youtubeChannelMissing)
     channelId = channel.channelId
     // YouTube's current @handle wins over the pasted one, which may be an old
@@ -232,41 +118,31 @@ export async function addCreatorByLink(
     throw error
   }
 
-  const [created] = await listCreatorsById(ownerId, [id])
-  if (!created) throw new Error(CREATOR_ERRORS.notFound)
-  return created
-}
-
-async function listCreatorsById(ownerId: string, ids: string[]) {
-  const all = await listCreators(ownerId)
-  return all.filter((creator) => ids.includes(creator.id))
-}
-
-/** Turns the watch timer on or off for one creator, keeping its posts. */
-export async function setCreatorWatch(
-  ownerId: string,
-  creatorId: string,
-  watch: boolean
-): Promise<void> {
-  const [changed] = await db
-    .update(videoCreators)
-    .set({ watch, updatedAt: now() })
-    .where(
-      and(eq(videoCreators.id, creatorId), eq(videoCreators.ownerId, ownerId))
-    )
-    .returning({ id: videoCreators.id })
-  if (!changed) throw new Error(CREATOR_ERRORS.notFound)
+  return { id }
 }
 
 /**
- * Unfollows a creator. Their feed posts and folder memberships go with them
- * through the foreign keys; any video already saved and broken down stays,
+ * Unfollows a creator for good. Their saved posts and project links go with
+ * them through the foreign keys, and their kept covers leave storage; any
+ * video already saved and broken down stays,
  * because it belongs to whoever saved it rather than to the creator.
  */
 export async function deleteCreator(
   ownerId: string,
   creatorId: string
 ): Promise<void> {
+  // The covers kept for their posts live in storage, not in the rows the
+  // foreign key deletes, so they are listed first and removed after.
+  const covers = await db
+    .select({ path: videoCreatorPosts.thumbnailStoragePath })
+    .from(videoCreatorPosts)
+    .where(
+      and(
+        eq(videoCreatorPosts.creatorId, creatorId),
+        eq(videoCreatorPosts.ownerId, ownerId),
+        isNotNull(videoCreatorPosts.thumbnailStoragePath)
+      )
+    )
   const [removed] = await db
     .delete(videoCreators)
     .where(
@@ -277,8 +153,12 @@ export async function deleteCreator(
       avatarStoragePath: videoCreators.avatarStoragePath,
     })
   if (!removed) throw new Error(CREATOR_ERRORS.notFound)
-  if (removed.avatarStoragePath) {
-    await deleteFromR2(removed.avatarStoragePath).catch(() => undefined)
+  const stored = [
+    removed.avatarStoragePath,
+    ...covers.map((cover) => cover.path),
+  ].filter((path): path is string => Boolean(path))
+  for (const path of stored) {
+    await deleteFromR2(path).catch(() => undefined)
   }
 }
 
@@ -309,9 +189,28 @@ async function storeAvatar(
   creatorId: string,
   avatarUrl: string
 ): Promise<string | null> {
+  return storePicture(
+    avatarUrl,
+    `video-creator-avatars/${ownerId}/${creatorId}.img`
+  )
+}
+
+/**
+ * Fetches a picture from a platform's own address and keeps a copy at
+ * `storagePath`. Shared by creators' profile pictures and their videos'
+ * covers. Answers the stored path, or null when the picture could not be had.
+ */
+export async function storePicture(
+  pictureUrl: string,
+  storagePath: string
+): Promise<string | null> {
   try {
-    if (!avatarUrl.startsWith("https://")) return null
-    const response = await fetch(avatarUrl, {
+    if (!pictureUrl.startsWith("https://")) return null
+    // A redirect is refused rather than followed: the address came from a
+    // platform's answer, and following it blindly could walk the server to
+    // an address inside its own network.
+    const response = await fetch(pictureUrl, {
+      redirect: "error",
       signal: AbortSignal.timeout(AVATAR_TIMEOUT_MS),
     })
     if (!response.ok) return null
@@ -326,7 +225,6 @@ async function storeAvatar(
     const bytes = await readCappedBytes(response)
     if (!bytes) return null
 
-    const storagePath = `video-creator-avatars/${ownerId}/${creatorId}.img`
     await uploadToR2(storagePath, bytes, mimeType)
     return storagePath
   } catch (error) {
@@ -387,18 +285,4 @@ export async function refreshCreatorProfile(
     .update(videoCreators)
     .set(changes)
     .where(eq(videoCreators.id, creatorId))
-}
-
-/** True when this person follows this creator. Guards a folder write. */
-export async function ownsCreator(
-  ownerId: string,
-  creatorId: string
-): Promise<boolean> {
-  const [row] = await db
-    .select({ one: sql<number>`1` })
-    .from(videoCreators)
-    .where(
-      and(eq(videoCreators.id, creatorId), eq(videoCreators.ownerId, ownerId))
-    )
-  return !!row
 }

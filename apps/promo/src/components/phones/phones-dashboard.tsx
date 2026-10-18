@@ -3,6 +3,8 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
   AlertTriangleIcon,
   FlaskConicalIcon,
+  Grid3x3Icon,
+  LayoutGridIcon,
   MonitorSmartphoneIcon,
   PauseIcon,
   PlayIcon,
@@ -22,7 +24,9 @@ import { rackMix } from "@/lib/phones/rack-mix"
 import { PhoneDialog } from "@/components/phones/phone-dialog"
 import { PhoneScreenDialog } from "@/components/phones/phone-screen-dialog"
 import { PhoneStatusText } from "@/components/phones/phone-status"
+import { PhoneWallDialog } from "@/components/phones/phone-wall-dialog"
 import { RackDialog } from "@/components/phones/rack-dialog"
+import { RackMapDialog } from "@/components/phones/rack-map-dialog"
 import { ResumeRackDialog } from "@/components/phones/resume-rack-dialog"
 import { RackMixDialog } from "@/components/phones/rack-mix-dialog"
 import { SelfTestDialog } from "@/components/phones/self-test-dialog"
@@ -63,6 +67,8 @@ import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { PHONE_KIND_WORDS, PHONE_KINDS, PHONE_STATUS_WORDS, systemWords } from "@/lib/phones/options"
+import { PHONE_STATUS_FILTERS, type PhonesSearch } from "@/lib/phones/phones-search"
 import { appVersionWords, connectionWords } from "@/lib/phones/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -104,17 +110,37 @@ function compare(a: PhoneRecord, b: PhoneRecord, column: SortColumn): number {
  */
 const REFRESH_MS = 10_000
 
+/** The search box waits this long after the last letter before it goes into the address. */
+const SEARCH_SETTLE_MS = 300
+
+/** What the SIM itself says beats what was typed. */
+const carrierOf = (phone: PhoneRecord) => phone.setupCheck?.figures.simCarrier || phone.simCarrier
+
+const NO_FILTERS: PhonesSearch = {}
+
 /**
  * Every phone on the rack: the account on it, its app versions, whether it is
  * connected, its carrier and when the rack last saw it. Self-test opens the
- * daily self-test and app updates.
+ * daily self-test and app updates, Wall the live picture of every phone
+ * (part 57) and Map the shelf drawn by slot (part 60).
  *
  * Built like the Browser profiles dashboard, and sorted with the same
- * folders, labels and tags. A phone's window keeps it in `?open=<id>`, which
- * is where its bell notice leads. The rack itself, pairing it and
- * disconnecting it, is behind the Rack button.
+ * folders, labels and tags. The status, kind, carrier, project and wiping
+ * filters and the search box live in the address (part 59), so a link opens
+ * a filtered list and the back button undoes a filter. A phone's window
+ * keeps it in `?open=<id>`, which is where its bell notice leads. The rack
+ * itself, pairing it and disconnecting it, is behind the Rack button.
  */
-export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; openId?: string }) {
+export function PhonesDashboard({
+  initial,
+  openId,
+  filters = NO_FILTERS,
+}: {
+  initial: PhonesPage
+  openId?: string
+  /** The filters and the search box, from the address. */
+  filters?: PhonesSearch
+}) {
   const { config } = useShellRuntime()
   const router = useRouter()
   const navigate = useNavigate()
@@ -124,6 +150,7 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
     () =>
       rackMix(
         phones.map((phone) => ({
+          kind: phone.kind,
           model: phone.model,
           androidVersion: phone.androidVersion,
           connection: phone.connection,
@@ -135,7 +162,17 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
     [phones]
   )
 
-  const [search, setSearch] = React.useState("")
+  // The box is its own state, because a typed letter must land at once and a
+  // navigation lands later; the address catches up 300ms after the last
+  // letter. An address that changed on its own (the back button, a link) is
+  // adopted here, in the render, so the box never shows a stale word.
+  const addressQuery = filters.q ?? ""
+  const [search, setSearch] = React.useState(addressQuery)
+  const [adoptedQuery, setAdoptedQuery] = React.useState(addressQuery)
+  if (addressQuery !== adoptedQuery) {
+    setAdoptedQuery(addressQuery)
+    setSearch(addressQuery)
+  }
   const [folderFilter, setFolderFilter] = React.useState(ALL)
   const [labelFilter, setLabelFilter] = React.useState(ALL)
   const [tagFilter, setTagFilter] = React.useState(ALL)
@@ -151,6 +188,8 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
   const [resuming, setResuming] = React.useState(false)
   const [selfTestOpen, setSelfTestOpen] = React.useState(false)
   const [mixOpen, setMixOpen] = React.useState(false)
+  const [wallOpen, setWallOpen] = React.useState(false)
+  const [mapOpen, setMapOpen] = React.useState(false)
   const [screenFor, setScreenFor] = React.useState<string | null>(null)
   const [tagging, setTagging] = React.useState(false)
   const [tagText, setTagText] = React.useState("")
@@ -172,6 +211,36 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
     [navigate]
   )
   const editing = phones.find((phone) => phone.id === openId) ?? null
+
+  /** One filter into the address, as its own history entry so the back button undoes it. */
+  const setFilter = React.useCallback(
+    (patch: Partial<PhonesSearch>, replace = false) => {
+      void navigate({
+        to: ".",
+        replace,
+        search: (previous: Record<string, unknown>) => {
+          const next: Record<string, unknown> = { ...previous }
+          for (const [key, value] of Object.entries(patch)) {
+            if (value === undefined || value === "") delete next[key]
+            else next[key] = value
+          }
+          return next
+        },
+      })
+      setPageNumber(1)
+    },
+    [navigate]
+  )
+
+  React.useEffect(() => {
+    const typed = search.trim()
+    if (typed === addressQuery) return
+    const timer = setTimeout(() => {
+      setAdoptedQuery(typed)
+      setFilter({ q: typed }, true)
+    }, SEARCH_SETTLE_MS)
+    return () => clearTimeout(timer)
+  }, [addressQuery, search, setFilter])
 
   const refresh = React.useCallback(async () => {
     try {
@@ -196,21 +265,42 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
   const folderName = (id: string | null) => page.folders.find((folder) => folder.id === id)?.name
   const label = (id: string | null) => page.labels.find((one) => one.id === id)
 
+  // The carriers and projects seen on the phones. A value in the address that
+  // is not among them stays as an option, so a filter never changes on its own.
+  const carriers = React.useMemo(() => {
+    const seen = new Set(phones.map(carrierOf).filter(Boolean))
+    if (filters.carrier) seen.add(filters.carrier)
+    return [...seen].sort((a, b) => a.localeCompare(b)).map((name) => ({ id: name, name }))
+  }, [filters.carrier, phones])
+  const projects = React.useMemo(
+    () =>
+      filters.project && !page.projects.some((project) => project.id === filters.project)
+        ? [...page.projects, { id: filters.project, name: "A project no longer here", phoneIds: [] }]
+        : page.projects,
+    [filters.project, page.projects]
+  )
+
   const shown = React.useMemo(() => {
     const query = search.trim().toLowerCase()
     const factor = direction === "asc" ? 1 : -1
+    const projectPhoneIds = new Set(projects.find((project) => project.id === filters.project)?.phoneIds ?? [])
     return phones
       .filter((phone) => {
         if (folderFilter === NONE ? phone.folderId : folderFilter !== ALL && phone.folderId !== folderFilter) return false
         if (labelFilter === NONE ? phone.labelId : labelFilter !== ALL && phone.labelId !== labelFilter) return false
         if (tagFilter !== ALL && !phone.tags.includes(tagFilter)) return false
+        if (filters.status && phone.status !== filters.status) return false
+        if (filters.kind && phone.kind !== filters.kind) return false
+        if (filters.carrier && carrierOf(phone) !== filters.carrier) return false
+        if (filters.project && !projectPhoneIds.has(phone.id)) return false
+        if (filters.wipe && !phone.needsWipeAt) return false
         if (!query) return true
         return [phone.name, phone.model, phone.serial, phone.simCarrier, phone.simNumber, phone.notes, phone.shelfSlot]
           .concat(phone.tags, phone.accounts.map((account) => account.handle))
           .some((text) => text.toLowerCase().includes(query))
       })
       .sort((a, b) => factor * compare(a, b, sort))
-  }, [direction, folderFilter, labelFilter, phones, search, sort, tagFilter])
+  }, [direction, filters, folderFilter, labelFilter, phones, projects, search, sort, tagFilter])
 
   const totalPages = Math.max(1, Math.ceil(shown.length / pageSize))
   const currentPage = Math.min(pageNumber, totalPages)
@@ -388,6 +478,45 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
                 options={tags.map((tag) => ({ id: tag, name: tag }))}
               />
             ) : null}
+            <FilterSelect
+              label="Status"
+              value={filters.status ?? ALL}
+              onChange={(value) => setFilter({ status: value === ALL ? undefined : (value as PhonesSearch["status"]) })}
+              allLabel="All statuses"
+              options={PHONE_STATUS_FILTERS.map((status) => ({ id: status, name: PHONE_STATUS_WORDS[status] }))}
+            />
+            <FilterSelect
+              label="Kind"
+              value={filters.kind ?? ALL}
+              onChange={(value) => setFilter({ kind: value === ALL ? undefined : (value as PhonesSearch["kind"]) })}
+              allLabel="All kinds"
+              options={PHONE_KINDS.map((kind) => ({ id: kind, name: PHONE_KIND_WORDS[kind] }))}
+            />
+            {carriers.length ? (
+              <FilterSelect
+                label="Carrier"
+                value={filters.carrier ?? ALL}
+                onChange={(value) => setFilter({ carrier: value === ALL ? undefined : value })}
+                allLabel="All carriers"
+                options={carriers}
+              />
+            ) : null}
+            {projects.length ? (
+              <FilterSelect
+                label="Project"
+                value={filters.project ?? ALL}
+                onChange={(value) => setFilter({ project: value === ALL ? undefined : value })}
+                allLabel="All projects"
+                options={projects}
+              />
+            ) : null}
+            <FilterSelect
+              label="Wiping"
+              value={filters.wipe ?? ALL}
+              onChange={(value) => setFilter({ wipe: value === "needed" ? "needed" : undefined })}
+              allLabel="All phones"
+              options={[{ id: "needed", name: "Needs wiping" }]}
+            />
             <span className="flex h-8 items-center gap-2">
               <Switch
                 id="phones-rack-paused"
@@ -399,7 +528,7 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
                 {page.pausedAt ? "Rack paused" : "Pause the rack"}
               </Label>
             </span>
-            <Hint label={mix.warnings.length ? mix.warnings[0].text : "Rack mix: models, carriers and Android versions"}>
+            <Hint label={mix.warnings.length ? mix.warnings[0].text : "Rack mix: kinds, models, carriers and system versions"}>
               <DashboardToolbarButton
                 type="button"
                 variant="outline"
@@ -412,6 +541,28 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
                   <ShapesIcon className="size-4" />
                 )}
                 <span className="hidden sm:inline">Mix</span>
+              </DashboardToolbarButton>
+            </Hint>
+            <Hint label="Wall: a live picture of every connected phone">
+              <DashboardToolbarButton
+                type="button"
+                variant="outline"
+                aria-label="Wall: a live picture of every connected phone"
+                onClick={() => setWallOpen(true)}
+              >
+                <LayoutGridIcon className="size-4" />
+                <span className="hidden sm:inline">Wall</span>
+              </DashboardToolbarButton>
+            </Hint>
+            <Hint label="Map: the shelf drawn by slot">
+              <DashboardToolbarButton
+                type="button"
+                variant="outline"
+                aria-label="Map: the shelf drawn by slot"
+                onClick={() => setMapOpen(true)}
+              >
+                <Grid3x3Icon className="size-4" />
+                <span className="hidden sm:inline">Map</span>
               </DashboardToolbarButton>
             </Hint>
             <Hint label="Self-test and app updates">
@@ -464,7 +615,7 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
           phones.length
             ? "No phones match that."
             : page.racks.length
-              ? "No phones yet. Plug one into the rack with USB debugging on, or press New phone to add one by hand."
+              ? "No phones yet. Plug one into the rack (USB debugging on for an Android, Trust this computer on an iPhone), or press New phone to add one by hand."
               : "No phones yet. Press Rack to connect the computer the phones plug into, or New phone to add one by hand."
         }
         emptyColSpan={COLUMNS.length + 2}
@@ -512,7 +663,7 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
                 <span className="line-clamp-1 text-xs text-muted-foreground">
                   {[
                     phone.model,
-                    phone.androidVersion ? `Android ${phone.androidVersion}` : "",
+                    systemWords(phone.kind, phone.androidVersion),
                     folder,
                     ...phone.tags.map((tag) => `#${tag}`),
                   ]
@@ -523,7 +674,7 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
                   {phone.accounts.length ? phone.accounts.map(signedInWords).join(", ") : "No account on it"}
                 </span>
                 <span className="line-clamp-1 text-xs text-muted-foreground">
-                  {phone.id === page.testPhoneId ? "Self-test phone · " : ""}
+                  {phone.id === page.testPhoneId || phone.id === page.testPhoneIphoneId ? "Self-test phone · " : ""}
                   {appVersionWords(phone)}
                 </span>
                 {setupWarning(phone) ? (
@@ -643,6 +794,26 @@ export function PhonesDashboard({ initial, openId }: { initial: PhonesPage; open
       />
 
       <RackMixDialog open={mixOpen} mix={mix} onClose={() => setMixOpen(false)} />
+      <PhoneWallDialog
+        open={wallOpen}
+        onClose={() => setWallOpen(false)}
+        onOpenScreen={(id) => {
+          // One window at a time: the wall gives way to the phone's screen.
+          setWallOpen(false)
+          setScreenFor(id)
+        }}
+      />
+      <RackMapDialog
+        open={mapOpen}
+        phones={phones}
+        rows={page.shelfRows}
+        columns={page.shelfColumns}
+        onClose={() => setMapOpen(false)}
+        onOpen={(id) => {
+          setMapOpen(false)
+          setOpen(id)
+        }}
+      />
       <SelfTestDialog
         open={selfTestOpen}
         phones={phones}

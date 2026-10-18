@@ -7,7 +7,7 @@ import { createProfile } from "@/server/browser/profiles"
 import { setDbForTests } from "@/server/db"
 import { checkIn, createPairingCode, finishAction, nextAction, pairRack, type VerifiedRack } from "@/server/phones/rack"
 import { RACK_VERSION } from "@/server/phones/release"
-import { promoPhoneActionChecks, promoPhoneActions, promoPhones } from "@/server/phones/schema"
+import { promoMediaLinks, promoPhoneActionChecks, promoPhoneActions, promoPhones } from "@/server/phones/schema"
 import { customShellMedia, customShellNotifications } from "@/server/schema"
 import { addAccount } from "@/server/social/accounts"
 import { listRedditAccounts } from "@/server/social/account-list"
@@ -20,6 +20,7 @@ import { createTestDatabase, insertUser, insertWorkspace, type TestDatabase } fr
 
 import { buildCaptionPrompt } from "./captions"
 import { buildReplyPrompt, listInbox, sendInboxReply, skipInbox } from "./inbox"
+import { queueIphoneInboxReads } from "./iphone-inbox"
 import { readAppModuleView } from "./module"
 import { cancelAppPosts, postLink, queueAppPost } from "./posts"
 import { cleanProfileEdit, queueProfileEdit, readProfileEdits } from "./profile"
@@ -80,7 +81,7 @@ describe("Instagram and TikTok on phones", () => {
       {
         version: RACK_VERSION,
         platform: "",
-        phones: serials.map((serial) => ({ serial, state: "device", usb: "usb:1", model: `Phone ${serial}`, android: "16", timezone: "UTC" })),
+        phones: serials.map((serial) => ({ serial, state: "device", usb: "usb:1", model: `Phone ${serial}`, android: "16", kind: "android" as const, timezone: "UTC" })),
         rolledBack: null,
       },
       db
@@ -392,6 +393,69 @@ describe("Instagram and TikTok on phones", () => {
     })
   })
 
+  describe("on an iPhone (phone farm file 08)", () => {
+    const iphone = (serial: string) => ({ serial, state: "device", usb: "usb:2", model: "iPhone 12", android: "17.6", kind: "iphone" as const, timezone: "UTC" })
+
+    it("sends an iPhone post with a one-time link to the file, opened in Safari, under the same key", async () => {
+      await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [iphone("I1")], rolledBack: null }, db)
+      const [phone] = await db.select().from(promoPhones)
+      const accountId = await instagramOn(phone.id)
+      await db.insert(promoPhoneActionChecks).values({ userId, action: "instagram/post", kind: "iphone", passed: true })
+      const video = await mediaFile("clip.mp4", "video/mp4", "video")
+      await queueAppPost(userId, { accountId, mediaUrl: video, caption: "Night mode #study", draftCaption: "" }, db)
+      const { turn, seen } = await runPhoneJob((action) =>
+        action.action === "instagram/post" ? { ok: true, result: { posted: true, postUrl: "https://www.instagram.com/p/abc/" } } : signedIn("quiet.maple")
+      )
+      expect(turn).toMatchObject({ did: "job", ok: true })
+      const post = seen.find((one) => one.action === "instagram/post")!
+      expect(post.args).toMatchObject({ mediaKind: "video", caption: "Night mode #study", mediaFromSafari: true })
+      expect(String(post.args.mediaUrl)).toMatch(/\/api\/media-link\/[0-9a-f]{64}$/)
+      expect(String(post.args.mediaUrl)).not.toContain("media.test")
+      const [link] = await db.select().from(promoMediaLinks)
+      expect(link).toMatchObject({ storagePath: "clip.mp4", mimeType: "video/mp4", usedAt: null })
+    })
+
+    it("opens each iPhone account's inbox once an hour in waking hours, as an inbox read rather than a notification tap", async () => {
+      await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [iphone("I1")], rolledBack: null }, db)
+      const [phone] = await db.select().from(promoPhones)
+      const accountId = await instagramOn(phone.id)
+      const now = new Date("2099-01-01T12:00:00Z")
+      /** A tick at `at`, with the phone seen by the rack just then. */
+      const tick = async (at: Date) => {
+        await db.update(promoPhones).set({ lastSeenAt: at })
+        return queueIphoneInboxReads(db, at)
+      }
+      const minutes = (count: number) => new Date(now.getTime() + count * 60_000)
+      expect(await tick(now)).toBe(1)
+      const reads = await db.select().from(promoJobs).where(eq(promoJobs.kind, "inbox_read"))
+      expect(reads.map((job) => job.payload)).toEqual([
+        { accountId, inboxKind: "message", via: "inbox" },
+        { accountId, inboxKind: "comment", via: "inbox" },
+      ])
+      // Not again within the hour, even with the reads done; then once more.
+      await db.delete(promoJobs)
+      expect(await tick(minutes(30))).toBe(0)
+      expect(await tick(minutes(61))).toBe(1)
+      expect(await db.select().from(promoJobs)).toHaveLength(2)
+
+      // At night nothing is opened: awake 8:00 to 22:00 on the phone's UTC clock.
+      await db.update(promoBehaviourSettings).set({ wakeFromMinute: 8 * 60, wakeUntilMinute: 22 * 60 })
+      await db.delete(promoJobs)
+      expect(await tick(new Date("2099-01-02T03:00:00Z"))).toBe(0)
+      expect(await db.select().from(promoJobs)).toEqual([])
+      expect(await tick(new Date("2099-01-02T09:00:00Z"))).toBe(1)
+
+      // A paused account, an offline phone, and an account on an Android are left alone.
+      await db.update(promoBehaviourSettings).set({ wakeFromMinute: 0, wakeUntilMinute: 0 })
+      await db.update(promoAccounts).set({ pausedAt: now }).where(eq(promoAccounts.id, accountId))
+      expect(await tick(new Date("2099-01-02T11:00:00Z"))).toBe(0)
+      await db.update(promoAccounts).set({ pausedAt: null }).where(eq(promoAccounts.id, accountId))
+      expect(await queueIphoneInboxReads(db, new Date("2099-01-02T13:00:00Z"))).toBe(0)
+      await db.update(promoPhones).set({ kind: "android" })
+      expect(await tick(new Date("2099-01-02T13:00:00Z"))).toBe(0)
+    })
+  })
+
   describe("the profile (part 33)", () => {
     it("is held back in the account's first day after signing in, then goes to the phone", async () => {
       const { A1 } = await plugIn("A1")
@@ -462,6 +526,7 @@ describe("Instagram and TikTok on phones", () => {
             usb: "usb:1",
             model: "Phone A1",
             android: "16",
+            kind: "android" as const,
             timezone: "UTC",
             alerts: [
               { app: "instagram" as const, kind: "message" as const },

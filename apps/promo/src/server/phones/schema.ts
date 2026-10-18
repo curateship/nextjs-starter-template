@@ -13,7 +13,14 @@ import {
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
-import type { PhoneActionStatus, PhoneConnection, PhoneEventKind, RolloutStatus, TrackedApp } from "@/lib/phones/options"
+import type {
+  PhoneActionStatus,
+  PhoneConnection,
+  PhoneEventKind,
+  PhoneKind,
+  RolloutStatus,
+  TrackedApp,
+} from "@/lib/phones/options"
 import type { SetupCheck } from "@/lib/phones/setup-check"
 import { promoProfileFolders, promoProfileLabels, promoProxies } from "@/server/browser/schema"
 import { customShellUsers } from "@/server/schema"
@@ -47,6 +54,12 @@ export const promoRacks = pgTable(
     pairedAt: timestamp("paired_at", { withTimezone: true }).notNull().defaultNow(),
     seenAt: timestamp("seen_at", { withTimezone: true }),
     disconnectedAt: timestamp("disconnected_at", { withTimezone: true }),
+    /**
+     * When the rack's WebDriverAgent signature runs out, as the rack reports
+     * on check-in, or null on a rack without iPhone tools. A free Apple ID
+     * signs it for 7 days (Tyler, 18 Oct 2026). Added by `drizzle/0121_promo_iphones.sql`.
+     */
+    wdaExpiresAt: timestamp("wda_expires_at", { withTimezone: true }),
   },
   (table) => [index("ix_promo_racks_user").on(table.userId)]
 )
@@ -84,10 +97,10 @@ export const promoRackNonces = pgTable(
 )
 
 /**
- * One Android phone on the rack. Whether it is connected is worked out from
- * `lastSeenAt` and `adbState`, which the rack writes on every check-in, so
- * there is no status column to fall out of step. `held` is a person taking it
- * out of use by hand.
+ * One phone on the rack, Android or iPhone. Whether it is connected is
+ * worked out from `lastSeenAt` and `adbState`, which the rack writes on every
+ * check-in, so there is no status column to fall out of step. `held` is a
+ * person taking it out of use by hand.
  */
 export const promoPhones = pgTable(
   "promo_phones",
@@ -97,9 +110,12 @@ export const promoPhones = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 120 }).notNull(),
+    /** Android or iPhone, as the rack reports it. Added by `drizzle/0121_promo_iphones.sql`. */
+    kind: varchar("kind", { length: 10 }).$type<PhoneKind>().notNull().default("android"),
     model: varchar("model", { length: 120 }).notNull().default(""),
+    /** The system version: Android's on an Android, iOS's on an iPhone. The column keeps its first name. */
     androidVersion: varchar("android_version", { length: 40 }).notNull().default(""),
-    /** adb's serial number: how the rack's check-in finds this record. */
+    /** adb's serial number, or an iPhone's UDID: how the rack's check-in finds this record. */
     serial: varchar("serial", { length: 120 }).notNull().default(""),
     simCarrier: varchar("sim_carrier", { length: 120 }).notNull().default(""),
     simNumber: varchar("sim_number", { length: 40 }).notNull().default(""),
@@ -124,7 +140,12 @@ export const promoPhones = pgTable(
     rackId: varchar("rack_id", { length: 36 }).references(() => promoRacks.id, {
       onDelete: "set null",
     }),
-    /** 'device', 'unauthorized', 'restarting' (the rack restarting it), 'gone', or empty before the first check-in. */
+    /**
+     * 'device', 'unauthorized' (waiting for Allow USB debugging, or Trust this
+     * computer on an iPhone), 'restarting' (the rack restarting it), 'gone',
+     * 'too_old' (an iPhone under iOS 17), 'no_driver' (an iPhone whose
+     * WebDriverAgent is not running), or empty before the first check-in.
+     */
     adbState: varchar("adb_state", { length: 20 }).notNull().default(""),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /**
@@ -263,8 +284,20 @@ export const promoPhoneSettings = pgTable("promo_phone_settings", {
    * and never given a real one (Tyler, 14 Oct 2026). Added by 0116.
    */
   testPhoneId: varchar("test_phone_id", { length: 36 }).references(() => promoPhones.id, { onDelete: "set null" }),
-  /** When the self-test was last asked for. */
+  /** When the self-test was last asked for on the Android test phone. */
   selfTestAt: timestamp("self_test_at", { withTimezone: true }),
+  /**
+   * The spare iPhone the daily self-test runs on, one test phone per kind
+   * (Tyler, 18 Oct 2026), and when its self-test was last asked for. The
+   * columns from here to `shelfColumns` are from `drizzle/0121_promo_iphones.sql`.
+   */
+  testPhoneIphoneId: varchar("test_phone_iphone_id", { length: 36 }).references(() => promoPhones.id, {
+    onDelete: "set null",
+  }),
+  selfTestIphoneAt: timestamp("self_test_iphone_at", { withTimezone: true }),
+  /** The shelf's shape for the rack map: slots are numbered left to right, top to bottom. */
+  shelfRows: integer("shelf_rows").notNull().default(2),
+  shelfColumns: integer("shelf_columns").notNull().default(5),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -300,7 +333,11 @@ export const promoPhoneReadings = pgTable(
   (table) => [primaryKey({ columns: [table.phoneId, table.at] })]
 )
 
-/** The daily self-test's answer for each action. A broken one is refused until it passes. */
+/**
+ * The daily self-test's answer for each action, per kind of phone, so a
+ * step broken on an Android never refuses an iPhone's jobs. A broken one is
+ * refused until it passes.
+ */
 export const promoPhoneActionChecks = pgTable(
   "promo_phone_action_checks",
   {
@@ -308,6 +345,7 @@ export const promoPhoneActionChecks = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     action: varchar("action", { length: 60 }).notNull(),
+    kind: varchar("kind", { length: 10 }).$type<PhoneKind>().notNull().default("android"),
     passed: boolean("passed").notNull(),
     /** The step it could not get past, or empty when it passed. */
     step: varchar("step", { length: 200 }).notNull().default(""),
@@ -318,10 +356,10 @@ export const promoPhoneActionChecks = pgTable(
     }),
     checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.userId, table.action] })]
+  (table) => [primaryKey({ columns: [table.userId, table.action, table.kind] })]
 )
 
-/** An app update going round the rack, one phone first. */
+/** An app update going round the rack's phones of one kind, the test phone of that kind first. */
 export const promoAppRollouts = pgTable(
   "promo_app_rollouts",
   {
@@ -329,6 +367,7 @@ export const promoAppRollouts = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     app: varchar("app", { length: 20 }).$type<TrackedApp>().notNull(),
+    kind: varchar("kind", { length: 10 }).$type<PhoneKind>().notNull().default("android"),
     status: varchar("status", { length: 20 }).$type<RolloutStatus>().notNull(),
     fromVersion: varchar("from_version", { length: 60 }).notNull().default(""),
     toVersion: varchar("to_version", { length: 60 }).notNull().default(""),
@@ -336,5 +375,31 @@ export const promoAppRollouts = pgTable(
     note: text("note").notNull().default(""),
     changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.userId, table.app] })]
+  (table) => [primaryKey({ columns: [table.userId, table.app, table.kind] })]
+)
+
+/**
+ * A one-time link to a media library file, for getting a photo or video onto
+ * an iPhone (part 55 of the phone farm). A computer cannot drop a file into
+ * an iPhone's Photos, so the rack opens this link in Safari on the phone and
+ * saves the file from there. The token is 32 random bytes as hex and only
+ * its hash is stored; the link works once, within ten minutes, and the file
+ * is never served from an open address. From `drizzle/0122_promo_iphone_promo_side.sql`.
+ */
+export const promoMediaLinks = pgTable(
+  "promo_media_links",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    /** The bucket key of the media library file. */
+    storagePath: text("storage_path").notNull(),
+    mimeType: varchar("mime_type", { length: 255 }).notNull().default(""),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("ux_promo_media_links_token").on(table.tokenHash), index("ix_promo_media_links_expires").on(table.expiresAt)]
 )

@@ -1,4 +1,4 @@
-import { and, eq, isNull, or } from "drizzle-orm"
+import { and, desc, eq, isNull, or } from "drizzle-orm"
 
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { handleWords } from "@/lib/social/networks"
@@ -6,7 +6,7 @@ import { promoAccounts } from "@/server/social/schema"
 
 import { recordPhoneEvent } from "./history"
 import { queuePhoneAction } from "./queue"
-import { promoPhones } from "./schema"
+import { promoPhoneActions, promoPhones } from "./schema"
 
 /**
  * Wiping a phone between accounts (part 26 of the phone farm): a new account
@@ -16,10 +16,25 @@ import { promoPhones } from "./schema"
  * set onto it until the rack has factory-reset it and a setup check after the
  * wipe has passed. A wipe also forgets that the phone held an important
  * account (part 22).
+ *
+ * An iPhone erased while still signed into an Apple ID is locked to that
+ * Apple ID and useless to the rack (part 54). So an iPhone's wipe is refused
+ * until a person has signed out of iCloud through the screen window (the
+ * Apple ID password is typed by that person, never saved) and the rack has
+ * read the phone as signed out, with Check iCloud on its Setup tab.
  */
 
 /** How long the rack has to walk Settings to the last button and press it. */
 const WIPE_TIMEOUT_SECONDS = 180
+
+/** Reading the top of Settings for an Apple ID is a couple of screens. */
+const ICLOUD_TIMEOUT_SECONDS = 120
+
+/** What the rack said when it last read whether an Apple ID is signed in on an iPhone. */
+export type IcloudState = { signedOut: boolean; appleId: string; checkedAt: Date }
+
+export const ICLOUD_SIGNED_IN_WORDS =
+  "Sign out of iCloud on its screen first (Settings, your name, Sign Out), then press Check iCloud. An iPhone erased while signed in is locked to that Apple ID."
 
 const dateWords = (at: Date) => at.toISOString().slice(0, 10)
 
@@ -111,7 +126,68 @@ export async function queueWipe(
         : `${who} is being moved onto this phone. Cancel the move on the Accounts dashboard before wiping.`
     )
   }
-  return queuePhoneAction(userId, phoneId, "phone/wipe", db, now, { timeoutSeconds: WIPE_TIMEOUT_SECONDS })
+  const [phone] = await db
+    .select({ kind: promoPhones.kind, wipedAt: promoPhones.wipedAt })
+    .from(promoPhones)
+    .where(and(eq(promoPhones.id, phoneId), eq(promoPhones.userId, userId)))
+    .limit(1)
+  if (phone?.kind !== "iphone") {
+    return queuePhoneAction(userId, phoneId, "phone/wipe", db, now, { timeoutSeconds: WIPE_TIMEOUT_SECONDS })
+  }
+  // Only a read newer than the last wipe counts: a fresh setup signs in again.
+  const state = await icloudState(userId, phoneId, db)
+  const signedOut = state?.signedOut === true && (!phone.wipedAt || state.checkedAt > phone.wipedAt)
+  if (!signedOut) throw new Error(ICLOUD_SIGNED_IN_WORDS)
+  // The rack refuses an iPhone wipe without this word, so a wipe never
+  // reaches an iPhone that was not read as signed out.
+  return queuePhoneAction(userId, phoneId, "phone/wipe", db, now, {
+    timeoutSeconds: WIPE_TIMEOUT_SECONDS,
+    args: { icloudSignedOut: true },
+  })
+}
+
+/**
+ * Asks the rack to read whether an Apple ID is signed in on an iPhone, from
+ * Check iCloud on its Setup tab. The answer is `{ signedOut, appleId }`,
+ * kept on the action row, which is what the wipe and the tab read.
+ */
+export async function queueIcloudCheck(
+  userId: string,
+  phoneId: string,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<string> {
+  const [phone] = await db
+    .select({ kind: promoPhones.kind })
+    .from(promoPhones)
+    .where(and(eq(promoPhones.id, phoneId), eq(promoPhones.userId, userId)))
+    .limit(1)
+  if (!phone) throw new Error("That phone does not exist.")
+  if (phone.kind !== "iphone") throw new Error("Only an iPhone has an Apple ID to check.")
+  return queuePhoneAction(userId, phoneId, "phone/icloud-state", db, now, { timeoutSeconds: ICLOUD_TIMEOUT_SECONDS })
+}
+
+/** The newest finished iCloud read for a phone, or null when the rack has never read it. */
+export async function icloudState(userId: string, phoneId: string, db: CustomShellDb = defaultDb): Promise<IcloudState | null> {
+  const [row] = await db
+    .select({ result: promoPhoneActions.result, finishedAt: promoPhoneActions.finishedAt })
+    .from(promoPhoneActions)
+    .where(
+      and(
+        eq(promoPhoneActions.userId, userId),
+        eq(promoPhoneActions.phoneId, phoneId),
+        eq(promoPhoneActions.action, "phone/icloud-state"),
+        eq(promoPhoneActions.status, "done")
+      )
+    )
+    .orderBy(desc(promoPhoneActions.finishedAt))
+    .limit(1)
+  if (!row?.finishedAt) return null
+  return {
+    signedOut: row.result?.signedOut === true,
+    appleId: String(row.result?.appleId ?? "").slice(0, 200),
+    checkedAt: row.finishedAt,
+  }
 }
 
 /**
@@ -126,15 +202,18 @@ export async function recordWipe(
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<void> {
-  await db
+  const [phone] = await db
     .update(promoPhones)
     .set({ wipedAt: now, needsWipeAt: null, heldImportantAt: null, held: true, updatedAt: now })
     .where(and(eq(promoPhones.id, phoneId), eq(promoPhones.userId, userId)))
+    .returning({ kind: promoPhones.kind })
   await recordPhoneEvent(
     userId,
     phoneId,
     "wiped",
-    "The rack erased everything on it. It is held while it is set up again: turn on USB debugging, sign in to Google, put the apps on, then release it and run its setup check.",
+    phone?.kind === "iphone"
+      ? "The rack erased everything on it. It is held while it is set up again: tap Trust this computer when it asks, sign in to an Apple ID, put the apps on from the App Store, then release it and run its setup check."
+      : "The rack erased everything on it. It is held while it is set up again: turn on USB debugging, sign in to Google, put the apps on, then release it and run its setup check.",
     db,
     now
   )

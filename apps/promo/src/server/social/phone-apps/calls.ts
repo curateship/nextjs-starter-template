@@ -114,7 +114,7 @@ export function appProfile(
 export function appPost(
   target: CommandTarget,
   network: PhoneAppNetwork,
-  args: { mediaUrl: string; mediaKind: "photo" | "video"; caption: string }
+  args: { mediaUrl: string; mediaKind: "photo" | "video"; caption: string; mediaFromSafari?: true }
 ) {
   return call(target, `${network}/post`, { ...args }, postShape, POST_TIMEOUT_MS)
 }

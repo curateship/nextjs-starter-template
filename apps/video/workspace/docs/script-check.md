@@ -109,8 +109,8 @@ check" (`script_check`) on `/admin/ai`.
 - **Measured with GPT-5 mini on 12 Oct 2026:** a 1,007-character script used
   779 tokens in and 2,628 out, which is 779 × $0.25 + 2,628 × $2 per million,
   or about $0.0055. Most of that is GPT's thinking.
-- **A full 5,000-character script:** about 0.6¢ with GPT-5 mini, about 0.1¢
-  with Gemini Flash, about 4¢ with Claude Opus 5. The Gemini and Claude figures
+- **A full 5,000-character script:** about 0.6¢ with GPT-5 mini, about 0.3¢
+  with Gemini Flash (`gemini-3.8-flash`), about 4¢ with Claude Opus 5. The Gemini and Claude figures
   are estimates until a check is run with each.
 - **The meter rounds each call to whole cents**, so a 0.55¢ check shows as 1¢
   on `/admin/ai`.

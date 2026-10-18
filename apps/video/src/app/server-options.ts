@@ -59,6 +59,26 @@ export const appServerOptions: AppServerOptions = {
           ),
       },
       {
+        // Searches the Viral keywords somebody pressed Search on, one at a
+        // time, so the page never waits on YouTube. Only ever runs a keyword a
+        // person queued, after the day's allowance was checked.
+        name: "video-viral-search",
+        tick: () =>
+          import("@/server/video/viral/project-search").then((search) =>
+            search.viralSearchTick()
+          ),
+      },
+      {
+        // Keeps a copy of each followed TikTok and Instagram video's cover,
+        // five a pass, because their cover addresses expire. Reads only the
+        // picture: no video is downloaded and no AI runs.
+        name: "video-creator-covers",
+        tick: () =>
+          import("@/server/video/creators/covers").then(async (covers) => {
+            await covers.creatorCoverTick()
+          }),
+      },
+      {
         // Checks followed creators for new posts every six hours. Does nothing
         // at all unless VIDEO_WATCH_ENABLED=1, and never downloads a file.
         name: "video-creator-watch",

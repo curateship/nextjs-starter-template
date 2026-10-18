@@ -39,7 +39,18 @@ Commands:
 
 It is written for the Python that ships with macOS (3.9) and for Linux, using
 only the standard library, except uiautomator2, which reads phone screens and
-is only imported by the actions that need it.
+is only imported by the actions that need it. iPhones are driven through the
+file beside this one, iphone.py (phone farm file 08), which owns every word
+spoken to pymobiledevice3 and WebDriverAgent; this file only asks it for the
+list of iPhones, a screen that answers like a uiautomator2 device, the
+minute's reading, each app's version when it offers that, and when the
+WebDriverAgent signature runs out. A rack without that file, or with a
+driver that fails, lists no iPhones and says so once in the log. On an
+iPhone the three apps run through their own iOS buttons (APP_SCREENS, keyed
+by bundle id), the setup check reads iOS's Settings and Safari, updates come
+from the App Store, a wipe is refused until Promo says the Apple ID is
+signed out, and a post's file reaches Photos through a one-time link opened
+in Safari, since a computer cannot drop a file into an iPhone's Photos.
 
 The launcher beside it (launcher.py) starts this file, swaps in a new version
 when Promo offers one, and goes back to the old one if the new one does not
@@ -69,7 +80,17 @@ import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ElementTree
 
-VERSION = "2026.10.16.1"
+# The iPhone driver lives beside this file. A rack without it is an
+# adb-only rack, exactly as before iPhones joined; nothing below may fail
+# because it is missing.
+try:
+    import iphone
+    _IPHONE_IMPORT_ERROR = None
+except Exception as _failure:  # A missing file, or one its own imports break.
+    iphone = None
+    _IPHONE_IMPORT_ERROR = _failure
+
+VERSION = "2026.10.18.1"
 
 # The launcher restarts the program when it exits with this code: a new
 # version was written, or someone switched versions on disk.
@@ -98,6 +119,9 @@ def default_home():
 HOME = os.environ.get("PROMO_RACK_HOME") or default_home()
 CONFIG_PATH = os.path.join(HOME, "config.json")
 STATE_PATH = os.path.join(HOME, "state.json")
+# Where the Mac's LaunchAgent (rack/install.sh) sends this program's output.
+# On Linux the journal holds it and there is no file.
+LOG_PATH = os.path.join(HOME, "rack.log")
 
 
 def log(message):
@@ -269,21 +293,85 @@ def parse_devices(output):
             "usb": ("usb:" + fields["usb"]) if "usb" in fields else "",
             "model": fields.get("model", "").replace("_", " "),
             "android": "",
+            "kind": "android",
         })
     return phones
 
 
-# Each phone's model, Android version and time zone, read once while it stays plugged in.
+# Each phone's model, system version and time zone, read once while it stays
+# plugged in. An iPhone's come with the driver's list and are kept here too,
+# so phone/android-version can check the screen against them.
 _PROPS = {}
+
+# Which kind each serial is, "android" or "iphone", filled by list_phones()
+# and never emptied, so a running action still knows its phone's kind after
+# the phone is unplugged mid-way.
+_KINDS = {}
+
+# Failures of the iPhone driver already written to the log, so a rack
+# without iPhones does not say so every 15 seconds.
+_IPHONE_WARNED = set()
+
+
+def is_iphone(serial):
+    return _KINDS.get(serial) == "iphone"
+
+
+def warn_once(key, words):
+    if key not in _IPHONE_WARNED:
+        _IPHONE_WARNED.add(key)
+        log(words)
+
+
+def list_iphones_safely():
+    """The driver's list of iPhones, or none when there is no driver or it
+    fails, said once in the log. The Android list never waits on this."""
+    if iphone is None:
+        warn_once("import", "The iPhone driver (iphone.py) is not beside the program, so no iPhones are listed: %s" % _IPHONE_IMPORT_ERROR)
+        return []
+    try:
+        phones = [dict(phone) for phone in (iphone.list_iphones() or []) if isinstance(phone, dict) and phone.get("serial")]
+    except Exception as failure:  # The driver's own trouble; the Androids are still listed.
+        warn_once("list", "The iPhone driver could not list iPhones, so none are listed: %s" % (str(failure) or failure.__class__.__name__))
+        return []
+    _IPHONE_WARNED.discard("list")
+    for phone in phones:
+        phone["kind"] = "iphone"
+        for key in ("state", "usb", "model", "android"):
+            phone.setdefault(key, "")
+    return phones
+
+
+def wda_expires_at():
+    """When WebDriverAgent's signature runs out, for the check-in, or None
+    when there is no driver, it was never signed, or the driver cannot say."""
+    if iphone is None:
+        return None
+    try:
+        value = iphone.wda_expires_at()
+    except Exception as failure:  # Not knowing is answered as unknown, never as a crash.
+        warn_once("wda", "The iPhone driver could not say when WebDriverAgent's signature runs out: %s" % (str(failure) or failure.__class__.__name__))
+        return None
+    _IPHONE_WARNED.discard("wda")
+    return str(value) if value else None
 
 
 def list_phones():
-    phones = restarting_as_such(parse_devices(adb(["devices", "-l"], timeout=15)))
+    androids = parse_devices(adb(["devices", "-l"], timeout=15))
+    for phone in androids:
+        _KINDS[phone["serial"]] = "android"
+    iphones = list_iphones_safely()
+    for phone in iphones:
+        _KINDS[phone["serial"]] = "iphone"
+    phones = restarting_as_such(androids + iphones)
     present = set()
     for phone in phones:
         serial = phone["serial"]
         present.add(serial)
         if phone["state"] != "device":
+            continue
+        if phone.get("kind") == "iphone":
+            _PROPS[serial] = {key: str(phone.get(key) or "") for key in ("model", "android", "timezone")}
             continue
         if serial not in _PROPS:
             try:
@@ -299,7 +387,20 @@ def list_phones():
     for serial in list(_PROPS):
         if serial not in present:
             del _PROPS[serial]
+    for serial in list(_IPHONE_SCREENS):
+        if serial not in present:
+            _IPHONE_SCREENS.pop(serial, None)
     return phones
+
+
+def iphone_system_version(serial):
+    """The iOS version the phone itself reports over USB, from the last list."""
+    version = _PROPS.get(serial, {}).get("android", "")
+    if not version:
+        for phone in list_iphones_safely():
+            if phone["serial"] == serial:
+                version = str(phone.get("android") or "")
+    return version
 
 
 # ---------------------------------------------------------------------------
@@ -320,12 +421,36 @@ class StepFailed(RuntimeError):
         self.step = step
 
 
+# One screen object per iPhone, shared by every helper below and the screen
+# window, dropped when the phone leaves the list.
+_IPHONE_SCREENS = {}
+
+
+def iphone_screen(serial):
+    """The iPhone's screen through the driver, which answers like a uiautomator2 device."""
+    if iphone is None:
+        raise RuntimeError("The iPhone driver (iphone.py) is not beside the program, so %s cannot be driven." % serial)
+    screen = _IPHONE_SCREENS.get(serial)
+    if screen is None:
+        screen = iphone.IphoneScreen(serial)
+        _IPHONE_SCREENS[serial] = screen
+    return screen
+
+
 def connect_screen(serial):
+    if is_iphone(serial):
+        return iphone_screen(serial)
     try:
         import uiautomator2
     except ImportError:
         raise RuntimeError("uiautomator2 is not installed on the rack. Run the install command again.")
     return uiautomator2.connect(serial)
+
+
+def wake_screen(device):
+    """Turns the screen on: uiautomator2's screen_on, or the iPhone driver's,
+    which is WebDriverAgent's unlock."""
+    device.screen_on()
 
 
 def screenshot_jpeg(device):
@@ -340,7 +465,8 @@ def screenshot_jpeg(device):
 
 # The buttons that send something. A rehearsal may find them, never press them.
 # Reddit's comment box sends with Post, Reply or Comment, depending on the version.
-LAST_BUTTONS = ("post", "send", "share", "reply", "comment")
+# The App Store's Install and a wipe's Erase are last buttons too.
+LAST_BUTTONS = ("post", "send", "share", "reply", "comment", "install", "erase")
 
 
 def selector_words(selector):
@@ -507,15 +633,22 @@ class Walk(object):
 
 def go_home(serial):
     try:
-        shell(serial, "input keyevent KEYCODE_HOME", timeout=10)
-    except (RuntimeError, subprocess.TimeoutExpired):
+        if is_iphone(serial):
+            iphone_screen(serial).press("home")
+        else:
+            shell(serial, "input keyevent KEYCODE_HOME", timeout=10)
+    except Exception:  # A phone pulled out; the next step will say so.
         pass
 
 
 def go_back(serial):
+    """Back: Android's key, or the iPhone's swipe in from the left edge, which the driver makes."""
     try:
-        shell(serial, "input keyevent KEYCODE_BACK", timeout=10)
-    except (RuntimeError, subprocess.TimeoutExpired):
+        if is_iphone(serial):
+            iphone_screen(serial).press("back")
+        else:
+            shell(serial, "input keyevent KEYCODE_BACK", timeout=10)
+    except Exception:
         pass
 
 
@@ -622,8 +755,15 @@ def typing_plan(text, rng=random):
 def type_key(serial, device, character):
     """One character into the box in focus: a plain one as a key press, a
     new line as Enter, anything else (an accent, an emoji) through
-    uiautomator2, which Android's own `input text` cannot type."""
-    if character == "\n":
+    uiautomator2, which Android's own `input text` cannot type. An iPhone
+    types every character through WebDriverAgent, one at a time, so the
+    rhythm between keys is the same on both kinds."""
+    if is_iphone(serial):
+        if character == "\n":
+            device.press("enter")
+        else:
+            device.send_keys(character)
+    elif character == "\n":
         shell(serial, "input keyevent KEYCODE_ENTER", timeout=10)
     elif 32 <= ord(character) < 127:
         shell(serial, "input text %s" % typed_text(character), timeout=10)
@@ -661,7 +801,10 @@ def tap_at(serial, device, x, y):
 def swipe_like_a_person(serial, device, x1, y1, x2, y2):
     points = swipe_path(x1, y1, x2, y2)
     seconds = random.uniform(*SWIPE_SECONDS)
-    if hasattr(device, "swipe_points"):
+    if is_iphone(serial):
+        # WebDriverAgent draws a straight swipe; its speed still varies.
+        device.swipe(x1, y1, x2, y2, duration=seconds)
+    elif hasattr(device, "swipe_points"):
         device.swipe_points(points, seconds)
     else:
         shell(serial, "input swipe %d %d %d %d %d" % (x1, y1, x2, y2, int(seconds * 1000)), timeout=10)
@@ -700,6 +843,16 @@ def action_list(serial, args, walk):
 
 
 def action_health(serial, args, walk):
+    if is_iphone(serial):
+        # The same figures the minute's reading takes, from the same channel.
+        reading = iphone_vitals(serial)
+        return dict(
+            reading,
+            kind="iphone",
+            upHours=round(reading["upSeconds"] / 3600, 1) if reading["upSeconds"] is not None else None,
+            android=iphone_system_version(serial),
+            model=_PROPS.get(serial, {}).get("model", ""),
+        )
     battery = shell(serial, "dumpsys battery")
     level = re.search(r"^\s*level:\s*(\d+)", battery, re.M)
     temperature = re.search(r"^\s*temperature:\s*(\d+)", battery, re.M)
@@ -730,8 +883,9 @@ VERSION_TEXT = re.compile(r"^\d+(\.\d+)*$")
 
 
 def node_words(node):
-    """A node's own words: its text, or its description when it has no text."""
-    return " ".join((node.get("text") or node.get("content-desc") or "").split())
+    """A node's own words: its text, or its description when it has no text.
+    An iPhone's tree carries them as label or value instead."""
+    return " ".join((node.get("text") or node.get("content-desc") or node.get("label") or node.get("value") or "").split())
 
 
 def value_beside_label(hierarchy_xml, label, pattern):
@@ -771,6 +925,62 @@ def version_beside_label(hierarchy_xml):
     return value_beside_label(hierarchy_xml, "Android version", VERSION_TEXT)
 
 
+# iOS's Settings, General, About. The row reads "iOS Version" with the number
+# beside it; older builds said "Software Version". A tree may also give the
+# whole row as one label, "iOS Version, 17.6.1".
+IOS_VERSION_LABELS = ("iOS Version", "Software Version")
+IOS_VERSION_INLINE = re.compile(r"(?i)\b(?:ios|software) version\b[,:]?\s*(\d+(?:\.\d+)*)")
+
+
+def ios_version_beside_label(hierarchy_xml):
+    """The version printed beside "iOS Version" on the About screen. The label
+    and the value are two sibling elements of one cell, so the same reader
+    as Android's finds it; a row given as one label is read whole."""
+    for label in IOS_VERSION_LABELS:
+        found = value_beside_label(hierarchy_xml, label, VERSION_TEXT)
+        if found:
+            return found
+    for node in ElementTree.fromstring(hierarchy_xml).iter():
+        match = IOS_VERSION_INLINE.search(node_words(node))
+        if match:
+            return match.group(1)
+    return None
+
+
+def read_ios_version(serial, walk):
+    """phone/android-version on an iPhone: Settings, General, About, and the
+    iOS Version row read off the screen, checked against what the phone
+    reports over USB."""
+    from_system = iphone_system_version(serial)
+    device = walk.screen()
+    wake_screen(device)
+    walk.check()
+    device.app_start(IOS_SETTINGS)
+    time.sleep(2)
+    walk.shot("Opened Settings")
+    walk.tap("Open General", text="General")
+    walk.tap("Open About", text="About")
+    found = None
+    width, height = screen_size(device)
+    for attempt in range(3):
+        walk.check()
+        found = ios_version_beside_label(device.dump_hierarchy())
+        if found:
+            break
+        swipe_like_a_person(serial, device, width // 2, int(height * 0.7), width // 2, int(height * 0.3))
+        time.sleep(1)
+    if not found:
+        walk.shot("Looked for the iOS version")
+        walk.home()
+        raise StepFailed(
+            "Find the iOS version",
+            "Settings opened, but no iOS version was found on its screen. The phone itself says %s." % (from_system or "nothing"),
+        )
+    walk.shot("Read iOS %s" % found)
+    walk.home()
+    return {"fromScreen": found, "fromSystem": from_system, "match": found == from_system, "kind": "iphone"}
+
+
 def action_android_version(serial, args, walk):
     """Opens Settings at About phone and reads the Android version off the screen.
 
@@ -778,6 +988,8 @@ def action_android_version(serial, args, walk):
     app, and the screen being read. The version Android itself reports is read
     too, so the answer can be checked against it.
     """
+    if is_iphone(serial):
+        return read_ios_version(serial, walk)
     from_system = shell(serial, "getprop ro.build.version.release")
     device = walk.screen()
     device.screen_on()
@@ -826,6 +1038,73 @@ APP_PACKAGES = {
 APP_NAMES = {"reddit": "Reddit", "instagram": "Instagram", "tiktok": "TikTok"}
 PLAY_STORE = "com.android.vending"
 
+# The same apps on an iPhone, by App Store bundle id, and Apple's own apps
+# the rack opens: Settings for the version read and Messages for a texted code.
+APP_BUNDLES = {
+    "reddit": "com.reddit.Reddit",
+    "instagram": "com.burbn.instagram",
+    "tiktok": "com.zhiliaoapp.musically",
+}
+IOS_SETTINGS = "com.apple.Preferences"
+IOS_MESSAGES = "com.apple.MobileSMS"
+
+
+def package_for(serial, app):
+    """The app's name to the phone it is on: a bundle id on an iPhone, a package on Android."""
+    return APP_BUNDLES[app] if is_iphone(serial) else APP_PACKAGES[app]
+
+
+def app_packages(app):
+    """Both names of one app: its Android package and its iPhone bundle id. A
+    reader handed a screen and no serial filters by both, since every node
+    is stamped with one or the other."""
+    return (APP_PACKAGES[app], APP_BUNDLES[app])
+
+
+def own_node(node, package):
+    """True when a node is the app's own: nothing stamped on it, the package
+    given, or either name of the app when `package` is app_packages' pair."""
+    stamped = node.get("package")
+    if not stamped or not package:
+        return True
+    if isinstance(package, tuple):
+        return stamped in package
+    return stamped == package
+
+
+def ios_kind(node):
+    """An iPhone node's element type, XCUIElementTypeCell and the like; an Android node's class."""
+    return node.get("type") or node.get("class") or ""
+
+
+IOS_TEXT_BOX = re.compile(r"^XCUIElementType(TextField|TextView|SecureTextField|SearchField)$")
+
+
+def is_text_box(node):
+    """True for a box someone types into: Android's EditText or an iPhone's text field."""
+    kind = node.get("class") or node.get("type") or ""
+    return kind == "android.widget.EditText" or bool(IOS_TEXT_BOX.match(kind))
+
+
+def is_row(node):
+    """True for something a thumb can open: a clickable Android view, or an iPhone list cell."""
+    return node.get("clickable") == "true" or ios_kind(node).endswith("Cell")
+
+
+def not_a_line(node, height):
+    """True for an iPhone node that is no line anyone wrote: a button, or the
+    app's own root, whose label is the app's name and whose bounds are the
+    whole screen. Android's buttons carry a description, not text, and a
+    long Android message can be taller than half the screen, so the height
+    rule is only for iPhone nodes."""
+    kind = ios_kind(node)
+    if not kind.startswith("XCUIElementType"):
+        return False
+    if kind == "XCUIElementTypeButton":
+        return True
+    bounds = parse_bounds(node.get("bounds"))
+    return bool(bounds) and bounds[3] - bounds[1] > height * 0.5
+
 APPS_COMMAND = "for p in %s; do echo \"$p $(dumpsys package $p | grep -m1 versionName=)\"; done" % " ".join(
     APP_PACKAGES[app] for app in sorted(APP_PACKAGES)
 )
@@ -857,10 +1136,95 @@ def open_store_page(serial, package):
 
 UPDATE_BUTTON = {"textMatches": "(?i)^update$", "packageName": PLAY_STORE}
 
+# The same apps in the App Store (phone farm part 53): each app's page by
+# Apple's own number, opened through the itms-apps address the store owns.
+APP_STORE = "com.apple.AppStore"
+APP_STORE_IDS = {"reddit": "1064216828", "instagram": "389801252", "tiktok": "835599320"}
+IOS_UPDATE_BUTTON = {"textMatches": "(?i)^update$", "packageName": APP_STORE}
+IOS_OPEN_BUTTON = {"textMatches": "(?i)^open$", "packageName": APP_STORE}
+# The page's What's New says "Version 2025.40.0" under the newest notes.
+STORE_VERSION_LINE = re.compile(r"(?i)^version\s+(\d+(?:\.\d+)*)$")
+
+
+def open_ios_store_page(device, app):
+    device.open_url("itms-apps://apps.apple.com/app/id%s" % APP_STORE_IDS[app])
+    time.sleep(4)
+
+
+def store_version_from_screen(hierarchy_xml):
+    """The version the App Store page shows, "Version 2025.40.0", or empty."""
+    for line in screen_lines(hierarchy_xml):
+        found = STORE_VERSION_LINE.match(line)
+        if found:
+            return found.group(1)
+    for words in ios_cells(hierarchy_xml):
+        if len(words) > 1 and plain(words[0]) == "version" and VERSION_TEXT.match(words[1]):
+            return words[1]
+    return ""
+
+
+def ios_check_updates(serial, walk):
+    """Each tracked app's App Store page on an iPhone: is Update showing?
+    Nothing is pressed. The versions come from the driver when it offers
+    them, else off each page; a page offering Get is an app not on the phone."""
+    device = walk.screen()
+    versions = iphone_app_versions(serial)
+    apps = {}
+    for app in sorted(APP_BUNDLES):
+        if versions is not None and app not in versions:
+            continue
+        walk.check()
+        open_ios_store_page(device, app)
+        walk.shot("%s in the App Store" % APP_NAMES[app])
+        hierarchy = device.dump_hierarchy()
+        update = bool(device(**IOS_UPDATE_BUTTON).exists)
+        if versions is None and not update and not device(**IOS_OPEN_BUTTON).exists:
+            continue
+        version = versions.get(app, "") if versions is not None else store_version_from_screen(hierarchy)
+        apps[app] = {"version": version, "update": update}
+    walk.home()
+    return {"apps": apps}
+
+
+def ios_update_app(serial, walk, app):
+    """Presses Update on one app's App Store page and waits for the new
+    version. With the driver's app_versions the version itself is watched;
+    without it the page is the only word, and the update is done when Update
+    has gone and Open is back, the version being the page's own line."""
+    device = walk.screen()
+    name = APP_NAMES[app]
+    walk.check()
+    open_ios_store_page(device, app)
+    walk.shot("Opened %s in the App Store" % name)
+    versions = iphone_app_versions(serial)
+    before = versions.get(app, "") if versions is not None else ""
+    if versions is not None and not before:
+        raise StepFailed("Find %s on the phone" % name, "%s is not on this phone." % name)
+    target = store_version_from_screen(device.dump_hierarchy())
+    walk.tap("Press Update", **IOS_UPDATE_BUTTON)
+    deadline = time.time() + UPDATE_WAIT_SECONDS
+    while time.time() < deadline:
+        time.sleep(10)
+        walk.check()
+        if versions is not None:
+            after = (iphone_app_versions(serial) or {}).get(app, "")
+            done = bool(after) and after != before
+        else:
+            after = target
+            done = not device(**IOS_UPDATE_BUTTON).exists and bool(device(**IOS_OPEN_BUTTON).exists)
+        if done:
+            walk.shot("Updated to %s" % (after or "the new version"))
+            walk.home()
+            return {"app": app, "from": before, "to": after}
+    walk.shot("Still updating")
+    raise RuntimeError("%s did not finish updating within eight minutes. It may still finish by itself." % name)
+
 
 def action_check_updates(serial, args, walk):
     """The Play Store page of each tracked app on the phone: is Update showing?
-    Nothing is pressed."""
+    Nothing is pressed. On an iPhone it is each app's App Store page."""
+    if is_iphone(serial):
+        return ios_check_updates(serial, walk)
     versions = parse_app_versions(shell(serial, APPS_COMMAND, timeout=30))
     apps = {}
     for app in sorted(versions):
@@ -880,6 +1244,8 @@ def action_update_app(serial, args, walk):
     app = str(args.get("app", ""))
     if app not in APP_PACKAGES:
         raise RuntimeError("%s is not an app the rack updates." % app)
+    if is_iphone(serial):
+        return ios_update_app(serial, walk, app)
     package, name = APP_PACKAGES[app], APP_NAMES[app]
     before = app_version(serial, package)
     if not before:
@@ -1071,7 +1437,10 @@ def read_outside_on_phone(serial, walk):
     try:
         device = walk.screen()
         walk.check()
-        shell(serial, "am start -a android.intent.action.VIEW -d '%s'" % IPINFO_URL)
+        if is_iphone(serial):
+            device.open_url(IPINFO_URL)
+        else:
+            shell(serial, "am start -a android.intent.action.VIEW -d '%s'" % IPINFO_URL)
         for _ in range(6):
             time.sleep(2.5)
             walk.check()
@@ -1123,8 +1492,220 @@ def read_auto_update(serial, walk):
         walk.home()
 
 
+# The same check on an iPhone (phone farm part 53), read off iOS's own
+# Settings, each row by its label. iOS writes "Wi-Fi" with a non-breaking
+# hyphen, so the row is matched with any one character there.
+IOS_WIFI_ROW = [{"textMatches": "(?i)^wi.fi$", "packageName": IOS_SETTINGS}]
+IOS_PRIVACY_ROW = [{"textMatches": "(?i)^privacy( & security)?$", "packageName": IOS_SETTINGS}]
+IOS_LOCATION_ROW = [{"textMatches": "(?i)^location services$", "packageName": IOS_SETTINGS}]
+IOS_GENERAL_ROW = [{"textMatches": "(?i)^general$", "packageName": IOS_SETTINGS}]
+IOS_LANGUAGE_ROW = [{"textMatches": "(?i)^language & region$", "packageName": IOS_SETTINGS}]
+IOS_ABOUT_ROW = [{"textMatches": "(?i)^about$", "packageName": IOS_SETTINGS}]
+IOS_APP_STORE_ROW = [{"textMatches": "(?i)^app store$", "packageName": IOS_SETTINGS}]
+IOS_WIFI_SWITCH = "wi-fi"
+IOS_LOCATION_SWITCH = "location services"
+IOS_APP_UPDATES_SWITCH = "app updates"
+
+# Language & Region names the language and the region in words. The locale
+# fact is en-CA, as Android gives it, so the words are turned into codes
+# through these two tables; a word in neither leaves the locale blank
+# rather than guessed.
+IOS_LANGUAGE_CODES = {
+    "english": "en", "french": "fr", "spanish": "es", "german": "de", "portuguese": "pt",
+    "italian": "it", "dutch": "nl", "chinese": "zh", "japanese": "ja", "korean": "ko",
+    "arabic": "ar", "hindi": "hi", "russian": "ru", "swedish": "sv", "polish": "pl",
+    "turkish": "tr", "vietnamese": "vi", "thai": "th", "indonesian": "id", "tagalog": "tl",
+}
+IOS_REGION_CODES = {
+    "united states": "US", "us": "US", "u.s.": "US", "canada": "CA", "united kingdom": "GB", "uk": "GB",
+    "u.k.": "GB", "australia": "AU", "new zealand": "NZ", "ireland": "IE", "germany": "DE", "france": "FR",
+    "spain": "ES", "mexico": "MX", "brazil": "BR", "portugal": "PT", "italy": "IT", "netherlands": "NL",
+    "india": "IN", "japan": "JP", "south korea": "KR", "philippines": "PH", "singapore": "SG",
+    "south africa": "ZA", "sweden": "SE", "poland": "PL", "turkey": "TR", "vietnam": "VN", "thailand": "TH",
+    "indonesia": "ID", "argentina": "AR", "colombia": "CO", "chile": "CL", "belgium": "BE", "switzerland": "CH",
+    "austria": "AT", "norway": "NO", "denmark": "DK", "finland": "FI",
+}
+
+
+def open_ios_settings(serial):
+    """Settings on its first screen. iOS reopens an app where it was left, so
+    Settings is closed first."""
+    reopen_app(serial, IOS_SETTINGS)
+    time.sleep(2)
+
+
+def ios_switch_on(hierarchy_xml, label):
+    """Whether the switch labelled `label` is on: True, False, or None when no
+    such switch is on screen. The switch carries the label itself, or sits in
+    a cell with a line that does."""
+    wanted = plain(label)
+    root = ElementTree.fromstring(hierarchy_xml)
+    for node in root.iter("node"):
+        if ios_kind(node).endswith("Switch") and plain(node.get("label") or node.get("name") or "") == wanted:
+            return node.get("checked") == "true"
+    for cell in root.iter("node"):
+        if not ios_kind(cell).endswith("Cell"):
+            continue
+        children = [child for child in cell.iter("node") if child is not cell]
+        if not any(plain(node_words(child)) == wanted for child in children):
+            continue
+        switch = next((child for child in children if ios_kind(child).endswith("Switch")), None)
+        if switch is not None:
+            return switch.get("checked") == "true"
+    return None
+
+
+def ios_cell_value(hierarchy_xml, label):
+    """The value beside `label` in an iPhone list, "Canada" beside "Region",
+    or None when no row on screen starts with the label."""
+    wanted = plain(label)
+    for words in ios_cells(hierarchy_xml):
+        if plain(words[0]) == wanted:
+            return " ".join(words[1:])
+    return None
+
+
+def ios_location_allowed(hierarchy_xml, app_name):
+    """Whether Location Services lists the app as allowed: Never and Ask Next
+    Time are not; While Using and Always are; a row not on screen is None."""
+    value = ios_cell_value(hierarchy_xml, app_name)
+    if value is None:
+        return None
+    words = plain(value)
+    return not (words.startswith("never") or words.startswith("ask"))
+
+
+def ios_locale(language, region):
+    """en-CA from "English" and "Canada", or from "English (Canada)" alone,
+    through the two tables. Empty when either word is in neither table."""
+    language = language or ""
+    code = IOS_LANGUAGE_CODES.get(plain(language.split("(")[0]).strip(), "")
+    region_code = IOS_REGION_CODES.get(plain(region or "").strip(), "")
+    inner = re.search(r"\(([^)]+)\)", language)
+    if not region_code and inner:
+        region_code = IOS_REGION_CODES.get(plain(inner.group(1)).strip(), "")
+    return "%s-%s" % (code, region_code) if code and region_code else ""
+
+
+def carrier_name(value):
+    """"Rogers" from the About screen's "Rogers 59.0.1", which adds the carrier settings' version."""
+    return re.sub(r"\s+\d+(?:\.\d+)*$", "", (value or "").strip())
+
+
+def ios_setup_check(serial, args, walk):
+    """The setup check on an iPhone, the same facts as Android's, read off
+    Settings, the driver and Safari. Each part runs in its own try: one that
+    cannot be read leaves its fact blank, never guessed, and the rest go on."""
+    device = walk.screen()
+    wake_screen(device)
+    timezone = _PROPS.get(serial, {}).get("timezone", "")  # Lockdown's TimeZone, cached by the list.
+    facts = {
+        "wifiOn": None,
+        "locationApps": {},
+        "timezone": timezone,
+        "timezoneCountry": zone_country(timezone),
+        "locale": "",
+        "sim": {"country": "", "carrier": ""},
+        "network": {"carrier": ""},
+        "autoUpdate": "",
+        "autoUpdateError": "",
+        "battery": {"percent": None, "charging": None},
+        "outside": blank_address(),
+        "home": blank_address(),
+    }
+
+    def part(name, read):
+        try:
+            walk.check()
+            read()
+        except Cancelled:
+            raise
+        except Exception as failure:  # This part stays blank; the next is still read.
+            log("Could not read %s on %s: %s" % (name, serial, short_words(failure)))
+            walk.shot("Could not read %s" % name)
+        finally:
+            walk.home()
+
+    def wifi():
+        open_ios_settings(serial)
+        walk.tap_first("Open Wi-Fi", selectors=IOS_WIFI_ROW)
+        time.sleep(1.5)
+        facts["wifiOn"] = ios_switch_on(device.dump_hierarchy(), IOS_WIFI_SWITCH)
+        walk.shot("Read Wi-Fi: %s" % {True: "on", False: "off"}.get(facts["wifiOn"], "no switch found"))
+
+    def location():
+        open_ios_settings(serial)
+        scroll_to_first(walk, "Find Privacy & Security", IOS_PRIVACY_ROW)
+        walk.tap_first("Open Privacy & Security", selectors=IOS_PRIVACY_ROW)
+        walk.tap_first("Open Location Services", selectors=IOS_LOCATION_ROW)
+        time.sleep(1.5)
+        hierarchy = device.dump_hierarchy()
+        if ios_switch_on(hierarchy, IOS_LOCATION_SWITCH) is False:
+            # Off for every app at once; the list below it is empty then.
+            versions = iphone_app_versions(serial)
+            for app in (sorted(versions) if versions else sorted(APP_NAMES)):
+                facts["locationApps"][app] = False
+            walk.shot("Read Location Services: off")
+            return
+        for app in sorted(APP_NAMES):
+            scroll_to_first(walk, "Find %s" % APP_NAMES[app], [{"text": APP_NAMES[app], "packageName": IOS_SETTINGS}], scrolls=3)
+            allowed = ios_location_allowed(device.dump_hierarchy(), APP_NAMES[app])
+            if allowed is not None:
+                facts["locationApps"][app] = allowed
+        walk.shot("Read Location Services")
+
+    def language():
+        open_ios_settings(serial)
+        walk.tap_first("Open General", selectors=IOS_GENERAL_ROW)
+        scroll_to_first(walk, "Find Language & Region", IOS_LANGUAGE_ROW)
+        walk.tap_first("Open Language & Region", selectors=IOS_LANGUAGE_ROW)
+        time.sleep(1.5)
+        hierarchy = device.dump_hierarchy()
+        spoken = ios_cell_value(hierarchy, "iPhone Language")
+        region = ios_cell_value(hierarchy, "Region")
+        facts["locale"] = ios_locale(spoken, region)
+        walk.shot("Read the language: %s, %s" % (spoken or "not shown", region or "no region"))
+
+    def carrier():
+        open_ios_settings(serial)
+        walk.tap_first("Open General", selectors=IOS_GENERAL_ROW)
+        walk.tap_first("Open About", selectors=IOS_ABOUT_ROW)
+        scroll_to_first(walk, "Find the carrier", [{"textMatches": "(?i)^carrier$", "packageName": IOS_SETTINGS}], scrolls=3)
+        hierarchy = device.dump_hierarchy()
+        facts["sim"]["carrier"] = carrier_name(ios_cell_value(hierarchy, "Carrier"))
+        facts["network"]["carrier"] = carrier_name(ios_cell_value(hierarchy, "Network"))
+        walk.shot("Read the carrier: %s" % (facts["sim"]["carrier"] or "not shown"))
+
+    def updates():
+        open_ios_settings(serial)
+        scroll_to_first(walk, "Find App Store", IOS_APP_STORE_ROW)
+        walk.tap_first("Open App Store", selectors=IOS_APP_STORE_ROW)
+        time.sleep(1.5)
+        state = ios_switch_on(device.dump_hierarchy(), IOS_APP_UPDATES_SWITCH)
+        # On, the App Store fetches updates on Wi-Fi and on cellular alike.
+        facts["autoUpdate"] = {True: "any", False: "off"}.get(state, "")
+        if state is None:
+            facts["autoUpdateError"] = "No App Updates switch was found on the App Store settings screen."
+        walk.shot("Read App Updates: %s" % (facts["autoUpdate"] or "no switch found"))
+
+    def battery():
+        facts["battery"]["percent"] = iphone_vitals(serial)["batteryPercent"]
+
+    part("Wi-Fi", wifi)
+    part("Location Services", location)
+    part("Language & Region", language)
+    part("the carrier", carrier)
+    part("App Updates", updates)
+    part("the battery", battery)
+    facts["outside"] = read_outside_on_phone(serial, walk)
+    facts["home"] = read_home_address()
+    return facts
+
+
 def action_setup_check(serial, args, walk):
     """Everything the setup check reads off one phone (part 23)."""
+    if is_iphone(serial):
+        return ios_setup_check(serial, args, walk)
     versions = parse_app_versions(quietly(serial, APPS_COMMAND, timeout=30))
     location = {}
     for app in sorted(versions):
@@ -1201,9 +1782,97 @@ def scroll_to_first(walk, step, selectors, scrolls=5):
         time.sleep(1)
 
 
+# An iPhone's wipe (phone farm part 54). Erased while still signed in to an
+# Apple ID, the phone locks to that Apple ID and is useless to the rack, so
+# the wipe runs only when Promo says the sign-out is done (a person did it in
+# the screen window and phone/icloud-state read the phone as signed out).
+IOS_WIPE_RESET_MENU = [{"textMatches": "(?i)^(transfer or reset iphone|reset)$", "packageName": IOS_SETTINGS}]
+IOS_WIPE_ENTRY = [{"textMatches": "(?i)^erase all content and settings$", "packageName": IOS_SETTINGS}]
+IOS_WIPE_CONTINUE = [{"textMatches": "(?i)^continue$", "packageName": IOS_SETTINGS}]
+IOS_WIPE_ERASE = [{"textMatches": "(?i)^(erase iphone|erase this iphone|erase now|erase)$", "packageName": IOS_SETTINGS}]
+IOS_PASSCODE_WORDS = ("enter passcode", "enter your passcode", "enter iphone passcode")
+IOS_SIGNED_OUT_WORDS = ("sign in to your iphone", "sign in to iphone")
+IOS_APPLE_ID_WORDS = ("apple id", "apple account", "icloud", "media & purchases")
+WIPE_NOT_SIGNED_OUT = (
+    "The iPhone was not wiped: Promo did not say its Apple ID is signed out. "
+    "Sign out of iCloud in the screen window, let Promo read the phone as signed out, then wipe it."
+)
+
+
+def ios_asks_passcode(hierarchy_xml):
+    """True when iOS is asking for the phone's passcode: its words, or a secure field."""
+    lines = [plain(line) for line in screen_lines(hierarchy_xml)]
+    if any(any(words in line for words in IOS_PASSCODE_WORDS) for line in lines):
+        return True
+    return any(ios_kind(node) == "XCUIElementTypeSecureTextField" for node in ElementTree.fromstring(hierarchy_xml).iter("node"))
+
+
+def icloud_from_screen(hierarchy_xml):
+    """What Settings' top row says: the person's name beside Apple ID, or
+    "Sign in to your iPhone". None when neither row is on screen."""
+    for words in ios_cells(hierarchy_xml):
+        joined = plain(" ".join(words))
+        if any(phrase in joined for phrase in IOS_SIGNED_OUT_WORDS):
+            return {"signedOut": True, "appleId": ""}
+        if any(phrase in joined for phrase in IOS_APPLE_ID_WORDS):
+            return {"signedOut": False, "appleId": words[0][:200]}
+    return None
+
+
+def action_icloud_state(serial, args, walk):
+    """Whether an Apple ID is signed in, read off Settings' top row. Nothing is pressed."""
+    if not is_iphone(serial):
+        raise RuntimeError("phone/icloud-state is only for an iPhone.")
+    device = walk.screen()
+    wake_screen(device)
+    walk.check()
+    open_ios_settings(serial)
+    walk.shot("Opened Settings")
+    state = icloud_from_screen(device.dump_hierarchy())
+    if state is None:
+        walk.shot("Looked for the Apple ID row")
+        walk.home()
+        raise StepFailed("Find the Apple ID row", "Settings opened, but its top row named neither an Apple ID nor Sign in to your iPhone.")
+    walk.shot("Read: %s" % ("signed out" if state["signedOut"] else "signed in as %s" % state["appleId"]))
+    walk.home()
+    return state
+
+
+def ios_wipe(serial, args, walk):
+    """Erase All Content and Settings through Settings, only once Promo says
+    the Apple ID is signed out. The erase itself goes through final_first;
+    a passcode prompt stops the walk with a picture."""
+    if args.get("icloudSignedOut") is not True:
+        raise RuntimeError(WIPE_NOT_SIGNED_OUT)
+    device = walk.screen()
+    wake_screen(device)
+    walk.check()
+    open_ios_settings(serial)
+    walk.shot("Opened Settings")
+    walk.tap_first("Open General", selectors=IOS_GENERAL_ROW)
+    scroll_to_first(walk, "Find Transfer or Reset iPhone", IOS_WIPE_RESET_MENU)
+    walk.tap_first("Open Transfer or Reset iPhone", selectors=IOS_WIPE_RESET_MENU)
+    walk.tap_first("Open Erase All Content and Settings", selectors=IOS_WIPE_ENTRY)
+    time.sleep(1.5)
+    walk.tap_first("Press Continue", selectors=IOS_WIPE_CONTINUE)
+    time.sleep(1.5)
+    if ios_asks_passcode(device.dump_hierarchy()):
+        walk.shot("The phone asks for its passcode")
+        raise StepFailed("Enter the passcode", "The phone asks for its passcode; wipe it by hand.")
+    pressed = walk.final_first("Press Erase iPhone", selectors=IOS_WIPE_ERASE)
+    if pressed:
+        # iOS asks once more on a sheet of its own.
+        time.sleep(1.5)
+        if any(device(**selector).exists for selector in IOS_WIPE_ERASE):
+            walk.final_first("Confirm the erase", selectors=IOS_WIPE_ERASE)
+    return {"wiped": bool(pressed)}
+
+
 def action_wipe(serial, args, walk):
     """Erases everything on the phone. Returns as soon as the erase is pressed;
     the phone restarts into its setup screens."""
+    if is_iphone(serial):
+        return ios_wipe(serial, args, walk)
     device = walk.screen()
     device.screen_on()
     walk.check()
@@ -1309,7 +1978,7 @@ def account_from_screen(hierarchy_xml, now=None):
     """Who the app's account menu says is signed in: handle, karma and the
     day it was made. A menu with no u/ line is signed out."""
     now = now if now is not None else time.time()
-    lines = screen_lines(hierarchy_xml, REDDIT)
+    lines = screen_lines(hierarchy_xml, app_packages("reddit"))
     handle = next((HANDLE_LINE.match(line).group(1) for line in lines if HANDLE_LINE.match(line)), None)
     if not handle:
         return {"handle": None, "karma": None, "createdSeconds": None}
@@ -1330,7 +1999,7 @@ def account_from_screen(hierarchy_xml, now=None):
 
 def profile_from_screen(hierarchy_xml, handle):
     """The account's own profile as the app shows it: loaded, found, suspended."""
-    names = [plain(line) for line in screen_lines(hierarchy_xml, REDDIT)]
+    names = [plain(line) for line in screen_lines(hierarchy_xml, app_packages("reddit"))]
     found = ("u/%s" % handle).lower() in names or handle.lower() in names
     suspended = any(any(words in name for words in PROFILE_SUSPENDED) for name in names)
     return {"status": 200 if (found or suspended) else 0, "found": found, "suspended": suspended}
@@ -1341,11 +2010,11 @@ def handle_count(hierarchy_xml, handle):
     if not handle:
         return 0
     wanted = (handle.lower(), "u/%s" % handle.lower())
-    return sum(1 for line in screen_lines(hierarchy_xml, REDDIT) if plain(line).split(" ")[0] in wanted)
+    return sum(1 for line in screen_lines(hierarchy_xml, app_packages("reddit")) if plain(line).split(" ")[0] in wanted)
 
 
 def comment_landed(hierarchy_xml, handle, before):
-    names = [plain(line) for line in screen_lines(hierarchy_xml, REDDIT)]
+    names = [plain(line) for line in screen_lines(hierarchy_xml, app_packages("reddit"))]
     if any(any(words in name for words in POSTED_WORDS) for name in names):
         return True
     return handle_count(hierarchy_xml, handle) > before
@@ -1363,7 +2032,7 @@ def feed_post_titles(hierarchy_xml, height):
     parents = {child: parent for parent in root.iter() for child in parent}
     titles = []
     for node in root.iter("node"):
-        if node.get("package") not in (None, "", REDDIT):
+        if not own_node(node, app_packages("reddit")):
             continue
         words = (node.get("text") or "").strip()
         bounds = parse_bounds(node.get("bounds"))
@@ -1389,16 +2058,14 @@ def short_words(failure):
 
 
 def open_reddit(serial):
-    shell(serial, "monkey -p %s -c android.intent.category.LAUNCHER 1" % REDDIT)
-    time.sleep(4)
+    open_app(serial, "reddit")
 
 
 POST_LINK = re.compile(r"^/r/[A-Za-z0-9_]+/comments/[A-Za-z0-9]+(/[A-Za-z0-9_%\-]*)*/?$")
 
 
 def open_post_link(serial, permalink):
-    shell(serial, "am start -a android.intent.action.VIEW -d 'https://www.reddit.com%s' -p %s" % (permalink.replace("'", ""), REDDIT))
-    time.sleep(4)
+    open_link(serial, "reddit", "https://www.reddit.com%s" % permalink)
 
 
 def open_feed_post(serial, walk):
@@ -1462,7 +2129,7 @@ def read_account(serial, walk):
     """Opens the app's account menu and reads it. Leaves the menu open."""
     open_reddit(serial)
     walk.shot("Opened Reddit")
-    walk.tap_first("Open the account menu", selectors=REDDIT_AVATAR)
+    walk.tap_first("Open the account menu", selectors=app_screens(serial, "reddit")["avatar"])
     time.sleep(1)
     reading = account_from_screen(walk.screen().dump_hierarchy())
     walk.shot("Read the account menu")
@@ -1508,7 +2175,7 @@ def action_reddit_health(serial, args, walk):
     if reading["handle"]:
         signed_in = {"status": 0, "found": False, "suspended": False}
         try:
-            walk.tap_first("Open your profile", selectors=REDDIT_PROFILE_ENTRY)
+            walk.tap_first("Open your profile", selectors=app_screens(serial, "reddit")["profile_entry"])
             time.sleep(2)
             signed_in = profile_from_screen(walk.screen().dump_hierarchy(), reading["handle"])
             walk.shot("Read your profile")
@@ -1527,7 +2194,7 @@ def leave_composer(serial, walk):
     go_back(serial)
     time.sleep(1)
     device = walk.screen()
-    for selector in REDDIT_DISCARD:
+    for selector in app_screens(serial, "reddit")["discard"]:
         button = device(**selector)
         if button.exists:
             walk.press(button)
@@ -1593,18 +2260,18 @@ def action_reddit_comment(serial, args, walk):
 
     thread = device.dump_hierarchy()
     if not walk.rehearse:
-        read_post(serial, walk, len(" ".join(screen_lines(thread, REDDIT))), visit)
+        read_post(serial, walk, len(" ".join(screen_lines(thread, app_packages("reddit")))), visit)
         thread = device.dump_hierarchy()
     before = handle_count(thread, handle)
 
-    walk.tap_first("Open the comment box", selectors=REDDIT_COMMENT_BOX)
+    walk.tap_first("Open the comment box", selectors=app_screens(serial, "reddit")["comment_box"])
     if not walk.rehearse:
         gaps = type_like_a_person(serial, device, text, walk.check)
         walk.shot("Typed the comment")
         log("comment typed: %d characters, gaps %.2f to %.2f seconds" % (len(text), min(gaps or [0]), max(gaps or [0])))
         time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
 
-    pressed = walk.final_first("Press Post", selectors=REDDIT_POST_BUTTON)
+    pressed = walk.final_first("Press Post", selectors=app_screens(serial, "reddit")["post_button"])
     if not pressed:
         leave_composer(serial, walk)
         walk.home()
@@ -1673,6 +2340,19 @@ def field_in(package):
     return [{"className": "android.widget.EditText", "packageName": package}]
 
 
+IOS_REDDIT, IOS_INSTAGRAM, IOS_TIKTOK = APP_BUNDLES["reddit"], APP_BUNDLES["instagram"], APP_BUNDLES["tiktok"]
+
+
+def ios_field_in(bundle):
+    """A text box on an iPhone: a text field, a text view or a search field in the app's own tree."""
+    return [{"classNameMatches": "XCUIElementType(TextField|TextView|SearchField)", "packageName": bundle}]
+
+
+def ios_first_cell(bundle):
+    """The first cell of a picker, which is the newest item in the library."""
+    return [{"className": "XCUIElementTypeCell", "packageName": bundle}]
+
+
 APP_SCREENS = {
     "instagram": {
         "package": INSTAGRAM,
@@ -1710,6 +2390,7 @@ APP_SCREENS = {
         "reply": shapes(INSTAGRAM, "(?i)^reply$"),
         "comment_box": field_in(INSTAGRAM),
         "comment_send": shapes(INSTAGRAM, "(?i)^(post|send)$"),
+        "field": field_in(INSTAGRAM),
         "handle_id": "(?i).*(action_bar_title|action_bar_large_title|profile_header_username|username).*",
         "figures": {"posts": "posts", "followers": "followers", "following": "following"},
         "hidden": (
@@ -1762,6 +2443,7 @@ APP_SCREENS = {
         "reply": shapes(TIKTOK, "(?i)^reply$"),
         "comment_box": field_in(TIKTOK),
         "comment_send": shapes(TIKTOK, "(?i)^(post|send)$"),
+        "field": field_in(TIKTOK),
         "handle_id": "",
         "figures": {"posts": "", "followers": "followers", "following": "following"},
         "hidden": (
@@ -1775,6 +2457,110 @@ APP_SCREENS = {
         "link_shape": re.compile(r"^https://((www|vm|vt)\.)?tiktok\.com/\S+$"),
     },
 }
+
+# The same two apps on an iPhone (phone farm part 51), keyed by bundle id.
+# A button is found by its accessibility label (text or description here)
+# or its accessibility id (resourceId). The words the apps say, and the link
+# shapes, are the Android entries' own, since they are the same apps. The
+# post flow differs: no share screen is handed a file, so the app's own
+# create button and library picker are walked, "create", "upload" and
+# "picker_first". Written from how the apps are known to look (18 Oct 2026);
+# the first self-test on a real iPhone is the proof.
+APP_SCREENS[IOS_INSTAGRAM] = {
+    "package": IOS_INSTAGRAM,
+    "profile_tab": shapes(IOS_INSTAGRAM, "(?i)^(profile|your profile)$") + [{"resourceIdMatches": "(?i).*profile.?tab.*", "packageName": IOS_INSTAGRAM}],
+    "settings": shapes(IOS_INSTAGRAM, "(?i)^(options|menu|settings and activity|settings)$") + [{"resourceIdMatches": "(?i).*(settings|options).?button.*", "packageName": IOS_INSTAGRAM}],
+    "account_status": shapes(IOS_INSTAGRAM, "(?i)^account status$"),
+    "status_detail": shapes(IOS_INSTAGRAM, "(?i)^what can.?t be recommended$"),
+    "edit_profile": shapes(IOS_INSTAGRAM, "(?i)^edit profile$"),
+    "rows": {
+        "displayName": shapes(IOS_INSTAGRAM, "(?i)^name$"),
+        "bio": shapes(IOS_INSTAGRAM, "(?i)^bio$"),
+        "link": shapes(IOS_INSTAGRAM, "(?i)^(links|add link|add links|website)$"),
+    },
+    "link_add": shapes(IOS_INSTAGRAM, "(?i)^add external link$"),
+    "picture_row": shapes(IOS_INSTAGRAM, "(?i)^(edit picture or avatar|change profile photo|edit picture)$"),
+    "picture_library": shapes(IOS_INSTAGRAM, "(?i)^(choose from library|new profile picture|choose from gallery)$"),
+    "gallery_first": ios_first_cell(IOS_INSTAGRAM),
+    "create": shapes(IOS_INSTAGRAM, "(?i)^(create|new post|new|add|camera)$") + [{"resourceIdMatches": "(?i).*(create|camera).?tab.*", "packageName": IOS_INSTAGRAM}],
+    "upload": [],
+    "picker_first": ios_first_cell(IOS_INSTAGRAM),
+    "save": shapes(IOS_INSTAGRAM, "(?i)^(done|save)$"),
+    "next": shapes(IOS_INSTAGRAM, "(?i)^next$"),
+    "share_to": shapes(IOS_INSTAGRAM, "(?i)^(feed|reel|reels)$"),
+    "caption": shapes(IOS_INSTAGRAM, "(?i)^(write a caption|add a caption)( ?(…|\\.\\.\\.))?$") + ios_field_in(IOS_INSTAGRAM),
+    "keyboard_done": [{"textMatches": "(?i)^(ok|done)$", "packageName": IOS_INSTAGRAM}],
+    "share": shapes(IOS_INSTAGRAM, "(?i)^share$"),
+    "posted": APP_SCREENS["instagram"]["posted"],
+    "post_failed": APP_SCREENS["instagram"]["post_failed"],
+    "grid_first": ios_first_cell(IOS_INSTAGRAM) + [{"classNameMatches": "XCUIElementType(Image|Button)", "packageName": IOS_INSTAGRAM, "descriptionMatches": "(?i)^(photo|video|reel)( by .*)?$"}],
+    "more": shapes(IOS_INSTAGRAM, "(?i)^(more|more options|options)$"),
+    "copy_link": shapes(IOS_INSTAGRAM, "(?i)^(copy link|link)$"),
+    "inbox": shapes(IOS_INSTAGRAM, "(?i)^(direct|messenger|messages|message|direct messages)$") + [{"resourceIdMatches": "(?i).*(direct|inbox).?(tab|button).*", "packageName": IOS_INSTAGRAM}],
+    "activity": shapes(IOS_INSTAGRAM, "(?i)^(notifications|activity)$"),
+    "message_box": shapes(IOS_INSTAGRAM, "(?i)^message( ?(…|\\.\\.\\.))?$") + ios_field_in(IOS_INSTAGRAM),
+    "send": shapes(IOS_INSTAGRAM, "(?i)^send$"),
+    "reply": shapes(IOS_INSTAGRAM, "(?i)^reply$"),
+    "comment_box": ios_field_in(IOS_INSTAGRAM),
+    "comment_send": shapes(IOS_INSTAGRAM, "(?i)^(post|send)$"),
+    "field": ios_field_in(IOS_INSTAGRAM),
+    # The username is the profile's own title bar on iOS; there is no id to match.
+    "handle_in_title": True,
+    "figures": APP_SCREENS["instagram"]["figures"],
+    "hidden": APP_SCREENS["instagram"]["hidden"],
+    "clear": APP_SCREENS["instagram"]["clear"],
+    "link_shape": APP_SCREENS["instagram"]["link_shape"],
+}
+APP_SCREENS[IOS_TIKTOK] = {
+    "package": IOS_TIKTOK,
+    "profile_tab": shapes(IOS_TIKTOK, "(?i)^(profile|me)$"),
+    "settings": shapes(IOS_TIKTOK, "(?i)^(menu|settings and privacy|profile menu)$"),
+    "account_status": shapes(IOS_TIKTOK, "(?i)^account status$"),
+    "status_detail": shapes(IOS_TIKTOK, "(?i)^(for you feed eligibility|recommendation eligibility)$"),
+    "edit_profile": shapes(IOS_TIKTOK, "(?i)^edit profile$"),
+    "rows": {
+        "displayName": shapes(IOS_TIKTOK, "(?i)^name$"),
+        "bio": shapes(IOS_TIKTOK, "(?i)^bio$"),
+        "link": shapes(IOS_TIKTOK, "(?i)^(links|website|add link)$"),
+    },
+    "link_add": shapes(IOS_TIKTOK, "(?i)^(add link|website)$"),
+    "picture_row": shapes(IOS_TIKTOK, "(?i)^(change photo|edit photo|photo)$"),
+    "picture_library": shapes(IOS_TIKTOK, "(?i)^(select from gallery|upload photo|choose from gallery|choose from library)$"),
+    "gallery_first": ios_first_cell(IOS_TIKTOK),
+    "create": shapes(IOS_TIKTOK, "(?i)^(create|record|new|add)$") + [{"resourceIdMatches": "(?i).*(create|record|camera).?(tab|button).*", "packageName": IOS_TIKTOK}],
+    "upload": shapes(IOS_TIKTOK, "(?i)^(upload|album|gallery)$"),
+    "picker_first": ios_first_cell(IOS_TIKTOK),
+    "save": shapes(IOS_TIKTOK, "(?i)^(save|confirm|done)$"),
+    "next": shapes(IOS_TIKTOK, "(?i)^next$"),
+    "share_to": [],
+    "caption": shapes(IOS_TIKTOK, "(?i)^(add description|describe your post|add a description).*$") + ios_field_in(IOS_TIKTOK),
+    "keyboard_done": [{"textMatches": "(?i)^(ok|done)$", "packageName": IOS_TIKTOK}],
+    "share": shapes(IOS_TIKTOK, "(?i)^post$"),
+    "posted": APP_SCREENS["tiktok"]["posted"],
+    "post_failed": APP_SCREENS["tiktok"]["post_failed"],
+    "grid_first": ios_first_cell(IOS_TIKTOK),
+    "more": shapes(IOS_TIKTOK, "(?i)^(share|more)$"),
+    "copy_link": shapes(IOS_TIKTOK, "(?i)^copy link$"),
+    "inbox": shapes(IOS_TIKTOK, "(?i)^(inbox)$"),
+    "activity": shapes(IOS_TIKTOK, "(?i)^(activities|activity|comments)$"),
+    "message_box": shapes(IOS_TIKTOK, "(?i)^send a message( ?(…|\\.\\.\\.))?$") + ios_field_in(IOS_TIKTOK),
+    "send": shapes(IOS_TIKTOK, "(?i)^send$"),
+    "reply": shapes(IOS_TIKTOK, "(?i)^reply$"),
+    "comment_box": ios_field_in(IOS_TIKTOK),
+    "comment_send": shapes(IOS_TIKTOK, "(?i)^(post|send)$"),
+    "field": ios_field_in(IOS_TIKTOK),
+    "handle_in_title": False,
+    "figures": APP_SCREENS["tiktok"]["figures"],
+    "hidden": APP_SCREENS["tiktok"]["hidden"],
+    "clear": APP_SCREENS["tiktok"]["clear"],
+    "link_shape": APP_SCREENS["tiktok"]["link_shape"],
+}
+
+
+def app_screens(serial, app):
+    """The app's buttons on this phone: the iPhone app's, keyed by its bundle
+    id, on an iPhone; the Android app's, keyed by its name, otherwise."""
+    return APP_SCREENS[package_for(serial, app)] if is_iphone(serial) else APP_SCREENS[app]
 
 # Words a signed-out app's first screen shows.
 LOG_IN_WORDS = ("log in", "log into another account", "sign up", "create new account", "use phone or email")
@@ -1792,13 +2578,16 @@ MEDIA_DOWNLOAD_SECONDS = 120
 
 
 def open_app(serial, app):
-    shell(serial, "monkey -p %s -c android.intent.category.LAUNCHER 1" % APP_PACKAGES[app])
+    if is_iphone(serial):
+        iphone_screen(serial).app_start(APP_BUNDLES[app])
+    else:
+        shell(serial, "monkey -p %s -c android.intent.category.LAUNCHER 1" % APP_PACKAGES[app])
     time.sleep(4)
 
 
 def signed_out(hierarchy_xml, app):
     """True on a sign-in screen: a short screen offering Log in."""
-    lines = [plain(line) for line in screen_lines(hierarchy_xml, APP_PACKAGES[app])]
+    lines = [plain(line) for line in screen_lines(hierarchy_xml, app_packages(app))]
     return len(lines) < 40 and any(line in LOG_IN_WORDS for line in lines)
 
 
@@ -1808,12 +2597,16 @@ def parse_count(text):
 
 
 def profile_handle(hierarchy_xml, app):
-    """The account's name on its own profile: the title bar on Instagram, the @name line on TikTok."""
+    """The account's name on its own profile: the title bar on Instagram, the
+    @name line on TikTok. Android's title bar is found by its view id
+    (handle_id); an iPhone's is the navigation bar, named after the account
+    (handle_in_title), and has no id to match."""
     root = ElementTree.fromstring(hierarchy_xml)
-    package = APP_PACKAGES[app]
+    packages = app_packages(app)
     pattern = APP_SCREENS[app]["handle_id"]
+    in_title = APP_SCREENS[APP_BUNDLES[app]].get("handle_in_title", False)
     for node in root.iter("node"):
-        if node.get("package") not in (None, "", package):
+        if not own_node(node, packages):
             continue
         words = node_words(node).strip().rstrip("⌄▾").strip()
         found = AT_HANDLE.match(words)
@@ -1821,14 +2614,20 @@ def profile_handle(hierarchy_xml, app):
             return found.group(1)
         if pattern and re.match(pattern, node.get("resource-id") or "") and PLAIN_HANDLE.match(words):
             return words
+        if in_title and ios_kind(node) == "XCUIElementTypeNavigationBar" and PLAIN_HANDLE.match(words) and plain(words) not in NOT_A_HANDLE:
+            return words
     return None
+
+
+# Titles a navigation bar shows that are no account's name.
+NOT_A_HANDLE = ("profile", "settings", "instagram", "home", "search", "reels", "explore", "edit", "back")
 
 
 def app_profile_from_screen(hierarchy_xml, app):
     """The handle and the figures on the account's own profile. None where one is not shown."""
     handle = profile_handle(hierarchy_xml, app)
     figures = {}
-    lines = screen_lines(hierarchy_xml, APP_PACKAGES[app])
+    lines = screen_lines(hierarchy_xml, app_packages(app))
     for key, label in APP_SCREENS[app]["figures"].items():
         if not label:
             figures[key] = None
@@ -1851,7 +2650,7 @@ def read_app_profile(serial, walk, app):
     device = walk.screen()
     if signed_out(device.dump_hierarchy(), app):
         return {"handle": None, "followers": None, "following": None, "posts": None}
-    walk.tap_first("Open the profile", selectors=APP_SCREENS[app]["profile_tab"])
+    walk.tap_first("Open the profile", selectors=app_screens(serial, app)["profile_tab"])
     time.sleep(2)
     reading = app_profile_from_screen(device.dump_hierarchy(), app)
     walk.shot("Read the profile")
@@ -1884,7 +2683,7 @@ def shadowban_from_screen(hierarchy_xml, app):
     screens = APP_SCREENS[app]
     labels = [selector["textMatches"] for selector in screens["status_detail"] if "textMatches" in selector]
     # The menu's own label ("What can't be recommended") is not an answer.
-    lines = [line for line in screen_lines(hierarchy_xml, APP_PACKAGES[app]) if not any(re.match(label, line) for label in labels)]
+    lines = [line for line in screen_lines(hierarchy_xml, app_packages(app)) if not any(re.match(label, line) for label in labels)]
     words = [plain(line) for line in lines]
     for line in words:
         if any(phrase in line for phrase in screens["hidden"]):
@@ -1899,7 +2698,7 @@ def read_account_status(serial, walk, app):
     """Settings, then Account status, then the part about recommendations,
     read without pressing anything else. A step that is not found leaves it
     unread rather than failing the reading."""
-    screens = APP_SCREENS[app]
+    screens = app_screens(serial, app)
     try:
         walk.tap_first("Open the menu", selectors=screens["settings"])
         time.sleep(1.5)
@@ -1924,7 +2723,7 @@ def read_account_status(serial, walk, app):
 
 def post_numbers_from_screen(hierarchy_xml, app):
     """Views, likes and comments as one post's own screen shows them, each None when not shown."""
-    lines = screen_lines(hierarchy_xml, APP_PACKAGES[app])
+    lines = screen_lines(hierarchy_xml, app_packages(app))
     found = {"views": None, "likes": None, "comments": None}
     words = {"views": ("views", "plays", "view", "play"), "likes": ("likes", "like"), "comments": ("comments", "comment")}
     for line in lines:
@@ -1946,13 +2745,18 @@ def post_numbers_from_screen(hierarchy_xml, app):
 
 
 def open_link(serial, app, url):
-    shell(serial, "am start -a android.intent.action.VIEW -d '%s' -p %s" % (url.replace("'", ""), APP_PACKAGES[app]))
+    """Opens an address in the app that owns it: handed to the app on Android,
+    through the iPhone's own link handling (the app, or Safari) on an iPhone."""
+    if is_iphone(serial):
+        iphone_screen(serial).open_url(url)
+    else:
+        shell(serial, "am start -a android.intent.action.VIEW -d '%s' -p %s" % (url.replace("'", ""), APP_PACKAGES[app]))
     time.sleep(4)
 
 
 def unread_in_inbox(hierarchy_xml, app):
     """True when the inbox button says something is unread: "Messenger, 2 unread", "Inbox, 3"."""
-    for line in screen_lines(hierarchy_xml, APP_PACKAGES[app]):
+    for line in screen_lines(hierarchy_xml, app_packages(app)):
         text = plain(line)
         if re.match(r"^(direct|messenger|messages|inbox)\W+\d+", text) or re.search(r"\b\d+ (unread|new)\b", text):
             return True
@@ -1973,7 +2777,7 @@ def action_app_health(app):
         result["shadowban"] = read_account_status(serial, walk, app)
         go_back(serial)
         go_back(serial)
-        urls = [str(url) for url in (args.get("postUrls") or []) if APP_SCREENS[app]["link_shape"].match(str(url))]
+        urls = [str(url) for url in (args.get("postUrls") or []) if app_screens(serial, app)["link_shape"].match(str(url))]
         for url in urls[:12]:
             walk.check()
             try:
@@ -2084,8 +2888,12 @@ def share_into(serial, app, uri, extension):
     time.sleep(5)
 
 
-def leave_app_screen(serial, walk, times=4):
-    """Backs out of a screen without sending anything, discarding a draft if asked."""
+def leave_app_screen(serial, walk, app, times=4):
+    """Backs out of a screen without sending anything, discarding a draft if
+    asked. On an iPhone the app is closed as well, since its create screens
+    do not all answer the swipe back, and a closed app holds no draft. It is
+    the app given that is closed, never whatever is in front, which could be
+    the home screen or Safari."""
     for _ in range(times):
         go_back(serial)
         time.sleep(1)
@@ -2097,10 +2905,15 @@ def leave_app_screen(serial, walk, times=4):
                     break
             except Exception:  # A screen caught mid-change.
                 break
+    if is_iphone(serial):
+        try:
+            walk.screen().app_stop(package_for(serial, app))
+        except Exception:  # The app is gone already, or the phone is.
+            pass
 
 
 def screen_says(hierarchy_xml, app, phrases):
-    lines = [plain(line) for line in screen_lines(hierarchy_xml, APP_PACKAGES[app])]
+    lines = [plain(line) for line in screen_lines(hierarchy_xml, app_packages(app))]
     return next((line for line in lines if any(phrase in line for phrase in phrases)), None)
 
 
@@ -2119,7 +2932,7 @@ def tap_next_until(walk, step, selectors, until, most=3):
 def read_post_link(serial, walk, app):
     """The newest post's link: the profile, its first post, More, Copy link,
     and the clipboard read. "" when the app would not give it."""
-    screens = APP_SCREENS[app]
+    screens = app_screens(serial, app)
     try:
         open_app(serial, app)
         walk.tap_first("Open the profile", selectors=screens["profile_tab"])
@@ -2147,6 +2960,187 @@ def browse_app_feed(serial, walk, seconds):
         scroll_pause(until)
 
 
+# A post's file on an iPhone (phone farm part 55). A computer cannot drop a
+# file into an iPhone's Photos, so Promo makes a one-time link to the file,
+# good for ten minutes and one download, and the rack opens it in Safari on
+# the phone, holds a thumb on the picture or video and saves it to Photos.
+# The app's own picker then shows it first, as the newest item.
+SAFARI = "com.apple.mobilesafari"
+MEDIA_SHOW_SECONDS = 30
+LONG_PRESS_SECONDS = 1.0
+SAVE_TO_PHOTOS = [{"textMatches": "(?i)^(save to photos|add to photos|save image|save video)$"}]
+# Safari's own share button, by its accessibility id; the words only as a fallback.
+SAFARI_SHARE = [{"resourceIdMatches": "(?i)^(sharebutton|share)$"}, {"textMatches": "(?i)^share$"}]
+# The first save asks whether Safari may add to Photos.
+IOS_ALLOW = [{"textMatches": "(?i)^(allow|allow full access|allow access to all photos|add photos only|ok)$"}]
+
+
+def media_on_screen(hierarchy_xml, height):
+    """Where Safari shows the picture or video: the largest image or video
+    element below the address bar, else the web view itself, which the file
+    fills when it is the whole page. None when there is neither."""
+    largest, page = None, None
+    for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
+        kind = ios_kind(node)
+        bounds = parse_bounds(node.get("bounds"))
+        if not bounds or bounds[3] <= height * 0.1:
+            continue
+        area = max(0, bounds[2] - bounds[0]) * max(0, bounds[3] - bounds[1])
+        if kind.endswith("Image") or kind.endswith("Video") or plain(node.get("label") or "") in ("video", "image"):
+            if area and (largest is None or area > largest[0]):
+                largest = (area, bounds)
+        elif kind.endswith("WebView") and area and (page is None or area > page[0]):
+            page = (area, bounds)
+    found = largest or page
+    return found[1] if found else None
+
+
+def long_press(device, x, y):
+    """A thumb held on one spot for a second: the iPhone driver's swipe with
+    no distance, held for LONG_PRESS_SECONDS."""
+    device.swipe(x, y, x, y, duration=LONG_PRESS_SECONDS)
+
+
+def save_from_safari(serial, walk, url):
+    """Opens the one-time link in Safari, waits for the picture or video,
+    holds a thumb on it and saves it to Photos. A video has no long-press
+    menu, so Safari's share sheet saves that. Runs once: the link dies after
+    one download."""
+    if not url.startswith("https://"):
+        raise RuntimeError("post: the file's address is not an https address")
+    device = walk.screen()
+    walk.check()
+    device.open_url(url)
+    _, height = screen_size(device)
+    bounds = None
+    deadline = time.time() + MEDIA_SHOW_SECONDS
+    while time.time() < deadline:
+        time.sleep(2)
+        walk.check()
+        bounds = media_on_screen(device.dump_hierarchy(), height)
+        if bounds:
+            break
+    if not bounds:
+        walk.shot("Looked for the file in Safari")
+        raise StepFailed("Open the file in Safari", "Safari did not show the picture or video within %d seconds." % MEDIA_SHOW_SECONDS)
+    walk.shot("Opened the file in Safari")
+    x, y = tap_point(bounds)
+    walk.check()
+    long_press(device, x, y)
+    time.sleep(1.5)
+    try:
+        walk.tap_first("Save to Photos", timeout=5, selectors=SAVE_TO_PHOTOS)
+    except StepFailed:
+        walk.tap_first("Open Safari's share sheet", selectors=SAFARI_SHARE)
+        time.sleep(1.5)
+        walk.tap_first("Save to Photos", timeout=5, selectors=SAVE_TO_PHOTOS)
+    time.sleep(1.5)
+    try:
+        walk.tap_first("Allow Safari to add to Photos", timeout=3, selectors=IOS_ALLOW)
+    except StepFailed:
+        pass  # Allowed on an earlier save.
+    walk.shot("Saved to Photos")
+    walk.home()
+
+
+def wait_for_post(serial, walk, app, screens):
+    """After the last button was pressed: the post counts as up when the app
+    says so within three minutes, then its link is read and a little feed.
+    Nothing here may fail the post, which is up and never sent twice."""
+    device = walk.screen()
+    button = "Share" if app == "instagram" else "Post"
+    landed = None
+    waiting_until = time.time() + POST_LANDED_APP_SECONDS
+    while time.time() < waiting_until:
+        time.sleep(3)
+        try:
+            hierarchy = device.dump_hierarchy()
+        except Exception:  # A screen caught mid-change; look again.
+            continue
+        if screen_says(hierarchy, app, screens["post_failed"]):
+            walk.shot("The app said it failed")
+            raise RuntimeError("post: the app said it could not post: %s" % screen_says(hierarchy, app, screens["post_failed"]))
+        if screen_says(hierarchy, app, screens["posted"]):
+            landed = True
+            break
+    walk.shot("Looked for the post")
+    if not landed:
+        raise RuntimeError("post: pressed %s but the app did not say it was posted within %d seconds. It may still be uploading; check the app before posting again." % (
+            button, POST_LANDED_APP_SECONDS))
+    link = ""
+    try:
+        link = read_post_link(serial, walk, app)
+        browse_app_feed(serial, walk, random.uniform(*APP_FEED_AFTER_SECONDS))
+    except Exception as failure:  # Includes a cancel: the post is up either way.
+        log("After the post on %s: %s" % (serial, short_words(failure)))
+    walk.home()
+    return {"postUrl": link}
+
+
+def ios_app_post(serial, args, walk, app):
+    """A post from an iPhone: the file saved to Photos through Safari, then
+    the app's own create screen, its picker's newest item, Next until the
+    caption box, the caption typed, and Share or Post pressed once. A
+    rehearsal downloads nothing and saves nothing: it walks the create
+    screen with whatever the test phone's Photos holds, finds the last
+    button and backs out."""
+    screens = app_screens(serial, app)
+    caption = str(args.get("caption") or "")
+    device = walk.screen()
+    wake_screen(device)
+    if not walk.rehearse:
+        if args.get("mediaFromSafari") is not True:
+            raise RuntimeError("post: an iPhone takes its file through a one-time Safari link (mediaFromSafari), and Promo sent none")
+        save_from_safari(serial, walk, str(args.get("mediaUrl") or ""))
+    try:
+        open_app(serial, app)
+        walk.shot("Opened %s" % APP_NAMES[app])
+        if signed_out(device.dump_hierarchy(), app):
+            raise RuntimeError("post: the app is not signed in to %s" % APP_NAMES[app])
+        walk.tap_first("Open the create screen", selectors=screens["create"])
+        time.sleep(2)
+        if screens["upload"]:
+            try:
+                walk.tap_first("Open the library", timeout=4, selectors=screens["upload"])
+                time.sleep(2)
+            except StepFailed:
+                pass  # The library is already open on this version.
+        walk.tap_first("Pick the newest item", selectors=screens["picker_first"])
+        time.sleep(1.5)
+        if screens["share_to"]:
+            try:
+                walk.tap_first("Pick the feed", timeout=4, selectors=screens["share_to"])
+            except StepFailed:
+                pass  # Straight to the editor on this version.
+        tap_next_until(walk, "Press Next", screens["next"], screens["caption"])
+        walk.tap_first("Open the caption box", selectors=screens["caption"])
+        if not walk.rehearse and caption:
+            gaps = type_like_a_person(serial, device, caption, walk.check)
+            walk.shot("Typed the caption")
+            log("caption typed: %d characters, gaps %.2f to %.2f seconds" % (len(caption), min(gaps or [0]), max(gaps or [0])))
+            # The keyboard down, so the last button is on screen. iOS has no
+            # Back key for that; the app's own OK or Done above the keyboard does it.
+            try:
+                walk.tap_first("Close the keyboard", timeout=3, selectors=screens["keyboard_done"])
+            except StepFailed:
+                pass
+            time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
+        pressed = walk.final_first("Press %s" % ("Share" if app == "instagram" else "Post"), selectors=screens["share"])
+    except Cancelled:
+        raise
+    except Exception:
+        if not walk.rehearse:
+            leave_app_screen(serial, walk, app)
+        raise
+    finally:
+        if walk.rehearse:
+            leave_app_screen(serial, walk, app)
+    if not pressed:
+        walk.home()
+        return {"postUrl": ""}
+    return wait_for_post(serial, walk, app, screens)
+
+
 def action_app_post(app):
     def action(serial, args, walk):
         """Posts one photo or video with its caption, once.
@@ -2162,8 +3156,13 @@ def action_app_post(app):
         In a rehearsal a plain picture walks the same screens up to the last
         button, which is found and not pressed, then the draft is discarded
         and the picture deleted.
+
+        On an iPhone the file comes through Safari and the app's own picker
+        (ios_app_post); on Android nothing changes.
         """
-        screens = APP_SCREENS[app]
+        if is_iphone(serial):
+            return ios_app_post(serial, args, walk, app)
+        screens = app_screens(serial, app)
         caption = str(args.get("caption") or "")
         device = walk.screen()
         device.screen_on()
@@ -2198,45 +3197,17 @@ def action_app_post(app):
             # Stopped before the last button: the draft is discarded so the
             # phone is not left on it, and nothing was posted.
             if not walk.rehearse:
-                leave_app_screen(serial, walk)
+                leave_app_screen(serial, walk, app)
             raise
         finally:
             if walk.rehearse:
-                leave_app_screen(serial, walk)
+                leave_app_screen(serial, walk, app)
                 quietly(serial, "rm -f '%s'" % remote)
                 quietly(serial, "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d 'file://%s'" % remote)
         if not pressed:
             walk.home()
             return {"postUrl": ""}
-
-        landed = None
-        waiting_until = time.time() + POST_LANDED_APP_SECONDS
-        while time.time() < waiting_until:
-            time.sleep(3)
-            try:
-                hierarchy = device.dump_hierarchy()
-            except Exception:  # A screen caught mid-change; look again.
-                continue
-            if screen_says(hierarchy, app, screens["post_failed"]):
-                walk.shot("The app said it failed")
-                raise RuntimeError("post: the app said it could not post: %s" % screen_says(hierarchy, app, screens["post_failed"]))
-            if screen_says(hierarchy, app, screens["posted"]):
-                landed = True
-                break
-        walk.shot("Looked for the post")
-        if not landed:
-            raise RuntimeError("post: pressed %s but the app did not say it was posted within %d seconds. It may still be uploading; check the app before posting again." % (
-                "Share" if app == "instagram" else "Post", POST_LANDED_APP_SECONDS))
-
-        # After: nothing here may fail the post, which is up.
-        link = ""
-        try:
-            link = read_post_link(serial, walk, app)
-            browse_app_feed(serial, walk, random.uniform(*APP_FEED_AFTER_SECONDS))
-        except Exception as failure:  # Includes a cancel: the post is up either way.
-            log("After the post on %s: %s" % (serial, short_words(failure)))
-        walk.home()
-        return {"postUrl": link}
+        return wait_for_post(serial, walk, app, screens)
     return action
 
 
@@ -2259,7 +3230,7 @@ def action_app_profile(app):
         press. The bio is read back off the profile afterwards. A rehearsal
         opens Edit profile and the bio's screen, finds its box and its Save,
         and backs out without pressing it."""
-        screens = APP_SCREENS[app]
+        screens = app_screens(serial, app)
         device = walk.screen()
         device.screen_on()
         reading = read_app_profile(serial, walk, app)
@@ -2283,7 +3254,7 @@ def action_app_profile(app):
                     time.sleep(1)
                 except StepFailed:
                     pass
-            box = walk.find_first("Find the %s box" % key, selectors=field_in(screens["package"]))
+            box = walk.find_first("Find the %s box" % key, selectors=screens["field"])
             if not walk.rehearse:
                 clear_and_type(serial, walk, box, str(value))
                 walk.shot("Typed the %s" % key)
@@ -2291,13 +3262,22 @@ def action_app_profile(app):
                 applied.append(key)
                 time.sleep(2)
             else:
-                leave_app_screen(serial, walk, times=2)
+                leave_app_screen(serial, walk, app, times=2)
                 walk.home()
                 return {"applied": [], "bioAfter": None}
         picture = str(args.get("pictureUrl") or "")
         if picture and not walk.rehearse:
-            data, extension = download_media(picture)
-            put_in_gallery(serial, data, extension)
+            if is_iphone(serial):
+                # Into Photos through Safari, then back to Edit profile.
+                save_from_safari(serial, walk, picture)
+                open_app(serial, app)
+                walk.tap_first("Open the profile", selectors=screens["profile_tab"])
+                time.sleep(2)
+                walk.tap_first("Open Edit profile", selectors=screens["edit_profile"])
+                time.sleep(2)
+            else:
+                data, extension = download_media(picture)
+                put_in_gallery(serial, data, extension)
             walk.tap_first("Change the picture", selectors=screens["picture_row"])
             time.sleep(1.5)
             walk.tap_first("Choose from the gallery", selectors=screens["picture_library"])
@@ -2414,12 +3394,12 @@ def take_alerts(serial):
 def conversation_from_screen(hierarchy_xml, app, height=2400, width=1080):
     """One conversation as its screen shows it: its name from the top bar, and
     its lines, the account's own on the right."""
-    package = APP_PACKAGES[app]
+    packages = app_packages(app)
     root = ElementTree.fromstring(hierarchy_xml)
     thread = ""
     lines = []
     for node in root.iter("node"):
-        if node.get("package") not in (None, "", package):
+        if not own_node(node, packages):
             continue
         words = node_words(node)
         bounds = parse_bounds(node.get("bounds"))
@@ -2430,7 +3410,7 @@ def conversation_from_screen(hierarchy_xml, app, height=2400, width=1080):
             if not thread and 1 <= len(words) <= 60 and plain(words) not in ("back", "call", "video call", "info", "audio call"):
                 thread = words
             continue
-        if middle_y > height * 0.9 or NOT_A_LINE.match(words) or node.get("class") == "android.widget.EditText":
+        if middle_y > height * 0.9 or NOT_A_LINE.match(words) or is_text_box(node) or not_a_line(node, height):
             continue
         if node.get("text") is None or not (node.get("text") or "").strip():
             continue
@@ -2446,17 +3426,17 @@ def comments_from_screen(hierarchy_xml, app, handle, height=2400):
     """The comments on a post's comments screen, by author, leaving out the
     account's own. The first line by the account is the caption, which says
     which post it is."""
-    package = APP_PACKAGES[app]
+    packages = app_packages(app)
     lines = []
     root = ElementTree.fromstring(hierarchy_xml)
     for node in root.iter("node"):
-        if node.get("package") not in (None, "", package):
+        if not own_node(node, packages):
             continue
         bounds = parse_bounds(node.get("bounds"))
         words = (node.get("text") or "").strip()
         if not words or not bounds or not (height * 0.1 < (bounds[1] + bounds[3]) / 2 < height * 0.9):
             continue
-        if NOT_A_LINE.match(words) or plain(words) in ("reply", "see translation", "view replies", "hide replies"):
+        if NOT_A_LINE.match(words) or plain(words) in ("reply", "see translation", "view replies", "hide replies") or not_a_line(node, height):
             continue
         lines.append(" ".join(words.split()))
     thread = ""
@@ -2551,9 +3531,9 @@ def landed_on(device, selectors):
 def open_inbox(serial, walk, app):
     open_app(serial, app)
     if app == "reddit":
-        walk.tap_first("Open the chats", selectors=REDDIT_CHAT)
+        walk.tap_first("Open the chats", selectors=app_screens(serial, "reddit")["chat"])
     else:
-        walk.tap_first("Open the inbox", selectors=APP_SCREENS[app]["inbox"])
+        walk.tap_first("Open the inbox", selectors=app_screens(serial, app)["inbox"])
     time.sleep(2)
 
 
@@ -2561,12 +3541,41 @@ REDDIT_CHAT = shapes(REDDIT, "(?i)^(chat|chats|inbox|messages)$")
 REDDIT_MESSAGE_BOX = shapes(REDDIT, "(?i)^(message|send a message)( ?(…|\\.\\.\\.))?$") + field_in(REDDIT)
 REDDIT_SEND = shapes(REDDIT, "(?i)^send$")
 
+# Reddit's own buttons join APP_SCREENS so app_screens picks them by the
+# phone's kind too: the Android app's by name, the iPhone app's by bundle id.
+APP_SCREENS["reddit"] = {
+    "package": REDDIT,
+    "avatar": REDDIT_AVATAR,
+    "profile_entry": REDDIT_PROFILE_ENTRY,
+    "comment_box": REDDIT_COMMENT_BOX,
+    "post_button": REDDIT_POST_BUTTON,
+    "discard": REDDIT_DISCARD,
+    "chat": REDDIT_CHAT,
+    "message_box": REDDIT_MESSAGE_BOX,
+    "send": REDDIT_SEND,
+    "field": field_in(REDDIT),
+}
+APP_SCREENS[IOS_REDDIT] = {
+    "package": IOS_REDDIT,
+    "avatar": shapes(IOS_REDDIT, "(?i)^(open profile menu|profile menu|profile|account|user account|your profile|avatar|.*avatar.*)$")
+    + [{"resourceIdMatches": "(?i).*(avatar|profile.?menu|user.?icon).*", "packageName": IOS_REDDIT}],
+    "profile_entry": shapes(IOS_REDDIT, "(?i)^(profile|my profile|view profile)$"),
+    "comment_box": shapes(IOS_REDDIT, "(?i)^(add a comment|join the conversation|add a reply)( ?(…|\\.\\.\\.))?$"),
+    "post_button": shapes(IOS_REDDIT, "(?i)^(post|reply|comment)$"),
+    "discard": [{"textMatches": "(?i)^(discard|discard comment|leave)$"}],
+    "chat": shapes(IOS_REDDIT, "(?i)^(chat|chats|inbox|messages)$"),
+    "message_box": shapes(IOS_REDDIT, "(?i)^(message|send a message)( ?(…|\\.\\.\\.))?$") + ios_field_in(IOS_REDDIT),
+    "send": shapes(IOS_REDDIT, "(?i)^send$"),
+    "field": ios_field_in(IOS_REDDIT),
+}
 
-def screens_for(app):
-    """The buttons an app's messages use; Reddit's chats have their own."""
+
+def screens_for(app, serial=""):
+    """The buttons an app's messages use on this phone; Reddit's chats have their own."""
+    screens = app_screens(serial, app)
     if app == "reddit":
-        return {"message_box": REDDIT_MESSAGE_BOX, "send": REDDIT_SEND, "package": REDDIT}
-    return APP_SCREENS[app]
+        return {"message_box": screens["message_box"], "send": screens["send"], "package": screens["package"]}
+    return screens
 
 
 def first_conversation(walk, app):
@@ -2574,10 +3583,10 @@ def first_conversation(walk, app):
     device = walk.screen()
     width, height = screen_size(device)
     root = ElementTree.fromstring(device.dump_hierarchy())
-    package = APP_PACKAGES[app]
+    package = package_for(walk.serial, app)
     for node in root.iter("node"):
         bounds = parse_bounds(node.get("bounds"))
-        if node.get("package") not in (None, "", package) or not bounds or node.get("clickable") != "true":
+        if not own_node(node, package) or not bounds or not is_row(node):
             continue
         if height * 0.18 < (bounds[1] + bounds[3]) / 2 < height * 0.85 and bounds[2] - bounds[0] > width * 0.7:
             x, y = tap_point(bounds)
@@ -2606,7 +3615,7 @@ def action_app_inbox(app):
             reached = open_newest_notification(walk, app, kind)
             # A notification that led somewhere else is left, and the way in
             # is the inbox or the activity, as with no notification at all.
-            box = screens_for(app)["message_box"] if kind == "message" else APP_SCREENS[app]["comment_box"]
+            box = screens_for(app, serial)["message_box"] if kind == "message" else app_screens(serial, app)["comment_box"]
             if reached and not landed_on(device, box):
                 go_back(serial)
                 reached = False
@@ -2614,7 +3623,7 @@ def action_app_inbox(app):
         if kind == "comment":
             if not reached:
                 open_app(serial, app)
-                walk.tap_first("Open the activity", selectors=APP_SCREENS[app]["activity"])
+                walk.tap_first("Open the activity", selectors=app_screens(serial, app)["activity"])
                 time.sleep(2)
                 walk.shot("Opened the activity")
                 walk.home()
@@ -2662,7 +3671,7 @@ def rows_named(hierarchy_xml, package, name):
     wanted = plain(" ".join((name or "").split()))
     found = []
     for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
-        if node.get("package") not in (None, "", package):
+        if not own_node(node, package):
             continue
         bounds = parse_bounds(node.get("bounds"))
         if bounds and wanted and plain(" ".join((node.get("text") or "").split())) == wanted:
@@ -2678,7 +3687,7 @@ def reply_under(hierarchy_xml, package, words, height):
     comment = None
     replies = []
     for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
-        if node.get("package") not in (None, "", package):
+        if not own_node(node, package):
             continue
         bounds = parse_bounds(node.get("bounds"))
         text = " ".join((node.get("text") or "").split())
@@ -2703,7 +3712,7 @@ def times_shown(hierarchy_xml, package, text):
         return 0
     count = 0
     for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
-        if node.get("package") not in (None, "", package) or node.get("class") == "android.widget.EditText":
+        if not own_node(node, package) or is_text_box(node):
             continue
         if any(wanted in " ".join((node.get(key) or "").split()) for key in ("text", "content-desc")):
             count += 1
@@ -2724,8 +3733,8 @@ def action_app_reply(app):
         thread = str(args.get("thread") or "")
         author = str(args.get("author") or "")
         quote = str(args.get("quote") or "")
-        screens = screens_for(app)
-        package = APP_PACKAGES[app]
+        screens = screens_for(app, serial)
+        package = package_for(serial, app)
         device = walk.screen()
         device.screen_on()
         if not walk.rehearse and not text:
@@ -2753,7 +3762,7 @@ def action_app_reply(app):
             send = screens["send"]
         else:
             open_app(serial, app)
-            walk.tap_first("Open the activity", selectors=APP_SCREENS[app]["activity"])
+            walk.tap_first("Open the activity", selectors=app_screens(serial, app)["activity"])
             time.sleep(2)
             if walk.rehearse:
                 walk.shot("Opened the activity")
@@ -2772,8 +3781,8 @@ def action_app_reply(app):
                 raise StepFailed("Find the comment", "The comment by %s, with its Reply, was not on the post's screen." % author)
             press_bounds(walk, reply)
             time.sleep(1.5)
-            box = walk.find_first("Find the reply box", selectors=APP_SCREENS[app]["comment_box"])
-            send = APP_SCREENS[app]["comment_send"]
+            box = walk.find_first("Find the reply box", selectors=app_screens(serial, app)["comment_box"])
+            send = app_screens(serial, app)["comment_send"]
 
         before = 0
         if not walk.rehearse:
@@ -2785,7 +3794,7 @@ def action_app_reply(app):
             time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
         pressed = walk.final_first("Press Send", selectors=send)
         if not pressed:
-            leave_app_screen(serial, walk, times=2)
+            leave_app_screen(serial, walk, app, times=2)
             walk.home()
             return {"sent": False}
         sent = False
@@ -2819,6 +3828,8 @@ def action_app_reply(app):
 # worth the risk. The comment's post is sent by Promo, a recent one found.
 REHEARSALS = {
     "phone/android-version": {},
+    # Read-only on an iPhone; on an Android it says so and stops.
+    "phone/icloud-state": {},
     "reddit/state": {},
     "reddit/health": {},
     "reddit/comment": {"permalink": "", "text": "", "subreddit": ""},
@@ -2889,6 +3900,7 @@ ACTIONS = {
     "phone/update-app": action_update_app,
     "phone/setup-check": action_setup_check,
     "phone/outside-address": action_outside_address,
+    "phone/icloud-state": action_icloud_state,
     "phone/wipe": action_wipe,
     "reddit/state": action_reddit_state,
     "reddit/quick_state": action_reddit_quick_state,
@@ -2952,9 +3964,13 @@ def screen_lines(hierarchy_xml, package=None):
     """The text on screen, in order, from the given app's own views only."""
     lines = []
     for node in ElementTree.fromstring(hierarchy_xml).iter("node"):
-        if package and node.get("package") not in (None, "", package):
+        if not own_node(node, package):
             continue
-        for key in ("text", "content-desc"):
+        # text and content-desc are Android's; label an iPhone's. An iPhone
+        # node's value is what someone typed into a text box; on a switch it
+        # is "1" or "0", which is no line anyone reads.
+        keys = ("text", "content-desc", "label", "value") if is_text_box(node) else ("text", "content-desc", "label")
+        for key in keys:
             text = " ".join((node.get(key) or "").split())
             if text and text not in lines:
                 lines.append(text)
@@ -2962,12 +3978,13 @@ def screen_lines(hierarchy_xml, package=None):
 
 
 def plain(text):
-    return text.lower().replace(u"’", "'")
+    """Lower case, with the curly apostrophe and iOS's non-breaking hyphen (as in its "Wi-Fi") made plain."""
+    return text.lower().replace(u"’", "'").replace(u"\u2011", "-").replace(u"\u2010", "-")
 
 
-def ban_screen_in(hierarchy_xml, app):
+def ban_screen_in(hierarchy_xml, app, package=None):
     """The ban screen showing, as {app, kind, words}, or None."""
-    lines = screen_lines(hierarchy_xml, APP_PACKAGES.get(app))
+    lines = screen_lines(hierarchy_xml, package or APP_PACKAGES.get(app))
     if not lines or len(lines) > BAN_SCREEN_MAX_LINES:
         return None
     for screen_app, kind, phrases in BAN_SCREENS:
@@ -2981,7 +3998,7 @@ def ban_screen_in(hierarchy_xml, app):
 
 def ban_screen_on(serial, app):
     try:
-        return ban_screen_in(connect_screen(serial).dump_hierarchy(), app)
+        return ban_screen_in(connect_screen(serial).dump_hierarchy(), app, package_for(serial, app))
     except Exception as failure:  # A screen that cannot be read is not a ban screen.
         log("Could not read the screen of %s for a ban screen: %s" % (serial, failure))
         return None
@@ -3015,6 +4032,14 @@ SCREEN_PACKAGES = {
     "phone/setup-check": PLAY_STORE,
     "phone/wipe": "com.android.settings",
 }
+IOS_SCREEN_PACKAGES = {
+    "phone/android-version": IOS_SETTINGS,
+    "phone/check-updates": APP_STORE,
+    "phone/update-app": APP_STORE,
+    "phone/setup-check": IOS_SETTINGS,
+    "phone/icloud-state": IOS_SETTINGS,
+    "phone/wipe": IOS_SETTINGS,
+}
 
 _RESTARTED_AT = {}
 _RESTART_WHY = {}
@@ -3022,6 +4047,13 @@ _RESTART_LOCK = threading.Lock()
 
 
 def phone_answers(serial):
+    """True when the phone answers right now: adb's echo on an Android, a live
+    GET /status to WebDriverAgent on an iPhone. Nothing cached counts."""
+    if is_iphone(serial):
+        try:
+            return bool(iphone_screen(serial).answers())
+        except Exception:  # No driver beside the program: the phone counts as frozen.
+            return False
     try:
         return shell(serial, "echo ok", timeout=10) == "ok"
     except (RuntimeError, subprocess.TimeoutExpired):
@@ -3030,20 +4062,24 @@ def phone_answers(serial):
 
 def restart_phone(serial, why):
     """Restarts a phone, at most once in half an hour, so a phone that keeps
-    freezing is left for a person rather than restarted over and over."""
+    freezing is left for a person rather than restarted over and over.
+    Returns (restarted, words): the words say why not, for Promo's answer."""
     with _RESTART_LOCK:
         if time.time() - _RESTARTED_AT.get(serial, 0) < RESTART_GAP_SECONDS:
             log("%s froze again within half an hour of a restart, so it is left for a person." % serial)
-            return False
+            return False, "The phone stopped answering again soon after a restart, so the rack left it for you."
         _RESTARTED_AT[serial] = time.time()
         _RESTART_WHY[serial] = why
     try:
-        adb(["reboot"], serial=serial, timeout=20)
-    except (RuntimeError, subprocess.TimeoutExpired) as failure:
+        if is_iphone(serial):
+            iphone.restart(serial)
+        else:
+            adb(["reboot"], serial=serial, timeout=20)
+    except Exception as failure:  # adb's refusal, or the driver's.
         log("Could not restart %s: %s" % (serial, failure))
-        return False
+        return False, "The phone stopped answering, and the rack could not restart it (%s), so it is left for you." % short_words(failure)
     log("Restarted %s: %s" % (serial, why))
-    return True
+    return True, ""
 
 
 def restarting_as_such(phones):
@@ -3058,11 +4094,21 @@ def restarting_as_such(phones):
         if phone["serial"] in booting and phone["state"] != "device":
             phone["state"] = "restarting"
     for serial in booting - listed:
-        phones.append({"serial": serial, "state": "restarting", "usb": "", "model": "", "android": ""})
+        phone = {"serial": serial, "state": "restarting", "usb": "", "model": "", "android": ""}
+        if is_iphone(serial):
+            phone["kind"] = "iphone"
+        phones.append(phone)
     return phones
 
 
 def foreground_package(serial):
+    """The app in front: Android's focused window, or on an iPhone the bundle
+    WebDriverAgent names (the driver's active_app)."""
+    if is_iphone(serial):
+        try:
+            return str(iphone_screen(serial).active_app() or "")
+        except Exception:  # No answer is no app known.
+            return ""
     try:
         found = re.search(r"mCurrentFocus=\S*\s+\S+\s+([A-Za-z0-9_.]+)/", shell(serial, "dumpsys window | grep mCurrentFocus", timeout=10))
     except (RuntimeError, subprocess.TimeoutExpired):
@@ -3071,22 +4117,30 @@ def foreground_package(serial):
 
 
 def reopen_app(serial, package):
+    if is_iphone(serial):
+        device = iphone_screen(serial)
+        device.app_stop(package)
+        device.app_start(package)
+        return
     shell(serial, "am force-stop %s" % package, timeout=15)
     shell(serial, "monkey -p %s -c android.intent.category.LAUNCHER 1" % package, timeout=15)
 
 
-def action_package(name):
+def action_package(name, serial=""):
     app = action_app(name)
+    if is_iphone(serial):
+        return APP_BUNDLES[app] if app else IOS_SCREEN_PACKAGES.get(name, "")
     return APP_PACKAGES[app] if app else SCREEN_PACKAGES.get(name, "")
 
 
 def recover_frozen(serial, name):
     """What to do about an action that did not finish in time: (what was done, words)."""
     if not phone_answers(serial):
-        if restart_phone(serial, "It stopped answering during %s, so the rack restarted it." % name):
+        restarted, why_not = restart_phone(serial, "It stopped answering during %s, so the rack restarted it." % name)
+        if restarted:
             return "phone", "The phone stopped answering, so the rack restarted it. %s was not finished." % name
-        return "", "The phone stopped answering again soon after a restart, so the rack left it for you. %s was not finished." % name
-    package = foreground_package(serial) or action_package(name)
+        return "", "%s %s was not finished." % (why_not, name)
+    package = foreground_package(serial) or action_package(name, serial)
     if not package:
         return "", "%s did not finish in time." % name
     try:
@@ -3098,7 +4152,10 @@ def recover_frozen(serial, name):
 
 def close_not_responding(serial, name):
     """Closes Android's "isn't responding" box if one is up, and opens the app again.
-    Returns words for the answer, or empty when there was none."""
+    Returns words for the answer, or empty when there was none. iOS shows no
+    such box: a frozen app is simply gone, so there is nothing to close."""
+    if is_iphone(serial):
+        return ""
     try:
         device = connect_screen(serial)
         lines = screen_lines(device.dump_hierarchy())
@@ -3128,13 +4185,31 @@ def close_not_responding(serial, name):
 # picture of its screen a few times a second and carries back the taps and
 # typing, which Promo hands over only while that person has control on. It
 # also looks for a code texted to the phone. Texts are never written down.
+#
+# The wall (phone farm part 57) rides on the same turns: Promo names the
+# phones whose small picture it wants, and each gets one every 5 seconds,
+# 270 pixels wide, marked "lane": "wall" beside the window's own frames.
 
 SCREEN_GAP_SECONDS = 0.3
 IDLE_SCREEN_GAP_SECONDS = 2
 TEXT_GAP_SECONDS = 4
+# An iPhone's texts are read by opening Messages on its screen, so less often.
+IPHONE_TEXT_GAP_SECONDS = 6
 # A texted code older than this is not shown.
 TEXT_WINDOW_MS = 10 * 60 * 1000
 CODE_PATTERN = re.compile(r"(?<![\d])(\d{4,8})(?![\d])")
+# The wall: one small picture per phone this often, this wide, and turns
+# this far apart when only the wall is open.
+WALL_GAP_SECONDS = 5
+WALL_WIDTH = 270
+WALL_TURN_SECONDS = 1
+# Promo holds a phone for 15 minutes after a tap with control on
+# (src/server/phones/screens.ts). Control is read here as a tap from Promo
+# within that time, which is all the reply says.
+CONTROL_HOLD_SECONDS = 15 * 60
+# How long after the last tap or key an iPhone's Messages is left alone, so
+# a read never lands in the middle of someone typing on the phone.
+TAP_QUIET_SECONDS = 20
 
 KEYCODES = {
     "back": "KEYCODE_BACK",
@@ -3145,12 +4220,12 @@ KEYCODES = {
 }
 
 
-def screen_frame(device):
+def screen_frame(device, wide=SCREENSHOT_WIDTH):
     """A picture of the screen, shrunk, with the phone's own size for placing taps."""
     image = device.screenshot()
     width, height = image.width, image.height
-    if width > SCREENSHOT_WIDTH:
-        image = image.resize((SCREENSHOT_WIDTH, round(height * SCREENSHOT_WIDTH / width)))
+    if width > wide:
+        image = image.resize((wide, round(height * wide / width)))
     buffer = io.BytesIO()
     image.convert("RGB").save(buffer, format="JPEG", quality=60)
     return buffer.getvalue(), width, height
@@ -3164,7 +4239,9 @@ def typed_text(text):
 def apply_input(serial, item, size):
     width, height = size
     kind = item.get("kind")
-    if kind == "tap":
+    if is_iphone(serial):
+        apply_iphone_input(iphone_screen(serial), item, size)
+    elif kind == "tap":
         shell(serial, "input tap %d %d" % (round(item["x"] * width), round(item["y"] * height)))
     elif kind == "swipe":
         shell(serial, "input swipe %d %d %d %d 300" % (
@@ -3175,6 +4252,25 @@ def apply_input(serial, item, size):
         shell(serial, "input text %s" % typed_text(str(item.get("text", ""))[:500]))
     elif kind == "key" and item.get("key") in KEYCODES:
         shell(serial, "input keyevent %s" % KEYCODES[item["key"]])
+
+
+def apply_iphone_input(device, item, size):
+    """The window's taps on an iPhone, through the driver: the same key names,
+    which it turns into the iPhone's own swipes for back and recents."""
+    width, height = size
+    kind = item.get("kind")
+    if kind == "tap":
+        device.click(round(item["x"] * width), round(item["y"] * height))
+    elif kind == "swipe":
+        device.swipe(
+            round(item["x1"] * width), round(item["y1"] * height),
+            round(item["x2"] * width), round(item["y2"] * height),
+            duration=0.3,
+        )
+    elif kind == "text":
+        device.send_keys(str(item.get("text", ""))[:500])
+    elif kind == "key" and item.get("key") in KEYCODES:
+        device.press(item["key"])
 
 
 def newest_code(messages, now_ms):
@@ -3216,8 +4312,97 @@ def parse_notification_texts(output, now_ms):
     return messages
 
 
+# A conversation row's time on the iPhone's Messages list: "Now" or a clock
+# time today. Yesterday, a weekday or a date is older than ten minutes.
+IOS_ROW_TIME = re.compile(r"(?i)^(now|(\d{1,2}):(\d{2})\s*(am|pm)?)$")
+
+
+def ios_cells(hierarchy_xml):
+    """The words in each cell of an iPhone list, in screen order. A cell's
+    children carry them; a cell with none of its own has them joined in its
+    label, "Reddit, Now, Your code is 482913"."""
+    cells = []
+
+    def visit(node):
+        kind = node.get("type") or node.get("class") or ""
+        if kind.endswith("Cell"):
+            words = [text for text in (node_words(child) for child in node.iter() if child is not node) if text]
+            if not words:
+                words = [part.strip() for part in node_words(node).split(",") if part.strip()]
+            if words:
+                cells.append(words)
+            return
+        for child in node:
+            visit(child)
+
+    visit(ElementTree.fromstring(hierarchy_xml))
+    return cells
+
+
+def ios_row_time_ms(stamp, now_ms, local=time.localtime):
+    """When a row marked "Now" or "9:41 AM" arrived, in ms. A clock time later
+    than now is yesterday's."""
+    found = IOS_ROW_TIME.match(stamp)
+    if found.group(1).lower() == "now":
+        return now_ms
+    hour, minute, half = int(found.group(2)), int(found.group(3)), (found.group(4) or "").lower()
+    if half == "pm" and hour < 12:
+        hour += 12
+    if half == "am" and hour == 12:
+        hour = 0
+    today = local(now_ms / 1000)
+    at = int(time.mktime((today.tm_year, today.tm_mon, today.tm_mday, hour, minute, 0, 0, 0, -1)) * 1000)
+    if at > now_ms + 60 * 1000:
+        at -= 24 * 3600 * 1000
+    return at
+
+
+def messages_from_ios_screen(hierarchy_xml, now_ms, local=time.localtime):
+    """The conversations on the iPhone's Messages list as (sender, preview,
+    time in ms), only the rows from today, each a cell of sender, time and
+    the preview lines."""
+    messages = []
+    for words in ios_cells(hierarchy_xml):
+        at = next((index for index, text in enumerate(words) if IOS_ROW_TIME.match(text)), None)
+        if at is None:
+            continue
+        rest = words[:at] + words[at + 1:]
+        if not rest:
+            continue
+        messages.append((rest[0], " ".join(rest[1:]), ios_row_time_ms(words[at], now_ms, local)))
+    return messages
+
+
+def read_iphone_texted_code(serial):
+    """Opens Messages on the iPhone, reads the newest code off its list, and
+    goes home. iOS hands a computer neither the inbox nor the notifications,
+    so the screen is the only way; the caller makes sure the window is
+    watched with control on. Never while an action runs on the phone, since
+    opening Messages would land in the middle of its steps."""
+    if action_running_on(serial):
+        return None
+    now_ms = int(time.time() * 1000)
+    device = iphone_screen(serial)
+    try:
+        device.app_start(IOS_MESSAGES)
+        time.sleep(1.5)
+        hierarchy = device.dump_hierarchy()
+    finally:
+        try:
+            device.press("home")
+        except Exception:  # The phone went away; nothing more to tidy.
+            pass
+    return newest_code(messages_from_ios_screen(hierarchy, now_ms), now_ms)
+
+
 def read_texted_code(serial):
     """The newest code texted to the phone, from its inbox or, if Android refuses that, its notifications."""
+    if is_iphone(serial):
+        try:
+            return read_iphone_texted_code(serial)
+        except Exception as failure:  # No code read is no code shown.
+            log("Could not read Messages on %s: %s" % (serial, short_words(failure)))
+            return None
     now_ms = int(time.time() * 1000)
     since = now_ms - TEXT_WINDOW_MS
     try:
@@ -3239,7 +4424,7 @@ def read_texted_code(serial):
 def screen_loop(config):
     """Runs for as long as the program does. A turn that fails for any reason
     is logged and the next one tried, so screens never stop for good."""
-    state = {"wanted": [], "devices": {}, "sizes": {}, "texts_read_at": {}, "warned": set()}
+    state = {"wanted": [], "wall": [], "devices": {}, "sizes": {}, "texts_read_at": {}, "warned": set(), "wall_sent_at": {}, "control_at": {}}
     while True:
         try:
             gap = screen_turn(config, state)
@@ -3249,29 +4434,72 @@ def screen_loop(config):
         time.sleep(gap)
 
 
+def may_read_texts(serial, control_at, now, control=None):
+    """Android's inbox is read over USB whenever the window is open. An
+    iPhone's Messages app has to be opened on its screen, so only while the
+    watcher has control on, never under an action, and never within
+    TAP_QUIET_SECONDS of a tap or key, since opening Messages and pressing
+    Home would cut across whatever the person is typing. Promo's reply names
+    the phones someone has control of (`control`); an older Promo that does
+    not is read as a tap within the last 15 minutes."""
+    if not is_iphone(serial):
+        return True
+    if action_running_on(serial):
+        return False
+    since_tap = now - control_at.get(serial, 0)
+    if since_tap < TAP_QUIET_SECONDS:
+        return False
+    if control is not None:
+        return serial in control
+    return since_tap < CONTROL_HOLD_SECONDS
+
+
+def take_frame(state, serial, lane, wide):
+    """One picture of a phone for the frames list, or None when it gave none
+    (said once in the log until it does again)."""
+    devices, warned = state["devices"], state["warned"]
+    try:
+        device = devices.get(serial) or connect_screen(serial)
+        devices[serial] = device
+        jpeg, width, height = screen_frame(device, wide)
+    except Exception as failure:  # A phone pulled out mid-picture; try again next turn.
+        devices.pop(serial, None)
+        if serial not in warned:
+            log("No picture from %s: %s" % (serial, failure))
+            warned.add(serial)
+        return None
+    warned.discard(serial)
+    return {"serial": serial, "jpeg": base64.b64encode(jpeg).decode("ascii"), "width": width, "height": height, "lane": lane}
+
+
 def screen_turn(config, state):
-    """One turn: pictures and texted codes for the watched phones, out; which
-    phones to watch and their taps, back. Returns how long to wait."""
-    devices, sizes, texts_read_at, warned = state["devices"], state["sizes"], state["texts_read_at"], state["warned"]
+    """One turn: pictures and texted codes for the watched phones and a small
+    picture for each phone on the wall, out; which phones to watch, which
+    are on the wall, and the taps, back. Returns how long to wait."""
+    devices, sizes, texts_read_at = state["devices"], state["sizes"], state["texts_read_at"]
+    wall_sent_at = state.setdefault("wall_sent_at", {})
+    control_at = state.setdefault("control_at", {})
     frames, texts = [], []
+    now = time.time()
     for serial in state["wanted"]:
-        try:
-            device = devices.get(serial) or connect_screen(serial)
-            devices[serial] = device
-            jpeg, width, height = screen_frame(device)
-            sizes[serial] = (width, height)
-            frames.append({"serial": serial, "jpeg": base64.b64encode(jpeg).decode("ascii"), "width": width, "height": height})
-            warned.discard(serial)
-        except Exception as failure:  # A phone pulled out mid-picture; try again next turn.
-            devices.pop(serial, None)
-            if serial not in warned:
-                log("No picture from %s: %s" % (serial, failure))
-                warned.add(serial)
-        if time.time() - texts_read_at.get(serial, 0) > TEXT_GAP_SECONDS:
+        frame = take_frame(state, serial, "window", SCREENSHOT_WIDTH)
+        if frame:
+            sizes[serial] = (frame["width"], frame["height"])
+            frames.append(frame)
+        gap = IPHONE_TEXT_GAP_SECONDS if is_iphone(serial) else TEXT_GAP_SECONDS
+        if now - texts_read_at.get(serial, 0) > gap and may_read_texts(serial, control_at, now, state.get("control")):
             texts_read_at[serial] = time.time()
             code = read_texted_code(serial)
             if code:
                 texts.append(dict(code, serial=serial))
+    # The wall's pictures ride on whichever turn is due; a window's turns are never slowed for them.
+    for serial in state.get("wall") or []:
+        if now - wall_sent_at.get(serial, 0) < WALL_GAP_SECONDS:
+            continue
+        frame = take_frame(state, serial, "wall", WALL_WIDTH)
+        if frame:
+            wall_sent_at[serial] = now
+            frames.append(frame)
 
     try:
         reply = call(config, "/api/rack/screen", {"frames": frames, "texts": texts})
@@ -3279,9 +4507,19 @@ def screen_turn(config, state):
         log("Screens: %s" % failure)
         return 10
     wanted = [serial for serial in reply.get("wanted") or [] if isinstance(serial, str)]
+    wall = [serial for serial in reply.get("wall") or [] if isinstance(serial, str)]
     state["wanted"] = wanted
+    state["wall"] = wall
+    # Who has control, when Promo says; None keeps the older reading from taps.
+    if "control" in reply:
+        state["control"] = [serial for serial in reply.get("control") or [] if isinstance(serial, str)]
+    else:
+        state["control"] = None
 
     for serial, items in (reply.get("inputs") or {}).items():
+        # Promo hands taps over only while control is on, so a tap is the
+        # word that it is.
+        control_at[serial] = time.time()
         if serial not in sizes:
             continue
         for item in items:
@@ -3290,10 +4528,18 @@ def screen_turn(config, state):
             except (RuntimeError, subprocess.TimeoutExpired, KeyError, TypeError, ValueError) as failure:
                 log("A tap on %s did not go through: %s" % (serial, failure))
     for serial in list(devices):
-        if serial not in wanted:
+        if serial not in wanted and serial not in wall:
             devices.pop(serial, None)
+    for serial in list(texts_read_at):
+        if serial not in wanted:
             texts_read_at.pop(serial, None)
-    return SCREEN_GAP_SECONDS if wanted else IDLE_SCREEN_GAP_SECONDS
+            control_at.pop(serial, None)
+    for serial in list(wall_sent_at):
+        if serial not in wall:
+            wall_sent_at.pop(serial, None)
+    if wanted:
+        return SCREEN_GAP_SECONDS
+    return WALL_TURN_SECONDS if wall else IDLE_SCREEN_GAP_SECONDS
 
 
 # ---------------------------------------------------------------------------
@@ -3321,6 +4567,51 @@ SERVICE_WORDS = {
 
 _VITALS = {}
 _VITALS_LOCK = threading.Lock()
+
+
+def as_number(value, whole=True):
+    try:
+        return int(round(float(value))) if whole else float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def vitals_from_driver(raw):
+    """The driver's reading in the check-in's shape. The driver speaks the
+    check-in's own key names; a few plainer ones are taken too. Signal is
+    "not_reported": Apple's channel does not give it, and nothing is guessed."""
+    raw = raw if isinstance(raw, dict) else {}
+
+    def pick(*names):
+        for name in names:
+            if raw.get(name) is not None:
+                return raw[name]
+        return None
+
+    apps = raw.get("apps")
+    return {
+        "batteryPercent": as_number(pick("batteryPercent", "battery")),
+        "temperatureC": as_number(pick("temperatureC", "temperature"), whole=False),
+        "storageUsedPercent": as_number(pick("storageUsedPercent", "storage")),
+        "signal": str(raw.get("signal") or "not_reported"),
+        "upSeconds": as_number(pick("upSeconds", "uptime")),
+        "apps": dict((str(app), str(version)) for app, version in apps.items()) if isinstance(apps, dict) else None,
+        "restartWhy": "",
+    }
+
+
+def iphone_vitals(serial):
+    """The minute's reading of an iPhone, through the driver."""
+    if iphone is None:
+        raise RuntimeError("The iPhone driver (iphone.py) is not beside the program.")
+    return vitals_from_driver(iphone.vitals(serial))
+
+
+def iphone_app_versions(serial):
+    """Each tracked app's version on an iPhone through the driver's
+    app_versions(udid); None (not read) when the phone could not be asked."""
+    versions = iphone.app_versions(serial)
+    return dict((str(app), str(version)) for app, version in versions.items()) if isinstance(versions, dict) else None
 
 
 def service_state(lines):
@@ -3395,23 +4686,34 @@ def take_reading(serial):
 
 def vitals_turn(state, now=None):
     now = now or time.time()
-    for phone in parse_devices(adb(["devices", "-l"], timeout=15)):
+    for phone in parse_devices(adb(["devices", "-l"], timeout=15)) + list_iphones_safely():
         serial = phone["serial"]
         if phone["state"] != "device" or now - state["read_at"].get(serial, 0) < VITALS_SECONDS:
             continue
         state["read_at"][serial] = now
-        # The apps' notifications, read without opening an app; only which
-        # app and whether it was a message or a comment go to Promo.
+        an_iphone = phone.get("kind") == "iphone"
+        if an_iphone:
+            _KINDS[serial] = "iphone"
+        else:
+            # The apps' notifications, read without opening an app; only which
+            # app and whether it was a message or a comment go to Promo. An
+            # iPhone hands a computer no notifications, so it has none here.
+            try:
+                keep_alerts(serial, new_alerts(shell(serial, "dumpsys notification --noredact", timeout=15), state["alerts"].setdefault(serial, collections.OrderedDict())))
+            except Exception as failure:  # The vitals are still read this turn.
+                log("Could not read the notifications on %s: %s" % (serial, failure))
         try:
-            keep_alerts(serial, new_alerts(shell(serial, "dumpsys notification --noredact", timeout=15), state["alerts"].setdefault(serial, collections.OrderedDict())))
-        except Exception as failure:  # The vitals are still read this turn.
-            log("Could not read the notifications on %s: %s" % (serial, failure))
-        try:
-            reading = parse_vitals(shell(serial, VITALS_COMMAND, timeout=20))
-            if now - state["apps_at"].get(serial, 0) >= APPS_SECONDS:
-                reading["apps"] = parse_app_versions(shell(serial, APPS_COMMAND, timeout=30))
-                state["apps_at"][serial] = now
-        except (RuntimeError, subprocess.TimeoutExpired) as failure:
+            if an_iphone:
+                reading = iphone_vitals(serial)
+                if now - state["apps_at"].get(serial, 0) >= APPS_SECONDS:
+                    reading["apps"] = iphone_app_versions(serial)
+                    state["apps_at"][serial] = now
+            else:
+                reading = parse_vitals(shell(serial, VITALS_COMMAND, timeout=20))
+                if now - state["apps_at"].get(serial, 0) >= APPS_SECONDS:
+                    reading["apps"] = parse_app_versions(shell(serial, APPS_COMMAND, timeout=30))
+                    state["apps_at"][serial] = now
+        except Exception as failure:  # adb's refusal, or the driver's; three in a row is a frozen phone.
             missed = state["missed"].get(serial, 0) + 1
             state["missed"][serial] = missed
             log("No reading from %s (%d in a row): %s" % (serial, missed, failure))
@@ -3468,6 +4770,9 @@ def check_in(config):
             "platform": platform_name(),
             "phones": phones,
             "rolledBack": note if isinstance(note, dict) else None,
+            # When WebDriverAgent's signature runs out, so the bell can warn
+            # the day before (part 49); null on a rack without iPhones.
+            "wdaExpiresAt": wda_expires_at(),
         })
     except (CallFailed, Refused):
         # Not received, so the readings and alerts wait for the next check-in.
@@ -3492,10 +4797,20 @@ def install_update(config, latest):
         raise CallFailed("The download of %s did not match its checksum." % latest)
     if ('VERSION = "%s"' % latest) not in source:
         raise CallFailed("The download of %s does not say it is %s." % (latest, latest))
+    # The iPhone driver travels with the program, checked the same way, so
+    # `import iphone` finds it beside the new version. A Promo from before
+    # iPhones sends none, and the program is installed alone.
+    driver = release.get("driver")
+    if driver is not None:
+        if not isinstance(driver, str) or sha256_hex(driver.encode("utf-8")) != release.get("driverSha256"):
+            raise CallFailed("The download of %s's iPhone driver did not match its checksum." % latest)
     folder = os.path.join(HOME, "versions", latest)
     os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, "promo_rack.py"), "w", encoding="utf-8") as handle:
         handle.write(source)
+    if driver is not None:
+        with open(os.path.join(folder, "iphone.py"), "w", encoding="utf-8") as handle:
+            handle.write(driver)
     update_state(
         previous=VERSION,
         current=latest,
@@ -3506,15 +4821,19 @@ def install_update(config, latest):
     sys.exit(EXIT_SWITCH)
 
 
-# The actions running now, so the program never switches version under one.
+# The actions running now, so the program never switches version under one,
+# and the phones they run on, so nothing else opens an app on one meanwhile.
 _RUNNING = set()
+_RUNNING_SERIALS = {}
 _RUNNING_LOCK = threading.Lock()
 
 
 def start_action(config, action):
     """Runs one action on a thread of its own, so another phone's can start meanwhile."""
+    serial = str(action.get("serial") or "")
     with _RUNNING_LOCK:
         _RUNNING.add(action["id"])
+        _RUNNING_SERIALS[serial] = _RUNNING_SERIALS.get(serial, 0) + 1
 
     def work():
         try:
@@ -3522,6 +4841,11 @@ def start_action(config, action):
         finally:
             with _RUNNING_LOCK:
                 _RUNNING.discard(action["id"])
+                left = _RUNNING_SERIALS.get(serial, 1) - 1
+                if left > 0:
+                    _RUNNING_SERIALS[serial] = left
+                else:
+                    _RUNNING_SERIALS.pop(serial, None)
 
     threading.Thread(target=work, name="action-%s" % action["id"][:8], daemon=True).start()
 
@@ -3529,6 +4853,64 @@ def start_action(config, action):
 def actions_running():
     with _RUNNING_LOCK:
         return len(_RUNNING)
+
+
+def action_running_on(serial):
+    with _RUNNING_LOCK:
+        return _RUNNING_SERIALS.get(serial, 0) > 0
+
+
+# The rack's log inside Promo (phone farm part 61): when the reply to
+# /api/rack/next says sendLog, the last lines of rack.log go to
+# /api/rack/log, signed like every call, on a thread of their own so the
+# action poll is not held up. Never the whole file, and never more than once
+# at a time.
+LOG_LINES = 300
+LOG_LINE_CHARS = 2000
+# How much of the file's end is read to find the last lines.
+LOG_TAIL_BYTES = 2 * 1024 * 1024
+_LOG_LOCK = threading.Lock()
+
+
+def last_log_lines(path=None, count=LOG_LINES):
+    """The last `count` lines of the log, each cut to LOG_LINE_CHARS. No file
+    (Linux keeps the log in the journal) is no lines."""
+    path = path or LOG_PATH
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            start = max(0, size - LOG_TAIL_BYTES)
+            handle.seek(start)
+            text = handle.read().decode("utf-8", "replace")
+    except OSError:
+        return []
+    lines = text.splitlines()
+    if start > 0 and lines:
+        lines = lines[1:]  # A line cut in half by where the read began.
+    return [line[:LOG_LINE_CHARS] for line in lines[-count:]]
+
+
+def send_log(config):
+    if not _LOG_LOCK.acquire(False):
+        return False
+    try:
+        call(config, "/api/rack/log", {"lines": last_log_lines()})
+        return True
+    except (CallFailed, Refused) as failure:
+        log("Could not send the log to Promo: %s" % failure)
+        return False
+    finally:
+        _LOG_LOCK.release()
+
+
+def maybe_send_log(config, reply):
+    """Starts the log post when the action poll's reply asks for it. Returns the thread, or None."""
+    if not (isinstance(reply, dict) and reply.get("sendLog")):
+        return None
+    thread = threading.Thread(target=send_log, args=(config,), name="log", daemon=True)
+    thread.start()
+    return thread
 
 
 def run_action(config, action):
@@ -3640,7 +5022,9 @@ def run():
                     and not actions_running()
                 ):
                     install_update(config, latest)
-            work = call(config, "/api/rack/next", {}).get("action")
+            reply = call(config, "/api/rack/next", {})
+            maybe_send_log(config, reply)
+            work = reply.get("action")
             if work:
                 start_action(config, work)
                 continue

@@ -20,5 +20,7 @@
   "project": 3020,
   "personal": 3021,
   "fitness": 3022,
-  "date": 3023
+  "fitness": 3022,
+  "date": 3023,
+  "note": 3024
 }

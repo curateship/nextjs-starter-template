@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { PhoneRecord, PhonesPage } from "@/lib/api/phones/phones"
+import type { PhonesSearch } from "@/lib/phones/phones-search"
 
 const navigation = vi.hoisted(() => ({ navigate: vi.fn(), invalidate: vi.fn(async () => {}) }))
 vi.mock("@tanstack/react-router", () => ({
@@ -22,9 +23,12 @@ vi.mock("@/lib/toast/error-toast", () => ({
 }))
 
 const api = vi.hoisted(() => ({
+  askRackLog: vi.fn(),
   changePhones: vi.fn(),
   disconnectPhoneRack: vi.fn(),
   loadPhoneActions: vi.fn(),
+  loadPhoneJobs: vi.fn(),
+  loadRackLog: vi.fn(),
   loadWaitingPhoneJobs: vi.fn(),
   makePairingCode: vi.fn(),
   pauseRack: vi.fn(),
@@ -52,12 +56,21 @@ vi.mock("@/lib/api/phones/health", () => ({
 const screenApi = vi.hoisted(() => ({
   closeScreenWindow: vi.fn(async () => {}),
   loadScreen: vi.fn(),
+  loadWall: vi.fn(),
   sendToScreen: vi.fn(),
   setScreenControl: vi.fn(),
 }))
 vi.mock("@/lib/api/phones/screen", () => ({
   ...screenApi,
   getScreenErrorMessage: (error: unknown) => (error instanceof Error ? error.message : "failed"),
+}))
+const jobsApi = vi.hoisted(() => ({
+  cancelWaitingJobs: vi.fn(),
+  retryFailedJobs: vi.fn(),
+}))
+vi.mock("@/lib/api/social/jobs", () => ({
+  ...jobsApi,
+  getJobsErrorMessage: (error: unknown) => (error instanceof Error ? error.message : "failed"),
 }))
 
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -71,6 +84,7 @@ function phone(patch: Partial<PhoneRecord>): PhoneRecord {
     id: "p1",
     name: "Pixel 8a",
     model: "Pixel 8a",
+    kind: "android",
     androidVersion: "16",
     serial: "A1",
     simCarrier: "Mint Mobile",
@@ -120,6 +134,7 @@ const PAGE: PhonesPage = {
     {
       id: "r1",
       name: "Tyler's Mac",
+      wdaExpiresAt: null,
       platform: "macOS 26.0",
       version: "2026.10.13.1",
       live: true,
@@ -132,9 +147,13 @@ const PAGE: PhonesPage = {
   rackVersion: "2026.10.13.1",
   pausedAt: null,
   testPhoneId: null,
+  testPhoneIphoneId: null,
   folders: [],
   labels: [],
   proxies: [{ id: "x1", label: "US home line", host: "gate.test" }],
+  shelfRows: 2,
+  shelfColumns: 5,
+  projects: [],
 }
 
 /**
@@ -151,6 +170,7 @@ describe("Phones dashboard", () => {
     for (const fn of Object.values(api)) fn.mockReset()
     for (const fn of Object.values(screenApi)) fn.mockReset()
     for (const fn of Object.values(healthApi)) fn.mockReset()
+    for (const fn of Object.values(jobsApi)) fn.mockReset()
     screenApi.closeScreenWindow.mockResolvedValue(undefined)
     navigation.navigate.mockReset()
     toasts.errors = []
@@ -165,15 +185,17 @@ describe("Phones dashboard", () => {
     vi.useRealTimers()
   })
 
-  async function render(page: PhonesPage, openId?: string) {
+  async function render(page: PhonesPage, openId?: string, filters?: PhonesSearch) {
     await act(async () => {
       root.render(
         <TooltipProvider>
-          <PhonesDashboard initial={page} openId={openId} />
+          <PhonesDashboard initial={page} openId={openId} filters={filters} />
         </TooltipProvider>
       )
     })
   }
+  const rowNames = () =>
+    Array.from(container.querySelectorAll("tbody tr")).map((row) => row.querySelector("td:nth-child(2) button")?.textContent ?? "")
 
   const text = () => document.body.textContent ?? ""
   const button = (name: string) => {
@@ -237,7 +259,7 @@ describe("Phones dashboard", () => {
     expect(api.disconnectPhoneRack).toHaveBeenCalledWith("r1")
   })
 
-  it("opens a phone's window and asks the rack to read the Android version", async () => {
+  it("opens a phone's window and asks the rack to read the system version", async () => {
     api.loadPhoneActions.mockResolvedValue([])
     api.runPhoneAction.mockResolvedValue({ id: "act1" })
     await render(PAGE, "p1")
@@ -260,7 +282,7 @@ describe("Phones dashboard", () => {
         steps: ["Opened About phone", "Read Android 16"],
       },
     ])
-    await click("Read the Android version from Settings")
+    await click("Read the system version from Settings")
     expect(api.runPhoneAction).toHaveBeenCalledWith("p1", "phone/android-version")
     expect(text()).toContain("Settings says Android 16, the same as Android itself reports.")
 
@@ -318,23 +340,26 @@ describe("Phones dashboard", () => {
 
   it("lists app versions on each row, and keeps the other phones' update pressable but refused until the test passes", async () => {
     healthApi.loadSelfTest.mockResolvedValue({
-      testPhone: { id: "p2", name: "Galaxy A15" },
-      lastAskedAt: new Date(),
-      checks: [{ action: "reddit/comment", passed: false, step: "Open the reply box", error: "Could not find it.", checkedAt: new Date(), phoneActionId: null }],
-      rollouts: [{ app: "reddit", status: "available", fromVersion: "2025.40.0", toVersion: "", note: "", changedAt: new Date() }],
+      android: {
+        testPhone: { id: "p2", name: "Galaxy A15" },
+        lastAskedAt: new Date(),
+        checks: [{ action: "reddit/comment", passed: false, step: "Open the reply box", error: "Could not find it.", checkedAt: new Date(), phoneActionId: null }],
+        rollouts: [{ app: "reddit", status: "available", fromVersion: "2025.40.0", toVersion: "", note: "", changedAt: new Date() }],
+      },
+      iphone: { testPhone: null, lastAskedAt: null, checks: [], rollouts: [] },
     })
     healthApi.updateApp.mockRejectedValue(new Error("The test phone has to pass the self-test on the new version before the other phones update."))
     await render(PAGE)
     expect(text()).toContain("Reddit 2025.40.0")
     await click("Self-test")
     expect(text()).toContain("Post a Reddit comment: broken")
-    expect(text()).toContain("A newer version is out. The test phone has 2025.40.0.")
-    const others = Array.from(document.querySelectorAll("button")).filter((button) => button.textContent === "Update the other phones")
+    expect(text()).toContain("A newer version is out. The Android test phone has 2025.40.0.")
+    const others = Array.from(document.querySelectorAll("button")).filter((button) => button.textContent === "Update the other Androids")
     expect(others[0].disabled).toBe(false)
     await act(async () => {
       others[0].click()
     })
-    expect(healthApi.updateApp).toHaveBeenCalledWith("reddit", "others")
+    expect(healthApi.updateApp).toHaveBeenCalledWith("reddit", "others", "android")
     expect(toasts.errors.at(-1)).toContain("has to pass the self-test")
   })
 
@@ -410,5 +435,187 @@ describe("Phones dashboard", () => {
     expect(api.savePhone).not.toHaveBeenCalled()
     expect(toasts.errors).toEqual(["Give the phone a name first."])
     expect(name.getAttribute("aria-invalid")).toBe("true")
+  })
+
+  describe("file 09, seeing the rack", () => {
+    const iphone = phone({
+      id: "p3",
+      name: "iPhone 15",
+      kind: "iphone",
+      serial: "00008030-UDID",
+      simCarrier: "T-Mobile",
+      shelfSlot: "7",
+      needsWipeAt: new Date(),
+    })
+    const SHELF: PhonesPage = {
+      ...PAGE,
+      phones: [...PAGE.phones, iphone],
+      projects: [{ id: "proj1", name: "Running shoes", phoneIds: ["p1"] }],
+    }
+
+    it("narrows the rows by status, kind, carrier, project, wiping and the search box, from the address", async () => {
+      await render(SHELF, undefined, { status: "offline" })
+      expect(rowNames()).toEqual(["Galaxy A15"])
+      await render(SHELF, undefined, { kind: "iphone" })
+      expect(rowNames()).toEqual(["iPhone 15"])
+      await render(SHELF, undefined, { carrier: "T-Mobile" })
+      expect(rowNames()).toEqual(["iPhone 15"])
+      await render(SHELF, undefined, { project: "proj1" })
+      expect(rowNames()).toEqual(["Pixel 8a"])
+      await render(SHELF, undefined, { wipe: "needed" })
+      expect(rowNames()).toEqual(["iPhone 15"])
+      await render(SHELF, undefined, { q: "UDID" })
+      expect(rowNames()).toEqual(["iPhone 15"])
+      expect((document.querySelector('input[name="phone-search"]') as HTMLInputElement).value).toBe("UDID")
+    })
+
+    it("puts a picked filter into the address, and typing into the search box after it settles", async () => {
+      await render(SHELF)
+      const search = document.querySelector('input[name="phone-search"]') as HTMLInputElement
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
+        setter.call(search, "B2")
+        search.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+      expect(rowNames()).toEqual(["Galaxy A15"])
+      expect(navigation.navigate).not.toHaveBeenCalled()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400)
+      })
+      expect(navigation.navigate).toHaveBeenCalledTimes(1)
+      const call = navigation.navigate.mock.calls[0][0] as { replace: boolean; search: (previous: Record<string, unknown>) => Record<string, unknown> }
+      expect(call.replace).toBe(true)
+      expect(call.search({ status: "offline" })).toEqual({ status: "offline", q: "B2" })
+    })
+
+    it("draws the map by slot: slot 7 on the second row, second from the left, and lists a phone with no slot under it", async () => {
+      await render({ ...SHELF, phones: [iphone, PAGE.phones[1], PAGE.phones[0]] })
+      await click("Map: the shelf drawn by slot")
+      expect(text()).toContain("The shelf, 2 rows of 5")
+      const cells = Array.from(document.querySelectorAll('ol[aria-label="The shelf"] > li'))
+      expect(cells).toHaveLength(10)
+      const seven = document.querySelector('[data-slot="7"]')!
+      expect(seven.getAttribute("data-row")).toBe("2")
+      expect(seven.getAttribute("data-column")).toBe("2")
+      expect(seven.textContent).toContain("iPhone 15")
+      expect(seven.textContent).toContain("Connected")
+      const four = document.querySelector('[data-slot="4"]')!
+      expect(four.textContent).toContain("Galaxy A15")
+      expect(four.textContent).toContain("Offline")
+      expect(document.querySelector('[data-slot="1"]')!.textContent).toBe("1")
+      expect(text()).toContain("Not on the shelf")
+      expect(text()).toContain("Pixel 8aConnected, no slot typed")
+
+      await click("Open Galaxy A15, slot 4")
+      const call = navigation.navigate.mock.calls.at(-1)![0] as { search: (previous: Record<string, unknown>) => Record<string, unknown> }
+      expect(call.search({})).toEqual({ open: "p2" })
+    })
+
+    it("shows a picture of each connected phone on the wall, a status word for an offline one, and opens a screen from a tile", async () => {
+      screenApi.loadWall.mockResolvedValue({
+        phones: [
+          { id: "p1", name: "Pixel 8a", status: "connected", src: "data:image/jpeg;base64,/9j/AA", at: new Date() },
+          { id: "p2", name: "Galaxy A15", status: "offline", src: null, at: null },
+        ],
+      })
+      screenApi.loadScreen.mockResolvedValue({ frame: null, controlUntil: null, codes: [], texted: null })
+      await render(PAGE)
+      await click("Wall: a live picture of every connected phone")
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10)
+      })
+      expect(screenApi.loadWall).toHaveBeenCalledTimes(1)
+      const tiles = Array.from(document.querySelectorAll('button[aria-label^="Open the screen of"]'))
+      expect(tiles).toHaveLength(2)
+      expect(tiles[0].querySelector("img")?.getAttribute("alt")).toBe("Pixel 8a's screen")
+      expect(tiles[1].querySelector("img")).toBeNull()
+      expect(tiles[1].textContent).toContain("Offline")
+
+      // Every 5 seconds, Tyler's choice of 18 Oct 2026.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+      expect(screenApi.loadWall).toHaveBeenCalledTimes(2)
+
+      await click("Open the screen of Pixel 8a")
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10)
+      })
+      expect(document.getElementById("phone-screen-control")).not.toBeNull()
+      expect(screenApi.loadScreen).toHaveBeenCalledWith("p1", 0)
+    })
+
+    it("lists a phone's jobs on its Jobs tab, and cancels one through the Jobs window's own call", async () => {
+      api.loadPhoneJobs.mockResolvedValue({
+        program: { running: true, seenAt: new Date(), startedAt: new Date() },
+        jobs: [
+          {
+            id: "j1",
+            kind: "comment",
+            status: "queued",
+            what: 'Post a comment: "Best trail shoes?"',
+            where: "u/quiet_builder · Pixel 8a",
+            project: "Running shoes",
+            attempts: 0,
+            maxAttempts: 1,
+            lastError: "",
+            addedAt: new Date(),
+            claimedAt: null,
+            runAfter: null,
+            finishedAt: null,
+            laneBusy: false,
+            canRetry: false,
+          },
+        ],
+      })
+      jobsApi.cancelWaitingJobs.mockResolvedValue({ completed: ["j1"], skipped: [] })
+      await render(PAGE, "p1")
+      await openTab("Jobs")
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10)
+      })
+      expect(api.loadPhoneJobs).toHaveBeenCalledWith("p1")
+      expect(text()).toContain('Post a comment: "Best trail shoes?"')
+      expect(text()).toContain("u/quiet_builder · Pixel 8a · for Running shoes")
+      await click('Cancel Post a comment: "Best trail shoes?"')
+      expect(jobsApi.cancelWaitingJobs).toHaveBeenCalledWith(["j1"])
+      expect(api.loadPhoneJobs).toHaveBeenCalledTimes(2)
+    })
+
+    it("asks the rack for its log, waits in words, shows the lines when they arrive, and says when the tool's signature has run out", async () => {
+      api.askRackLog.mockResolvedValue(undefined)
+      // The tab reads what Promo holds before it asks (nothing yet), then polls.
+      api.loadRackLog.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValue({
+        lines: ["12:00 started", "12:01 reddit/comment on A1 failed: Could not find the reply box"],
+        at: new Date(),
+      })
+      const past = new Date("2026-10-01T10:00:00Z")
+      await render({ ...PAGE, racks: [{ ...PAGE.racks[0], wdaExpiresAt: past }] })
+      await click("Rack connected")
+      expect(text()).toContain("WebDriverAgent signed until")
+      expect(text()).toContain(", which has passed")
+
+      await openTab("Log")
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10)
+      })
+      expect(api.askRackLog).toHaveBeenCalledWith("r1")
+      expect(text()).toContain("The rack has not answered yet.")
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3_000)
+      })
+      expect(text()).toContain("The rack's last 2 lines")
+      expect(document.querySelector("pre")?.textContent).toBe(
+        "12:00 started\n12:01 reddit/comment on A1 failed: Could not find the reply box"
+      )
+    })
+
+    it("says the rack is not checking in on the Log tab when it is not", async () => {
+      await render({ ...PAGE, racks: [{ ...PAGE.racks[0], live: false, seenAt: new Date(Date.now() - 600_000) }] })
+      await click("Rack not checking in")
+      await openTab("Log")
+      expect(api.askRackLog).not.toHaveBeenCalled()
+      expect(text()).toContain("The rack is not checking in, so it cannot send its log.")
+    })
   })
 })
