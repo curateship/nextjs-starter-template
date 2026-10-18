@@ -10,6 +10,7 @@ import {
   refreshCreatorProfile,
 } from "@/server/video/creators/creators"
 import { listRecentUploads } from "@/server/video/creators/uploads"
+import { recordYoutubeUnits } from "@/server/video/viral/youtube-units"
 import { isCreatorPlatform } from "@/lib/video/creators"
 
 /**
@@ -76,6 +77,10 @@ export async function creatorWatchTick(): Promise<void> {
         youtubeApiKey,
       })
 
+      if (creator.platform === "youtube") {
+        // Reading the uploads list is one unit and their numbers one more.
+        await recordYoutubeUnits(2, "creator_watch")
+      }
       const written = await recordUploads(creator, found.uploads)
       if (found.profile) {
         await refreshCreatorProfile(creator.id, found.profile)
@@ -143,12 +148,12 @@ async function claimDueCreators() {
  * Writes down the uploads this creator has that we had not seen, and answers
  * how many were new.
  *
- * A video already on the feed updates its numbers instead of adding a second
+ * A video already saved updates its numbers instead of adding a second
  * row, so views and likes stay current without the list piling up copies. The
  * unique index is what makes "new" mean new: a row that was already there is
  * not counted, so nobody is told twice about the same video.
  */
-async function recordUploads(
+export async function recordUploads(
   creator: typeof videoCreators.$inferSelect,
   uploads: Awaited<ReturnType<typeof listRecentUploads>>["uploads"]
 ): Promise<number> {
@@ -226,7 +231,7 @@ async function tellOnce(
       recipientUserId: ownerId,
       type: "app_activity",
       message: `${videos} from ${creators} you follow`,
-      detail: "Open the research dashboard to watch them.",
+      detail: "Open their project in Viral to watch them.",
       createdAt: now(),
     })
     await publishNotificationCreated(ownerId)

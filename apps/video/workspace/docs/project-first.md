@@ -33,9 +33,11 @@ Clicking a line jumps the player there. While the video is downloading or
 being read, the panel says so and asks again every 3 seconds. A failed
 download offers Try again.
 
-A project starts copying a video from **Copy this** on the Viral page or the
-creators dashboard. It makes a new project named after the video and opens it
-in the editor with the Copy panel showing. Pressing it twice makes two projects
+A project starts copying a video from **Copy this** under a video in a Viral
+project or a favourites collection. It makes a new project named after the
+video and opens it in the editor with the Copy panel showing. Made from a
+Viral project, it remembers that project, and the Copy panel's Open Viral goes
+back to it with the video playing (`viral-projects.md`). Pressing it twice makes two projects
 on one saved video, so the video downloads once. A project made from scratch
 copies nothing, and the panel says where to find a video.
 

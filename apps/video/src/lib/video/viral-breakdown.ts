@@ -1,8 +1,8 @@
 /**
  * What Gemini writes down about a saved video, and the words for it.
  *
- * Shared because the breakdown is drawn in two places: the research
- * dashboard's right panel and the Viral page's detail window. The roles and
+ * Shared because the breakdown is drawn in two places: under the player on a
+ * Viral project and in the editor's Copy panel. The roles and
  * their labels live here so the two can never disagree about what "agitation"
  * is called.
  */

@@ -1,91 +1,48 @@
-# The Viral page's YouTube search
+# The YouTube key behind Viral
 
-The Viral page (`/admin/video-viral`) takes one keyword and lists the YouTube
-Shorts about it, with each one's views, likes, comments, age and the channel's
-subscriber count. Clicking a row opens the video on YouTube in a new tab. The
-page is admin-only, because every search spends part of a daily allowance.
+Viral searches YouTube with one YouTube Data API key for the whole app. What a
+search costs, how it runs and what it finds are in `viral-projects.md`; this
+file is the key itself and the call it makes.
 
 ## Where the key goes
 
-Searching needs a YouTube Data API key, free from console.cloud.google.com
-with the YouTube Data API v3 switched on.
+The key is free from console.cloud.google.com with the YouTube Data API v3
+switched on.
 
-- The key is pasted in **Settings → YouTube** (the app's own tab, under "This
-  app"). It is scrambled before it is stored, on the app's own
-  `video_settings` row, with the same encryption the shell uses for AI keys. Only
-  its last four characters are ever shown again.
-- A deployment can set `VIDEO_YOUTUBE_API_KEY` instead. A key saved in
+- **Settings → YouTube** (the app's own tab, under "This app") holds it. It is
+  scrambled before it is stored, on the app's `video_settings` row, with the
+  same encryption the shell uses for AI keys. Only its last four characters
+  are ever shown again.
+- **A deployment can set `VIDEO_YOUTUBE_API_KEY` instead.** A key saved in
   Settings always wins over the env var.
-- With no key anywhere, the Viral page says so in one sentence and searches
-  nothing.
+- **With no key anywhere**, a project's left panel says so under the Search
+  button, and pressing Search says where to paste one. Nothing is spent.
 - The key is deliberately not on the shell's Settings → AI list. That list is
   shell-owned code, and YouTube is not an AI provider.
 
-## What one search costs
+## The call
 
-Google gives every key 10,000 free units a day. One keyword costs exactly 102:
+`searchYoutubeVideos` in `src/server/video/viral/youtube.ts` makes three
+calls for one keyword, and never more:
 
-- The search itself is 100 units.
-- One batch call fetches the numbers for all the videos at once, 1 unit.
-- One batch call fetches all their channels' subscriber counts, 1 unit.
+1. The search, ordered by view count, posted within the project's window, up
+   to 50 videos. 100 units.
+2. One batch call for all the videos' numbers. 1 unit.
+3. One batch call for all their channels' subscriber counts. 1 unit.
 
-So one key is good for about 98 searches a day. When the day's units run out,
-the page says "Today's 100 free YouTube searches are used up. They reset at
-midnight Pacific time." Any other YouTube refusal is shown as YouTube's own
-sentence, never raw JSON. Because a search costs money's worth of quota,
-typing never searches — only pressing Search or Enter does, and sorting the
-results is done in the browser on what already came back. The table sorts by
-viral score until you pick another column.
+The key travels in a header, never in the address, because an address ends
+up in logs.
+
+- **A used-up allowance** comes back as the sentence "Today's free YouTube
+  allowance is used up. It resets at midnight Pacific time."
+- **Any other refusal** is shown as YouTube's own sentence, such as "YouTube
+  said: API key not valid", never raw JSON.
+- **A channel that hides a count** shows "—", never a zero.
+- **Thumbnail addresses** are kept only when they are plainly https.
 
 ## Why Shorts means 3 minutes or less
 
 YouTube's API can only filter to "short", which means under 4 minutes, so a
 3:59 video would slip through. YouTube's real Shorts limit is 3 minutes, so
-the server drops anything over 180 seconds after the search
-(`src/server/video/viral/youtube.ts`).
-
-## The filters
-
-Posted within the last 7, 30 or 90 days (7 is the default), and a minimum
-view count. Keyword, window, minimum and sort all live in the address, so a
-reload repeats the same search and the address can be handed to somebody else.
-A channel that hides a count shows "—" rather than a zero.
-
-## What is kept
-
-Every search is saved with its results the moment YouTube answers
-(`video_viral_searches` and `video_viral_results`, migration 0092), so
-looking at a past keyword costs nothing.
-
-- The past-keywords panel on the left lists every saved search, the one that
-  ran last first, with how many Shorts it found and when it ran. Clicking one
-  shows its saved results without asking YouTube.
-- After a fresh search, the address swaps the keyword for the saved search's
-  id, so a reload or a shared address opens the saved copy free.
-- The same keyword searched again updates its old row and replaces its
-  results — matched ignoring case, the way YouTube matches — so the list
-  never piles up copies. That was the task's open question, answered the way
-  the task assumed.
-- A failed YouTube call saves nothing: the search runs first, and the row and
-  its results land in one database transaction.
-- Saved results go stale the moment they are saved: the numbers are a
-  snapshot of the moment the search ran, and the "ran ..." line on the open
-  search says how old they are. Run again fetches fresh numbers for the same
-  keyword and filters, replaces the results, and moves the date.
-- Deleting saved searches (tick them in the panel) removes only the keyword
-  rows and their result rows, in one request.
-
-## Copy this
-
-Every result has a **Copy this** button in its Actions column. It saves the
-video for breaking down, the same as Save & break down on the creators
-dashboard, makes a new project named after the video, and opens it in the
-editor on the Copy panel at the foot of the rail. The download and the
-breakdown spend from the AI allowance unless the video was saved before.
-Pressing it twice makes two projects but downloads the video once. The
-project side is in `project-first.md`.
-
-## What is not here yet
-
-The viral score on each result is in `viral-score.md`. TikTok and Instagram
-are task 09, in `workspace/tasks/viral/`.
+the server drops anything over 180 seconds. A project set to longer videos
+asks for any length and drops everything 180 seconds or under instead.
