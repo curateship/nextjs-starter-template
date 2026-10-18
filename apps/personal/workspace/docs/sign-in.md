@@ -1,7 +1,7 @@
 # Signing in
 
 Personal asks for one password before it shows anything. Until the right one
-is typed, the menu, the top bar and the panel don't show, and the server
+is typed, the menu and the panel don't show, and the server
 refuses to read or save the menu. Tyler asked for it on 18 Oct 2026: "I want
 to protect thiss app with login". He chose one password, 30 days, and having
 it on his Mac now rather than waiting for going live.
@@ -34,7 +34,7 @@ it on his Mac now rather than waiting for going live.
   their guessing however many names they use. Browsers already signed in
   stay signed in.
 - **The counts live in the server's memory**, so a restart clears them.
-- **Sign out** is the last item in the cog dropdown at the top right. It
+- **Sign out** is the last item in the cog dropdown at the bottom of the menu. It
   clears the cookie and shows the sign-in screen. The browser's Back button
   doesn't bring the menu back.
 - **If the 30 days run out mid-use**, the next save shows the sign-in screen.

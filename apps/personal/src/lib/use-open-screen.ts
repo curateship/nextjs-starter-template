@@ -6,12 +6,10 @@ import {
   openFrame,
   openScreen,
   reloadOpen,
-  reportMove,
   showAddress,
   type Frames,
 } from "@/lib/frames"
 import { appUrlFromPersonalPath, DEFAULT_BRAND_NAME, personalPath } from "@/lib/menu"
-import type { PanelReport } from "@/lib/panel"
 import {
   addRecentScreen,
   readRecentScreens,
@@ -24,11 +22,10 @@ function currentAddress() {
 }
 
 /**
- * How many steps Back and Forward have inside Personal, counted since this
- * page loaded. Personal can't see the framed app's history, so a move inside
- * the frame is counted as one new step. That is a best guess Tyler chose on
- * 17 Oct 2026: it is one step off after the browser's own arrows step inside
- * the frame.
+ * How many of Personal's own steps Back and Forward have, counted since this
+ * page loaded. Moves made inside the app also join the browser's history, and
+ * Personal can't see them, so Back may step inside the app first: the same as
+ * the browser's own Back button.
  */
 type Steps = { back: number; forward: number }
 
@@ -49,21 +46,26 @@ function stepOf(state: unknown) {
     : null
 }
 
-/** A back or forward Personal asked for counts on the move it causes, if that comes soon. */
-const PENDING_MS = 1500
-
 /**
  * The screens in the middle panel and Personal's address, kept in step.
- * Opening a link adds a history entry and shows its frame. A move inside the
- * frame only swaps Personal's address, so the frame never reloads under you,
- * and a reload of Personal lands on the same screen. `startUrl` is the screen
- * a visit to Personal's bare address opens, if one is chosen.
+ * Opening a screen adds a history entry and shows its frame, and a reload of
+ * Personal lands on the same screen. `startUrl` is the screen a visit to
+ * Personal's bare address opens, if one is chosen. `nameOf` gives a screen its
+ * name from the menu.
  */
-export function useOpenScreen(startUrl: string | null, appName = DEFAULT_BRAND_NAME) {
+export function useOpenScreen(
+  startUrl: string | null,
+  nameOf: (url: string) => string,
+  appName = DEFAULT_BRAND_NAME
+) {
+  const nameRef = React.useRef(nameOf)
+  React.useEffect(() => {
+    nameRef.current = nameOf
+  })
   const [frames, setFrames] = React.useState<Frames>(() => {
     const url =
       appUrlFromPersonalPath(currentAddress()) ?? (currentAddress() === "/" ? startUrl : null)
-    return url ? openScreen(NO_FRAMES, url) : NO_FRAMES
+    return url ? openScreen(NO_FRAMES, url, nameOf(url)) : NO_FRAMES
   })
   const [recent, setRecent] = React.useState(() => {
     const first = openFrame(frames)
@@ -76,7 +78,6 @@ export function useOpenScreen(startUrl: string | null, appName = DEFAULT_BRAND_N
   // this page loaded), and the last place handed out.
   const stepRef = React.useRef<number | null>(0)
   const lastStepRef = React.useRef(0)
-  const pendingRef = React.useRef<{ way: "back" | "forward"; at: number } | null>(null)
 
   /** Takes the next frames, and adds the open screen to the recent list when it changed. */
   const commit = React.useCallback((next: Frames) => {
@@ -126,31 +127,22 @@ export function useOpenScreen(startUrl: string | null, appName = DEFAULT_BRAND_N
     function onPopState(event: PopStateEvent) {
       const step = stepOf(event.state)
       const from = stepRef.current
-      pendingRef.current = null
       // An entry from before this page loaded is behind every entry of this
       // load, and coming back from one is a step forward.
       stepped(step === null ? "back" : from === null || step > from ? "forward" : "back")
       stepRef.current = step
-      commit(showAddress(framesRef.current, appUrlFromPersonalPath(currentAddress())))
+      const url = appUrlFromPersonalPath(currentAddress())
+      commit(showAddress(framesRef.current, url, url ? nameRef.current(url) : ""))
     }
     window.addEventListener("popstate", onPopState)
     return () => window.removeEventListener("popstate", onPopState)
   }, [commit, stepped])
 
-  /**
-   * Opens a screen. `sameLink` says which frames are already on the clicked
-   * menu link's screens, so a kept one is shown as it was.
-   */
+  /** Opens a screen, named from the menu, or `title` when given. */
   const open = React.useCallback(
-    (url: string, sameLink?: (frameUrl: string) => boolean) => {
-      const before = openFrame(framesRef.current)
-      const next = openScreen(framesRef.current, url, sameLink)
-      const after = openFrame(next)
-      // An app asked to change page itself adds its own history entry, the
-      // same as a click inside it, and Personal's address follows its report.
-      const inPlace = Boolean(after?.goTo && after.goTo !== before?.goTo)
-      if (!inPlace) push(personalPath(after?.url ?? url))
-      commit(next)
+    (url: string, title?: string) => {
+      push(personalPath(url))
+      commit(openScreen(framesRef.current, url, title ?? nameRef.current(url)))
     },
     [commit, push]
   )
@@ -164,43 +156,8 @@ export function useOpenScreen(startUrl: string | null, appName = DEFAULT_BRAND_N
   /** Loads the page the open frame is on now. */
   const reload = React.useCallback(() => commit(reloadOpen(framesRef.current)), [commit])
 
-  const back = React.useCallback(() => {
-    pendingRef.current = { way: "back", at: Date.now() }
-    window.history.back()
-  }, [])
-
-  const forward = React.useCallback(() => {
-    pendingRef.current = { way: "forward", at: Date.now() }
-    window.history.forward()
-  }, [])
-
-  /** A frame's app says it moved to `path`. */
-  const report = React.useCallback(
-    (frameId: number, { path, title, canGo }: PanelReport) => {
-      const before = framesRef.current.kept.find((frame) => frame.id === frameId)
-      const next = reportMove(framesRef.current, frameId, path, title, canGo)
-      const after = next.kept.find((frame) => frame.id === frameId)
-      // A page name that arrives while its frame is hidden still names the
-      // screen in the recent list, without moving it up.
-      if (frameId !== next.openId && after?.title) {
-        setRecent((list) => {
-          if (!list.some((entry) => entry.url === after.url && !entry.title)) return list
-          const updated = list.map((entry) =>
-            entry.url === after.url && !entry.title ? { ...entry, title: after.title } : entry
-          )
-          saveRecentScreens(updated)
-          return updated
-        })
-      }
-      if (frameId === next.openId && before && after && after.url !== before.url) {
-        const pending = pendingRef.current
-        pendingRef.current = null
-        stepped(pending && Date.now() - pending.at < PENDING_MS ? pending.way : "new")
-      }
-      commit(next)
-    },
-    [commit, stepped]
-  )
+  const back = React.useCallback(() => window.history.back(), [])
+  const forward = React.useCallback(() => window.history.forward(), [])
 
   const screen = openFrame(frames)
   // Steps from before this page loaded, such as before a reload of Personal,
@@ -209,17 +166,6 @@ export function useOpenScreen(startUrl: string | null, appName = DEFAULT_BRAND_N
     .navigation
   const canGoBack = steps.back > 0 || Boolean(browser?.canGoBack)
   const canGoForward = steps.forward > 0 || Boolean(browser?.canGoForward)
-
-  // Personal's address follows the frame. Opening a link and going Back have
-  // already set it, so this only acts on a move made inside the frame, or on
-  // showing a kept frame that moved while it was hidden.
-  React.useEffect(() => {
-    if (!screen) return
-    const address = personalPath(screen.url)
-    if (currentAddress() !== address) {
-      window.history.replaceState(window.history.state, "", address)
-    }
-  }, [screen])
 
   React.useEffect(() => {
     document.title = screen?.title ? `${screen.title} · ${appName}` : appName
@@ -236,6 +182,5 @@ export function useOpenScreen(startUrl: string | null, appName = DEFAULT_BRAND_N
     reload,
     back,
     forward,
-    report,
   }
 }

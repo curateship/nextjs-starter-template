@@ -7,7 +7,6 @@ import {
   appUrlFromPersonalPath,
   clampSidebarWidth,
   defaultMenu,
-  frameSrc,
   hasLinkTo,
   menuSchema,
   moveLink,
@@ -20,7 +19,6 @@ import {
   screenName,
   setStartLink,
   startLink,
-  subLinksOf,
   updateLink,
   type MenuLink,
 } from "@/lib/menu"
@@ -47,16 +45,6 @@ describe("addresses", () => {
       "https://cms.example.com/admin"
     )
     expect(appUrlFromPersonalPath("/")).toBeNull()
-  })
-
-  it("asks the framed app for its panel alone", () => {
-    expect(frameSrc("http://localhost:3015/admin/listings")).toBe(
-      "http://localhost:3015/admin/listings?panel=1"
-    )
-    expect(frameSrc("http://localhost:3015/admin/listings?tab=draft")).toBe(
-      "http://localhost:3015/admin/listings?tab=draft&panel=1"
-    )
-    expect(frameSrc("javascript:alert(1)")).toBe("about:blank")
   })
 
   it("refuses an address that is not a web page", () => {
@@ -161,23 +149,15 @@ describe("sub-links", () => {
     expect(menuSchema.safeParse(menu).success).toBe(true)
   })
 
-  it("opens the sub-link's own screen and shows the family in the top bar", () => {
+  it("opens the sub-link's own screen", () => {
     const menu = withPosts()
-    const active = activeLinkId(menu, "http://localhost:3015/admin/posts")
-    expect(active).toBe("link-posts")
-    expect(subLinksOf(menu, active)?.map((l) => l.id)).toEqual(["link-cms-dashboard", "link-posts"])
-    expect(subLinksOf(menu, "link-cms-dashboard")?.map((l) => l.id)).toEqual([
-      "link-cms-dashboard",
-      "link-posts",
-    ])
-    // A link with no sub-links leaves the top bar's left end empty.
-    expect(subLinksOf(menu, "link-cms-listings")).toBeNull()
+    expect(activeLinkId(menu, "http://localhost:3015/admin/posts")).toBe("link-posts")
   })
 
   it("goes one level deep only", () => {
     const menu = withPosts()
     const parent = menu.sections[1].links[0]
-    // Under one of its own sub-links, under another link, or in the top bar:
+    // Under one of its own sub-links, under another link, or in the bottom list:
     // a link that holds sub-links is refused all three.
     expect(updateLink(menu, parent, { kind: "under", linkId: "link-posts" })).toBe(menu)
     expect(updateLink(menu, parent, { kind: "under", linkId: "link-cms-listings" })).toBe(menu)
@@ -226,22 +206,18 @@ describe("pinning the open screen", () => {
 })
 
 describe("the open screen's name", () => {
-  it("is the section, then the page name the app sent, else the link's label", () => {
+  it("is the label of the link the screen belongs to", () => {
     const menu = addLink(defaultMenu(), { kind: "top" }, posts)
     const listings = "http://localhost:3015/admin/listings"
-    expect(screenName(menu, listings, "All listings")).toBe("CMS · All listings")
-    expect(screenName(menu, listings, "")).toBe("CMS · Listings")
-    expect(screenName(menu, `${listings}/abc`, "Pasta night")).toBe("CMS · Pasta night")
-    // A top-bar link has no section, so the host stands in for it.
-    expect(screenName(menu, posts.url, "")).toBe("localhost:3015 · Posts")
-    // A screen no link matches, before or without a page name: the host alone.
-    expect(screenName(menu, "http://localhost:3099/x", "")).toBe("localhost:3099")
-    expect(screenName(menu, null, "")).toBeNull()
+    expect(screenName(menu, listings)).toBe("Listings")
+    expect(screenName(menu, `${listings}/abc`)).toBe("Listings")
+    expect(screenName(menu, posts.url)).toBe("Posts")
+    expect(screenName(menu, "http://localhost:3099/x")).toBe("")
   })
 
-  it("names a sub-link's screen after its parent's section", () => {
+  it("names a sub-link's screen by the sub-link", () => {
     const menu = addLink(defaultMenu(), { kind: "under", linkId: "link-cms-dashboard" }, posts)
-    expect(screenName(menu, posts.url, "")).toBe("CMS · Posts")
+    expect(screenName(menu, posts.url)).toBe("Posts")
   })
 })
 
@@ -314,7 +290,7 @@ describe("dragging a link to another list", () => {
     expect(end.sections[0].links.at(-1)?.id).toBe("link-cms-listings")
   })
 
-  it("drops it into the top bar, and back into a section", () => {
+  it("drops it into the bottom list, and back into a section", () => {
     let menu = moveLinkTo(defaultMenu(), "link-cms-listings", { kind: "top" }, null)
     expect(menu.top.map((l) => l.id)).toEqual(["link-cms-listings"])
     menu = moveLinkTo(menu, "link-cms-listings", project, "link-project-dashboard")
@@ -330,7 +306,7 @@ describe("dragging a link to another list", () => {
     expect(menu.sections[0].links[0]).not.toHaveProperty("children")
   })
 
-  it("refuses a link that holds sub-links in the top bar or under another link", () => {
+  it("refuses a link that holds sub-links in the bottom list or under another link", () => {
     const menu = addLink(defaultMenu(), { kind: "under", linkId: "link-cms-dashboard" }, posts)
     expect(moveLinkTo(menu, "link-cms-dashboard", { kind: "top" }, null)).toBe(menu)
     expect(

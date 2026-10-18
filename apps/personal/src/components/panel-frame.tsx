@@ -2,33 +2,25 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
 import type { Frame } from "@/lib/frames"
-import { frameSrc, parseAppUrl } from "@/lib/menu"
-import { PANEL_FRAME_NAME, PANEL_GO_TYPE, readPanelReport, type PanelReport } from "@/lib/panel"
+import { parseAppUrl } from "@/lib/menu"
 import { PHONE_WIDTH, type PanelZoom } from "@/lib/use-panel-view"
 import { cn } from "@/lib/utils"
 
 type View = { zoom: PanelZoom; phone: boolean }
 
+/** What the frame loads: the screen itself, or nothing for an address that isn't one. */
+function frameSrc(url: string) {
+  return parseAppUrl(url)?.href ?? "about:blank"
+}
+
 /**
- * One kept frame: another app's real screen. A spinner shows until its page
- * has loaded. The app reports each move inside the frame, and `onReport`
- * hands it on, named by this frame, so a hidden frame's moves never move
- * Personal's address.
+ * One kept frame: another app's real screen, exactly as it shows in its own
+ * tab, its own top navigation included. A spinner shows until its page has
+ * loaded.
  */
-function PanelFrame({
-  frame,
-  shown,
-  view,
-  onReport,
-}: {
-  frame: Frame
-  shown: boolean
-  view: View
-  onReport: (frameId: number, report: PanelReport) => void
-}) {
+function PanelFrame({ frame, shown, view }: { frame: Frame; shown: boolean; view: View }) {
   const frameRef = React.useRef<HTMLIFrameElement>(null)
   const [loadedKey, setLoadedKey] = React.useState<number | null>(null)
-  const origin = parseAppUrl(frame.frameUrl)?.origin ?? ""
   // Zoom draws the page larger by 1/zoom and scales it back down from the top
   // left, so it still fills the panel exactly. Phone view ignores zoom.
   const zoom = view.phone ? 1 : view.zoom
@@ -39,34 +31,14 @@ function PanelFrame({
   // step on nothing. The first load is the frame's own `src`.
   const firstLoad = React.useRef(frame.load)
   // Fixed once: a changed `src` would load the page as a new history step.
-  const [firstSrc] = React.useState(() => frameSrc(frame.frameUrl))
+  const [firstSrc] = React.useState(() => frameSrc(frame.url))
   React.useEffect(() => {
     if (frame.load === firstLoad.current) return
-    const src = frameSrc(frame.frameUrl)
+    const src = frameSrc(frame.url)
     const target = frameRef.current?.contentWindow
     if (target) target.location.replace(src)
     else if (frameRef.current) frameRef.current.src = src
-  }, [frame.load, frame.frameUrl])
-
-  // Asks the app to change page itself, as a click inside it would. Only the
-  // path goes, and only to this app's address. `goTo` is only ever set for an
-  // app that said it takes the note.
-  const goTo = frame.goTo
-  React.useEffect(() => {
-    if (!goTo) return
-    frameRef.current?.contentWindow?.postMessage({ type: PANEL_GO_TYPE, path: goTo.path }, origin)
-    // Runs once per ask: `goTo` is a new object only when Personal asks again.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goTo])
-
-  React.useEffect(() => {
-    function onMessage(event: MessageEvent) {
-      const report = readPanelReport(event, origin, frameRef.current?.contentWindow)
-      if (report) onReport(frame.id, report)
-    }
-    window.addEventListener("message", onMessage)
-    return () => window.removeEventListener("message", onMessage)
-  }, [origin, onReport, frame.id])
+  }, [frame.load, frame.url])
 
   return (
     // A hidden frame keeps its size and is only made invisible, so its app
@@ -86,7 +58,6 @@ function PanelFrame({
         <iframe
           ref={frameRef}
           src={firstSrc}
-          name={PANEL_FRAME_NAME}
           title={frame.title || "The open screen"}
           allow="clipboard-write"
           className="block size-full origin-top-left border-0"
@@ -107,7 +78,7 @@ function PanelFrame({
             className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground"
           >
             <Loader2Icon className="size-4 animate-spin" />
-            Opening {parseAppUrl(frame.frameUrl)?.host}
+            Opening {parseAppUrl(frame.url)?.host}
           </div>
         )}
       </div>
@@ -124,13 +95,11 @@ export function PanelFrames({
   frames,
   openId,
   view,
-  onReport,
   children,
 }: {
   frames: Frame[]
   openId: number | null
   view: View
-  onReport: (frameId: number, report: PanelReport) => void
   children: React.ReactNode
 }) {
   return (
@@ -142,7 +111,6 @@ export function PanelFrames({
           frame={frame}
           shown={frame.id === openId}
           view={view}
-          onReport={onReport}
         />
       ))}
     </div>

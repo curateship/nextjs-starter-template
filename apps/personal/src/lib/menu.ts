@@ -1,9 +1,10 @@
 import { z } from "zod"
 
 /**
- * Personal's menu: links in the top bar, and sections of links in the left
- * menu. Each link opens another app's screen in the middle panel. The menu is
- * kept in `data/menu.json` on this Mac (`server/menu-file.ts`), and
+ * Personal's menu: sections of links in the left menu, and a list of links
+ * at its bottom (stored as `top`, from when they sat in a top bar). Each link
+ * opens another app's screen in the middle panel. The menu is kept in
+ * `data/menu.json` on this Mac (`server/menu-file.ts`), and
  * `workspace/docs/menu.md` explains it.
  */
 
@@ -54,8 +55,7 @@ const linkSchema = z.object({
 
 /**
  * A left-menu link may hold sub-links, one level deep, as Custom Shell's menu
- * items do. They fold under it, and the top bar's left end shows them while
- * the link or one of them is open. Top-bar links have none.
+ * items do. They fold under it. The links at the bottom of the menu have none.
  */
 const sectionLinkSchema = linkSchema.extend({
   children: z.array(linkSchema).max(50).optional(),
@@ -114,7 +114,10 @@ export type MenuLink = z.infer<typeof sectionLinkSchema>
 export type MenuSection = z.infer<typeof sectionSchema>
 export type Menu = z.infer<typeof menuSchema>
 
-/** Where a link sits: the top bar, a left-menu section, or under a left-menu link. */
+/**
+ * Where a link sits: the list at the bottom of the menu, a section, or under a
+ * section's link. The bottom list keeps the name `top` it was saved under.
+ */
 export type Place =
   | { kind: "top" }
   | { kind: "section"; sectionId: string }
@@ -128,7 +131,7 @@ export function placeKey(place: Place) {
 /**
  * Whether a link may go to a place. Sub-links go one level deep only, so a
  * link that has its own sub-links stays a left-menu link: it can't go under
- * another link, nor into the top bar, which has no sub-links.
+ * another link, nor into the bottom list, which has no sub-links.
  */
 export function canPlace(link: MenuLink, place: Place) {
   if (place.kind === "section") return true
@@ -220,14 +223,6 @@ export function appUrlFromPersonalPath(pathAndSearch: string) {
   return url ? url.href : null
 }
 
-/** What the frame loads: the screen, asking its app to draw the panel alone. */
-export function frameSrc(appUrl: string) {
-  const url = parseAppUrl(appUrl)
-  if (!url) return "about:blank"
-  url.searchParams.set("panel", "1")
-  return url.href
-}
-
 export function opensInTab(link: Pick<MenuLink, "opens">) {
   return link.opens === "tab"
 }
@@ -266,24 +261,12 @@ export function hasLinkTo(menu: Menu, openUrl: string) {
 }
 
 /**
- * The open screen's name for the top bar: the section its link sits in, or
- * the app's host when no section link matches, then the page's own name. The
- * page name is the one the framed app reported, else the link's label; with
- * neither, the host stands alone.
+ * The menu's name for a screen: the label of the link it belongs to, the
+ * same one `activeLinkId` picks, or "" when no link does.
  */
-export function screenName(menu: Menu, openUrl: string | null, title: string) {
-  const open = openUrl ? parseAppUrl(openUrl) : null
-  if (!open) return null
-  const id = activeLinkId(menu, openUrl)
-  const link = id ? allLinks(menu).find((l) => l.id === id) : undefined
-  const section = id
-    ? menu.sections.find((s) =>
-        s.links.some((l) => l.id === id || l.children?.some((c) => c.id === id))
-      )
-    : undefined
-  const where = section?.title || open.host
-  const page = title || link?.label
-  return page ? `${where} · ${page}` : where
+export function screenName(menu: Menu, url: string) {
+  const id = activeLinkId(menu, url)
+  return (id && allLinks(menu).find((link) => link.id === id)?.label) || ""
 }
 
 /** The link Personal opens on its bare address, if it still exists and fills the panel. */
@@ -363,21 +346,6 @@ function withLinksAt(menu: Menu, place: Place, links: MenuLink[]): Menu {
       }),
     })),
   }
-}
-
-/**
- * The top bar's left end, as Custom Shell's mirrors its menu: the open
- * left-menu link and its sub-links, when the open screen is that link or one
- * of them. Null when the open screen has no sub-links around it.
- */
-export function subLinksOf(menu: Menu, activeId: string | null) {
-  if (!activeId) return null
-  const parent = sectionLinks(menu).find(
-    (link) =>
-      link.children?.length &&
-      (link.id === activeId || link.children.some((child) => child.id === activeId))
-  )
-  return parent ? [parent, ...(parent.children ?? [])] : null
 }
 
 /** Adds a link at the end of a place. */

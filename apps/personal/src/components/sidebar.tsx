@@ -163,7 +163,6 @@ function SidebarSection({
           <SortableLinks
             links={section.links}
             place={{ kind: "section", sectionId: section.id }}
-            orientation="vertical"
             dropClassName="flex flex-col gap-0.5"
           >
             <AddLinkButton place={{ kind: "section", sectionId: section.id }} label="Add link" />
@@ -176,21 +175,25 @@ function SidebarSection({
 
 /**
  * The left menu: sections of links, each edited where it stands while editing
- * is on. "Edit the menu" in the top bar's cog turns editing on and off; off, the
- * menu shows only its sections and links. Deleting a section that still holds
- * links asks first; an empty one goes at once.
+ * is on, then the list of links at its bottom, then `footer`. "Edit the menu"
+ * in the cog at the bottom turns editing on and off; off, the menu shows only
+ * its sections and links. Deleting a section that still holds links asks
+ * first; an empty one goes at once.
  */
 export function Sidebar({
   menu,
   update,
   editing,
   onHome,
+  footer,
 }: {
   menu: Menu
   update: (change: (menu: Menu) => Menu) => void
   editing: boolean
   /** The logo and name go back to Personal's start page, when no screen is chosen for them. */
   onHome: () => void
+  /** The controls at the very bottom. */
+  footer: React.ReactNode
 }) {
   const [renamingId, setRenamingId] = React.useState<string | null>(null)
   // Switching editing off closes any half-done rename, so it doesn't reopen
@@ -281,7 +284,7 @@ export function Sidebar({
             <p className="px-2 py-1 text-sm text-muted-foreground">
               {editing
                 ? "No sections yet. Add one below, then add links to it."
-                : "No sections yet. Turn on Edit the menu in the top bar's cog to add one."}
+                : "No sections yet. Turn on Edit the menu in the cog at the bottom to add one."}
             </p>
           ) : null}
         </nav>
@@ -303,6 +306,18 @@ export function Sidebar({
           </Button>
         </div>
       ) : null}
+      {menu.top.length || editing ? (
+        <nav aria-label="Bottom links" className="shrink-0 border-t border-sidebar-border/50 p-2">
+          <SortableLinks
+            links={menu.top}
+            place={{ kind: "top" }}
+            dropClassName="flex flex-col gap-0.5"
+          >
+            <AddLinkButton place={{ kind: "top" }} label="Add link" />
+          </SortableLinks>
+        </nav>
+      ) : null}
+      {footer}
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => {

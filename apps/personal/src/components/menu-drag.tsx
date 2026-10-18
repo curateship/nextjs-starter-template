@@ -33,9 +33,9 @@ import {
 } from "@/lib/menu"
 
 /**
- * The menu's one drag area, around the left menu and the top bar, so a link
- * can be dragged into another section, under another link or into the top
- * bar, and sections into a new order. Each list of links and the list of
+ * The menu's one drag area, around the whole left menu, so a link
+ * can be dragged into another section, under another link or into the list
+ * at the bottom, and sections into a new order. Each list of links and the list of
  * sections is a `SortableContext` inside it. `workspace/docs/menu.md` says how
  * it behaves.
  */
