@@ -33,6 +33,17 @@ import type {
   NoteFieldValues,
 } from "@/lib/note/notes/fields"
 import type { NoteFilter, NoteSort, TotalKind, ViewKind } from "@/lib/note/notes/views"
+import type {
+  Highlight,
+  NotePostKind,
+  NotePostStatus,
+  PlanStep,
+  PostPicture,
+  PostVideoStatus,
+  QuotedPost,
+  ThreadPost,
+  ThreadStatus,
+} from "@/lib/note/posts/posts"
 
 /**
  * The Note app's own tables, kept apart from the shell's `src/server/schema.ts`
@@ -302,8 +313,117 @@ export const noteNoteReminders = pgTable(
 )
 
 /**
- * Which video or note a bell notice is about, so clicking it opens that one.
- * Exactly one of the two is set.
+ * Posts' folders: a flat list with no fields, kept apart from the Videos
+ * folders. The SQL is `drizzle/0100_note_posts.sql`.
+ */
+export const notePostFolders = pgTable(
+  "note_post_folders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_note_post_folders_owner_name").on(table.ownerId, sql`lower(${table.name})`),
+  ]
+)
+
+/**
+ * One saved X post and everything the AI wrote about it, or one plan merged
+ * from several (kind "merged"). The status is the job and the lease says which
+ * worker holds it; the post's video has a status of its own.
+ */
+export const notePosts = pgTable(
+  "note_posts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    folderId: varchar("folder_id", { length: 36 }).references(() => notePostFolders.id, {
+      onDelete: "set null",
+    }),
+    kind: varchar("kind", { length: 10 }).$type<NotePostKind>().notNull().default("post"),
+    postId: varchar("post_id", { length: 30 }),
+    url: text("url"),
+    status: varchar("status", { length: 20 }).$type<NotePostStatus>().notNull(),
+    error: text("error"),
+    authorName: text("author_name"),
+    authorHandle: varchar("author_handle", { length: 30 }),
+    authorPicturePath: text("author_picture_path"),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    text: text("text"),
+    pictures: jsonb("pictures").$type<PostPicture[]>(),
+    quoted: jsonb("quoted").$type<QuotedPost>(),
+    thread: jsonb("thread").$type<ThreadPost[]>(),
+    threadStatus: varchar("thread_status", { length: 10 }).$type<ThreadStatus>().notNull().default("none"),
+    articleUrl: text("article_url"),
+    articleTitle: text("article_title"),
+    articleText: text("article_text"),
+    likesWhenSaved: integer("likes_when_saved"),
+    repostsWhenSaved: integer("reposts_when_saved"),
+    videoStatus: varchar("video_status", { length: 20 }).$type<PostVideoStatus>().notNull().default("none"),
+    videoError: text("video_error"),
+    videoSourceUrl: text("video_source_url"),
+    videoSeconds: integer("video_seconds"),
+    videoMediaId: varchar("video_media_id", { length: 36 }).references(() => customShellMedia.id, {
+      onDelete: "set null",
+    }),
+    videoCoverPath: text("video_cover_path"),
+    transcript: jsonb("transcript").$type<TranscriptLine[]>(),
+    highlights: jsonb("highlights").$type<Highlight[]>(),
+    summary: jsonb("summary").$type<string[]>(),
+    actionPlan: jsonb("action_plan").$type<PlanStep[]>(),
+    tags: jsonb("tags").$type<string[]>(),
+    suggestedFolderId: varchar("suggested_folder_id", { length: 36 }).references(
+      () => notePostFolders.id,
+      { onDelete: "set null" }
+    ),
+    similarPostId: varchar("similar_post_id", { length: 36 }).references(
+      (): AnyPgColumn => notePosts.id,
+      { onDelete: "set null" }
+    ),
+    sourcePostIds: jsonb("source_post_ids").$type<string[]>(),
+    analysedAt: timestamp("analysed_at", { withTimezone: true }),
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_note_posts_owner_post")
+      .on(table.ownerId, table.postId)
+      .where(sql`${table.postId} is not null`),
+    index("ix_note_posts_status").on(table.status, table.updatedAt),
+    index("ix_note_posts_owner_created").on(table.ownerId, table.createdAt),
+    check("ck_note_posts_kind", sql`${table.kind} in ('post', 'merged')`),
+    check(
+      "ck_note_posts_status",
+      sql`${table.status} in ('waiting', 'reading', 'saved', 'queued', 'analysing', 'ready', 'failed')`
+    ),
+    check(
+      "ck_note_posts_video_status",
+      sql`${table.videoStatus} in ('none', 'waiting', 'downloading', 'saved', 'failed', 'too_long')`
+    ),
+    check("ck_note_posts_thread_status", sql`${table.threadStatus} in ('none', 'whole', 'cut')`),
+  ]
+)
+
+/** The app's own settings, one row keyed "app". */
+export const noteSettings = pgTable("note_settings", {
+  key: varchar("key", { length: 20 }).primaryKey(),
+  aboutYou: text("about_you").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * Which video, note or post a bell notice is about, so clicking it opens that
+ * one. Exactly one of the three is set.
  */
 export const noteNoticeLinks = pgTable("note_notice_links", {
   noticeId: varchar("notice_id", { length: 36 })
@@ -315,6 +435,9 @@ export const noteNoticeLinks = pgTable("note_notice_links", {
   noteId: varchar("note_id", { length: 36 }).references(() => noteNotes.id, {
     onDelete: "cascade",
   }),
+  postId: varchar("post_id", { length: 36 }).references(() => notePosts.id, {
+    onDelete: "cascade",
+  }),
 })
 
 export type NoteVideoRow = typeof noteVideos.$inferSelect
@@ -322,3 +445,5 @@ export type NoteFolderRow = typeof noteFolders.$inferSelect
 export type NoteNoteFolderRow = typeof noteNoteFolders.$inferSelect
 export type NoteNoteFieldRow = typeof noteNoteFields.$inferSelect
 export type NoteNoteRow = typeof noteNotes.$inferSelect
+export type NotePostRow = typeof notePosts.$inferSelect
+export type NotePostFolderRow = typeof notePostFolders.$inferSelect

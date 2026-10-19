@@ -482,7 +482,7 @@ export async function runAnalysis(job: Claimed): Promise<void> {
     const durationMs = durationSeconds ? durationSeconds * 1000 : null
     const transcript = await transcribe({
       ownerId: job.ownerId,
-      videoId: job.id,
+      about: { noteVideoId: job.id },
       apiKey,
       sound: new Uint8Array(await readFile(soundPath)),
       durationMs,

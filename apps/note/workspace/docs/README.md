@@ -21,3 +21,13 @@ the shell lives in the repo's `docs/`.
   links between notes, pictures, saving with the revision check and the
   offline copy, and History.
 - [note-reminders.md](note-reminders.md): date reminders in the bell.
+- [posts-dashboard.md](posts-dashboard.md): the `/posts` screen. Folders and
+  authors on the left, the cards and filters in the middle, the picked post on
+  the right, highlights, and the editable action plan.
+- [saving-a-post.md](saving-a-post.md): which X links work, why the app reads
+  X's own post page and not its embed feed, what is kept (long text, thread,
+  quote, pictures, video), Bring in the article, the Save from x.com button,
+  failures, and what a deploy needs.
+- [analysing-a-post.md](analysing-a-post.md): the Gemini call behind Analyse,
+  the about-you line, the folder suggestion, the similar-post warning, the
+  price line, Analyse many, One plan from many, and the bell.

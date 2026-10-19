@@ -85,5 +85,23 @@
     "database": {
       "uuid": "jee1uxx0iazkaw78y7yqtyhf"
     }
+  },
+  "project": {
+    "server": "de",
+    "project": "Project",
+    "healthUrl": "https://project.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "jpq3inydlkjofvn3a3algugr"
+      },
+      {
+        "role": "worker",
+        "uuid": "y0zxuxzqdszjyesiauc7b78m"
+      }
+    ],
+    "database": {
+      "uuid": "qi7owchjxxin7stgfpb4fvnm"
+    }
   }
 }

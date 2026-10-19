@@ -17,11 +17,13 @@ import {
   moveLinkTo,
   moveSection,
   personalPath,
+  pinnedLinks,
   removeLink,
   removeSection,
   renameSection,
   screenName,
   setAppMenuWidth,
+  setPinned,
   setStartLink,
   setStayLoadedLink,
   startLink,
@@ -428,5 +430,35 @@ describe("the menu's shade", () => {
     expect(sidebarShadeColor(-7)).toBe("oklch(from var(--shell-rail) calc(l + -0.105) c h)")
     expect(sidebarShadeLabel(0)).toBe("Default")
     expect(sidebarShadeLabel(-3)).toBe("3 darker")
+  })
+})
+
+describe("pinned links", () => {
+  it("adds each pin at the end, and leaves the file without the list once empty", () => {
+    let menu = setPinned(defaultMenu(), "link-cms-listings", true)
+    menu = setPinned(menu, "link-project-dashboard", true)
+    expect(pinnedLinks(menu).map((link) => link.label)).toEqual(["Listings", "My dashboard"])
+    expect(setPinned(menu, "link-cms-listings", true)).toBe(menu)
+    menu = setPinned(setPinned(menu, "link-cms-listings", false), "link-project-dashboard", false)
+    expect(menu).not.toHaveProperty("pinnedLinkIds")
+    expect(menuSchema.safeParse(menu).success).toBe(true)
+  })
+
+  it("keeps a pinned link in its section", () => {
+    const menu = setPinned(defaultMenu(), "link-cms-listings", true)
+    expect(menu.sections).toEqual(defaultMenu().sections)
+  })
+
+  it("drops a pin when its link or section is deleted", () => {
+    const menu = setPinned(
+      setPinned(defaultMenu(), "link-cms-listings", true),
+      "link-project-dashboard",
+      true
+    )
+    expect(removeLink(menu, "link-cms-listings").pinnedLinkIds).toEqual(["link-project-dashboard"])
+    expect(removeSection(menu, "section-cms").pinnedLinkIds).toEqual(["link-project-dashboard"])
+    expect(removeSection(removeSection(menu, "section-cms"), "section-project")).not.toHaveProperty(
+      "pinnedLinkIds"
+    )
   })
 })

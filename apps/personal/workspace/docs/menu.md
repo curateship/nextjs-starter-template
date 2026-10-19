@@ -15,30 +15,34 @@ edited where it stands, with no settings screen.
   too), no drag handles and no link cogs. Tyler asked for this on 16 Oct
   2026: "I dont want to see all those 'add links' or draggable until its
   enabled." It starts off on every visit.
-- **Recent sits at the top of the menu**, under the logo row. It shows the last
-  three menu links opened, newest first, with the open one marked. Tyler asked
-  for it on 18 Oct 2026. A deep page counts for the link that holds it, the
-  same link the menu marks, so a listing opened under Listings puts Listings
-  in Recent.
-  - **A link in Recent keeps its place.** Opening it again, from Recent or from
-    its own section, moves nothing. Only a link not yet in Recent goes to the
-    top, and the oldest of the three drops off. Tyler, 18 Oct 2026: "dont make
-    it move to the top every time i visit it".
-  - **Where it is kept:** this browser alone, under `personal-recent-links` in
-    localStorage, as the links' ids. Nothing is saved to the menu file. A link
-    deleted from the menu drops out of Recent.
-  - **An × takes a link out of Recent.** It shows at the row's right end when
-    the row is hovered, and leaves the link in its menu section. The row and
-    its × light up as one, with no separate box round the × (Tyler, 19 Oct
-    2026: "should be just one hover the whole row"). The link comes back the
-    next time it is opened after another link, or when the page reloads on
-    its screen, since a reload counts as opening it. Tyler, 19 Oct 2026: "add
-    an x on hover over the recent tabs to remove them".
-  - **Hidden until a link is opened.** It folds like a section, remembered
-    under `personal-sidebar-recent`, and can't be renamed, edited or dragged.
-  - **Code:** `src/lib/recent-links.ts` keeps the order,
-    `src/lib/use-recent-links.ts` adds the open link, and `RecentLinks` in
-    `src/components/sidebar.tsx` draws it.
+- **Pinned sits at the top of the menu**, under the logo row. It shows the
+  links switched to Pinned in their edit form, in the order they were pinned,
+  with the open one marked. It replaced Recent, the last three links opened,
+  on 19 Oct 2026: Tyler, "Instead of 'recent' lets replace it with 'Pinned'
+  if i clicked on the edit menu, give me an option to pin a link or unpin a
+  link".
+  - **Pin or unpin a link** with the Pinned switch in its form: turn on Edit
+    the menu, hover the link, and click its cog. It works for any link,
+    sub-links and bottom links included, and for links that open in their own
+    tab.
+  - **A pinned link stays in its own section too.** Pinned is a second way in,
+    not a move. It is renamed, edited and dragged in its section, not in
+    Pinned.
+  - **An × unpins a link from Pinned itself.** It shows at the row's right end
+    when the row is hovered, only while editing is on, so a stray click can't
+    unpin anything. The row and its × light up as one, with no separate box
+    round the × (Tyler, 19 Oct 2026: "should be just one hover the whole
+    row").
+  - **Where it is kept:** the menu file, as `pinnedLinkIds`, so every browser
+    sees the same pins. A link deleted from the menu, or a section deleted with
+    it, drops out of Pinned.
+  - **Hidden while nothing is pinned.** It folds like a section, remembered
+    under `personal-sidebar-pinned` in localStorage.
+  - **Not the cog's "Pin to the menu".** That one adds the open screen to the
+    menu as a new link. Pinned shows links already in the menu.
+  - **Code:** `pinnedLinks` and `setPinned` in `src/lib/menu.ts`, the switch
+    in `src/components/link-editor.tsx`, and `PinnedLinks` in
+    `src/components/sidebar.tsx`.
 - **Fold a section** by clicking its name, as in Custom Shell. A small arrow
   shows on hover and points down while the section is open. This browser
   remembers which sections are folded, under
@@ -202,6 +206,8 @@ Everything here needs editing switched on.
   tab link. It is a real link to the site with a small arrow after its name,
   it never changes the panel, and it never shows as the open link. Saved as
   `"opens": "tab"`; a link without the field opens in the panel.
+- **Pinned:** a switch in every link's form, above the two below. Turned on,
+  the link also shows in Pinned at the top of the menu; see Pinned above.
 - **Personal opens here:** a switch in a panel link's form. Turned on, a visit
   to `http://localhost:3021/` opens that link's screen. Only one link can be
   the start: turning it on for one turns it off for the one before. Saved as
