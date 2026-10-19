@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import {
   AlignCenterIcon,
@@ -28,10 +28,12 @@ import {
   SlidersHorizontalIcon,
   SparklesIcon,
   Trash2Icon,
+  TriangleAlertIcon,
   TypeIcon,
   Undo2Icon,
   UploadIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
@@ -67,6 +69,12 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  duplicateCarousel,
   getCarouselErrorMessage,
   polishCarouselText,
   saveCarousel,
@@ -87,8 +95,10 @@ import {
 } from "@/lib/api/media/media"
 import { attachEditorMedia, listVideoMedia } from "@/lib/api/video/media"
 import type { CarouselShadowDirection } from "@/lib/video/carousel-schema"
+import { findTextOverflow, relayoutSlides } from "@/lib/video/carousel-layout"
 import {
   CAROUSEL_CONFLICT_MESSAGE,
+  CAROUSEL_FORMATS,
   CAROUSEL_ITEM_LIMIT_MESSAGE,
   CAROUSEL_ITEM_MAX,
 } from "@/lib/video/carousel-schema"
@@ -243,6 +253,8 @@ const TEXT_PRESETS: {
   },
 ]
 
+const NO_ITEMS: CarouselTextItem[] = []
+
 const STICKERS = ["🔥", "✨", "👀", "💯", "➡️", "❤️", "⭐", "📈"]
 
 // Scrim presets — each adds a gradient-shadow with a fade direction + placement.
@@ -299,6 +311,8 @@ export function CarouselBuilderPage({
   const [exporting, setExporting] = React.useState(false)
   const [exportError, setExportError] = React.useState<string | null>(null)
   const [polishing, setPolishing] = React.useState(false)
+  const [copyingTo, setCopyingTo] = React.useState<CarouselFormat | null>(null)
+  const navigate = useNavigate()
   const horizontalLayout = useRememberedPanelLayout(LAYOUT_KEY)
   const panelRef = React.useRef<PanelImperativeHandle>(null)
   const inspectorRef = React.useRef<PanelImperativeHandle>(null)
@@ -341,6 +355,10 @@ export function CarouselBuilderPage({
   const selectedItem =
     selectedSlide?.items.find((item) => item.id === state.selectedItemId) ??
     null
+  const textOverflow = React.useMemo(
+    () => findTextOverflow(state.slides, state.format),
+    [state.slides, state.format]
+  )
 
   const persist = React.useCallback(
     async (next: Snapshot) => {
@@ -482,6 +500,24 @@ export function CarouselBuilderPage({
     }
   }
 
+  // Saves first, so the copy is made from what is on screen.
+  async function copyToFormat(format: CarouselFormat) {
+    setCopyingTo(format)
+    try {
+      await flushSave()
+      const copy = await duplicateCarousel(document.id, format)
+      toast.success(`"${copy.name}" created.`)
+      await navigate({
+        to: "/admin/video-carousels/$carouselId",
+        params: { carouselId: copy.id },
+      })
+    } catch (error) {
+      showErrorToast(getCarouselErrorMessage(error))
+    } finally {
+      setCopyingTo(null)
+    }
+  }
+
   function addItem(item: CarouselSlideItem) {
     if (!selectedSlide) return
     if (selectedSlide.items.length >= CAROUSEL_ITEM_MAX) {
@@ -569,6 +605,7 @@ export function CarouselBuilderPage({
           panel={panel}
           slides={state.slides}
           format={state.format}
+          textOverflow={textOverflow}
           selectedSlideId={state.selectedSlideId}
           onSelectSlide={(slideId) =>
             dispatch({ type: "SELECT_SLIDE", slideId })
@@ -631,6 +668,9 @@ export function CarouselBuilderPage({
             }
             onCommitHistory={(before) =>
               dispatch({ type: "COMMIT_HISTORY", before })
+            }
+            onUpdateFormat={(format) =>
+              dispatch({ type: "UPDATE_FORMAT", format })
             }
             getSnapshot={() => currentSnapshot(state)}
           />
@@ -702,8 +742,11 @@ export function CarouselBuilderPage({
               slide={selectedSlide}
               selectedItem={selectedItem}
               format={state.format}
-              onUpdateFormat={(format) =>
-                dispatch({ type: "UPDATE_FORMAT", format })
+              copyingTo={copyingTo}
+              onCopyToFormat={(format) => void copyToFormat(format)}
+              overflowItems={textOverflow.get(selectedSlide.id) ?? NO_ITEMS}
+              onSelectItem={(itemId) =>
+                dispatch({ type: "SELECT_ITEM", itemId })
               }
               onUpdateSlide={(patch) =>
                 dispatch({
@@ -940,6 +983,7 @@ function CarouselContextPanel({
   panel,
   slides,
   format,
+  textOverflow,
   selectedSlideId,
   onSelectSlide,
   onAddSlide,
@@ -951,6 +995,7 @@ function CarouselContextPanel({
   panel: StudioPanel
   slides: CarouselSlide[]
   format: CarouselFormat
+  textOverflow: ReadonlyMap<string, CarouselTextItem[]>
   selectedSlideId: string
   onSelectSlide: (slideId: string) => void
   onAddSlide: () => void
@@ -982,6 +1027,7 @@ function CarouselContextPanel({
               view={slidesView}
               slides={slides}
               format={format}
+              textOverflow={textOverflow}
               selectedSlideId={selectedSlideId}
               onSelectSlide={onSelectSlide}
               onAddSlide={onAddSlide}
@@ -1061,6 +1107,7 @@ function SlidesPanelBody({
   view,
   slides,
   format,
+  textOverflow,
   selectedSlideId,
   onSelectSlide,
   onAddSlide,
@@ -1070,6 +1117,7 @@ function SlidesPanelBody({
   view: "list" | "grid"
   slides: CarouselSlide[]
   format: CarouselFormat
+  textOverflow: ReadonlyMap<string, CarouselTextItem[]>
   selectedSlideId: string
   onSelectSlide: (slideId: string) => void
   onAddSlide: () => void
@@ -1107,6 +1155,7 @@ function SlidesPanelBody({
               slide={slide}
               index={index}
               format={format}
+              overflowing={textOverflow.has(slide.id)}
               selected={slide.id === selectedSlideId}
               canDelete={canDelete}
               onSelect={() => onSelectSlide(slide.id)}
@@ -1129,6 +1178,7 @@ function SlidesPanelBody({
               slide={slide}
               index={index}
               format={format}
+              overflowing={textOverflow.has(slide.id)}
               selected={slide.id === selectedSlideId}
               canDelete={canDelete}
               onSelect={() => onSelectSlide(slide.id)}
@@ -1144,10 +1194,33 @@ function SlidesPanelBody({
   )
 }
 
+const TEXT_OVERFLOW_LABEL = "text on it does not fit its box"
+
+// A hover hint only: the slide's select button carries the same words for
+// keyboards and screen readers.
+function TextOverflowMark() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          aria-hidden
+          className="inline-grid size-4 flex-none place-items-center text-destructive"
+        >
+          <TriangleAlertIcon className="size-3.5" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        Text on this slide does not fit its box, so the export cuts it off.
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 function SlideListRow({
   slide,
   index,
   format,
+  overflowing,
   selected,
   canDelete,
   onSelect,
@@ -1157,6 +1230,7 @@ function SlideListRow({
   slide: CarouselSlide
   index: number
   format: CarouselFormat
+  overflowing: boolean
   selected: boolean
   canDelete: boolean
   onSelect: () => void
@@ -1183,7 +1257,11 @@ function SlideListRow({
       <button
         type="button"
         onClick={onSelect}
-        aria-label={`Select slide ${index + 1}`}
+        aria-label={
+          overflowing
+            ? `Select slide ${index + 1}, ${TEXT_OVERFLOW_LABEL}`
+            : `Select slide ${index + 1}`
+        }
         style={{
           display: "flex",
           alignItems: "center",
@@ -1210,8 +1288,18 @@ function SlideListRow({
           <StaticSlidePreview slide={slide} format={format} />
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--mut)" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 11,
+              fontWeight: 700,
+              color: "var(--mut)",
+            }}
+          >
             {String(index + 1).padStart(2, "0")}
+            {overflowing ? <TextOverflowMark /> : null}
           </div>
           <div style={rowTitle}>{slide.title || "Untitled"}</div>
         </div>
@@ -1251,6 +1339,7 @@ function SlideGridCard({
   slide,
   index,
   format,
+  overflowing,
   selected,
   canDelete,
   onSelect,
@@ -1260,6 +1349,7 @@ function SlideGridCard({
   slide: CarouselSlide
   index: number
   format: CarouselFormat
+  overflowing: boolean
   selected: boolean
   canDelete: boolean
   onSelect: () => void
@@ -1271,7 +1361,11 @@ function SlideGridCard({
       <button
         type="button"
         onClick={onSelect}
-        aria-label={`Select slide ${index + 1}`}
+        aria-label={
+          overflowing
+            ? `Select slide ${index + 1}, ${TEXT_OVERFLOW_LABEL}`
+            : `Select slide ${index + 1}`
+        }
         style={{
           display: "block",
           width: "100%",
@@ -1302,6 +1396,11 @@ function SlideGridCard({
       >
         {String(index + 1).padStart(2, "0")}
       </span>
+      {overflowing ? (
+        <span className="absolute bottom-1.5 left-1.5 grid size-6 place-items-center rounded-md bg-background">
+          <TextOverflowMark />
+        </span>
+      ) : null}
       <div className="absolute top-[5px] right-[5px] flex gap-[3px] opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
         <button
           type="button"
@@ -1830,6 +1929,7 @@ function CanvasStage({
   onSelectSlide,
   onUpdateItem,
   onCommitHistory,
+  onUpdateFormat,
   getSnapshot,
 }: {
   slide: CarouselSlide
@@ -1845,6 +1945,7 @@ function CanvasStage({
     transient?: boolean
   ) => void
   onCommitHistory: (before: Snapshot) => void
+  onUpdateFormat: (format: CarouselFormat) => void
   getSnapshot: () => Snapshot
 }) {
   const containerRef = React.useRef<HTMLDivElement>(null)
@@ -2022,7 +2123,7 @@ function CanvasStage({
           gap: 9,
           zIndex: 6,
           pointerEvents: "none",
-          maxWidth: "calc(100% - 200px)",
+          maxWidth: "calc(100% - 380px)",
         }}
       >
         <span
@@ -2059,15 +2160,28 @@ function CanvasStage({
         </span>
       </div>
 
-      <ZoomControl
-        pct={zoomPct}
-        isFit={zoom === null}
-        canZoomOut={scale > ZOOM_MIN}
-        canZoomIn={scale < ZOOM_MAX}
-        onZoomOut={() => zoomBy(1 / ZOOM_FACTOR)}
-        onZoomIn={() => zoomBy(ZOOM_FACTOR)}
-        onFit={() => setZoom(null)}
-      />
+      <div
+        style={{
+          position: "absolute",
+          top: 16,
+          right: 20,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          zIndex: 10,
+        }}
+      >
+        <FormatControl format={format} onChange={onUpdateFormat} />
+        <ZoomControl
+          pct={zoomPct}
+          isFit={zoom === null}
+          canZoomOut={scale > ZOOM_MIN}
+          canZoomIn={scale < ZOOM_MAX}
+          onZoomOut={() => zoomBy(1 / ZOOM_FACTOR)}
+          onZoomIn={() => zoomBy(ZOOM_FACTOR)}
+          onFit={() => setZoom(null)}
+        />
+      </div>
 
       <SlidePager
         slides={slides}
@@ -2096,22 +2210,7 @@ function ZoomControl({
   onFit: () => void
 }) {
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: 16,
-        right: 20,
-        display: "flex",
-        alignItems: "center",
-        gap: 2,
-        padding: "4px 6px",
-        background: "var(--panel)",
-        border: "1px solid var(--line)",
-        borderRadius: 13,
-        boxShadow: "var(--sh)",
-        zIndex: 10,
-      }}
-    >
+    <div style={canvasPill}>
       <button
         type="button"
         className={canZoomOut ? "st-hovbg" : undefined}
@@ -2185,6 +2284,58 @@ function ZoomControl({
       </button>
     </div>
   )
+}
+
+// The carousel's shape. Layers move to suit by relayoutSlides, as one undo
+// step (workspace/docs/carousel-shapes.md).
+function FormatControl({
+  format,
+  onChange,
+}: {
+  format: CarouselFormat
+  onChange: (format: CarouselFormat) => void
+}) {
+  return (
+    <div role="group" aria-label="Format" style={canvasPill}>
+      {CAROUSEL_FORMATS.map((option) => {
+        const on = option === format
+        return (
+          <button
+            key={option}
+            type="button"
+            className="st-hovbg"
+            aria-pressed={on}
+            onClick={() => onChange(option)}
+            style={{
+              height: 28,
+              padding: "0 10px",
+              border: "none",
+              background: on ? "var(--elev2)" : "transparent",
+              borderRadius: 8,
+              color: on ? "var(--ink)" : "var(--ink2)",
+              fontSize: 12,
+              fontWeight: 600,
+              fontVariantNumeric: "tabular-nums",
+              cursor: "pointer",
+            }}
+          >
+            {option}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+const canvasPill: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 2,
+  padding: "4px 6px",
+  background: "var(--panel)",
+  border: "1px solid var(--line)",
+  borderRadius: 13,
+  boxShadow: "var(--sh)",
 }
 
 const zoomIconBtn: React.CSSProperties = {
@@ -2438,7 +2589,10 @@ function CarouselInspector({
   slide,
   selectedItem,
   format,
-  onUpdateFormat,
+  copyingTo,
+  onCopyToFormat,
+  overflowItems,
+  onSelectItem,
   onUpdateSlide,
   onUpdateItem,
   onDeleteItem,
@@ -2447,7 +2601,10 @@ function CarouselInspector({
   slide: CarouselSlide
   selectedItem: CarouselSlideItem | null
   format: CarouselFormat
-  onUpdateFormat: (format: CarouselFormat) => void
+  copyingTo: CarouselFormat | null
+  onCopyToFormat: (format: CarouselFormat) => void
+  overflowItems: CarouselTextItem[]
+  onSelectItem: (itemId: string) => void
   onUpdateSlide: (patch: Partial<CarouselSlide>) => void
   onUpdateItem: (itemId: string, patch: Partial<CarouselSlideItem>) => void
   onDeleteItem: (itemId: string) => void
@@ -2472,6 +2629,9 @@ function CarouselInspector({
             selectedItem.type === "text" ? (
               <TextInspector
                 item={selectedItem}
+                overflowing={overflowItems.some(
+                  (item) => item.id === selectedItem.id
+                )}
                 onUpdate={(patch) => onUpdateItem(selectedItem.id, patch)}
               />
             ) : selectedItem.type === "gradient-shadow" ? (
@@ -2489,7 +2649,10 @@ function CarouselInspector({
             <SlideInspector
               slide={slide}
               format={format}
-              onUpdateFormat={onUpdateFormat}
+              copyingTo={copyingTo}
+              onCopyToFormat={onCopyToFormat}
+              overflowItems={overflowItems}
+              onSelectItem={onSelectItem}
               onUpdateSlide={onUpdateSlide}
             />
           )}
@@ -2518,60 +2681,112 @@ function getInspectorTitle(selectedItem: CarouselSlideItem | null) {
 function SlideInspector({
   slide,
   format,
-  onUpdateFormat,
+  copyingTo,
+  onCopyToFormat,
+  overflowItems,
+  onSelectItem,
   onUpdateSlide,
 }: {
   slide: CarouselSlide
   format: CarouselFormat
-  onUpdateFormat: (format: CarouselFormat) => void
+  copyingTo: CarouselFormat | null
+  onCopyToFormat: (format: CarouselFormat) => void
+  overflowItems: CarouselTextItem[]
+  onSelectItem: (itemId: string) => void
   onUpdateSlide: (patch: Partial<CarouselSlide>) => void
 }) {
   return (
-    <InspectorCard
-      title="Slide"
-      description="The name, shape and background for this slide."
-    >
-      <div className="grid gap-2">
-        <FieldLabel htmlFor="carousel-slide-name">Slide name</FieldLabel>
-        <Input
-          id="carousel-slide-name"
-          value={slide.title}
-          maxLength={120}
-          onChange={(event) => onUpdateSlide({ title: event.target.value })}
-        />
-      </div>
+    <>
+      {overflowItems.length ? (
+        <InspectorCard
+          title="Text that does not fit"
+          description="The export cuts these off. Make the box taller or the words smaller."
+        >
+          <ul className="grid gap-2">
+            {overflowItems.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className="flex items-start gap-2 rounded-sm text-left text-sm text-destructive hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  onClick={() => onSelectItem(item.id)}
+                >
+                  <TriangleAlertIcon className="mt-0.5 size-4 flex-none" />
+                  <span className="min-w-0 break-words">
+                    {textLayerName(item)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </InspectorCard>
+      ) : null}
+      <InspectorCard
+        title="Slide"
+        description="This slide's name and background, and copies of the carousel in other shapes."
+      >
+        <div className="grid gap-2">
+          <FieldLabel htmlFor="carousel-slide-name">Slide name</FieldLabel>
+          <Input
+            id="carousel-slide-name"
+            value={slide.title}
+            maxLength={120}
+            onChange={(event) => onUpdateSlide({ title: event.target.value })}
+          />
+        </div>
 
-      <div className="grid gap-2">
-        <FieldLabel>Format</FieldLabel>
-        <SegRow
-          columns={3}
-          value={format}
-          onChange={(value) => onUpdateFormat(value)}
-          options={[
-            { value: "4:5", label: "4:5" },
-            { value: "1:1", label: "1:1" },
-            { value: "9:16", label: "9:16" },
-          ]}
-        />
-      </div>
+        <div className="grid gap-2">
+          <FieldLabel hint="Makes a new carousel in that shape with the layers moved to suit, and opens it. This one is not changed.">
+            Make a copy in
+          </FieldLabel>
+          <div className="grid grid-cols-2 gap-2">
+            {CAROUSEL_FORMATS.filter((option) => option !== format).map(
+              (option) => (
+                <Button
+                  key={option}
+                  type="button"
+                  variant="outline"
+                  aria-label={`Make a copy in ${option}`}
+                  disabled={copyingTo !== null}
+                  onClick={() => onCopyToFormat(option)}
+                >
+                  {copyingTo === option ? (
+                    <Loader2Icon className="animate-spin" />
+                  ) : (
+                    <CopyIcon />
+                  )}
+                  {option}
+                </Button>
+              )
+            )}
+          </div>
+        </div>
 
-      <div className="grid gap-2">
-        <FieldLabel>Background</FieldLabel>
-        <ColorField
-          value={slide.backgroundColor}
-          onChange={(backgroundColor) => onUpdateSlide({ backgroundColor })}
-          swatches={BACKGROUND_SWATCHES}
-        />
-      </div>
-    </InspectorCard>
+        <div className="grid gap-2">
+          <FieldLabel>Background</FieldLabel>
+          <ColorField
+            value={slide.backgroundColor}
+            onChange={(backgroundColor) => onUpdateSlide({ backgroundColor })}
+            swatches={BACKGROUND_SWATCHES}
+          />
+        </div>
+      </InspectorCard>
+    </>
   )
+}
+
+// A text layer is named by its first words, since layers have no names.
+function textLayerName(item: CarouselTextItem) {
+  const words = item.text.trim().replace(/\s+/g, " ")
+  return `Text "${words.length > 40 ? `${words.slice(0, 40)}...` : words}"`
 }
 
 function TextInspector({
   item,
+  overflowing,
   onUpdate,
 }: {
   item: CarouselTextItem
+  overflowing: boolean
   onUpdate: (patch: Partial<CarouselTextItem>) => void
 }) {
   return (
@@ -2580,6 +2795,16 @@ function TextInspector({
         title="Text"
         description="The words and how they look on this slide."
       >
+        {overflowing ? (
+          <p
+            role="status"
+            className="flex items-start gap-2 text-sm text-destructive"
+          >
+            <TriangleAlertIcon className="mt-0.5 size-4 flex-none" />
+            These words run past the box, so the export cuts off the end. Make
+            the box taller or the words smaller.
+          </p>
+        ) : null}
         <div className="grid gap-2">
           <FieldLabel htmlFor={`carousel-text-${item.id}`}>Content</FieldLabel>
           <Textarea
@@ -3280,7 +3505,12 @@ export function builderReducer(
     case "UPDATE_CAPTION":
       return withHistory(state, { ...state, caption: action.caption })
     case "UPDATE_FORMAT":
-      return withHistory(state, { ...state, format: action.format })
+      if (action.format === state.format) return state
+      return withHistory(state, {
+        ...state,
+        format: action.format,
+        slides: relayoutSlides(state.slides, state.format, action.format),
+      })
     case "UPDATE_SLIDE":
       return withHistory(state, {
         ...state,
