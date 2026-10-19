@@ -35,6 +35,9 @@ Nothing else. The cut tool starts off, and a project never opens playing.
   timeline is saved a moment after you stop scrolling, zooming, selecting,
   playing or dragging the playhead, and again as the editor closes or the tab goes away. The work is in
   `src/components/video-editor/use-remembered-view.ts`.
+- **Never by the History preview:** the timeline in a History version's
+  window neither reads nor writes this record, so looking at an old version
+  never moves where the project reopens (`project-history.md`).
 
 ## What it does not survive
 

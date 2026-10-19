@@ -31,6 +31,7 @@ import { TranscriptPanel } from "@/components/video-editor/studio-transcript-pan
 import { AiClipPanel } from "@/components/video-editor/studio-ai-clip-panel"
 import { CopyPanel } from "@/components/video-editor/studio-copy-panel"
 import { ExportsPanel } from "@/components/video-editor/studio-exports-panel"
+import { HistoryPanel } from "@/components/video-editor/studio-history-panel"
 import {
   attachEditorMedia,
   getVideoMediaErrorMessage,
@@ -81,6 +82,7 @@ export type StudioPanel =
   | "ai-clip"
   | "copy"
   | "exports"
+  | "history"
 
 // How long the Media panel waits before asking again while a video is still
 // being got ready. The worker runs every fifteen seconds, so this catches a
@@ -98,6 +100,7 @@ const PANEL_TITLE: Record<StudioPanel, string> = {
   "ai-clip": "AI clip",
   copy: "Copy",
   exports: "Exports",
+  history: "History",
 }
 
 export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
@@ -112,6 +115,7 @@ export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   if (panel === "ai-clip") return <AiClipPanel />
   if (panel === "copy") return <CopyPanel />
   if (panel === "exports") return <ExportsPanel />
+  if (panel === "history") return <HistoryPanel />
 
   return (
     <div className="flex h-full min-h-0 flex-col">

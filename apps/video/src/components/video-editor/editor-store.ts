@@ -151,6 +151,9 @@ export type EditorAction =
   | { type: "SET_CUT_MODE"; on: boolean }
   | { type: "SET_ZOOM"; pxPerSecond: number }
   | { type: "SET_ASPECT"; aspect: AspectRatio }
+  // An earlier version from History, put on screen as one edit. Undo takes
+  // back the clips; the shape, like SET_ASPECT, is not part of undo.
+  | { type: "RESTORE_TIMELINE"; timeline: ProjectTimeline }
   | { type: "UNDO" }
   | { type: "REDO" }
 
@@ -942,6 +945,14 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
 
     case "SET_ASPECT":
       return { ...state, aspect: action.aspect }
+
+    case "RESTORE_TIMELINE":
+      return {
+        ...pushUndo(state, action.timeline.tracks),
+        aspect: action.timeline.aspect,
+        selectedClipId: null,
+        selectedClipIds: [],
+      }
 
     case "UNDO": {
       const previous = state.past[state.past.length - 1]

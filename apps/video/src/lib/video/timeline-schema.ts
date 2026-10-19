@@ -219,3 +219,16 @@ export function parseTimelineForReset(value: unknown): {
     }
   }
 }
+
+/** Clip count and length, derived from the timeline rather than stored twice. */
+export function summarizeTimeline(timeline: ProjectTimeline) {
+  let clipCount = 0
+  let durationMs = 0
+  for (const track of timeline.tracks) {
+    for (const clip of track.clips) {
+      clipCount += 1
+      durationMs = Math.max(durationMs, clip.startMs + clip.durationMs)
+    }
+  }
+  return { clipCount, durationMs }
+}
