@@ -1,0 +1,23 @@
+import * as React from "react"
+
+import { allLinks, type Menu } from "@/lib/menu"
+import { addRecentLink, readRecentLinks, recentLinksIn, saveRecentLinks } from "@/lib/recent-links"
+
+/**
+ * The links for "Recent", oldest last. `activeId` is the menu link the open
+ * screen belongs to; each time it changes to a link not yet in the list, that
+ * link joins at the front.
+ */
+export function useRecentLinks(menu: Menu, activeId: string | null) {
+  const [ids, setIds] = React.useState(readRecentLinks)
+  const [seenId, setSeenId] = React.useState<string | null>(null)
+  const links = allLinks(menu)
+  if (activeId !== seenId) {
+    setSeenId(activeId)
+    if (activeId) {
+      setIds((list) => addRecentLink(list, activeId, new Set(links.map((link) => link.id))))
+    }
+  }
+  React.useEffect(() => saveRecentLinks(ids), [ids])
+  return recentLinksIn(links, ids)
+}
