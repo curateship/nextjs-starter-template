@@ -3,18 +3,21 @@ import { alias } from "drizzle-orm/pg-core"
 
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import {
+  actorPicturesPerRequest,
   assetName,
   assetPrompt,
   DEFAULT_IMAGE_MODEL,
+  describeActorPictures,
   projectClipAspect,
   sceneName,
+  tooManyActorPicturesMessage,
   type AssetAspectRatio,
   type GeminiImageModelId,
 } from "@/lib/video/asset-factories"
 import { withLook } from "@/lib/video/visual-style"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { getOwnedMedia, serializeMedia } from "@/server/media/library"
+import { serializeMedia } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
 import {
   serializeVideoMedia,
@@ -28,7 +31,7 @@ import {
   videoAiGenerations,
   videoFirstFrames,
 } from "@/server/video/schema"
-import { requireOwnedActor } from "./actors"
+import { requireOwnedActor, sheetLabels, sheetPicturesToSend } from "./actors"
 import { generateImage } from "./images"
 import { discardGeneratedAsset, saveGeneratedAsset } from "./media"
 
@@ -47,6 +50,11 @@ export type FirstFrameItem = {
   prompt: string
   aspect_ratio: AssetAspectRatio
   image: VideoMediaItem
+  /**
+   * The actor's pictures it was drawn from, named by their sheet labels.
+   * Empty for frames made before this was written down.
+   */
+  made_from: string[]
   created_at: string
 }
 
@@ -56,6 +64,8 @@ export type FirstFramePayload = {
   /** The scene, such as "Mia holding a coffee in a bright kitchen". */
   prompt: string
   variants: number
+  /** Sheet pictures to send. None means the actor's main picture alone. */
+  sheetPictureIds?: string[] | null
   /**
    * Only for a square or 4:3 project, whose shape no picture model makes.
    * Any other project's frames take the project's own shape.
@@ -104,9 +114,14 @@ function frameRows(userId: string, projectId: string, frameIds?: string[]) {
 }
 
 async function serializeFrames(
+  userId: string,
   rows: Awaited<ReturnType<typeof frameRows>>
 ): Promise<FirstFrameItem[]> {
   const images = await serializeVideoMedia(rows.map((row) => row.image))
+  const sheets = await sheetLabels(
+    userId,
+    [...new Set(rows.map((row) => row.actor.id))]
+  )
   return Promise.all(
     rows.map(async (row, index) => ({
       id: row.frame.id,
@@ -119,6 +134,11 @@ async function serializeFrames(
       prompt: row.frame.prompt,
       aspect_ratio: row.frame.aspectRatio as AssetAspectRatio,
       image: images[index],
+      made_from: describeActorPictures(
+        row.frame.actorMediaIds,
+        sheets.get(row.actor.id) ?? [],
+        row.actor.imageMediaId
+      ),
       created_at: row.frame.createdAt.toISOString(),
     }))
   )
@@ -127,7 +147,9 @@ async function serializeFrames(
 /** This project's first frames, newest first. */
 export async function listFirstFrames(userId: string, projectId: string) {
   await getOwnedProject(userId, projectId)
-  return { firstFrames: await serializeFrames(await frameRows(userId, projectId)) }
+  return {
+    firstFrames: await serializeFrames(userId, await frameRows(userId, projectId)),
+  }
 }
 
 /**
@@ -146,7 +168,11 @@ export async function createFirstFrames(
     throw new Error("Pick 9:16 or 16:9 for this project's first frames")
   }
   const actor = await requireOwnedActor(userId, payload.actorId)
-  const actorMedia = await getOwnedMedia(userId, actor.imageMediaId)
+  const actorPictures = await sheetPicturesToSend(
+    userId,
+    actor,
+    payload.sheetPictureIds
+  )
   const prompt = assetPrompt(payload.prompt)
   const name = assetName(sceneName(prompt), "First frame")
   const model: GeminiImageModelId = DEFAULT_IMAGE_MODEL
@@ -156,6 +182,15 @@ export async function createFirstFrames(
     aiUnitCostCents(model, payload.variants)
   )
   const look = await readProjectLook(userId, project.id)
+  const pictureLimit = actorPicturesPerRequest(model, look.picture !== null)
+  if (actorPictures.length > pictureLimit) {
+    throw new Error(tooManyActorPicturesMessage(pictureLimit))
+  }
+  // One picture keeps the request exactly as it always was.
+  const samePerson =
+    actorPictures.length > 1
+      ? ` The first ${actorPictures.length} pictures all show ${actor.name}: keep that one person's face, hair and build.`
+      : ""
 
   const createdIds: string[] = []
   let warning: string | null = null
@@ -168,8 +203,8 @@ export async function createFirstFrames(
         projectId: project.id,
         ...withLook(
           look,
-          `Create a polished opening frame for a short video. Preserve the actor's identity. Actor: ${actor.name}. Actor description: ${actor.prompt}. Direction: ${prompt}. Variant ${variant} of ${payload.variants}.`,
-          [actorMedia]
+          `Create a polished opening frame for a short video. Preserve the actor's identity.${samePerson} Actor: ${actor.name}. Actor description: ${actor.prompt}. Direction: ${prompt}. Variant ${variant} of ${payload.variants}.`,
+          actorPictures
         ),
       })
       const variantName = payload.variants > 1 ? `${name} ${variant}` : name
@@ -195,6 +230,7 @@ export async function createFirstFrames(
             tags: [],
             pinned: false,
             imageMediaId: media.id,
+            actorMediaIds: actorPictures.map((picture) => picture.id),
             createdAt: at,
             updatedAt: at,
           })
@@ -212,6 +248,7 @@ export async function createFirstFrames(
   }
   return {
     firstFrames: await serializeFrames(
+      userId,
       await frameRows(userId, project.id, createdIds)
     ),
     warning,

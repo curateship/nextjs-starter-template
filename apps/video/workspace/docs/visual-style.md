@@ -37,7 +37,8 @@ like it belongs with scene one, instead of drifting from photo to cartoon to 3D.
 - **First frames:** a first frame is made inside a project, on the editor's
   AI clip panel, so it always takes that project's look without asking. The
   panel says which look it will use before the button is pressed (see
-  `ai-clip.md`).
+  `ai-clip.md`). Nano Banana takes 3 pictures a request in all, so a look
+  picture leaves room for 2 of the actor's sheet pictures (`actors.md`).
 - **Actors:** an actor is shared across projects. Made from the AI clip panel,
   it takes the open project's look. Made on the Actors dashboard, its window
   has a "Project look" choice that lists only projects with a look. Either way

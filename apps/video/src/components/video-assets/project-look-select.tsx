@@ -33,7 +33,7 @@ export function ProjectLookSelect({
   const chosen = withLook.find((project) => project.id === value)
 
   return (
-    <div className="grid gap-2 sm:col-span-2">
+    <div className="grid gap-2">
       <FieldLabel
         htmlFor={id}
         hint="The picture is made in that project's style, with its look picture as an extra reference. Set a look in the project's Settings, from the cog on the projects list."

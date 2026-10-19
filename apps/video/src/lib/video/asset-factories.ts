@@ -22,6 +22,55 @@ export const ACTOR_IMAGE_MODEL_IDS = ACTOR_IMAGE_MODELS.map((item) => item.id) a
 ]
 export const DEFAULT_IMAGE_MODEL: GeminiImageModelId = "gemini-2.5-flash-image"
 
+/** The most pictures one actor's character sheet holds. */
+export const MAX_SHEET_PICTURES = 12
+export const MAX_SHEET_LABEL_LENGTH = 60
+
+export const MAIN_PICTURE_REMOVE_MESSAGE =
+  "Pick another main picture before removing this one."
+export const SHEET_PICTURE_NOT_FOUND_MESSAGE =
+  "That picture is no longer on this actor's sheet."
+export const SHEET_FULL_MESSAGE = `An actor's sheet holds up to ${MAX_SHEET_PICTURES} pictures.`
+export const SHEET_DUPLICATE_MESSAGE =
+  "That picture is already on this actor's sheet."
+
+/**
+ * How many of an actor's sheet pictures one picture request can carry. From
+ * Google's pages, read 19 Oct 2026: Nano Banana (gemini-2.5-flash-image)
+ * takes 3 pictures a request in all, so a project's look picture uses one of
+ * them; Nano Banana 2 (gemini-3.1-flash-image) holds up to 4 pictures of a
+ * character, apart from any style picture.
+ */
+export function actorPicturesPerRequest(
+  model: GeminiImageModelId,
+  hasLookPicture: boolean
+) {
+  if (model === "gemini-2.5-flash-image") return hasLookPicture ? 2 : 3
+  return 4
+}
+
+/**
+ * Names the actor pictures a first frame was drawn from, by their labels on
+ * the sheet today. An unlabelled one is "main picture" or "unlabelled
+ * picture", and one taken off the sheet since is "a removed picture".
+ */
+export function describeActorPictures(
+  sentMediaIds: string[],
+  sheet: { mediaId: string; label: string | null }[],
+  mainMediaId: string
+) {
+  return sentMediaIds.map((mediaId) => {
+    const picture = sheet.find((candidate) => candidate.mediaId === mediaId)
+    if (!picture) return "a removed picture"
+    if (picture.label) return picture.label
+    return mediaId === mainMediaId ? "main picture" : "unlabelled picture"
+  })
+}
+
+export function tooManyActorPicturesMessage(limit: number) {
+  return `This picture model takes up to ${limit} ${limit === 1 ? "picture" : "pictures"} of the actor at once.`
+}
+
 export const ASSET_ASPECT_RATIOS = ["9:16", "16:9"] as const
 export type AssetAspectRatio = (typeof ASSET_ASPECT_RATIOS)[number]
 
@@ -117,6 +166,8 @@ export function openAiImageSize(aspectRatio: AssetAspectRatio) {
   return aspectRatio === "9:16" ? "1024x1536" : "1536x1024"
 }
 
+export const MAX_ASSET_TAGS = 30
+
 export function normalizeAssetTags(value: string): string[] {
   const seen = new Set<string>()
   return value
@@ -127,7 +178,7 @@ export function normalizeAssetTags(value: string): string[] {
       seen.add(tag)
       return true
     })
-    .slice(0, 30)
+    .slice(0, MAX_ASSET_TAGS)
 }
 
 export function providerMessage(body: string): string {

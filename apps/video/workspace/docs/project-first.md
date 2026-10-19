@@ -99,8 +99,8 @@ project's.
 - **Delete** says what goes with the project before it goes: its first frames,
   AI clips and exports, counted, and that actors, the copied video and library
   footage stay. The first frames' pictures and the shots' clips leave storage
-  afterwards unless another project, an actor, a carousel, a collection or a
-  timeline still uses them (`mediaStillInUse` in
+  afterwards unless another project, an actor or its character sheet, a
+  carousel, a collection or a timeline still uses them (`mediaStillInUse` in
   `src/server/video/media-in-use.ts`). One that will not come out is logged
   and left in the library.
 - **Duplicate** copies the first frame records, which show the same pictures,
