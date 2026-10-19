@@ -80,7 +80,7 @@ cover this one.
   to soft grey in Settings → Appearance, which greys move and which stay.
 - [Backgrounds](backgrounds.md) — the Live catalogue backgrounds and the backdrop every
   member screen draws behind its content.
-- [Focus history](history.md) — the four-range report as Tyler drew it: the
+- [Focus history](history.md) — the five-range report as Tyler drew it, opening on Today: the
   strip, By day, This week, the hour-of-day chart, top tasks and projects,
   project targets, the sessions table with its tag filter, CSV export, and the
   badges.
