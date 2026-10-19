@@ -40,12 +40,15 @@ describe("Pinned in the left menu", () => {
     expect(html).toMatch(/href="\/localhost:3015\/admin\/listings"[^>]*data-active=""/)
   })
 
-  it("gives each link an × that unpins it only while editing", () => {
+  it("gives each link a drag handle and an × that unpins it only while editing", () => {
     const ids = ["link-cms-listings", "link-project-dashboard"]
     expect(render(ids)).not.toContain("Unpin")
+    expect(render(ids)).not.toContain("Drag")
     const html = render(ids, { editing: true })
     expect(html).toContain('aria-label="Unpin Listings"')
     expect(html).toContain('aria-label="Unpin My dashboard"')
+    expect(html).toContain('aria-label="Drag Listings"')
+    expect(html).toContain('aria-label="Drag My dashboard"')
   })
 
   it("draws nothing while no link is pinned", () => {

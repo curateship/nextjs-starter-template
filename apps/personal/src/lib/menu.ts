@@ -395,6 +395,18 @@ export function setPinned(menu: Menu, linkId: string, pinned: boolean): Menu {
   return withPinnedIds(menu, pinned ? [...ids, linkId] : ids.filter((id) => id !== linkId))
 }
 
+/** Moves a pinned link to where another pinned link is, in Pinned's order only. */
+export function movePinned(menu: Menu, fromId: string, toId: string): Menu {
+  const ids = menu.pinnedLinkIds ?? []
+  const from = ids.indexOf(fromId)
+  const to = ids.indexOf(toId)
+  if (from === -1 || to === -1 || from === to) return menu
+  const next = [...ids]
+  const [moved] = next.splice(from, 1)
+  next.splice(to, 0, moved)
+  return withPinnedIds(menu, next)
+}
+
 /** Forgets the start link, the stay-loaded link and pins once their links are no longer in the menu. */
 function withoutLostLinks(menu: Menu): Menu {
   const ids = new Set(allLinks(menu).map((link) => link.id))
