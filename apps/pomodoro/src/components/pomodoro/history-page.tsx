@@ -863,7 +863,7 @@ function SessionsCard({
   )
 }
 
-/** The report page over 7 days, 30 days, 12 months or this year. */
+/** The report page over today, 7 days, 30 days, 12 months or this year. */
 export function HistoryPage({
   range,
   onRangeChange,
@@ -953,9 +953,12 @@ export function HistoryPage({
       ? fillDays(report.startDate, report.endDate, report.days)
       : []
   const today = report?.endDate ?? ""
+  // Today is one day: the dates name it once rather than "Oct 19 – Oct 19",
+  // and By day, which would be one bar, gives its place to When you focus.
+  const todayOnly = report?.range === "today"
   const rangeSummary =
     report && !rangeLocked
-      ? `${formatShortDay(report.startDate)} – ${formatShortDay(report.endDate)} · today updates as you complete sessions`
+      ? `${todayOnly ? formatShortDay(report.endDate) : `${formatShortDay(report.startDate)} – ${formatShortDay(report.endDate)}`} · today updates as you complete sessions`
       : "Only completed focus sessions count - breaks and cancelled timers never do."
   const empty =
     Boolean(report) &&
@@ -1015,12 +1018,17 @@ export function HistoryPage({
               value={range}
               onValueChange={(value) => changeRange(value as ReportRange)}
             >
-              <TabsList aria-label="Report range" className={pillTabsList}>
+              {/* Five ranges are wider than a phone at the shared pill size,
+                  so the labels tighten below sm to fit a 360px screen. */}
+              <TabsList
+                aria-label="Report range"
+                className={`${pillTabsList} max-sm:p-1`}
+              >
                 {reportRanges.map((option) => (
                   <TabsTrigger
                     key={option}
                     value={option}
-                    className={pillTabsTrigger}
+                    className={`${pillTabsTrigger} max-sm:px-1 max-sm:text-sm`}
                   >
                     {reportRangeLabels[option]}
                     {isLongRangeReport(option) && longRangeUnlocked === false ? (
@@ -1070,7 +1078,7 @@ export function HistoryPage({
                 Long-range reports are part of Pro
               </h3>
               <p className="text-sm text-muted-foreground">
-                Free accounts keep the 7- and 30-day reports. Upgrade to unlock
+                Free accounts keep Today, 7 days and 30 days. Upgrade to unlock
                 the 12-month and yearly focus reports.
               </p>
               <div className="flex gap-2">
@@ -1099,12 +1107,17 @@ export function HistoryPage({
               <StripFigure
                 label="Sessions"
                 value={String(report.totals.focusSessions)}
-                hint={`${formatFocusDuration(todayRow?.focusSeconds ?? 0)} today · ${todayRow?.focusSessions ?? 0} ${(todayRow?.focusSessions ?? 0) === 1 ? "session" : "sessions"}`}
+                // On Today the line would repeat the two figures beside it.
+                hint={
+                  todayOnly
+                    ? reportRangeLabels.today
+                    : `${formatFocusDuration(todayRow?.focusSeconds ?? 0)} today · ${todayRow?.focusSessions ?? 0} ${(todayRow?.focusSessions ?? 0) === 1 ? "session" : "sessions"}`
+                }
               />
               <StripFigure
                 label="Active days"
                 value={String(report.totals.activeDays)}
-                hint={`of ${days.length} days`}
+                hint={`of ${days.length} ${days.length === 1 ? "day" : "days"}`}
               />
               {/* The streak arrives with the week review. While it loads
                   it reads "…"; a failed read says so here as well as in
@@ -1149,7 +1162,11 @@ export function HistoryPage({
             ) : (
               <>
                 <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-                  <ByDayPanel range={report.range} days={days} />
+                  {todayOnly ? (
+                    <HourOfDayPanel hours={report.hours} />
+                  ) : (
+                    <ByDayPanel range={report.range} days={days} />
+                  )}
                   <ThisWeekPanel
                     review={week.review}
                     error={week.error}
@@ -1157,8 +1174,12 @@ export function HistoryPage({
                     onRetry={week.retry}
                   />
                 </div>
-                <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-                  <HourOfDayPanel hours={report.hours} />
+                <div
+                  className={
+                    todayOnly ? "grid gap-6" : "grid gap-6 lg:grid-cols-[1fr_1fr]"
+                  }
+                >
+                  {todayOnly ? null : <HourOfDayPanel hours={report.hours} />}
                   <WorkSplitPanel
                     topTasks={report.topTasks}
                     topProjects={report.topProjects}
