@@ -28,6 +28,7 @@ import {
   deleteExports,
   getExportErrorMessage,
   retryExport,
+  stopExport,
   type ExportListWithShares,
   type RenderJobSummary,
 } from "@/lib/api/video/exports"
@@ -197,6 +198,16 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
     }, `Trying ${item.title ?? "this export"} again.`)
   }
 
+  async function handleStop(item: RenderJobSummary) {
+    await run(async () => {
+      try {
+        await stopExport(item.id)
+      } finally {
+        await router.invalidate()
+      }
+    }, "Export stopped. No file was made.")
+  }
+
   const selectedItems = items.filter((item) => selection.selected.has(item.id))
   const selectedCount = selection.selected.size
 
@@ -237,13 +248,6 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
               Clear out old
             </DashboardToolbarButton>
           </>
-        }
-        filters={
-          initial.storage.exports ? (
-            <p className="text-sm text-muted-foreground">
-              {`${initial.storage.exports.toLocaleString()} finished ${plural(initial.storage.exports, "export takes", "exports take")} ${formatFileSize(initial.storage.bytes)} of storage.`}
-            </p>
-          ) : null
         }
         header={
           <SortableTableHeader
@@ -403,16 +407,28 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
                     <RotateCwIcon className="size-4" />
                   </Button>
                 ) : null}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDeleteTargets([item])}
-                  aria-label={`Delete ${item.title ?? "this export"}`}
-                  title={`Delete ${item.title ?? "this export"}`}
-                >
-                  <Trash2Icon className="size-4" />
-                </Button>
+                {isExportActive(item) ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => void handleStop(item)}
+                    aria-label={`Stop export ${item.title ?? "this export"}`}
+                  >
+                    Stop export
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setDeleteTargets([item])}
+                    aria-label={`Delete ${item.title ?? "this export"}`}
+                    title={`Delete ${item.title ?? "this export"}`}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                )}
               </div>
             </TableCell>
           </TableRow>

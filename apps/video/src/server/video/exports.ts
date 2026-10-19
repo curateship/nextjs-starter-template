@@ -6,7 +6,6 @@ import {
   ilike,
   inArray,
   or,
-  sql,
   type SQL,
 } from "drizzle-orm"
 
@@ -107,31 +106,6 @@ export async function listOwnedExports({
     page_size: safePageSize,
     total_pages: Math.max(1, Math.ceil(total / safePageSize)),
   }
-}
-
-/** How many finished exports somebody has, and the space their files take. */
-export type ExportStorage = { exports: number; bytes: number }
-
-/**
- * Every finished export of theirs, not just the page on screen or the ones a
- * search matched, so the number answers what the account is costing. Covers
- * are left out: their size is never recorded, and each is a few dozen
- * kilobytes beside a video of many megabytes.
- */
-export async function loadExportStorage(
-  userId: string,
-  database: CustomShellDb = db
-): Promise<ExportStorage> {
-  const [row] = await database
-    .select({
-      exports: count(),
-      bytes: sql<number>`coalesce(sum(${videoRenderJobs.fileSize}), 0)::bigint`,
-    })
-    .from(videoRenderJobs)
-    .where(
-      and(eq(videoRenderJobs.userId, userId), eq(videoRenderJobs.status, "ready"))
-    )
-  return { exports: row?.exports ?? 0, bytes: Number(row?.bytes ?? 0) }
 }
 
 /** One export of the caller's own, or a refusal. Never anybody else's. */

@@ -6,9 +6,17 @@ import { PGlite } from "@electric-sql/pglite"
 import { asc, eq } from "drizzle-orm"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
+import {
+  PERSON_SHOTS_FULL_MESSAGE,
+  PROJECT_SHOTS_FULL_MESSAGE,
+} from "@/lib/video/asset-factories"
 import { now } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
-import { customShellMedia, type CustomShellUser } from "@/server/schema"
+import {
+  customShellAiAllowanceOverrides,
+  customShellMedia,
+  type CustomShellUser,
+} from "@/server/schema"
 import {
   createTestDatabase,
   insertUser,
@@ -238,6 +246,209 @@ async function pieces() {
     .orderBy(asc(videoAiGenerations.shotIndex))
 }
 
+/** Shots already being made, written straight in, one 4 second piece each. */
+async function insertRunningShots(projectId: string, count: number, prefix = "running") {
+  const timestamp = now()
+  await database.insert(videoAiGenerations).values(
+    Array.from({ length: count }, (_, index) => ({
+      id: `${prefix}-${index}`,
+      userId: user.id,
+      projectId,
+      firstFrameId: "frame-1",
+      firstFrameMediaId: "media-1",
+      prompt: `Running ${index}`,
+      model: "veo-3.1-generate-preview",
+      aspectRatio: "9:16",
+      durationSeconds: 4,
+      shotId: `${prefix}-${index}`,
+      shotIndex: 1,
+      shotPieces: 1,
+      status: "queued",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }))
+  )
+}
+
+function makeShot(projectId: string, prompt: string) {
+  return createGeneration(user.id, {
+    projectId,
+    firstFrameId: "frame-1",
+    prompts: [prompt],
+    lengthSeconds: 8,
+  })
+}
+
+describe("several shots at once", () => {
+  it("makes three shots in one project at once and refuses a fourth", async () => {
+    const project = await seedFirstFrame()
+    for (const prompt of ["She waves", "She laughs", "She turns away"]) {
+      await makeShot(project.id, prompt)
+    }
+
+    await expect(makeShot(project.id, "She sits")).rejects.toThrow(
+      PROJECT_SHOTS_FULL_MESSAGE
+    )
+    const { generations } = await listGenerations(user.id, project.id)
+    expect(generations.map((shot) => [shot.pieces[0].prompt, shot.status])).toEqual(
+      expect.arrayContaining([
+        ["She waves", "queued"],
+        ["She laughs", "queued"],
+        ["She turns away", "queued"],
+      ])
+    )
+    expect(generations).toHaveLength(3)
+  })
+
+  it("has the database refuse a fourth that skipped the app's check", async () => {
+    const project = await seedFirstFrame()
+    await insertRunningShots(project.id, 3)
+    await expect(insertRunningShots(project.id, 1, "extra")).rejects.toThrow()
+    const rows = await pieces()
+    expect(rows).toHaveLength(3)
+  })
+
+  it("refuses a seventh shot across one person's projects", async () => {
+    await seedFirstFrame()
+    const second = await createOwnedProject(user.id, "Second", database)
+    const third = await createOwnedProject(user.id, "Third", database)
+    const fourth = await createOwnedProject(user.id, "Fourth", database)
+    await insertRunningShots(second.id, 3, "second")
+    await insertRunningShots(third.id, 3, "third")
+
+    await expect(insertRunningShots(fourth.id, 1, "fourth")).rejects.toThrow()
+    await database.insert(videoFirstFrames).values({
+      id: "frame-4",
+      userId: user.id,
+      projectId: fourth.id,
+      actorId: "actor-1",
+      name: "Frame",
+      prompt: "Frame",
+      model: "gemini-2.5-flash-image",
+      aspectRatio: "9:16",
+      tags: [],
+      pinned: false,
+      imageMediaId: "media-1",
+      createdAt: now(),
+      updatedAt: now(),
+    })
+    await expect(
+      createGeneration(user.id, {
+        projectId: fourth.id,
+        firstFrameId: "frame-4",
+        prompts: ["Move"],
+        lengthSeconds: 8,
+      })
+    ).rejects.toThrow(PERSON_SHOTS_FULL_MESSAGE)
+  })
+
+  it("counts shots being made against the monthly allowance and names the shortfall", async () => {
+    const project = await seedFirstFrame()
+    await database.insert(customShellAiAllowanceOverrides).values({
+      userId: user.id,
+      monthlyCents: 800,
+      createdAt: now(),
+      updatedAt: now(),
+    })
+    // Two 8 second shots are 2 x $3.20 = $6.40 of the $8.00, and neither is
+    // on the meter yet because Google charges when a shot arrives.
+    await makeShot(project.id, "One")
+    await makeShot(project.id, "Two")
+
+    await expect(makeShot(project.id, "Three")).rejects.toThrow(
+      "Your monthly AI allowance has $8.00 left. Shots still being made will take $6.40 of it, and this one costs $3.20, so it is $1.60 short."
+    )
+    expect(await pieces()).toHaveLength(2)
+  })
+
+  it("counts shots being made against the project's spend limit", async () => {
+    const project = await seedFirstFrame()
+    await database
+      .update(videoProjects)
+      .set({ spendLimitCents: 500 })
+      .where(eq(videoProjects.id, project.id))
+    await makeShot(project.id, "One")
+
+    await expect(makeShot(project.id, "Two")).rejects.toThrow(
+      "This project has spent $0.00 of its $5.00 limit, shots still being made will add $3.20, and this costs about $3.20, so the limit is $1.40 short. Raise the limit in the project's settings."
+    )
+  })
+
+  it("starts each shot a pass apart and asks after every running one on each pass", async () => {
+    const project = await seedFirstFrame()
+    for (const prompt of ["One", "Two", "Three"]) await makeShot(project.id, prompt)
+    let started = 0
+    const checked: string[] = []
+    // Google finishes the last shot asked for first.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) => {
+        const url = String(input)
+        if (url.endsWith(":predictLongRunning")) {
+          started += 1
+          return Response.json({ name: `operations/${started}` })
+        }
+        if (url.includes("operations/")) {
+          const name = url.slice(url.indexOf("operations/"))
+          checked.push(name)
+          return name === "operations/3"
+            ? Response.json({
+                done: true,
+                response: {
+                  generateVideoResponse: {
+                    generatedSamples: [
+                      { video: { uri: "https://generativelanguage.googleapis.com/v1beta/files/v:download" } },
+                    ],
+                  },
+                },
+              })
+            : Response.json({ done: false })
+        }
+        // The start of an MP4 file, which is all the upload check reads.
+        return new Response(
+          Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom\0\0\0\0isommp42")]),
+          { headers: { "Content-Type": "video/mp4" } }
+        )
+      })
+    )
+
+    await videoGenerationTick()
+    await videoGenerationTick()
+    await videoGenerationTick()
+    expect(started).toBe(3)
+    // Pass 2 checked shot 1; pass 3 checked shots 1 and 2.
+    expect(checked.sort()).toEqual(["operations/1", "operations/1", "operations/2"])
+
+    checked.length = 0
+    await videoGenerationTick()
+    expect(checked.sort()).toEqual(["operations/1", "operations/2", "operations/3"])
+    const rows = await database
+      .select()
+      .from(videoAiGenerations)
+      .orderBy(asc(videoAiGenerations.createdAt))
+    const byPrompt = Object.fromEntries(rows.map((row) => [row.prompt, row.status]))
+    expect(byPrompt).toEqual({ One: "processing", Two: "processing", Three: "ready" })
+  })
+
+  it("puts a piece back in the queue when Google is too busy to start it", async () => {
+    const project = await seedFirstFrame()
+    await makeShot(project.id, "One")
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ error: { message: "Resource exhausted" } }, { status: 429 })
+      )
+    )
+
+    await videoGenerationTick()
+
+    const [row] = await pieces()
+    expect(row.status).toBe("queued")
+    expect(row.errorMessage).toBeNull()
+    expect(row.leaseToken).toBeNull()
+  })
+})
+
 describe("shots longer than one clip", () => {
   it("writes every piece at once, with only the first one queued", async () => {
     const project = await seedFirstFrame()
@@ -341,9 +552,8 @@ describe("shots longer than one clip", () => {
     expect((await listGenerations(user.id, other.id)).generations).toEqual([])
   })
 
-  it("refuses a Retry while another video runs on the project", async () => {
+  it("refuses a Retry while the project is already making its most shots", async () => {
     const project = await seedTwoPieceShot()
-    const timestamp = now()
     await database
       .update(videoAiGenerations)
       .set({ status: "ready", outputMediaId: "media-1", operationName: null })
@@ -352,26 +562,10 @@ describe("shots longer than one clip", () => {
       .update(videoAiGenerations)
       .set({ status: "error", errorMessage: "Google could not generate the video." })
       .where(eq(videoAiGenerations.id, "piece-2"))
-    await database.insert(videoAiGenerations).values({
-      id: "other",
-      userId: user.id,
-      projectId: project.id,
-      firstFrameId: "frame-1",
-      firstFrameMediaId: "media-1",
-      prompt: "Another",
-      model: "veo-3.1-generate-preview",
-      aspectRatio: "9:16",
-      durationSeconds: 4,
-      shotId: "other",
-      shotIndex: 1,
-      shotPieces: 1,
-      status: "queued",
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
+    await insertRunningShots(project.id, 3)
 
     await expect(retryGeneration(user.id, "piece-1")).rejects.toThrow(
-      "This project already has a video generating"
+      PROJECT_SHOTS_FULL_MESSAGE
     )
     const [second] = await database
       .select()
@@ -411,7 +605,7 @@ describe("the project's spend limit", () => {
         lengthSeconds: 8,
       })
     ).rejects.toThrow(
-      "This project has spent $0.00 of its $3.00 limit, and this costs about $3.20. Raise the limit in the project's settings."
+      "This project has spent $0.00 of its $3.00 limit, and this costs about $3.20, so the limit is $0.20 short. Raise the limit in the project's settings."
     )
     expect(await pieces()).toEqual([])
   })
