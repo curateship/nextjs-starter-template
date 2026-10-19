@@ -98,25 +98,12 @@ import { useRememberedChoice } from "@/lib/remembered-choice"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
+import type { TeamSearch } from "@/lib/project/team-route"
+import { useTeamId } from "@/lib/project/team-scope"
 
-const TEAM_ROUTE_ID = "/_authenticated/team/"
+/** An employee's own Team dashboard, and one team's for the site admin under Teams. */
+const TEAM_ROUTE_IDS = new Set(["/_authenticated/team/", "/_authenticated/teams/$teamId/"])
 
-export type TeamSearch = {
-  /** "YYYY-MM" shown in the calendar. Left out, the current month. */
-  month?: string
-  /**
-   * "YYYY-MM-DD" chosen on the calendar: its meetings show under it, and its
-   * check-ins on the right (today's, for a day still to come). Left out, today.
-   */
-  day?: string
-  /** The task whose window is open. */
-  task?: string
-  /**
-   * A client's name, or "No client": the calendar's due dates and Workload
-   * show only that client's projects (Features 16 Oct, part 9).
-   */
-  client?: string
-}
 
 /**
  * The Team dashboard, as Tyler redrew it on 14 Oct 2026
@@ -179,7 +166,7 @@ function Dashboard({
     () => true,
     () => {
       setLiveChanges((n) => n + 1)
-      void router.invalidate({ filter: (match) => match.routeId === TEAM_ROUTE_ID })
+      void router.invalidate({ filter: (match) => TEAM_ROUTE_IDS.has(match.routeId) })
     }
   )
   const go = React.useCallback(
@@ -373,6 +360,7 @@ function useMeetingWindows({ meetings, data, day }: { meetings: TeamMeetings; da
 }
 
 function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFigures }) {
+  const teamId = useTeamId()
   const { team } = data
   const canRun = runsTheTeam(data.myRole)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
@@ -388,7 +376,7 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
   async function resend(member: TeamMemberRow) {
     let sent: SentInvite | null = null
     const ok = await run(async () => {
-      sent = await resendTeamInvite(member.userId)
+      sent = await resendTeamInvite(member.userId, teamId)
     })
     if (ok && sent) setResent({ sent, email: member.email })
   }
@@ -423,7 +411,13 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
             meta={data.members.length}
             action={
               <Button asChild variant="ghost" size="sm">
-                <Link to="/team/members">Manage</Link>
+                {teamId ? (
+                  <Link to="/teams/$teamId/members" params={{ teamId }}>
+                    Manage
+                  </Link>
+                ) : (
+                  <Link to="/team/members">Manage</Link>
+                )}
               </Button>
             }
           >
@@ -596,6 +590,7 @@ function CalendarPanel({
   onOpenTask: (taskId: string) => void
   onNewMeeting: () => void
 }) {
+  const teamId = useTeamId()
   const [tab, setTab] = useRememberedChoice<MiddleTab>(TEAM_MIDDLE_TAB_KEY, "calendar", MIDDLE_TABS)
   const [view, setView] = useRememberedChoice<CalendarView>(TEAM_CALENDAR_VIEW_KEY, "month", CALENDAR_VIEWS)
   const [year, monthNumber] = month.month.split("-").map(Number)
@@ -611,7 +606,7 @@ function CalendarPanel({
 
   async function switchDueDates(on: boolean) {
     setShowDue(on)
-    const ok = await run(() => showDueDatesOnCalendar(on))
+    const ok = await run(() => showDueDatesOnCalendar(on, teamId))
     if (ok) await router.invalidate()
     else setShowDue(!on)
   }
@@ -906,6 +901,7 @@ type Making = {
  * opens the meeting again either way.
  */
 function useOpenedMeeting(meetings: TeamMeetings) {
+  const teamId = useTeamId()
   // Ids, so the window always shows the meeting as last loaded. It stays set
   // while the window closes, so it doesn't change under its closing animation.
   const [target, setTarget] = React.useState<{ meetingId: string; startsAt: string } | null>(null)
@@ -923,7 +919,7 @@ function useOpenedMeeting(meetings: TeamMeetings) {
   async function makeTask(line: NoteLineToMake) {
     let loaded: Awaited<ReturnType<typeof loadNewTaskProjects>>
     try {
-      loaded = await loadNewTaskProjects()
+      loaded = await loadNewTaskProjects(teamId)
     } catch (error) {
       showErrorToast(getProjectErrorMessage(error))
       return
@@ -957,7 +953,7 @@ function useOpenedMeeting(meetings: TeamMeetings) {
     taskMade: (projectId: string, taskId: string | null) => {
       rememberProject(projectId)
       if (taskId && making) {
-        linking.current = run(() => linkNoteLineToTask({ ...making.line, taskId }))
+        linking.current = run(() => linkNoteLineToTask({ ...making.line, taskId }, teamId))
       }
     },
     taskClosed: () => {
@@ -1481,7 +1477,8 @@ function TaskTitle({ task }: { task: TeamDayTask }) {
   if (!task.taskId) return <span className="min-w-0 flex-1 basis-36 break-words">{task.title} (deleted)</span>
   return (
     <Link
-      to="/team"
+      // The page it is on: an employee's /team, or a team's page under Teams.
+      to="."
       search={(previous: TeamSearch) => ({ ...previous, task: task.taskId ?? undefined })}
       className="min-w-0 flex-1 basis-36 break-words hover:underline focus-visible:underline focus-visible:outline-none"
     >

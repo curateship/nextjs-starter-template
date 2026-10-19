@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import {
   closestCenter,
   DndContext,
@@ -13,8 +14,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { useRouter } from "@tanstack/react-router"
-import { CheckIcon, GripVerticalIcon, SettingsIcon } from "lucide-react"
+import { GripVerticalIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 
 import {
   DueDate,
@@ -31,24 +31,27 @@ import {
   WaitingBadge,
   WaitingOnBadge,
 } from "@/components/project/task-bits"
-import { TaskBulkBar, type BulkTargets } from "@/components/project/task-bulk-bar"
-import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import { TaskBulkMenu, type BulkTargets } from "@/components/project/task-bulk-bar"
 import {
   SelectAllTableHead,
   SortableTableHeader,
-  type SortableColumn,
+  type TableHeaderColumn,
 } from "@/components/shared/sortable-table-header"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Table, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table"
-import { changeTasks, type BulkOutcome, type TaskCard } from "@/lib/api/project/tasks"
-import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TableSortButton,
+} from "@/components/ui/table"
+import type { TaskCard } from "@/lib/api/project/tasks"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
-import { reportBulkOutcome } from "@/lib/project/bulk-outcome"
-import { getProjectErrorMessage } from "@/lib/project/errors"
 import { todayKey } from "@/lib/project/dates"
 import { TASK_PRIORITY_LABEL, TASK_STATUSES, priorityRank } from "@/lib/project/rules"
 import { fieldSortValue, fieldValueText, type FieldRule } from "@/lib/project/task-fields"
@@ -78,6 +81,7 @@ export type FieldColumn = {
 
 const STATUS_ORDER = Object.fromEntries(TASK_STATUSES.map((s, i) => [s, i]))
 const NO_FIELD_COLUMNS: readonly FieldColumn[] = []
+const NO_TARGETS: BulkTargets = { people: [], projects: [] }
 
 function compare(a: TaskCard, b: TaskCard, column: TaskColumn, fieldColumns: readonly FieldColumn[]) {
   if (column.startsWith("field:")) {
@@ -122,10 +126,15 @@ export type TaskGroup = { key: string; label: string }
  * `groupOf` puts the rows under headings, in `groups` order. With `onReorder`
  * the rows start in the project's own order and drag up or down inside their
  * heading to change it, for everyone on the project.
+ *
+ * The tick boxes and drag handles stay hidden until the "Mass select" chip,
+ * shown when the pointer is over the Task heading, turns them on (Tyler,
+ * 19 Oct 2026).
  */
 export function TaskList({
   tasks,
   readOnly,
+  busy = false,
   onOpenTask,
   showProject = false,
   emptyText = "No tasks yet.",
@@ -134,11 +143,16 @@ export function TaskList({
   showEmptyGroups = false,
   onReorder,
   orderLabel = "the project's order",
-  bulk,
+  bulk = NO_TARGETS,
   fieldColumns = NO_FIELD_COLUMNS,
+  selectedSlot,
+  onDelete,
+  canDelete,
 }: {
   tasks: TaskCard[]
   readOnly: boolean
+  /** A reorder or status change is saving: rows wait to be dragged, so two drags save in order. */
+  busy?: boolean
   onOpenTask: (task: TaskCard) => void
   showProject?: boolean
   emptyText?: string
@@ -148,25 +162,66 @@ export function TaskList({
   onReorder?: (taskIds: string[]) => void
   /** What the dragged order is called: "the project's order", or "my order" on My dashboard's Today. */
   orderLabel?: string
-  /** Status, Hand to, Due date and Move to project for ticked rows. */
+  /** The people and projects that Hand to and Move to project offer for ticked rows. */
   bulk?: BulkTargets
   /** Up to 3 of a task type's fields, when the List is filtered to that type. */
   fieldColumns?: readonly FieldColumn[]
+  /** Where the "3 selected" button goes, such as the project header; above the table without one. */
+  selectedSlot?: HTMLElement | null
+  /** A bin in each row's Actions, on the tasks `canDelete` allows; the caller asks first. */
+  onDelete?: (task: TaskCard) => void
+  canDelete?: (task: TaskCard) => boolean
 }) {
-  const router = useRouter()
   const { sort, direction, toggleSort } = useTableSort<TaskColumn>(
     onReorder ? "order" : showProject ? "due" : "status"
   )
   const selection = useSelection()
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
   useClearSelectionOnListChange(selection.setSelected, tasks.map((t) => t.id).join(","))
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   const dndId = React.useId()
-  const canDrag = Boolean(onReorder) && sort === "order" && !readOnly
+  const [editing, setEditing] = React.useState(false)
+  const canEdit = editing && !readOnly
+  const canDrag = canEdit && Boolean(onReorder) && sort === "order"
 
-  const columns: SortableColumn<TaskColumn>[] = [
-    // The preset 320px minimum is for a full page; this table also sits in a panel.
-    { key: "title", label: "Task", column: "main", className: "min-w-32" },
+  function toggleEditing() {
+    if (editing) selection.clear()
+    setEditing(!editing)
+  }
+
+  const columns: TableHeaderColumn<TaskColumn>[] = [
+    // Drawn here rather than by the shared header, so the Mass select chip can
+    // sit beside the sort button. The preset 320px minimum is for a full page;
+    // this table also sits in a panel.
+    {
+      key: "title",
+      sortable: false,
+      column: "main",
+      className: "group/title min-w-32",
+      label: (
+        <span className="flex items-center gap-2">
+          <TableSortButton active={sort === "title"} direction={direction} onClick={() => toggleSort("title")}>
+            Task
+          </TableSortButton>
+          {readOnly ? null : (
+            <Button
+              type="button"
+              variant={editing ? "secondary" : "outline"}
+              size="xs"
+              aria-pressed={editing}
+              onClick={toggleEditing}
+              className={cn(
+                "rounded-full",
+                // A phone has no hover, so there it always shows.
+                !editing &&
+                  "opacity-0 group-hover/title:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+              )}
+            >
+              {editing ? "Hide select" : "Mass select"}
+            </Button>
+          )}
+        </span>
+      ),
+    },
     ...(showProject ? [{ key: "project" as const, label: "Project", column: "preview" as const }] : []),
     { key: "status", label: "Status", column: "preview" },
     { key: "priority", label: "Priority", column: "preview" },
@@ -198,22 +253,11 @@ export function TaskList({
   }, [groupOf, groups, rows, showEmptyGroups])
   const ids = rows.map((row) => row.id)
   const selectedIds = ids.filter((id) => selection.selected.has(id))
-  const colSpan = columns.length + 2
-
-  /** Each task is marked Done on its own, so one with a field still to fill is refused alone and named. */
-  async function markDone() {
-    let outcome: BulkOutcome = { changed: [], refused: [] }
-    const ok = await run(async () => {
-      outcome = await changeTasks({
-        taskIds: selectedIds,
-        change: { kind: "status", status: "done", stuckReason: null },
-      })
-    })
-    if (!ok) return
-    reportBulkOutcome(outcome, "marked Done")
-    selection.clear()
-    await router.invalidate()
-  }
+  const colSpan = columns.length + (canEdit ? 2 : 1)
+  const selectedMenu =
+    canEdit && selectedIds.length ? (
+      <TaskBulkMenu taskIds={selectedIds} targets={bulk} onDone={selection.clear} />
+    ) : null
 
   function handleDragEnd(event: DragEndEvent) {
     const overId = event.over?.id
@@ -229,20 +273,10 @@ export function TaskList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {selectedIds.length && !readOnly ? (
-        <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-          <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => void markDone()}>
-            <CheckIcon className="size-4" />
-            Mark Done ({selectedIds.length})
-          </DashboardToolbarButton>
-          {bulk ? (
-            <TaskBulkBar taskIds={selectedIds} targets={bulk} onDone={selection.clear} />
-          ) : null}
-          <DashboardToolbarButton type="button" variant="ghost" onClick={selection.clear}>
-            Clear selection
-          </DashboardToolbarButton>
-        </div>
-      ) : onReorder && sort !== "order" ? (
+      {selectedMenu && selectedSlot ? createPortal(selectedMenu, selectedSlot) : null}
+      {selectedMenu && !selectedSlot ? (
+        <div className="flex items-center justify-end border-b px-3 py-2">{selectedMenu}</div>
+      ) : canEdit && onReorder && sort !== "order" ? (
         <div className="flex items-center gap-2 border-b px-3 py-2 text-sm text-muted-foreground">
           Sorted by a column, so rows can't be dragged.
           <Button type="button" variant="ghost" size="sm" onClick={() => toggleSort("order")}>
@@ -259,12 +293,14 @@ export function TaskList({
               direction={direction}
               onSort={toggleSort}
               leading={
-                <SelectAllTableHead
-                  noun="tasks"
-                  disabled={readOnly || rows.length === 0}
-                  checked={selection.selectAllState(ids)}
-                  onCheckedChange={() => selection.toggleVisible(ids)}
-                />
+                canEdit ? (
+                  <SelectAllTableHead
+                    noun="tasks"
+                    disabled={rows.length === 0}
+                    checked={selection.selectAllState(ids)}
+                    onCheckedChange={() => selection.toggleVisible(ids)}
+                  />
+                ) : null
               }
               trailing={<TableHead column="meta">Actions</TableHead>}
             />
@@ -305,11 +341,15 @@ export function TaskList({
                           key={task.id}
                           task={task}
                           showProject={showProject}
-                          readOnly={readOnly}
+                          canSelect={canEdit}
                           canDrag={canDrag}
+                          dragLocked={busy}
                           selected={selection.selected.has(task.id)}
                           onToggle={() => selection.toggle(task.id)}
                           onOpen={() => onOpenTask(task)}
+                          onDelete={
+                            onDelete && !readOnly && (canDelete?.(task) ?? true) ? () => onDelete(task) : undefined
+                          }
                           fieldColumns={fieldColumns}
                         />
                       ))}
@@ -329,24 +369,28 @@ export function TaskList({
 function TaskRow({
   task,
   showProject,
-  readOnly,
+  canSelect,
   canDrag,
+  dragLocked,
   selected,
   onToggle,
   onOpen,
+  onDelete,
   fieldColumns,
 }: {
   task: TaskCard
   showProject: boolean
-  readOnly: boolean
+  canSelect: boolean
   canDrag: boolean
+  dragLocked: boolean
   selected: boolean
   onToggle: () => void
   onOpen: () => void
+  onDelete?: () => void
   fieldColumns: readonly FieldColumn[]
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
-    useSortable({ id: task.id, disabled: !canDrag })
+    useSortable({ id: task.id, disabled: !canDrag || dragLocked })
   const style: React.CSSProperties | undefined = transform
     ? { transform: `translate3d(0, ${transform.y}px, 0)`, transition }
     : undefined
@@ -355,17 +399,15 @@ function TaskRow({
     <TableRow
       ref={setNodeRef}
       style={style}
-      className={cn("group", isDragging && "relative z-10 bg-background")}
+      // A little tighter than the shell's rows (Tyler, 19 Oct 2026).
+      className={cn("group [&>td]:py-1", isDragging && "relative z-10 bg-background")}
       rowAction={onOpen}
     >
-      <TableCell column="select">
-        <Checkbox
-          checked={selected}
-          disabled={readOnly}
-          onCheckedChange={onToggle}
-          aria-label={`Select ${task.title}`}
-        />
-      </TableCell>
+      {canSelect ? (
+        <TableCell column="select">
+          <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={`Select ${task.title}`} />
+        </TableCell>
+      ) : null}
       <TableCell column="main" className="min-w-32">
         <span className="flex min-w-0 items-center gap-2">
           {canDrag ? (
@@ -437,12 +479,24 @@ function TaskRow({
         <Button
           type="button"
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           aria-label={`Open ${task.title}`}
           onClick={onOpen}
         >
           <SettingsIcon className="size-4" />
         </Button>
+        {onDelete ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Delete ${task.title}`}
+            onClick={onDelete}
+            className="hover:text-destructive"
+          >
+            <Trash2Icon className="size-4" />
+          </Button>
+        ) : null}
       </TableCell>
     </TableRow>
   )

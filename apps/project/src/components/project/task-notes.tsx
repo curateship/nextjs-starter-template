@@ -38,6 +38,7 @@ import {
 import { taskHref } from "@/lib/project/notices"
 import type { Change } from "@/components/project/task-body"
 import { cn } from "@/lib/utils"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * A task's notes: read as formatted text with links that open in a new tab,
@@ -288,6 +289,7 @@ const LIST_WIDTH = 288
  * task's title in the notes as a link to the task.
  */
 function useNotesLinking(on: boolean) {
+  const teamId = useTeamId()
   const [typing, setTyping] = React.useState<NotesLinkTyping | null>(null)
   // Where the list sits inside the editor's box, worked out as the # is typed.
   const [place, setPlace] = React.useState({ left: 0, top: 0 })
@@ -355,7 +357,7 @@ function useNotesLinking(on: boolean) {
     if (query === null) return
     let live = true
     const timer = window.setTimeout(() => {
-      findLinkableTasks(query).then(
+      findLinkableTasks(query, teamId).then(
         (tasks) => live && setFound({ typed: query, tasks }),
         () => live && setFound({ typed: query, tasks: [] })
       )
@@ -364,7 +366,7 @@ function useNotesLinking(on: boolean) {
       live = false
       window.clearTimeout(timer)
     }
-  }, [query])
+  }, [query, teamId])
 
   const list =
     typing && shown.length ? (

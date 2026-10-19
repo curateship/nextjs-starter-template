@@ -1,46 +1,25 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { TeamDashboardScreen, type TeamSearch } from "@/components/project/team-dashboard"
+import { TeamDashboardScreen } from "@/components/project/team-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
-import { loadTeamCheckins } from "@/lib/api/project/checkins"
-import { loadMeetings } from "@/lib/api/project/meetings"
-import { readClientFilter } from "@/lib/project/clients"
-import { isRealDay } from "@/lib/project/days"
-import { loadFigures, loadTeamDashboardPage } from "@/lib/api/project/teams"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { pageTitleHead } from "@/lib/project/page-title"
+import { loadTeamScreen, readTeamSearch, teamLoaderDeps } from "@/lib/project/team-route"
 
-const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/
-const ID = /^[\w-]{1,36}$/
-
-function readSearch(search: Record<string, unknown>): TeamSearch {
-  const result: TeamSearch = {}
-  if (typeof search.month === "string" && MONTH.test(search.month)) result.month = search.month
-  if (typeof search.day === "string" && isRealDay(search.day)) result.day = search.day
-  if (typeof search.task === "string" && ID.test(search.task)) result.task = search.task
-  const client = readClientFilter(search.client)
-  if (client) result.client = client
-  return result
-}
-
-/** The Team dashboard: the team, a calendar of its check-ins and meetings, and one day's check-ins. */
+/**
+ * An employee's Team dashboard: their own team, its calendar of check-ins and
+ * meetings, and one day's check-ins. The site admin is on no team, so they go
+ * to Teams and open a team from there (Tyler, 19 Oct 2026).
+ */
 export const Route = createFileRoute("/_authenticated/team/")({
-  validateSearch: readSearch,
-  // Opening a task doesn't reload the page; a new month or day does. The
-  // address is read again here because the signed-in route above passes every
-  // value through, so a value this route refused would otherwise still arrive.
-  loaderDeps: ({ search }) => {
-    const { month, day } = readSearch(search)
-    return { month, day }
-  },
-  loader: async ({ deps }) => {
-    const [data, checkins, meetings, figures] = await Promise.all([
-      loadTeamDashboardPage(),
-      loadTeamCheckins({ month: deps.month, day: deps.day }),
-      loadMeetings({ month: deps.month, day: deps.day }),
-      loadFigures(),
-    ])
-    return { data, checkins, meetings, figures }
+  validateSearch: readTeamSearch,
+  // The address is read again here because the signed-in route above passes
+  // every value through, so a value this route refused would otherwise still arrive.
+  loaderDeps: ({ search }) => teamLoaderDeps(search),
+  loader: async ({ deps, parentMatchPromise }) => {
+    const { user } = (await parentMatchPromise).loaderData ?? {}
+    if (user?.role === "admin") throw redirect({ to: "/teams", replace: true })
+    return loadTeamScreen(deps)
   },
   head: ({ matches }) => pageTitleHead("Team", matches),
   component: TeamRoute,

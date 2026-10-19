@@ -11,6 +11,7 @@ import {
   updateTeamSchema,
 } from "@/lib/project/rules"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
+import { teamScope } from "@/lib/api/project/scope"
 import { userGet, userPost } from "@/server/guards"
 import {
   hideAnnouncement,
@@ -18,12 +19,13 @@ import {
   postAnnouncement,
   takeDownAnnouncement,
 } from "@/server/project/announcements"
-import { findMembership, pickTeam } from "@/server/project/access"
+import { findMembership, inTeam } from "@/server/project/access"
 import { createInvite, createInvites, resendInvite } from "@/server/project/invites"
 import {
   createTeam,
+  deleteTeam,
   eachOf,
-  listTeamsForPicker,
+  listTeams,
   loadTeamDashboard,
   removeTeamMember,
   setTeamAvatar,
@@ -34,7 +36,7 @@ import { loadTeamFigures } from "@/server/project/team-figures"
 
 export type {
   BulkResult,
-  PickerTeam,
+  TeamListRow,
   TeamDashboard,
   TeamMemberRow,
   TeamSummary,
@@ -47,24 +49,28 @@ const id = z.string().min(1).max(36)
 
 const loadTeamDashboardFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => loadTeamDashboard(context.user.id))
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => loadTeamDashboard(context.user.id)))
 
 /** The four figures under the team's name on the Team dashboard. */
 const loadTeamFiguresFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) =>
-    (await findMembership(context.user.id)) ? loadTeamFigures(context.user.id) : null
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) =>
+    inTeam(data.teamId, async () =>
+      (await findMembership(context.user.id)) ? loadTeamFigures(context.user.id) : null
+    )
   )
 
 const setTeamPhotoFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(teamPhotoSchema)
-  .handler(async ({ data, context }) => setTeamPhoto(context.user.id, data.photoUrl))
+  .inputValidator(teamPhotoSchema.extend(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => setTeamPhoto(context.user.id, data.photoUrl)))
 
 const setTeamAvatarFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(teamPhotoSchema)
-  .handler(async ({ data, context }) => setTeamAvatar(context.user.id, data.photoUrl))
+  .inputValidator(teamPhotoSchema.extend(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => setTeamAvatar(context.user.id, data.photoUrl)))
 
 const createTeamFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -73,84 +79,83 @@ const createTeamFn = createServerFn({ method: "POST" })
 
 const updateTeamFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(updateTeamSchema)
-  .handler(async ({ data, context }) => updateTeam(context.user.id, data))
+  .inputValidator(updateTeamSchema.extend(teamScope))
+  .handler(async ({ data: { teamId, ...data }, context }) => inTeam(teamId, () => updateTeam(context.user.id, data)))
 
 const removeMembersFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ userIds: z.array(id).min(1).max(200) }))
+  .inputValidator(z.object({ userIds: z.array(id).min(1).max(200), ...teamScope }))
   .handler(async ({ data, context }) =>
-    eachOf(data.userIds, (userId) => removeTeamMember(context.user.id, userId))
+    inTeam(data.teamId, () => eachOf(data.userIds, (userId) => removeTeamMember(context.user.id, userId)))
   )
 
 const createInviteFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(inviteSchema)
-  .handler(async ({ data, context }) => createInvite(context.user, data))
+  .inputValidator(inviteSchema.extend(teamScope))
+  .handler(async ({ data: { teamId, ...data }, context }) => inTeam(teamId, () => createInvite(context.user, data)))
 
 const createInvitesFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(inviteManySchema)
-  .handler(async ({ data, context }) => createInvites(context.user, data))
+  .inputValidator(inviteManySchema.extend(teamScope))
+  .handler(async ({ data: { teamId, ...data }, context }) => inTeam(teamId, () => createInvites(context.user, data)))
 
 const resendInviteFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ userId: id }))
-  .handler(async ({ data, context }) => resendInvite(context.user, data.userId))
+  .inputValidator(z.object({ userId: id, ...teamScope }))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => resendInvite(context.user, data.userId)))
 
-/** Every team, for the site admin's picker in the header. */
-const listPickerTeamsFn = createServerFn({ method: "GET" })
+/** Every team with its counts, for the site admin's Teams dashboard. */
+const listTeamsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => listTeamsForPicker(context.user.id))
+  .handler(async ({ context }) => listTeams(context.user.id))
 
-/** Moves the site admin's picker to another team. */
-const pickTeamFn = createServerFn({ method: "POST" })
+const deleteTeamFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ teamId: id }))
-  .handler(async ({ data, context }) => pickTeam(context.user.id, data.teamId))
+  .handler(async ({ data, context }) => deleteTeam(context.user.id, data.teamId))
 
-export function loadTeamDashboardPage() {
-  return loadTeamDashboardFn()
+export function loadTeamDashboardPage(teamId?: string) {
+  return loadTeamDashboardFn({ data: { teamId } })
 }
-export function loadFigures() {
-  return loadTeamFiguresFn()
+export function loadFigures(teamId?: string) {
+  return loadTeamFiguresFn({ data: { teamId } })
 }
-export function saveTeamPhoto(photoUrl: string) {
-  return setTeamPhotoFn({ data: { photoUrl } })
+export function saveTeamPhoto(photoUrl: string, teamId?: string) {
+  return setTeamPhotoFn({ data: { photoUrl, teamId } })
 }
-export function saveTeamAvatar(avatarUrl: string) {
-  return setTeamAvatarFn({ data: { photoUrl: avatarUrl } })
+export function saveTeamAvatar(avatarUrl: string, teamId?: string) {
+  return setTeamAvatarFn({ data: { photoUrl: avatarUrl, teamId } })
 }
 export function createProjectTeam(data: z.input<typeof createTeamSchema>) {
   return createTeamFn({ data })
 }
-export function updateProjectTeam(data: z.input<typeof updateTeamSchema>) {
-  return updateTeamFn({ data })
+export function updateProjectTeam(data: z.input<typeof updateTeamSchema>, teamId?: string) {
+  return updateTeamFn({ data: { ...data, teamId } })
 }
-export function removeManyFromTeam(userIds: string[]) {
-  return removeMembersFn({ data: { userIds } })
+export function removeManyFromTeam(userIds: string[], teamId?: string) {
+  return removeMembersFn({ data: { userIds, teamId } })
 }
-export function inviteToTeam(data: z.input<typeof inviteSchema>) {
-  return createInviteFn({ data })
+export function inviteToTeam(data: z.input<typeof inviteSchema>, teamId?: string) {
+  return createInviteFn({ data: { ...data, teamId } })
 }
-export function inviteManyToTeam(data: z.input<typeof inviteManySchema>) {
-  return createInvitesFn({ data })
+export function inviteManyToTeam(data: z.input<typeof inviteManySchema>, teamId?: string) {
+  return createInvitesFn({ data: { ...data, teamId } })
 }
 /** A fresh "Set your password" email for someone invited who hasn't opened theirs. */
-export function resendTeamInvite(userId: string) {
-  return resendInviteFn({ data: { userId } })
+export function resendTeamInvite(userId: string, teamId?: string) {
+  return resendInviteFn({ data: { userId, teamId } })
 }
-export function loadPickerTeams() {
-  return listPickerTeamsFn()
+export function loadTeams() {
+  return listTeamsFn()
 }
-export function pickProjectTeam(teamId: string) {
-  return pickTeamFn({ data: { teamId } })
+export function deleteProjectTeam(teamId: string) {
+  return deleteTeamFn({ data: { teamId } })
 }
 
 /** Each one rings everyone's bell, so an owner or admin can post 20 an hour at most. */
 const postAnnouncementFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(announcementSchema)
+  .inputValidator(announcementSchema.extend(teamScope))
   .handler(async ({ data, context }) => {
     try {
       await enforceRateLimit(`project-announcement:${context.user.id}`, {
@@ -163,33 +168,38 @@ const postAnnouncementFn = createServerFn({ method: "POST" })
       }
       throw error
     }
-    return postAnnouncement(context.user, data.text)
+    return inTeam(data.teamId, () => postAnnouncement(context.user, data.text))
   })
 
 const takeDownAnnouncementFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .handler(async ({ context }) => takeDownAnnouncement(context.user))
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => takeDownAnnouncement(context.user)))
 
 const hideAnnouncementFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ announcementId: id }))
-  .handler(async ({ data, context }) => hideAnnouncement(context.user.id, data.announcementId))
+  .inputValidator(z.object({ announcementId: id, ...teamScope }))
+  .handler(async ({ data, context }) =>
+    inTeam(data.teamId, () => hideAnnouncement(context.user.id, data.announcementId))
+  )
 
 const markAnnouncementSeenFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ announcementId: id }))
-  .handler(async ({ data, context }) => markAnnouncementSeen(context.user.id, data.announcementId))
+  .inputValidator(z.object({ announcementId: id, ...teamScope }))
+  .handler(async ({ data, context }) =>
+    inTeam(data.teamId, () => markAnnouncementSeen(context.user.id, data.announcementId))
+  )
 
-export function postTeamAnnouncement(text: string) {
-  return postAnnouncementFn({ data: { text } })
+export function postTeamAnnouncement(text: string, teamId?: string) {
+  return postAnnouncementFn({ data: { text, teamId } })
 }
-export function takeDownTeamAnnouncement() {
-  return takeDownAnnouncementFn()
+export function takeDownTeamAnnouncement(teamId?: string) {
+  return takeDownAnnouncementFn({ data: { teamId } })
 }
 /** The announcement showed on my Team dashboard. */
-export function markTeamAnnouncementSeen(announcementId: string) {
-  return markAnnouncementSeenFn({ data: { announcementId } })
+export function markTeamAnnouncementSeen(announcementId: string, teamId?: string) {
+  return markAnnouncementSeenFn({ data: { announcementId, teamId } })
 }
-export function hideTeamAnnouncement(announcementId: string) {
-  return hideAnnouncementFn({ data: { announcementId } })
+export function hideTeamAnnouncement(announcementId: string, teamId?: string) {
+  return hideAnnouncementFn({ data: { announcementId, teamId } })
 }

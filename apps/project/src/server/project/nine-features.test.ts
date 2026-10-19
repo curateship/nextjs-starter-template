@@ -6,7 +6,7 @@ import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { PERSONAL_PROJECT_ID } from "@/lib/project/rules"
 import { PROJECT_TAG, messageText, taggedUserIds, tokenizeMessage } from "@/lib/project/mentions"
 import type { CustomShellDb } from "@/server/db"
-import { requireMembership } from "@/server/project/access"
+import { requireMembership, inTeam } from "@/server/project/access"
 import {
   hideAnnouncement,
   loadAnnouncement,
@@ -55,6 +55,7 @@ import { createTestDatabase } from "@/server/test-support"
 let client: PGlite
 let database: CustomShellDb
 let admin: CustomShellUser
+let teamId: string
 let anna: CustomShellUser
 let ben: CustomShellUser
 let leo: CustomShellUser
@@ -70,7 +71,9 @@ beforeEach(async () => {
   ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
   leo = await insertEmployee(database, { name: "Leo Park", email: "leo@example.test" })
   carla = await insertEmployee(database, { name: "Carla", email: "carla@example.test" })
-  admin = (await startTeam(database, [anna, ben, leo, carla])).admin
+  const started = await startTeam(database, [anna, ben, leo, carla])
+  admin = started.admin
+  teamId = started.team.id
   projectId = (await projectFor(admin, anna.id, { name: "Site", color: "blue", description: "" }, database)).id
   await addProjectMember(admin.id, projectId, ben.id, database)
   await addProjectMember(admin.id, projectId, leo.id, database)
@@ -261,21 +264,25 @@ describe("who has seen the announcement", () => {
   }
 
   it("counts each person on the team once, and hiding it, but never the site admin who posted it", async () => {
-    await postAnnouncement(admin, "Office closed Friday", database)
-    const id = await currentId()
-    // The site admin is on no team, so they are in neither list.
-    expect(await readers(admin)).toEqual({ seen: [], notYet: ["Anna", "Ben", "Carla", "Leo Park"] })
-    await markAnnouncementSeen(ben.id, id, database)
-    await markAnnouncementSeen(ben.id, id, database)
-    await markAnnouncementSeen(admin.id, id, database)
-    await hideAnnouncement(carla.id, id, database)
-    expect(await readers(admin)).toEqual({ seen: ["Ben", "Carla"], notYet: ["Anna", "Leo Park"] })
+    await inTeam(teamId, async () => {
+      await postAnnouncement(admin, "Office closed Friday", database)
+      const id = await currentId()
+      // The site admin is on no team, so they are in neither list.
+      expect(await readers(admin)).toEqual({ seen: [], notYet: ["Anna", "Ben", "Carla", "Leo Park"] })
+      await markAnnouncementSeen(ben.id, id, database)
+      await markAnnouncementSeen(ben.id, id, database)
+      await markAnnouncementSeen(admin.id, id, database)
+      await hideAnnouncement(carla.id, id, database)
+      expect(await readers(admin)).toEqual({ seen: ["Ben", "Carla"], notYet: ["Anna", "Leo Park"] })
+    })
   })
 
   it("shows the names to the site admin only", async () => {
-    await postAnnouncement(admin, "Office closed Friday", database)
-    expect(await readers(anna)).toBeNull()
-    expect(await readers(ben)).toBeNull()
+    await inTeam(teamId, async () => {
+      await postAnnouncement(admin, "Office closed Friday", database)
+      expect(await readers(anna)).toBeNull()
+      expect(await readers(ben)).toBeNull()
+    })
   })
 
   it("is posted by the site admin only", async () => {
@@ -285,12 +292,14 @@ describe("who has seen the announcement", () => {
   })
 
   it("starts again at nobody for a new announcement, and ignores an old id", async () => {
-    await postAnnouncement(admin, "Office closed Friday", database)
-    const first = await currentId()
-    await markAnnouncementSeen(ben.id, first, database)
-    await postAnnouncement(admin, "Office open after all", database)
-    await markAnnouncementSeen(leo.id, first, database)
-    expect(await readers(admin)).toEqual({ seen: [], notYet: ["Anna", "Ben", "Carla", "Leo Park"] })
+    await inTeam(teamId, async () => {
+      await postAnnouncement(admin, "Office closed Friday", database)
+      const first = await currentId()
+      await markAnnouncementSeen(ben.id, first, database)
+      await postAnnouncement(admin, "Office open after all", database)
+      await markAnnouncementSeen(leo.id, first, database)
+      expect(await readers(admin)).toEqual({ seen: [], notYet: ["Anna", "Ben", "Carla", "Leo Park"] })
+    })
   })
 })
 

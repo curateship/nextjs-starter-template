@@ -9,7 +9,7 @@ import { openView } from "@/lib/project/saved-views"
 import { NOBODY_FILTER } from "@/lib/project/task-filters"
 import { dayBlocks, weekDays, weekHours } from "@/lib/project/week-view"
 import type { CustomShellDb } from "@/server/db"
-import { requireMembership } from "@/server/project/access"
+import { requireMembership, inTeam } from "@/server/project/access"
 import { saveFinishedDays } from "@/server/project/checkin-jobs"
 import { submitCheckin } from "@/server/project/checkins"
 import { loadTeamActivity } from "@/server/project/project-activity"
@@ -45,6 +45,7 @@ let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
 let admin: CustomShellUser
+let adminTeamId: string
 let website: string
 let secret: string
 
@@ -57,7 +58,9 @@ beforeEach(async () => {
   anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
   ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
   carla = await insertEmployee(database, { name: "Carla", email: "carla@example.test" })
-  admin = (await startTeam(database, [anna, ben, carla])).admin
+  const started = await startTeam(database, [anna, ben, carla])
+  admin = started.admin
+  adminTeamId = started.team.id
   website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
   await addProjectMember(admin.id, website, ben.id, database)
   secret = (await projectFor(admin, anna.id, { name: "Secret", color: "red", description: "" }, database)).id
@@ -170,14 +173,16 @@ describe("saved views", () => {
   })
 
   it("go when their person leaves the project or the team", async () => {
-    await saveView(ben.id, { projectId: website, name: "Mine", filters: { person: ben.id } }, database)
-    await saveView(ben.id, { projectId: null, name: "Doing", filters: { status: "doing" } }, database)
-    await removeProjectMember(admin.id, website, ben.id, database)
-    const team = await teamId()
-    expect(await listSavedViews(ben.id, team, website, database)).toEqual([])
-    expect(await listSavedViews(ben.id, team, null, database)).toHaveLength(1)
-    await removeTeamMember(admin.id, ben.id, database)
-    expect(await listSavedViews(ben.id, team, null, database)).toEqual([])
+    await inTeam(adminTeamId, async () => {
+      await saveView(ben.id, { projectId: website, name: "Mine", filters: { person: ben.id } }, database)
+      await saveView(ben.id, { projectId: null, name: "Doing", filters: { status: "doing" } }, database)
+      await removeProjectMember(admin.id, website, ben.id, database)
+      const team = await teamId()
+      expect(await listSavedViews(ben.id, team, website, database)).toEqual([])
+      expect(await listSavedViews(ben.id, team, null, database)).toHaveLength(1)
+      await removeTeamMember(admin.id, ben.id, database)
+      expect(await listSavedViews(ben.id, team, null, database)).toEqual([])
+    })
   })
 
   it("open without a person no longer on the project or a deleted label, and say so", () => {

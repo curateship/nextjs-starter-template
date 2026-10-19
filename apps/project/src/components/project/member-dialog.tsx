@@ -29,6 +29,7 @@ import { dayLabel, dayRangeLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS, runsTheTeam, type TeamRole } from "@/lib/project/rules"
 import { useSaveLine } from "@/lib/project/use-save-line"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * A teammate's page, opened from their name on the Team dashboard or the
@@ -118,19 +119,20 @@ type Loaded = { state: "loading" } | { state: "error"; message: string } | { sta
  * change; and, for the site admin alone, their private things.
  */
 function TeammateWork({ member, editTimeOff }: { member: TeamMemberRow; editTimeOff: boolean }) {
+  const teamId = useTeamId()
   const [loaded, setLoaded] = React.useState<Loaded>({ state: "loading" })
   const [tries, setTries] = React.useState(0)
 
   React.useEffect(() => {
     let live = true
-    loadTeammatePage(member.userId).then(
+    loadTeammatePage(member.userId, teamId).then(
       (page) => live && setLoaded({ state: "ready", page }),
       (error: unknown) => live && setLoaded({ state: "error", message: getProjectErrorMessage(error) })
     )
     return () => {
       live = false
     }
-  }, [member.userId, tries])
+  }, [member.userId, tries, teamId])
 
   const retry = () => {
     setLoaded({ state: "loading" })
@@ -243,6 +245,7 @@ function PrivateThings({ things }: { things: NonNullable<Teammate["private"]> })
 
 /** Their job title, beside their name everywhere. Saves when the field is left. */
 function JobTitleField({ member }: { member: TeamMemberRow }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [title, setTitle] = useSyncedDraft(member.title ?? "")
   const [saveState, track] = useSaveLine()
@@ -250,7 +253,7 @@ function JobTitleField({ member }: { member: TeamMemberRow }) {
   async function save() {
     const next = title.trim()
     if (next === (member.title ?? "")) return
-    if (await track(() => saveMemberTitle({ userId: member.userId, title: next || null }))) {
+    if (await track(() => saveMemberTitle({ userId: member.userId, title: next || null }, teamId))) {
       await router.invalidate()
     }
   }

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { CustomShellDb } from "@/server/db"
+import { inTeam } from "@/server/project/access"
 import { checkOut, finishedNote, loadCheckinPage, submitCheckin } from "@/server/project/checkins"
 import { inviteAddresses } from "@/lib/project/rules"
 import { createInvites } from "@/server/project/invites"
@@ -29,6 +30,7 @@ let database: CustomShellDb
 let anna: CustomShellUser
 let ben: CustomShellUser
 let admin: CustomShellUser
+let teamId: string
 
 const actor = (user: CustomShellUser) => ({
   id: user.id,
@@ -42,7 +44,9 @@ beforeEach(async () => {
   database = testDb.db
   anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
   ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
-  admin = (await startTeam(database, [anna, ben])).admin
+  const started = await startTeam(database, [anna, ben])
+  admin = started.admin
+  teamId = started.team.id
 })
 
 afterEach(async () => {
@@ -198,41 +202,45 @@ describe("Suggested picks at check-in", () => {
 
 describe("Invite several people at once", () => {
   it("makes each new address an employee on the team and lists the rest without sending them", async () => {
-    // Mia signed herself up, so she is a member of the site, not an employee.
-    await insertUser(database, { name: "Mia", email: "mia@example.test" })
-    const outcomes = await createInvites(
-      actor(admin),
-      { emails: ["ED@example.test", "fay@example.test", "ben@example.test", "mia@example.test", "nope", "ed@example.test"] },
-      database
-    )
-    expect(outcomes.map(({ email, result }) => [email, result])).toEqual([
-      ["ed@example.test", "sent"],
-      ["fay@example.test", "sent"],
-      ["ben@example.test", "on_team"],
-      ["mia@example.test", "not_an_employee"],
-      ["nope", "not_an_email"],
-    ])
-    const onTeam = await database
-      .select({ email: customShellUsers.email, role: customShellUsers.role })
-      .from(projectTeamMembers)
-      .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
-    expect(onTeam.map((row) => [row.email, row.role]).sort()).toEqual([
-      ["anna@example.test", "employee"],
-      ["ben@example.test", "employee"],
-      ["ed@example.test", "employee"],
-      ["fay@example.test", "employee"],
-    ])
+    await inTeam(teamId, async () => {
+      // Mia signed herself up, so she is a member of the site, not an employee.
+      await insertUser(database, { name: "Mia", email: "mia@example.test" })
+      const outcomes = await createInvites(
+        actor(admin),
+        { emails: ["ED@example.test", "fay@example.test", "ben@example.test", "mia@example.test", "nope", "ed@example.test"] },
+        database
+      )
+      expect(outcomes.map(({ email, result }) => [email, result])).toEqual([
+        ["ed@example.test", "sent"],
+        ["fay@example.test", "sent"],
+        ["ben@example.test", "on_team"],
+        ["mia@example.test", "not_an_employee"],
+        ["nope", "not_an_email"],
+      ])
+      const onTeam = await database
+        .select({ email: customShellUsers.email, role: customShellUsers.role })
+        .from(projectTeamMembers)
+        .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
+      expect(onTeam.map((row) => [row.email, row.role]).sort()).toEqual([
+        ["anna@example.test", "employee"],
+        ["ben@example.test", "employee"],
+        ["ed@example.test", "employee"],
+        ["fay@example.test", "employee"],
+      ])
+    })
   })
 
   it("marks the addresses past the hourly cap and still sends the ones before it", async () => {
-    // The site admin sends 30 an hour; the 31st address is past the cap.
-    const emails = Array.from({ length: 20 }, (_, i) => `p${i}@example.test`)
-    const first = await createInvites(actor(admin), { emails }, database)
-    expect(first.every((outcome) => outcome.result === "sent")).toBe(true)
-    const more = Array.from({ length: 11 }, (_, i) => `q${i}@example.test`)
-    const second = await createInvites(actor(admin), { emails: more }, database)
-    expect(second.filter((outcome) => outcome.result === "sent")).toHaveLength(10)
-    expect(second.at(-1)?.result).toBe("too_many")
+    await inTeam(teamId, async () => {
+      // The site admin sends 30 an hour; the 31st address is past the cap.
+      const emails = Array.from({ length: 20 }, (_, i) => `p${i}@example.test`)
+      const first = await createInvites(actor(admin), { emails }, database)
+      expect(first.every((outcome) => outcome.result === "sent")).toBe(true)
+      const more = Array.from({ length: 11 }, (_, i) => `q${i}@example.test`)
+      const second = await createInvites(actor(admin), { emails: more }, database)
+      expect(second.filter((outcome) => outcome.result === "sent")).toHaveLength(10)
+      expect(second.at(-1)?.result).toBe("too_many")
+    })
   })
 
   it("is only for the site admin", async () => {

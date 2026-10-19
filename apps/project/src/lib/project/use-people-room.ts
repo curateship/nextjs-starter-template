@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { loadRoom, type PersonRoom } from "@/lib/api/project/team-running"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * Each teammate's open tasks and time off, for a hand-to picker, read each
@@ -10,16 +11,17 @@ import { loadRoom, type PersonRoom } from "@/lib/api/project/team-running"
  */
 export function usePeopleRoom(active = true): Record<string, PersonRoom> {
   const [room, setRoom] = React.useState<Record<string, PersonRoom>>({})
+  const teamId = useTeamId()
   React.useEffect(() => {
     if (!active) return
     let live = true
-    loadRoom().then(
+    loadRoom(teamId).then(
       (next) => live && setRoom(next),
       () => undefined
     )
     return () => {
       live = false
     }
-  }, [active])
+  }, [active, teamId])
   return room
 }

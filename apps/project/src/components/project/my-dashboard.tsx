@@ -71,6 +71,7 @@ import { viewHasFilters } from "@/lib/project/saved-views"
 import { useMyLive } from "@/lib/project/use-my-live"
 import { cn } from "@/lib/utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 export type MyDashboardSearch = Omit<TaskFilters, "person"> & {
   /** The task open in the right panel, in the inbox's place. */
@@ -838,6 +839,7 @@ function InboxPanel({ notifications }: { notifications: NotificationItem[] }) {
 
 /** My job title, which shows beside my name wherever the team sees it. */
 function MyJobTitle({ title }: { title: string | null }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [draft, setDraft] = useSyncedDraft(title ?? "")
   const [saveState, track] = useSaveLine()
@@ -845,7 +847,7 @@ function MyJobTitle({ title }: { title: string | null }) {
   async function save() {
     const next = draft.trim()
     if (next === (title ?? "")) return
-    if (await track(() => saveMemberTitle({ title: next || null }))) {
+    if (await track(() => saveMemberTitle({ title: next || null }, teamId))) {
       await router.invalidate()
     }
   }

@@ -14,6 +14,7 @@ import { LIMITS } from "@/lib/project/rules"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * The replies under one blocker on the Check-ins tab, and a Reply button that
@@ -44,6 +45,7 @@ export function BlockerReplies({
   onOpenChange?: (open: boolean) => void
   className?: string
 }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [openHere, setOpenHere] = React.useState(false)
@@ -69,7 +71,7 @@ export function BlockerReplies({
       return
     }
     const ok = await run(
-      () => replyToBlocker({ checkinId, taskId, body }),
+      () => replyToBlocker({ checkinId, taskId, body }, teamId),
       taskId ? `Replied. ${blockedName} has been told, and it's in the task's chat.` : `Replied. ${blockedName} has been told.`
     )
     if (!ok) return

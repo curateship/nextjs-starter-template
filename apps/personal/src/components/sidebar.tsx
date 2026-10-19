@@ -11,7 +11,14 @@ import {
 } from "lucide-react"
 
 import { BrandEditor, BrandLogo } from "@/components/brand-editor"
-import { sectionDragId, SECTIONS_LIST_ID, type SectionDragData } from "@/components/menu-drag"
+import {
+  PINNED_LIST_ID,
+  pinnedDragId,
+  sectionDragId,
+  SECTIONS_LIST_ID,
+  type PinnedDragData,
+  type SectionDragData,
+} from "@/components/menu-drag"
 import { LinkIconPicture } from "@/components/link-icon"
 import {
   AddLinkButton,
@@ -190,8 +197,8 @@ function SidebarSection({
  * switched to Pinned in their edit form, in the order they were pinned. It
  * replaced the last three opened links on 19 Oct 2026: Tyler, "Instead of
  * 'recent' lets replace it with 'Pinned'". Each link stays in its own section
- * too, and is edited and dragged there. While editing is on, hovering a row
- * shows an × that unpins it.
+ * too, and is edited there. While editing is on, hovering a row shows a
+ * handle that drags it into a new place in Pinned, and an × that unpins it.
  */
 export function PinnedLinks({
   links,
@@ -201,7 +208,6 @@ export function PinnedLinks({
   onUnpin: (id: string) => void
 }) {
   const [open, setOpen] = useRememberedOpen("personal-sidebar-pinned")
-  const { editing, activeId, open: openLink } = useMenuActions()
   if (links.length === 0) return null
 
   return (
@@ -216,41 +222,84 @@ export function PinnedLinks({
           </h2>
         </div>
         <CollapsibleContent className="pb-2">
-          <ul className="flex flex-col gap-0.5">
-            {links.map((link) => (
-              <li key={link.id} className="group/pinned relative">
-                <a
-                  {...linkAnchorProps(link, openLink)}
-                  data-active={activeId === link.id ? "" : undefined}
-                  className={cn(
-                    "flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden group-hover/pinned:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0",
-                    editing && "group-hover/pinned:pr-8"
-                  )}
-                >
-                  <LinkIconPicture name={link.icon} />
-                  <span className="truncate">{link.label}</span>
-                  <OwnTabMark link={link} />
-                </a>
-                {/* The whole row is the one hover, × included: the × has no
-                    box of its own, and the name makes room for it only while
-                    hovered, so it keeps its whole name the rest of the time. */}
-                {editing ? (
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Unpin ${link.label}`}
-                    className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground opacity-0 group-hover/pinned:opacity-100 hover:bg-transparent hover:text-foreground focus-visible:opacity-100 dark:hover:bg-transparent"
-                    onClick={() => onUnpin(link.id)}
-                  >
-                    <XIcon />
-                  </Button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          <SortableContext
+            id={PINNED_LIST_ID}
+            items={links.map((link) => pinnedDragId(link.id))}
+            strategy={verticalListSortingStrategy}
+          >
+            <ul className="flex flex-col gap-0.5">
+              {links.map((link) => (
+                <PinnedRow key={link.id} link={link} onUnpin={() => onUnpin(link.id)} />
+              ))}
+            </ul>
+          </SortableContext>
         </CollapsibleContent>
       </section>
     </Collapsible>
+  )
+}
+
+/** One row of Pinned: the link, and while editing its drag handle and ×. */
+function PinnedRow({ link, onUnpin }: { link: MenuLink; onUnpin: () => void }) {
+  const { editing, activeId, open } = useMenuActions()
+  const data: PinnedDragData = { kind: "pinned", linkId: link.id }
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: pinnedDragId(link.id),
+    data,
+  })
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn(
+        "group/pinned relative",
+        isDragging && "z-10 rounded-md bg-sidebar opacity-80 shadow-sm"
+      )}
+    >
+      <a
+        {...linkAnchorProps(link, open)}
+        data-active={activeId === link.id ? "" : undefined}
+        className={cn(
+          "flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden group-hover/pinned:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0",
+          editing && "group-hover/pinned:pr-14"
+        )}
+      >
+        <LinkIconPicture name={link.icon} />
+        <span className="truncate">{link.label}</span>
+        <OwnTabMark link={link} />
+      </a>
+      {/* The whole row is the one hover, handle and × included: neither has
+          a box of its own, and the name makes room for them only while
+          hovered, so it keeps its whole name the rest of the time. */}
+      {editing ? (
+        <div
+          className={cn(
+            "absolute top-1/2 right-1 flex -translate-y-1/2 items-center opacity-0 group-hover/pinned:opacity-100 focus-within:opacity-100",
+            isDragging && "opacity-100"
+          )}
+        >
+          <button
+            type="button"
+            aria-label={`Drag ${link.label}`}
+            className="flex size-6 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVerticalIcon className="size-3.5" />
+          </button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={`Unpin ${link.label}`}
+            className="text-muted-foreground hover:bg-transparent hover:text-foreground dark:hover:bg-transparent"
+            onClick={onUnpin}
+          >
+            <XIcon />
+          </Button>
+        </div>
+      ) : null}
+    </li>
   )
 }
 

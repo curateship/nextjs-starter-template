@@ -6,6 +6,7 @@ import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { meetingSchema } from "@/lib/project/rules"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import type { CustomShellDb } from "@/server/db"
+import { inTeam } from "@/server/project/access"
 import { saveFinishedDays } from "@/server/project/checkin-jobs"
 import {
   loadCheckinPage,
@@ -48,6 +49,7 @@ let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
 let olga: CustomShellUser
+let teamId: string
 
 const actor = (user: CustomShellUser) => ({
   id: user.id,
@@ -63,7 +65,9 @@ beforeEach(async () => {
   ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
   carla = await insertEmployee(database, { name: "Carla", email: "carla@example.test" })
   olga = await insertEmployee(database, { name: "Olga", email: "olga@example.test" })
-  admin = (await startTeam(database, [anna, ben, carla])).admin
+  const started = await startTeam(database, [anna, ben, carla])
+  admin = started.admin
+  teamId = started.team.id
   // Olga works on another team.
   await startTeam(database, [olga], { name: "Other" })
 })
@@ -152,25 +156,27 @@ describe("meetings", () => {
   })
 
   it("lets its maker and the site admin change or delete it, and nobody else", async () => {
-    const { id } = await createMeeting(actor(ben), meeting(), database)
-    for (const other of [anna, carla]) {
-      await expect(updateMeeting(actor(other), id, meeting({ title: "Mine now" }), database)).rejects.toThrow(
-        PROJECT_ERRORS.cantChangeMeeting
-      )
-      await expect(deleteMeeting(other.id, id, database)).rejects.toThrow(PROJECT_ERRORS.cantChangeMeeting)
-    }
+    await inTeam(teamId, async () => {
+      const { id } = await createMeeting(actor(ben), meeting(), database)
+      for (const other of [anna, carla]) {
+        await expect(updateMeeting(actor(other), id, meeting({ title: "Mine now" }), database)).rejects.toThrow(
+          PROJECT_ERRORS.cantChangeMeeting
+        )
+        await expect(deleteMeeting(other.id, id, database)).rejects.toThrow(PROJECT_ERRORS.cantChangeMeeting)
+      }
 
-    await updateMeeting(actor(ben), id, meeting({ title: "Planning" }), database)
-    await updateMeeting(actor(admin), id, meeting({ title: "Team planning" }), database)
+      await updateMeeting(actor(ben), id, meeting({ title: "Planning" }), database)
+      await updateMeeting(actor(admin), id, meeting({ title: "Team planning" }), database)
 
-    const view = await loadTeamMeetings(ben.id, { month: "2099-03" }, database)
-    expect(view.meetings.map((m) => [m.title, m.canEdit])).toEqual([["Team planning", true]])
-    const carlaView = await loadTeamMeetings(carla.id, { month: "2099-03" }, database)
-    expect(carlaView.meetings.map((m) => m.canEdit)).toEqual([false])
+      const view = await loadTeamMeetings(ben.id, { month: "2099-03" }, database)
+      expect(view.meetings.map((m) => [m.title, m.canEdit])).toEqual([["Team planning", true]])
+      const carlaView = await loadTeamMeetings(carla.id, { month: "2099-03" }, database)
+      expect(carlaView.meetings.map((m) => m.canEdit)).toEqual([false])
 
-    await deleteMeeting(admin.id, id, database)
-    const after = await loadTeamMeetings(ben.id, { month: "2099-03" }, database)
-    expect(after).toMatchObject({ meetings: [], occurrences: [] })
+      await deleteMeeting(admin.id, id, database)
+      const after = await loadTeamMeetings(ben.id, { month: "2099-03" }, database)
+      expect(after).toMatchObject({ meetings: [], occurrences: [] })
+    })
   })
 
   it("refuses a person on another team at every endpoint, and never shows them the meeting", async () => {
@@ -264,24 +270,26 @@ describe("the team figures", () => {
   }
 
   it("counts members, pending invites, and open tasks only in projects the viewer can see", async () => {
-    const ids = await projectWithTasks()
-    // An invite puts Dan on the team at once; he is pending until he sets a password.
-    await createInvite(actor(admin), { email: "dan@example.test" }, database)
-    // Ben's "Just me" task never counts.
-    await createTask(
-      actor(ben),
-      { projectId: "personal", title: "Dentist", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
-      database
-    )
-    await deleteTask(actor(ben), ids[2], database)
+    await inTeam(teamId, async () => {
+      const ids = await projectWithTasks()
+      // An invite puts Dan on the team at once; he is pending until he sets a password.
+      await createInvite(actor(admin), { email: "dan@example.test" }, database)
+      // Ben's "Just me" task never counts.
+      await createTask(
+        actor(ben),
+        { projectId: "personal", title: "Dentist", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+        database
+      )
+      await deleteTask(actor(ben), ids[2], database)
 
-    const ben_ = await loadTeamFigures(ben.id, database)
-    // Anna, Ben, Carla and Dan; the site admin is on no team, so isn't counted.
-    expect(ben_).toMatchObject({ members: 4, pendingInvites: 1, openTasks: 2 })
-    // Carla isn't on the project.
-    expect((await loadTeamFigures(carla.id, database)).openTasks).toBe(0)
-    // The site admin sees every shared project without being on it.
-    expect((await loadTeamFigures(admin.id, database)).openTasks).toBe(2)
+      const ben_ = await loadTeamFigures(ben.id, database)
+      // Anna, Ben, Carla and Dan; the site admin is on no team, so isn't counted.
+      expect(ben_).toMatchObject({ members: 4, pendingInvites: 1, openTasks: 2 })
+      // Carla isn't on the project.
+      expect((await loadTeamFigures(carla.id, database)).openTasks).toBe(0)
+      // The site admin sees every shared project without being on it.
+      expect((await loadTeamFigures(admin.id, database)).openTasks).toBe(2)
+    })
   })
 
   it("counts tasks due this week, Monday to Sunday", async () => {
@@ -405,13 +413,15 @@ describe("check-in notes", () => {
 
 describe("the team photo", () => {
   it("is changed by the site admin only, and only to their own upload", async () => {
-    for (const person of [anna, ben]) {
-      await expect(setTeamPhoto(person.id, "", database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-    }
-    await expect(setTeamPhoto(admin.id, "https://example.com/cat.png", database)).rejects.toThrow(
-      PROJECT_ERRORS.photoNotYours
-    )
-    await setTeamPhoto(admin.id, "", database)
-    expect((await loadTeamDashboard(admin.id, database))?.team.photoUrl).toBeNull()
+    await inTeam(teamId, async () => {
+      for (const person of [anna, ben]) {
+        await expect(setTeamPhoto(person.id, "", database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+      }
+      await expect(setTeamPhoto(admin.id, "https://example.com/cat.png", database)).rejects.toThrow(
+        PROJECT_ERRORS.photoNotYours
+      )
+      await setTeamPhoto(admin.id, "", database)
+      expect((await loadTeamDashboard(admin.id, database))?.team.photoUrl).toBeNull()
+    })
   })
 })

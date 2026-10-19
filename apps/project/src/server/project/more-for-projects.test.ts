@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { CustomShellDb } from "@/server/db"
+import { inTeam } from "@/server/project/access"
 import { createLabel, setTaskLabels } from "@/server/project/labels"
 import {
   createMilestone,
@@ -173,13 +174,15 @@ describe("project lead", () => {
   })
 
   it("leaves with nobody leading when the lead leaves the project or the team", async () => {
-    await setProjectLead(admin.id, { projectId: website, userId: carla.id }, database)
-    await removeProjectMember(admin.id, website, carla.id, database)
-    expect((await listRow(anna.id))?.lead).toBeNull()
+    await inTeam(teamId, async () => {
+      await setProjectLead(admin.id, { projectId: website, userId: carla.id }, database)
+      await removeProjectMember(admin.id, website, carla.id, database)
+      expect((await listRow(anna.id))?.lead).toBeNull()
 
-    await setProjectLead(admin.id, { projectId: website, userId: ben.id }, database)
-    await removeTeamMember(admin.id, ben.id, database)
-    expect((await listRow(anna.id))?.lead).toBeNull()
+      await setProjectLead(admin.id, { projectId: website, userId: ben.id }, database)
+      await removeTeamMember(admin.id, ben.id, database)
+      expect((await listRow(anna.id))?.lead).toBeNull()
+    })
   })
 
   it("is picked by the site admin alone, and being lead changes no setting", async () => {
@@ -255,18 +258,22 @@ describe("milestones", () => {
 
 describe("clients", () => {
   it("is named by the site admin, offering only clients of projects the viewer can see", async () => {
-    // The site admin makes Secret and is on no project, so only they see it.
-    const secret = (await createProject(admin.id, { name: "Secret", color: "red", description: "" }, database)).id
-    await setProjectClient(admin.id, { projectId: secret, client: "Hidden Co" }, database)
-    await setProjectClient(admin.id, { projectId: website, client: "Hart Dental" }, database)
-    expect((await listRow(ben.id))?.client).toBe("Hart Dental")
-    expect((await loadProjectPage(ben.id, website, database)).teamClients).toEqual(["Hart Dental"])
-    expect((await loadProjectPage(admin.id, website, database)).teamClients).toEqual(["Hart Dental", "Hidden Co"])
-    await expect(setProjectClient(ben.id, { projectId: website, client: null }, database)).rejects.toThrow(
-      PROJECT_ERRORS.onlySiteAdminSettings
-    )
-    await setProjectClient(admin.id, { projectId: website, client: null }, database)
-    expect((await listRow(ben.id))?.client).toBeNull()
+    await inTeam(teamId, async () => {
+      // The site admin makes Secret and is on no project, so only they see it.
+      const secret = (
+        await inTeam(teamId, () => createProject(admin.id, { name: "Secret", color: "red", description: "" }, database))
+      ).id
+      await setProjectClient(admin.id, { projectId: secret, client: "Hidden Co" }, database)
+      await setProjectClient(admin.id, { projectId: website, client: "Hart Dental" }, database)
+      expect((await listRow(ben.id))?.client).toBe("Hart Dental")
+      expect((await loadProjectPage(ben.id, website, database)).teamClients).toEqual(["Hart Dental"])
+      expect((await loadProjectPage(admin.id, website, database)).teamClients).toEqual(["Hart Dental", "Hidden Co"])
+      await expect(setProjectClient(ben.id, { projectId: website, client: null }, database)).rejects.toThrow(
+        PROJECT_ERRORS.onlySiteAdminSettings
+      )
+      await setProjectClient(admin.id, { projectId: website, client: null }, database)
+      expect((await listRow(ben.id))?.client).toBeNull()
+    })
   })
 })
 
@@ -288,14 +295,16 @@ describe("whole-team projects", () => {
   })
 
   it("keeps everyone as ordinary members once off, and leaving the team still takes them off", async () => {
-    const office = (await projectFor(admin, ben.id, { name: "Office", color: "blue", description: "" }, database)).id
-    await setWholeTeam(admin.id, { projectId: office, wholeTeam: true }, database)
-    await setWholeTeam(admin.id, { projectId: office, wholeTeam: false }, database)
-    expect((await loadProjectPage(ben.id, office, database)).members).toHaveLength(3)
-    await removeProjectMember(admin.id, office, carla.id, database)
-    await setWholeTeam(admin.id, { projectId: office, wholeTeam: true }, database)
-    await removeTeamMember(admin.id, carla.id, database)
-    expect((await loadProjectPage(ben.id, office, database)).members.map((m) => m.name)).toEqual(["Anna", "Ben"])
+    await inTeam(teamId, async () => {
+      const office = (await projectFor(admin, ben.id, { name: "Office", color: "blue", description: "" }, database)).id
+      await setWholeTeam(admin.id, { projectId: office, wholeTeam: true }, database)
+      await setWholeTeam(admin.id, { projectId: office, wholeTeam: false }, database)
+      expect((await loadProjectPage(ben.id, office, database)).members).toHaveLength(3)
+      await removeProjectMember(admin.id, office, carla.id, database)
+      await setWholeTeam(admin.id, { projectId: office, wholeTeam: true }, database)
+      await removeTeamMember(admin.id, carla.id, database)
+      expect((await loadProjectPage(ben.id, office, database)).members.map((m) => m.name)).toEqual(["Anna", "Ben"])
+    })
   })
 })
 
@@ -340,26 +349,30 @@ describe("project templates", () => {
   })
 
   it("is saved, renamed and deleted by the site admin only, and stays in its team", async () => {
-    await expect(saveTemplate(ben.id, { projectId: website, name: "Client website" }, database)).rejects.toThrow(
-      PROJECT_ERRORS.onlySiteAdminSettings
-    )
-    const saved = await saveTemplate(admin.id, { projectId: website, name: "Client website" }, database)
-    await expect(saveTemplate(admin.id, { projectId: website, name: "client WEBSITE" }, database)).rejects.toThrow(
-      PROJECT_ERRORS.templateNameTaken
-    )
-    await expect(renameTemplate(ben.id, { templateId: saved.id, name: "Site" }, database)).rejects.toThrow(
-      PROJECT_ERRORS.notRunningTeam
-    )
-    await renameTemplate(admin.id, { templateId: saved.id, name: "Site" }, database)
+    await inTeam(teamId, async () => {
+      await expect(saveTemplate(ben.id, { projectId: website, name: "Client website" }, database)).rejects.toThrow(
+        PROJECT_ERRORS.onlySiteAdminSettings
+      )
+      const saved = await saveTemplate(admin.id, { projectId: website, name: "Client website" }, database)
+      await expect(saveTemplate(admin.id, { projectId: website, name: "client WEBSITE" }, database)).rejects.toThrow(
+        PROJECT_ERRORS.templateNameTaken
+      )
+      await expect(renameTemplate(ben.id, { templateId: saved.id, name: "Site" }, database)).rejects.toThrow(
+        PROJECT_ERRORS.notRunningTeam
+      )
+      await renameTemplate(admin.id, { templateId: saved.id, name: "Site" }, database)
 
-    const outsider = await insertEmployee(database, { name: "Olga", email: "olga@example.test" })
-    const other = await startTeam(database, [outsider], { name: "Other" })
-    await expect(
-      createProject(other.admin.id, { name: "Stolen", color: "blue", description: "", templateId: saved.id }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.templateNotFound)
+      const outsider = await insertEmployee(database, { name: "Olga", email: "olga@example.test" })
+      const other = await startTeam(database, [outsider], { name: "Other" })
+      await expect(
+        inTeam(other.team.id, () =>
+          createProject(other.admin.id, { name: "Stolen", color: "blue", description: "", templateId: saved.id }, database)
+        )
+      ).rejects.toThrow(PROJECT_ERRORS.templateNotFound)
 
-    await expect(deleteTemplate(anna.id, saved.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-    await deleteTemplate(admin.id, saved.id, database)
-    expect(await listMyTeamTemplates(anna.id, database)).toEqual([])
+      await expect(deleteTemplate(anna.id, saved.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+      await deleteTemplate(admin.id, saved.id, database)
+      expect(await listMyTeamTemplates(anna.id, database)).toEqual([])
+    })
   })
 })

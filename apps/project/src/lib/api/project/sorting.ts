@@ -9,6 +9,8 @@ import {
   updateLabelSchema,
 } from "@/lib/project/rules"
 import { userPost } from "@/server/guards"
+import { inTeam } from "@/server/project/access"
+import { teamScope } from "@/lib/api/project/scope"
 import {
   createLabel,
   deleteLabel,
@@ -32,8 +34,8 @@ const id = z.string().min(1).max(36)
 
 const createLabelFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(labelSchema)
-  .handler(async ({ data, context }) => createLabel(context.user.id, data))
+  .inputValidator(labelSchema.extend(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => createLabel(context.user.id, data)))
 
 const updateLabelFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -75,8 +77,8 @@ const setStarFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ projectId: id, starred: z.boolean() }))
   .handler(async ({ data, context }) => setProjectStar(context.user.id, data))
 
-export function makeLabel(data: z.input<typeof labelSchema>) {
-  return createLabelFn({ data })
+export function makeLabel(data: z.input<typeof labelSchema>, teamId?: string) {
+  return createLabelFn({ data: { ...data, teamId } })
 }
 export function saveLabel(data: z.input<typeof updateLabelSchema>) {
   return updateLabelFn({ data })

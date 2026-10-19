@@ -30,6 +30,7 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS } from "@/lib/project/rules"
 import { usePeopleRoom } from "@/lib/project/use-people-room"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * Hands every open task of one person to someone else, for when they leave
@@ -46,6 +47,7 @@ export function HandOverDialog({
   members: TeamMemberRow[]
   onClose: () => void
 }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [to, setTo] = React.useState("")
   const [note, setNote] = React.useState("")
@@ -78,7 +80,7 @@ export function HandOverDialog({
     }
     let result: HandOverOutcome | null = null
     const ok = await run(async () => {
-      result = await handOverAll(from.userId, receiver.userId, note.trim() || null)
+      result = await handOverAll(from.userId, receiver.userId, note.trim() || null, teamId)
     })
     if (!ok || !result) return
     setOutcome(result)

@@ -9,6 +9,7 @@ import { ProjectWorkspace } from "@/components/project/project-workspace"
 import { ProjectsDashboard } from "@/components/project/projects-dashboard"
 import { TaskBoard } from "@/components/project/task-board"
 import type { FieldRule } from "@/lib/project/task-fields"
+import { TaskBulkMenu } from "@/components/project/task-bulk-bar"
 import { TaskList } from "@/components/project/task-list"
 import { TeamStart } from "@/components/project/team-start"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -216,6 +217,33 @@ describe("the board's field lines (Features 16 Oct, part 8)", () => {
 })
 
 describe("the list", () => {
+  it("hides the tick boxes and drag handles until Mass select turns them on", () => {
+    const html = renderToStaticMarkup(
+      <TaskList tasks={tasks} readOnly={false} onOpenTask={() => {}} onReorder={() => {}} />
+    )
+    expect(html).toContain(">Mass select<")
+    expect(html).toContain(`aria-pressed="false"`)
+    expect(html).not.toContain("Select the tasks on this page")
+    expect(html).not.toContain(`aria-label="Select Pick the photos"`)
+    expect(html).not.toContain("to change the order")
+
+    const readOnly = renderToStaticMarkup(<TaskList tasks={tasks} readOnly onOpenTask={() => {}} />)
+    expect(readOnly).not.toContain("Mass select")
+  })
+
+  it("gathers the ticked rows' changes behind one button", () => {
+    const html = renderToStaticMarkup(
+      <TaskBulkMenu
+        taskIds={["a", "b"]}
+        targets={{ people: [], projects: [] }}
+        onDone={() => {}}
+      />
+    )
+    expect(html).toMatch(/2(<!-- -->)? selected/)
+    // The choices wait in the closed dropdown.
+    expect(html).not.toContain("Mark Done")
+  })
+
   it("lists tasks with their status and says so when there are none", () => {
     const full = renderToStaticMarkup(<TaskList tasks={tasks} readOnly={false} onOpenTask={() => {}} />)
     expect(full).toContain("Pick the photos")
@@ -280,7 +308,10 @@ describe("before there is a team", () => {
 
   it("puts the start card on the Projects dashboard when there is no team", () => {
     const html = renderToStaticMarkup(
-      <ProjectsDashboard page={{ team: null, projects: [] }} />
+      <ProjectsDashboard
+        page={{ team: null, siteAdmin: false, teams: [], teamFilter: null, projects: [] }}
+        onTeamFilter={() => {}}
+      />
     )
     expect(html).toContain("Start a team")
     expect(html).not.toContain("New project")
@@ -292,8 +323,16 @@ describe("the Projects dashboard", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
       <ProjectsDashboard
+        onTeamFilter={() => {}}
         page={{
-          team: { id: "team", name: "Acme", myRole: "owner" },
+          // The site admin sees every team's projects, with a Team column and filter.
+          team: null,
+          siteAdmin: true,
+          teams: [
+            { id: "team", name: "Acme" },
+            { id: "team2", name: "Beta" },
+          ],
+          teamFilter: null,
           projects: [
             {
               id: "p1",
@@ -308,6 +347,7 @@ describe("the Projects dashboard", () => {
               health: { value: "at_risk", note: "Client hasn't sent the photos", byName: "Priya", at: new Date().toISOString() },
               lead: { id: "u2", name: "Priya", avatarUrl: "" },
               client: "Hart Dental",
+              team: { id: "team", name: "Acme" },
             },
             {
               id: "p2",
@@ -322,6 +362,7 @@ describe("the Projects dashboard", () => {
               health: null,
               lead: null,
               client: null,
+              team: { id: "team2", name: "Beta" },
             },
           ],
         }}
@@ -334,6 +375,8 @@ describe("the Projects dashboard", () => {
     expect(html).not.toContain("Old launch")
     expect(html).toContain("New project")
     expect(html).toMatch(/Archived.*1/)
+    expect(html).toContain(">Team<")
+    expect(html).toContain(">Acme<")
   })
 })
 
@@ -342,6 +385,7 @@ describe("the project page", () => {
   const page: ProjectPage = {
     project: {
       id: "p1",
+      teamId: "team",
       name: "Website",
       color: "blue",
       description: "New site",

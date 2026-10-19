@@ -15,10 +15,12 @@ import {
   setTaskStatusSchema,
   updateTaskSchema,
 } from "@/lib/project/rules"
+import { teamScope } from "@/lib/api/project/scope"
 import { newTaskSchema } from "@/lib/project/task-types"
 import { userGet, userPost } from "@/server/guards"
-import { findMembership } from "@/server/project/access"
+import { findMembership, isSiteAdmin } from "@/server/project/access"
 import { projectNoticeDetailsFor } from "@/server/project/notices"
+import { listTeamNames } from "@/server/project/record-team"
 import {
   changeManyTasks,
   createTasksFromLines as createTasksFromLinesOnServer,
@@ -171,16 +173,30 @@ const emptyBinFn = createServerFn({ method: "POST" })
 /** The projects New task can make a task in, and the team's types, for the header's button. */
 const loadNewTaskProjectsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => {
-    const membership = await findMembership(context.user.id)
-    if (!membership) return { projects: [], types: [] }
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) => {
+    const me = { id: context.user.id, name: context.user.name, avatarUrl: context.user.avatarUrl ?? "" }
+    // The site admin is on no team. On a team's page it offers that team's
+    // projects; the header's button is on every page, so it offers every team's.
+    const teamIds = (await isSiteAdmin(context.user.id))
+      ? data.teamId
+        ? [data.teamId]
+        : (await listTeamNames()).map((team) => team.id)
+      : [undefined]
+    const memberships = await Promise.all(
+      teamIds.map((teamId) => findMembership(context.user.id, undefined, teamId))
+    )
+    const parts = await Promise.all(
+      memberships
+        .filter((membership) => membership !== null)
+        .map(async (membership) => ({
+          projects: await listNewTaskProjects(membership, me),
+          types: await listTeamTypes(membership.teamId),
+        }))
+    )
     return {
-      projects: await listNewTaskProjects(membership, {
-        id: context.user.id,
-        name: context.user.name,
-        avatarUrl: context.user.avatarUrl ?? "",
-      }),
-      types: await listTeamTypes(membership.teamId),
+      projects: parts.flatMap((part) => part.projects).sort((a, b) => a.name.localeCompare(b.name)),
+      types: parts.flatMap((part) => part.types),
     }
   })
 
@@ -279,8 +295,8 @@ export function loadBin(projectId: string) {
 export function emptyBin(projectId: string) {
   return emptyBinFn({ data: { projectId } })
 }
-export function loadNewTaskProjects() {
-  return loadNewTaskProjectsFn()
+export function loadNewTaskProjects(teamId?: string) {
+  return loadNewTaskProjectsFn({ data: { teamId } })
 }
 export function deleteTaskStep(stepId: string) {
   return deleteStepFn({ data: { stepId } })

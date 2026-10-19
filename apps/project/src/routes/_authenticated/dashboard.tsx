@@ -28,9 +28,9 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   loader: async ({ parentMatchPromise }) => {
     // The site admin oversees and has no tasks or check-in (Tyler, 16 Oct
     // 2026: "What tasks? if i only overseeas the team, why would I get
-    // tasks?"), so My dashboard sends them to the Team dashboard.
+    // tasks?"), so My dashboard sends them to Teams.
     const { user } = (await parentMatchPromise).loaderData ?? {}
-    if (user?.role === "admin") throw redirect({ to: "/team", replace: true })
+    if (user?.role === "admin") throw redirect({ to: "/teams", replace: true })
     const [page, inbox] = await Promise.all([
       loadMyDashboardPage(),
       listNotificationPage({ limit: 30 }),

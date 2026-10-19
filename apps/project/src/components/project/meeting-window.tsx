@@ -47,6 +47,7 @@ import { readTaskNotes } from "@/lib/project/notes"
 import type { MeetingAnswer } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /** A line of one date's notes, picked to become a task. */
 export type NoteLineToMake = { meetingId: string; day: string; path: number[]; text: string }
@@ -176,6 +177,7 @@ function WhenCard({ meeting, viewerZone }: { meeting: Meeting; viewerZone: strin
 const ANSWER_WORDS: Record<MeetingAnswer, string> = { going: "Going", not_going: "Not going" }
 
 function AnswersCard({ meeting, myUserId }: { meeting: Meeting; myUserId: string }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [run] = useAsyncAction(getProjectErrorMessage)
   const [sending, setSending] = React.useState<MeetingAnswer | null>(null)
@@ -185,7 +187,7 @@ function AnswersCard({ meeting, myUserId }: { meeting: Meeting; myUserId: string
   async function answer(next: MeetingAnswer) {
     if (sending || me?.answer === next) return
     setSending(next)
-    const ok = await run(() => answerTheMeeting({ meetingId: meeting.id, answer: next }))
+    const ok = await run(() => answerTheMeeting({ meetingId: meeting.id, answer: next }, teamId))
     if (ok) await router.invalidate()
     setSending(null)
   }
@@ -276,23 +278,24 @@ function NotesCard({
   dayLabel: string
   onMakeTask: (line: NoteLineToMake) => void
 }) {
+  const teamId = useTeamId()
   const [state, setState] = React.useState<NotesState>({ kind: "loading" })
   const [tries, setTries] = React.useState(0)
 
   React.useEffect(() => {
     let live = true
-    loadNotesOfMeeting({ meetingId: meeting.id, day }).then(
+    loadNotesOfMeeting({ meetingId: meeting.id, day }, teamId).then(
       (notes) => live && setState({ kind: "ready", notes }),
       (error: unknown) => live && setState({ kind: "error", message: getProjectErrorMessage(error) })
     )
     return () => {
       live = false
     }
-  }, [meeting.id, day, tries])
+  }, [meeting.id, day, tries, teamId])
 
   async function save(notes: WrittenPageNode) {
     try {
-      await saveNotesOfMeeting({ meetingId: meeting.id, day, notes })
+      await saveNotesOfMeeting({ meetingId: meeting.id, day, notes }, teamId)
     } catch (error) {
       showErrorToast(getProjectErrorMessage(error))
       return false
@@ -300,7 +303,7 @@ function NotesCard({
     // Read back, for who changed them and the lines as saved. They are saved
     // either way, so a failed read only tries again.
     try {
-      setState({ kind: "ready", notes: await loadNotesOfMeeting({ meetingId: meeting.id, day }) })
+      setState({ kind: "ready", notes: await loadNotesOfMeeting({ meetingId: meeting.id, day }, teamId) })
     } catch {
       setTries((n) => n + 1)
     }

@@ -9,6 +9,9 @@ export const PROJECT_ERRORS = {
   noTeam: "You aren't on a team yet. The site admin adds you to one.",
   notRunningTeam: "Only the site admin can do that.",
   teamNotFound: "That team no longer exists.",
+  teamNotEmpty:
+    "The team still has people or open projects. Remove the people and archive the projects first.",
+  noTeamNamed: "Open the team from Teams, then try again.",
   emailOnATeam: "That email is already on a team.",
   emailNotAnEmployee:
     "That email belongs to an account that isn't an employee, so it can't join a team.",

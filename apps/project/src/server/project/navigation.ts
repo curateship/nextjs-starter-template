@@ -8,6 +8,7 @@ import {
   MY_DASHBOARD_ITEM_ID,
   PROJECT_NAV_SECTION_ID,
   TASK_TYPES_ITEM_ID,
+  TEAM_ITEM_ID,
   projectNavSection,
   taskTypesItem,
 } from "@/lib/project/menu"
@@ -18,7 +19,7 @@ import { customShellSettings, customShellWorkspaces } from "@/server/schema"
 /**
  * Puts Project's dashboards in the left menu: My dashboard, Projects, Team
  * and Task types, without My dashboard in the admins' menus (the site admin
- * has no tasks). An employee's menu comes from `roles` in `src/app/options.ts`.
+ * has no tasks) and with Teams in place of Team there. An employee's menu comes from `roles` in `src/app/options.ts`.
  *
  * The shell keeps its menus in the database, not in code. Members share one
  * list on the settings row and an admin sees their workspace's own list, and
@@ -42,7 +43,7 @@ function withTaskTypesLink(sections: unknown): ShellSection[] | null {
   return list.map((section) => {
     if (section?.id !== PROJECT_NAV_SECTION_ID || !Array.isArray(section.entries)) return section
     if (section.entries.some((entry) => entry?.id === TASK_TYPES_ITEM_ID)) return section
-    const team = section.entries.findIndex((entry) => entry?.id === "item-project-team")
+    const team = section.entries.findIndex((entry) => entry?.id === TEAM_ITEM_ID)
     const entries = [...section.entries]
     entries.splice(team === -1 ? entries.length : team + 1, 0, taskTypesItem())
     return { ...section, entries }
@@ -65,6 +66,27 @@ function withoutMyDashboard(sections: unknown): ShellSection[] | null {
 }
 
 /**
+ * Team becomes Teams in the admins' menus (Tyler, 19 Oct 2026: "There should
+ * be a team dashboard to create, edit and delete teams"). The site admin is on
+ * no team, so their link opens the list of every team; an employee's stays
+ * their own Team dashboard.
+ */
+function withTeamsLink(sections: unknown): ShellSection[] | null {
+  if (!Array.isArray(sections)) return null
+  const list = sections as ShellSection[]
+  return list.map((section) =>
+    section?.id === PROJECT_NAV_SECTION_ID && Array.isArray(section.entries)
+      ? {
+          ...section,
+          entries: section.entries.map((entry) =>
+            entry?.id === TEAM_ITEM_ID ? { ...entry, label: "Teams", href: "/teams" } : entry
+          ),
+        }
+      : section
+  )
+}
+
+/**
  * Each change to the menus, with the marker that says a menu has had it.
  * `adminsOnly` leaves the members' menu alone: a workspace's menu is the one
  * its admins see.
@@ -73,6 +95,7 @@ const PASSES: readonly { suffix: string; change: MenuChange; adminsOnly?: true }
   { suffix: "", change: withProjectSection },
   { suffix: ":task-types", change: withTaskTypesLink },
   { suffix: ":no-my-dashboard", change: withoutMyDashboard, adminsOnly: true },
+  { suffix: ":teams", change: withTeamsLink, adminsOnly: true },
 ]
 
 /** The section goes first, ahead of whatever the menu already holds. */

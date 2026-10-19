@@ -1032,9 +1032,10 @@ export const projectAnnouncementViews = pgTable(
 )
 
 /**
- * The team each site admin is looking at, changed with the header's team
- * picker (`drizzle/0119_project_employees_and_site_admin.sql`). The site admin
- * is on no team, so this row is what puts them in one.
+ * The site admin's own row (`drizzle/0119_project_employees_and_site_admin.sql`).
+ * `team_id` held the header's team picker, removed on 19 Oct 2026 when each
+ * page began naming its team, and is no longer read; the row still holds
+ * `calendar_due_dates`. Never renamed or dropped: the column stays as stored.
  */
 export const projectSiteAdminTeams = pgTable("project_site_admin_teams", {
   userId: varchar("user_id", { length: 36 })

@@ -12,7 +12,9 @@ import {
 import { requestIp, requireAppOrigin } from "@/server/auth/origin"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { enforceHumanCheck } from "@/server/auth/turnstile"
+import { teamScope } from "@/lib/api/project/scope"
 import { userGet, userPost } from "@/server/guards"
+import { inTeam } from "@/server/project/access"
 import { addHoliday, removeHoliday } from "@/server/project/holidays"
 import {
   handOverAllTasks,
@@ -46,35 +48,40 @@ const token = z.string().min(1).max(128)
 
 const loadTeamMemberFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ userId: z.string().min(1).max(36) }))
-  .handler(async ({ data, context }) => loadTeamMember(context.user.id, data.userId))
+  .inputValidator(z.object({ userId: z.string().min(1).max(36), ...teamScope }))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => loadTeamMember(context.user.id, data.userId)))
 
 const loadTeammateFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ userId: z.string().min(1).max(36) }))
-  .handler(async ({ data, context }) => loadTeammate(context.user.id, data.userId))
+  .inputValidator(z.object({ userId: z.string().min(1).max(36), ...teamScope }))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => loadTeammate(context.user.id, data.userId)))
 
 const loadNeedsAttentionFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => loadNeedsAttention(context.user.id))
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => loadNeedsAttention(context.user.id)))
 
 const loadWorkloadFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ client: z.string().trim().min(1).max(LIMITS.clientName).optional() }))
-  .handler(async ({ data, context }) => loadWorkload(context.user.id, undefined, undefined, data.client))
+  .inputValidator(z.object({ client: z.string().trim().min(1).max(LIMITS.clientName).optional(), ...teamScope }))
+  .handler(async ({ data, context }) =>
+    inTeam(data.teamId, () => loadWorkload(context.user.id, undefined, undefined, data.client))
+  )
 
 const handOverAllFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(handOverAllSchema)
-  .handler(async ({ data, context }) => handOverAllTasks(context.user, data))
+  .inputValidator(handOverAllSchema.extend(teamScope))
+  .handler(async ({ data: { teamId, ...data }, context }) => inTeam(teamId, () => handOverAllTasks(context.user, data)))
 
 const makeJoinLinkFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .handler(async ({ context }) => makeJoinLink(context.user.id))
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => makeJoinLink(context.user.id)))
 
 const turnOffJoinLinkFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .handler(async ({ context }) => turnOffJoinLink(context.user.id))
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => turnOffJoinLink(context.user.id)))
 
 /** The team behind a join link. Signed out: the link is how a new person arrives. */
 const loadJoinOfferFn = createServerFn({ method: "GET" })
@@ -107,24 +114,24 @@ const joinByLinkFn = createServerFn({ method: "POST" })
 
 const setTitleFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(memberTitleSchema)
-  .handler(async ({ data, context }) => setMemberTitle(context.user.id, data))
+  .inputValidator(memberTitleSchema.extend(teamScope))
+  .handler(async ({ data: { teamId, ...data }, context }) => inTeam(teamId, () => setMemberTitle(context.user.id, data)))
 
-export function loadAttention() {
-  return loadNeedsAttentionFn()
+export function loadAttention(teamId?: string) {
+  return loadNeedsAttentionFn({ data: { teamId } })
 }
 /** Everyone's open work, or one client's when `client` is a name or "No client". */
-export function loadTeamWorkload(client?: string) {
-  return loadWorkloadFn({ data: { client } })
+export function loadTeamWorkload(client?: string, teamId?: string) {
+  return loadWorkloadFn({ data: { client, teamId } })
 }
-export function handOverAll(fromUserId: string, toUserId: string, note: string | null = null) {
-  return handOverAllFn({ data: { fromUserId, toUserId, note } })
+export function handOverAll(fromUserId: string, toUserId: string, note: string | null = null, teamId?: string) {
+  return handOverAllFn({ data: { fromUserId, toUserId, note, teamId } })
 }
-export function newJoinLink() {
-  return makeJoinLinkFn()
+export function newJoinLink(teamId?: string) {
+  return makeJoinLinkFn({ data: { teamId } })
 }
-export function stopJoinLink() {
-  return turnOffJoinLinkFn()
+export function stopJoinLink(teamId?: string) {
+  return turnOffJoinLinkFn({ data: { teamId } })
 }
 export function loadJoinLink(joinToken: string) {
   return loadJoinOfferFn({ data: { token: joinToken } })
@@ -137,39 +144,40 @@ export function joinThroughLink(data: {
 }) {
   return joinByLinkFn({ data })
 }
-export function saveMemberTitle(data: z.input<typeof memberTitleSchema>) {
-  return setTitleFn({ data })
+export function saveMemberTitle(data: z.input<typeof memberTitleSchema>, teamId?: string) {
+  return setTitleFn({ data: { ...data, teamId } })
 }
 
 const loadPeopleRoomFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => loadPeopleRoom(context.user.id))
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => loadPeopleRoom(context.user.id)))
 
 const addHolidayFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(holidaySchema)
-  .handler(async ({ data, context }) => addHoliday(context.user.id, data))
+  .inputValidator(holidaySchema.extend(teamScope))
+  .handler(async ({ data: { teamId, ...data }, context }) => inTeam(teamId, () => addHoliday(context.user.id, data)))
 
 const removeHolidayFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ holidayId: z.string().min(1).max(36) }))
-  .handler(async ({ data, context }) => removeHoliday(context.user.id, data.holidayId))
+  .inputValidator(z.object({ holidayId: z.string().min(1).max(36), ...teamScope }))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => removeHoliday(context.user.id, data.holidayId)))
 
 /** Each teammate's open tasks and time off, for the hand-to pickers. */
-export function loadRoom() {
-  return loadPeopleRoomFn()
+export function loadRoom(teamId?: string) {
+  return loadPeopleRoomFn({ data: { teamId } })
 }
-export function addTeamHoliday(data: z.input<typeof holidaySchema>) {
-  return addHolidayFn({ data })
+export function addTeamHoliday(data: z.input<typeof holidaySchema>, teamId?: string) {
+  return addHolidayFn({ data: { ...data, teamId } })
 }
-export function removeTeamHoliday(holidayId: string) {
-  return removeHolidayFn({ data: { holidayId } })
+export function removeTeamHoliday(holidayId: string, teamId?: string) {
+  return removeHolidayFn({ data: { holidayId, teamId } })
 }
 /** A teammate's page: their open tasks in projects I can see, and their time off. */
-export function loadTeammatePage(userId: string) {
-  return loadTeammateFn({ data: { userId } })
+export function loadTeammatePage(userId: string, teamId?: string) {
+  return loadTeammateFn({ data: { userId, teamId } })
 }
 /** One teammate's row and my role, to open their page from their name in a chat. */
-export function loadTeamMemberRow(userId: string) {
-  return loadTeamMemberFn({ data: { userId } })
+export function loadTeamMemberRow(userId: string, teamId?: string) {
+  return loadTeamMemberFn({ data: { userId, teamId } })
 }
