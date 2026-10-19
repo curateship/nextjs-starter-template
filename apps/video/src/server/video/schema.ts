@@ -346,6 +346,43 @@ export const videoProjects = pgTable(
 )
 
 /**
+ * Earlier timelines of a project, kept by the save itself (see
+ * `workspace/docs/project-history.md`). A row is the timeline as it was just
+ * before a save replaced it. `saved_at` is when that timeline was last saved;
+ * `created_at` is when the row was made, which the hourly rule measures from.
+ */
+export const videoProjectVersions = pgTable(
+  "video_project_versions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    // Who made the save that kept it.
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    reason: varchar("reason", { length: 16 }).notNull(),
+    timeline: jsonb("timeline").notNull(),
+    aspect: varchar("aspect", { length: 8 }).notNull(),
+    clipCount: integer("clip_count").notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "ck_video_project_versions_reason",
+      sql`${table.reason} in ('break', 'hourly', 'restore')`
+    ),
+    index("ix_video_project_versions_project_created").on(
+      table.projectId,
+      table.createdAt
+    ),
+  ]
+)
+
+/**
  * The picture beside a project on the projects list: one frame of the first
  * video or picture clip, made by the background worker and kept outside the
  * media library (see `workspace/docs/project-thumbnails.md`). The row is the
@@ -850,6 +887,7 @@ export type VideoMediaProxy = typeof videoMediaProxies.$inferSelect
 export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect
 export type VideoMediaCollection = typeof videoMediaCollections.$inferSelect
 export type VideoProjectRow = typeof videoProjects.$inferSelect
+export type VideoProjectVersionRow = typeof videoProjectVersions.$inferSelect
 export type VideoProjectThumbnailRow = typeof videoProjectThumbnails.$inferSelect
 export type VideoCarouselRow = typeof videoCarousels.$inferSelect
 export type VideoRenderJobRow = typeof videoRenderJobs.$inferSelect

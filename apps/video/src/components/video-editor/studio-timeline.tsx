@@ -196,7 +196,12 @@ const iconBtn: React.CSSProperties = {
 type SnapGuideApi = { show: (leftPx: number) => void; hide: () => void }
 const SnapGuideContext = React.createContext<SnapGuideApi | null>(null)
 
-export function StudioTimeline() {
+/**
+ * `readOnly` is the History preview (studio-history-panel.tsx): the same lanes
+ * on a locked copy of an old version, with no toolbar, and none of its zoom or
+ * scroll written over the real timeline's.
+ */
+export function StudioTimeline({ readOnly = false }: { readOnly?: boolean }) {
   const tracks = useEditorSelector((state) => state.tracks)
   const pps = useEditorSelector((state) => state.pxPerSecond)
   const durationMs = useEditorDurationMs()
@@ -231,7 +236,13 @@ export function StudioTimeline() {
     fit()
   }, [durationMs, fit])
 
-  useRememberedTimelineView({ scrollRef, fittedRef, pps, clampZoom })
+  useRememberedTimelineView({
+    scrollRef,
+    fittedRef,
+    pps,
+    clampZoom,
+    enabled: !readOnly,
+  })
 
   // --- Scrubbing on the ruler and the empty parts of a lane ----------------
   const scrub = React.useRef<{ pointerId: number; lastMs: number } | null>(null)
@@ -298,7 +309,7 @@ export function StudioTimeline() {
       className="studio-flat-timeline flex h-full min-h-0 flex-col"
       style={{ position: "relative" }}
     >
-      <TimelineToolbar fit={fit} />
+      {readOnly ? null : <TimelineToolbar fit={fit} />}
 
       <div
         ref={scrollRef}
@@ -355,6 +366,7 @@ export function StudioTimeline() {
                 track={track}
                 index={index}
                 range={range}
+                readOnly={readOnly}
                 seekDown={seekDown}
                 seekMove={seekMove}
                 seekUp={seekUp}
@@ -563,6 +575,7 @@ function TimelineRow({
   track,
   index,
   range,
+  readOnly,
   seekDown,
   seekMove,
   seekUp,
@@ -571,6 +584,8 @@ function TimelineRow({
   track: EditorTrack
   index: number
   range: TimelineWindow
+  /** No grip, mute or delete: only a muted lane's icon, to show it was. */
+  readOnly: boolean
   seekDown: (event: React.PointerEvent) => void
   seekMove: (event: React.PointerEvent) => void
   seekUp: (event: React.PointerEvent) => void
@@ -652,54 +667,70 @@ function TimelineRow({
           zIndex: 2,
         }}
       >
-        <span
-          onPointerDown={gripDown}
-          onPointerMove={gripMove}
-          onPointerUp={gripUp}
-          title="Drag to reorder track"
-          style={{
-            ...gutterCell,
-            color: "var(--mut)",
-            cursor: "grab",
-            touchAction: "none",
-          }}
-        >
-          <GripVertical size={13} />
-        </span>
+        {readOnly ? null : (
+          <span
+            onPointerDown={gripDown}
+            onPointerMove={gripMove}
+            onPointerUp={gripUp}
+            title="Drag to reorder track"
+            style={{
+              ...gutterCell,
+              color: "var(--mut)",
+              cursor: "grab",
+              touchAction: "none",
+            }}
+          >
+            <GripVertical size={13} />
+          </span>
+        )}
         <span
           title={trackName(track, index)}
           style={{ ...gutterCell, color: accent }}
         >
           {trackIcon(kind)}
         </span>
-        <button
-          type="button"
-          className="st-hovbg"
-          onClick={() =>
-            dispatch({ type: "TOGGLE_TRACK_MUTE", trackId: track.id })
-          }
-          style={gutterIconBtn}
-          aria-label={track.muted ? "Unmute this track" : "Mute this track"}
-          title={track.muted ? "Unmute this track" : "Mute this track"}
-        >
-          {track.muted ? (
-            <VolumeX size={13} />
-          ) : kind === "audio" ? (
-            <Volume2 size={13} />
-          ) : (
-            <Eye size={13} />
-          )}
-        </button>
-        <button
-          type="button"
-          className="st-hovbg"
-          onClick={() => dispatch({ type: "DELETE_TRACK", trackId: track.id })}
-          style={gutterIconBtn}
-          aria-label="Delete this track"
-          title="Delete this track"
-        >
-          <Trash2 size={13} />
-        </button>
+        {readOnly ? (
+          track.muted ? (
+            <span
+              role="img"
+              aria-label="Muted track"
+              style={{ ...gutterCell, color: "var(--mut)" }}
+            >
+              <VolumeX size={13} />
+            </span>
+          ) : null
+        ) : (
+          <>
+            <button
+              type="button"
+              className="st-hovbg"
+              onClick={() =>
+                dispatch({ type: "TOGGLE_TRACK_MUTE", trackId: track.id })
+              }
+              style={gutterIconBtn}
+              aria-label={track.muted ? "Unmute this track" : "Mute this track"}
+              title={track.muted ? "Unmute this track" : "Mute this track"}
+            >
+              {track.muted ? (
+                <VolumeX size={13} />
+              ) : kind === "audio" ? (
+                <Volume2 size={13} />
+              ) : (
+                <Eye size={13} />
+              )}
+            </button>
+            <button
+              type="button"
+              className="st-hovbg"
+              onClick={() => dispatch({ type: "DELETE_TRACK", trackId: track.id })}
+              style={gutterIconBtn}
+              aria-label="Delete this track"
+              title="Delete this track"
+            >
+              <Trash2 size={13} />
+            </button>
+          </>
+        )}
       </div>
 
       <div

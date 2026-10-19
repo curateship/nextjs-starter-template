@@ -109,6 +109,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [project-folders.md](project-folders.md) — folders on the projects list:
   whose they are, why a project sits in one folder at most, where the buttons
   are, and why deleting a folder never deletes a project.
+- [project-history.md](project-history.md) — the History panel: which
+  earlier versions of a project are kept and when, the twenty-per-project
+  limit, looking at one without changing anything, why a restore can be
+  undone, and the measured storage cost.
 - [two-windows.md](two-windows.md) — one project open in two windows: the
   warning the second window shows, what read-only stops, and the
   "(unsaved edits)" project that keeps the work of whichever window saves

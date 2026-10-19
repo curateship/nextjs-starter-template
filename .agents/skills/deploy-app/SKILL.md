@@ -241,6 +241,9 @@ Ask for the answers up front:
    **Docker Build Stage Target** to `web` and press Save.
 3. Same on `<App> Worker`, with `worker`.
 
+Steps 2 and 3 are needed only when the API refused the build stage (my step
+9). For Course on 19 Oct 2026 it did not.
+
 **After it is live** (2 minutes): sign in with the admin account I made. The
 AI keys are already there, written by me straight after the first deploy.
 
@@ -296,9 +299,11 @@ AI keys are already there, written by me straight after the first deploy.
      `redirect` `non-www` and `is_force_https_enabled` true.
    - **The worker** gets no domains. Coolify gives it an `sslip.io` address
      anyway, so `PATCH` its `domains` to `""`.
-   - **The build stage:** the API refuses `dockerfile_target_build` and
-     `inject_build_args_to_dockerfile`, which is why it is in Tyler's sitting
-     1. Without it, Docker builds the last stage in the file, the worker.
+   - **The build stage:** `PATCH /applications/{uuid}` with
+     `dockerfile_target_build` set to `web` or `worker`, then read it back.
+     That worked for Course on 19 Oct 2026. Earlier launches saw the API
+     refuse it, and only then does it go in Tyler's sitting 1. Without it,
+     Docker builds the last stage in the file, the worker.
 10. **Variables.** `POST /applications/{uuid}/envs`, one per value, with
     `is_preview: false` and `is_literal: true`.
     - **Build-time** (`is_buildtime: true`): only `APP`, plus `WORKER_PACKAGES`

@@ -6,6 +6,7 @@ import {
   Check,
   FilmIcon,
   CaptionsIcon,
+  HistoryIcon,
   ClapperboardIcon,
   CopyIcon,
   Loader2Icon,
@@ -102,11 +103,13 @@ const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
 
 /**
  * The panels pinned to the foot of the rail: the video this project copies,
- * and what has been exported from it (Tyler, 17 Oct 2026).
+ * what has been exported from it (Tyler, 17 Oct 2026), and its earlier
+ * versions.
  */
 const RAIL_FOOT: typeof RAIL = [
   { id: "copy", label: "Copy", Icon: CopyIcon },
   { id: "exports", label: "Exports", Icon: Upload },
+  { id: "history", label: "History", Icon: HistoryIcon },
 ]
 
 function isRailPanel(name: string): name is StudioPanel {
@@ -165,7 +168,9 @@ export function StudioEditor({
 
   // Space plays and pauses, Delete removes the selected clip, Escape lets go of
   // it, Cmd+C and Cmd+V copy and paste clips. Typing anywhere is left alone, and
-  // so is copying words highlighted on the page.
+  // so is copying words highlighted on the page. So is anything pressed inside
+  // an open window: the History preview has a player of its own, and a Delete
+  // there once removed a clip from the project behind it.
   React.useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null
@@ -173,7 +178,8 @@ export function StudioEditor({
         target &&
         (target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
+          target.isContentEditable ||
+          target.closest('[role="dialog"], [role="alertdialog"]'))
       ) {
         return
       }
