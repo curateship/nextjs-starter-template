@@ -8,10 +8,11 @@ import { noteNoticeLinks } from "@/server/note/schema"
 
 /**
  * One notice in the owner's bell tray: a saved video changed (ready to
- * analyse, analysed, or failed), or a note's date reminder came due. It goes
- * out as the shell's `app_activity` kind, which each person can switch off in
- * Settings → Notifications, and the video or note it is about is kept beside
- * it so clicking it opens that one.
+ * analyse, analysed, or failed), a saved post was analysed or failed, or a
+ * note's date reminder came due. It goes out as the shell's `app_activity`
+ * kind, which each person can switch off in Settings → Notifications, and the
+ * video, post or note it is about is kept beside it so clicking it opens that
+ * one.
  *
  * Never throws. Nothing is worth failing over a tray notice.
  */
@@ -20,7 +21,11 @@ export async function tellOwner(
     ownerId: string
     message: string
     detail?: string | null
-  } & ({ videoId: string; noteId?: never } | { noteId: string; videoId?: never })
+  } & (
+    | { videoId: string; noteId?: never; postId?: never }
+    | { noteId: string; videoId?: never; postId?: never }
+    | { postId: string; videoId?: never; noteId?: never }
+  )
 ): Promise<void> {
   try {
     const id = uuid()
@@ -36,10 +41,11 @@ export async function tellOwner(
       noticeId: id,
       videoId: options.videoId ?? null,
       noteId: options.noteId ?? null,
+      postId: options.postId ?? null,
     })
     await publishNotificationCreated(options.ownerId)
   } catch (error) {
-    console.error("A notice was not recorded", options.videoId ?? options.noteId, error)
+    console.error("A notice was not recorded", options.videoId ?? options.noteId ?? options.postId, error)
   }
 }
 
@@ -54,6 +60,7 @@ export async function noticeLinks(
       id: noteNoticeLinks.noticeId,
       videoId: noteNoticeLinks.videoId,
       noteId: noteNoticeLinks.noteId,
+      postId: noteNoticeLinks.postId,
     })
     .from(noteNoticeLinks)
     .innerJoin(
@@ -70,6 +77,8 @@ export async function noticeLinks(
     id: row.id,
     href: row.noteId
       ? `/notes?open=${encodeURIComponent(row.noteId)}`
-      : `/videos?open=${encodeURIComponent(row.videoId ?? "")}`,
+      : row.postId
+        ? `/posts?open=${encodeURIComponent(row.postId)}`
+        : `/videos?open=${encodeURIComponent(row.videoId ?? "")}`,
   }))
 }

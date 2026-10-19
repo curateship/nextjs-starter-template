@@ -5,8 +5,8 @@ import { userGet } from "@/server/guards"
 import { noticeLinks } from "@/server/note/notices"
 
 /**
- * Where the video and note notices in the bell open, asked once per page of
- * notices.
+ * Where the video, post and note notices in the bell open, asked once per
+ * page of notices.
  * Only the asker's own notices answer.
  */
 const linksFn = createServerFn({ method: "GET" })
