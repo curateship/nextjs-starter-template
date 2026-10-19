@@ -113,6 +113,9 @@ the sample is gone.
   player to that moment. The line being played is lit and kept in view.
 - **Delete video** sits at the foot of the panel, far left, through the same
   confirm as the card's menu.
+- **Make a note** sits at the foot of the panel, on the right. It asks which
+  notes folder, then makes a written note from the video and opens it on
+  `/notes`. `note-fields.md` says what the note starts with.
 
 ## On a phone
 
