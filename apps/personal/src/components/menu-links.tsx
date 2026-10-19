@@ -248,9 +248,10 @@ function MenuLinkItem({
             "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0",
             nested
               ? // Custom Shell's sub-link: a short row whose open one darkens
-                // its stretch of the line on the left.
+                // its stretch of the line on the left. The 1px shift left puts
+                // that mark on the line, not beside it.
                 cn(
-                  "relative h-7 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground before:absolute before:top-0 before:bottom-0 before:left-[-10px] before:w-px before:bg-transparent before:transition-colors",
+                  "relative h-7 -translate-x-px hover:bg-sidebar-accent hover:text-sidebar-accent-foreground before:absolute before:top-0 before:bottom-0 before:left-[-10px] before:w-px before:bg-transparent before:transition-colors",
                   active && "font-medium text-sidebar-accent-foreground before:bg-sidebar-foreground/40"
                 )
               : "h-8"
