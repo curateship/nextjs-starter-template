@@ -82,12 +82,15 @@ export function ExportShareDialog({
     }
   }, [item.id, attempt])
 
+  // A carousel's page shows its slides, so a viewer looks rather than watches.
+  const watch = item.kind === "carousel" ? "see it" : "watch"
+
   async function handleCreate() {
     await run(async () => {
       const share = await createExportShare(item.id, expiry)
       setLoaded({ state: "ready", share })
       onChanged()
-    }, "Link made. Copy it and send it to whoever should watch.")
+    }, `Link made. Copy it and send it to whoever should ${watch}.`)
   }
 
   async function handleRevoke() {
@@ -117,14 +120,17 @@ export function ExportShareDialog({
         <DialogHeader>
           <DialogTitle>Share link</DialogTitle>
           <DialogDescription>
-            Anybody with the link can watch and save this export without
-            signing in.
+            {item.kind === "carousel"
+              ? "Anybody with the link can see these slides and the caption, and save the slides, without signing in."
+              : "Anybody with the link can watch and save this export without signing in."}
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <Card size="sm">
             <CardHeader>
-              <CardTitle>Who can watch</CardTitle>
+              <CardTitle>
+                {item.kind === "carousel" ? "Who can see it" : "Who can watch"}
+              </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4">
               {loaded.state === "loading" ? (

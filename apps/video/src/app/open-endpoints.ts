@@ -30,7 +30,7 @@
  */
 export const appOpenEndpoints: Record<string, string> = {
   "video/export-shares.ts:readSharedExportFn":
-    "A share link is opened by somebody with no account. The 64-character random token is the guard: a revoked, expired or deleted link returns null, and a live one returns only the export's own title and shape.",
+    "A share link is opened by somebody with no account. The 64-character random token is the guard: a revoked, expired or deleted link returns null, and a live one returns only the export's own title and shape, and for a kept carousel its slide count and the caption it was exported with.",
 }
 
 /**

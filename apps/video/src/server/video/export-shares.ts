@@ -14,7 +14,8 @@ import { isUniqueViolation } from "@/server/video/unique-violation"
 
 /**
  * Share links: one finished export that anybody holding the link can watch
- * without an account.
+ * without an account. A kept carousel is shared the same way, and its page
+ * shows the slides one after another with the caption under them.
  *
  * The token is the only lock, so every read of a shared export goes through
  * `findSharedExport`, which checks the link is unrevoked, unexpired and that
@@ -180,7 +181,10 @@ export async function findSharedExport(
     .select({
       storagePath: videoRenderJobs.storagePath,
       status: videoRenderJobs.status,
+      kind: videoRenderJobs.kind,
       title: videoRenderJobs.title,
+      caption: videoRenderJobs.caption,
+      slideRanges: videoRenderJobs.slideRanges,
       width: videoRenderJobs.width,
       height: videoRenderJobs.height,
     })
@@ -192,15 +196,30 @@ export async function findSharedExport(
     .where(and(eq(videoExportShares.token, token), isLiveShare(now())))
     .limit(1)
   if (!row || row.status !== "ready" || !row.storagePath) return null
-  return { ...row, storagePath: row.storagePath }
+  return {
+    ...row,
+    kind: row.kind === "carousel" ? ("carousel" as const) : ("video" as const),
+    storagePath: row.storagePath,
+    slideRanges: row.slideRanges ?? [],
+  }
 }
 
-/** What the public page may show: the export's own title and its shape. */
+/**
+ * What the public page may show: the export's own title and its shape, and
+ * for a carousel how many slides it has and its caption.
+ */
 export async function readSharedExportView(
   token: string,
   database: CustomShellDb = db
 ): Promise<SharedExportView | null> {
   const row = await findSharedExport(token, database)
   if (!row) return null
-  return { title: row.title, width: row.width, height: row.height }
+  return {
+    kind: row.kind,
+    title: row.title,
+    width: row.width,
+    height: row.height,
+    slide_count: row.kind === "carousel" ? row.slideRanges.length : 0,
+    caption: row.kind === "carousel" ? row.caption || null : null,
+  }
 }

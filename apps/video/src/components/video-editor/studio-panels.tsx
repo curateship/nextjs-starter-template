@@ -49,6 +49,7 @@ import {
   DEFAULT_TEXT_DURATION_MS,
   editorId,
   formatClock,
+  MediaDurationError,
   waveformDataUrl,
 } from "@/lib/video/timeline-utils"
 import { Card, CardContent } from "@/components/ui/card"
@@ -284,7 +285,11 @@ function MediaPanel() {
       const clip = await buildMediaClip(item)
       dispatch({ type: "ADD_CLIP", clip, atMs, trackId })
     } catch (error) {
-      showErrorToast(getVideoMediaErrorMessage(error))
+      showErrorToast(
+        error instanceof MediaDurationError
+          ? error.message
+          : getVideoMediaErrorMessage(error)
+      )
     }
   }
 

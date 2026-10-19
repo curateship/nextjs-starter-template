@@ -1,6 +1,7 @@
 import type { CaptionAnimationId } from "@/lib/video/caption-animations"
 import type { CaptionWordTime } from "@/lib/video/caption-words"
 import { clipMsAt } from "@/lib/video/clip-playback"
+import { TRANSCRIBE_MAX_SOURCE_MS } from "@/lib/video/transcripts"
 
 /**
  * What captions are, on both sides of the wire.
@@ -37,20 +38,12 @@ export type CaptionsResult = {
   source: CaptionSource
 }
 
-/**
- * Caption chunks are short on purpose: four words at most, and never more than
- * a second and a half, which is the length a person can read in one glance
- * while the video carries on.
- */
-export const CAPTION_MAX_WORDS = 4
-export const CAPTION_MAX_MS = 1_500
-
 export const CAPTIONS_NOT_POSSIBLE_MESSAGE =
   "There is nothing on the timeline with sound in it to caption"
 export const CAPTIONS_NONE_HEARD_MESSAGE =
   "No speech could be made out in that clip"
 export const CAPTIONS_TOO_LONG_MESSAGE =
-  "That clip is too long to caption — captioning covers up to 10 minutes"
+  "That recording is too long to caption. Captioning covers up to 30 minutes"
 export const CAPTIONS_FAILED_MESSAGE = "The captions could not be written"
 
 /**
@@ -69,8 +62,11 @@ export const SAFE_CAPTION_ERRORS = new Set([
   CAPTIONS_FAILED_MESSAGE,
 ])
 
-/** The longest stretch of sound that will be sent off to be transcribed. */
-export const CAPTIONS_MAX_SOURCE_MS = 10 * 60_000
+/**
+ * The longest recording that will be captioned. Longer than ten minutes is
+ * sent in pieces (`src/lib/video/transcripts.ts`).
+ */
+export const CAPTIONS_MAX_SOURCE_MS = TRANSCRIBE_MAX_SOURCE_MS
 
 /**
  * What one caption clip is called on the timeline. Kept short so a lane full
@@ -80,6 +76,48 @@ export function captionClipName(text: string) {
   const trimmed = text.trim()
   if (!trimmed) return "Caption"
   return trimmed.length > 24 ? `${trimmed.slice(0, 23)}…` : trimmed
+}
+
+type CaptionSourceClip = {
+  id: string
+  kind: string
+  mediaId?: string
+  startMs: number
+  durationMs: number
+  trimStartMs: number
+  speed?: number
+  sourceDurationMs?: number
+}
+
+/**
+ * Which clip gets captioned: the longest piece of sound on a lane that is not
+ * muted, and failing that the longest piece of video on one. That is almost
+ * always the talking, and picking it automatically saves an extra question.
+ *
+ * The server picks with this when it writes the captions, and the browser
+ * with the same rule when it prices them before the press.
+ */
+export function findCaptionSource<Clip extends CaptionSourceClip>(
+  tracks: readonly { id: string; muted?: boolean; clips: readonly Clip[] }[]
+): { clip: Clip; trackId: string } | null {
+  let bestAudio: { clip: Clip; trackId: string } | null = null
+  let bestVideo: { clip: Clip; trackId: string } | null = null
+  for (const track of tracks) {
+    if (track.muted) continue
+    for (const clip of track.clips ?? []) {
+      if (!clip.mediaId || !clip.durationMs) continue
+      if (clip.kind === "audio") {
+        if (!bestAudio || clip.durationMs > bestAudio.clip.durationMs) {
+          bestAudio = { clip, trackId: track.id }
+        }
+      } else if (clip.kind === "video") {
+        if (!bestVideo || clip.durationMs > bestVideo.clip.durationMs) {
+          bestVideo = { clip, trackId: track.id }
+        }
+      }
+    }
+  }
+  return bestAudio ?? bestVideo
 }
 
 export type CaptionStyleChoice = {

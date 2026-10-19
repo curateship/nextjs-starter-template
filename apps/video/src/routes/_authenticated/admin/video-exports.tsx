@@ -26,8 +26,11 @@ type ExportsSearch = {
   page?: number
 }
 
-/** The list's own state, so Back returns the exact list you left. */
-function readExportsSearch(search: Record<string, unknown>): ExportsSearch {
+/**
+ * The list's own state, so Back returns the exact list you left. Carousel
+ * exports reads its address the same way.
+ */
+export function readExportsSearch(search: Record<string, unknown>): ExportsSearch {
   return {
     q: readSearchText(search.q),
     sort: readOneOf(search.sort, EXPORT_SORT_COLUMNS),
@@ -41,11 +44,18 @@ export const Route = createFileRoute("/_authenticated/admin/video-exports")({
   // The search is answered by the server; sorting and paging happen here on
   // what it sends back.
   loaderDeps: ({ search }) => ({ q: search.q }),
-  loader: ({ deps }) => listExports({ search: deps.q, pageSize: 100 }),
+  loader: ({ deps }) =>
+    listExports({ search: deps.q, pageSize: 100, kind: "video" }),
   component: AdminVideoExportsRoute,
   errorComponent: routeErrorComponent(getExportErrorMessage),
 })
 
 function AdminVideoExportsRoute() {
-  return <ExportsPage initial={Route.useLoaderData()} />
+  return (
+    <ExportsPage
+      kind="video"
+      initial={Route.useLoaderData()}
+      search={Route.useSearch()}
+    />
+  )
 }

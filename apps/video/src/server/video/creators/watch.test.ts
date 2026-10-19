@@ -6,6 +6,7 @@ import { now, uuid } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
+import { setCreatorWatch } from "@/server/video/creators/creators"
 import { creatorWatchTick } from "@/server/video/creators/watch"
 import { videoCreatorPosts, videoCreators } from "@/server/video/schema"
 import * as uploads from "@/server/video/creators/uploads"
@@ -249,5 +250,51 @@ describe("finding new videos", () => {
     await creatorWatchTick()
 
     expect(await noticesFor(user.id)).toHaveLength(0)
+  })
+})
+
+describe("the Check for new posts switch", () => {
+  it("pausing skips the creator on the next pass, and switching back on brings them back on the pass after", async () => {
+    const creatorId = await followCreator()
+    const asked = platformAnswers([{ platformVideoId: "a" }])
+
+    await setCreatorWatch(user.id, creatorId, false)
+    await creatorWatchTick()
+    expect(asked).not.toHaveBeenCalled()
+
+    await setCreatorWatch(user.id, creatorId, true)
+    await creatorWatchTick()
+    expect(asked).toHaveBeenCalledTimes(1)
+
+    const [row] = await database
+      .select()
+      .from(videoCreators)
+      .where(eq(videoCreators.id, creatorId))
+    expect(row.watch).toBe(true)
+    expect(row.lastCheckedAt).not.toBeNull()
+  })
+
+  it("keeps every post already saved while paused", async () => {
+    const creatorId = await followCreator()
+    platformAnswers([{ platformVideoId: "a" }, { platformVideoId: "b" }])
+    await creatorWatchTick()
+
+    await setCreatorWatch(user.id, creatorId, false)
+
+    expect(await database.select().from(videoCreatorPosts)).toHaveLength(2)
+  })
+
+  it("refuses somebody else's creator and leaves it watched", async () => {
+    const other = await insertUser(database)
+    const theirs = await followCreator({ ownerId: other.id })
+
+    await expect(setCreatorWatch(user.id, theirs, false)).rejects.toThrow(
+      /CREATOR_NOT_FOUND/
+    )
+    const [row] = await database
+      .select()
+      .from(videoCreators)
+      .where(eq(videoCreators.id, theirs))
+    expect(row.watch).toBe(true)
   })
 })

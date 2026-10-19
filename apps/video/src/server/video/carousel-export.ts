@@ -7,7 +7,7 @@ import {
   wrapCarouselText,
 } from "@/lib/video/carousel-layout"
 import {
-  CAROUSEL_NOT_FOUND_MESSAGE,
+  CAROUSEL_MEDIA_MISSING_MESSAGE,
   requireCarouselFormat,
   type CarouselFormat,
   type CarouselGradientShadowItem,
@@ -20,20 +20,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { IMAGE_TYPES } from "@/server/media/library"
 import { getFromR2 } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
-import { getOwnedCarouselDetail } from "@/server/video/carousels"
 import { requireTextFontFiles } from "@/server/video/text-font-files"
-
-export const CAROUSEL_SLIDE_NOT_FOUND_MESSAGE = "Carousel slide not found."
-export const CAROUSEL_MEDIA_MISSING_MESSAGE =
-  "A slide image is no longer in the media library."
-export const CAROUSEL_EXPORT_FAILED_MESSAGE = "The slide could not be exported."
-
-const SAFE_CAROUSEL_EXPORT_ERRORS = new Set([
-  CAROUSEL_NOT_FOUND_MESSAGE,
-  CAROUSEL_SLIDE_NOT_FOUND_MESSAGE,
-  CAROUSEL_MEDIA_MISSING_MESSAGE,
-  CAROUSEL_EXPORT_FAILED_MESSAGE,
-])
 
 const requireNative = createRequire(import.meta.url)
 
@@ -41,23 +28,21 @@ function loadResvg() {
   return requireNative("@resvg/resvg-js") as typeof import("@resvg/resvg-js")
 }
 
-export async function renderOwnedCarouselSlide(
+/**
+ * Every picture these slides show, read from storage once each and written as
+ * data the slide drawing can hold. A picture that is gone, or not this
+ * person's, fails the whole export rather than leaving a hole in a slide.
+ */
+export async function loadSlidePictures(
   userId: string,
-  carouselId: string,
-  slideIndex: number
+  slides: CarouselSlide[],
+  database: CustomShellDb = db
 ) {
-  const carousel = await getOwnedCarouselDetail(userId, carouselId)
-  if (!Number.isInteger(slideIndex) || slideIndex < 0) {
-    throw new Error(CAROUSEL_SLIDE_NOT_FOUND_MESSAGE)
-  }
-  const slide = carousel.slides[slideIndex]
-  if (!slide) throw new Error(CAROUSEL_SLIDE_NOT_FOUND_MESSAGE)
-
   const media = new Map<string, string>()
-  for (const item of slide.items) {
+  for (const item of slides.flatMap((slide) => slide.items)) {
     if (item.type !== "image" || media.has(item.mediaId)) continue
     try {
-      const row = await findSlidePicture(userId, item.mediaId)
+      const row = await findSlidePicture(userId, item.mediaId, database)
       if (!row) throw new Error(CAROUSEL_MEDIA_MISSING_MESSAGE)
       const object = await getFromR2(row.storagePath)
       const bytes = await object.Body?.transformToByteArray()
@@ -70,13 +55,7 @@ export async function renderOwnedCarouselSlide(
       throw new Error(CAROUSEL_MEDIA_MISSING_MESSAGE)
     }
   }
-
-  try {
-    return renderCarouselSlidePng(slide, carousel.format, media)
-  } catch (error) {
-    console.error("Carousel slide export failed", error)
-    throw new Error(CAROUSEL_EXPORT_FAILED_MESSAGE)
-  }
+  return media
 }
 
 /**
@@ -97,16 +76,19 @@ export async function findSlidePicture(
   return row.userId === userId ? row : null
 }
 
+/** A slide as a PNG at full size, or `width` pixels wide for a cover. */
 export function renderCarouselSlidePng(
   slide: CarouselSlide,
   format: CarouselFormat,
-  media: ReadonlyMap<string, string> = new Map()
+  media: ReadonlyMap<string, string> = new Map(),
+  width?: number
 ) {
   const { Resvg } = loadResvg()
   const svg = carouselSlideSvg(slide, format, media)
   return new Uint8Array(
     new Resvg(svg, {
       font: { fontFiles: requireTextFontFiles(), loadSystemFonts: false },
+      ...(width ? { fitTo: { mode: "width" as const, value: width } } : {}),
     })
       .render()
       .asPng()
@@ -243,9 +225,4 @@ function escapeXml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;")
-}
-
-export function isSafeCarouselExportError(error: unknown) {
-  if (!(error instanceof Error)) return false
-  return SAFE_CAROUSEL_EXPORT_ERRORS.has(error.message)
 }

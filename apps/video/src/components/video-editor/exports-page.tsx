@@ -1,9 +1,10 @@
 import * as React from "react"
-import { getRouteApi, useRouter } from "@tanstack/react-router"
+import { useRouter } from "@tanstack/react-router"
 import {
   CalendarClockIcon,
   DownloadIcon,
   FilmIcon,
+  GalleryHorizontalIcon,
   Link2Icon,
   Loader2Icon,
   RotateCwIcon,
@@ -45,14 +46,13 @@ import {
   useSearchBoxText,
 } from "@/lib/nav/list-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import type { ExportKind } from "@/lib/video/export-kinds"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { ExportClearOutDialog } from "@/components/video-editor/export-clear-out-dialog"
 import { ExportCover } from "@/components/video-editor/export-cover"
 import { ExportDetailsDialog } from "@/components/video-editor/export-details-dialog"
 import { ExportShareDialog } from "@/components/video-editor/export-share-dialog"
 import { isExportActive } from "@/components/video-editor/use-project-exports"
-
-const exportsRoute = getRouteApi("/_authenticated/admin/video-exports")
 
 export type ExportSortColumn =
   | "title"
@@ -62,10 +62,18 @@ export type ExportSortColumn =
   | "length"
   | "made"
 
+/** The list's own state, kept in the address so Back returns to it. */
+export type ExportsListSearch = {
+  q?: string
+  sort?: ExportSortColumn
+  direction?: "asc" | "desc"
+  page?: number
+}
+
 // How often the list asks again while something on it is waiting or rendering.
 const POLL_MS = 3000
 
-const EXPORT_COLUMNS: SortableColumn<ExportSortColumn>[] = [
+const VIDEO_COLUMNS: SortableColumn<ExportSortColumn>[] = [
   { key: "title", label: "Export", column: "main" },
   { key: "project", label: "Project", column: "meta" },
   { key: "shape", label: "Shape", column: "meta" },
@@ -80,6 +88,17 @@ const EXPORT_COLUMNS: SortableColumn<ExportSortColumn>[] = [
   { key: "made", label: "Made", column: "meta" },
 ]
 
+// The same columns under a carousel's own words: where it came from, and how
+// many slides instead of how long.
+const CAROUSEL_COLUMNS: SortableColumn<ExportSortColumn>[] = VIDEO_COLUMNS.map(
+  (column) =>
+    column.key === "project"
+      ? { ...column, label: "Carousel" }
+      : column.key === "length"
+        ? { ...column, label: "Slides" }
+        : column
+)
+
 function compareExports(
   a: RenderJobSummary,
   b: RenderJobSummary,
@@ -87,13 +106,16 @@ function compareExports(
 ) {
   switch (column) {
     case "project":
-      return (a.project_name ?? "").localeCompare(b.project_name ?? "")
+      return sourceName(a).localeCompare(sourceName(b))
     case "shape":
       return a.aspect.localeCompare(b.aspect)
     case "size":
       return (a.file_size ?? 0) - (b.file_size ?? 0)
     case "length":
-      return (a.duration_ms ?? 0) - (b.duration_ms ?? 0)
+      return (
+        (a.duration_ms ?? a.slide_count ?? 0) -
+        (b.duration_ms ?? b.slide_count ?? 0)
+      )
     case "made":
       return (
         Date.parse(a.finished_at ?? a.created_at) -
@@ -104,16 +126,33 @@ function compareExports(
   }
 }
 
+/** What an export was made from: its project, or its carousel. */
+function sourceName(item: RenderJobSummary) {
+  if (item.kind === "carousel") return item.carousel_name ?? "Carousel deleted"
+  return item.project_name ?? ""
+}
+
 /**
- * Every export, newest first. A finished row opens what it is called and which
- * moment stands in for it; the download hands over the file itself. A failed
+ * Every export of one kind, newest first: video exports on the Exports page,
+ * kept carousel ZIPs on Carousel exports, each with its own search and its own
+ * clear-out. A finished row opens what it is called and which moment stands
+ * in for it; the download hands over the file itself. A carousel's cover is
+ * its first slide and its file a ZIP. A failed
  * row shows why and can be tried again. While anything is waiting or
  * rendering, the list refreshes itself until it lands.
  */
-export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
+export function ExportsPage({
+  initial,
+  kind,
+  search: listSearch,
+}: {
+  initial: ExportListWithShares
+  kind: ExportKind
+  search: ExportsListSearch
+}) {
   const { config } = useShellRuntime()
   const router = useRouter()
-  const listSearch = exportsRoute.useSearch()
+  const carousels = kind === "carousel"
   const setListSearch = useListSearchNavigate()
   const searchQuery = listSearch.q ?? ""
   const currentPage = listSearch.page ?? 1
@@ -163,7 +202,8 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
     if (!deleteTargets.length) return
     await run(async () => {
       const { deleted_ids: deleted, failed_ids: failed } = await deleteExports(
-        deleteTargets.map((item) => item.id)
+        deleteTargets.map((item) => item.id),
+        kind
       )
       if (failed.length) {
         showErrorToast(
@@ -214,8 +254,8 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
   return (
     <>
       <DashboardTable
-        title="Exports"
-        icon={<FilmIcon />}
+        title={carousels ? "Carousel exports" : "Exports"}
+        icon={carousels ? <GalleryHorizontalIcon /> : <FilmIcon />}
         count={initial.total}
         selectedCount={selectedCount}
         onClearSelection={selection.clear}
@@ -251,7 +291,7 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
         }
         header={
           <SortableTableHeader
-            columns={EXPORT_COLUMNS}
+            columns={carousels ? CAROUSEL_COLUMNS : VIDEO_COLUMNS}
             sort={sort}
             direction={direction}
             onSort={toggleSort}
@@ -271,7 +311,9 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
         emptyText={
           searchQuery
             ? "No exports match that search."
-            : "Nothing exported yet. Open a project and press Export."
+            : carousels
+              ? "No carousel exports yet. Open a carousel and press Export."
+              : "Nothing exported yet. Open a project and press Export."
         }
         emptyColSpan={8}
         footer={{
@@ -310,12 +352,10 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
                     <ExportCover
                       exportId={item.id}
                       className="size-full object-contain"
-                      fallback={
-                        <FilmIcon className="size-4 text-muted-foreground" />
-                      }
+                      fallback={<ExportKindIcon item={item} />}
                     />
                   ) : (
-                    <FilmIcon className="size-4 text-muted-foreground" />
+                    <ExportKindIcon item={item} />
                   )}
                 </span>
                 <div className="grid min-w-0 gap-0.5">
@@ -336,6 +376,11 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
                       {item.title ?? "Untitled export"}
                     </span>
                   )}
+                  {item.kind === "carousel" ? (
+                    <span className="text-sm text-muted-foreground">
+                      {describeSlides(item)}
+                    </span>
+                  ) : null}
                   <ExportRowStatus
                     item={item}
                     shared={sharedIds.has(item.id)}
@@ -344,8 +389,8 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
               </div>
             </TableCell>
             <TableCell column="meta">
-              <span className="block max-w-40 truncate" title={item.project_name ?? ""}>
-                {item.project_name ?? "—"}
+              <span className="block max-w-40 truncate" title={sourceName(item)}>
+                {sourceName(item) || "—"}
               </span>
             </TableCell>
             <TableCell column="meta">{item.aspect}</TableCell>
@@ -353,7 +398,11 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
               {item.file_size ? formatFileSize(item.file_size) : "—"}
             </TableCell>
             <TableCell column="meta" className="hidden 2xl:table-cell">
-              {item.duration_ms ? formatClock(item.duration_ms) : "—"}
+              {item.kind === "carousel"
+                ? describeSlides(item)
+                : item.duration_ms
+                  ? formatClock(item.duration_ms)
+                  : "—"}
             </TableCell>
             <TableCell column="meta">
               {item.finished_at ? formatDate(item.finished_at) : "—"}
@@ -444,6 +493,7 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
 
       {clearingOut ? (
         <ExportClearOutDialog
+          kind={kind}
           onClose={() => setClearingOut(false)}
           onCleared={async () => {
             selection.clear()
@@ -471,7 +521,7 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
             ? `Delete ${deleteTargets.length} ${plural(deleteTargets.length, "export", "exports")}?`
             : "Delete this export?"
         }
-        description={describeDelete(deleteTargets, sharedIds)}
+        description={describeDelete(deleteTargets, sharedIds, kind)}
         confirmLabel={
           deleteTargets.length > 1 ? "Delete exports" : "Delete export"
         }
@@ -482,11 +532,25 @@ export function ExportsPage({ initial }: { initial: ExportListWithShares }) {
   )
 }
 
+function describeSlides(item: RenderJobSummary) {
+  const count = item.slide_count ?? 0
+  return `${count} ${plural(count, "slide", "slides")}`
+}
+
+function ExportKindIcon({ item }: { item: RenderJobSummary }) {
+  const Icon = item.kind === "carousel" ? GalleryHorizontalIcon : FilmIcon
+  return <Icon className="size-4 text-muted-foreground" />
+}
+
 /**
  * What deleting these takes: the space it frees and how many share links it
  * breaks, counted from the rows being deleted.
  */
-function describeDelete(targets: RenderJobSummary[], sharedIds: Set<string>) {
+function describeDelete(
+  targets: RenderJobSummary[],
+  sharedIds: Set<string>,
+  kind: ExportKind
+) {
   const bytes = targets.reduce((total, item) => total + (item.file_size ?? 0), 0)
   const shared = targets.filter((item) => sharedIds.has(item.id)).length
   const frees = bytes ? ` This frees ${formatFileSize(bytes)}.` : ""
@@ -495,7 +559,12 @@ function describeDelete(targets: RenderJobSummary[], sharedIds: Set<string>) {
     : targets.length === 1
       ? " Its share link stops working too."
       : ` ${shared} of them ${plural(shared, "has", "have")} a live share link, which stops working.`
-  return `Any file already made goes for good, and one still waiting or being made is stopped.${frees}${links} The project it was made from stays as it is.`
+  // A page lists one kind, so everything being deleted is of that kind.
+  const source =
+    kind === "carousel"
+      ? "The carousel it was made from stays as it is."
+      : "The project it was made from stays as it is."
+  return `Any file already made goes for good, and one still waiting or being made is stopped.${frees}${links} ${source}`
 }
 
 /**

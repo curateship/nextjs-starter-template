@@ -131,6 +131,13 @@ export type ViralCreator = {
   typicalScore: number | null
   /** Set when somebody follows them in this project. */
   followedId: string | null
+  /**
+   * Whether the watch timer checks a followed creator for new posts. Null for
+   * a creator nobody follows, which the timer never checks.
+   */
+  watch: boolean | null
+  /** When the watch timer last checked them. Null if never, or not followed. */
+  lastCheckedAt: string | null
   avatarUrl: string | null
   profileUrl: string
   /** Videos a week over the last four weeks, or null with too few posts. */

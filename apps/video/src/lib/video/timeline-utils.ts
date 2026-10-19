@@ -71,19 +71,54 @@ export function editorId() {
   return crypto.randomUUID()
 }
 
+/** How long a file gets to say how long it runs before the wait is given up. */
+export const MEDIA_DURATION_TIMEOUT_MS = 30_000
+
+/** A file whose length could not be read. Its message is written to be shown. */
+export class MediaDurationError extends Error {}
+
 // Load just enough metadata to read how long a video or audio file runs. The
 // length is never stored server-side — it is read here, once, as the clip lands
 // on the timeline.
+//
+// A browser that never answers would otherwise leave the drop waiting forever
+// with nothing on screen, so the wait ends after 30 seconds with a message.
+// Either way the player made here lets go of the file, so a detached player is
+// not left holding a connection open.
 export function loadMediaDurationMs(url: string, kind: "video" | "audio") {
+  const what = kind === "video" ? "video" : "sound file"
   return new Promise<number>((resolve, reject) => {
     const element = document.createElement(kind)
+    const finish = () => {
+      clearTimeout(timer)
+      element.onloadedmetadata = null
+      element.onerror = null
+      element.removeAttribute("src")
+      element.load()
+    }
+    const timer = setTimeout(() => {
+      finish()
+      reject(
+        new MediaDurationError(
+          `This ${what} took more than 30 seconds to open, so it was not added. Try again.`
+        )
+      )
+    }, MEDIA_DURATION_TIMEOUT_MS)
     element.preload = "metadata"
     element.onloadedmetadata = () => {
       const ms = Math.round(element.duration * 1000)
+      finish()
       // A stream can report Infinity or NaN — fall back to something usable.
       resolve(Number.isFinite(ms) && ms > 0 ? ms : 5000)
     }
-    element.onerror = () => reject(new Error(`Could not load ${kind} metadata`))
+    element.onerror = () => {
+      finish()
+      reject(
+        new MediaDurationError(
+          `This ${what} could not be opened, so it was not added.`
+        )
+      )
+    }
     element.src = url
   })
 }

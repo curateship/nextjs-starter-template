@@ -2,11 +2,15 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { and, asc, eq, inArray, isNull, lt, or } from "drizzle-orm"
+import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm"
 
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { getPublicMediaUrl, uploadToR2 } from "@/server/media/storage"
+import {
+  getFromR2,
+  getPublicMediaUrl,
+  uploadToR2,
+} from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
 import {
   discardGeneratedAsset,
@@ -28,13 +32,16 @@ import type { ViralBreakdown } from "@/lib/video/viral-breakdown"
 import type { SavedVideoStatus } from "@/lib/video/creators"
 
 /**
- * Saving a video and having it broken down.
+ * Saving a video, and having it broken down.
  *
- * The status is the job. Pressing the button writes a `waiting` row and
- * returns; a background worker claims it, downloads the file, stores it in the
- * library, takes a cover frame, then has Gemini watch it. Closing the browser
- * does nothing to it, and a restart puts an interrupted row back to `waiting`
- * rather than leaving it stuck.
+ * The status is the job. Pressing Download or AI analyse writes a `waiting`
+ * row and returns; a background worker claims it, downloads the file, stores
+ * it in the library and takes a cover frame. A row saved with Download alone
+ * stops there, at `downloaded`, and no AI runs. Otherwise Gemini watches it.
+ * AI analyse on a video already downloaded hands Gemini the stored file
+ * rather than downloading it again. Closing the browser does nothing to it,
+ * and a restart puts an interrupted row back to `waiting` rather than leaving
+ * it stuck.
  *
  * Nothing here is ever started from a click, because a download is minutes and
  * a hundred megabytes. The one thing a click does is write the row.
@@ -71,22 +78,41 @@ export type SavedVideoDetail = {
   comments: number | null
   postedAt: string | null
   sourceUrl: string
+  /** False while it was saved with Download alone and nobody pressed AI analyse. */
+  wantsAnalysis: boolean
   /** Where the downloaded file plays from, once there is one. */
   playbackUrl: string | null
   breakdown: ViralBreakdown | null
 }
 
-/**
- * Writes the row the worker will pick up, or hands back the one that is
- * already there. Pressing the button twice, or saving the same video from two
- * Viral projects, is one row — the unique index says so and this
- * reads it back rather than refusing.
- */
+/** AI analyse, and Copy this: download if needed, then break it down. */
 export async function saveVideoForBreakdown(
   ownerId: string,
   url: string,
   /** The Viral project it was saved from, so its AI cost counts there. */
   viralProjectId: string | null = null
+): Promise<SavedVideoDetail> {
+  return saveVideo(ownerId, url, viralProjectId, true)
+}
+
+/**
+ * Writes the row the worker will pick up, or hands back the one that is
+ * already there. Pressing a button twice, or saving the same video from two
+ * Viral projects, is one row — the unique index says so and this
+ * reads it back rather than refusing.
+ *
+ * `analyse` false is Download: the worker stops once the file is in the
+ * library. AI analyse on a video already saved with Download turns the AI on
+ * for that same row. A `downloaded` one goes back in the queue, and the
+ * worker hands Gemini the stored file. One still downloading is broken down
+ * as soon as its download lands. The project it was pressed in is then the
+ * one whose spend limit the breakdown counts against.
+ */
+export async function saveVideo(
+  ownerId: string,
+  url: string,
+  viralProjectId: string | null,
+  analyse: boolean
 ): Promise<SavedVideoDetail> {
   const link = parseVideoLink(url)
   const at = now()
@@ -101,6 +127,7 @@ export async function saveVideoForBreakdown(
         platformVideoId: link.platformVideoId,
         sourceUrl: url,
         status: "waiting",
+        wantsAnalysis: analyse,
         viralProjectId,
         createdAt: at,
         updatedAt: at,
@@ -122,7 +149,24 @@ export async function saveVideoForBreakdown(
       )
     )
   if (!existing) throw new Error(SAVED_VIDEO_ERRORS.notFound)
-  return detailFor(existing)
+  if (!analyse || existing.wantsAnalysis) return detailFor(existing)
+
+  const [turnedOn] = await db
+    .update(videoViralVideos)
+    .set({
+      wantsAnalysis: true,
+      status: sql`case when ${videoViralVideos.status} = 'downloaded' then 'waiting' else ${videoViralVideos.status} end`,
+      viralProjectId: viralProjectId ?? existing.viralProjectId,
+      updatedAt: now(),
+    })
+    .where(
+      and(
+        eq(videoViralVideos.id, existing.id),
+        eq(videoViralVideos.wantsAnalysis, false)
+      )
+    )
+    .returning()
+  return detailFor(turnedOn ?? existing)
 }
 
 /** Puts a failed row back in the queue. Only a failed one can be retried. */
@@ -230,6 +274,7 @@ async function detailFor(
     comments: row.comments,
     postedAt: row.postedAt?.toISOString() ?? null,
     sourceUrl: row.sourceUrl,
+    wantsAnalysis: row.wantsAnalysis,
     playbackUrl,
     breakdown: readStoredBreakdown(row.breakdown),
   }
@@ -292,7 +337,10 @@ async function claimWaiting(): Promise<ClaimedVideo | null> {
   const [claimed] = await db
     .update(videoViralVideos)
     .set({
-      status: "downloading",
+      // A video already in the library is not downloaded again: AI analyse
+      // on a downloaded video, and Try again on a breakdown that failed, go
+      // straight to the breakdown.
+      status: sql`case when ${videoViralVideos.mediaId} is null then 'downloading' else 'analysing' end`,
       leaseToken,
       leaseExpiresAt: new Date(at.getTime() + JOB_LEASE_MS),
       updatedAt: at,
@@ -311,6 +359,11 @@ async function claimWaiting(): Promise<ClaimedVideo | null> {
 
 async function runJob(job: ClaimedVideo): Promise<void> {
   try {
+    if (job.mediaId) {
+      if (job.wantsAnalysis) await analyseStored(job, job.mediaId)
+      else await settleDownloaded(job)
+      return
+    }
     const downloaded = await downloadViralVideo(job.sourceUrl)
 
     const asset = await saveGeneratedAsset({
@@ -331,11 +384,15 @@ async function runJob(job: ClaimedVideo): Promise<void> {
     // a row that fails being watched still shows its numbers and its player.
     // The claim is pushed forward here too: downloading has already eaten part
     // of it, and the breakdown about to run is the expensive half.
+    //
+    // A row saved with Download alone stops here, at `downloaded`, with its
+    // claim let go. `wants_analysis` is read in this same statement, so an AI
+    // analyse pressed while the download ran is never missed.
     const movedAt = now()
     const [moved] = await db
       .update(videoViralVideos)
       .set({
-        status: "analysing",
+        status: sql`case when ${videoViralVideos.wantsAnalysis} then 'analysing' else 'downloaded' end`,
         mediaId: asset.id,
         thumbnailStoragePath,
         title: downloaded.title,
@@ -345,7 +402,9 @@ async function runJob(job: ClaimedVideo): Promise<void> {
         likes: downloaded.likes,
         comments: downloaded.comments,
         postedAt: downloaded.postedAt,
-        leaseExpiresAt: new Date(movedAt.getTime() + JOB_LEASE_MS),
+        leaseToken: sql`case when ${videoViralVideos.wantsAnalysis} then ${videoViralVideos.leaseToken} else null end`,
+        leaseExpiresAt: sql`case when ${videoViralVideos.wantsAnalysis} then ${new Date(movedAt.getTime() + JOB_LEASE_MS).toISOString()}::timestamptz else null end`,
+        error: null,
         updatedAt: movedAt,
       })
       .where(
@@ -354,7 +413,10 @@ async function runJob(job: ClaimedVideo): Promise<void> {
           eq(videoViralVideos.leaseToken, job.leaseToken)
         )
       )
-      .returning({ id: videoViralVideos.id })
+      .returning({
+        id: videoViralVideos.id,
+        status: videoViralVideos.status,
+      })
     // Somebody else took the job over, or it was deleted while downloading.
     // The video file just stored belongs to nothing now, so it goes with it
     // rather than sitting in the bucket with no row pointing at it.
@@ -366,41 +428,92 @@ async function runJob(job: ClaimedVideo): Promise<void> {
       await discardGeneratedAsset(asset)
       return
     }
+    if (moved.status === "downloaded") return
 
-    // A retry downloads the video again, so the copy from the attempt before
-    // is now unreferenced. Removed only after the new one is safely on the row.
-    if (job.mediaId && job.mediaId !== asset.id) {
-      await discardMediaById(job.mediaId)
-    }
-
-    const breakdown = await breakDownVideo({
-      userId: job.ownerId,
+    await finishBreakdown(job, {
       bytes: downloaded.bytes,
       mimeType: downloaded.mimeType,
       durationSeconds: downloaded.durationSeconds,
-      savedVideoId: job.id,
-      viralProjectId: job.viralProjectId,
     })
-
-    await db
-      .update(videoViralVideos)
-      .set({
-        status: "ready",
-        breakdown,
-        error: null,
-        leaseToken: null,
-        leaseExpiresAt: null,
-        updatedAt: now(),
-      })
-      .where(
-        and(
-          eq(videoViralVideos.id, job.id),
-          eq(videoViralVideos.leaseToken, job.leaseToken)
-        )
-      )
   } catch (error) {
     await failJob(job, error)
   }
+}
+
+/**
+ * AI analyse on a video already in the library: Gemini is handed the stored
+ * file, so nothing is downloaded a second time.
+ */
+async function analyseStored(job: ClaimedVideo, mediaId: string): Promise<void> {
+  const [media] = await db
+    .select({
+      storagePath: customShellMedia.storagePath,
+      mimeType: customShellMedia.mimeType,
+    })
+    .from(customShellMedia)
+    .where(eq(customShellMedia.id, mediaId))
+  if (!media) throw new Error("The downloaded file is gone. Delete this video and save it again.")
+  const object = await getFromR2(media.storagePath)
+  const bytes = await object.Body?.transformToByteArray()
+  if (!bytes?.byteLength) {
+    throw new Error("The downloaded file could not be read from storage.")
+  }
+  await finishBreakdown(job, {
+    bytes,
+    mimeType: media.mimeType,
+    durationSeconds: job.durationSeconds,
+  })
+}
+
+/** A file already in the library with no AI wanted: nothing to do but say so. */
+async function settleDownloaded(job: ClaimedVideo): Promise<void> {
+  await db
+    .update(videoViralVideos)
+    .set({
+      status: "downloaded",
+      error: null,
+      leaseToken: null,
+      leaseExpiresAt: null,
+      updatedAt: now(),
+    })
+    .where(
+      and(
+        eq(videoViralVideos.id, job.id),
+        eq(videoViralVideos.leaseToken, job.leaseToken)
+      )
+    )
+}
+
+/** Has Gemini watch the file and writes what it made of it onto the row. */
+async function finishBreakdown(
+  job: ClaimedVideo,
+  file: { bytes: Uint8Array; mimeType: string; durationSeconds: number | null }
+): Promise<void> {
+  const breakdown = await breakDownVideo({
+    userId: job.ownerId,
+    bytes: file.bytes,
+    mimeType: file.mimeType,
+    durationSeconds: file.durationSeconds,
+    savedVideoId: job.id,
+    viralProjectId: job.viralProjectId,
+  })
+
+  await db
+    .update(videoViralVideos)
+    .set({
+      status: "ready",
+      breakdown,
+      error: null,
+      leaseToken: null,
+      leaseExpiresAt: null,
+      updatedAt: now(),
+    })
+    .where(
+      and(
+        eq(videoViralVideos.id, job.id),
+        eq(videoViralVideos.leaseToken, job.leaseToken)
+      )
+    )
 }
 
 /**
@@ -429,22 +542,6 @@ async function failJob(job: ClaimedVideo, error: unknown): Promise<void> {
         eq(videoViralVideos.leaseToken, job.leaseToken)
       )
     )
-}
-
-/** Removes a stored file the row no longer points at, by its media id. */
-async function discardMediaById(mediaId: string): Promise<void> {
-  try {
-    const [media] = await db
-      .select({ storagePath: customShellMedia.storagePath })
-      .from(customShellMedia)
-      .where(eq(customShellMedia.id, mediaId))
-    if (media) {
-      await discardGeneratedAsset({ id: mediaId, storagePath: media.storagePath })
-    }
-  } catch (error) {
-    // Tidying up is never worth failing a finished job over.
-    console.error("An old saved-video file was not cleared away", mediaId, error)
-  }
 }
 
 /**

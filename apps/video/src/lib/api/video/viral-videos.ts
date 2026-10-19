@@ -18,19 +18,30 @@ import {
   listSavedVideoStatuses,
   loadSavedVideo,
   retrySavedVideo,
-  saveVideoForBreakdown,
+  saveVideo,
   type SavedVideoDetail,
 } from "@/server/video/viral/saved-videos"
+import {
+  deleteSavedVideos,
+  savedVideoDeleteSummary,
+  type SavedVideoDeleteResult,
+  type SavedVideoDeleteSummary,
+} from "@/server/video/viral/delete-saved-videos"
 
 /**
- * Saving a video and reading its breakdown.
+ * Saving a video, reading its breakdown, and deleting it.
  *
- * Pressing the button writes a row and returns straight away; the work happens
- * in the background worker. That is why there is a separate read below — the
- * panel asks again every few seconds while the job is moving.
+ * Pressing Download or AI analyse writes a row and returns straight away; the
+ * work happens in the background worker. That is why there is a separate read
+ * below — the panel asks again every few seconds while the job is moving.
  */
 
-export type { ProjectSourceDetail, SavedVideoDetail }
+export type {
+  ProjectSourceDetail,
+  SavedVideoDeleteResult,
+  SavedVideoDeleteSummary,
+  SavedVideoDetail,
+}
 
 const describeSavedVideoError = createErrorMessage(
   {
@@ -60,38 +71,75 @@ const saveFn = createServerFn({ method: "POST" })
     z.object({
       urls: z.array(z.string().min(1).max(2048)).min(1).max(100),
       viralProjectId: videoId.nullable(),
+      /** False is Download: the file only, no AI. */
+      analyse: z.boolean(),
     })
   )
   .handler(async ({ data, context }): Promise<SavedVideoDetail[]> => {
-    // Pressed in a Viral project: its spend limit is checked first, and the
-    // breakdowns' AI cost is counted against it.
+    // Pressed in a Viral project: it must be the caller's, because its id is
+    // written onto the row. AI analyse checks its spend limit first, and the
+    // breakdowns' AI cost is counted against it. Download spends no AI, so it
+    // is never refused by a spend limit.
     if (data.viralProjectId) {
       const project = await requireOwnedViralProject(
         context.user.id,
         data.viralProjectId
       )
-      await requireViralProjectBudget(
-        context.user.id,
-        project.id,
-        project.spendLimitCents,
-        0
-      )
+      if (data.analyse) {
+        await requireViralProjectBudget(
+          context.user.id,
+          project.id,
+          project.spendLimitCents,
+          0
+        )
+      }
     }
     const saved: SavedVideoDetail[] = []
     for (const url of data.urls) {
       saved.push(
-        await saveVideoForBreakdown(context.user.id, url, data.viralProjectId)
+        await saveVideo(context.user.id, url, data.viralProjectId, data.analyse)
       )
     }
     return saved
   })
 
 /**
- * Saves videos for breaking down, or hands back the ones already saved, in
- * one request. Pressing twice never makes two rows.
+ * Download (`analyse` false) or AI analyse (`analyse` true) for several
+ * videos in one request, handing back the ones already saved. Pressing twice
+ * never makes two rows.
  */
-export function saveVideos(urls: string[], viralProjectId: string | null) {
-  return saveFn({ data: { urls, viralProjectId } })
+export function saveVideos(
+  urls: string[],
+  viralProjectId: string | null,
+  analyse: boolean
+) {
+  return saveFn({ data: { urls, viralProjectId, analyse } })
+}
+
+const deleteSummaryFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ ids: z.array(videoId).min(1).max(100) }))
+  .handler(
+    async ({ data, context }): Promise<SavedVideoDeleteSummary> =>
+      savedVideoDeleteSummary(context.user.id, data.ids)
+  )
+
+/** What deleting these saved videos touches, for the delete window. */
+export function loadSavedVideoDeleteSummary(ids: string[]) {
+  return deleteSummaryFn({ data: { ids } })
+}
+
+const deleteFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids: z.array(videoId).min(1).max(100) }))
+  .handler(
+    async ({ data, context }): Promise<SavedVideoDeleteResult> =>
+      deleteSavedVideos(context.user.id, data.ids)
+  )
+
+/** Deletes saved videos, their breakdowns, covers and unused files. */
+export function deleteSavedVideosFn(ids: string[]) {
+  return deleteFn({ data: { ids } })
 }
 
 const readFn = createServerFn({ method: "GET" })

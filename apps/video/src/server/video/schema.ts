@@ -165,6 +165,40 @@ export const videoMediaWaveforms = pgTable(
 )
 
 /**
+ * The words said in one audio or video file, written down once and read by
+ * Captions, Tighten and the Words panel (see `src/server/video/transcripts.ts`
+ * and migration 0120). One row per file and transcriber, because Whisper
+ * measures each word's time and Gemini estimates it. `words` is a list of
+ * `{ text, startMs, endMs }` timed from the start of the file, never from a
+ * clip or the timeline, so trimming or moving a clip never makes it wrong.
+ * Deleting the file removes it.
+ */
+export const videoMediaTranscripts = pgTable(
+  "video_media_transcripts",
+  {
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    transcriber: varchar("transcriber", { length: 20 }).notNull(),
+    model: varchar("model", { length: 60 }).notNull(),
+    words: jsonb("words").notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.mediaId, table.transcriber] }),
+    check(
+      "video_media_transcripts_transcriber_check",
+      sql`${table.transcriber} in ('openai', 'gemini')`
+    ),
+    check(
+      "video_media_transcripts_duration_check",
+      sql`${table.durationMs} >= 0`
+    ),
+  ]
+)
+
+/**
  * Sound files marked as music, for the studio's Music panel. A mark on a file
  * the media library already holds: the file's owner owns the mark, and
  * deleting the file removes it.
@@ -317,6 +351,10 @@ export const videoProjects = pgTable(
     sourceViralVideoId: varchar("source_viral_video_id", {
       length: 36,
     }).references(() => videoViralVideos.id, { onDelete: "set null" }),
+    // The copied video's title, written just before that saved video is
+    // deleted, so the Copy panel can still name what it copied. Empty while
+    // the video is still there.
+    sourceViralVideoTitle: text("source_viral_video_title"),
     // The Viral project Copy this was pressed in. Deleting that project blanks
     // it and this one stays.
     sourceViralProjectId: varchar("source_viral_project_id", {
@@ -818,6 +856,11 @@ export const videoAiGenerations = pgTable(
  * holds a lease it renews while ffmpeg runs, and anything whose lease runs out
  * is picked up again — which is what makes a render survive a restart without
  * ever running twice. The gallery is simply the rows that reached "ready".
+ *
+ * A kept carousel is a row here too, of kind `carousel` (see
+ * `src/server/video/carousel-exports.ts`): a ZIP of its slides, written ready
+ * in one step and never queued. It has no project. Its carousel is remembered
+ * until that carousel is deleted, which leaves the export where it is.
  */
 export const videoRenderJobs = pgTable(
   "video_render_jobs",
@@ -826,9 +869,22 @@ export const videoRenderJobs = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    projectId: varchar("project_id", { length: 36 })
-      .notNull()
-      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    // `video` (a project rendered by the queue) or `carousel`.
+    kind: varchar("kind", { length: 10 }).notNull().default("video"),
+    // Every video export has one; a carousel export never does.
+    projectId: varchar("project_id", { length: 36 }).references(
+      () => videoProjects.id,
+      { onDelete: "cascade" }
+    ),
+    carouselId: varchar("carousel_id", { length: 36 }).references(
+      () => videoCarousels.id,
+      { onDelete: "set null" }
+    ),
+    // A carousel's caption as it was exported, the words in its caption.txt.
+    caption: text("caption"),
+    // Where each slide's PNG sits inside a carousel's ZIP, in slide order, so
+    // the share page can read one slide without fetching the whole file.
+    slideRanges: jsonb("slide_ranges").$type<CarouselSlideRange[]>(),
     status: varchar("status", { length: 20 }).notNull(),
     quality: varchar("quality", { length: 10 }).notNull(),
     // The shape this export is made in. It belongs to the export, not the
@@ -870,7 +926,11 @@ export const videoRenderJobs = pgTable(
     ),
     check(
       "video_render_jobs_aspect_check",
-      sql`${table.aspect} in ('16:9', '9:16', '1:1', '4:3')`
+      sql`${table.aspect} in ('16:9', '9:16', '1:1', '4:3', '4:5')`
+    ),
+    check(
+      "video_render_jobs_kind_check",
+      sql`(${table.kind} = 'video' and ${table.projectId} is not null) or (${table.kind} = 'carousel' and ${table.projectId} is null and ${table.slideRanges} is not null)`
     ),
     check(
       "video_render_jobs_frame_rate_check",
@@ -888,8 +948,14 @@ export const videoRenderJobs = pgTable(
       table.createdAt
     ),
     index("ix_video_render_jobs_user_created").on(table.userId, table.createdAt),
+    index("ix_video_render_jobs_carousel_id")
+      .on(table.carouselId)
+      .where(sql`${table.carouselId} is not null`),
   ]
 )
+
+/** One slide's PNG inside a kept carousel ZIP: its first byte and its size. */
+export type CarouselSlideRange = { start: number; size: number }
 
 /**
  * A link to one finished export that anybody holding it can watch without an
@@ -1034,11 +1100,12 @@ export const videoCreatorPosts = pgTable(
 )
 
 /**
- * A video somebody pressed Save & break down on: the downloaded file, and what
- * Gemini made of it.
+ * A video somebody pressed Download or AI analyse on: the downloaded file, and
+ * what Gemini made of it.
  *
  * The status is the job. A worker claims a `waiting` row, downloads it, then
- * has Gemini watch it, and a restart puts an interrupted row back to `waiting`
+ * has Gemini watch it unless it was saved with Download alone, which stops at
+ * `downloaded`. A restart puts an interrupted row back to `waiting`
  * — so closing the browser never strands a half-done job. A failure keeps its
  * reason in `error` and can be tried again.
  *
@@ -1057,6 +1124,11 @@ export const videoViralVideos = pgTable(
     platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
     sourceUrl: text("source_url").notNull(),
     status: varchar("status", { length: 20 }).notNull(),
+    /**
+     * False when it was saved with Download alone: the worker stops at
+     * `downloaded` and no AI runs. AI analyse sets it true.
+     */
+    wantsAnalysis: boolean("wants_analysis").notNull().default(true),
     error: text("error"),
     /** The downloaded file, once it is in the shell's library. */
     mediaId: varchar("media_id", { length: 36 }).references(
@@ -1099,7 +1171,7 @@ export const videoViralVideos = pgTable(
     index("ix_video_viral_videos_status").on(table.status, table.updatedAt),
     check(
       "ck_video_viral_videos_status",
-      sql`${table.status} in ('waiting', 'downloading', 'analysing', 'ready', 'failed')`
+      sql`${table.status} in ('waiting', 'downloading', 'downloaded', 'analysing', 'ready', 'failed')`
     ),
   ]
 )

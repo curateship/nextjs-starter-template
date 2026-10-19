@@ -21,6 +21,7 @@ import {
   clearOutCutoff,
   type ClearOutAgeChoice,
 } from "@/lib/video/export-clear-out"
+import { EXPORT_KINDS, type ExportKind } from "@/lib/video/export-kinds"
 import { FRAME_FAILED_MESSAGE } from "@/lib/video/saved-frames"
 import {
   ASPECT_RATIOS,
@@ -155,6 +156,7 @@ const listExportsFn = createServerFn({ method: "GET" })
         pageSize: z.number().int().optional(),
         search: z.string().trim().max(120).default(""),
         projectId: z.string().min(1).max(36).optional(),
+        kind: z.enum(EXPORT_KINDS).default("video"),
       })
       .optional()
   )
@@ -165,6 +167,7 @@ const listExportsFn = createServerFn({ method: "GET" })
       pageSize: data?.pageSize ?? 24,
       search: data?.search,
       projectId: data?.projectId,
+      kind: data?.kind ?? "video",
     })
     const sharedIds = await listLiveSharedExportIds(
       context.user.id,
@@ -206,19 +209,34 @@ const setExportCoverFn = createServerFn({ method: "POST" })
 const deleteExportsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
-    z.object({ exportIds: z.array(z.string().min(1).max(36)).min(1).max(100) })
+    z.object({
+      exportIds: z.array(z.string().min(1).max(36)).min(1).max(100),
+      kind: z.enum(EXPORT_KINDS).default("video"),
+    })
   )
   .handler(async ({ data, context }) => {
-    return deleteOwnedExports(context.user.id, data.exportIds)
+    return deleteOwnedExports(
+      context.user.id,
+      data.exportIds,
+      undefined,
+      data.kind
+    )
   })
 
 const previewClearOutFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ age: z.enum(CLEAR_OUT_AGE_VALUES) }))
+  .inputValidator(
+    z.object({
+      age: z.enum(CLEAR_OUT_AGE_VALUES),
+      kind: z.enum(EXPORT_KINDS).default("video"),
+    })
+  )
   .handler(async ({ data, context }) => {
     return previewExportClearOut(
       context.user.id,
-      clearOutCutoff(data.age, new Date())
+      clearOutCutoff(data.age, new Date()),
+      undefined,
+      data.kind
     )
   })
 
@@ -230,6 +248,7 @@ const clearOutFn = createServerFn({ method: "POST" })
       // window named rather than whatever has aged past the line since.
       before: z.iso.datetime(),
       includeShared: z.boolean(),
+      kind: z.enum(EXPORT_KINDS).default("video"),
     })
   )
   .handler(async ({ data, context }) => {
@@ -237,6 +256,7 @@ const clearOutFn = createServerFn({ method: "POST" })
       userId: context.user.id,
       before: new Date(data.before),
       includeShared: data.includeShared,
+      kind: data.kind,
     })
   })
 
@@ -275,14 +295,17 @@ export function listExports({
   pageSize = 24,
   search,
   projectId,
+  kind = "video",
 }: {
   page?: number
   pageSize?: number
   search?: string
   /** Only one project's, for that project's Exports tab. */
   projectId?: string
+  /** Video exports, or kept carousel ZIPs for the Carousel exports page. */
+  kind?: ExportKind
 } = {}) {
-  return listExportsFn({ data: { page, pageSize, search, projectId } })
+  return listExportsFn({ data: { page, pageSize, search, projectId, kind } })
 }
 
 export function updateExport(
@@ -297,14 +320,24 @@ export function setExportCover(exportId: string, atMs: number) {
   return setExportCoverFn({ data: { exportId, atMs } })
 }
 
-export function deleteExports(exportIds: string[]) {
-  return deleteExportsFn({ data: { exportIds } })
+export function deleteExports(
+  exportIds: string[],
+  kind: ExportKind = "video"
+) {
+  return deleteExportsFn({ data: { exportIds, kind } })
 }
 
-export function previewClearOut(age: ClearOutAgeChoice) {
-  return previewClearOutFn({ data: { age } })
+export function previewClearOut(
+  age: ClearOutAgeChoice,
+  kind: ExportKind = "video"
+) {
+  return previewClearOutFn({ data: { age, kind } })
 }
 
-export function clearOutExports(before: string, includeShared: boolean) {
-  return clearOutFn({ data: { before, includeShared } })
+export function clearOutExports(
+  before: string,
+  includeShared: boolean,
+  kind: ExportKind = "video"
+) {
+  return clearOutFn({ data: { before, includeShared, kind } })
 }

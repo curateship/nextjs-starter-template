@@ -4,6 +4,7 @@ import type {
   ClearOutPreview,
   ClearOutResult,
 } from "@/lib/video/export-clear-out"
+import type { ExportKind } from "@/lib/video/export-kinds"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { isLiveShare } from "@/server/video/export-shares"
@@ -18,12 +19,16 @@ import { videoExportShares, videoRenderJobs } from "@/server/video/schema"
  * person ticks the box for it, because deleting it breaks a link somebody else
  * may be about to open. Failed and unfinished exports are never swept up: a
  * failed one takes no space, and one still being made is not old.
+ *
+ * Each dashboard clears out its own kind: video exports from the Exports page,
+ * carousel exports from Carousel exports. Neither touches the other's rows.
  */
 
 /** Finished exports made before the cutoff, each marked shared or not. */
 async function findOldExports(
   userId: string,
   before: Date,
+  kind: ExportKind,
   database: CustomShellDb
 ) {
   const rows = await database
@@ -44,6 +49,7 @@ async function findOldExports(
     .where(
       and(
         eq(videoRenderJobs.userId, userId),
+        eq(videoRenderJobs.kind, kind),
         eq(videoRenderJobs.status, "ready"),
         lt(videoRenderJobs.finishedAt, before)
       )
@@ -63,9 +69,10 @@ function sumBytes(rows: { bytes: number }[]) {
 export async function previewExportClearOut(
   userId: string,
   before: Date,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  kind: ExportKind = "video"
 ): Promise<ClearOutPreview> {
-  const rows = await findOldExports(userId, before, database)
+  const rows = await findOldExports(userId, before, kind, database)
   const unshared = rows.filter((row) => !row.shared)
   const shared = rows.filter((row) => row.shared)
   return {
@@ -86,14 +93,16 @@ export async function clearOutOldExports({
   userId,
   before,
   includeShared,
+  kind = "video",
   database = db,
 }: {
   userId: string
   before: Date
   includeShared: boolean
+  kind?: ExportKind
   database?: CustomShellDb
 }): Promise<ClearOutResult> {
-  const rows = (await findOldExports(userId, before, database)).filter(
+  const rows = (await findOldExports(userId, before, kind, database)).filter(
     (row) => includeShared || !row.shared
   )
   if (!rows.length) return { deleted: 0, bytes_freed: 0, failed: 0 }
@@ -102,7 +111,8 @@ export async function clearOutOldExports({
     await deleteOwnedExports(
       userId,
       rows.map((row) => row.id),
-      database
+      database,
+      kind
     )
   const deleted = new Set(deletedIds)
   return {

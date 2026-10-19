@@ -10,6 +10,7 @@ import {
   storedPlaybackValue,
 } from "@/lib/video/clip-playback"
 import type { ClipboardClip } from "@/lib/video/clip-clipboard"
+import { LEFT_OF_CUT, RIGHT_OF_CUT } from "@/lib/video/clip-fades"
 import { voiceoverRefusal } from "@/lib/video/saved-voiceovers"
 import { PlaybackClock } from "@/lib/video/playback-clock"
 import {
@@ -522,6 +523,12 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       }
       keepUpTo(found.clip.durationMs)
       if (!clips.length) return state
+      // The fades belong to the ends of the whole take, as a split leaves
+      // them: the first piece fades in and the last fades out.
+      clips.forEach((piece, index) => {
+        if (index > 0) Object.assign(piece, RIGHT_OF_CUT)
+        if (index < clips.length - 1) Object.assign(piece, LEFT_OF_CUT)
+      })
 
       const removedDurationMs =
         found.clip.durationMs -
@@ -577,9 +584,10 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
             const opening = { ...clip, durationMs: openingMs, muted: true }
             if (rest < MIN_CLIP_MS) return [opening]
             return [
-              opening,
+              { ...opening, ...LEFT_OF_CUT },
               {
                 ...clip,
+                ...RIGHT_OF_CUT,
                 id: editorId(),
                 startMs: clip.startMs + openingMs,
                 durationMs: rest,
@@ -832,16 +840,17 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
 
       // The left half keeps the blend coming into it — its seam with the clip
       // before is untouched. The right half's new edge is a cut through the
-      // middle of one piece of footage, so it must not carry that blend. A
-      // fade at the end belongs to the right half for the same reason: the
-      // left half now ends in the middle, where a fade would be a dip.
+      // middle of one piece of footage, so it must not carry that blend. The
+      // fades split the same way: the left half keeps the fades in, the right
+      // half the fades out, because a fade at the new edge would be a dip.
       const left: EditorClip = {
         ...clip,
+        ...LEFT_OF_CUT,
         durationMs: offset,
-        fadeOutMs: undefined,
       }
       const right: EditorClip = {
         ...clip,
+        ...RIGHT_OF_CUT,
         id: editorId(),
         startMs: clip.startMs + offset,
         durationMs: clip.durationMs - offset,

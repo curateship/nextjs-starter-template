@@ -4,6 +4,7 @@ import {
   type FillerWord,
 } from "@/lib/video/filler-words"
 import { MIN_CLIP_MS } from "@/lib/video/timeline-utils"
+import { TRANSCRIBE_MAX_SOURCE_MS } from "@/lib/video/transcripts"
 
 /**
  * Working out what to cut out of a clip.
@@ -66,16 +67,20 @@ const SENSITIVITY_CONFIG: Record<
   tight: { minGapMs: 350, paddingMs: 60 },
 }
 
-/** The biggest file and the longest stretch this will look at. */
+/**
+ * The biggest file and the longest recording this will look at. Filler words
+ * need the file written down, and longer than ten minutes is sent in pieces
+ * (`src/lib/video/transcripts.ts`).
+ */
 export const JUMP_CUT_MAX_MEDIA_BYTES = 100 * 1024 * 1024
-export const JUMP_CUT_MAX_WINDOW_MS = 10 * 60_000
+export const JUMP_CUT_MAX_WINDOW_MS = TRANSCRIBE_MAX_SOURCE_MS
 
 export const JUMP_CUT_NO_CLIP_MESSAGE =
   "Pick a clip with sound in it on the timeline first"
 export const JUMP_CUT_TOO_BIG_MESSAGE =
   "That clip's file is too big to look through — up to 100MB"
 export const JUMP_CUT_TOO_LONG_MESSAGE =
-  "That clip is too long to look through — up to 10 minutes"
+  "That recording is too long to look through. It covers up to 30 minutes"
 export const JUMP_CUT_BUSY_MESSAGE =
   "One clip is already being looked through — let it finish first"
 export const JUMP_CUT_FAILED_MESSAGE = "That clip could not be looked through"

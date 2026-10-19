@@ -81,3 +81,6 @@ provider and model beside it. The prices come from `src/lib/ai/ai-models.ts`.
   writer. Usage rows from before that date still say 2.5 and are priced at its
   old rate.
 - **A refused request** costs nothing and is recorded as a failed row.
+- **Before the press:** the Hook and Another language buttons say what the
+  chosen writer will cost, and change when another is picked
+  ([price-before-you-press.md](price-before-you-press.md)).

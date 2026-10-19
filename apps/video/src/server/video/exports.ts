@@ -14,12 +14,17 @@ import {
   EXPORT_TITLE_MAX,
   RENDER_NOT_FOUND_MESSAGE,
 } from "@/lib/video/render"
+import type { ExportKind } from "@/lib/video/export-kinds"
 import { FRAME_FAILED_MESSAGE } from "@/lib/video/saved-frames"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
 import { removeExportFiles } from "@/server/video/export-files"
-import { videoProjects, videoRenderJobs } from "@/server/video/schema"
+import {
+  videoCarousels,
+  videoProjects,
+  videoRenderJobs,
+} from "@/server/video/schema"
 import {
   serializeRenderJob,
   type RenderJobSummary,
@@ -34,6 +39,10 @@ import { extractCoverFrameFromStorage } from "@/server/video/render"
  * made and when. A failed export is listed with its reason so it can be tried
  * again from here, and one that is waiting or rendering is listed so a retry,
  * or a press of Export in several shapes, can be watched arriving.
+ *
+ * Kept carousel ZIPs are rows of the same table, listed on a dashboard of
+ * their own, so every list asks for one kind. A carousel export has no
+ * project; its row names the carousel instead, until that carousel is deleted.
  */
 
 export type ExportListResponse = {
@@ -50,12 +59,15 @@ export async function listOwnedExports({
   pageSize = 24,
   search = "",
   projectId,
+  kind = "video",
   database = db,
 }: {
   userId: string
   page?: number
   pageSize?: number
   search?: string
+  /** Video exports unless told otherwise. */
+  kind?: ExportKind
   /** Only this project's exports, for the project's Exports tab. */
   projectId?: string
   database?: CustomShellDb
@@ -65,6 +77,7 @@ export async function listOwnedExports({
 
   const filters: SQL[] = [
     eq(videoRenderJobs.userId, userId),
+    eq(videoRenderJobs.kind, kind),
     inArray(videoRenderJobs.status, ["ready", "error", "queued", "running"]),
   ]
   if (projectId) filters.push(eq(videoRenderJobs.projectId, projectId))
@@ -76,7 +89,9 @@ export async function listOwnedExports({
     const matches = or(
       ilike(videoRenderJobs.title, pattern),
       ilike(videoRenderJobs.description, pattern),
-      ilike(videoProjects.name, pattern)
+      ilike(videoRenderJobs.caption, pattern),
+      ilike(videoProjects.name, pattern),
+      ilike(videoCarousels.name, pattern)
     )
     if (matches) filters.push(matches)
   }
@@ -84,9 +99,17 @@ export async function listOwnedExports({
 
   const [rows, [totals]] = await Promise.all([
     database
-      .select({ job: videoRenderJobs, projectName: videoProjects.name })
+      .select({
+        job: videoRenderJobs,
+        projectName: videoProjects.name,
+        carouselName: videoCarousels.name,
+      })
       .from(videoRenderJobs)
-      .innerJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
+      .leftJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
+      .leftJoin(
+        videoCarousels,
+        eq(videoCarousels.id, videoRenderJobs.carouselId)
+      )
       .where(where)
       .orderBy(desc(videoRenderJobs.finishedAt), desc(videoRenderJobs.id))
       .limit(safePageSize)
@@ -94,13 +117,19 @@ export async function listOwnedExports({
     database
       .select({ total: count() })
       .from(videoRenderJobs)
-      .innerJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
+      .leftJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
+      .leftJoin(
+        videoCarousels,
+        eq(videoCarousels.id, videoRenderJobs.carouselId)
+      )
       .where(where),
   ])
 
   const total = totals?.total ?? 0
   return {
-    exports: rows.map((row) => serializeRenderJob(row.job, row.projectName)),
+    exports: rows.map((row) =>
+      serializeRenderJob(row.job, row.projectName, row.carouselName)
+    ),
     total,
     page: safePage,
     page_size: safePageSize,
@@ -170,7 +199,8 @@ export async function setOwnedExportCover({
   database?: CustomShellDb
 }): Promise<RenderJobSummary> {
   const row = await getOwnedExport(userId, exportId, database)
-  if (row.status !== "ready" || !row.storagePath) {
+  // A carousel's cover is its first slide, and there is no moment to pick.
+  if (row.status !== "ready" || !row.storagePath || row.kind !== "video") {
     throw new Error(RENDER_NOT_FOUND_MESSAGE)
   }
 
@@ -202,11 +232,15 @@ export async function setOwnedExportCover({
  * file is a broken card somebody can delete again, while a file with no row is
  * rubbish nobody can ever find. So an export whose file would not come out of
  * storage keeps its row, and comes back in `failed_ids`.
+ *
+ * Given a kind, an id of the other kind is skipped, so a page can only delete
+ * the exports it lists.
  */
 export async function deleteOwnedExports(
   userId: string,
   exportIds: string[],
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  kind?: ExportKind
 ): Promise<{ deleted_ids: string[]; failed_ids: string[] }> {
   const uniqueIds = Array.from(new Set(exportIds))
   if (!uniqueIds.length) return { deleted_ids: [], failed_ids: [] }
@@ -217,7 +251,8 @@ export async function deleteOwnedExports(
     .where(
       and(
         eq(videoRenderJobs.userId, userId),
-        inArray(videoRenderJobs.id, uniqueIds)
+        inArray(videoRenderJobs.id, uniqueIds),
+        kind ? eq(videoRenderJobs.kind, kind) : undefined
       )
     )
   if (!rows.length) return { deleted_ids: [], failed_ids: [] }

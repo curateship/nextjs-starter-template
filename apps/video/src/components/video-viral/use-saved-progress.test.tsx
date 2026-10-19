@@ -61,3 +61,29 @@ describe("a breakdown the player saw finish", () => {
     expect(onSettled).not.toHaveBeenCalled()
   })
 })
+
+describe("a video saved with Download alone", () => {
+  it("counts as finished at downloaded, so the screen reads itself again and the card moves tabs", () => {
+    const onSettled = vi.fn()
+    act(() => root.render(<Probe onSettled={onSettled} onReady={keep} />))
+    act(() => progress.report("youtube:a", { id: "s1", status: "downloaded" }, "downloading"))
+    expect(onSettled).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("a deleted saved copy", () => {
+  it("drops the card's saved state at once, before the screen reads itself again", () => {
+    act(() => root.render(<Probe onSettled={vi.fn()} onReady={keep} />))
+    const card = {
+      key: "youtube:a",
+      savedVideoId: "s1",
+      savedStatus: "ready",
+    } as Parameters<Progress["apply"]>[0]
+    act(() => progress.forget(["youtube:a"]))
+    expect(progress.apply(card)).toMatchObject({ savedVideoId: null, savedStatus: null })
+
+    // Saving it again afterwards shows the new copy.
+    act(() => progress.report("youtube:a", { id: "s2", status: "waiting" }))
+    expect(progress.apply(card)).toMatchObject({ savedVideoId: "s2", savedStatus: "waiting" })
+  })
+})

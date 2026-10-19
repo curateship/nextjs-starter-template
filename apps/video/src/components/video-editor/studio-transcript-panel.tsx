@@ -25,14 +25,25 @@ import {
   useEditorSelector,
 } from "@/components/video-editor/editor-store"
 import { cn } from "@/lib/utils"
+import { useSavedTranscripts } from "@/components/video-editor/use-saved-transcripts"
+import type { TranscriberId } from "@/lib/video/ai-choices"
+import {
+  captionsCostCents,
+  formatAiEstimate,
+  transcribeCostCents,
+} from "@/lib/video/ai-estimates"
+import { sourceSpanMs } from "@/lib/video/clip-playback"
+import { hasSavedWords } from "@/lib/video/transcripts"
 
 /**
  * What the clip says, word by word.
  *
  * Picking a run of words and cutting them takes exactly that much out of the
- * video — editing the film by editing the writing. The words are held here for
- * as long as the panel is open rather than saved: the timeline changes under
- * them with every cut, and a stored transcript would quietly stop matching.
+ * video — editing the film by editing the writing. The server keeps the
+ * file's words, timed against the file rather than the timeline, so they
+ * never stop matching however the clip is cut; this panel holds the clip's
+ * share of them while it is open. The first time a file is written down it
+ * is paid for, after that it is free, and "Transcribe again" pays again.
  */
 export function TranscriptPanel() {
   const { projectId, dispatch, saveNow } = useEditorRuntime()
@@ -45,6 +56,9 @@ export function TranscriptPanel() {
   const [available, setAvailable] = React.useState<AiToolsAvailability | null>(
     null
   )
+  const [pickedTranscriber, setPickedTranscriber] = React.useState<
+    TranscriberId | undefined
+  >()
 
   React.useEffect(() => {
     let active = true
@@ -76,14 +90,48 @@ export function TranscriptPanel() {
   // than showing words that describe something else.
   const forThisClip = transcript?.clipId === selectedClipId ? transcript : null
 
-  async function write() {
+  // Whether this clip's file is already written down, and what writing it
+  // down costs when it is not: the whole file, the first time.
+  const selectedClip = selectedClipId
+    ? tracks
+        .flatMap((track) => track.clips)
+        .find((clip) => clip.id === selectedClipId)
+    : undefined
+  const mediaId = selectedClip?.mediaId
+  const { saved, remember } = useSavedTranscripts(
+    mediaId ? [mediaId] : [],
+    !!mediaId
+  )
+  const transcriber =
+    pickedTranscriber ?? (available?.transcriber as TranscriberId | null)
+  const savedRow = saved.find((row) => row.mediaId === mediaId)
+  const fileSoundMs = selectedClip
+    ? (savedRow?.durationMs ??
+      selectedClip.sourceDurationMs ??
+      sourceSpanMs(selectedClip))
+    : 0
+  const isSaved =
+    !!mediaId && !!transcriber && hasSavedWords(saved, mediaId, transcriber)
+  const firstPriceCents =
+    mediaId && transcriber
+      ? captionsCostCents({ transcriber, fileSoundMs, saved: isSaved })
+      : null
+  const againPriceCents =
+    mediaId && transcriber ? transcribeCostCents(transcriber, fileSoundMs) : null
+
+  async function write(fresh = false) {
     if (!selectedClipId) return
     setLoading(true)
     try {
       // The server reads the saved timeline, so anything still waiting to be
       // sent goes first.
       await saveNow()
-      const answer = await loadClipTranscript(projectId, selectedClipId)
+      const answer = await loadClipTranscript(projectId, selectedClipId, {
+        fresh,
+      })
+      if (mediaId && transcriber && !isSaved) {
+        remember({ mediaId, transcriber, durationMs: fileSoundMs })
+      }
       dismissErrorToast()
       setTranscript(answer)
       setAnchor(null)
@@ -152,7 +200,7 @@ export function TranscriptPanel() {
         title="Transcript"
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-3 p-4">
+        <div className="grid grid-cols-1 gap-3 p-4">
           {!selectedClipId ? (
             <p className="text-sm text-muted-foreground">
               Pick a clip with sound in it on the timeline, and its words appear
@@ -161,19 +209,32 @@ export function TranscriptPanel() {
           ) : !forThisClip ? (
             <>
               <p className="text-sm text-muted-foreground">
-                Writing down what a clip says costs a little of your AI budget,
-                and lets you cut the video by crossing words out.
+                {isSaved
+                  ? "This recording is already written down, so its words cost nothing to show. Cross words out to cut the video."
+                  : "Writing down what a clip says lets you cut the video by crossing words out. The whole recording is written down once and kept, so every clip of it is free after that."}
               </p>
-              <AiChoiceField kind="transcriber" available={available} />
+              <AiChoiceField
+                kind="transcriber"
+                available={available}
+                onChanged={(id) => setPickedTranscriber(id as TranscriberId)}
+              />
               <div>
                 <Button
                   type="button"
                   variant="outline"
                   disabled={loading}
                   onClick={() => void write()}
+                  className="max-w-full min-w-0 shrink"
                 >
                   {loading ? <Loader2Icon className="animate-spin" /> : null}
-                  {loading ? "Listening…" : "Write it down"}
+                  {loading ? (
+                    "Listening…"
+                  ) : (
+                    <PricedLabel
+                      label={isSaved ? "Show the words" : "Write it down"}
+                      cents={firstPriceCents}
+                    />
+                  )}
                 </Button>
               </div>
             </>
@@ -237,11 +298,11 @@ export function TranscriptPanel() {
                   type="button"
                   variant="ghost"
                   disabled={loading}
-                  onClick={() => void write()}
-                  title="Listen again, so the words match the film as it is now"
+                  onClick={() => void write(true)}
+                  className="max-w-full min-w-0 shrink"
                 >
                   {loading ? <Loader2Icon className="animate-spin" /> : null}
-                  Write it down again
+                  <PricedLabel label="Transcribe again" cents={againPriceCents} />
                 </Button>
               </div>
             </>
@@ -249,5 +310,20 @@ export function TranscriptPanel() {
         </div>
       </ScrollArea>
     </div>
+  )
+}
+
+/**
+ * A button's words and its price. The panel can be dragged narrow, and then
+ * the words shorten while the price stays whole, because the price is the
+ * part that must never be hidden.
+ */
+function PricedLabel({ label, cents }: { label: string; cents: number | null }) {
+  if (cents === null) return <>{label}</>
+  return (
+    <>
+      <span className="min-w-0 truncate">{label}</span>
+      <span className="shrink-0">· {formatAiEstimate(cents)}</span>
+    </>
   )
 }

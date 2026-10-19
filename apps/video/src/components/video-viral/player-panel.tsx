@@ -1,11 +1,13 @@
 import * as React from "react"
 import {
+  DownloadIcon,
   EyeOffIcon,
   ExternalLinkIcon,
   LinkIcon,
   Loader2Icon,
   PlayIcon,
   SparklesIcon,
+  Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -22,6 +24,7 @@ import {
 } from "@/components/ui/tooltip"
 import { BreakdownPanel } from "@/components/video-viral/breakdown-panel"
 import { CopyThisButton } from "@/components/video-viral/copy-this-button"
+import { DeleteSavedVideosDialog } from "@/components/video-viral/delete-saved-videos-dialog"
 import { StarMenu, type Favourites } from "@/components/video-viral/star-menu"
 import { ViralScoreParts } from "@/components/video-viral/viral-score-parts"
 import {
@@ -46,8 +49,9 @@ import type { ViralVideo } from "@/lib/video/viral"
  *
  * **Picking a video spends nothing.** A YouTube video plays in YouTube's own
  * embed, which is free. TikTok and Instagram show their cover and a way out,
- * because their embeds need third-party scripts. Only Save & break down
- * costs anything, and it says so above the button.
+ * because their embeds need third-party scripts. Download spends storage only;
+ * AI analyse is the one button that spends AI money, and the note above the
+ * two buttons says so.
  */
 
 /** How often the panel asks again while a breakdown is moving. */
@@ -95,6 +99,8 @@ type PlayerBodyProps = {
     saved: { id: string; status: string },
     before: string | null
   ) => void
+  /** The saved copy was deleted. Without it, the panel offers no Delete. */
+  onDeleted?: (video: ViralVideo) => void | Promise<void>
 }
 
 function PlayerBody({
@@ -105,9 +111,11 @@ function PlayerBody({
   onHideChannel,
   onBack,
   onSavedChange,
+  onDeleted,
 }: PlayerBodyProps) {
   const [saved, setSavedHere] = React.useState<SavedVideoDetail | null>(null)
-  const [busy, setBusy] = React.useState(false)
+  const [busy, setBusy] = React.useState<"download" | "analyse" | "retry" | null>(null)
+  const [deleting, setDeleting] = React.useState(false)
   const [atMs, setAtMs] = React.useState<number | undefined>(undefined)
   const playerRef = React.useRef<HTMLVideoElement>(null)
 
@@ -162,28 +170,29 @@ function PlayerBody({
     return () => clearInterval(timer)
   }, [read, saved])
 
-  async function onSave() {
+  /** Download (no AI) or AI analyse (downloading first when needed). */
+  async function onSave(analyse: boolean) {
     if (busy) return
-    setBusy(true)
+    setBusy(analyse ? "analyse" : "download")
     try {
-      const [detail] = await saveVideos([video.url], projectId)
+      const [detail] = await saveVideos([video.url], projectId, analyse)
       setSaved(detail)
     } catch (error) {
       showErrorToast(getSavedVideoErrorMessage(error))
     } finally {
-      setBusy(false)
+      setBusy(null)
     }
   }
 
   async function onTryAgain() {
     if (!saved || busy) return
-    setBusy(true)
+    setBusy("retry")
     try {
       setSaved(await retryVideo(saved.id))
     } catch (error) {
       showErrorToast(getSavedVideoErrorMessage(error))
     } finally {
-      setBusy(false)
+      setBusy(null)
     }
   }
 
@@ -251,6 +260,14 @@ function PlayerBody({
                   <LinkIcon />
                 </IconAction>
               )}
+              {saved && onDeleted ? (
+                <IconAction
+                  label="Delete the saved video"
+                  onClick={() => setDeleting(true)}
+                >
+                  <Trash2Icon />
+                </IconAction>
+              ) : null}
               {onHideChannel ? (
                 <IconAction
                   label={`Hide ${video.channelName || "this channel"} from this project`}
@@ -282,28 +299,27 @@ function PlayerBody({
                 />
                 {saved === null ? (
                   <div className="grid gap-2">
-                    <p className="text-xs text-muted-foreground">
-                      Downloading it and having AI watch it spends from your
-                      monthly AI allowance and up to 100MB of storage.
-                    </p>
-                    <Button
-                      className="w-full"
-                      disabled={busy}
-                      onClick={() => void onSave()}
-                    >
-                      {busy ? (
-                        <Loader2Icon className="animate-spin" />
-                      ) : (
-                        <SparklesIcon />
-                      )}
-                      Save &amp; break down
-                    </Button>
+                    <SpendNote />
+                    <SaveButtons busy={busy} onSave={(analyse) => void onSave(analyse)} />
                   </div>
                 ) : working ? (
-                  <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2Icon className="size-4 animate-spin" />
-                    {savedVideoStatusLabels[saved.status]}…
-                  </p>
+                  <div className="grid gap-2">
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2Icon className="size-4 animate-spin" />
+                      {savedVideoStatusLabels[saved.status]}…
+                    </p>
+                    {saved.wantsAnalysis ? null : (
+                      <AnalyseButton busy={busy} onPress={() => void onSave(true)} />
+                    )}
+                  </div>
+                ) : saved.status === "downloaded" ? (
+                  <div className="grid gap-2">
+                    <p className="text-sm text-muted-foreground">
+                      Downloaded into your media library. No AI has watched it
+                      yet. AI analyse spends from your monthly AI allowance.
+                    </p>
+                    <AnalyseButton busy={busy} onPress={() => void onSave(true)} />
+                  </div>
                 ) : saved.status === "failed" ? (
                   <div className="grid gap-2">
                     <ErrorRow
@@ -311,10 +327,10 @@ function PlayerBody({
                     />
                     <Button
                       variant="outline"
-                      disabled={busy}
+                      disabled={busy !== null}
                       onClick={() => void onTryAgain()}
                     >
-                      {busy ? <Loader2Icon className="animate-spin" /> : null}
+                      {busy === "retry" ? <Loader2Icon className="animate-spin" /> : null}
                       Try again
                     </Button>
                   </div>
@@ -348,7 +364,82 @@ function PlayerBody({
           ) : null}
         </div>
       </ScrollArea>
+      {onDeleted ? (
+        <DeleteSavedVideosDialog
+          videos={deleting && saved ? [{ savedVideoId: saved.id, title: video.title }] : []}
+          onOpenChange={setDeleting}
+          onDeleted={async (result) => {
+            setDeleting(false)
+            if (!result.deleted.length) return
+            setSavedHere(null)
+            lastStatus.current = null
+            await onDeleted(video)
+            toast.success(
+              result.filesKept
+                ? "The saved video is deleted. Its file stays in your media library, because a project still uses it."
+                : "The saved video is deleted, with its file."
+            )
+          }}
+        />
+      ) : null}
     </>
+  )
+}
+
+/** The one sentence on what the two buttons spend. */
+function SpendNote() {
+  return (
+    <p className="text-xs text-muted-foreground">
+      Only AI analyse spends AI money, from your monthly AI allowance. Download
+      keeps the video in your media library and spends storage only, up to
+      100MB.
+    </p>
+  )
+}
+
+/** Download and AI analyse, side by side. */
+function SaveButtons({
+  busy,
+  onSave,
+}: {
+  busy: "download" | "analyse" | "retry" | null
+  onSave: (analyse: boolean) => void
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <Button
+        variant="outline"
+        disabled={busy !== null}
+        onClick={() => onSave(false)}
+      >
+        {busy === "download" ? (
+          <Loader2Icon className="animate-spin" />
+        ) : (
+          <DownloadIcon />
+        )}
+        Download
+      </Button>
+      <AnalyseButton busy={busy} onPress={() => onSave(true)} />
+    </div>
+  )
+}
+
+function AnalyseButton({
+  busy,
+  onPress,
+}: {
+  busy: "download" | "analyse" | "retry" | null
+  onPress: () => void
+}) {
+  return (
+    <Button disabled={busy !== null} onClick={onPress}>
+      {busy === "analyse" ? (
+        <Loader2Icon className="animate-spin" />
+      ) : (
+        <SparklesIcon />
+      )}
+      AI analyse
+    </Button>
   )
 }
 

@@ -5,7 +5,11 @@ import { describeAuthError } from "@/lib/api/error-message"
 import { AI_KEY_MISSING_MESSAGES } from "@/lib/video/ai-providers"
 import {
   CAROUSEL_CONFLICT_MESSAGE,
+  CAROUSEL_EMPTY_EXPORT_MESSAGE,
+  CAROUSEL_EXPORT_FAILED_MESSAGE,
   CAROUSEL_FORMATS,
+  CAROUSEL_KEEP_FAILED_MESSAGE,
+  CAROUSEL_MEDIA_MISSING_MESSAGE,
   CAROUSEL_ITEM_LIMIT_MESSAGE,
   CAROUSEL_NAME_MAX,
   CAROUSEL_NAME_REQUIRED_MESSAGE,
@@ -24,6 +28,7 @@ import {
   type CarouselTextItem,
 } from "@/lib/video/carousel-schema"
 import { userGet, userPost } from "@/server/guards"
+import { keepCarouselExport } from "@/server/video/carousel-exports"
 import {
   createCarouselFromFrames,
   createOwnedCarousel,
@@ -64,6 +69,10 @@ const KNOWN_MESSAGES = new Set([
   "A carousel needs at least one slide.",
   "A carousel can have at most 20 slides.",
   CAROUSEL_ITEM_LIMIT_MESSAGE,
+  CAROUSEL_MEDIA_MISSING_MESSAGE,
+  CAROUSEL_EXPORT_FAILED_MESSAGE,
+  CAROUSEL_EMPTY_EXPORT_MESSAGE,
+  CAROUSEL_KEEP_FAILED_MESSAGE,
 ])
 
 export function getCarouselErrorMessage(error: unknown) {
@@ -244,6 +253,22 @@ export function saveCarousel(
 
 export function deleteCarousels(carouselIds: string[]) {
   return deleteFn({ data: { carouselIds } })
+}
+
+const exportFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ carouselId: z.string().min(1).max(36) }))
+  .handler(async ({ data, context }) =>
+    keepCarouselExport({ userId: context.user.id, carouselId: data.carouselId })
+  )
+
+/**
+ * Export the saved carousel: the server draws every slide, zips them with the
+ * caption and keeps the ZIP on the Exports page, where it can be downloaded
+ * again. The export's own file address hands the ZIP over straight away.
+ */
+export function exportCarousel(carouselId: string) {
+  return exportFn({ data: { carouselId } })
 }
 
 export function polishCarouselText(

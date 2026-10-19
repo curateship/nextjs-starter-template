@@ -42,9 +42,9 @@ Until 24 Sep 2026 the ceiling was ten minutes.
   seconds of its 600 (see [word-by-word-captions.md](word-by-word-captions.md)).
   That is about a third of the allowance, so a slower server still has room.
   A run that is truly stuck is still stopped.
-- **Other ffmpeg jobs keep ten minutes.** Transcribing and jump cuts look at
-  ten minutes of sound at most, and a new voiceover is only read for its
-  length, which takes a moment.
+- **Other ffmpeg jobs keep ten minutes.** Writing a recording down pulls at
+  most thirty minutes of sound out as a small WAV, which takes seconds, and a
+  new voiceover is only read for its length, which takes a moment.
 
 ## What did not need to move
 
@@ -142,14 +142,23 @@ sound switch change.
   Captions add about 2 to 4 seconds a minute
   ([word-by-word-captions.md](word-by-word-captions.md)).
 
-## Other ten-minute limits that are still there
+## The tools that write a recording down
 
-These belong to single tools, not to exports, and a thirty-minute project does
-not lift them.
+Captions and Tighten cover the same thirty minutes as an export. They write
+down the whole recording behind a clip, and a recording longer than thirty
+minutes is refused with "That recording is too long to caption. Captioning
+covers up to 30 minutes" or "That recording is too long to look through. It
+covers up to 30 minutes".
 
-- **Captions** transcribe at most ten minutes of one clip's sound
-  (`CAPTIONS_MAX_SOURCE_MS` in `src/lib/video/captions.ts`).
-- **Jump cuts** look at most ten minutes of one clip
-  (`JUMP_CUT_MAX_WINDOW_MS` in `src/lib/video/jump-cuts.ts`).
+- **Where the limit is:** `TRANSCRIBE_MAX_SOURCE_MS` in
+  `src/lib/video/transcripts.ts`, which `CAPTIONS_MAX_SOURCE_MS` and
+  `JUMP_CUT_MAX_WINDOW_MS` both read.
+- **Why it is not ten minutes any more:** Whisper takes 25 MB a request, which
+  is about 13 minutes of sound. Anything over ten minutes now goes in pieces
+  that overlap by a few seconds and are joined back in order
+  ([saved-transcripts.md](saved-transcripts.md)).
+- **Tighten, the Transcript panel and Hook still stop at a 100 MB file**
+  (`JUMP_CUT_MAX_MEDIA_BYTES`). Today that is the same as the upload limit
+  below, so it only matters once the shell's upload limit is raised.
 - **Uploads** stop at 100 MB a video, which is set by the shell. A long talk
-  has to come in as several clips.
+  has to come in as several clips, or as a smaller file.

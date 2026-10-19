@@ -64,10 +64,11 @@ follower count.
 ## When the breakdown counts
 
 The breakdown part scores 0 for every result until the video has been saved
-and broken down (Save & break down, in `creator-research.md`). Once that
+and broken down (AI analyse, in `creator-research.md`). Once that
 person's saved copy of the video reaches "ready", its breakdown counts on
 the next read, and "Missing breakdown" drops off the hover list. A saved
-copy still downloading or being watched counts as missing. Somebody else's
+copy still downloading or being watched counts as missing, and so does one
+saved with Download alone, which no AI has watched. Somebody else's
 saved copy never counts.
 
 ## Worked out on read, never stored

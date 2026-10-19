@@ -52,7 +52,10 @@ export const DEFAULT_TRANSLATE_LANGUAGE: TranslateLanguage = "Spanish"
 /** The longest single line sent or accepted back. Captions are a few words. */
 export const TRANSLATE_LINE_MAX = 300
 
-/** As many lines as ten minutes of captions can make. */
+/**
+ * As many lines as one translation takes: about 25 minutes of captions, at
+ * about forty lines a minute.
+ */
 export const TRANSLATE_LINES_MAX = 1000
 
 /**
@@ -76,11 +79,14 @@ export const TRANSLATE_TOO_LONG_TO_SPEAK_MESSAGE = `The translation is too long 
 export const TRANSLATE_NO_VOICE_MESSAGE =
   "Pick a voice to read the translation"
 
+export const TRANSLATE_TOO_MANY_LINES_MESSAGE = `This project has more than ${TRANSLATE_LINES_MAX.toLocaleString("en-US")} caption lines, which is as many as one translation takes`
+
 /** These reach the screen as they are. */
 export const SAFE_TRANSLATE_ERRORS = new Set([
   TRANSLATE_NOTHING_TO_SAY_MESSAGE,
   TRANSLATE_TOO_LONG_TO_SPEAK_MESSAGE,
   TRANSLATE_NO_VOICE_MESSAGE,
+  TRANSLATE_TOO_MANY_LINES_MESSAGE,
 ])
 
 /** What the voice is asked to say: every line in order, as one script. */

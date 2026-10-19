@@ -322,6 +322,11 @@ export function ViralCollectionScreen({
             favourites={favourites}
             onFavouritesChanged={refresh}
             onSavedChange={progress.report}
+            onDeleted={async (video) => {
+              // The star stays: a favourite keeps its own copy of the details.
+              progress.forget([video.key])
+              await refresh()
+            }}
           />
         }
         leftLabel="Show the collections"
