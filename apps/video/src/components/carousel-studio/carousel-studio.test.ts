@@ -149,6 +149,24 @@ describe("carousel studio history", () => {
     expect(documentOf(undone)).toEqual(documentOf(before))
   })
 
+  it("moves every layer to a new shape and one undo puts the deck back", () => {
+    const before = initial()
+    const story = builderReducer(before, {
+      type: "UPDATE_FORMAT",
+      format: "9:16",
+    })
+    expect(story.format).toBe("9:16")
+    expect(story.past).toHaveLength(1)
+    // 270 pixels tall in a 1350 slide stays 270 in a 1920 one.
+    expect(story.slides[0].items[0].height * 1920).toBeCloseTo(270)
+
+    const undone = builderReducer(story, { type: "UNDO" })
+    expect(documentOf(undone)).toEqual(documentOf(before))
+    expect(
+      builderReducer(before, { type: "UPDATE_FORMAT", format: "4:5" })
+    ).toBe(before)
+  })
+
   it("keeps only the latest 50 undo steps", () => {
     let state = initial()
     for (let index = 0; index < 55; index += 1) {

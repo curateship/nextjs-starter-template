@@ -1,4 +1,5 @@
 import type { AppOptions } from "@/lib/app-options"
+import { defineSettingsTab } from "@/lib/settings-tab"
 
 /**
  * What this app changes about the shell.
@@ -16,19 +17,34 @@ import type { AppOptions } from "@/lib/app-options"
  * object still reads as the full shape. Both catch a misspelled option.
  */
 export const appOptions: AppOptions = {
+  settings: {
+    tabs: [
+      /**
+       * The one line every post's plan is written for (Tyler, 19 Oct 2026:
+       * "One line for the whole app"). A pointer, never the component: this
+       * file is read by the server during boot.
+       */
+      defineSettingsTab({
+        id: "posts",
+        label: "Posts",
+        panel: () => import("@/components/note-posts/posts-settings"),
+      }),
+    ],
+  },
   notifications: {
     /**
      * A video notice ("Ready to analyse", "Analysed", "Failed") opens
-     * `/videos?open=<id>` with that video picked. The video it is about is
-     * kept on the server beside the notice, so it is asked for once per page
-     * of notices. A failed read only loses the links; the rows are already
-     * drawn from their own words.
+     * `/videos?open=<id>` with that video picked, a post's opens
+     * `/posts?open=<id>`, and a note's reminder opens `/notes?open=<id>`.
+     * What each is about is kept on the server beside the
+     * notice, so it is asked for once per page of notices. A failed read only
+     * loses the links; the rows are already drawn from their own words.
      */
     detailsFor: async (notices) => {
       const mine = notices.filter((notice) => notice.type === "app_activity")
       if (!mine.length) return {}
-      const { loadVideoNoticeLinks } = await import("@/lib/api/note/notices")
-      const links = await loadVideoNoticeLinks(mine.map((notice) => notice.id)).catch(() => [])
+      const { loadNoticeLinks } = await import("@/lib/api/note/notices")
+      const links = await loadNoticeLinks(mine.map((notice) => notice.id)).catch(() => [])
       return Object.fromEntries(links.map((link) => [link.id, { href: link.href }]))
     },
   },

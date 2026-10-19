@@ -131,11 +131,45 @@ describe("carousels", () => {
 
   it("duplicates into an independent version-1 document", async () => {
     const created = await createOwnedCarousel(user.id, "Post", database)
-    const copy = await duplicateOwnedCarousel(user.id, created.id, database)
+    const copy = await duplicateOwnedCarousel(
+      user.id,
+      created.id,
+      undefined,
+      database
+    )
     expect(copy.name).toBe("Post copy")
     expect(copy.id).not.toBe(created.id)
     expect(copy.version).toBe(1)
     expect(copy.slide_count).toBe(created.slide_count)
+  })
+
+  it("copies into another shape and leaves the original alone", async () => {
+    const created = await createOwnedCarousel(user.id, "Post", database)
+    const before = await getOwnedCarouselDetail(user.id, created.id, database)
+    const copy = await duplicateOwnedCarousel(
+      user.id,
+      created.id,
+      "9:16",
+      database
+    )
+    expect(copy).toMatchObject({ name: "Post 9:16", format: "9:16" })
+
+    // The starter hook is 0.2 of a 1350 slide: 270 pixels, centred at 0.7.
+    const story = await getOwnedCarouselDetail(user.id, copy.id, database)
+    const moved = story.slides[0].items[0]
+    expect(moved.height * 1920).toBeCloseTo(270)
+    expect(moved.y + moved.height / 2).toBeCloseTo(0.7)
+    expect(moved.id).not.toBe(before.slides[0].items[0].id)
+
+    const original = await getOwnedCarouselDetail(user.id, created.id, database)
+    expect(original.format).toBe("4:5")
+    expect(original.slides).toEqual(before.slides)
+    expect(original.version).toBe(before.version)
+
+    const stranger = await insertUser(database)
+    await expect(
+      duplicateOwnedCarousel(stranger.id, created.id, "1:1", database)
+    ).rejects.toThrowError(CAROUSEL_NOT_FOUND_MESSAGE)
   })
 
   it("searches names literally and lists only the owner", async () => {

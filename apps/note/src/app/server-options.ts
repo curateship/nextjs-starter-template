@@ -31,6 +31,19 @@ export const appServerOptions: AppServerOptions = {
         name: "note-videos",
         tick: () => import("@/server/note/jobs").then((jobs) => jobs.tick()),
       },
+      {
+        // Rings notes' date reminders when they come due and empties Trash of
+        // anything 30 days old. Imported on the tick, like the one above.
+        name: "note-notes",
+        tick: () => import("@/server/note/notes/jobs").then((jobs) => jobs.tick()),
+      },
+      {
+        // Reads a pasted X post's page, keeps its pictures, downloads its
+        // video, and analyses a post or merges plans somebody pressed the
+        // button on, one job at a time. Imported on the tick, like the others.
+        name: "note-posts",
+        tick: () => import("@/server/note/posts/jobs").then((jobs) => jobs.tick()),
+      },
     ],
   },
 }

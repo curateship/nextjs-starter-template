@@ -2,6 +2,11 @@ import { createRequire } from "node:module"
 import { eq } from "drizzle-orm"
 
 import {
+  CAROUSEL_FRAME_SIZES,
+  CAROUSEL_TEXT_LINE_HEIGHT,
+  wrapCarouselText,
+} from "@/lib/video/carousel-layout"
+import {
   CAROUSEL_NOT_FOUND_MESSAGE,
   requireCarouselFormat,
   type CarouselFormat,
@@ -29,13 +34,6 @@ const SAFE_CAROUSEL_EXPORT_ERRORS = new Set([
   CAROUSEL_MEDIA_MISSING_MESSAGE,
   CAROUSEL_EXPORT_FAILED_MESSAGE,
 ])
-
-const FORMAT_SIZES: Record<CarouselFormat, { width: number; height: number }> =
-  {
-    "4:5": { width: 1080, height: 1350 },
-    "1:1": { width: 1080, height: 1080 },
-    "9:16": { width: 1080, height: 1920 },
-  }
 
 const requireNative = createRequire(import.meta.url)
 
@@ -121,7 +119,7 @@ export function carouselSlideSvg(
   media: ReadonlyMap<string, string> = new Map()
 ) {
   const canonicalFormat = requireCarouselFormat(format)
-  const size = FORMAT_SIZES[canonicalFormat]
+  const size = CAROUSEL_FRAME_SIZES[canonicalFormat]
   const definitions: string[] = []
   const layers = [...slide.items]
     .sort((left, right) => left.zIndex - right.zIndex)
@@ -163,7 +161,12 @@ function textLayer(
     `<clipPath id="${clipId}"><rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}"/></clipPath>`
   )
   const font = requireTextFont(item.fontId)
-  const lines = wrapText(item.text, box.width, item.fontSize, font.widthRatio)
+  const lines = wrapCarouselText(
+    item.text,
+    box.width,
+    item.fontSize,
+    font.widthRatio
+  )
   const anchor =
     item.align === "left" ? "start" : item.align === "right" ? "end" : "middle"
   const x =
@@ -172,7 +175,7 @@ function textLayer(
       : item.align === "right"
         ? box.x + box.width
         : box.x + box.width / 2
-  const lineHeight = item.fontSize * 1.16
+  const lineHeight = item.fontSize * CAROUSEL_TEXT_LINE_HEIGHT
   const spans = lines
     .map(
       (line, lineIndex) =>
@@ -180,43 +183,6 @@ function textLayer(
     )
     .join("")
   return `<text clip-path="url(#${clipId})" fill="${item.color}" font-family="${font.svgFamily}" font-size="${item.fontSize}" font-weight="${font.weight}" text-anchor="${anchor}">${spans}</text>`
-}
-
-function wrapText(
-  text: string,
-  width: number,
-  fontSize: number,
-  widthRatio: number
-) {
-  const maxCharacters = Math.max(1, Math.floor(width / (fontSize * widthRatio)))
-  const lines: string[] = []
-  for (const paragraph of text.split("\n")) {
-    const words = paragraph.split(/\s+/).filter(Boolean)
-    if (!words.length) {
-      lines.push("")
-      continue
-    }
-    let line = ""
-    for (const word of words) {
-      if (word.length > maxCharacters) {
-        if (line) lines.push(line)
-        for (let start = 0; start < word.length; start += maxCharacters) {
-          lines.push(word.slice(start, start + maxCharacters))
-        }
-        line = ""
-        continue
-      }
-      const candidate = line ? `${line} ${word}` : word
-      if (candidate.length <= maxCharacters) {
-        line = candidate
-      } else {
-        lines.push(line)
-        line = word
-      }
-    }
-    if (line) lines.push(line)
-  }
-  return lines
 }
 
 function mediaLayer(

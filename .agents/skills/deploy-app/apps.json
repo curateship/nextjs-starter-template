@@ -49,5 +49,41 @@
     "database": {
       "uuid": "cms4hc61idk3pxmalek6vws2"
     }
+  },
+  "fitness": {
+    "server": "de",
+    "project": "Fitness",
+    "healthUrl": "https://fitness.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "hy4xqsokqign22sitwgqaum4"
+      },
+      {
+        "role": "worker",
+        "uuid": "uiviv0vnxxh5wijywsc4f57r"
+      }
+    ],
+    "database": {
+      "uuid": "aokuqnxme28hta1io6mq3nnz"
+    }
+  },
+  "course": {
+    "server": "de",
+    "project": "Course",
+    "healthUrl": "https://course.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "x8ockgtzr0tukuel2gdtf6mw"
+      },
+      {
+        "role": "worker",
+        "uuid": "ze72p6mtkabxou28ifiypert"
+      }
+    ],
+    "database": {
+      "uuid": "jee1uxx0iazkaw78y7yqtyhf"
+    }
   }
 }

@@ -11,3 +11,23 @@ the shell lives in the repo's `docs/`.
   and Try again, what Delete removes, and what a deploy needs.
 - [analysing-a-video.md](analysing-a-video.md): the two Gemini calls behind the
   Analyse button, what each card holds, the price line, and the bell notices.
+- [notes-dashboard.md](notes-dashboard.md): the `/notes` screen. Folders inside
+  folders, Recently opened, the list, table and board views, saved views,
+  search, picking many notes, pin, archive and Trash.
+- [note-fields.md](note-fields.md): each folder's own fields, what a value may
+  be, moving a note between folders, Suggest fields (the AI), the video link,
+  templates, and Markdown in and out.
+- [note-editor.md](note-editor.md): the note editor's blocks, the "/" menu,
+  links between notes, pictures, saving with the revision check and the
+  offline copy, and History.
+- [note-reminders.md](note-reminders.md): date reminders in the bell.
+- [posts-dashboard.md](posts-dashboard.md): the `/posts` screen. Folders and
+  authors on the left, the cards and filters in the middle, the picked post on
+  the right, highlights, and the editable action plan.
+- [saving-a-post.md](saving-a-post.md): which X links work, why the app reads
+  X's own post page and not its embed feed, what is kept (long text, thread,
+  quote, pictures, video), Bring in the article, the Save from x.com button,
+  failures, and what a deploy needs.
+- [analysing-a-post.md](analysing-a-post.md): the Gemini call behind Analyse,
+  the about-you line, the folder suggestion, the similar-post warning, the
+  price line, Analyse many, One plan from many, and the bell.

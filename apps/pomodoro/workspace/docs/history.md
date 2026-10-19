@@ -5,11 +5,15 @@ Stats (Tyler, 17 Oct 2026), and so does every sentence that sends a member
 to it. The address stays `/history`, so old links keep working, and the
 heading on the page still reads "Focus history".
 
-It covers four ranges: 7 days, 30 days, 12 months and this year. Drawn to Tyler's design of 7 Oct 2026
+It covers five ranges: Today, 7 days, 30 days, 12 months and this year.
+Today is the first tab and the one the page opens on (Tyler, 19 Oct 2026).
+Drawn to Tyler's design of 7 Oct 2026
 (`assets/pasted-image-1791402090336300000.png`), top to bottom:
 
 - **The header:** the title and the dates, with the range tabs and Export CSV
-  on the right.
+  on the right. Five range tabs are wider than a phone at the usual pill size,
+  so below the `sm` width their labels shrink to 14px with 4px of padding,
+  which fits a 360px screen.
 - **The strip:** four figures in one panel. Focus time, Sessions (with
   today's time and sessions under it), Active days, and Streak (with the best
   under it).
@@ -45,6 +49,19 @@ The per-project rows are described in [Projects](projects.md), the badges in
 - **Tasks completed** is no longer a figure of its own. It is the note on Top
   tasks.
 
+## Today
+
+Today is the one day in the profile's timezone, from midnight to now.
+
+- **The dates under the title name the day once**, as "Oct 19", not
+  "Oct 19 – Oct 19".
+- **Sessions reads "Today" under it** instead of the today line, which would
+  only repeat the Focus time and Sessions figures beside it.
+- **When you focus takes the place of By day.** By day would be a single bar,
+  so the hour chart moves up beside This week, and Top tasks gets the second
+  row to itself.
+- **Today is free** on every plan, like 7 and 30 days.
+
 ## By day
 
 Bars of focus per day, or per month on 12 months and This year. The switch
@@ -54,8 +71,9 @@ not kept in the address.
 ## The range is in the address
 
 The chosen range lives in the page address, `/history?range=12m`, so a reload
-or Back keeps it and a link can open a particular range. 7 days is the plain
-`/history`, and anything else in the address falls back to it
+or Back keeps it and a link can open a particular range. Today is the plain
+`/history`, 7 days is `/history?range=7d`, and anything else in the address
+falls back to Today
 (`validateSearch` in `src/routes/_pomodoro/history.tsx`). Picking a range
 replaces the address rather than adding to it, so Back leaves History instead
 of stepping through every range you clicked. A long range on a free account

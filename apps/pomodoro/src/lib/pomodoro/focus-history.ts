@@ -1,18 +1,19 @@
 // Client-safe focus-history contract shared by the History page and the
 // server report module. Keep this file free of server imports.
 
-export const reportRanges = ["7d", "30d", "12m", "year"] as const
+export const reportRanges = ["today", "7d", "30d", "12m", "year"] as const
 
 export type ReportRange = (typeof reportRanges)[number]
 
 export const reportRangeLabels: Record<ReportRange, string> = {
+  today: "Today",
   "7d": "7 days",
   "30d": "30 days",
   "12m": "12 months",
   year: "This year",
 }
 
-// Long-range reports are the paid tier; 7- and 30-day reports are free.
+// Long-range reports are the paid tier; today, 7- and 30-day reports are free.
 export function isLongRangeReport(range: ReportRange) {
   return range === "12m" || range === "year"
 }
@@ -41,6 +42,8 @@ export function shiftLocalDate(value: string, days: number) {
 export function resolveReportRange(range: ReportRange, todayLocalDate: string) {
   const { year, month } = parseLocalDate(todayLocalDate)
   switch (range) {
+    case "today":
+      return { startDate: todayLocalDate, endDate: todayLocalDate }
     case "7d":
       return { startDate: shiftLocalDate(todayLocalDate, -6), endDate: todayLocalDate }
     case "30d":

@@ -133,9 +133,11 @@ const createFn = createServerFn({ method: "POST" })
 
 const duplicateFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .validator(carouselIdSchema)
+  .validator(
+    carouselIdSchema.extend({ format: z.enum(CAROUSEL_FORMATS).optional() })
+  )
   .handler(({ data, context }) =>
-    duplicateOwnedCarousel(context.user.id, data.carouselId)
+    duplicateOwnedCarousel(context.user.id, data.carouselId, data.format)
   )
 
 const renameFn = createServerFn({ method: "POST" })
@@ -219,8 +221,9 @@ export function createCarouselFromFirstFrames(
   return fromFramesFn({ data: { projectId, firstFrameIds, format } })
 }
 
-export function duplicateCarousel(carouselId: string) {
-  return duplicateFn({ data: { carouselId } })
+/** A copy of a carousel, or, given a shape, a copy moved into that shape. */
+export function duplicateCarousel(carouselId: string, format?: CarouselFormat) {
+  return duplicateFn({ data: { carouselId, format } })
 }
 
 export function renameCarousel(carouselId: string, name: string) {

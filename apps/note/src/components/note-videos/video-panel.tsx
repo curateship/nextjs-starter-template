@@ -9,6 +9,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { MakeNoteButton } from "@/components/note-videos/make-note-dialog"
 import { SampleBadge } from "@/components/note-videos/sample-badge"
 import { SiteLogo } from "@/components/note-videos/site-logo"
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
@@ -392,11 +393,12 @@ function VideoBody({
           </div>
 
           {sample ? null : (
-            <div className="flex border-t p-3">
+            <div className="flex flex-wrap justify-between gap-2 border-t p-3">
               <Button type="button" variant="destructive" onClick={() => onDelete(detail)}>
                 <Trash2Icon />
                 Delete video
               </Button>
+              <MakeNoteButton videoId={detail.id} />
             </div>
           )}
         </div>
