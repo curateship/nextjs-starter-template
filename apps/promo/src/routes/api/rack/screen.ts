@@ -12,6 +12,8 @@ const screenShape = z.object({
         jpeg: z.string().max(2_000_000).regex(/^[A-Za-z0-9+/=]*$/),
         width: z.number().int().min(1).max(10_000),
         height: z.number().int().min(1).max(10_000),
+        /** "wall" for the small picture every 5 seconds on the wall of every phone; the window's own otherwise. */
+        lane: z.enum(["window", "wall"]).default("window"),
       })
     )
     .max(50)
@@ -24,8 +26,9 @@ const screenShape = z.object({
 
 /**
  * A few times a second while someone watches a phone: the newest picture of
- * each watched phone and any texted code, in; which phones to show and the
- * taps waiting for each, out. Signed like every rack address.
+ * each watched phone and any texted code, in; which phones to show (`wanted`),
+ * the taps waiting for each, and which phones the wall wants a small picture
+ * of every 5 seconds (`wall`), out. Signed like every rack address.
  */
 export const Route = createFileRoute("/api/rack/screen")({
   server: {

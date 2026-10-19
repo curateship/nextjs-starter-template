@@ -4,47 +4,51 @@ import { z } from "zod"
 import { createErrorMessage } from "../error-message"
 import { adminGet, adminPost } from "@/server/guards"
 import {
-  getYoutubeApiKey,
   getYoutubeKeyStatus,
   removeYoutubeApiKey,
   saveYoutubeApiKey,
   type YoutubeKeyStatus,
 } from "@/server/video/settings"
+import { AI_KEY_MISSING_MESSAGES } from "@/lib/video/ai-providers"
 import {
-  deleteOwnedViralSearches,
-  getOwnedViralSearch,
-  listOwnedViralSearches,
-  runAndSaveViralSearch,
-} from "@/server/video/viral/saved-searches"
-import {
-  VIRAL_KEYWORD_MAX,
-  type ScoredViralShort,
-  type ViralDays,
-  type ViralSearchSummary,
-} from "@/lib/video/viral"
+  FOLDER_NAME_REQUIRED_MESSAGE,
+  FOLDER_NAME_TAKEN_MESSAGE,
+  FOLDER_NOT_FOUND_MESSAGE,
+} from "@/lib/video/project-folders"
+import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
+import { VIRAL_SAYS, YOUTUBE_QUOTA_MESSAGE } from "@/lib/video/viral"
+
+/** Sentences other parts of the app already wrote for a person to read. */
+const SHOWN_AS_IS: ReadonlySet<string> = new Set([
+  FOLDER_NAME_REQUIRED_MESSAGE,
+  FOLDER_NAME_TAKEN_MESSAGE,
+  FOLDER_NOT_FOUND_MESSAGE,
+])
 
 /**
- * The Viral page: type a keyword, see the YouTube Shorts about it. Admin only
- * — every search spends 102 of the day's 10,000 free YouTube units, so this
- * is not a door to leave open to every member.
+ * The YouTube key behind Viral, and the one error lookup every Viral endpoint
+ * shares. Admin only: every search spends from the day's 10,000 free YouTube
+ * units, so this is not a door to leave open to every member.
  */
 
-export type {
-  ScoredViralShort,
-  ViralDays,
-  ViralSearchSummary,
-  YoutubeKeyStatus,
-}
+export type { YoutubeKeyStatus }
 
-export const QUOTA_MESSAGE =
-  "Today's 100 free YouTube searches are used up. They reset at midnight Pacific time."
 const UNREACHABLE_MESSAGE =
   "YouTube could not be reached. Try again in a moment."
 
 const describeKnownError = createErrorMessage(
   {
-    YOUTUBE_QUOTA: QUOTA_MESSAGE,
+    YOUTUBE_QUOTA: YOUTUBE_QUOTA_MESSAGE,
     YOUTUBE_UNREACHABLE: UNREACHABLE_MESSAGE,
+    CREATOR_NOT_FOUND: "That creator is no longer followed.",
+    CREATOR_ALREADY_FOLLOWED: "You already follow that creator.",
+    YOUTUBE_KEY_MISSING:
+      "Following a YouTube channel needs the YouTube key. Paste one in Settings → YouTube first.",
+    YOUTUBE_CHANNEL_NOT_FOUND:
+      "YouTube has no channel at that link. Check the address and try again.",
+    SAVED_VIDEO_NOT_FOUND: "That saved video is gone.",
+    AI_LIMIT_REACHED:
+      "Your AI allowance is used up, so nothing new can be broken down until next month.",
     EMPTY_KEY: "Paste a key before saving.",
     ENCRYPTION_NOT_CONFIGURED:
       "The server has no encryption key set, so secrets cannot be saved. Set CUSTOM_SHELL_SECRET_ENCRYPTION_KEY first.",
@@ -55,9 +59,9 @@ const describeKnownError = createErrorMessage(
 )
 
 /**
- * Any refusal the search half did not word itself carries YouTube's own
- * reason as a "YouTube said: …" sentence, and that sentence is the answer —
- * the task's rule is that YouTube's reason reaches the screen, never raw JSON.
+ * A refusal the server already worded ("VIRAL_SAYS: …") or YouTube's own
+ * reason ("YouTube said: …") is the answer as it stands; anything else is
+ * looked up, so the screen never shows raw JSON.
  */
 export function getViralErrorMessage(error: unknown) {
   const message =
@@ -66,120 +70,14 @@ export function getViralErrorMessage(error: unknown) {
       : error instanceof Error
         ? error.message
         : ""
+  if (SHOWN_AS_IS.has(message)) return message
+  if (AI_KEY_MISSING_MESSAGES.has(message)) return message
+  if (isProjectSpendLimitMessage(message)) return message
+  const says = message.indexOf(VIRAL_SAYS)
+  if (says >= 0) return message.slice(says + VIRAL_SAYS.length)
   const said = message.indexOf("YouTube said:")
   if (said >= 0) return message.slice(said)
   return describeKnownError(error)
-}
-
-const searchSchema = z.object({
-  /** Set means run a fresh search; blank spends nothing. */
-  keyword: z.string().min(1).max(VIRAL_KEYWORD_MAX).optional(),
-  days: z.union([z.literal(7), z.literal(30), z.literal(90)]),
-  minViews: z.number().int().min(0).max(1_000_000_000),
-  /** A saved search to reopen from the past-keywords list. */
-  open: z.string().min(1).max(36).optional(),
-})
-
-export type ViralPageData = {
-  keyConfigured: boolean
-  /** The saved key exists but cannot be unscrambled any more. */
-  keyUnreadable: boolean
-  /** Every saved search, the one that ran last first. */
-  searches: ViralSearchSummary[]
-  /** Each with its viral score, worked out on this read. */
-  results: ScoredViralShort[]
-  /** The saved search the results belong to — fresh or reopened. */
-  open: ViralSearchSummary | null
-  /**
-   * True when the results were fetched from YouTube just now. The page then
-   * swaps `?q=` for `?open=` in the address, so a reload shows the saved
-   * copy instead of spending another 102 units.
-   */
-  fresh: boolean
-  /** The search's failure as a finished sentence, never raw JSON. */
-  error: string | null
-}
-
-const searchViralFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .inputValidator(searchSchema)
-  .handler(async ({ data, context }): Promise<ViralPageData> => {
-    const status = await getYoutubeKeyStatus()
-    const base = {
-      keyConfigured: status.configured,
-      keyUnreadable: status.unreadable,
-      open: null,
-      fresh: false,
-      error: null,
-    }
-
-    if (data.keyword && status.configured) {
-      try {
-        const key = await getYoutubeApiKey()
-        if (key) {
-          const saved = await runAndSaveViralSearch(
-            context.user.id,
-            { keyword: data.keyword, days: data.days, minViews: data.minViews },
-            key
-          )
-          return {
-            ...base,
-            searches: await listOwnedViralSearches(context.user.id),
-            results: saved.results,
-            open: saved.search,
-            fresh: true,
-          }
-        }
-      } catch (error) {
-        // The search failing is the page's answer, not a crash: the sentence
-        // shows inside the table surface and the keyword box stays usable.
-        return {
-          ...base,
-          searches: await listOwnedViralSearches(context.user.id),
-          results: [],
-          error: getViralErrorMessage(error),
-        }
-      }
-    }
-
-    const searches = await listOwnedViralSearches(context.user.id)
-    if (data.open) {
-      const found = await getOwnedViralSearch(context.user.id, data.open)
-      if (!found) {
-        return {
-          ...base,
-          searches,
-          results: [],
-          error: "That saved search is gone. Pick one from the list or run a new one.",
-        }
-      }
-      return { ...base, searches, results: found.results, open: found.search }
-    }
-    return { ...base, searches, results: [] }
-  })
-
-export function loadViralSearch(input: {
-  keyword?: string
-  days: ViralDays
-  minViews: number
-  open?: string
-}) {
-  return searchViralFn({ data: input })
-}
-
-const deleteSearchesFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
-  .inputValidator(
-    z.object({ ids: z.array(z.string().min(1).max(36)).min(1).max(100) })
-  )
-  .handler(async ({ data, context }) => {
-    const deleted = await deleteOwnedViralSearches(context.user.id, data.ids)
-    return { deleted_ids: deleted }
-  })
-
-/** One request however many are ticked; the answer says which ones went. */
-export function deleteViralSearches(ids: string[]) {
-  return deleteSearchesFn({ data: { ids } })
 }
 
 const getKeyStatusFn = createServerFn({ method: "GET" })

@@ -511,14 +511,15 @@ async function refuseAccountCannotAnswer(
     throw new Error(`${name} hit a ban screen and was stopped. Let it run again from its settings on the Accounts dashboard once it is sorted.`)
   }
   const [phone] = await db
-    .select({ name: promoPhones.name })
+    .select({ name: promoPhones.name, kind: promoPhones.kind })
     .from(promoPhones)
     .where(eq(promoPhones.id, account.phoneId))
     .limit(1)
   const routine = platform === "reddit" ? "reddit/reply_message" : `${platform}/reply`
-  const cannot = phoneStepRefusal(routine, phone?.name ?? "The phone")
+  if (!phone) throw new Error("That account's phone is not there any more. Pick where it runs on the Accounts dashboard.")
+  const cannot = phoneStepRefusal(routine, phone.name)
   if (cannot) throw new Error(cannot)
-  await refuseBrokenAction(userId, routine, db)
+  await refuseBrokenAction(userId, routine, phone.kind, db)
 }
 
 /**

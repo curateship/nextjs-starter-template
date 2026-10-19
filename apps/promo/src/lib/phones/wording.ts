@@ -22,9 +22,10 @@ export function resultWords(action: string, result: Record<string, unknown>): st
   if (action === "phone/android-version") {
     const screen = String(result.fromScreen ?? "")
     const system = String(result.fromSystem ?? "")
+    const name = result.kind === "iphone" ? "iOS" : "Android"
     return result.match
-      ? `Settings says Android ${screen}, the same as Android itself reports.`
-      : `Settings says Android ${screen}, but Android itself reports ${system}.`
+      ? `Settings says ${name} ${screen}, the same as the phone itself reports.`
+      : `Settings says ${name} ${screen}, but the phone itself reports ${system}.`
   }
   if (action === "phone/health") {
     const parts = [
@@ -70,6 +71,11 @@ export function resultWords(action: string, result: Record<string, unknown>): st
   if (action === "phone/wipe") {
     return result.wiped === true ? "Erased. The phone restarts into its setup screens." : "Found the erase button and pressed nothing."
   }
+  if (action === "phone/icloud-state") {
+    return result.signedOut === true
+      ? "No Apple ID is signed in, so it can be wiped."
+      : `Signed in to an Apple ID${result.appleId ? ` as ${String(result.appleId)}` : ""}. Sign out on its screen before wiping.`
+  }
   if (action === "reddit/state" || action === "reddit/quick_state") {
     if (result.checked === false) return "The Reddit app could not be read."
     return result.handle ? `Reddit is signed in as u/${String(result.handle)}.` : "Reddit is signed in to nobody."
@@ -85,9 +91,11 @@ export function resultWords(action: string, result: Record<string, unknown>): st
   return "Done."
 }
 
-/** Android's word for the SIM's service, in words. */
+/** The SIM's service in words: Android's own word, or "not_reported" from an iPhone, which gives none. */
 export function signalWords(signal: string): string {
   switch (signal) {
+    case "not_reported":
+      return "Not reported"
     case "in_service":
       return "Has a signal"
     case "out_of_service":

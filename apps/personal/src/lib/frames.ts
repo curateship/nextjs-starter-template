@@ -3,19 +3,24 @@
  * the rest hidden, so going back to a screen opened a moment ago keeps its
  * place, scroll and any half-filled form. `workspace/docs/app-panels.md`
  * explains it.
+ *
+ * Personal can't see inside another site's page, so a frame is known by the
+ * screen Personal opened in it. A move made inside the app stays the app's.
+ *
+ * One screen may be marked to stay loaded (the menu's stay-loaded link). Its
+ * frame is never dropped and doesn't count toward the three.
  */
 
 export const MAX_KEPT_FRAMES = 3
 
 export type Frame = {
   id: number
-  /** The page the frame was told to load. */
-  frameUrl: string
+  /** The screen Personal opened in this frame. */
+  url: string
+  /** Its name in the menu, or "" for a screen the menu has no link to. */
+  title: string
   /** Counts loads Personal asked for, so asking for the same page again still reloads it. */
   load: number
-  /** Where the frame is now, which follows the app's own reports. */
-  url: string
-  title: string
   /** When it was last shown, to pick the one to drop past the cap. */
   shownAt: number
 }
@@ -45,54 +50,51 @@ function show(state: Frames, id: number): Frames {
   }
 }
 
-function addFrame(state: Frames, url: string): Frames {
-  const frame: Frame = { id: state.tick, frameUrl: url, load: 0, url, title: "", shownAt: state.tick }
-  let kept = [...state.kept, frame]
-  if (kept.length > MAX_KEPT_FRAMES) {
-    const oldest = kept.reduce((a, b) => (b.shownAt < a.shownAt ? b : a))
-    kept = kept.filter((f) => f !== oldest)
+/**
+ * Adds a frame and shows it. Past the cap, the frames shown longest ago go,
+ * apart from the new one and the one on `stayUrl`. More than one can go when
+ * a screen has just stopped staying loaded.
+ */
+function addFrame(state: Frames, url: string, title: string, stayUrl: string | null): Frames {
+  const frame: Frame = { id: state.tick, url, title, load: 0, shownAt: state.tick }
+  const droppable = [...state.kept, frame]
+    .filter((f) => f.url !== stayUrl)
+    .sort((a, b) => a.shownAt - b.shownAt)
+  const dropped = new Set(droppable.slice(0, Math.max(0, droppable.length - MAX_KEPT_FRAMES)))
+  return {
+    kept: [...state.kept, frame].filter((f) => !dropped.has(f)),
+    openId: frame.id,
+    tick: state.tick + 1,
   }
-  return { kept, openId: frame.id, tick: state.tick + 1 }
 }
 
-/** Loads `url` again in the open frame, or the page it is on now. */
-export function reloadOpen(state: Frames, url?: string): Frames {
+/** Loads the open frame's screen again. */
+export function reloadOpen(state: Frames): Frames {
   const open = openFrame(state)
   if (!open) return state
-  const next = url ?? open.url
   return {
     ...state,
     kept: state.kept.map((frame) =>
-      frame.id === open.id
-        ? {
-            ...frame,
-            frameUrl: next,
-            load: frame.load + 1,
-            url: next,
-            title: next === frame.url ? frame.title : "",
-          }
-        : frame
+      frame.id === open.id ? { ...frame, load: frame.load + 1 } : frame
     ),
   }
 }
 
 /**
- * Opens a screen. A kept frame already on that address, or for a menu link
- * one still on that link's screens (`sameLink`), is shown as it was. If that
- * frame is the open one it reloads instead, as a second click on a link
- * always has. Anything else gets a new frame, and past the cap the frame shown
- * longest ago goes.
+ * Opens a screen. A kept frame on that screen is shown as it was, and a second
+ * click on the screen already open loads it again. Anything else gets a new
+ * frame, and past the cap the frame shown longest ago goes, never the one on
+ * `stayUrl`.
  */
 export function openScreen(
   state: Frames,
   url: string,
-  sameLink?: (frameUrl: string) => boolean
+  title = "",
+  stayUrl: string | null = null
 ): Frames {
-  const found =
-    state.kept.find((frame) => frame.url === url) ??
-    (sameLink ? state.kept.find((frame) => sameLink(frame.url)) : undefined)
-  if (found?.id === state.openId) return reloadOpen(state, url)
-  return found ? show(state, found.id) : addFrame(state, url)
+  const found = state.kept.find((frame) => frame.url === url)
+  if (!found) return addFrame(state, url, title, stayUrl)
+  return found.id === state.openId ? reloadOpen(state) : show(state, found.id)
 }
 
 /**
@@ -100,25 +102,18 @@ export function openScreen(
  * already there is left alone; otherwise it is opened like any screen, and
  * Personal's bare address shows the empty start page.
  */
-export function showAddress(state: Frames, url: string | null): Frames {
+export function showAddress(
+  state: Frames,
+  url: string | null,
+  title = "",
+  stayUrl: string | null = null
+): Frames {
   if (!url) return state.openId === null ? state : { ...state, openId: null }
   if (openFrame(state)?.url === url) return state
-  return openScreen(state, url)
+  return openScreen(state, url, title, stayUrl)
 }
 
 /** Empties the middle panel. Kept frames stay loaded behind it. */
 export function closeAll(state: Frames): Frames {
   return state.openId === null ? state : { ...state, openId: null }
-}
-
-/** A frame's app says it moved to `path`, which it has already checked is a path. */
-export function reportMove(state: Frames, id: number, path: string, title: string): Frames {
-  const frame = state.kept.find((f) => f.id === id)
-  if (!frame) return state
-  const url = new URL(path, new URL(frame.url).origin).href
-  if (url === frame.url && title === frame.title) return state
-  return {
-    ...state,
-    kept: state.kept.map((f) => (f.id === id ? { ...f, url, title } : f)),
-  }
 }

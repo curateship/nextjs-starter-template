@@ -1,25 +1,12 @@
 # Export storage
 
-The Exports page says how much space your finished exports take, and lets you
-delete every export older than a date you pick. Deleting an export, by hand or
-by clearing out, removes its file and its cover from storage, not just its line
-in the list.
+The Exports page lets you delete every export older than a date you pick. It
+used to show a line such as "47 finished exports take 5.94 GB of storage."
+Tyler asked for that line to go on 19 Oct 2026, and the sum behind it went
+with it. The Size column still shows each export's file size.
 
-## The total
-
-- **Where it is:** a line under the Exports heading, such as "46 finished
-  exports take 5.86 GB of storage." It is hidden when you have no finished
-  exports.
-- **What it counts:** every finished export of yours, whatever the search box
-  says and however many pages the list has. Failed exports and ones still being
-  made have no file, so they are left out. That is why the number beside the
-  heading, which counts every row, can be bigger.
-- **Where the number comes from:** the size each export's file had when it was
-  made, stored on `video_render_jobs.file_size` and added up by
-  `loadExportStorage` in `src/server/video/exports.ts`. It equals the Size
-  column added up.
-- **What it leaves out:** covers. Their size is never recorded, and each is a
-  few dozen kilobytes beside a video of many megabytes.
+Deleting an export, by hand or by clearing out, removes its file and its cover
+from storage, not just its line in the list.
 
 ## What a delete removes
 

@@ -28,7 +28,10 @@
  * Reachable without being signed in, on purpose. The reason says why the thing
  * behind the door is safe for anyone to read.
  */
-export const appOpenEndpoints: Record<string, string> = {}
+export const appOpenEndpoints: Record<string, string> = {
+  "fitness/sharing.ts:sharedFn":
+    "A program its owner shared is a public page anyone with the link may open. It answers only while sharing is switched on, and hands out the program's name, days, lifts, sets, reps and rest, never the owner's name, weights, workouts, starting data or photos.",
+}
 
 /**
  * The handler does no checking because the thing it calls does it instead. The

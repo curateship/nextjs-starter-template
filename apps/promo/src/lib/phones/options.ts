@@ -7,6 +7,38 @@
 
 export type PhoneConnection = "sim" | "wifi"
 
+/**
+ * Which kind of phone a record is. Every rack action, every word on screen
+ * and the self-test's answers follow it. The rack reports it on check-in;
+ * a phone added by hand says it on the form.
+ */
+export type PhoneKind = "android" | "iphone"
+
+export const PHONE_KINDS = ["android", "iphone"] as const
+
+export const PHONE_KIND_WORDS: Record<PhoneKind, string> = {
+  android: "Android",
+  iphone: "iPhone",
+}
+
+/** "Android 16" or "iOS 17.6", or empty when the version is not read yet. */
+export function systemWords(kind: PhoneKind, version: string): string {
+  const read = version.trim()
+  if (!read) return ""
+  return `${kind === "iphone" ? "iOS" : "Android"} ${read}`
+}
+
+/** Where a phone's apps come from and update: the Play Store or the App Store. */
+export function storeWords(kind: PhoneKind): string {
+  return kind === "iphone" ? "the App Store" : "the Play Store"
+}
+
+/**
+ * The oldest iOS the rack drives (Tyler, 18 Oct 2026: used iPhone 11 to 13,
+ * iOS 17 or newer). An older iPhone is listed and refused with the reason.
+ */
+export const OLDEST_IOS = 17
+
 export type PhoneActionStatus = "queued" | "running" | "done" | "failed" | "cancelled"
 
 /**
@@ -38,6 +70,10 @@ export const PHONE_ACTIONS = [
   "phone/setup-check",
   "phone/outside-address",
   "phone/wipe",
+  // Whether an Apple ID is signed in on an iPhone, read off Settings before
+  // a wipe: an iPhone erased while signed in is locked to that Apple ID.
+  // The answer is `{ signedOut: boolean, appleId: string }` (part 54).
+  "phone/icloud-state",
   // Who the Reddit app is signed in as, asked directly while an account is
   // being moved onto the phone (part 31). A job's own Reddit steps are
   // written by `dispatch.ts`, not from here.
@@ -52,13 +88,14 @@ export const MANUAL_PHONE_ACTIONS = ["phone/android-version", "phone/health"] as
 const PHONE_ACTION_WORDS: Record<PhoneAction, string> = {
   "phone/list": "List the phones",
   "phone/health": "Health check",
-  "phone/android-version": "Read the Android version from Settings",
+  "phone/android-version": "Read the system version from Settings",
   "phone/self-test": "Daily self-test",
   "phone/check-updates": "Look for app updates in the Play Store",
   "phone/update-app": "Update an app",
   "phone/setup-check": "Setup check",
   "phone/outside-address": "Read the address apps see",
   "phone/wipe": "Wipe the phone",
+  "phone/icloud-state": "Read whether an Apple ID is signed in",
   "reddit/state": "Read who Reddit is signed in as",
 }
 
@@ -160,6 +197,8 @@ export function slotWords(shelfSlot: string): string {
 /** The bounds Settings → Phones allows. Here because the tab draws them too. */
 export const MAX_WORKING_RANGE = { min: 1, max: 50 } as const
 export const SCREENSHOT_DAYS_RANGE = { min: 1, max: 90 } as const
+/** The shelf's rows and columns for the rack map (Tyler, 18 Oct 2026: typed in Settings → Phones). */
+export const SHELF_RANGE = { min: 1, max: 20 } as const
 
 /** A forgotten screen window with control on lets the phone go after this long without a tap. */
 export const CONTROL_HOLD_MS = 15 * 60_000
@@ -190,11 +229,12 @@ export const APP_WORDS: Record<TrackedApp, string> = {
 }
 
 /**
- * Where an app update stands. `available`: the Play Store on the test phone
- * shows Update. `updating`: the test phone is updating. `testing`: the
- * self-test is running on the new version. `passed`: the other phones may
- * update. `failed`: the update or the self-test failed, and the rest of the
- * rack stays where it is.
+ * Where an app update stands, kept per kind of phone. `available`: the Play
+ * Store on the Android test phone, or the App Store on the iPhone test
+ * phone, shows Update. `updating`: that test phone is updating. `testing`:
+ * the self-test is running on the new version. `passed`: the other phones
+ * of that kind may update. `failed`: the update or the self-test failed, and
+ * the rest of the rack stays where it is.
  */
 export type RolloutStatus = "available" | "updating" | "testing" | "passed" | "failed"
 

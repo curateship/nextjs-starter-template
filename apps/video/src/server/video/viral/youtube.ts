@@ -1,43 +1,62 @@
 /**
- * The Viral page's YouTube search: one keyword in, the matching Shorts out,
- * each with its numbers and its channel's subscriber count.
+ * Viral's YouTube search: one keyword in, the most-watched matching videos
+ * out, each with its numbers and its channel's subscriber count.
  *
  * The YouTube Data API gives 10,000 free units a day. One keyword costs
  * exactly 102 of them and never more: the search itself is 100, then one
  * batch call for up to 50 videos' numbers (1 unit) and one for their channels'
- * subscriber counts (1 unit). That is about 100 searches a day.
+ * subscriber counts (1 unit). A search that finds nothing stops at 100.
  *
- * The API's "short" length filter means under 4 minutes, so everything over
- * 3 minutes is dropped here to keep only real Shorts.
+ * The API's "short" length filter means under 4 minutes, so Shorts over 3
+ * minutes are dropped here; asking for longer videos drops everything 3
+ * minutes or under instead.
  *
  * The key travels in a header, never in the address — a key in an address
  * ends up in logs and proxy history.
  */
 
-import {
-  SHORT_MAX_SECONDS,
-  type ViralDays,
-  type ViralShort,
-} from "@/lib/video/viral"
+import { SHORT_MAX_SECONDS } from "@/lib/video/viral"
 
 const API_BASE = "https://www.googleapis.com/youtube/v3"
 
-export type ViralSearchInput = {
+export type YoutubeSearchInput = {
   keyword: string
-  days: ViralDays
-  minViews: number
+  days: number
+  /** Shorts only, or only videos longer than a Short. */
+  length: "shorts" | "long"
 }
 
+export type YoutubeVideo = {
+  id: string
+  /** The video's own page. */
+  url: string
+  title: string
+  channelId: string
+  channelTitle: string
+  publishedAt: string
+  thumbnailUrl: string | null
+  durationSeconds: number
+  views: number
+  /** Null when the channel hides the count. */
+  likes: number | null
+  comments: number | null
+  subscribers: number | null
+}
+
+/** What one search found and what it cost. */
+export type YoutubeSearchAnswer = { videos: YoutubeVideo[]; units: number }
+
 /**
- * Searches YouTube for the keyword's Shorts. Throws YOUTUBE_QUOTA when the
- * day's units are used up, and `YouTube said: <reason>` for any other refusal,
- * so the toast has a sentence rather than raw JSON.
+ * Searches YouTube for the keyword's most-watched videos in the window.
+ * Throws YOUTUBE_QUOTA when the day's units are used up, and
+ * `YouTube said: <reason>` for any other refusal, so the screen has a
+ * sentence rather than raw JSON.
  */
-export async function searchYoutubeShorts(
-  input: ViralSearchInput,
+export async function searchYoutubeVideos(
+  input: YoutubeSearchInput,
   apiKey: string,
   fetchFn: typeof fetch = fetch
-): Promise<ViralShort[]> {
+): Promise<YoutubeSearchAnswer> {
   const publishedAfter = new Date(
     Date.now() - input.days * 24 * 60 * 60 * 1000
   ).toISOString()
@@ -49,7 +68,7 @@ export async function searchYoutubeShorts(
     new URLSearchParams({
       part: "id",
       type: "video",
-      videoDuration: "short",
+      videoDuration: input.length === "shorts" ? "short" : "any",
       order: "viewCount",
       publishedAfter,
       maxResults: "50",
@@ -59,7 +78,7 @@ export async function searchYoutubeShorts(
   const videoIds = itemsOf(search)
     .map((item) => stringAt(item, ["id", "videoId"]))
     .filter((id): id is string => !!id)
-  if (videoIds.length === 0) return []
+  if (videoIds.length === 0) return { videos: [], units: 100 }
 
   const videos = await callYoutube(
     fetchFn,
@@ -103,8 +122,8 @@ export async function searchYoutubeShorts(
     }
   }
 
-  return videoItems
-    .flatMap((item) => {
+  const found = videoItems
+    .flatMap((item): YoutubeVideo[] => {
       const id = stringAt(item, ["id"])
       const channelId = stringAt(item, ["snippet", "channelId"])
       const duration = parseIsoDuration(
@@ -112,12 +131,14 @@ export async function searchYoutubeShorts(
       )
       const views = countAt(item, ["statistics", "viewCount"])
       if (!id || !channelId || duration === null || views === null) return []
-      if (duration > SHORT_MAX_SECONDS) return []
-      if (views < input.minViews) return []
+      const isShort = duration <= SHORT_MAX_SECONDS
+      if (isShort !== (input.length === "shorts")) return []
       return [
         {
           id,
-          url: `https://www.youtube.com/shorts/${encodeURIComponent(id)}`,
+          url: isShort
+            ? `https://www.youtube.com/shorts/${encodeURIComponent(id)}`
+            : `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`,
           title: stringAt(item, ["snippet", "title"]) ?? "Untitled",
           channelId,
           channelTitle: stringAt(item, ["snippet", "channelTitle"]) ?? "",
@@ -136,6 +157,7 @@ export async function searchYoutubeShorts(
       ]
     })
     .sort((a, b) => b.views - a.views)
+  return { videos: found, units: channelIds.length ? 102 : 101 }
 }
 
 /**

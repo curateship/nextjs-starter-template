@@ -42,10 +42,12 @@ account window and feedback still work, and open inside the frame.
 In panel view, after every move, the shell posts this to `window.parent`:
 
 ```ts
-{ type: "shell-panel", path: "/dashboard", title: "My dashboard" }
+{ type: "shell-panel", path: "/dashboard", title: "My dashboard", canGo: true }
 ```
 
-`path` is the address inside the app, without its search. `title` is the page's
+`canGo: true` says the app takes the "change page" note below; the page
+around the frame only sends that note to an app that says so. `path` is the
+address inside the app, without its search. `title` is the page's
 name from the left menu, the same one the hidden page heading uses. The page
 around the frame uses it to keep its own address and tab title in step.
 
@@ -58,6 +60,28 @@ A page that reads the note must check `event.origin` against the app's address
 and `event.source` against its own frame, since any page can post a message to
 any window. Personal's `readPanelReport` in `apps/personal/src/lib/panel.ts`
 does both.
+
+## The note the frame takes
+
+The page around the frame can ask the app to change page itself, the way a
+click inside it would, so the frame doesn't load the whole app again:
+
+```ts
+frame.contentWindow.postMessage(
+  { type: "shell-panel-go", path: "/admin/posts" },
+  "http://localhost:3015"
+)
+```
+
+`usePanelGo` in `src/lib/layout/panel-view.ts` listens while the page is a
+panel, and `shell-layout.tsx` hands the path to the router's `navigate`. The
+move then sends the usual note back. `readPanelGo` takes the note only from
+`window.parent` and only for an address inside the app: it must start with one
+`/`, with no `//` or `\` that could point at another site. The page around the
+frame could load any address in it anyway, so the note adds nothing it couldn't
+already do; it only skips the reload. Personal sends it when a link is in the
+app already open (`apps/personal/workspace/docs/app-panels.md`). Added 18 Oct
+2026 and copied unchanged into Trade and CMS.
 
 ## Sign-in
 

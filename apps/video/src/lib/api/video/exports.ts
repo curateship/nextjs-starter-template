@@ -35,14 +35,13 @@ import {
 import {
   deleteOwnedExports,
   listOwnedExports,
-  loadExportStorage,
   setOwnedExportCover,
   updateOwnedExport,
   type ExportListResponse,
-  type ExportStorage,
 } from "@/server/video/exports"
 import { listLiveSharedExportIds } from "@/server/video/export-shares"
 import {
+  cancelRenderJob,
   cancelRenderJobs,
   enqueueRenderJobs,
   getLatestRenderJobs,
@@ -58,13 +57,9 @@ import {
 
 export type { ExportListResponse, RenderJobSummary }
 
-/**
- * The gallery page, plus which of its exports a share link opens right now and
- * what every finished export of theirs takes in storage.
- */
+/** The gallery page, plus which of its exports a share link opens right now. */
 export type ExportListWithShares = ExportListResponse & {
   shared_ids: string[]
-  storage: ExportStorage
 }
 
 const KNOWN_MESSAGES = new Set([
@@ -137,6 +132,13 @@ const cancelExportFn = createServerFn({ method: "POST" })
     return cancelRenderJobs(context.user.id, data.projectId)
   })
 
+const stopExportFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(exportIdSchema)
+  .handler(async ({ data, context }) => {
+    return cancelRenderJob(context.user.id, data.exportId)
+  })
+
 const retryExportFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(exportIdSchema)
@@ -157,21 +159,18 @@ const listExportsFn = createServerFn({ method: "GET" })
       .optional()
   )
   .handler(async ({ data, context }): Promise<ExportListWithShares> => {
-    const [list, storage] = await Promise.all([
-      listOwnedExports({
-        userId: context.user.id,
-        page: data?.page ?? 1,
-        pageSize: data?.pageSize ?? 24,
-        search: data?.search,
-        projectId: data?.projectId,
-      }),
-      loadExportStorage(context.user.id),
-    ])
+    const list = await listOwnedExports({
+      userId: context.user.id,
+      page: data?.page ?? 1,
+      pageSize: data?.pageSize ?? 24,
+      search: data?.search,
+      projectId: data?.projectId,
+    })
     const sharedIds = await listLiveSharedExportIds(
       context.user.id,
       list.exports.map((item) => item.id)
     )
-    return { ...list, shared_ids: sharedIds, storage }
+    return { ...list, shared_ids: sharedIds }
   })
 
 const updateExportFn = createServerFn({ method: "POST" })
@@ -260,6 +259,11 @@ export function loadProjectExports(projectId: string) {
 
 export function cancelExports(projectId: string) {
   return cancelExportFn({ data: { projectId } })
+}
+
+/** Stops one export, leaving the project's other exports going. */
+export function stopExport(exportId: string) {
+  return stopExportFn({ data: { exportId } })
 }
 
 export function retryExport(exportId: string) {

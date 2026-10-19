@@ -1,30 +1,19 @@
 import { z } from "zod"
 
 /**
- * Personal's menu: links in the top bar, and sections of links in the left
- * menu. Each link opens another app's screen in the middle panel. The menu is
- * kept in `data/menu.json` on this Mac (`server/menu-file.ts`), and
+ * Personal's menu: sections of links in the left menu, and a list of links
+ * at its bottom (stored as `top`, from when they sat in a top bar). Each link
+ * opens another app's screen in the middle panel. The menu is kept in
+ * `data/menu.json` on this Mac (`server/menu-file.ts`), and
  * `workspace/docs/menu.md` explains it.
  */
 
-/** The icons a link may use. Their pictures are in `components/link-icon.tsx`. */
-export const LINK_ICONS = [
-  "layout-dashboard",
-  "list",
-  "folder",
-  "file-text",
-  "newspaper",
-  "calendar",
-  "users",
-  "inbox",
-  "chart",
-  "store",
-  "star",
-  "settings",
-  "link",
-] as const
-
-export type LinkIcon = (typeof LINK_ICONS)[number]
+/**
+ * A link's icon: any Lucide icon, kept by its name ("calendar", "octagon-x"),
+ * or none. The first menus also saved "chart", which still draws a chart. The
+ * pictures are drawn in `components/link-icon.tsx`.
+ */
+export type LinkIcon = string
 
 /** Where a link opens: the middle panel, or a tab of its own. */
 export const LINK_OPENS = ["panel", "tab"] as const
@@ -34,6 +23,17 @@ export type LinkOpens = (typeof LINK_OPENS)[number]
 export const DEFAULT_SIDEBAR_WIDTH = 218
 export const MIN_SIDEBAR_WIDTH = 144
 export const MAX_SIDEBAR_WIDTH = 420
+/** The widest app menu Personal will hide, in the app's own pixels. */
+export const MAX_APP_MENU_WIDTH = 600
+
+/**
+ * How much lighter (above 0) or darker (below 0) the left menu's background
+ * is than the theme's, in steps of `SHADE_STEP` on the colour's lightness
+ * (0 is black, 1 is white).
+ */
+export const MIN_SIDEBAR_SHADE = -10
+export const MAX_SIDEBAR_SHADE = 10
+const SHADE_STEP = 0.015
 
 export function clampSidebarWidth(value: number) {
   return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(value)))
@@ -51,7 +51,12 @@ const linkSchema = z.object({
   id: z.string().min(1).max(64),
   label: z.string().trim().min(1).max(60),
   url: appUrl,
-  icon: z.enum(LINK_ICONS),
+  /** A Lucide icon's name. Missing means the link shows no icon. */
+  icon: z
+    .string()
+    .max(64)
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+    .optional(),
   /**
    * Where the link opens: the middle panel, or a tab of its own for a site
    * that refuses to be framed. Missing means the panel.
@@ -61,8 +66,7 @@ const linkSchema = z.object({
 
 /**
  * A left-menu link may hold sub-links, one level deep, as Custom Shell's menu
- * items do. They fold under it, and the top bar's left end shows them while
- * the link or one of them is open. Top-bar links have none.
+ * items do. They fold under it. The links at the bottom of the menu have none.
  */
 const sectionLinkSchema = linkSchema.extend({
   children: z.array(linkSchema).max(50).optional(),
@@ -74,21 +78,73 @@ const sectionSchema = z.object({
   links: z.array(sectionLinkSchema).max(100),
 })
 
+/** The name Personal shows when none is chosen. */
+export const DEFAULT_BRAND_NAME = "Personal"
+
+/** The largest logo, as the picture's text in the menu file: about a 190 KB image. */
+export const MAX_LOGO_CHARS = 256 * 1024
+
+/**
+ * A logo picture kept inside the menu file as a data address, so it travels
+ * with the menu. Only the picture kinds a browser shows in an `<img>`, where
+ * an SVG's scripts never run.
+ */
+const logoSchema = z
+  .string()
+  .max(MAX_LOGO_CHARS)
+  .regex(/^data:image\/(png|jpeg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/)
+
+/**
+ * The logo row at the top of the left menu: its name, its picture, and the
+ * screen it opens. Missing means "Personal", the Personal logo, and the empty
+ * start page.
+ */
+const brandSchema = z.object({
+  name: z.string().trim().min(1).max(40),
+  /** Missing means the Personal logo. */
+  logo: logoSchema.optional(),
+  /** Missing means Personal's start page. */
+  url: appUrl.optional(),
+})
+
+export type Brand = z.infer<typeof brandSchema>
+
 export const menuSchema = z.object({
   version: z.literal(1),
   top: z.array(linkSchema).max(30),
   sections: z.array(sectionSchema).max(30),
   /** Missing until the menu is first dragged wider or narrower. */
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH).optional(),
+  /** Missing, or 0, is the theme's own shade. */
+  sidebarShade: z.number().int().min(MIN_SIDEBAR_SHADE).max(MAX_SIDEBAR_SHADE).optional(),
   /** The link Personal opens on a visit to its bare address. Missing means the empty start page. */
   startLinkId: z.string().min(1).max(64).optional(),
+  /**
+   * The link whose screen stays loaded once opened, however many other screens
+   * are opened after it. Missing means none.
+   */
+  stayLoadedLinkId: z.string().min(1).max(64).optional(),
+  /** The logo row's name, picture and link. Missing means Personal's own. */
+  brand: brandSchema.optional(),
+  /**
+   * How much of each app's left edge the panel hides, by host, so an app's own
+   * left menu sits out of sight. Personal can't read another site's layout,
+   * so the width is dragged into place once per app. Missing hides nothing.
+   */
+  appMenuWidths: z
+    .record(z.string().min(1).max(253), z.number().int().min(1).max(MAX_APP_MENU_WIDTH))
+    .refine((widths) => Object.keys(widths).length <= 100, "Too many apps.")
+    .optional(),
 })
 
 export type MenuLink = z.infer<typeof sectionLinkSchema>
 export type MenuSection = z.infer<typeof sectionSchema>
 export type Menu = z.infer<typeof menuSchema>
 
-/** Where a link sits: the top bar, a left-menu section, or under a left-menu link. */
+/**
+ * Where a link sits: the list at the bottom of the menu, a section, or under a
+ * section's link. The bottom list keeps the name `top` it was saved under.
+ */
 export type Place =
   | { kind: "top" }
   | { kind: "section"; sectionId: string }
@@ -102,7 +158,7 @@ export function placeKey(place: Place) {
 /**
  * Whether a link may go to a place. Sub-links go one level deep only, so a
  * link that has its own sub-links stays a left-menu link: it can't go under
- * another link, nor into the top bar, which has no sub-links.
+ * another link, nor into the bottom list, which has no sub-links.
  */
 export function canPlace(link: MenuLink, place: Place) {
   if (place.kind === "section") return true
@@ -194,14 +250,6 @@ export function appUrlFromPersonalPath(pathAndSearch: string) {
   return url ? url.href : null
 }
 
-/** What the frame loads: the screen, asking its app to draw the panel alone. */
-export function frameSrc(appUrl: string) {
-  const url = parseAppUrl(appUrl)
-  if (!url) return "about:blank"
-  url.searchParams.set("panel", "1")
-  return url.href
-}
-
 export function opensInTab(link: Pick<MenuLink, "opens">) {
   return link.opens === "tab"
 }
@@ -240,47 +288,98 @@ export function hasLinkTo(menu: Menu, openUrl: string) {
 }
 
 /**
- * The open screen's name for the top bar: the section its link sits in, or
- * the app's host when no section link matches, then the page's own name. The
- * page name is the one the framed app reported, else the link's label; with
- * neither, the host stands alone.
+ * The menu's name for a screen: the label of the link it belongs to, the
+ * same one `activeLinkId` picks, or "" when no link does.
  */
-export function screenName(menu: Menu, openUrl: string | null, title: string) {
-  const open = openUrl ? parseAppUrl(openUrl) : null
-  if (!open) return null
-  const id = activeLinkId(menu, openUrl)
-  const link = id ? allLinks(menu).find((l) => l.id === id) : undefined
-  const section = id
-    ? menu.sections.find((s) =>
-        s.links.some((l) => l.id === id || l.children?.some((c) => c.id === id))
-      )
-    : undefined
-  const where = section?.title || open.host
-  const page = title || link?.label
-  return page ? `${where} · ${page}` : where
+export function screenName(menu: Menu, url: string) {
+  const id = activeLinkId(menu, url)
+  return (id && allLinks(menu).find((link) => link.id === id)?.label) || ""
 }
 
-/** The link Personal opens on its bare address, if it still exists and fills the panel. */
-export function startLink(menu: Menu) {
-  const link = allLinks(menu).find((l) => l.id === menu.startLinkId)
+/** How many of the app's own pixels the panel hides at its left edge, for the screen at `url`. */
+export function appMenuWidth(menu: Menu, url: string) {
+  const host = parseAppUrl(url)?.host
+  return (host && menu.appMenuWidths?.[host]) || 0
+}
+
+/** Saves how much of an app's left edge to hide. 0 shows its whole page again. */
+export function setAppMenuWidth(menu: Menu, host: string, width: number): Menu {
+  const clamped = Math.round(Math.min(Math.max(width, 0), MAX_APP_MENU_WIDTH))
+  const { [host]: _old, ...rest } = menu.appMenuWidths ?? {}
+  const widths = clamped ? { ...rest, [host]: clamped } : rest
+  if ((menu.appMenuWidths?.[host] ?? 0) === clamped) return menu
+  const { appMenuWidths: _all, ...plain } = menu
+  return Object.keys(widths).length ? { ...plain, appMenuWidths: widths } : plain
+}
+
+/** Saves the left menu's shade. 0 goes back to the theme's and leaves the file without it. */
+export function setSidebarShade(menu: Menu, shade: number): Menu {
+  const clamped = Math.round(Math.min(Math.max(shade, MIN_SIDEBAR_SHADE), MAX_SIDEBAR_SHADE))
+  if ((menu.sidebarShade ?? 0) === clamped) return menu
+  const { sidebarShade: _old, ...rest } = menu
+  return clamped ? { ...rest, sidebarShade: clamped } : rest
+}
+
+/**
+ * The left menu's background for a shade: the theme's menu colour with its
+ * lightness moved by the same amount each step, so the steps are even in light
+ * and dark mode alike. Null for 0, which leaves the theme's colour alone.
+ */
+export function sidebarShadeColor(shade: number) {
+  if (!shade) return null
+  return `oklch(from var(--shell-rail) calc(l + ${Number((shade * SHADE_STEP).toFixed(3))}) c h)`
+}
+
+/** What the cog calls a shade. */
+export function sidebarShadeLabel(shade: number) {
+  if (!shade) return "Default"
+  return `${Math.abs(shade)} ${shade > 0 ? "lighter" : "darker"}`
+}
+
+/** The menu's fields that each name one panel link: the start screen, and the screen that stays loaded. */
+type OneLink = "startLinkId" | "stayLoadedLinkId"
+
+/** The link a field names, if it still exists and fills the panel. */
+function oneLink(menu: Menu, field: OneLink) {
+  const link = allLinks(menu).find((l) => l.id === menu[field])
   return link && !opensInTab(link) ? link : null
 }
 
-/** Makes a link the start screen, or stops it being one. There is only ever one. */
-export function setStartLink(menu: Menu, linkId: string, start: boolean): Menu {
-  if (start) return menu.startLinkId === linkId ? menu : { ...menu, startLinkId: linkId }
-  if (menu.startLinkId !== linkId) return menu
-  const { startLinkId: _off, ...rest } = menu
+/** Makes a link the one a field names, or stops it being that. There is only ever one. */
+function setOneLink(menu: Menu, field: OneLink, linkId: string, on: boolean): Menu {
+  if (on) return menu[field] === linkId ? menu : { ...menu, [field]: linkId }
+  if (menu[field] !== linkId) return menu
+  const { [field]: _off, ...rest } = menu
   return rest
 }
 
-/** Forgets the start link once it is no longer in the menu. */
-function withoutLostStart(menu: Menu): Menu {
-  if (!menu.startLinkId || allLinks(menu).some((link) => link.id === menu.startLinkId)) {
-    return menu
+/** The link Personal opens on its bare address. */
+export function startLink(menu: Menu) {
+  return oneLink(menu, "startLinkId")
+}
+
+export function setStartLink(menu: Menu, linkId: string, start: boolean): Menu {
+  return setOneLink(menu, "startLinkId", linkId, start)
+}
+
+/** The link whose screen stays loaded once opened. */
+export function stayLoadedLink(menu: Menu) {
+  return oneLink(menu, "stayLoadedLinkId")
+}
+
+export function setStayLoadedLink(menu: Menu, linkId: string, stay: boolean): Menu {
+  return setOneLink(menu, "stayLoadedLinkId", linkId, stay)
+}
+
+/** Forgets the start link and the stay-loaded link once they are no longer in the menu. */
+function withoutLostLinks(menu: Menu): Menu {
+  const ids = new Set(allLinks(menu).map((link) => link.id))
+  let next = menu
+  for (const field of ["startLinkId", "stayLoadedLinkId"] as const) {
+    const id = next[field]
+    if (id && !ids.has(id)) next = setOneLink(next, field, id, false)
   }
-  const { startLinkId: _gone, ...rest } = menu
-  return rest
+  return next
 }
 
 /** Every link, sub-links included. */
@@ -339,21 +438,6 @@ function withLinksAt(menu: Menu, place: Place, links: MenuLink[]): Menu {
   }
 }
 
-/**
- * The top bar's left end, as Custom Shell's mirrors its menu: the open
- * left-menu link and its sub-links, when the open screen is that link or one
- * of them. Null when the open screen has no sub-links around it.
- */
-export function subLinksOf(menu: Menu, activeId: string | null) {
-  if (!activeId) return null
-  const parent = sectionLinks(menu).find(
-    (link) =>
-      link.children?.length &&
-      (link.id === activeId || link.children.some((child) => child.id === activeId))
-  )
-  return parent ? [parent, ...(parent.children ?? [])] : null
-}
-
 /** Adds a link at the end of a place. */
 export function addLink(menu: Menu, place: Place, link: MenuLink): Menu {
   const links = linksAt(menu, place)
@@ -380,7 +464,7 @@ export function removeLink(menu: Menu, linkId: string): Menu {
   const place = placeOf(menu, linkId)
   const links = place ? linksAt(menu, place) : null
   if (!place || !links) return menu
-  return withoutLostStart(withLinksAt(menu, place, links.filter((link) => link.id !== linkId)))
+  return withoutLostLinks(withLinksAt(menu, place, links.filter((link) => link.id !== linkId)))
 }
 
 /** Moves a link to where another link in the same place was dropped. */
@@ -445,7 +529,7 @@ export function renameSection(menu: Menu, sectionId: string, title: string): Men
 }
 
 export function removeSection(menu: Menu, sectionId: string): Menu {
-  return withoutLostStart({
+  return withoutLostLinks({
     ...menu,
     sections: menu.sections.filter((section) => section.id !== sectionId),
   })

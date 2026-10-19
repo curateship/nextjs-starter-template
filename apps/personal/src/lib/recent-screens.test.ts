@@ -35,4 +35,5 @@ describe("recent screens", () => {
       "/admin/listings/abc?tab=2"
     )
   })
+
 })

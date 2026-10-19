@@ -115,8 +115,8 @@ the repo's `docs/`, and is never copied here.
 
 ## Phones
 
-- [The Phones dashboard](phones/phones-dashboard.md): every Android phone on
-  the rack as a record, its status (Connected, Offline, Busy, Held), the shelf
+- [The Phones dashboard](phones/phones-dashboard.md): every phone on the
+  rack, Android or iPhone, as a record, its status (Connected, Offline, Busy, Held), the shelf
   slot, the five tabs of its window, app versions on each row, the Mix window,
   and an account that runs on a phone instead of a browser profile.
 - [The rack program](phones/rack-program.md): the program at home that drives
@@ -147,6 +147,13 @@ the repo's `docs/`, and is never copied here.
   the spare test phone, walking each action to its last button without
   pressing it, broken actions refused, and app updates on the test phone
   first.
+- [iPhones on the rack](phones/iphones.md): a phone's kind, one test phone
+  per kind, hourly inbox reads, the iCloud check before a wipe, the one-time
+  media link, texted codes off the Messages app, and the WebDriverAgent bell.
+- [Seeing the rack](phones/seeing-the-rack.md): the wall of live pictures
+  every 5 seconds, a Jobs tab on each phone, filters and search kept in the
+  address, the rack map drawn by shelf slot, and the rack program's own log
+  inside Promo.
 
 ## Writing
 

@@ -18,15 +18,18 @@ asks the rack to read the phone; it takes a minute or two, and the tab shows
 each line passing or failing with why. A line that could not be read says so
 rather than guessing.
 
+The same seven lines are read on an iPhone, from iOS; only the words naming a
+setting follow the kind ([iPhones on the rack](iphones.md)).
+
 | Line | Passes when |
 | --- | --- |
-| Charging stops near 80 | The battery stayed at 85 out of 100 or less over the last day. Read from the battery readings, not a setting, because every maker names that setting differently. |
-| Wi-Fi off | A SIM phone has Wi-Fi off. On the house Wi-Fi, apps see the house's address. A Wi-Fi phone passes only with a proxy picked. |
+| Charging stops near 80 | The battery stayed at 85 out of 100 or less over the last day. Read from the battery readings, not a setting, because every maker names that setting differently. When it fails, the line names the setting: Limit to 80% on a Pixel, Protect battery on a Samsung, and on an iPhone Settings, Battery, Charging, 80% Limit (iPhone 15 or newer) or Optimized Battery Charging. |
+| Wi-Fi off | A SIM phone has Wi-Fi off. On the house Wi-Fi, apps see the house's address. A Wi-Fi phone passes only with a proxy picked, forced by a VPN-style proxy app on the phone, on both kinds. |
 | Never the house's address | The address apps see is not the house's own, read by the rack computer at the same moment; on a Wi-Fi phone it has to be the proxy's, with the proxy tested from the server then too. |
 | Location off for the apps | Reddit, Instagram and TikTok, whichever are installed, may not read the location. |
 | Clock matches the country | The phone's time zone is in the SIM's country, or the proxy's on a Wi-Fi phone. The rack computer's own time zone table says which country a zone is in. |
 | Language matches the country | The language's region (en-CA is Canada) is that same country. |
-| Automatic app updates off | The Play Store is set to Don't auto-update apps, read from its Settings, Network preferences, Auto-update apps. The rack taps through to that screen to read it and never taps a choice. New versions then only arrive through Update in the Self-test window ([the self-test](self-test-and-app-updates.md)). |
+| Automatic app updates off | The Play Store is set to Don't auto-update apps, read from its Settings, Network preferences, Auto-update apps. On an iPhone, the App Store's App Updates switch is off (Settings, App Store, App Updates). The rack taps through to that screen to read it and never taps a choice. New versions then only arrive through Update in the Self-test window ([the self-test](self-test-and-app-updates.md)). |
 
 - **The check passes** when no line fails and two lines were read: Wi-Fi on a
   SIM phone, and the address apps see. Any other line the rack could not read,
@@ -63,11 +66,16 @@ A new account never inherits an old one's phone.
   picking it is refused with what to do.
 - **Wipe the phone,** on its Setup tab, asks for a confirmation, then the rack
   walks Settings to a factory reset (Erase all data on a Pixel, Factory data
-  reset on a Samsung) and presses it. It is refused while an account runs on
-  the phone or is being moved onto it.
+  reset on a Samsung, Erase All Content and Settings on an iPhone) and presses
+  it. It is refused while an account runs on the phone or is being moved onto
+  it.
+- **An iPhone is refused until it is signed out of iCloud,** read by the rack
+  after Check iCloud on the same tab, because an iPhone erased while signed
+  in is locked to that Apple ID ([iPhones on the rack](iphones.md)).
 - **After the wipe** the phone is held, so it going away does not ring the bell
   as offline, and its history says "Wiped". Setting it up is by hand: USB
-  debugging back on, Google, the apps. Then release it and run its setup
+  debugging back on, Google, the apps; on an iPhone, Trust this computer, an
+  Apple ID, the apps from the App Store. Then release it and run its setup
   check; it takes an account again once a check after the wipe has passed.
 - **A wipe also forgets** that the phone held an important account.
 - **The self-test never rehearses a wipe.** The rack's erase is pressed

@@ -183,11 +183,18 @@ export async function sweepPhoneHealth(db: CustomShellDb = defaultDb, now: Date 
   }
 
   const racks = await db
-    .select({ id: promoRacks.id, userId: promoRacks.userId, name: promoRacks.name, seenAt: promoRacks.seenAt })
+    .select({
+      id: promoRacks.id,
+      userId: promoRacks.userId,
+      name: promoRacks.name,
+      seenAt: promoRacks.seenAt,
+      wdaExpiresAt: promoRacks.wdaExpiresAt,
+    })
     .from(promoRacks)
     .where(isNull(promoRacks.disconnectedAt))
   const silent = new Set<string>()
   for (const rack of racks) {
+    await sweepWebDriverAgent(sweep, rack)
     const quiet = !rack.seenAt || now.getTime() - rack.seenAt.getTime() > RACK_SILENT_NOTICE_MS
     if (quiet) silent.add(rack.id)
     // A rack that never checked in is still being installed; nothing to say yet.
@@ -218,7 +225,57 @@ export async function sweepPhoneHealth(db: CustomShellDb = defaultDb, now: Date 
   }
 }
 
-const HEALTH_KINDS: PromoNoticeKind[] = ["phone_offline", "phone_hot", "phone_signal", "phone_storage", "rack_silent"]
+const HEALTH_KINDS: PromoNoticeKind[] = ["phone_offline", "phone_hot", "phone_signal", "phone_storage", "rack_silent", "rack_wda"]
+
+/** The bell warns this long before the rack's WebDriverAgent signature runs out. */
+const WDA_WARN_MS = 24 * 60 * 60_000
+
+/** What to do on the rack Mac, in the notice. */
+const WDA_RESIGN_WORDS =
+  "On the rack Mac, run `bash ~/Library/Application Support/PromoRack/wda.sh` and follow its prompts; the Rack window on the Phones dashboard has the same steps."
+
+/**
+ * WebDriverAgent, the tool the rack taps iPhones through, is signed with a
+ * free Apple ID and dies every 7 days (Tyler, 18 Oct 2026). The rack reports
+ * when its signature runs out on every check-in. One notice a day before,
+ * and one once it has run out; each rings once, and both go when a later
+ * check-in moves the date on. A rack without iPhone tools reports no date
+ * and never rings.
+ */
+async function sweepWebDriverAgent(
+  sweep: Sweep,
+  rack: { id: string; userId: string; name: string; wdaExpiresAt: Date | null }
+): Promise<void> {
+  const { now } = sweep
+  const soonId = `${rack.id}:soon`
+  const outId = `${rack.id}:out`
+  const name = rack.name || "the rack"
+  const left = rack.wdaExpiresAt ? rack.wdaExpiresAt.getTime() - now.getTime() : null
+  if (left === null || left > WDA_WARN_MS) {
+    await sweep.clear(rack.userId, "rack_wda", soonId)
+    await sweep.clear(rack.userId, "rack_wda", outId)
+    return
+  }
+  if (left > 0) {
+    await sweep.clear(rack.userId, "rack_wda", outId)
+    await sweep.raise(rack.userId, {
+      kind: "rack_wda",
+      targetId: soonId,
+      message: `WebDriverAgent on the rack runs out tomorrow; re-sign it in Xcode`,
+      detail: `${name}'s WebDriverAgent signature runs out at ${rack.wdaExpiresAt!.toISOString().slice(0, 16).replace("T", " ")} UTC. After that its iPhones are offline until it is signed again. ${WDA_RESIGN_WORDS}`,
+      href: "/admin/phones",
+    })
+    return
+  }
+  await sweep.clear(rack.userId, "rack_wda", soonId)
+  await sweep.raise(rack.userId, {
+    kind: "rack_wda",
+    targetId: outId,
+    message: `WebDriverAgent on the rack has run out; its iPhones are offline until it is re-signed`,
+    detail: `${name}'s WebDriverAgent signature ran out, so the rack cannot tap its iPhones and their jobs fail. ${WDA_RESIGN_WORDS}`,
+    href: "/admin/phones",
+  })
+}
 
 type HistoryLine = Parameters<typeof raiseProblem>[2]
 
@@ -234,11 +291,19 @@ async function sweepOffline(sweep: Sweep, phone: PhoneRow, rackConnected: boolea
   const { now } = sweep
   const seenRecently = phone.lastSeenAt !== null && now.getTime() - phone.lastSeenAt.getTime() < PHONE_STALE_MS
   const online = rackConnected && phone.adbState === "device" && seenRecently
-  if (online || phone.held || !rackConnected) {
+  // An iPhone too old for the rack is offline by design and never "comes
+  // back", so it gets no bell: its row says why.
+  if (online || phone.held || !rackConnected || phone.adbState === "too_old") {
     await sweep.clear(phone.userId, "phone_offline", phone.id, {
       phoneId: phone.id,
       kind: "notice_cleared",
-      detail: online ? "Offline: it is back." : phone.held ? "Offline: it is held." : "Offline: its rack was disconnected.",
+      detail: online
+        ? "Offline: it is back."
+        : phone.held
+          ? "Offline: it is held."
+          : phone.adbState === "too_old"
+            ? "Offline: its iOS is too old for the rack."
+            : "Offline: its rack was disconnected.",
     })
     return online
   }

@@ -20,6 +20,7 @@ export type PromoNoticeKind =
   | "action_broken"
   | "app_update"
   | "phone_address"
+  | "rack_wda"
   | "shadowbanned"
   | "new_message"
   | "new_comment"
@@ -40,6 +41,7 @@ export const NOTICE_HEADINGS: Record<PromoNoticeKind, string> = {
   action_broken: "Self-test failed:",
   app_update: "App update out:",
   phone_address: "Wrong address showing:",
+  rack_wda: "WebDriverAgent on the rack",
   shadowbanned: "Shadowbanned:",
   new_message: "New message for",
   new_comment: "New comment on a post by",

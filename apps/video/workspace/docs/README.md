@@ -6,6 +6,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 
 ## What is in this folder
 
+- [launch.md](launch.md) — where Video runs live, every value it needs, how to
+  deploy it, and the record of each release.
 - [shell-integration.md](shell-integration.md) — what the shell gives Video,
   what the last merge carried, the migrations it owes, and the files that stay
   Video's own.
@@ -88,9 +90,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [share-links.md](share-links.md) — a link to one finished export that
   somebody with no account can watch: what it shows, how to turn it off, and
   why the link is the only lock on the file.
-- [export-storage.md](export-storage.md) — the space finished exports take,
-  what deleting an export or a project removes from storage, and clearing out
-  every export older than a date, with shared ones kept unless ticked.
+- [export-storage.md](export-storage.md) — what deleting an export or a
+  project removes from storage, and clearing out every export older than a
+  date, with shared ones kept unless ticked.
 - [saved-frames.md](saved-frames.md) — keeping one frame of an export or of
   the editor as a picture: where the two buttons are, what size the picture
   is, where it lands, and when the editor picture and the preview differ.
@@ -115,26 +117,34 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   seconds, what Google's Veo 3.1 offers for a longer shot, and what it costs.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
-- [viral-search.md](viral-search.md) — the Viral page's YouTube keyword search:
-  where the API key goes, what one search costs out of the free 10,000 daily
-  units, why Shorts means 3 minutes or less, and how every search is kept so
-  reopening it is free.
+- [viral-projects.md](viral-projects.md) — Viral as projects, one niche
+  each: the description and keywords, the three panels, the background search
+  and what it costs, the allowance check, the New badge, the topic match,
+  creators found and followed, hidden channels, favourites, and what the move
+  from the old Viral and Creators pages did.
+- [viral-search.md](viral-search.md) — the YouTube key behind Viral: where it
+  goes, the three calls one keyword makes, and why Shorts means 3 minutes or
+  less.
 - [viral-score.md](viral-score.md) — the 0 to 100 viral score on every Viral
-  page result: its five parts and their weights, one worked example, what
+  video: its five parts and their weights, one worked example, what
   "sure: medium" means, and why the score is worked out on every read.
 - [project-first.md](project-first.md) — what belongs to a project and what
   is shared, the Copy and Exports panels at the foot of the rail, Copy this,
   a project's AI spend and its spend limit, and archive, pin and the actor
   filter on the projects list.
+- [several-ai-clips.md](several-ai-clips.md) — up to three AI shots at once
+  in a project and six per person: why the caps exist, how shots still being
+  made count against the allowance and the spend limit, and how the worker
+  keeps every shot moving.
 - [ai-clip.md](ai-clip.md) — the editor's AI clip panel: an actor, a first
   frame, a shot, then dragging it onto the timeline; what each step costs,
   where frames and shots are kept, and a carousel from first frames.
 - [visual-style.md](visual-style.md) — a project's look: the style line and
   look picture set in a project's Settings window, which AI tools send them, and
   why a bad style line spoils every scene at once.
-- [creator-research.md](creator-research.md) — the research dashboard: creators
-  in folders, the feed of everything they post, the six-hourly watch timer and
-  what it costs, and what Save & break down downloads, spends and writes down.
+- [creator-research.md](creator-research.md) — following a creator, the
+  six-hourly watch timer and what it costs, and what Save & break down
+  downloads, spends and writes down.
 
 The AI tools, the credit ledger and the rest of the export and render path were
 built before this folder existed, and none of them is written up.

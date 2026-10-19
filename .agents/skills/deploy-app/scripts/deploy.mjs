@@ -186,7 +186,10 @@ async function coolify(settings, method, route) {
     // Keep the text as it came.
   }
   if (!response.ok) {
-    throw new Error(`Coolify answered ${response.status} to ${method} ${route}: ${typeof body === "string" ? body : JSON.stringify(body)}`)
+    throw Object.assign(
+      new Error(`Coolify answered ${response.status} to ${method} ${route}: ${typeof body === "string" ? body : JSON.stringify(body)}`),
+      { status: response.status }
+    )
   }
   return body
 }
@@ -265,11 +268,13 @@ async function liveCommit(settings, uuid) {
 }
 
 async function deployOne(settings, resource, force) {
-  const started = await coolify(
-    settings,
-    "GET",
-    `/deploy?uuid=${encodeURIComponent(resource.uuid)}&force=${force ? "true" : "false"}`
-  )
+  const route = `/deploy?uuid=${encodeURIComponent(resource.uuid)}&force=${force ? "true" : "false"}`
+  // Coolify 4.2 made this a POST and answers a GET with 405. The US box takes
+  // the GET; the German one, on 4.4, only the POST (18 Oct 2026).
+  const started = await coolify(settings, "GET", route).catch((error) => {
+    if (error.status !== 405) throw error
+    return coolify(settings, "POST", route)
+  })
   const deployment = started?.deployments?.find((one) => one.resource_uuid === resource.uuid) ?? started?.deployments?.[0]
   if (!deployment?.deployment_uuid) throw new Error(`Coolify did not start ${resource.role}: ${JSON.stringify(started)}`)
   console.log(`  ${resource.role}: deployment ${deployment.deployment_uuid}`)

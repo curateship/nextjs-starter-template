@@ -78,13 +78,15 @@ export type SavedVideoDetail = {
 
 /**
  * Writes the row the worker will pick up, or hands back the one that is
- * already there. Pressing the button twice, or saving the same video from the
- * Viral page and the dashboard, is one row — the unique index says so and this
+ * already there. Pressing the button twice, or saving the same video from two
+ * Viral projects, is one row — the unique index says so and this
  * reads it back rather than refusing.
  */
 export async function saveVideoForBreakdown(
   ownerId: string,
-  url: string
+  url: string,
+  /** The Viral project it was saved from, so its AI cost counts there. */
+  viralProjectId: string | null = null
 ): Promise<SavedVideoDetail> {
   const link = parseVideoLink(url)
   const at = now()
@@ -99,6 +101,7 @@ export async function saveVideoForBreakdown(
         platformVideoId: link.platformVideoId,
         sourceUrl: url,
         status: "waiting",
+        viralProjectId,
         createdAt: at,
         updatedAt: at,
       })
@@ -160,6 +163,26 @@ export async function loadSavedVideo(
     )
   if (!row) throw new Error(SAVED_VIDEO_ERRORS.notFound)
   return detailFor(row)
+}
+
+/**
+ * Where several saved videos have got to, in one read. The screen asks this
+ * every few seconds while any of its cards is still downloading or being
+ * watched, so a card keeps saying so after somebody clicks another video. Ids
+ * that are not this person's are left out.
+ */
+export async function listSavedVideoStatuses(
+  ownerId: string,
+  ids: string[]
+): Promise<{ id: string; status: SavedVideoStatus }[]> {
+  if (!ids.length) return []
+  const rows = await db
+    .select({ id: videoViralVideos.id, status: videoViralVideos.status })
+    .from(videoViralVideos)
+    .where(
+      and(eq(videoViralVideos.ownerId, ownerId), inArray(videoViralVideos.id, ids))
+    )
+  return rows.map((row) => ({ id: row.id, status: row.status as SavedVideoStatus }))
 }
 
 /**
@@ -356,6 +379,7 @@ async function runJob(job: ClaimedVideo): Promise<void> {
       mimeType: downloaded.mimeType,
       durationSeconds: downloaded.durationSeconds,
       savedVideoId: job.id,
+      viralProjectId: job.viralProjectId,
     })
 
     await db

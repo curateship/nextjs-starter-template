@@ -1,9 +1,16 @@
-import { MIX_MIN_PHONES, MIX_WARN_SHARE, type PhoneConnection } from "./options"
+import {
+  MIX_MIN_PHONES,
+  MIX_WARN_SHARE,
+  PHONE_KIND_WORDS,
+  systemWords,
+  type PhoneConnection,
+  type PhoneKind,
+} from "./options"
 
 /**
- * The rack mix (part 27 of the phone farm): how many phones share each model,
- * carrier and Android version, and a warning when too many share one, so
- * Tyler knows what to buy next to keep the rack looking like different people.
+ * The rack mix (part 27 of the phone farm): how many phones share each kind,
+ * model, carrier and system version, and a warning when too many share one,
+ * so Tyler knows what to buy next to keep the rack looking like different people.
  *
  * The rule is Tyler's (14 Oct 2026): more than half the phones sharing one,
  * once the rack has four phones or more. A value nobody has read yet, such as
@@ -11,7 +18,9 @@ import { MIX_MIN_PHONES, MIX_WARN_SHARE, type PhoneConnection } from "./options"
  */
 
 export type MixPhone = {
+  kind: PhoneKind
   model: string
+  /** The system version, Android's or iOS's. */
   androidVersion: string
   connection: PhoneConnection
   /** The SIM's carrier, read by the setup check or typed by hand. */
@@ -20,12 +29,20 @@ export type MixPhone = {
   proxyName: string
 }
 
-export type MixKind = "model" | "carrier" | "android"
+export type MixKind = "kind" | "model" | "carrier" | "android"
 
 export const MIX_KIND_WORDS: Record<MixKind, string> = {
+  kind: "Kinds",
   model: "Models",
   carrier: "Carriers",
-  android: "Android versions",
+  android: "System versions",
+}
+
+const MIX_KIND_NOUN: Record<MixKind, string> = {
+  kind: "kind",
+  model: "model",
+  carrier: "carrier",
+  android: "system version",
 }
 
 export type MixCount = { value: string; count: number; known: boolean }
@@ -39,11 +56,11 @@ export type RackMix = {
 }
 
 function valueOf(phone: MixPhone, kind: MixKind): { value: string; known: boolean } {
+  if (kind === "kind") return { value: PHONE_KIND_WORDS[phone.kind], known: true }
   if (kind === "model") return phone.model.trim() ? { value: phone.model.trim(), known: true } : { value: "Model not read", known: false }
   if (kind === "android") {
-    return phone.androidVersion.trim()
-      ? { value: `Android ${phone.androidVersion.trim()}`, known: true }
-      : { value: "Version not read", known: false }
+    const words = systemWords(phone.kind, phone.androidVersion)
+    return words ? { value: words, known: true } : { value: "Version not read", known: false }
   }
   if (phone.connection === "wifi") {
     return phone.proxyName ? { value: `Wi-Fi through ${phone.proxyName}`, known: true } : { value: "House Wi-Fi", known: true }
@@ -55,7 +72,7 @@ export function rackMix(phones: MixPhone[]): RackMix {
   const total = phones.length
   const counts = {} as Record<MixKind, MixCount[]>
   const warnings: MixWarning[] = []
-  for (const kind of ["model", "carrier", "android"] as const) {
+  for (const kind of ["kind", "model", "carrier", "android"] as const) {
     const byValue = new Map<string, MixCount>()
     for (const phone of phones) {
       const { value, known } = valueOf(phone, kind)
@@ -74,7 +91,7 @@ export function rackMix(phones: MixPhone[]): RackMix {
         value: entry.value,
         count: entry.count,
         total,
-        text: `${entry.count} of ${total} phones ${kind === "carrier" ? "go out over" : kind === "model" ? "are a" : "run"} ${entry.value}. Over half the rack sharing one ${kind === "android" ? "Android version" : kind} looks like a farm; the next phone should be different.`,
+        text: `${entry.count} of ${total} phones ${kind === "carrier" ? "go out over" : kind === "model" ? "are a" : kind === "kind" ? "are an" : "run"} ${entry.value}. Over half the rack sharing one ${MIX_KIND_NOUN[kind]} looks like a farm; the next phone should be different.`,
       })
     }
   }

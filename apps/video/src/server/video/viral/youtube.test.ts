@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   parseIsoDuration,
-  searchYoutubeShorts,
-  type ViralSearchInput,
+  searchYoutubeVideos,
+  type YoutubeSearchInput,
 } from "@/server/video/viral/youtube"
 
 /**
@@ -12,7 +12,7 @@ import {
  * counts (1). A stray extra call here would quietly halve the day's searches.
  */
 
-const INPUT: ViralSearchInput = { keyword: "home workouts", days: 30, minViews: 0 }
+const INPUT: YoutubeSearchInput = { keyword: "home workouts", days: 30, length: "shorts" }
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), { status })
@@ -78,19 +78,20 @@ describe("what one keyword costs", () => {
       videos: { items: [videoItem("a", "c1"), videoItem("b", "c1")] },
       channels: { items: [channelItem("c1")] },
     })
-    await searchYoutubeShorts(INPUT, "key", fetchFn)
+    const answer = await searchYoutubeVideos(INPUT, "key", fetchFn)
 
     expect(calls).toHaveLength(3)
     expect(calls[0]).toContain("/search?")
     expect(calls[1]).toContain("/videos?")
     expect(calls[2]).toContain("/channels?")
-    // 100 + 1 + 1 = 102 units.
+    // 100 + 1 + 1 = 102 units, and the answer says so for the day's count.
+    expect(answer.units).toBe(102)
   })
 
   it("stops after the search when nothing matches", async () => {
     const { calls, fetchFn } = fakeYoutube({ search: { items: [] } })
-    const results = await searchYoutubeShorts(INPUT, "key", fetchFn)
-    expect(results).toEqual([])
+    const answer = await searchYoutubeVideos(INPUT, "key", fetchFn)
+    expect(answer).toEqual({ videos: [], units: 100 })
     expect(calls).toHaveLength(1)
   })
 
@@ -101,7 +102,7 @@ describe("what one keyword costs", () => {
       videos: { items: ids.map((id) => videoItem(id, "c1")) },
       channels: { items: [channelItem("c1")] },
     })
-    await searchYoutubeShorts(INPUT, "key", fetchFn)
+    await searchYoutubeVideos(INPUT, "key", fetchFn)
     expect(calls).toHaveLength(3)
     expect(calls[1]).toContain(encodeURIComponent(ids.join(",")))
   })
@@ -120,28 +121,31 @@ describe("what comes back", () => {
       },
       channels: { items: [channelItem("c1")] },
     })
-    const results = await searchYoutubeShorts(INPUT, "key", fetchFn)
-    expect(results.map((one) => one.id)).toEqual(["top", "short"])
-    expect(results[0].subscribers).toBe(5000)
+    const { videos } = await searchYoutubeVideos(INPUT, "key", fetchFn)
+    expect(videos.map((one) => one.id)).toEqual(["top", "short"])
+    expect(videos[0].subscribers).toBe(5000)
+    expect(videos[0].url).toBe("https://www.youtube.com/shorts/top")
   })
 
-  it("drops videos under the minimum view count", async () => {
-    const { fetchFn } = fakeYoutube({
-      search: { items: [searchItem("big"), searchItem("small")] },
+  it("asks for any length and keeps only videos over 3 minutes for longer videos", async () => {
+    const { calls, fetchFn } = fakeYoutube({
+      search: { items: [searchItem("short"), searchItem("long")] },
       videos: {
         items: [
-          videoItem("big", "c1", { views: "50000" }),
-          videoItem("small", "c1", { views: "40" }),
+          videoItem("short", "c1", { views: "100" }),
+          videoItem("long", "c1", { duration: "PT12M5S", views: "40" }),
         ],
       },
       channels: { items: [channelItem("c1")] },
     })
-    const results = await searchYoutubeShorts(
-      { ...INPUT, minViews: 1000 },
+    const { videos } = await searchYoutubeVideos(
+      { ...INPUT, length: "long" },
       "key",
       fetchFn
     )
-    expect(results.map((one) => one.id)).toEqual(["big"])
+    expect(calls[0]).toContain("videoDuration=any")
+    expect(videos.map((one) => one.id)).toEqual(["long"])
+    expect(videos[0].url).toBe("https://www.youtube.com/watch?v=long")
   })
 
   it("shows nothing rather than a wrong number when a channel hides its counts", async () => {
@@ -161,7 +165,9 @@ describe("what comes back", () => {
         ],
       },
     })
-    const [result] = await searchYoutubeShorts(INPUT, "key", fetchFn)
+    const {
+      videos: [result],
+    } = await searchYoutubeVideos(INPUT, "key", fetchFn)
     expect(result.likes).toBeNull()
     expect(result.comments).toBeNull()
     expect(result.subscribers).toBeNull()
@@ -181,7 +187,7 @@ describe("how it fails", () => {
         },
         403
       )) as typeof fetch
-    await expect(searchYoutubeShorts(INPUT, "key", fetchFn)).rejects.toThrow(
+    await expect(searchYoutubeVideos(INPUT, "key", fetchFn)).rejects.toThrow(
       "YOUTUBE_QUOTA"
     )
   })
@@ -198,14 +204,14 @@ describe("how it fails", () => {
         },
         400
       )) as typeof fetch
-    await expect(searchYoutubeShorts(INPUT, "key", fetchFn)).rejects.toThrow(
+    await expect(searchYoutubeVideos(INPUT, "key", fetchFn)).rejects.toThrow(
       "YouTube said: API key not valid. Please pass a valid API key."
     )
   })
 
   it("never puts the key in the address", async () => {
     const { calls, fetchFn } = fakeYoutube({ search: { items: [] } })
-    await searchYoutubeShorts(INPUT, "secret-key", fetchFn)
+    await searchYoutubeVideos(INPUT, "secret-key", fetchFn)
     expect(calls[0]).not.toContain("secret-key")
   })
 })

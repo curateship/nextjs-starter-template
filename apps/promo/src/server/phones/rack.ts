@@ -2,11 +2,13 @@ import { randomBytes, randomInt } from "node:crypto"
 import { and, asc, desc, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm"
 
 import {
+  OLDEST_IOS,
   PHONE_STALE_MS,
   RACK_CHECK_IN_SECONDS,
   RACK_CLOCK_WINDOW_SECONDS,
   RACK_CODE_MINUTES,
   actionWords,
+  type PhoneKind,
 } from "@/lib/phones/options"
 import { resultWords } from "@/lib/phones/wording"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
@@ -178,7 +180,10 @@ export type ReportedPhone = {
   state: string
   usb: string
   model: string
+  /** The system version: Android's, or iOS's on an iPhone. */
   android: string
+  /** Android or iPhone. The check-in's shape fills in Android for a rack older than 2026.10.18. */
+  kind: PhoneKind
   /** The phone's own time zone, such as "America/Toronto", or empty when unread. */
   timezone?: string
   /** Battery, heat, storage, signal and app versions, about once a minute. */
@@ -192,6 +197,8 @@ export type CheckInInput = {
   platform: string
   phones: ReportedPhone[]
   rolledBack: { from: string; to: string; at: string; why: string } | null
+  /** When the rack's WebDriverAgent signature runs out, as an ISO date, or null on a rack without iPhone tools. */
+  wdaExpiresAt?: string | null
 }
 
 /**
@@ -219,6 +226,7 @@ export async function checkIn(
       version: input.version.slice(0, 40),
       platform: input.platform.slice(0, 40),
       updateNote: input.rolledBack ? rollbackWords(input.rolledBack) : "",
+      wdaExpiresAt: input.wdaExpiresAt ? new Date(input.wdaExpiresAt) : null,
     })
     .where(eq(promoRacks.id, rack.id))
 
@@ -246,6 +254,7 @@ export async function checkIn(
           id: uuid(),
           userId: rack.userId,
           name: seen.model.trim().slice(0, 120) || serialName(serial),
+          kind: seen.kind,
           model: seen.model.trim().slice(0, 120),
           androidVersion: seen.android.trim().slice(0, 40),
           timeZone: (seen.timezone ?? "").trim().slice(0, 64),
@@ -261,7 +270,7 @@ export async function checkIn(
         .onConflictDoNothing()
         .returning()
       if (added) {
-        await recordPhoneEvent(rack.userId, added.id, "plugged_in", pluggedWords(added.usbPort, state), db, now)
+        await recordPhoneEvent(rack.userId, added.id, "plugged_in", pluggedWords(added.usbPort, state, added.kind), db, now)
         if (seen.vitals) await recordVitals(rack.userId, added, seen.vitals, db, now)
       }
       continue
@@ -270,6 +279,8 @@ export async function checkIn(
       .update(promoPhones)
       .set({
         rackId: rack.id,
+        // The rack knows which kind it is holding; a record typed by hand before it was plugged in may have guessed.
+        ...(seen.kind !== phone.kind ? { kind: seen.kind } : {}),
         // A phone the rack is restarting is listed with no port; it keeps its own.
         usbPort: seen.usb ? seen.usb.slice(0, 120) : phone.usbPort,
         adbState: state,
@@ -288,7 +299,7 @@ export async function checkIn(
     // Back from gone, or seen for the first time, is a plug-in. A phone the
     // rack restarted comes back from "restarting", which is not.
     if (!phone.adbState || phone.adbState === "gone") {
-      await recordPhoneEvent(rack.userId, phone.id, "plugged_in", pluggedWords(seen.usb, state), db, now)
+      await recordPhoneEvent(rack.userId, phone.id, "plugged_in", pluggedWords(seen.usb, state, seen.kind), db, now)
     }
     if (seen.vitals && state === "device") await recordVitals(rack.userId, phone, seen.vitals, db, now)
     // A message or a comment arrived: the account on that app reads it,
@@ -328,10 +339,16 @@ export async function checkIn(
   return { latestVersion: RACK_VERSION, checkInSeconds: RACK_CHECK_IN_SECONDS }
 }
 
-function pluggedWords(usb: string, state: string): string {
+function pluggedWords(usb: string, state: string, kind: PhoneKind): string {
   return [
     usb ? `On USB port ${usb}.` : "",
-    state === "unauthorized" ? "Waiting for USB debugging to be allowed on its screen." : "",
+    state === "unauthorized"
+      ? kind === "iphone"
+        ? "Waiting for Trust this computer on its screen."
+        : "Waiting for USB debugging to be allowed on its screen."
+      : "",
+    state === "too_old" ? `Its iOS is too old for the rack; ${OLDEST_IOS} or newer.` : "",
+    state === "no_driver" ? "WebDriverAgent is not running on the rack, so it cannot be driven." : "",
   ]
     .filter(Boolean)
     .join(" ")
@@ -503,7 +520,7 @@ export async function finishAction(
   if (done.action === "phone/self-test" && input.ok) {
     await recordSelfTest(rack.userId, done.phoneId, done.id, input.result, db, now)
   } else if (done.action === "phone/check-updates" && input.ok) {
-    await recordStoreCheck(rack.userId, input.result, db, now)
+    await recordStoreCheck(rack.userId, done.phoneId, input.result, db, now)
   } else if (done.action === "phone/update-app") {
     await recordAppUpdate(rack.userId, done.phoneId, done.args, input, db, now)
   } else if (done.action === "phone/setup-check" && input.ok) {
@@ -574,6 +591,8 @@ export type RackView = {
   updateNote: string
   /** False when the program is on an older version than Promo serves. */
   upToDate: boolean
+  /** When its WebDriverAgent signature runs out, or null on a rack without iPhone tools. */
+  wdaExpiresAt: Date | null
 }
 
 /** The racks still paired, newest first. A disconnected rack is not listed. */
@@ -597,6 +616,7 @@ export async function listRacks(
     pairedAt: rack.pairedAt,
     updateNote: rack.updateNote,
     upToDate: rack.version === RACK_VERSION,
+    wdaExpiresAt: rack.wdaExpiresAt,
   }))
 }
 

@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { errorOf } from "@/lib/api-error"
 import type { Menu } from "@/lib/menu"
 
 /** Pause after the last edit before it is written, so typing is one save. */
@@ -12,20 +13,12 @@ type Loaded =
   | { state: "ready"; menu: Menu }
   | { state: "failed"; error: string }
 
-async function errorOf(response: Response) {
-  try {
-    const body = (await response.json()) as { error?: unknown }
-    if (typeof body.error === "string") return body.error
-  } catch {
-    // Not JSON; the status line below says enough.
-  }
-  return `The menu file answered ${response.status}.`
-}
-
-async function fetchMenu(): Promise<Loaded> {
+/** The menu, or null when the sign-in has run out. */
+async function fetchMenu(): Promise<Loaded | null> {
   try {
     const response = await fetch("/api/menu", { cache: "no-store" })
-    if (!response.ok) throw new Error(await errorOf(response))
+    if (response.status === 401) return null
+    if (!response.ok) throw new Error(await errorOf(response, `The menu file answered ${response.status}.`))
     return { state: "ready", menu: (await response.json()) as Menu }
   } catch (error) {
     return {
@@ -36,37 +29,42 @@ async function fetchMenu(): Promise<Loaded> {
 }
 
 /**
- * The menu, read once from `/api/menu`, and `update` to change it. Every
- * change shows at once and is written to the file shortly after. Saves run one
- * at a time in order, so an older save can never land after a newer one.
+ * The menu, read from `/api/menu` on each sign-in, and `update` to change it.
+ * Every change shows at once and is written to the file shortly after. Saves
+ * run one at a time in order, so an older save can never land after a newer
+ * one. A 401 calls `onSignedOut`, and a change it stopped is saved on the next
+ * sign-in instead of being lost.
  */
-export function useMenu() {
+export function useMenu(signedIn: boolean, onSignedOut: () => void) {
   const [loaded, setLoaded] = React.useState<Loaded>({ state: "loading" })
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const menuRef = React.useRef<Menu | null>(null)
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const queueRef = React.useRef(Promise.resolve())
   const versionRef = React.useRef(0)
+  // A change the file doesn't have yet.
+  const unsavedRef = React.useRef(false)
 
   const apply = React.useCallback((result: Loaded) => {
     if (result.state === "ready") menuRef.current = result.menu
     setLoaded(result)
   }, [])
 
-  React.useEffect(() => {
-    let live = true
-    void fetchMenu().then((result) => {
-      if (live) apply(result)
-    })
-    return () => {
-      live = false
-    }
-  }, [apply])
+  const load = React.useCallback(
+    (live: () => boolean) => {
+      void fetchMenu().then((result) => {
+        if (!live()) return
+        if (result) apply(result)
+        else onSignedOut()
+      })
+    },
+    [apply, onSignedOut]
+  )
 
   const reload = React.useCallback(() => {
     setLoaded({ state: "loading" })
-    void fetchMenu().then(apply)
-  }, [apply])
+    load(() => true)
+  }, [load])
 
   const saveNow = React.useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -82,8 +80,12 @@ export function useMenu() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(menu),
         })
-        if (!response.ok) throw new Error(await errorOf(response))
-        if (version === versionRef.current) setSaveStatus("saved")
+        if (response.status === 401) return onSignedOut()
+        if (!response.ok) throw new Error(await errorOf(response, `The menu file answered ${response.status}.`))
+        if (version === versionRef.current) {
+          unsavedRef.current = false
+          setSaveStatus("saved")
+        }
       } catch (error) {
         if (version === versionRef.current) {
           setSaveStatus({
@@ -92,7 +94,17 @@ export function useMenu() {
         }
       }
     })
-  }, [])
+  }, [onSignedOut])
+
+  React.useEffect(() => {
+    if (!signedIn) return
+    if (unsavedRef.current) return saveNow()
+    let live = true
+    load(() => live)
+    return () => {
+      live = false
+    }
+  }, [signedIn, load, saveNow])
 
   const update = React.useCallback(
     (change: (menu: Menu) => Menu) => {
@@ -101,6 +113,7 @@ export function useMenu() {
       const next = change(current)
       if (next === current) return
       menuRef.current = next
+      unsavedRef.current = true
       setLoaded({ state: "ready", menu: next })
       setSaveStatus("saving")
       if (timerRef.current) clearTimeout(timerRef.current)

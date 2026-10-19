@@ -21,10 +21,22 @@ export function projectSpendMetadata(projectId: string) {
   return { projectId }
 }
 
+/**
+ * What a Viral project's AI calls carry. A different key from an editor
+ * project's, because the two kinds of project are different tables and an id
+ * must never be read as the other kind.
+ */
+export function viralProjectSpendMetadata(viralProjectId: string) {
+  return { viralProjectId }
+}
+
+type SpendKey = "projectId" | "viralProjectId"
+
 async function spentByTool(
   userId: string,
   projectId: string,
-  database: CustomShellDb
+  database: CustomShellDb,
+  key: SpendKey = "projectId"
 ) {
   return database
     .select({
@@ -35,7 +47,7 @@ async function spentByTool(
     .where(
       and(
         eq(customShellAiUsageEvents.userId, userId),
-        sql`${customShellAiUsageEvents.metadata} ->> 'projectId' = ${projectId}`
+        sql`${customShellAiUsageEvents.metadata} ->> ${key} = ${projectId}`
       )
     )
     .groupBy(customShellAiUsageEvents.feature)
@@ -74,23 +86,77 @@ export async function readProjectSpend(
  * `nextCents` is what the call will cost when that is known up front (a
  * picture, a clip, a voice). A call priced by the words it writes cannot be
  * known first, so it passes 0 and is refused only once the limit is reached.
+ * `generatingCents` is what AI shots already being made will add when they
+ * arrive, which the meter does not hold yet.
  */
 export async function requireProjectBudget(
   userId: string,
   projectId: string,
   nextCents: number,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  generatingCents = 0
 ) {
   const project = await getOwnedProject(userId, projectId, database)
-  const limitCents = project.spendLimitCents
+  await refuseOverLimit(
+    await spentByTool(userId, projectId, database),
+    project.spendLimitCents,
+    nextCents,
+    generatingCents
+  )
+}
+
+/**
+ * A Viral project's AI spend: keyword ideas, the topic match and the
+ * breakdowns pressed from it. Its limit works the same way as an editor
+ * project's.
+ */
+export async function readViralProjectSpend(
+  ownerId: string,
+  viralProjectId: string,
+  limitCents: number | null,
+  database: CustomShellDb = db
+) {
+  const rows = await spentByTool(ownerId, viralProjectId, database, "viralProjectId")
+  return {
+    total_cents: rows.reduce((sum, row) => sum + row.cents, 0),
+    limit_cents: limitCents,
+  }
+}
+
+/**
+ * Refuses a Viral project's AI call that would pass its limit. The caller has
+ * already proven the project is theirs and read its limit.
+ */
+export async function requireViralProjectBudget(
+  ownerId: string,
+  viralProjectId: string,
+  limitCents: number | null,
+  nextCents: number,
+  database: CustomShellDb = db
+) {
   if (limitCents === null) return
-  const rows = await spentByTool(userId, projectId, database)
+  await refuseOverLimit(
+    await spentByTool(ownerId, viralProjectId, database, "viralProjectId"),
+    limitCents,
+    nextCents
+  )
+}
+
+async function refuseOverLimit(
+  rows: { cents: number }[],
+  limitCents: number | null,
+  nextCents: number,
+  generatingCents = 0
+) {
+  if (limitCents === null) return
   const spentCents = rows.reduce((sum, row) => sum + row.cents, 0)
   const over =
-    nextCents > 0 ? spentCents + nextCents > limitCents : spentCents >= limitCents
+    nextCents > 0
+      ? spentCents + generatingCents + nextCents > limitCents
+      : spentCents >= limitCents
   if (over) {
     throw new Error(
-      projectSpendLimitMessage({ spentCents, nextCents, limitCents })
+      projectSpendLimitMessage({ spentCents, generatingCents, nextCents, limitCents })
     )
   }
 }

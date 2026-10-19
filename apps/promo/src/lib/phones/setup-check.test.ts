@@ -21,7 +21,7 @@ function facts(patch: Partial<SetupFacts> = {}): SetupFacts {
   }
 }
 
-const sim = { connection: "sim" as const, proxy: null, battery: { highest: 80, readings: 144 } }
+const sim = { kind: "android" as const, connection: "sim" as const, proxy: null, battery: { highest: 80, readings: 144 } }
 const now = new Date("2026-10-14T18:00:00Z")
 
 describe("the setup check (part 23)", () => {
@@ -80,6 +80,27 @@ describe("the setup check (part 23)", () => {
     expect(byKey.auto_update.text).toContain("over Wi-Fi")
   })
 
+  it("keeps the same seven lines on an iPhone and names the iPhone's settings", () => {
+    const check = buildSetupCheck(
+      facts({ autoUpdate: "any", autoUpdateError: "" }),
+      { ...sim, kind: "iphone", battery: { highest: 100, readings: 144 } },
+      now
+    )
+    expect(check.lines.map((line) => line.key)).toEqual(["charging", "wifi", "address", "location", "timezone", "language", "auto_update"])
+    const byKey = Object.fromEntries(check.lines.map((line) => [line.key, line]))
+    expect(byKey.auto_update).toMatchObject({ verdict: "fails" })
+    expect(byKey.auto_update.text).toContain("Settings, App Store, App Updates")
+    expect(byKey.charging.text).toContain("Settings, Battery, Charging, 80% Limit on an iPhone 15 or newer")
+    expect(buildSetupCheck(facts(), { ...sim, kind: "iphone" }, now).lines.find((line) => line.key === "auto_update")?.text).toBe(
+      "The App Store's App Updates switch is off, so a new version only arrives through Update on the Self-test window."
+    )
+    expect(buildSetupCheck(facts({ autoUpdate: "" }), { ...sim, kind: "iphone" }, now).lines.find((line) => line.key === "auto_update")?.text).toBe(
+      "The App Store's setting could not be read."
+    )
+    const wifi = buildSetupCheck(facts(), { kind: "iphone", connection: "wifi", proxy: null, battery: sim.battery }, now)
+    expect(wifi.lines.find((line) => line.key === "wifi")?.text).toContain("a VPN-style proxy app")
+  })
+
   it("says it could not tell, rather than guessing, when a part was not read", () => {
     const check = buildSetupCheck(
       facts({ wifiOn: null, sim: { country: "", carrier: "" }, autoUpdate: "", autoUpdateError: "No Settings in the Play Store menu." }),
@@ -111,7 +132,7 @@ describe("the setup check (part 23)", () => {
 
   it("compares a Wi-Fi phone with its proxy, and fails one with no proxy", () => {
     const proxy = { name: "US home line", ip: "198.51.100.7", country: "US" }
-    const wifi = { connection: "wifi" as const, proxy, battery: sim.battery }
+    const wifi = { kind: "android" as const, connection: "wifi" as const, proxy, battery: sim.battery }
     const check = buildSetupCheck(facts({ timezone: "America/New_York", timezoneCountry: "US", locale: "en-US" }), wifi, now)
     expect(check.lines.find((line) => line.key === "wifi")).toMatchObject({ verdict: "passes" })
     expect(check.seen[0]).toMatchObject({ label: "Outside address", verdict: "matches" })

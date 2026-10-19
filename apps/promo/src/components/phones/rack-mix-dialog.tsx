@@ -16,7 +16,7 @@ import { MIX_KIND_WORDS, type RackMix } from "@/lib/phones/rack-mix"
 
 /**
  * The rack mix, from Mix on the Phones dashboard (part 27 of the phone farm):
- * each model, carrier and Android version with how many phones share it, and
+ * each kind, model, carrier and system version with how many phones share it, and
  * a warning above them when more than half the rack shares one.
  */
 export function RackMixDialog({ open, mix, onClose }: { open: boolean; mix: RackMix; onClose: () => void }) {
@@ -27,7 +27,7 @@ export function RackMixDialog({ open, mix, onClose }: { open: boolean; mix: Rack
           <DialogTitle>Rack mix</DialogTitle>
           <DialogDescription>
             How alike the phones are. A platform spots a farm by patterns across phones, so it warns
-            when more than half of {MIX_MIN_PHONES} or more phones share one model, carrier or Android
+            when more than half of {MIX_MIN_PHONES} or more phones share one kind, model, carrier or system
             version.
           </DialogDescription>
         </DialogHeader>
@@ -54,7 +54,7 @@ export function RackMixDialog({ open, mix, onClose }: { open: boolean; mix: Rack
                   <p className="text-sm text-muted-foreground">
                     {mix.total < MIX_MIN_PHONES
                       ? `${mix.total} ${mix.total === 1 ? "phone" : "phones"} so far. The warning starts at ${MIX_MIN_PHONES}.`
-                      : "No model, carrier or Android version is on more than half the phones."}
+                      : "No kind, model, carrier or system version is on more than half the phones."}
                   </p>
                 )}
               </CardContent>

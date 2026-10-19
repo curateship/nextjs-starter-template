@@ -14,6 +14,7 @@ import { createPhone, deletePhones, holdPhones, listPhones, phonesFreeFor, phone
 const PHONE: PhoneInput = {
   name: "Pixel 8a",
   model: "Pixel 8a",
+  kind: "android",
   androidVersion: "16",
   serial: "",
   simCarrier: "Mint Mobile",

@@ -1,5 +1,5 @@
 /**
- * The words and shapes the research dashboard is built from.
+ * The words and shapes creators and saved videos are built from.
  *
  * Pure data, in `lib/` because both halves need it: the server fills these in
  * and the browser draws them. Nothing here reaches the database or the network,
@@ -20,51 +20,6 @@ export const creatorPlatformLabels: Record<CreatorPlatform, string> = {
   youtube: "YouTube",
   tiktok: "TikTok",
   instagram: "Instagram",
-}
-
-/** A folder name longer than this is refused, matching the column. */
-export const CREATOR_FOLDER_NAME_MAX = 80
-
-/** Nobody needs more folders than this, and the cap keeps the panel readable. */
-export const MAX_CREATOR_FOLDERS = 100
-
-/** How many feed rows one page of the middle panel holds. */
-export const CREATOR_FEED_PAGE = 50
-
-/**
- * How many of a creator's newest posts the views-per-day pace is worked out
- * from. Ten is what the watch tick fetches each time, so the pace is read from
- * what is already there rather than asking for more.
- */
-export const CREATOR_PACE_SAMPLE = 10
-
-export type CreatorFolder = {
-  id: string
-  name: string
-  position: number
-  hidden: boolean
-  /** Which creators are in it. A creator may be in several folders. */
-  creatorIds: string[]
-}
-
-export type ResearchCreator = {
-  id: string
-  platform: CreatorPlatform
-  handle: string
-  displayName: string | null
-  followerCount: number | null
-  profileUrl: string
-  /** True while the watch timer is checking this creator for new posts. */
-  watch: boolean
-  lastCheckedAt: string | null
-  /** Served by the app's own route when the avatar was stored, else null. */
-  avatarUrl: string | null
-  /**
-   * Views a day across the creator's newest posts, or null when none of them
-   * carry a view count. A pace, not a score: it says how fast this creator's
-   * recent work is being watched, nothing about whether it is good.
-   */
-  viewsPerDay: number | null
 }
 
 /**
@@ -93,58 +48,6 @@ export const savedVideoStatusLabels: Record<SavedVideoStatus, string> = {
 /** True while the job is still moving, so the screen keeps asking. */
 export function isSavedVideoWorking(status: SavedVideoStatus): boolean {
   return status === "waiting" || status === "downloading" || status === "analysing"
-}
-
-export type CreatorPost = {
-  id: string
-  creatorId: string
-  creatorHandle: string
-  creatorDisplayName: string | null
-  platform: CreatorPlatform
-  platformVideoId: string
-  url: string
-  title: string | null
-  thumbnailUrl: string | null
-  durationSeconds: number | null
-  views: number | null
-  likes: number | null
-  comments: number | null
-  /** When the creator posted it, or when the watch timer first saw it. */
-  postedAt: string | null
-  firstSeenAt: string
-  /**
-   * The saved copy's state when this video has one, else null. Read by joining
-   * the archive on platform and video id, never stored on the post itself, so
-   * a video saved from the Viral page lights up here with no extra bookkeeping.
-   */
-  savedStatus: SavedVideoStatus | null
-  savedVideoId: string | null
-}
-
-/** Which creators the middle panel is showing. A creator beats a folder. */
-export type CreatorFeedScope = {
-  folderId: string | null
-  creatorId: string | null
-}
-
-export const EVERYONE_SCOPE: CreatorFeedScope = {
-  folderId: null,
-  creatorId: null,
-}
-
-export type CreatorFeedView = {
-  posts: CreatorPost[]
-  /** True when there are older posts behind the ones sent. */
-  more: boolean
-  /** How many posts the scope holds in all. */
-  held: number
-}
-
-export type CreatorResearchData = CreatorFeedView & {
-  folders: CreatorFolder[]
-  creators: ResearchCreator[]
-  /** False when no YouTube key is saved, which the panel says once. */
-  youtubeKeyConfigured: boolean
 }
 
 /**

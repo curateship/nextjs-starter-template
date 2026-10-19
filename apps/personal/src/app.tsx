@@ -1,35 +1,44 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { Loader2Icon, MenuIcon } from "lucide-react"
 
 import type { PlaceChoice } from "@/components/link-editor"
 import { MenuDrag } from "@/components/menu-drag"
 import { MenuActionsContext } from "@/components/menu-links"
-import { PanelFrames } from "@/components/panel-frame"
+import { PanelFrames, type AppMenuControls } from "@/components/panel-frame"
+import { SignIn } from "@/components/sign-in"
 import { Sidebar } from "@/components/sidebar"
+import { SidebarFooter, type PanelControls } from "@/components/sidebar-footer"
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle"
-import { TopBar, type PanelControls } from "@/components/top-bar"
 import { Button } from "@/components/ui/button"
 import {
   activeLinkId,
   addLink,
+  allLinks,
+  appMenuWidth,
   DEFAULT_SIDEBAR_WIDTH,
   hasLinkTo,
   newId,
   parseAppUrl,
   screenName,
+  setAppMenuWidth,
+  setSidebarShade,
+  sidebarShadeColor,
   startLink,
-  subLinksOf,
+  stayLoadedLink,
   type Menu,
 } from "@/lib/menu"
+import { useFavicon } from "@/lib/use-favicon"
 import { useMenu } from "@/lib/use-menu"
 import { useOpenScreen } from "@/lib/use-open-screen"
+import { useRecentLinks } from "@/lib/use-recent-links"
 import { usePanelView } from "@/lib/use-panel-view"
+import { useSession } from "@/lib/use-session"
 import { cn } from "@/lib/utils"
 
-/** Where a link can be put: the top bar, each section, and under each left-menu link. */
+/** Where a link can be put: the bottom of the menu, each section, and under each section link. */
 function placesOf(menu: Menu): PlaceChoice[] {
   return [
-    { place: { kind: "top" }, label: "Top bar" },
+    { place: { kind: "top" }, label: "Bottom of the menu" },
     ...menu.sections.map((section) => ({
       place: { kind: "section" as const, sectionId: section.id },
       label: section.title || "Untitled section",
@@ -44,35 +53,64 @@ function placesOf(menu: Menu): PlaceChoice[] {
 }
 
 /**
- * Personal: a left menu and a top bar of links, and the middle panel showing
- * another app's screen. `workspace/docs/README.md` says what it is for.
+ * Personal: a left menu, and the middle panel showing another app's screen
+ * with the app's own top navigation. `workspace/docs/README.md` says what it
+ * is for.
  */
 export function App() {
-  const { loaded, reload, update, saveStatus, retrySave } = useMenu()
+  const { session, check, signIn, signOut, expired } = useSession()
+  // The menu lives above the sign-in, so a change the sign-in running out
+  // stopped is still here to save once signed in again.
+  const { loaded, reload, update, saveStatus, retrySave } = useMenu(
+    session.state === "signed-in",
+    expired
+  )
 
-  if (loaded.state !== "ready") {
-    return (
-      <main className="shell-canvas flex min-h-svh items-center justify-center p-4">
-        {loaded.state === "loading" ? (
-          <span role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2Icon className="size-4 animate-spin" />
-            Loading the menu
-          </span>
-        ) : (
-          <div role="alert" className="flex max-w-md flex-col items-start gap-3 rounded-lg border bg-card p-4 text-sm">
-            <p className="font-medium">The menu did not load.</p>
-            <p className="text-muted-foreground">{loaded.error}</p>
-            <Button size="sm" onClick={reload}>
-              Try again
-            </Button>
-          </div>
-        )}
-      </main>
-    )
+  if (session.state === "signed-out") {
+    return <SignIn passwordSet={session.passwordSet} onSignIn={signIn} onCheckAgain={check} />
+  }
+  if (session.state === "checking") return <Waiting>Checking your sign-in</Waiting>
+  if (session.state === "failed") {
+    return <Failed title="The sign-in check did not finish." error={session.error} onRetry={check} />
+  }
+  if (loaded.state === "loading") return <Waiting>Loading the menu</Waiting>
+  if (loaded.state === "failed") {
+    return <Failed title="The menu did not load." error={loaded.error} onRetry={reload} />
   }
 
   return (
-    <Personal menu={loaded.menu} update={update} saveStatus={saveStatus} retrySave={retrySave} />
+    <Personal
+      menu={loaded.menu}
+      update={update}
+      saveStatus={saveStatus}
+      retrySave={retrySave}
+      onSignOut={() => void signOut()}
+    />
+  )
+}
+
+function Waiting({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="shell-canvas flex min-h-svh items-center justify-center p-4">
+      <span role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2Icon className="size-4 animate-spin" />
+        {children}
+      </span>
+    </main>
+  )
+}
+
+function Failed({ title, error, onRetry }: { title: string; error: string; onRetry: () => void }) {
+  return (
+    <main className="shell-canvas flex min-h-svh items-center justify-center p-4">
+      <div role="alert" className="flex max-w-md flex-col items-start gap-3 rounded-lg border bg-card p-4 text-sm">
+        <p className="font-medium">{title}</p>
+        <p className="text-muted-foreground">{error}</p>
+        <Button size="sm" onClick={onRetry}>
+          Try again
+        </Button>
+      </div>
+    </main>
   )
 }
 
@@ -85,12 +123,19 @@ function Personal({
   update,
   saveStatus,
   retrySave,
+  onSignOut,
 }: {
   menu: Menu
   update: (change: (menu: Menu) => Menu) => void
+  onSignOut: () => void
 } & Pick<ReturnType<typeof useMenu>, "saveStatus" | "retrySave">) {
-  const screens = useOpenScreen(startLink(menu)?.url ?? null)
-  const { frames, screen, open, goHome, report } = screens
+  const screens = useOpenScreen(
+    startLink(menu)?.url ?? null,
+    stayLoadedLink(menu)?.url ?? null,
+    (url) => screenName(menu, url),
+    menu.brand?.name
+  )
+  const { frames, screen, open, goHome } = screens
   const view = usePanelView()
   const [menuOpen, setMenuOpen] = React.useState(false)
   // Adding, editing and dragging links only show while this is on. It starts
@@ -98,11 +143,14 @@ function Personal({
   const [editing, setEditing] = React.useState(false)
 
   const sidebarWidth = menu.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH
+  const sidebarShade = sidebarShadeColor(menu.sidebarShade ?? 0)
   const activeId = activeLinkId(menu, screen?.url ?? null)
+  const recent = useRecentLinks(menu, activeId)
+  useFavicon(menu.brand?.logo)
   const places = placesOf(menu)
-  const openAt = (url: string, linkId?: string) => {
+  const openAt = (url: string, linkId?: string, title?: string) => {
     setMenuOpen(false)
-    open(url, linkId ? (frameUrl) => activeLinkId(menu, frameUrl) === linkId : undefined)
+    open(url, title ?? allLinks(menu).find((link) => link.id === linkId)?.label)
   }
   const actions = {
     editing,
@@ -110,19 +158,19 @@ function Personal({
     openUrl: screen?.url ?? null,
     activeId,
     startLinkId: menu.startLinkId ?? null,
+    stayLoaded: stayLoadedLink(menu),
     open: openAt,
     update,
   }
   const panel: PanelControls = {
     screen,
-    name: screenName(menu, screen?.url ?? null, screen?.title ?? ""),
     canGoBack: screens.canGoBack,
     canGoForward: screens.canGoForward,
     back: screens.back,
     forward: screens.forward,
     reload: screens.reload,
     recent: screens.recent,
-    openRecent: (url) => openAt(url),
+    openRecent: (url, title) => openAt(url, undefined, title),
     canPin: screen !== null && !hasLinkTo(menu, screen.url),
     places,
     // Pinning works with editing off: it is the one quick menu change that
@@ -138,6 +186,14 @@ function Personal({
     setZoom: view.setZoom,
     phone: view.phone,
     setPhone: view.setPhone,
+    shade: menu.sidebarShade ?? 0,
+    setShade: (shade) => update((m) => setSidebarShade(m, shade)),
+  }
+
+  const appMenu: AppMenuControls = {
+    widthOf: (url) => appMenuWidth(menu, url),
+    editing,
+    setWidth: (host, width) => update((m) => setAppMenuWidth(m, host, width)),
   }
 
   return (
@@ -147,7 +203,14 @@ function Personal({
           <div
             data-sidebar-root=""
             className="flex h-svh bg-sidebar text-sidebar-foreground"
-            style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+            style={
+              {
+                "--sidebar-width": `${sidebarWidth}px`,
+                // The theme's file is Custom Shell's, so the chosen shade
+                // replaces the menu's colour here instead.
+                ...(sidebarShade ? { "--sidebar": sidebarShade } : {}),
+              } as React.CSSProperties
+            }
           >
             {menuOpen ? (
               <button
@@ -159,9 +222,9 @@ function Personal({
             ) : null}
             <aside
               className={cn(
-                // The menu's edge, and the top bar's below it, are the theme's
-                // line at half strength: Tyler asked for them fainter on 16 Oct
-                // 2026. The theme file is Custom Shell's, so it stays as it is.
+                // The menu's edge is the theme's line at half strength: Tyler
+                // asked for it fainter on 16 Oct 2026. The theme file is Custom
+                // Shell's, so it stays as it is.
                 "w-(--sidebar-width) shrink-0 border-r border-sidebar-border/50 bg-sidebar",
                 // On a phone the menu opens over the page; from 768px it always
                 // sits in its own column, even if it was left open on a phone.
@@ -171,12 +234,24 @@ function Personal({
               <div className="relative h-full">
                 <Sidebar
                   menu={shown}
+                  recentLinks={recent.links}
+                  onRemoveRecent={recent.remove}
                   update={update}
                   editing={editing}
                   onHome={() => {
                     setMenuOpen(false)
                     goHome()
                   }}
+                  footer={
+                    <SidebarFooter
+                      panel={panel}
+                      saveStatus={saveStatus}
+                      onRetrySave={retrySave}
+                      editing={editing}
+                      onEditingChange={setEditing}
+                      onSignOut={onSignOut}
+                    />
+                  }
                 />
                 <SidebarResizeHandle
                   width={sidebarWidth}
@@ -184,33 +259,32 @@ function Personal({
                 />
               </div>
             </aside>
-            <div className="flex min-w-0 flex-1 flex-col">
-              <TopBar
-                menu={shown}
-                subLinks={subLinksOf(shown, activeId)}
-                saveStatus={saveStatus}
-                onRetrySave={retrySave}
-                onOpenMenu={() => setMenuOpen(true)}
-                editing={editing}
-                onEditingChange={setEditing}
-                panel={panel}
-              />
-              <main id="main-content" className="shell-canvas flex min-h-0 flex-1 flex-col">
-                <PanelFrames
-                  frames={frames.kept}
-                  openId={frames.openId}
-                  view={{ zoom: view.zoom, phone: view.phone }}
-                  onReport={report}
-                >
-                  <div className="absolute inset-0 flex items-center justify-center p-4">
-                    <p className="max-w-sm text-center text-sm text-muted-foreground">
-                      Pick a screen from the left menu. To add one, open the cog at the
-                      top right and turn on Edit the menu.
-                    </p>
-                  </div>
-                </PanelFrames>
-              </main>
-            </div>
+            <main id="main-content" className="shell-canvas flex min-w-0 flex-1 flex-col">
+              <PanelFrames
+                frames={frames.kept}
+                openId={frames.openId}
+                view={{ zoom: view.zoom, phone: view.phone }}
+                appMenu={appMenu}
+              >
+                <div className="absolute inset-0 flex items-center justify-center p-4">
+                  <p className="max-w-sm text-center text-sm text-muted-foreground">
+                    Pick a screen from the left menu. To add one, open the cog at the
+                    bottom of the menu and turn on Edit the menu.
+                  </p>
+                </div>
+              </PanelFrames>
+            </main>
+            {/* With no top bar, a phone opens the menu from the bottom-left
+                corner, clear of the app's own top navigation. */}
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Open the menu"
+              className="fixed bottom-3 left-3 z-20 bg-sidebar shadow-sm md:hidden"
+              onClick={() => setMenuOpen(true)}
+            >
+              <MenuIcon />
+            </Button>
           </div>
         )}
       </MenuDrag>

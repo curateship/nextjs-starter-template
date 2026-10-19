@@ -18,16 +18,19 @@ const authenticatedRoute = getRouteApi("/_authenticated")
 /**
  * Copy this: makes a new project that copies this video and opens it in the
  * editor with the Copy panel showing. The video is saved and broken down on the way, which spends from
- * the AI allowance unless it was saved before. Shared by the Viral page's
- * rows and the creators dashboard's video panel.
+ * the AI allowance unless it was saved before. Pressed under the player on a
+ * Viral project or a favourites collection.
  */
 export function CopyThisButton({
   url,
   title,
+  viralProjectId,
   className,
 }: {
   url: string
   title: string | null
+  /** The Viral project it was pressed in, which the new project remembers. */
+  viralProjectId: string | null
   className?: string
 }) {
   const navigate = useNavigate()
@@ -37,7 +40,7 @@ export function CopyThisButton({
   async function copy() {
     setBusy(true)
     try {
-      const project = await copyIntoProject(url, title)
+      const project = await copyIntoProject(url, title, viralProjectId)
       // The editor opens on the panel it remembers for a project, so the new
       // project remembers Copy before it is opened.
       updateEditorView(editorViewStorageKey(user.id, project.id), {

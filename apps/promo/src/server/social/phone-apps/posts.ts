@@ -6,6 +6,7 @@ import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { storagePathForUrl } from "@/server/media/library"
 import { refuseBrokenAction } from "@/server/phones/action-checks"
+import { makeMediaLink } from "@/server/phones/media-links"
 import { promoPhones } from "@/server/phones/schema"
 import { customShellMedia } from "@/server/schema"
 import { phoneStepRefusal } from "@/lib/phones/options"
@@ -105,13 +106,14 @@ export async function refuseAppAccount(
     )
   }
   const [phone] = await db
-    .select({ name: promoPhones.name })
+    .select({ name: promoPhones.name, kind: promoPhones.kind })
     .from(promoPhones)
     .where(eq(promoPhones.id, account.phoneId))
     .limit(1)
-  const cannot = phoneStepRefusal(routine, phone?.name ?? "The phone")
+  if (!phone) throw new Error("That account's phone is not there any more. Pick where it runs on the Accounts dashboard.")
+  const cannot = phoneStepRefusal(routine, phone.name)
   if (cannot) throw new Error(cannot)
-  await refuseBrokenAction(userId, routine, db)
+  await refuseBrokenAction(userId, routine, phone.kind, db)
   return network
 }
 
@@ -221,7 +223,7 @@ export async function runAppPost(
   }
   try {
     const answer = await appPost(target, account.platform, {
-      mediaUrl: post.mediaUrl,
+      ...(await mediaArgs(userId, account.phoneId, post.mediaUrl, db, now)),
       mediaKind: post.mediaKind,
       caption: post.caption,
     })
@@ -241,6 +243,37 @@ export async function runAppPost(
       .where(eq(promoAppPosts.id, post.id))
     throw error
   }
+}
+
+/**
+ * Where the phone gets the file from. An Android downloads the media library
+ * file over USB from the rack. An iPhone cannot take a file that way, so it
+ * gets a one-time link, good for ten minutes and one download, which the
+ * rack opens in Safari on the phone and saves to Photos (part 55 of the phone
+ * farm). The link rides under the same `mediaUrl` key, with `mediaFromSafari`
+ * telling the rack which way to go.
+ */
+async function mediaArgs(
+  userId: string,
+  phoneId: string | null,
+  mediaUrl: string,
+  db: CustomShellDb,
+  now: Date
+): Promise<{ mediaUrl: string; mediaFromSafari?: true }> {
+  const [phone] = phoneId
+    ? await db.select({ kind: promoPhones.kind }).from(promoPhones).where(eq(promoPhones.id, phoneId)).limit(1)
+    : []
+  if (phone?.kind !== "iphone") return { mediaUrl }
+  const storagePath = await storagePathForUrl(mediaUrl)
+  const [file] = storagePath
+    ? await db
+        .select({ mimeType: customShellMedia.mimeType })
+        .from(customShellMedia)
+        .where(and(eq(customShellMedia.userId, userId), eq(customShellMedia.storagePath, storagePath)))
+        .limit(1)
+    : []
+  if (!storagePath || !file) throw new Refusal("That file is not in your media library any more, so nothing was posted.")
+  return { mediaUrl: await makeMediaLink(userId, { storagePath, mimeType: file.mimeType }, db, now), mediaFromSafari: true }
 }
 
 /**

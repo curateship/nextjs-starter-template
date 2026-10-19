@@ -115,14 +115,18 @@ export const appServerOptions: AppServerOptions = {
          * 45°C, a SIM with no signal for ten minutes, storage over 90 out of
          * 100 full, and the rack not checking in, one notice per phone per
          * problem, and takes each away when it ends. Asks for the daily
-         * self-test and Play Store look on the test phone, and once an hour
-         * deletes old step pictures and chart readings.
+         * self-test and store look on each kind's test phone, opens each
+         * iPhone account's inbox once an hour in waking hours (an iPhone
+         * hands the rack no notifications), and once an hour deletes old
+         * step pictures and chart readings.
          */
         tick: async () => {
           const { tidyPhoneRecords, sweepPhoneHealth } = await import("@/server/phones/upkeep")
           await sweepPhoneHealth()
           const { queueDailySelfTest } = await import("@/server/phones/self-test")
           await queueDailySelfTest()
+          const { queueIphoneInboxReads } = await import("@/server/social/phone-apps/iphone-inbox")
+          await queueIphoneInboxReads()
           await tidyPhoneRecords()
         },
       },

@@ -305,6 +305,42 @@ export async function enqueueRenderJobs({
   return getLatestRenderJobs(userId, projectId, database)
 }
 
+/** What a stopped export's row becomes: cancelled, and its lease let go. */
+function stoppedRow() {
+  return {
+    status: "cancelled",
+    leaseToken: null,
+    leaseExpiresAt: null,
+    finishedAt: now(),
+    updatedAt: now(),
+  }
+}
+
+/**
+ * Stop one export that is waiting or rendering, and leave the project's
+ * other exports going. The worker making it notices within a second, the same
+ * way as below.
+ */
+export async function cancelRenderJob(
+  userId: string,
+  exportId: string,
+  database: CustomShellDb = db
+): Promise<RenderJobSummary> {
+  const [cancelled] = await database
+    .update(videoRenderJobs)
+    .set(stoppedRow())
+    .where(
+      and(
+        eq(videoRenderJobs.id, exportId),
+        eq(videoRenderJobs.userId, userId),
+        inArray(videoRenderJobs.status, ["queued", "running"])
+      )
+    )
+    .returning()
+  if (!cancelled) throw new Error(NO_ACTIVE_EXPORT_MESSAGE)
+  return serializeRenderJob(cancelled)
+}
+
 /**
  * Stop every export of this project that is waiting or rendering, whatever its
  * shape. Each row ends here, and its lease goes with it. A worker rendering one
@@ -319,13 +355,7 @@ export async function cancelRenderJobs(
   await getOwnedProject(userId, projectId, database)
   const cancelled = await database
     .update(videoRenderJobs)
-    .set({
-      status: "cancelled",
-      leaseToken: null,
-      leaseExpiresAt: null,
-      finishedAt: now(),
-      updatedAt: now(),
-    })
+    .set(stoppedRow())
     .where(
       and(
         eq(videoRenderJobs.userId, userId),

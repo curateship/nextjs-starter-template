@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { MANUAL_PHONE_ACTIONS } from "@/lib/phones/options"
+import { MANUAL_PHONE_ACTIONS, phoneLane } from "@/lib/phones/options"
 import { adminGet, adminPost } from "@/server/guards"
 import { listFoldersAndLabels, type FolderView, type LabelView } from "@/server/browser/profiles"
 import { listProxies } from "@/server/browser/proxies"
@@ -26,7 +26,9 @@ import {
   type PhoneActionView,
   type RackView,
 } from "@/server/phones/rack"
+import { phoneProjects, type PhoneProject } from "@/server/phones/phone-projects"
 import { queuePhoneAction } from "@/server/phones/queue"
+import { askForLog, ownsRack, readLog } from "@/server/phones/rack-log"
 import { queueSetupCheck } from "@/server/phones/setup"
 import { queueWipe } from "@/server/phones/wipe"
 import { RACK_VERSION, rackServerAddress } from "@/server/phones/release"
@@ -36,12 +38,12 @@ import {
   waitingPhoneJobs,
   type WaitingPhoneJob,
 } from "@/server/phones/settings"
-import { cancelJobs } from "@/server/social/job-list"
+import { cancelJobs, listLaneJobs, type JobList } from "@/server/social/job-list"
 import { passReaderWritten } from "@/lib/social/refusal-words"
 
 import { createErrorMessage } from "../error-message"
 
-export type { BulkResult, FolderView, LabelView, PhoneActionView, PhoneRecord, RackView, WaitingPhoneJob }
+export type { BulkResult, FolderView, LabelView, PhoneActionView, PhoneProject, PhoneRecord, RackView, WaitingPhoneJob }
 
 /**
  * The Phones dashboard's endpoints. Every one is admin-only and scoped to the
@@ -57,7 +59,7 @@ export const getPhoneErrorMessage = passReaderWritten(createErrorMessage(
     "is held": "That phone is held. Release it first.",
     "not on a connected rack": "That phone is not on a connected rack. Plug it into the rack, or connect a rack.",
     "has not checked in": "The rack has not checked in for a minute. Check the computer the phones are plugged into.",
-    "phone is offline": "That phone is offline. Plug it in and allow USB debugging on its screen.",
+    "phone is offline": "That phone is offline. Plug it in and answer the question on its screen: Allow USB debugging on an Android, Trust this computer on an iPhone.",
     "not connected": "That rack is already disconnected. Refresh the list.",
     ENCRYPTION_NOT_CONFIGURED: "This server has no encryption key set, so a rack's key cannot be kept.",
   },
@@ -73,22 +75,29 @@ export type PhonesPage = {
   pausedAt: Date | null
   /** The spare phone the daily self-test runs on, or null when none is picked. */
   testPhoneId: string | null
+  testPhoneIphoneId: string | null
   folders: FolderView[]
   labels: LabelView[]
   /** The proxies a phone on Wi-Fi can go out through, never a password. */
   proxies: Array<{ id: string; label: string; host: string }>
+  /** The shelf's rows and columns from Settings → Phones, for the rack map (part 60). */
+  shelfRows: number
+  shelfColumns: number
+  /** The projects with an account on a phone, with which phones, for the Project filter (part 59). */
+  projects: PhoneProject[]
 }
 
 const listFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<PhonesPage> => {
     const userId = context.user.id
-    const [phones, racks, groups, proxies, settings] = await Promise.all([
+    const [phones, racks, groups, proxies, settings, projects] = await Promise.all([
       listPhones(userId),
       listRacks(userId),
       listFoldersAndLabels(userId),
       listProxies(userId),
       readPhoneSettings(),
+      phoneProjects(userId),
     ])
     return {
       phones,
@@ -96,8 +105,12 @@ const listFn = createServerFn({ method: "GET" })
       rackVersion: RACK_VERSION,
       pausedAt: settings.pausedAt,
       testPhoneId: settings.testPhoneId,
+      testPhoneIphoneId: settings.testPhoneIphoneId,
       ...groups,
       proxies: proxies.map(({ id, label, host }) => ({ id, label, host })),
+      shelfRows: settings.shelfRows,
+      shelfColumns: settings.shelfColumns,
+      projects,
     }
   })
 
@@ -107,6 +120,7 @@ export function loadPhonesPage() {
 
 const phoneInput = z.object({
   name: z.string().trim().min(1, "needs a name").max(120),
+  kind: z.enum(["android", "iphone"]).default("android"),
   model: z.string().max(120).default(""),
   androidVersion: z.string().max(40).default(""),
   serial: z.string().max(120).default(""),
@@ -286,4 +300,46 @@ const wipeFn = createServerFn({ method: "POST" })
  */
 export function wipePhone(id: string) {
   return wipeFn({ data: { id } })
+}
+
+const phoneJobsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<JobList> => {
+    if (!(await ownsPhone(context.user.id, data.id))) throw new Error("That phone does not exist.")
+    return listLaneJobs(context.user.id, phoneLane(data.id))
+  })
+
+/**
+ * The jobs waiting for, running on and finished on one phone, newest first,
+ * at most 100, for the Jobs tab on its window (part 58). Cancel and Try
+ * again are the Jobs window's own (`src/lib/api/social/jobs.ts`).
+ */
+export function loadPhoneJobs(id: string) {
+  return phoneJobsFn({ data: { id } })
+}
+
+const askLogFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ rackId: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<void> => {
+    if (!(await ownsRack(context.user.id, data.rackId))) throw new Error("That rack does not exist.")
+    askForLog(data.rackId)
+  })
+
+/** Asks the rack for the last lines of its own log, which it sends on its next check for work (part 61). */
+export function askRackLog(rackId: string) {
+  return askLogFn({ data: { rackId } })
+}
+
+export type RackLogView = { lines: string[]; at: Date } | null
+
+const logFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ rackId: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<RackLogView> => readLog(context.user.id, data.rackId))
+
+/** The lines the rack last sent, oldest first, with when, or null before it has answered. */
+export function loadRackLog(rackId: string) {
+  return logFn({ data: { rackId } })
 }

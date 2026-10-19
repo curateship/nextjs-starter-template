@@ -1,4 +1,4 @@
-import { APP_WORDS, TRACKED_APPS, type PhoneConnection, type TrackedApp } from "./options"
+import { APP_WORDS, TRACKED_APPS, storeWords, type PhoneConnection, type PhoneKind, type TrackedApp } from "./options"
 
 /**
  * A phone's setup check and what the platform sees (part 23 of the phone
@@ -11,6 +11,11 @@ import { APP_WORDS, TRACKED_APPS, type PhoneConnection, type TrackedApp } from "
  * certain, otherwise the line says what was seen.
  *
  * Pure, so the dashboard, the server and the tests all read the same lines.
+ *
+ * The seven lines and their keys are the same on an iPhone (part 53); only
+ * the words naming a setting follow the kind. The rack fills the same facts
+ * from iOS: the App Store's App Updates switch stands in for the Play
+ * Store's auto-update setting.
  */
 
 /** One outside address as read by the phone or the rack computer. */
@@ -28,7 +33,11 @@ export type SetupFacts = {
   locale: string
   sim: { country: string; carrier: string }
   network: { carrier: string }
-  /** The Play Store's auto-update setting: off, Wi-Fi only, any network, or empty when unread. */
+  /**
+   * The Play Store's auto-update setting: off, Wi-Fi only, any network, or
+   * empty when unread. On an iPhone, the App Store's App Updates switch:
+   * off, or "any" when on.
+   */
   autoUpdate: "off" | "wifi" | "any" | ""
   autoUpdateError: string
   battery: { percent: number | null; charging: boolean }
@@ -76,6 +85,8 @@ export type SetupCheck = {
 const CHARGE_LIMIT_PERCENT = 85
 
 export type SetupContext = {
+  /** Android or iPhone: the store, the charging setting and the words follow it. */
+  kind: PhoneKind
   connection: PhoneConnection
   /** The proxy a Wi-Fi phone goes out through, with its address from a test, or null. */
   proxy: { name: string; ip: string; country: string } | null
@@ -103,8 +114,19 @@ function expectedCountry(facts: Pick<SetupFacts, "sim">, context: Pick<SetupCont
   return { country: "", whose: "" }
 }
 
+/** Where the charging limit is, by kind: each maker names the setting differently. */
+function chargingLimitWords(kind: PhoneKind): string {
+  if (kind === "iphone") {
+    return "Turn on its charging limit (Settings, Battery, Charging, 80% Limit on an iPhone 15 or newer; Optimized Battery Charging on an older one)."
+  }
+  return "Turn on its charging limit (on a Pixel: Battery, Charging optimization, Limit to 80%; on a Samsung: Battery, Protect battery)."
+}
+
 function setupLines(facts: SetupFacts, context: SetupContext): SetupLine[] {
   const lines: SetupLine[] = []
+  const kind = context.kind
+  const store = storeWords(kind)
+  const Store = store.replace(/^the/, "The")
 
   // Charging stops at about 80. Read from the battery readings rather than
   // a setting, because each maker names the setting differently and the
@@ -129,7 +151,7 @@ function setupLines(facts: SetupFacts, context: SetupContext): SetupLine[] {
             key: "charging",
             label: "Charging stops near 80",
             verdict: "fails",
-            text: `The battery reached ${highest} out of 100 in the last day. A phone that sits at 100 all day does not look like anyone's. Turn on its charging limit (on a Pixel: Battery, Charging optimization, Limit to 80%; on a Samsung: Battery, Protect battery).`,
+            text: `The battery reached ${highest} out of 100 in the last day. A phone that sits at 100 all day does not look like anyone's. ${chargingLimitWords(kind)}`,
           }
   )
 
@@ -154,13 +176,13 @@ function setupLines(facts: SetupFacts, context: SetupContext): SetupLine[] {
             key: "wifi",
             label: "Goes out through its proxy",
             verdict: "passes",
-            text: `It is a Wi-Fi phone set to go out through ${context.proxy.name}. Before every job the rack checks the address apps see.`,
+            text: `It is a Wi-Fi phone set to go out through ${context.proxy.name}, forced by a VPN-style proxy app on the phone. Before every job the rack checks the address apps see.`,
           }
         : {
             key: "wifi",
             label: "Goes out through a proxy",
             verdict: "fails",
-            text: "It is on the house Wi-Fi with no proxy, so apps see the house's address. Pick a proxy in its settings and turn on the proxy app on the phone.",
+            text: "It is on the house Wi-Fi with no proxy, so apps see the house's address. Pick a proxy in its settings and turn on a VPN-style proxy app on the phone.",
           }
     )
   }
@@ -267,20 +289,26 @@ function setupLines(facts: SetupFacts, context: SetupContext): SetupLine[] {
           key: "auto_update",
           label: "Automatic app updates off",
           verdict: "passes",
-          text: "The Play Store is set to Don't auto-update apps, so a new version only arrives through Update on the Self-test window.",
+          text:
+            kind === "iphone"
+              ? "The App Store's App Updates switch is off, so a new version only arrives through Update on the Self-test window."
+              : "The Play Store is set to Don't auto-update apps, so a new version only arrives through Update on the Self-test window.",
         }
       : facts.autoUpdate
         ? {
             key: "auto_update",
             label: "Automatic app updates off",
             verdict: "fails",
-            text: `The Play Store updates apps by itself ${facts.autoUpdate === "wifi" ? "over Wi-Fi" : "over any network"}, so a new version can break the rack overnight. In the Play Store: your picture, Settings, Network preferences, Auto-update apps, Don't auto-update apps.`,
+            text:
+              kind === "iphone"
+                ? "The App Store updates apps by itself, so a new version can break the rack overnight. Turn it off in Settings, App Store, App Updates."
+                : `The Play Store updates apps by itself ${facts.autoUpdate === "wifi" ? "over Wi-Fi" : "over any network"}, so a new version can break the rack overnight. In the Play Store: your picture, Settings, Network preferences, Auto-update apps, Don't auto-update apps.`,
           }
         : {
             key: "auto_update",
             label: "Automatic app updates off",
             verdict: "unknown",
-            text: `The Play Store's setting could not be read${facts.autoUpdateError ? `: ${facts.autoUpdateError.replace(/\.$/, "")}` : ""}.`,
+            text: `${Store}'s setting could not be read${facts.autoUpdateError ? `: ${facts.autoUpdateError.replace(/\.$/, "")}` : ""}.`,
           }
   )
   return lines

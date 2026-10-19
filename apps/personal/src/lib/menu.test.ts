@@ -4,12 +4,15 @@ import {
   activeLinkId,
   addLink,
   addSection,
+  appMenuWidth,
   appUrlFromPersonalPath,
   clampSidebarWidth,
   defaultMenu,
-  frameSrc,
   hasLinkTo,
   menuSchema,
+  setSidebarShade,
+  sidebarShadeColor,
+  sidebarShadeLabel,
   moveLink,
   moveLinkTo,
   moveSection,
@@ -18,9 +21,11 @@ import {
   removeSection,
   renameSection,
   screenName,
+  setAppMenuWidth,
   setStartLink,
+  setStayLoadedLink,
   startLink,
-  subLinksOf,
+  stayLoadedLink,
   updateLink,
   type MenuLink,
 } from "@/lib/menu"
@@ -47,16 +52,6 @@ describe("addresses", () => {
       "https://cms.example.com/admin"
     )
     expect(appUrlFromPersonalPath("/")).toBeNull()
-  })
-
-  it("asks the framed app for its panel alone", () => {
-    expect(frameSrc("http://localhost:3015/admin/listings")).toBe(
-      "http://localhost:3015/admin/listings?panel=1"
-    )
-    expect(frameSrc("http://localhost:3015/admin/listings?tab=draft")).toBe(
-      "http://localhost:3015/admin/listings?tab=draft&panel=1"
-    )
-    expect(frameSrc("javascript:alert(1)")).toBe("about:blank")
   })
 
   it("refuses an address that is not a web page", () => {
@@ -161,23 +156,15 @@ describe("sub-links", () => {
     expect(menuSchema.safeParse(menu).success).toBe(true)
   })
 
-  it("opens the sub-link's own screen and shows the family in the top bar", () => {
+  it("opens the sub-link's own screen", () => {
     const menu = withPosts()
-    const active = activeLinkId(menu, "http://localhost:3015/admin/posts")
-    expect(active).toBe("link-posts")
-    expect(subLinksOf(menu, active)?.map((l) => l.id)).toEqual(["link-cms-dashboard", "link-posts"])
-    expect(subLinksOf(menu, "link-cms-dashboard")?.map((l) => l.id)).toEqual([
-      "link-cms-dashboard",
-      "link-posts",
-    ])
-    // A link with no sub-links leaves the top bar's left end empty.
-    expect(subLinksOf(menu, "link-cms-listings")).toBeNull()
+    expect(activeLinkId(menu, "http://localhost:3015/admin/posts")).toBe("link-posts")
   })
 
   it("goes one level deep only", () => {
     const menu = withPosts()
     const parent = menu.sections[1].links[0]
-    // Under one of its own sub-links, under another link, or in the top bar:
+    // Under one of its own sub-links, under another link, or in the bottom list:
     // a link that holds sub-links is refused all three.
     expect(updateLink(menu, parent, { kind: "under", linkId: "link-posts" })).toBe(menu)
     expect(updateLink(menu, parent, { kind: "under", linkId: "link-cms-listings" })).toBe(menu)
@@ -226,22 +213,18 @@ describe("pinning the open screen", () => {
 })
 
 describe("the open screen's name", () => {
-  it("is the section, then the page name the app sent, else the link's label", () => {
+  it("is the label of the link the screen belongs to", () => {
     const menu = addLink(defaultMenu(), { kind: "top" }, posts)
     const listings = "http://localhost:3015/admin/listings"
-    expect(screenName(menu, listings, "All listings")).toBe("CMS · All listings")
-    expect(screenName(menu, listings, "")).toBe("CMS · Listings")
-    expect(screenName(menu, `${listings}/abc`, "Pasta night")).toBe("CMS · Pasta night")
-    // A top-bar link has no section, so the host stands in for it.
-    expect(screenName(menu, posts.url, "")).toBe("localhost:3015 · Posts")
-    // A screen no link matches, before or without a page name: the host alone.
-    expect(screenName(menu, "http://localhost:3099/x", "")).toBe("localhost:3099")
-    expect(screenName(menu, null, "")).toBeNull()
+    expect(screenName(menu, listings)).toBe("Listings")
+    expect(screenName(menu, `${listings}/abc`)).toBe("Listings")
+    expect(screenName(menu, posts.url)).toBe("Posts")
+    expect(screenName(menu, "http://localhost:3099/x")).toBe("")
   })
 
-  it("names a sub-link's screen after its parent's section", () => {
+  it("names a sub-link's screen by the sub-link", () => {
     const menu = addLink(defaultMenu(), { kind: "under", linkId: "link-cms-dashboard" }, posts)
-    expect(screenName(menu, posts.url, "")).toBe("CMS · Posts")
+    expect(screenName(menu, posts.url)).toBe("Posts")
   })
 })
 
@@ -281,6 +264,42 @@ describe("the start screen", () => {
   })
 })
 
+describe("the link that stays loaded", () => {
+  it("is one link at a time, apart from the start screen, and turning it off clears it", () => {
+    let menu = setStartLink(defaultMenu(), "link-cms-dashboard", true)
+    menu = setStayLoadedLink(menu, "link-cms-dashboard", true)
+    expect(stayLoadedLink(menu)?.id).toBe("link-cms-dashboard")
+    menu = setStayLoadedLink(menu, "link-cms-listings", true)
+    expect(stayLoadedLink(menu)?.id).toBe("link-cms-listings")
+    expect(startLink(menu)?.id).toBe("link-cms-dashboard")
+    expect(menuSchema.safeParse(menu).success).toBe(true)
+    menu = setStayLoadedLink(menu, "link-cms-listings", false)
+    expect(menu).not.toHaveProperty("stayLoadedLinkId")
+    expect(menu.startLinkId).toBe("link-cms-dashboard")
+  })
+
+  it("is cleared when its link or its section is deleted, and the start screen is kept", () => {
+    const menu = setStayLoadedLink(
+      setStartLink(defaultMenu(), "link-project-dashboard", true),
+      "link-cms-listings",
+      true
+    )
+    const gone = removeSection(menu, "section-cms")
+    expect(gone).not.toHaveProperty("stayLoadedLinkId")
+    expect(gone.startLinkId).toBe("link-project-dashboard")
+    expect(removeLink(menu, "link-cms-listings")).not.toHaveProperty("stayLoadedLinkId")
+  })
+
+  it("is skipped when the link opens in its own tab", () => {
+    const menu = updateLink(
+      setStayLoadedLink(defaultMenu(), "link-cms-listings", true),
+      { ...defaultMenu().sections[1].links[1], opens: "tab" },
+      { kind: "section", sectionId: "section-cms" }
+    )
+    expect(stayLoadedLink(menu)).toBeNull()
+  })
+})
+
 describe("dragging sections", () => {
   it("moves a section to where another was dropped", () => {
     const menu = addSection(defaultMenu(), { id: "section-dating", title: "Dating", links: [] })
@@ -314,7 +333,7 @@ describe("dragging a link to another list", () => {
     expect(end.sections[0].links.at(-1)?.id).toBe("link-cms-listings")
   })
 
-  it("drops it into the top bar, and back into a section", () => {
+  it("drops it into the bottom list, and back into a section", () => {
     let menu = moveLinkTo(defaultMenu(), "link-cms-listings", { kind: "top" }, null)
     expect(menu.top.map((l) => l.id)).toEqual(["link-cms-listings"])
     menu = moveLinkTo(menu, "link-cms-listings", project, "link-project-dashboard")
@@ -330,12 +349,84 @@ describe("dragging a link to another list", () => {
     expect(menu.sections[0].links[0]).not.toHaveProperty("children")
   })
 
-  it("refuses a link that holds sub-links in the top bar or under another link", () => {
+  it("refuses a link that holds sub-links in the bottom list or under another link", () => {
     const menu = addLink(defaultMenu(), { kind: "under", linkId: "link-cms-dashboard" }, posts)
     expect(moveLinkTo(menu, "link-cms-dashboard", { kind: "top" }, null)).toBe(menu)
     expect(
       moveLinkTo(menu, "link-cms-dashboard", { kind: "under", linkId: "link-cms-listings" }, null)
     ).toBe(menu)
     expect(moveLinkTo(menu, "gone", { kind: "top" }, null)).toBe(menu)
+  })
+})
+
+describe("the logo row", () => {
+  const withBrand = (brand: unknown) => menuSchema.safeParse({ ...defaultMenu(), brand }).success
+  const png = "data:image/png;base64,iVBORw0KGgo="
+
+  it("keeps a name, a picture and a screen, each but the name optional", () => {
+    expect(withBrand({ name: "Tyler" })).toBe(true)
+    expect(withBrand({ name: "Tyler", logo: png, url: "http://localhost:3020/dashboard" })).toBe(true)
+    expect(menuSchema.safeParse(defaultMenu()).success).toBe(true)
+  })
+
+  it("refuses an empty name, a non-picture, a picture too big, or a bad address", () => {
+    expect(withBrand({ name: "  " })).toBe(false)
+    expect(withBrand({ name: "T", logo: "data:text/html;base64,PGI+" })).toBe(false)
+    expect(withBrand({ name: "T", logo: "javascript:alert(1)" })).toBe(false)
+    expect(withBrand({ name: "T", logo: png + "A".repeat(300 * 1024) })).toBe(false)
+    expect(withBrand({ name: "T", url: "javascript:alert(1)" })).toBe(false)
+  })
+})
+
+describe("hiding an app's own left menu", () => {
+  const trade = "https://trade.barelycompany.com/protocols/aster"
+
+  it("hides nothing until a width is dragged in", () => {
+    expect(appMenuWidth(defaultMenu(), trade)).toBe(0)
+  })
+
+  it("keeps one width per app, for every screen of it", () => {
+    const menu = setAppMenuWidth(defaultMenu(), "trade.barelycompany.com", 180.4)
+    expect(appMenuWidth(menu, trade)).toBe(180)
+    expect(appMenuWidth(menu, "https://trade.barelycompany.com/admin")).toBe(180)
+    expect(appMenuWidth(menu, "http://localhost:3015/admin")).toBe(0)
+    expect(menuSchema.safeParse(menu).success).toBe(true)
+  })
+
+  it("drops the app, and the field once empty, at 0", () => {
+    const menu = setAppMenuWidth(defaultMenu(), "trade.barelycompany.com", 180)
+    const cleared = setAppMenuWidth(menu, "trade.barelycompany.com", -20)
+    expect(cleared.appMenuWidths).toBeUndefined()
+    expect(appMenuWidth(cleared, trade)).toBe(0)
+  })
+
+  it("caps the width and leaves the menu alone when nothing changes", () => {
+    const menu = setAppMenuWidth(defaultMenu(), "trade.barelycompany.com", 5000)
+    expect(menu.appMenuWidths?.["trade.barelycompany.com"]).toBe(600)
+    expect(setAppMenuWidth(menu, "trade.barelycompany.com", 600)).toBe(menu)
+  })
+
+  it("loads a menu file saved before the field existed", () => {
+    expect(menuSchema.safeParse({ version: 1, top: [], sections: [] }).success).toBe(true)
+  })
+})
+
+describe("the menu's shade", () => {
+  it("saves a shade, keeps it in range, and leaves the file without it at 0", () => {
+    const menu = defaultMenu()
+    expect(setSidebarShade(menu, 3).sidebarShade).toBe(3)
+    expect(setSidebarShade(menu, -40).sidebarShade).toBe(-10)
+    expect(setSidebarShade(menu, 40).sidebarShade).toBe(10)
+    expect("sidebarShade" in setSidebarShade(setSidebarShade(menu, 3), 0)).toBe(false)
+    expect(setSidebarShade(menu, 0)).toBe(menu)
+    expect(menuSchema.safeParse({ ...menu, sidebarShade: 11 }).success).toBe(false)
+  })
+
+  it("moves the theme's menu colour's lightness the same amount each step", () => {
+    expect(sidebarShadeColor(0)).toBeNull()
+    expect(sidebarShadeColor(2)).toBe("oklch(from var(--shell-rail) calc(l + 0.03) c h)")
+    expect(sidebarShadeColor(-7)).toBe("oklch(from var(--shell-rail) calc(l + -0.105) c h)")
+    expect(sidebarShadeLabel(0)).toBe("Default")
+    expect(sidebarShadeLabel(-3)).toBe("3 darker")
   })
 })
