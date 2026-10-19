@@ -109,6 +109,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [project-folders.md](project-folders.md) — folders on the projects list:
   whose they are, why a project sits in one folder at most, where the buttons
   are, and why deleting a folder never deletes a project.
+- [project-history.md](project-history.md) — the History panel: which
+  earlier versions of a project are kept and when, the twenty-per-project
+  limit, looking at one without changing anything, why a restore can be
+  undone, and the measured storage cost.
 - [two-windows.md](two-windows.md) — one project open in two windows: the
   warning the second window shows, what read-only stops, and the
   "(unsaved edits)" project that keeps the work of whichever window saves
@@ -139,6 +143,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [ai-clip.md](ai-clip.md) — the editor's AI clip panel: an actor, a first
   frame, a shot, then dragging it onto the timeline; what each step costs,
   where frames and shots are kept, and a carousel from first frames.
+- [carousel-shapes.md](carousel-shapes.md) — changing a carousel between
+  4:5, square and story: the Format buttons, making a copy in another shape,
+  the rule that moves each layer, what it will not fix, and the flag on text
+  that no longer fits its box.
 - [visual-style.md](visual-style.md) — a project's look: the style line and
   look picture set in a project's Settings window, which AI tools send them, and
   why a bad style line spoils every scene at once.

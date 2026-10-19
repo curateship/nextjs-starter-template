@@ -900,3 +900,33 @@ describe("a locked window", () => {
     expect(store.getSnapshot().saveStatus).toBe("error")
   })
 })
+
+describe("restoring a version from History", () => {
+  const version = {
+    aspect: "16:9" as const,
+    tracks: [{ id: "older", muted: false, clips: [caption("then", 0)] }],
+  }
+
+  it("puts the version on screen, shape and all, with nothing selected", () => {
+    const selected = editorReducer(START, { type: "SELECT_CLIP", clipId: "clip-1" })
+    const after = editorReducer(selected, { type: "RESTORE_TIMELINE", timeline: version })
+    expect(after.tracks).toEqual(version.tracks)
+    expect(after.aspect).toBe("16:9")
+    expect(after.selectedClipId).toBeNull()
+    expect(after.selectedClipIds).toEqual([])
+  })
+
+  it("comes off in one press of undo", () => {
+    const after = editorReducer(START, { type: "RESTORE_TIMELINE", timeline: version })
+    expect(editorReducer(after, { type: "UNDO" }).tracks).toEqual(START.tracks)
+  })
+
+  it("is refused in a read-only window", () => {
+    const refused = vi.fn()
+    const store = createEditorStore(START, "Reel", refused)
+    store.setLock("read-only")
+    store.dispatch({ type: "RESTORE_TIMELINE", timeline: version })
+    expect(refused).toHaveBeenCalledOnce()
+    expect(store.getSnapshot().state.tracks).toEqual(START.tracks)
+  })
+})
