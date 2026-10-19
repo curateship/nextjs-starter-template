@@ -167,6 +167,43 @@ describe("carousel studio history", () => {
     ).toBe(before)
   })
 
+  it("pushes a layout onto several slides as one undo step", () => {
+    const deck: CarouselSlide[] = [
+      slides[0],
+      ...["a", "b", "c"].map((id) => ({
+        id,
+        title: id,
+        backgroundColor: "#ffffff",
+        items: [{ ...text, id: `${id}-text`, text: `Words on ${id}`, x: 0.5 }],
+      })),
+    ]
+    const before = { ...initial(), slides: deck }
+    const pushed = builderReducer(before, {
+      type: "PUSH_LAYOUT",
+      sourceSlideId: "slide-1",
+      targetSlideIds: ["a", "c"],
+    })
+    expect(pushed.past).toHaveLength(1)
+    expect(pushed.slides.map((slide) => slide.items[0]?.x)).toEqual([
+      0.1, 0.1, 0.5, 0.1,
+    ])
+    expect(pushed.slides[1].items[0]).toMatchObject({ text: "Words on a" })
+
+    const undone = builderReducer(pushed, { type: "UNDO" })
+    expect(documentOf(undone)).toEqual(documentOf(before))
+  })
+
+  it("adds no undo step when a push matches nothing", () => {
+    const state = initial()
+    expect(
+      builderReducer(state, {
+        type: "PUSH_LAYOUT",
+        sourceSlideId: "slide-1",
+        targetSlideIds: ["slide-2"],
+      })
+    ).toBe(state)
+  })
+
   it("keeps only the latest 50 undo steps", () => {
     let state = initial()
     for (let index = 0; index < 55; index += 1) {

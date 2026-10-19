@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest"
 
 import {
   findTextOverflow,
+  matchSlideLayers,
+  pushSlideLayout,
   relayoutSlides,
   textOverflows,
 } from "@/lib/video/carousel-layout"
 import {
   carouselSlidesSchema,
   type CarouselFormat,
+  type CarouselGradientShadowItem,
   type CarouselSlide,
   type CarouselSlideItem,
   type CarouselTextItem,
@@ -202,5 +205,188 @@ describe("text that does not fit", () => {
     )
     expect([...overflow.keys()]).toEqual(["slide-1"])
     expect(overflow.get("slide-1")?.map((item) => item.id)).toEqual(["spills"])
+  })
+})
+
+function shadow(
+  id: string,
+  box: [number, number, number, number],
+  zIndex = 1
+): CarouselGradientShadowItem {
+  const [x, y, width, height] = box
+  return {
+    id,
+    type: "gradient-shadow",
+    color: "#000000",
+    opacity: 70,
+    direction: "up",
+    x,
+    y,
+    width,
+    height,
+    zIndex,
+  }
+}
+
+function deckSlide(id: string, ...items: CarouselSlideItem[]): CarouselSlide {
+  return { id, title: id, backgroundColor: "#ffffff", items }
+}
+
+describe("pushSlideLayout", () => {
+  const headline = {
+    ...text("src-head", "Headline", [0.05, 0.6, 0.9, 0.15], 96),
+    fontId: "playfair-display",
+    color: "#facc15",
+    align: "center",
+  } satisfies CarouselTextItem
+  const body = {
+    ...text("src-body", "Body", [0.05, 0.78, 0.9, 0.12], 40),
+    zIndex: 11,
+  }
+  const photo = { ...image("src-photo", [0, 0, 1, 1]), fit: "cover" } as const
+  const source = deckSlide(
+    "source",
+    photo,
+    shadow("src-fade", [0, 0.5, 1, 0.5]),
+    headline,
+    body
+  )
+
+  it("moves and restyles text but never changes the words", () => {
+    const target = deckSlide(
+      "target",
+      text("t-head", "A different hook", [0.2, 0.1, 0.5, 0.1]),
+      { ...text("t-body", "Different body copy", [0.2, 0.3, 0.5, 0.1]), zIndex: 12 }
+    )
+    const [, pushed] = pushSlideLayout(
+      [source, target],
+      "source",
+      new Set(["target"])
+    )
+    expect(carouselSlidesSchema.safeParse([pushed]).success).toBe(true)
+    expect(pushed.items[0]).toEqual({
+      ...target.items[0],
+      x: 0.05,
+      y: 0.6,
+      width: 0.9,
+      height: 0.15,
+      fontId: "playfair-display",
+      fontSize: 96,
+      color: "#facc15",
+      align: "center",
+    })
+    expect(pushed.items[1]).toMatchObject({
+      id: "t-body",
+      text: "Different body copy",
+      y: 0.78,
+      fontSize: 40,
+      zIndex: 12,
+    })
+  })
+
+  it("gives a picture the box and fit but keeps the picture", () => {
+    const own = {
+      ...image("t-photo", [0.2, 0.2, 0.4, 0.4]),
+      mediaId: "media-9",
+      url: "/media-9.png",
+      altText: "A dog",
+    }
+    const [, pushed] = pushSlideLayout(
+      [source, deckSlide("target", own)],
+      "source",
+      new Set(["target"])
+    )
+    expect(pushed.items[0]).toEqual({
+      ...own,
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      fit: "cover",
+    })
+  })
+
+  it("copies every shadow setting, including a missing direction", () => {
+    const { direction: _direction, ...plain } = shadow("src-fade", [0, 0, 1, 1])
+    const [, pushed] = pushSlideLayout(
+      [
+        deckSlide("source", plain),
+        deckSlide("target", { ...shadow("t-fade", [0, 0.6, 1, 0.4]), color: "#ffffff", opacity: 20 }),
+      ],
+      "source",
+      new Set(["target"])
+    )
+    expect(pushed.items[0]).toEqual({
+      id: "t-fade",
+      type: "gradient-shadow",
+      color: "#000000",
+      opacity: 70,
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      zIndex: 1,
+    })
+  })
+
+  it("updates what matches on a slide with fewer layers and leaves the rest", () => {
+    const loneText = text("t-only", "Only words", [0.3, 0.3, 0.3, 0.1])
+    const extraText = {
+      ...text("t-extra", "Third text", [0.1, 0.1, 0.2, 0.1]),
+      zIndex: 30,
+    }
+    const target = deckSlide(
+      "target",
+      loneText,
+      { ...text("t-second", "Second", [0.4, 0.4, 0.2, 0.1]), zIndex: 20 },
+      extraText
+    )
+    const [, pushed] = pushSlideLayout(
+      [source, target],
+      "source",
+      new Set(["target"])
+    )
+    expect(pushed.items.map((item) => item.y)).toEqual([0.6, 0.78, 0.1])
+    // The source has two texts, so the third keeps everything it had.
+    expect(pushed.items[2]).toBe(extraText)
+  })
+
+  it("matches by z-order within a kind, not by list order", () => {
+    const top = { ...text("t-top", "Top", [0.5, 0.5, 0.2, 0.1]), zIndex: 40 }
+    const bottom = { ...text("t-bottom", "Bottom", [0.5, 0.5, 0.2, 0.1]), zIndex: 5 }
+    const matches = matchSlideLayers(source, deckSlide("target", top, bottom))
+    expect(matches.get("t-bottom")?.id).toBe("src-head")
+    expect(matches.get("t-top")?.id).toBe("src-body")
+  })
+
+  it("changes exactly the slides picked and never the source", () => {
+    const slides = [
+      source,
+      ...["a", "b", "c", "d", "e"].map((id) =>
+        deckSlide(id, text(`${id}-text`, id, [0.3, 0.3, 0.3, 0.1]))
+      ),
+    ]
+    const pushed = pushSlideLayout(slides, "source", new Set(["a", "c", "e", "source"]))
+    const changed = pushed.filter((slide, index) => slide !== slides[index])
+    expect(changed.map((slide) => slide.id)).toEqual(["a", "c", "e"])
+    expect(pushed[0]).toBe(source)
+    for (const slide of pushed) expect(slide.backgroundColor).toBe("#ffffff")
+  })
+
+  it("leaves a slide with nothing to match untouched", () => {
+    const empty = deckSlide("target")
+    const [, pushed] = pushSlideLayout([source, empty], "source", new Set(["target"]))
+    expect(pushed).toBe(empty)
+  })
+
+  it("can push a tight layout that the overflow check then names", () => {
+    const tight = text("src", "Hi", [0.1, 0.1, 0.3, 0.05], 40)
+    const long = text("t-long", "A long sentence that will not fit in a small box", [0, 0, 1, 0.5], 72)
+    const pushed = pushSlideLayout(
+      [deckSlide("source", tight), deckSlide("target", long)],
+      "source",
+      new Set(["target"])
+    )
+    expect([...findTextOverflow(pushed, "4:5").keys()]).toEqual(["target"])
   })
 })

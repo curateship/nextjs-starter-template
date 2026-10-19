@@ -150,6 +150,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   4:5, square and story: the Format buttons, making a copy in another shape,
   the rule that moves each layer, what it will not fix, and the flag on text
   that no longer fits its box.
+- [carousel-push-layout.md](carousel-push-layout.md) — Align all slides, copying one slide's
+  layout onto other slides: what travels (place, size, font, colour, Fit),
+  what never does (words, pictures, background), how layers are matched, and
+  the one Undo that puts it all back.
 - [visual-style.md](visual-style.md) — a project's look: the style line and
   look picture set in a project's Settings window, which AI tools send them, and
   why a bad style line spoils every scene at once.
