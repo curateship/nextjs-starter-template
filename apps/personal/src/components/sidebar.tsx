@@ -35,8 +35,10 @@ import {
   DEFAULT_BRAND_NAME,
   newId,
   personalPath,
+  pinnedLinks,
   removeSection,
   renameSection,
+  setPinned,
   type Menu,
   type MenuLink,
   type MenuSection,
@@ -184,30 +186,31 @@ function SidebarSection({
 }
 
 /**
- * "Recent" at the top of the left menu, folded like a section. Its links
- * come from `useRecentLinks` and can't be edited or dragged here. Tyler asked
- * for it on 18 Oct 2026. Hovering a row shows an × that takes it out of
- * Recent, not out of the menu: Tyler, 19 Oct 2026, "add an x on hover over
- * the recent tabs to remove them".
+ * "Pinned" at the top of the left menu, folded like a section: the links
+ * switched to Pinned in their edit form, in the order they were pinned. It
+ * replaced the last three opened links on 19 Oct 2026: Tyler, "Instead of
+ * 'recent' lets replace it with 'Pinned'". Each link stays in its own section
+ * too, and is edited and dragged there. While editing is on, hovering a row
+ * shows an × that unpins it.
  */
-export function RecentLinks({
+export function PinnedLinks({
   links,
-  onRemove,
+  onUnpin,
 }: {
   links: MenuLink[]
-  onRemove: (id: string) => void
+  onUnpin: (id: string) => void
 }) {
-  const [open, setOpen] = useRememberedOpen("personal-sidebar-recent")
-  const { activeId, open: openLink } = useMenuActions()
+  const [open, setOpen] = useRememberedOpen("personal-sidebar-pinned")
+  const { editing, activeId, open: openLink } = useMenuActions()
   if (links.length === 0) return null
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} asChild>
-      <section aria-label="Recent" className="flex flex-col gap-0.5">
+      <section aria-label="Pinned" className="flex flex-col gap-0.5">
         <div className="flex h-8 items-center px-2">
           <h2 className="min-w-0 flex-1">
             <CollapsibleTrigger className="group/section-label flex w-full min-w-0 items-center justify-between gap-1 rounded-md text-xs font-medium text-sidebar-foreground/70 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring">
-              <span className="truncate">Recent</span>
+              <span className="truncate">Pinned</span>
               <ChevronRightIcon className="size-4 shrink-0 opacity-0 transition-[opacity,transform] duration-200 group-hover/section-label:opacity-100 group-focus-visible/section-label:opacity-100 group-data-[state=open]/section-label:rotate-90" />
             </CollapsibleTrigger>
           </h2>
@@ -215,11 +218,14 @@ export function RecentLinks({
         <CollapsibleContent className="pb-2">
           <ul className="flex flex-col gap-0.5">
             {links.map((link) => (
-              <li key={link.id} className="group/recent relative">
+              <li key={link.id} className="group/pinned relative">
                 <a
                   {...linkAnchorProps(link, openLink)}
                   data-active={activeId === link.id ? "" : undefined}
-                  className="flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden group-hover/recent:bg-sidebar-accent group-hover/recent:pr-8 focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0"
+                  className={cn(
+                    "flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden group-hover/pinned:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0",
+                    editing && "group-hover/pinned:pr-8"
+                  )}
                 >
                   <LinkIconPicture name={link.icon} />
                   <span className="truncate">{link.label}</span>
@@ -228,15 +234,17 @@ export function RecentLinks({
                 {/* The whole row is the one hover, × included: the × has no
                     box of its own, and the name makes room for it only while
                     hovered, so it keeps its whole name the rest of the time. */}
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={`Remove ${link.label} from Recent`}
-                  className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground opacity-0 group-hover/recent:opacity-100 hover:bg-transparent hover:text-foreground focus-visible:opacity-100 dark:hover:bg-transparent"
-                  onClick={() => onRemove(link.id)}
-                >
-                  <XIcon />
-                </Button>
+                {editing ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Unpin ${link.label}`}
+                    className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground opacity-0 group-hover/pinned:opacity-100 hover:bg-transparent hover:text-foreground focus-visible:opacity-100 dark:hover:bg-transparent"
+                    onClick={() => onUnpin(link.id)}
+                  >
+                    <XIcon />
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -247,7 +255,7 @@ export function RecentLinks({
 }
 
 /**
- * The left menu: "Recent", then sections of links, each edited where it stands while editing
+ * The left menu: "Pinned", then sections of links, each edited where it stands while editing
  * is on, then the list of links at its bottom, then `footer`. "Edit the menu"
  * in the cog at the bottom turns editing on and off; off, the menu shows only
  * its sections and links. Deleting a section that still holds links asks
@@ -255,18 +263,12 @@ export function RecentLinks({
  */
 export function Sidebar({
   menu,
-  recentLinks,
-  onRemoveRecent,
   update,
   editing,
   onHome,
   footer,
 }: {
   menu: Menu
-  /** The links "Recent" shows, newest first. */
-  recentLinks: MenuLink[]
-  /** Takes a link out of "Recent", leaving it in the menu. */
-  onRemoveRecent: (id: string) => void
   update: (change: (menu: Menu) => Menu) => void
   editing: boolean
   /** The logo and name go back to Personal's start page, when no screen is chosen for them. */
@@ -340,7 +342,10 @@ export function Sidebar({
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <nav aria-label="Screens" className="flex flex-col p-2">
-          <RecentLinks links={recentLinks} onRemove={onRemoveRecent} />
+          <PinnedLinks
+            links={pinnedLinks(menu)}
+            onUnpin={(id) => update((m) => setPinned(m, id, false))}
+          />
           <SortableContext
             id={SECTIONS_LIST_ID}
             items={menu.sections.map((section) => sectionDragId(section.id))}
