@@ -70,6 +70,7 @@
     "db:migrate": "node scripts/migrate-database.mjs",
     "db:setup": "node scripts/setup-database.mjs",
     "db:up": "docker compose up -d postgres",
+    "deploy": "node ../../.agents/skills/deploy-app/scripts/deploy.mjs --push",
     "dev": "vite dev",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "lint": "eslint .",

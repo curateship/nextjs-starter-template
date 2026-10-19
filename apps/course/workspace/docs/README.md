@@ -18,5 +18,7 @@ true of every app built on Custom Shell lives in the repo's `docs/`, and
 - `importing-the-old-contact-list.md` — the one-off script that brings
   systemeverything.com's 25,100 contacts across, what it carries, what it leaves
   behind, and the broken tags it repairs on the way in.
+- `launch.md` — the live deployment at course.barelycompany.com: where it
+  runs, every live value, what Tyler decided at launch, and each release.
 - `shell-integration.md` — what this app takes from Custom Shell, what it
   keeps of its own, and what each shell merge carried across.
