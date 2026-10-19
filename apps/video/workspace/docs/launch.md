@@ -112,3 +112,31 @@ On Tyler's Mac on 18 Oct 2026, both images were built from the root
 
 | Date | Commit | Deployments | Notes |
 | --- | --- | --- | --- |
+| 18 Oct 2026 | `e46bb5d10` | web `dhxa4k3aleyzm5ltthfnm1qs` (532 s), worker `euyo45ozmqrw9wpi6bwsadx5` (513 s) | First launch. The website went first and applied all 131 database changes, then the worker followed. Both read healthy, and the health address answered `{"status":"ok"}`. The four AI keys were written straight after. `create-admin.mjs` made typham2@gmail.com a verified admin. The first sign-in made the site, then `copy-menu.mjs` copied this Mac's admin and members' menus to live. |
+
+### What the first live check covered, 18 Oct 2026
+
+Playwright, signed in as Tyler, nothing pressed that changes data.
+
+- **As a visitor:** the home page and `/register` load with no errors, and the
+  page is a secure context. Plain `http://` redirects to `https://`.
+- **The sign-up check:** the Turnstile script loads on `/register` and
+  `/forgot-password` and talks to Cloudflare. A real sign-up was not tried.
+- **Signed in:** the session cookie is Secure and HttpOnly. Video editor,
+  Actors, Exports, Carousels, Viral, Favourites, CRM, Pages, Broadcast,
+  Automations and Settings all open with no page errors and no failed
+  requests. Settings → AI shows all four keys set, and Settings → Scripts and
+  Settings → YouTube open.
+- **The left menu** matches this Mac: Navigation (Dashboard, Video editor with
+  Actors and Exports, Carousels, Viral) and Platform (CRM, Pages, Broadcast,
+  Automations, Settings). Every link opens.
+- **Found, not fixed:**
+  - The tab title and the public home page still say "Custom Shell". The
+    site's name and front page are saved settings, and a deploy copies only
+    the menu.
+  - `/admin/users` throws React error 418, a page drawn differently on the
+    server and in the browser.
+  - At phone width, the Projects search box is squashed under the "All
+    projects" button.
+- **Not yet tried on live:** an upload, an export, an emailed link, and a
+  Viral search, which needs the YouTube key pasted first.
