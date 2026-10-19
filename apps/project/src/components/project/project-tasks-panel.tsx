@@ -16,7 +16,6 @@ import { TaskCalendar } from "@/components/project/task-calendar"
 import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION, showBinnedToast } from "@/components/project/task-body"
 import { TaskFilterPopover } from "@/components/project/task-filter-popover"
 import {
-  DueFilterMenu,
   MembersFilterMenu,
   SearchToggle,
   UNDERLINE_TAB_CLASS,
@@ -52,10 +51,12 @@ import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { rememberProject } from "@/lib/project/new-task-project"
-import { BOARD_GROUP_KEY, PROJECT_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
-import { runsTheTeam, type TaskStatus } from "@/lib/project/rules"
+import { BOARD_GROUP_KEY, PROJECT_TASK_VIEW_KEY, taskGroupingKey } from "@/lib/project/panel-keys"
+import { todayKey } from "@/lib/project/dates"
+import { runsTheTeam, type TaskPriority, type TaskStatus } from "@/lib/project/rules"
 import { filterTasks, hasTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
 import { overDoingLimit } from "@/lib/project/doing-limit"
+import { TASK_GROUPINGS, groupTasks, type TaskGrouping } from "@/lib/project/task-groups"
 import { placesAfterReorder } from "@/lib/project/task-order"
 import { offeredTypes } from "@/lib/project/task-types"
 import { useFieldColumns } from "@/lib/project/use-field-columns"
@@ -63,15 +64,56 @@ import { useProjectLive } from "@/lib/project/use-project-live"
 import { viewHasFilters } from "@/lib/project/saved-views"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-const VIEWS = ["board", "list", "calendar", "timeline", "activity", "files", "chat"] as const
+const VIEWS = ["list", "board", "calendar", "timeline", "activity", "files", "chat"] as const
 type View = (typeof VIEWS)[number]
-
-const NO_SECTION = "none"
 
 /** The header's New task, as opposed to a Board column's "+". */
 const HEADER_NEW_TASK = "header"
 
 const GROUPS = ["status", "person"] as const
+/** The Board's Group row: its status columns alone, or a row of them per person. */
+const BOARD_GROUPINGS = ["none", "assignee"] as const satisfies readonly TaskGrouping[]
+const noGroups = () => []
+
+/** What a New task dropdown starts on: a Board column's or a List heading's. */
+type QuickStart = {
+  status?: TaskStatus
+  /** A member's id, or `NOBODY`. */
+  assignee?: string
+  priority?: TaskPriority
+  tagIds?: string[]
+  due?: string | null
+  /** Null is a plain task. */
+  typeId?: string | null
+  tooltip?: string
+}
+
+/**
+ * The task a List heading's "+" starts: one that lands under that heading
+ * (Tyler, 19 Oct 2026: "a '+' icon for me to add a task that will slot into
+ * that sort"). Only Today and No due date can be started in by date; a new
+ * task can't be made Overdue or Earlier, and This week or Later name no one
+ * day, so those headings have no "+".
+ */
+function startInGroup(grouping: TaskGrouping, key: string): QuickStart | null {
+  const none = key === "none"
+  switch (grouping) {
+    case "status":
+      return { status: key as TaskStatus }
+    case "priority":
+      return { priority: key as TaskPriority }
+    case "tags":
+      return { tagIds: none ? [] : [key] }
+    case "assignee":
+      return { assignee: none ? NOBODY : key }
+    case "type":
+      return { typeId: none ? null : key }
+    case "due":
+      return key === "today" ? { due: todayKey() } : none ? { due: null } : null
+    default:
+      return null
+  }
+}
 type Group = (typeof GROUPS)[number]
 
 /** A Board drop in another person's row, waiting for "Hand it over?". */
@@ -84,16 +126,16 @@ type PendingHandOver = {
 
 /**
  * The project's tasks, as a Board (one column per status, or a row per person
- * when grouped), a List grouped under the project's sections, a Calendar of
+ * when grouped), a List under Filter's Group row (status, tags, due date and so on), a Calendar of
  * due dates or a Timeline of start and due dates, its Activity, every file in it, and its own Chat. The tab last
  * used is remembered in this browser; the search and filters live in the
  * address. A status change or a new order shows at once and is put back if
  * the server refuses it. A "Just me" list has no Files or Chat, since
  * nobody else can read it.
  *
- * The header, as Tyler drew it on 14 Oct 2026: underlined tabs, then the
- * due-date dropdown, search, Filter, Views, whose tasks show (moved here from
- * the left panel), and New task. New task, and the "+" on each Board column,
+ * The header, as Tyler drew it on 14 Oct 2026: underlined tabs (List first
+ * since 19 Oct 2026), then search, Filter (which holds the due date since
+ * 19 Oct 2026), Views, whose tasks show (moved here from the left panel), and New task. New task, and the "+" on each Board column,
  * open a dropdown rather than a window. A card's "..." duplicates or deletes it.
  */
 export function ProjectTasksPanel({
@@ -117,10 +159,11 @@ export function ProjectTasksPanel({
 }) {
   const router = useRouter()
   const navigate = useNavigate()
-  const [chosenView, setView] = useRememberedChoice<View>(PROJECT_TASK_VIEW_KEY, "board", VIEWS)
+  // List first, and where a new browser starts (Tyler, 19 Oct 2026).
+  const [chosenView, setView] = useRememberedChoice<View>(PROJECT_TASK_VIEW_KEY, "list", VIEWS)
   // A "Just me" list has no Chat and no Files tab, since nobody else shares it.
   const hasChat = !page.project.personal
-  const view = (chosenView === "chat" || chosenView === "files") && !hasChat ? "board" : chosenView
+  const view = (chosenView === "chat" || chosenView === "files") && !hasChat ? "list" : chosenView
 
   React.useEffect(() => {
     if (!openChat) return
@@ -157,7 +200,9 @@ export function ProjectTasksPanel({
   const [handingOver, setHandingOver] = React.useState<PendingHandOver | null>(null)
 
   const filtered = filterTasks(tasks, filters)
-  const people = page.members.map((m) => ({ id: m.userId, name: m.name }))
+  // Who a task can go to: the members, and the site admin, who can take tasks themselves.
+  const assignees = page.siteAdminMe ? [...page.members, page.siteAdminMe] : page.members
+  const people = assignees.map((m) => ({ id: m.userId, name: m.name, avatarUrl: m.avatarUrl }))
   // Filtered to one type, the List can show up to 3 of its fields as columns.
   const filteredType = page.taskTypes.find((type) => type.id === filters.type)
   const [columnIds, setColumnIds] = useFieldColumns(filteredType?.id)
@@ -179,13 +224,13 @@ export function ProjectTasksPanel({
     }
     return [...members, ...others.values(), { id: NOBODY_LANE, name: "Nobody assigned" }]
   }, [page.members, tasks])
-  const sectionGroups = React.useMemo(
-    () => [
-      ...page.sections.map((section) => ({ key: section.id, label: section.name })),
-      { key: NO_SECTION, label: "No section" },
-    ],
-    [page.sections]
+  // The List and Timeline's Group row, kept per project in this browser (Tyler, 19 Oct 2026).
+  const [grouping, setGrouping] = useRememberedChoice<TaskGrouping>(
+    taskGroupingKey(page.project.id),
+    "none",
+    TASK_GROUPINGS
   )
+  const grouped = groupTasks(filtered, grouping)
 
   async function reorder(taskIds: string[]) {
     const before = tasks
@@ -294,7 +339,7 @@ export function ProjectTasksPanel({
     id: page.project.id,
     name: page.project.name,
     color: page.project.color,
-    members: page.members,
+    members: assignees,
     typeIds: offeredTypes(page.taskTypes, page.project.personal ? [] : page.project.hiddenTypeIds).map(
       (type) => type.id
     ),
@@ -305,15 +350,21 @@ export function ProjectTasksPanel({
   function quickNewTask(
     key: string,
     children: React.ReactNode,
-    start?: { status: TaskStatus; assignee?: string; tooltip: string }
+    start?: QuickStart
   ) {
     return (
       <QuickNewTask
         projects={[thisProject]}
         types={page.taskTypes}
+        tags={page.labels}
+        milestones={page.milestones}
         initialProjectId={page.project.id}
         status={start?.status}
         assignee={start?.assignee}
+        priority={start?.priority}
+        tagIds={start?.tagIds}
+        due={start?.due}
+        typeId={start?.typeId}
         tooltip={start?.tooltip}
         align={key === HEADER_NEW_TASK ? "end" : "start"}
         open={quickOpen === key}
@@ -370,13 +421,16 @@ export function ProjectTasksPanel({
 
   return (
     <>
-      <DashboardCardHeader className="@container">
+      {/* Its own stronger line, so the tabs part from the List's grey header (Tyler, 19 Oct 2026:
+          "revert to the way it was but make that header divider appear"). Every other line keeps
+          Settings > Styling's Divider lines, which is too faint to show against that grey. */}
+      <DashboardCardHeader className="@container border-b-muted-foreground/10">
         <UnderlineTabs
           value={view}
           onValueChange={(value) => pickView(value as View)}
           tabs={[
-            { value: "board", label: "Board" },
             { value: "list", label: "List" },
+            { value: "board", label: "Board" },
             { value: "calendar", label: "Calendar" },
             { value: "timeline", label: "Timeline" },
           ]}
@@ -393,9 +447,8 @@ export function ProjectTasksPanel({
         <div className="flex shrink-0 items-center gap-1">
           {taskTab ? (
             <>
-              {/* The List's "3 selected" button lands here, left of All time. */}
+              {/* The List's "3 selected" button lands here, left of the search. */}
               {view === "list" ? <div ref={setSelectedSlot} className="contents" /> : null}
-              <DueFilterMenu value={filters.due} onChange={(due) => onFilters({ due })} />
               <SearchToggle value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
               <TaskFilterPopover
                 filters={filters}
@@ -403,10 +456,19 @@ export function ProjectTasksPanel({
                 labels={page.labels}
                 types={page.taskTypes}
                 buttonVariant="ghost"
-                groupByPerson={
-                  view === "board" && !page.project.personal
-                    ? { on: byPerson, onChange: (on) => setGroup(on ? "person" : "status") }
-                    : undefined
+                group={
+                  view === "board"
+                    ? // The Board keeps its status columns; Group only adds a row per person.
+                      page.project.personal
+                      ? undefined
+                      : {
+                          value: byPerson ? "assignee" : "none",
+                          options: BOARD_GROUPINGS,
+                          onChange: (next) => setGroup(next === "assignee" ? "person" : "status"),
+                        }
+                    : view === "list" || view === "timeline"
+                      ? { value: grouping, options: TASK_GROUPINGS, onChange: setGrouping }
+                      : undefined
                 }
                 extra={
                   (view === "list" || view === "board") && filteredType?.fields.length ? (
@@ -431,7 +493,7 @@ export function ProjectTasksPanel({
               {/* A "Just me" list has one person, so there is nobody to pick. */}
               {page.project.personal ? null : (
                 <MembersFilterMenu
-                  members={page.members}
+                  members={assignees}
                   myUserId={page.myUserId}
                   openTotal={openTasks.length}
                   openUnassigned={openTasks.filter((task) => !task.assignee).length}
@@ -475,8 +537,8 @@ export function ProjectTasksPanel({
       ) : view === "timeline" ? (
         <TaskTimeline
           tasks={filtered}
-          groups={page.sections.length ? sectionGroups : undefined}
-          groupOf={(task) => task.section?.id ?? NO_SECTION}
+          groups={grouped?.groups}
+          groupsOf={grouped?.groupsOf ?? noGroups}
           readOnly={readOnly || busy}
           onOpenTask={onOpenTask}
           onDates={(task, dates) => void changeDates(task, dates)}
@@ -532,20 +594,31 @@ export function ProjectTasksPanel({
           readOnly={readOnly}
           busy={busy}
           onOpenTask={(task) => onOpenTask(task.id)}
-          groups={page.sections.length ? sectionGroups : undefined}
-          groupOf={(task) => task.section?.id ?? NO_SECTION}
-          showEmptyGroups={!hasTaskFilters(filters)}
-          onReorder={readOnly ? undefined : (taskIds) => void reorder(taskIds)}
+          groups={grouped?.groups}
+          groupsOf={grouped?.groupsOf}
+          // Grouped by tags a task can sit under several headings, so rows don't drag then.
+          onReorder={readOnly || grouping === "tags" ? undefined : (taskIds) => void reorder(taskIds)}
           bulk={{ people, projects: page.otherProjects }}
           fieldColumns={fieldColumns}
           selectedSlot={selectedSlot}
           onDelete={(task) => setDeleting(task)}
           canDelete={canDelete}
+          myUserId={page.myUserId}
+          addTask={
+            readOnly
+              ? undefined
+              : (groupKey, button) => {
+                  const start = startInGroup(grouping, groupKey)
+                  return start ? quickNewTask(`group:${grouping}:${groupKey}`, button, start) : null
+                }
+          }
         />
       )}
       <NewTaskDialog
         projects={[thisProject]}
         types={page.taskTypes}
+        tags={page.labels}
+        milestones={page.milestones}
         initialProjectId={page.project.id}
         start={full ?? undefined}
         open={Boolean(full)}

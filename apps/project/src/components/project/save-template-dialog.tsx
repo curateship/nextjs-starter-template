@@ -67,7 +67,7 @@ export function SaveTemplateDialog({
           <DialogHeader>
             <DialogTitle>Save as template</DialogTitle>
             <DialogDescription>
-              Keeps this project's sections, milestones, tasks, steps and labels as they are now.
+              Keeps this project's milestones, tasks, steps and tags as they are now.
               Projects started from it begin with every task To do, nobody assigned and no dates.
             </DialogDescription>
           </DialogHeader>

@@ -3,10 +3,10 @@ import { useRouter } from "@tanstack/react-router"
 import { CrownIcon, MailIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { InviteDialog } from "@/components/project/invite-dialog"
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DropdownMenu,
@@ -80,131 +80,132 @@ export function ProjectMembersCard({ page }: { page: ProjectPage }) {
 
   return (
     <>
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Members · {page.members.length}</CardTitle>
-          {canAdd ? (
-            <CardAction>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="ghost" size="sm" disabled={busy}>
-                    <PlusIcon className="size-4" />
-                    Invite
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  <DropdownMenuLabel>Add a teammate to this project</DropdownMenuLabel>
-                  {page.addable.length === 0 ? (
-                    <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                      Everyone on the team is on this project.
-                    </p>
-                  ) : (
-                    page.addable.map((person) => (
-                      <DropdownMenuItem key={person.userId} onSelect={() => void add(person.userId)}>
-                        <PersonAvatar name={person.name} avatarUrl={person.avatarUrl} />
-                        <span className="truncate">{person.name}</span>
-                      </DropdownMenuItem>
-                    ))
-                  )}
-                  {canInviteToTeam ? (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={() => setInviting(true)}>
-                        <MailIcon className="size-4" />
-                        Invite someone new to the team
-                      </DropdownMenuItem>
-                    </>
-                  ) : null}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </CardAction>
-          ) : null}
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          {wholeTeam ? (
-            <p className="text-sm text-muted-foreground">
-              Everyone on the team is on this project, including people who join later. Turn off
-              "Everyone on the team" above to add or take people off by hand.
-            </p>
-          ) : null}
-          {page.members.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {canAdd
-                ? "Nobody is on this project. Invite a teammate so tasks can be handed to them."
-                : "Nobody is on this project."}
-            </p>
-          ) : (
-            <ul className="grid gap-2">
-              {page.members.map((member) => (
-                <li key={member.userId} className="flex items-center gap-1 rounded-lg border bg-muted/40 pr-2">
-                  <span className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5">
-                    <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} size="default" />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-                        <span className="truncate">
-                          {member.name}
-                          {member.userId === page.myUserId ? " (you)" : ""}
-                        </span>
-                        {member.userId === page.project.leadUserId ? <Badge variant="secondary">Lead</Badge> : null}
+      <CollapsibleSettingsCard
+        storageId="project-settings-members"
+        title={`Members · ${page.members.length}`}
+        size="sm"
+        contentClassName="grid gap-4"
+      >
+        {wholeTeam ? (
+          <p className="text-sm text-muted-foreground">
+            Everyone on the team is on this project, including people who join later. Turn off
+            "Everyone on the team" above to add or take people off by hand.
+          </p>
+        ) : null}
+        {page.members.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {canAdd
+              ? "Nobody is on this project. Invite a teammate so tasks can be handed to them."
+              : "Nobody is on this project."}
+          </p>
+        ) : (
+          <ul className="grid gap-2">
+            {page.members.map((member) => (
+              <li key={member.userId} className="flex items-center gap-1 rounded-lg border bg-muted/40 pr-2">
+                <span className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5">
+                  <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} size="default" />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                      <span className="truncate">
+                        {member.name}
+                        {member.userId === page.myUserId ? " (you)" : ""}
                       </span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {member.title ? `${member.title} · ` : ""}
-                        {member.openTasks} open{" "}
-                        {member.openTasks === 1 ? "task" : "tasks"}
-                      </span>
+                      {member.userId === page.project.leadUserId ? <Badge variant="secondary">Lead</Badge> : null}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {member.title ? `${member.title} · ` : ""}
+                      {member.openTasks} open{" "}
+                      {member.openTasks === 1 ? "task" : "tasks"}
                     </span>
                   </span>
-                  {readOnly ? null : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={busy}
-                          aria-pressed={member.userId === page.project.leadUserId}
-                          aria-label={
-                            member.userId === page.project.leadUserId
-                              ? `Stop ${member.name} leading the project`
-                              : `Make ${member.name} the lead`
-                          }
-                          onClick={() => void setLead(member)}
-                        >
-                          <CrownIcon
-                            className={cn(
-                              "size-4",
-                              member.userId === page.project.leadUserId && "fill-current text-amber-500"
-                            )}
-                          />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {member.userId === page.project.leadUserId ? "Stop leading" : "Make lead"}
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                  {readOnly || wholeTeam ? null : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Remove ${member.name} from the project`}
-                          onClick={() => setRemoving(member)}
-                        >
-                          <Trash2Icon className="size-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Remove from the project</TooltipContent>
-                    </Tooltip>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+                </span>
+                {readOnly ? null : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={busy}
+                        aria-pressed={member.userId === page.project.leadUserId}
+                        aria-label={
+                          member.userId === page.project.leadUserId
+                            ? `Stop ${member.name} leading the project`
+                            : `Make ${member.name} the lead`
+                        }
+                        onClick={() => void setLead(member)}
+                      >
+                        <CrownIcon
+                          className={cn(
+                            "size-4",
+                            member.userId === page.project.leadUserId && "fill-current text-amber-500"
+                          )}
+                        />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {member.userId === page.project.leadUserId ? "Stop leading" : "Make lead"}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {readOnly || wholeTeam ? null : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Remove ${member.name} from the project`}
+                        onClick={() => setRemoving(member)}
+                      >
+                        <Trash2Icon className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Remove from the project</TooltipContent>
+                  </Tooltip>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {/* Under the list rather than in the heading, which folds the card. */}
+        {canAdd ? (
+          <div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" disabled={busy}>
+                  <PlusIcon className="size-4" />
+                  Invite
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuLabel>Add a teammate to this project</DropdownMenuLabel>
+                {page.addable.length === 0 ? (
+                  <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                    Everyone on the team is on this project.
+                  </p>
+                ) : (
+                  page.addable.map((person) => (
+                    <DropdownMenuItem key={person.userId} onSelect={() => void add(person.userId)}>
+                      <PersonAvatar name={person.name} avatarUrl={person.avatarUrl} />
+                      <span className="truncate">{person.name}</span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+                {canInviteToTeam ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => setInviting(true)}>
+                      <MailIcon className="size-4" />
+                      Invite someone new to the team
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : null}
+      </CollapsibleSettingsCard>
       <ConfirmDialog
         open={Boolean(removing)}
         onOpenChange={(open) => {

@@ -2,13 +2,13 @@ import type { ProjectColor, TaskPriority } from "@/lib/project/rules"
 
 /**
  * A project's plan without its people, dates or progress: what Copy project
- * carries over and what a saved template keeps. Sections and milestones are
- * listed once, and each task points at them by their place in those lists.
+ * carries over and what a saved template keeps. Milestones are listed once,
+ * and each task points at one by its place in that list. Sections went on
+ * 19 Oct 2026; migration 0123 turned the ones in saved templates into tags.
  */
 export type TemplateTask = {
   title: string
   notes: string
-  section: number | null
   milestone: number | null
   typeId: string | null
   priority: TaskPriority
@@ -22,7 +22,6 @@ export type TemplateContent = {
   description: string
   hiddenTypeIds: string[]
   defaultTypeId: string | null
-  sections: string[]
   milestones: string[]
   tasks: TemplateTask[]
 }

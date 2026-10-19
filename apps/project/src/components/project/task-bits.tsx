@@ -24,6 +24,7 @@ import {
   DUE_MOVED_MANY,
   PICKED_MANY_DAYS,
   PROJECT_COLOR_DOT,
+  TASK_PRIORITY_LABEL,
   TASK_STATUS_LABEL,
   type ProjectColor,
   type TaskPriority,
@@ -169,6 +170,51 @@ export function DueDate({
   )
 }
 
+/**
+ * The List's Assigned to, Due and Steps cells as chips, like its Status and
+ * Priority (Tyler, 19 Oct 2026: "the assigned to, due date and steps should
+ * also be chip ui").
+ */
+export function PersonChip({ person }: { person: { name: string; avatarUrl?: string } | null }) {
+  if (!person) {
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        Nobody
+      </Badge>
+    )
+  }
+  return (
+    // A little taller than a plain chip, so the face fits inside it.
+    <Badge variant="outline" className="h-6 max-w-full gap-1.5 pl-0.5">
+      <PersonAvatar
+        name={person.name}
+        avatarUrl={person.avatarUrl}
+        size="default"
+        className="size-5 [&_[data-slot=avatar-fallback]]:text-[9px]"
+      />
+      <span className="truncate">{person.name}</span>
+    </Badge>
+  )
+}
+
+export function DueChip({ dueDate, dueAt, status }: { dueDate: string | null; dueAt: string | null; status: TaskStatus }) {
+  const overdue = isOverdue(dueDate, status, dueAt)
+  return (
+    <Badge variant="outline" className={overdue ? "border-destructive/40" : undefined}>
+      <DueDate dueDate={dueDate} dueAt={dueAt} status={status} />
+    </Badge>
+  )
+}
+
+export function StepsChip({ steps }: { steps: { done: number; total: number } }) {
+  if (steps.total === 0) return null
+  return (
+    <Badge variant="outline" className="text-muted-foreground">
+      {steps.done} of {steps.total}
+    </Badge>
+  )
+}
+
 export function StepsCount({ steps }: { steps: { done: number; total: number } }) {
   if (steps.total === 0) return null
   return (
@@ -201,8 +247,10 @@ export function PickedDaysBadge({
 /** A label on a card or row: its colour as a dot, and always its name. */
 export function LabelChip({ label }: { label: { name: string; color: ProjectColor } }) {
   return (
-    <Badge variant="outline" className="max-w-40">
-      <ProjectDot color={label.color} className="size-2" />
+    // Really faint, so tags never compete with the task's name (Tyler, 19 Oct 2026):
+    // no edge, pale words and a half-strength dot.
+    <Badge variant="outline" className="max-w-40 border-transparent px-1 font-normal text-muted-foreground/60">
+      <ProjectDot color={label.color} className="size-1.5 opacity-50" />
       <span className="truncate">{label.name}</span>
     </Badge>
   )
@@ -283,6 +331,20 @@ export function PriorityMark({ priority }: { priority: TaskPriority }) {
     )
   }
   return null
+}
+
+/**
+ * The List's Priority column: every priority as a chip, Normal included
+ * (Tyler, 19 Oct 2026: "normal should be a chip too"). High keeps its arrow
+ * and full colour; Normal and Low are muted, Low with its down arrow.
+ */
+export function PriorityChip({ priority }: { priority: TaskPriority }) {
+  return (
+    <Badge variant="outline" className={priority === "high" ? undefined : "text-muted-foreground"}>
+      {priority === "high" ? <ArrowUpIcon aria-hidden /> : priority === "low" ? <ArrowDownIcon aria-hidden /> : null}
+      {TASK_PRIORITY_LABEL[priority]}
+    </Badge>
+  )
 }
 
 /** "Date moved 3 times", beside the date of a task not Done that keeps slipping. */

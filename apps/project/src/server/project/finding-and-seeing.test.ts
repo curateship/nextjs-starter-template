@@ -193,7 +193,7 @@ describe("saved views", () => {
     const here = { people: [{ id: "ben" }], labels: [{ id: "l1" }], types: [] }
     expect(openView(view, here, NOBODY_FILTER)).toEqual({
       filters: { status: "stuck" },
-      missing: ["Leo isn't on this project any more", 'The label "Bug" was deleted'],
+      missing: ["Leo isn't on this project any more", 'The tag "Bug" was deleted'],
     })
     // "Nobody assigned" is always there.
     expect(openView({ filters: { person: NOBODY_FILTER }, names: {} }, here, NOBODY_FILTER).missing).toEqual([])

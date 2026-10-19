@@ -14,7 +14,7 @@ import { StepListActions } from "@/components/project/step-list-actions"
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { TaskPlanCard } from "@/components/project/task-plan-card"
 import { StepMenu } from "@/components/project/step-menu"
-import { TaskLabelsField, TaskSectionField } from "@/components/project/task-sorting-fields"
+import { TaskTagsField } from "@/components/project/task-tags-field"
 import {
   DueDate,
   DueMovesMark,
@@ -139,6 +139,8 @@ export type TaskSide = {
   /** The title at the top of the panel, edited where it is written. */
   title: React.ReactNode
   status: React.ReactNode
+  /** The tags box, right under the title so it is easy to find (Tyler, 19 Oct 2026). */
+  tags: React.ReactNode
   /** A hand-over to accept, a review, the Stuck reason row, and the Move and Remind me cards. */
   notices: React.ReactNode
   notes: {
@@ -779,8 +781,7 @@ function TaskForm({
   )
 
   const typeField = <TaskTypeField detail={detail} readOnly={readOnly} busy={busy} change={change} />
-  const sectionField = <TaskSectionField detail={detail} readOnly={readOnly} busy={busy} change={change} />
-  const labelsField = <TaskLabelsField detail={detail} readOnly={readOnly} busy={busy} change={change} />
+  const tagsField = <TaskTagsField detail={detail} readOnly={readOnly} busy={busy} change={change} />
   const reviewField = detail.canAskForReview ? (
     <div className="flex items-center justify-between gap-4">
       <FieldLabel
@@ -810,9 +811,9 @@ function TaskForm({
   const sortingFields = (
     <>
       {typeField}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {sectionField}
-        {labelsField}
+      <div className="grid gap-2">
+        <Label htmlFor="task-tags">Tags</Label>
+        <TaskTagsField id="task-tags" detail={detail} readOnly={readOnly} busy={busy} change={change} />
       </div>
       {reviewField}
     </>
@@ -897,6 +898,7 @@ function TaskForm({
       />
     ),
     status: statusPill,
+    tags: tagsField,
     notices: (
       <>
         {stuckRow}
@@ -982,20 +984,13 @@ function TaskForm({
         <OptionCard
           id="task-settings-sorting"
           title="Priority and type"
-          description="How it's sorted and found: its priority, the kind of task, its section and labels."
-          summary={[
-            TASK_PRIORITY_LABEL[task.priority],
-            task.type?.name,
-            task.section?.name,
-            task.labels.length ? `${task.labels.length} ${plural(task.labels.length, "label")}` : null,
-          ]
+          description="How it's sorted and found: its priority and the kind of task. Its tags are under its title."
+          summary={[TASK_PRIORITY_LABEL[task.priority], task.type?.name]
             .filter(Boolean)
             .join(" · ")}
         >
           {priorityField}
           {typeField}
-          {sectionField}
-          {labelsField}
         </OptionCard>
         {detail.canAskForReview ? (
           <OptionCard

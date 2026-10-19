@@ -12,6 +12,7 @@ import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
   isProjectMember,
+  isSiteAdmin,
   requireOpenProject,
   requireTaskAccess,
   visibleProjectsWhere,
@@ -33,7 +34,7 @@ import {
   listTeamTypes,
   projectOffersType,
 } from "@/server/project/task-types"
-import { nextTaskPosition } from "@/server/project/sections"
+import { nextTaskPosition } from "@/server/project/task-order"
 import { recordTaskEvent } from "@/server/project/task-history"
 import {
   assignTask,
@@ -91,7 +92,7 @@ export async function createTasksFromLines(
 }
 
 /**
- * "<title> (copy)" in the same project and section, with the notes, labels,
+ * "<title> (copy)" in the same project, with the notes, labels,
  * steps (unticked), type and field values and priority, To do and nobody
  * assigned.
  * Comments, history and files stay with the original, so a File field starts
@@ -112,7 +113,6 @@ export async function duplicateTask(actor: Actor, taskId: string, database = db)
       dueDate: task.dueDate,
       dueAt: task.dueAt,
       startDate: task.startDate,
-      sectionId: task.sectionId,
       milestoneId: task.milestoneId,
       position: await nextTaskPosition(task.projectId, tx),
       createdByUserId: actor.id,
@@ -211,8 +211,7 @@ export async function listMoveTargets(
 /**
  * Moves a task to another open project in the team. Its steps, chat, files,
  * labels, type, field values and history go with it, even when the new
- * project doesn't offer its type. Its section stays behind, since sections
- * are one project's own. If the person assigned isn't on the new project,
+ * project doesn't offer its type. If the person assigned isn't on the new project,
  * the task moves with nobody assigned and their name kept, and a Person
  * field naming someone who isn't on it is emptied. Past check-in lines keep
  * the old project: that's where the task was that day.
@@ -228,14 +227,16 @@ export async function moveTask(
     const { project: to } = await requireOpenProject(actor.id, input.projectId, tx)
     // A shared task never disappears into someone's own "Just me" list.
     requireSharedProject(to)
+    // The site admin is on no project, so a task they took goes with them.
     const keptAssignee =
-      !task.assigneeUserId || (await isProjectMember(to.id, task.assigneeUserId, tx))
+      !task.assigneeUserId ||
+      (await isProjectMember(to.id, task.assigneeUserId, tx)) ||
+      (await isSiteAdmin(task.assigneeUserId, tx))
     if (!keptAssignee) await clearAssignee(task.assigneeUserId!, eq(projectTasks.id, task.id), tx)
     await tx
       .update(projectTasks)
       .set({
         projectId: to.id,
-        sectionId: null,
         milestoneId: null,
         position: await nextTaskPosition(to.id, tx),
         updatedAt: now(),
@@ -442,15 +443,20 @@ export async function listNewTaskProjects(
       )
     )
     .orderBy(asc(customShellUsers.name))
+  // The site admin can give a new task to themselves on any project.
+  const self = membership.siteAdmin ? [{ userId: me.id, name: me.name, avatarUrl: me.avatarUrl }] : []
   return [
     ...projects.map(({ hiddenTypeIds, defaultTypeId, ...project }) => ({
       ...project,
       typeIds: offered(hiddenTypeIds),
       defaultTypeId:
         defaultTypeId && offered(hiddenTypeIds).includes(defaultTypeId) ? defaultTypeId : null,
-      members: members
-        .filter((member) => member.projectId === project.id)
-        .map(({ userId, name, avatarUrl }) => ({ userId, name, avatarUrl: avatarUrl ?? "" })),
+      members: [
+        ...members
+          .filter((member) => member.projectId === project.id)
+          .map(({ userId, name, avatarUrl }) => ({ userId, name, avatarUrl: avatarUrl ?? "" })),
+        ...self,
+      ],
     })),
     ...own,
   ]

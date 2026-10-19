@@ -8,10 +8,18 @@ import type { CustomShellDb } from "@/server/db"
 import { findMembership, inTeam } from "@/server/project/access"
 import { submitCheckin } from "@/server/project/checkins"
 import { createInvite, createInvites } from "@/server/project/invites"
-import { addProjectMember, copyProject, createProject, loadProjectsPage, updateProject } from "@/server/project/projects"
+import {
+  addProjectMember,
+  copyProject,
+  createProject,
+  loadProjectPage,
+  loadProjectsPage,
+  updateProject,
+} from "@/server/project/projects"
 import { sendTeamMorningNotices } from "@/server/project/reminder-jobs"
 import { projectNoticeLinks, projectProjectMembers, projectTeamMembers } from "@/server/project/schema"
-import { createTask } from "@/server/project/tasks"
+import { moveTask } from "@/server/project/task-changes"
+import { assignTask, createTask, loadTaskDetail } from "@/server/project/tasks"
 import { joinTeamByLink, makeJoinLink } from "@/server/project/team-running"
 import { loadTeammate } from "@/server/project/teammate"
 import { createTeam, listTeamMembers, loadTeamDashboard, updateTeam } from "@/server/project/teams"
@@ -182,6 +190,35 @@ describe("the site admin", () => {
       "Just me · Ben"
     )
   })
+
+  it("can take a task on any project without joining it, and nobody else can give them one", () =>
+    // Tyler, 19 Oct 2026: "I should be able to assign myself (admin)".
+    inTeam(teamId, async () => {
+      const launch = (await createProject(tyler.id, { name: "Launch", color: "blue", description: "" }, database)).id
+      const later = (await createProject(tyler.id, { name: "Later", color: "red", description: "" }, database)).id
+      await addProjectMember(tyler.id, launch, ben.id, database)
+      const mine = (await createTask(actor(tyler), task(launch, "Mine", tyler.id), database)).id
+      const bens = (await createTask(actor(ben), task(launch, "Ben's", null), database)).id
+      await expect(assignTask(actor(ben), { taskId: bens, assigneeUserId: tyler.id }, database)).rejects.toThrow(
+        PROJECT_ERRORS.notProjectMember
+      )
+      await assignTask(actor(tyler), { taskId: bens, assigneeUserId: tyler.id }, database)
+      const page = await loadProjectPage(tyler.id, launch, database)
+      expect(page.tasks.filter((card) => card.assignee?.id === tyler.id).map((card) => card.title).sort()).toEqual([
+        "Ben's",
+        "Mine",
+      ])
+      // Still not a member: the project's people and its count are unchanged.
+      expect(page.members.map((member) => member.userId)).toEqual([ben.id])
+      expect(page.siteAdminMe).toMatchObject({ userId: tyler.id, openTasks: 2 })
+      expect((await loadProjectPage(ben.id, launch, database)).siteAdminMe).toBeNull()
+      expect((await loadTaskDetail(tyler.id, mine, database)).assignable.map((person) => person.id)).toEqual([
+        ben.id,
+        tyler.id,
+      ])
+      // Moved to a project they aren't on either, the task stays theirs.
+      expect(await moveTask(actor(tyler), { taskId: mine, projectId: later }, database)).toEqual({ keptAssignee: true })
+    }))
 
   it("gets no check-in and no Just me list", () =>
     // The site admin is on no team, so each step names this one.

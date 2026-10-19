@@ -87,7 +87,7 @@ export function openView(
   }
   if (filters.label && !here.labels.some((label) => label.id === filters.label)) {
     missing.push(
-      view.names.label ? `The label "${view.names.label}" was deleted` : "Its label was deleted"
+      view.names.label ? `The tag "${view.names.label}" was deleted` : "Its tag was deleted"
     )
     delete filters.label
   }

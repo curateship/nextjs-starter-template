@@ -152,8 +152,10 @@ export const projectProjects = pgTable("project_projects", {
   /** The Board's column order (`drizzle/0115_project_status_order.sql`); empty is the usual one. */
   statusOrder: text("status_order").array().$type<TaskStatus[]>().notNull().default([]),
   /**
-   * The project's status, its line of why, and who set it when
-   * (`drizzle/0117_project_more_for_projects.sql`). Null is no status.
+   * The old manual status, its line of why, and who set it when
+   * (`drizzle/0117_project_more_for_projects.sql`). Kept as history since
+   * 19 Oct 2026, when the status became the late-task one below; nothing
+   * writes it any more.
    */
   health: varchar("health", { length: 16 }).$type<ProjectHealth>(),
   healthNote: varchar("health_note", { length: 200 }),
@@ -167,6 +169,19 @@ export const projectProjects = pgTable("project_projects", {
   client: varchar("client", { length: 60 }),
   /** Everyone on the team is a member, people who join later included. */
   wholeTeam: boolean("whole_team").notNull().default(false),
+  /**
+   * The banner behind the top of the project page's left panel and the round
+   * avatar at its foot (`drizzle/0121_project_pictures.sql`). Media library
+   * addresses, or null for none.
+   */
+  bannerUrl: text("banner_url"),
+  avatarUrl: text("avatar_url"),
+  /**
+   * The status from late tasks: Slowing down from this many, Behind from
+   * `behindAt` (`drizzle/0122_project_pace_rule.sql`, `lib/project/project-pace.ts`).
+   */
+  slowingAt: smallint("slowing_at").notNull().default(1),
+  behindAt: smallint("behind_at").notNull().default(3),
 })
 
 /** A project's milestones: when a set of its tasks must be finished. */

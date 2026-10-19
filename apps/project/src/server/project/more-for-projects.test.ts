@@ -13,7 +13,6 @@ import {
   setTaskMilestone,
   updateMilestone,
 } from "@/server/project/milestones"
-import { loadProjectActivity } from "@/server/project/project-activity"
 import {
   addProjectMember,
   copyProject,
@@ -21,19 +20,16 @@ import {
   loadProjectPage,
   loadProjectsPage,
   removeProjectMember,
-  setProjectArchived,
   setProjectClient,
-  setProjectHealth,
   setProjectLead,
   setWholeTeam,
   updateProject,
 } from "@/server/project/projects"
 import { customShellNotifications } from "@/server/schema"
 import { projectNoticeLinks } from "@/server/project/schema"
-import { createSection } from "@/server/project/sections"
 import { followTask } from "@/server/project/task-followers"
 import { moveTask } from "@/server/project/task-changes"
-import { addStep, assignTask, createTask, loadTaskDetail, setTaskStatus, updateTask } from "@/server/project/tasks"
+import { addStep, assignTask, createTask, loadTaskDetail, setTaskStatus } from "@/server/project/tasks"
 import { removeTeamMember } from "@/server/project/teams"
 import { insertEmployee, joinTeam, projectFor, startTeam } from "@/server/project/test-people"
 import {
@@ -99,56 +95,40 @@ async function noticeKinds(userId: string) {
 const listRow = async (userId: string, projectId = website) =>
   (await loadProjectsPage(userId, database)).projects.find((row) => row.id === projectId)
 
-// A project's status is one of its settings, so the site admin alone sets it.
+// The status is worked out from late tasks by a rule the site admin sets (19 Oct 2026).
 describe("project status", () => {
-  it("shows nothing until set, then the status, its why, who and when", async () => {
-    expect((await listRow(anna.id))?.health).toBeNull()
-    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Client hasn't sent the photos" }, database)
-    const health = (await loadProjectPage(anna.id, website, database)).project.health
-    expect(health).toMatchObject({ value: "at_risk", note: "Client hasn't sent the photos", byName: "Tyler" })
-    expect(Date.parse(health!.at)).not.toBeNaN()
-    expect((await listRow(carla.id))?.health?.value).toBe("at_risk")
+  it("starts at 1 and 3 late tasks, and the Projects table gets each open dated task to count", async () => {
+    expect((await loadProjectPage(anna.id, website, database)).project).toMatchObject({ slowingAt: 1, behindAt: 3 })
+    const dated = async (title: string, dueDate: string) =>
+      (
+        await createTask(
+          actor(anna),
+          { projectId: website, title, notes: "", assigneeUserId: null, dueDate, steps: [] },
+          database
+        )
+      ).id
+    await dated("Late", "2020-01-02")
+    const finished = await dated("Done long ago", "2020-01-03")
+    await setTaskStatus(actor(anna), { taskId: finished, status: "done", stuckReason: null }, database)
+    await dated("Next year", "2099-01-01")
+    await task("No date")
+    const row = await listRow(anna.id)
+    expect(row).toMatchObject({ slowingAt: 1, behindAt: 3 })
+    // Done, undated and far-off tasks can't be late, so they aren't sent.
+    expect(row?.dated).toEqual([{ dueDate: "2020-01-02", dueAt: null, status: "todo" }])
   })
 
-  it("needs a line of why for At risk and Off track, but not On track", async () => {
-    await expect(
-      setProjectHealth(admin.id, { projectId: website, health: "off_track", note: "" }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.healthNeedsNote)
-    await setProjectHealth(admin.id, { projectId: website, health: "on_track", note: "" }, database)
-    expect((await listRow(anna.id))?.health).toMatchObject({ value: "on_track", note: "" })
-  })
-
-  it("writes each change on the Activity tab, taking it off included", async () => {
-    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Late photos" }, database)
-    await setProjectHealth(admin.id, { projectId: website, health: null, note: "" }, database)
-    const entries = (await loadProjectActivity(anna.id, { projectId: website }, database)).entries
-    expect(entries.map((entry) => entry.kind === "health_set" && [entry.health, entry.note])).toEqual([
-      [null, null],
-      ["at_risk", "Late photos"],
-    ])
-    expect((await listRow(anna.id))?.health).toBeNull()
-  })
-
-  it("is the site admin's alone, the project's lead included", async () => {
-    await setProjectLead(admin.id, { projectId: website, userId: carla.id }, database)
-    for (const person of [ben, carla]) {
-      await expect(
-        setProjectHealth(person.id, { projectId: website, health: "on_track", note: "" }, database)
-      ).rejects.toThrow(PROJECT_ERRORS.onlySiteAdminSettings)
-      expect((await loadProjectPage(person.id, website, database)).project.canSetHealth).toBe(false)
-    }
-    expect((await loadProjectPage(admin.id, website, database)).project.canSetHealth).toBe(true)
-    await setProjectHealth(admin.id, { projectId: website, health: "off_track", note: "Budget gone" }, database)
-    expect((await listRow(anna.id))?.health?.byName).toBe("Tyler")
-  })
-
-  it("stays on an archived project, which can't change it", async () => {
-    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Late photos" }, database)
-    await setProjectArchived(admin.id, website, true, database)
-    expect((await listRow(anna.id))?.health?.value).toBe("at_risk")
-    await expect(
-      setProjectHealth(admin.id, { projectId: website, health: "on_track", note: "" }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.projectArchived)
+  it("is the site admin's to set, and Behind can't start below Slowing down", async () => {
+    await expect(updateProject(anna.id, { projectId: website, slowingAt: 2 }, database)).rejects.toThrow(
+      PROJECT_ERRORS.onlySiteAdminSettings
+    )
+    await expect(updateProject(admin.id, { projectId: website, slowingAt: 4 }, database)).rejects.toThrow(
+      PROJECT_ERRORS.behindBeforeSlowing
+    )
+    // The same number for both is allowed: Slowing down then never shows.
+    await updateProject(admin.id, { projectId: website, slowingAt: 3 }, database)
+    await updateProject(admin.id, { projectId: website, slowingAt: 5, behindAt: 8 }, database)
+    expect((await listRow(carla.id))).toMatchObject({ slowingAt: 5, behindAt: 8 })
   })
 })
 
@@ -228,6 +208,19 @@ describe("milestones", () => {
     await setTaskMilestone(anna.id, { taskId: logo, milestoneId: here.id }, database)
     await moveTask(actor(anna), { taskId: logo, projectId: office }, database)
     expect((await loadTaskDetail(anna.id, logo, database)).milestoneId).toBeNull()
+  })
+
+  it("can be picked in New task, only the task's own project's", async () => {
+    // Tyler, 19 Oct 2026: "Add the milestone selection here", in New task's dropdown.
+    const office = (await projectFor(admin, anna.id, { name: "Office", color: "blue", description: "" }, database)).id
+    const elsewhere = await createMilestone(anna.id, { projectId: office, name: "Move in", dueDate: null }, database)
+    const here = await createMilestone(anna.id, { projectId: website, name: "Design", dueDate: null }, database)
+    const base = { projectId: website, notes: "", assigneeUserId: null, dueDate: null, steps: [] }
+    await expect(
+      createTask(actor(anna), { ...base, title: "Wrong one", milestoneId: elsewhere.id }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.milestoneNotFound)
+    const { id } = await createTask(actor(anna), { ...base, title: "Logo", milestoneId: here.id }, database)
+    expect((await loadTaskDetail(anna.id, id, database)).milestoneId).toBe(here.id)
   })
 
   it("can't be reached from outside the project", async () => {
@@ -310,11 +303,9 @@ describe("whole-team projects", () => {
 
 describe("project templates", () => {
   it("saves a plan that never shows as a project and starts new ones like Copy project", async () => {
-    const design = await createSection(admin.id, { projectId: website, name: "Design" }, database)
     const signedOff = await createMilestone(ben.id, { projectId: website, name: "Signed off", dueDate: "2026-11-15" }, database)
     const label = await createLabel(ben.id, { name: "Client", color: "pink" }, database)
     const logo = await task("Logo")
-    await updateTask(actor(anna), { taskId: logo, sectionId: design.id }, database)
     await assignTask(actor(anna), { taskId: logo, assigneeUserId: ben.id }, database)
     await setTaskMilestone(ben.id, { taskId: logo, milestoneId: signedOff.id }, database)
     await setTaskLabels(ben.id, { taskId: logo, labelIds: [label.id] }, database)
@@ -337,11 +328,8 @@ describe("project templates", () => {
     )
     const page = await loadProjectPage(carla.id, started.id, database)
     expect(page.project).toMatchObject({ color: "pink", description: "Hart Dental's site" })
-    expect(page.sections.map((s) => s.name)).toEqual(["Design"])
     expect(page.milestones).toMatchObject([{ name: "Signed off", dueDate: null, total: 1 }])
-    expect(page.tasks.map((t) => [t.title, t.status, t.assignee, t.section?.name])).toEqual([
-      ["Logo", "todo", null, "Design"],
-    ])
+    expect(page.tasks.map((t) => [t.title, t.status, t.assignee])).toEqual([["Logo", "todo", null]])
     const detail = await loadTaskDetail(carla.id, page.tasks[0].id, database)
     expect(detail.steps.map((s) => [s.text, s.done])).toEqual([["Sketch", false]])
     expect(detail.task.labels.map((l) => l.name)).toEqual(["Client"])

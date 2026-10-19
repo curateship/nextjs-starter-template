@@ -22,7 +22,7 @@ import { TaskCalendar } from "@/components/project/task-calendar"
 import { TaskTimeline } from "@/components/project/task-timeline"
 import { PersonAvatar, TintChip } from "@/components/project/task-bits"
 import { TaskFilterPopover } from "@/components/project/task-filter-popover"
-import { DueFilterMenu, SearchToggle, UnderlineTabs } from "@/components/project/task-header-controls"
+import { SearchToggle, UnderlineTabs } from "@/components/project/task-header-controls"
 import { TaskSidePanel } from "@/components/project/task-side-panel"
 import { TeamStart } from "@/components/project/team-start"
 import { ThreePanels } from "@/components/project/three-panels"
@@ -82,7 +82,7 @@ export type MyDashboardSearch = Omit<TaskFilters, "person"> & {
   checkout?: true
 }
 
-const MY_VIEWS = ["board", "list", "calendar", "timeline"] as const
+const MY_VIEWS = ["list", "board", "calendar", "timeline"] as const
 type MyView = (typeof MY_VIEWS)[number]
 
 /**
@@ -533,21 +533,20 @@ function MyTasksPanel({
   return (
     <>
       {/* The project page's header, copied here (Tyler, 14 Oct 2026): underlined tabs,
-          then when it is due, search, Filter, Views and New task. No members
+          then search, Filter, Views and New task. No members
           dropdown, since every task here is mine. */}
       <DashboardCardHeader className="@container">
         <UnderlineTabs
           value={view}
           onValueChange={(value) => setView(value as MyView)}
           tabs={[
-            { value: "board", label: "Board" },
             { value: "list", label: "List" },
+            { value: "board", label: "Board" },
             { value: "calendar", label: "Calendar" },
             { value: "timeline", label: "Timeline" },
           ]}
         />
         <div className="flex shrink-0 items-center gap-1">
-          <DueFilterMenu value={filters.due} onChange={(due) => onFilters({ due })} />
           <SearchToggle value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
           <TaskFilterPopover
             filters={filters}
@@ -650,7 +649,7 @@ function MyTasksPanel({
         <TaskTimeline
           tasks={shown}
           groups={projects.length > 1 ? projects : undefined}
-          groupOf={(task) => task.projectId}
+          groupsOf={(task) => [task.projectId]}
           readOnly={busy}
           onOpenTask={onOpenTask}
           onDates={(task, dates) => void changeDates(task, dates)}

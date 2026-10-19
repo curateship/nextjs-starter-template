@@ -23,11 +23,11 @@
 - **A project's settings are the site admin's alone** (Tyler, 16 Oct 2026:
   "Employees dont even see the settings cog or page. Only admin see it"):
   the name, colour, description, due date, Doing limit, client, members,
-  lead, "Everyone on the team", status, sections, task types, Save as
+  lead, "Everyone on the team", status rule, task types, Save as
   template and Archive. Employees see no cog, and the server refuses each
   one: "Only the site admin changes a project's settings."
   (`requireProjectSettings` in `src/server/project/access.ts`). A person's
-  own "Just me" list keeps its sections in their hands.
+  own "Just me" list keeps its settings in their hands.
 - **Everyone on a project works in it**: tasks, steps, milestones, chat and
   files. A task type's field can be limited to the person assigned or to
   whoever handed the task out (Tyler, 11 Oct 2026; see
@@ -57,11 +57,22 @@
 
 ## Copying, due dates and progress
 
+- **The Projects table's columns** are Project, Team (site admin only),
+  Progress, Status, Lead, Open tasks and Actions. Tyler took off the Stuck
+  and Members columns on 19 Oct 2026.
+- **A Projects row's actions**, for the site admin: the pin, Copy, Archive
+  (or Bring back), then a cog that opens the project's settings over the
+  table, the same window as the project page's cog (Tyler, 19 Oct 2026:
+  "there should be a cog icon to open up setting"). The open project is kept
+  in the address as `?settings=<id>`, so a save shows at once and Escape or
+  Done takes it away. The cog spins until the window has loaded. An employee
+  sees only the pin, and a "Just me" list has no cog.
+
 - **Copy project**, from the copy button on a Projects row (the project
   page has none, Tyler's choice, 11 Oct 2026), asks for a new name, starting as "Copy of Website launch", selected,
   so typing replaces it and Copy project works at once. It makes a project
   from the old one: its
-  description, colour, sections, milestones (with no dates) and every task
+  description, colour, milestones (with no dates) and every task
   not in the bin, in the same order, with their labels, milestone, steps
   (unticked), types and field values, and the project's own pick of task
   types. The status, lead and client stay behind. Every task starts To do with
@@ -72,55 +83,57 @@
 - **A project's due date** sits in Project settings (the cog) and saves the
   moment one is picked (Tyler, 11 Oct 2026: "the due date should be in the
   settings cog"). Clear takes it off.
-- **Progress** reads "14 of 20 done" with a bar and "Due Nov 30" under it, in
-  the Projects table's Progress column. The project page's details panel has
-  no task counts (Tyler removed them 11 Oct 2026). Done counts Done tasks;
-  To do, Doing and Stuck are open; tasks in the bin don't count. Once the date
-  passes with tasks still open it reads "Overdue" in red.
+- **Progress** reads "14 of 20 done" with a bar, in the Projects table's
+  Progress column. The project's due date sat under it until Tyler took it
+  off on 19 Oct 2026; it is still set in Project settings. The project page's
+  details panel has no task counts (Tyler removed them 11 Oct 2026). Done
+  counts Done tasks; To do, Doing and Stuck are open; tasks in the bin don't
+  count.
 
 ## Project status
 
-So anyone scanning the Projects table sees which jobs are in trouble, and why.
+So anyone scanning the Projects table sees which jobs are falling behind,
+worked out from the tasks rather than typed in. Tyler, 19 Oct 2026: "Add an
+automated status here that if there's a certain amount of tasks past due date
+then give it a status like 'reddot Behind' or '(green) On track' and remove
+this manual status feature", and "Let me setup what constitute certain status
+like behind, on track or slowing down."
 
-- **On track, At risk or Off track**, with one line of why, such as "Client
-  hasn't sent the photos". At risk and Off track need the line; On track
-  doesn't. "No status" takes it off. In the code it is called `health`, so
-  it never mixes with a task's four statuses.
-- **The date always shows.** Under the status: "Set by Priya, 2 days ago",
-  with the exact time on hover, because a status nobody has touched for weeks
-  shouldn't read as today's.
-- **Where it shows:** in a folding Status card at the bottom of the project
-  page's details panel, and in the Projects table's Status column, where it
-  is the status with an "i" beside it; the reason and "Set by" are in the
-  "i"'s tooltip, so the row stays one line (Tyler, 16 Oct 2026). The
-  card's heading reads "Status  ● At risk", with a gap and no dot between,
-  so a folded card still says it. Its cog shows only while the card is
-  pointed at and opens a dropdown, not a window (Tyler, 15 Oct 2026). Sorting by Status puts
-  Off track first, then At risk, On track and no status. A project with no
-  status shows nothing in the column. On the panel, the card shows only to
-  someone who can set a status, saying "No status yet".
-- **Who sets it.** The site admin alone, since a status is one of the
-  project's settings (Tyler, 16 Oct 2026). Before that the lead set it. A
-  "Just me" list has no status.
-- **Each change is a line on the Activity tab**: "Priya set the project's
-  status to At risk: Client hasn't sent the photos", or "took the project's
-  status off". These lines have no task to open.
-- **Everyone on the project hears it in the bell** when it goes At risk or
-  Off track, and again when it goes back to On track or the status is taken
-  off (Tyler, 16 Oct 2026): "Sam marked a project At risk", with "Website:
-  Client hasn't sent the photos" under it, opening the project. Whoever set
-  it isn't told. Saying the same status again tells nobody, and nor does On
-  track set where there was no status. A whole-team project tells the whole
-  team. Within an hour, a new change replaces the earlier row in each
-  person's bell, so a status set and taken back by mistake never stacks up.
-  Each person can switch it off ("Changed a project's status").
-- **An archived project keeps its last status**, and it can't change until
-  the project is brought back.
-- **Saved** in `project_projects.health`, `health_note`, `health_by_user_id`
-  and `health_at`, and each change in `project_project_events`
-  (`drizzle/0117_project_more_for_projects.sql`). The rule is
-  `setProjectHealth` in `src/server/project/projects.ts`; the screens are in
-  `project-health.tsx`.
+- **Three statuses from late tasks.** On track (green), Slowing down (amber)
+  and Behind (red). A late task is one that isn't Done and whose due date, or
+  "Due by" time, has passed: the same tasks whose due date shows in red.
+- **The site admin sets the numbers per project** in Project settings'
+  Status card: "Slowing down from" and "Behind from", in late tasks, side by
+  side at their own width. They
+  start at 1 and 3, so 0 late is On track, 1 or 2 is Slowing down and 3 or
+  more is Behind. Each is a whole number from 1 to 99 and saves when its box
+  is left. Behind can't start below Slowing down ("Behind has to start at the
+  same number of late tasks as Slowing down, or more."); the two may match,
+  and then Slowing down never shows.
+- **Where it shows:** under the project's name beside its avatar on the left
+  panel, or as a "Status" line beside the lead when there is no avatar, and
+  in the Projects table's Status column: "● Behind · 3 late". The count is
+  left off while nothing is late. Sorting by Status puts Behind first, then
+  the most late tasks. A "Just me" list has no status.
+- **Counted on the reader's own clock**, in the browser, the same way as the
+  red due dates, so the two never disagree. The Projects table is sent each
+  project's open tasks due by tomorrow in UTC, since no later one can be late
+  for anyone yet.
+- **Nobody is told when it changes** (Tyler's choice, 19 Oct 2026). The
+  "Changed a project's status" notice switch is gone from My settings; a
+  choice already saved for it is kept, unread.
+- **The old manual status is history.** Until 19 Oct 2026 the site admin set
+  On track, At risk or Off track with a line of why, and everyone on the
+  project heard it in the bell. Those values stay saved in
+  `project_projects.health`, `health_note`, `health_by_user_id` and
+  `health_at` (`drizzle/0117_project_more_for_projects.sql`), nothing writes
+  them any more, and nothing shows them. The Activity tab still lists the old
+  changes ("Priya set the project's status to At risk"), and old notices
+  stay in the bell.
+- **Saved** in `project_projects.slowing_at` and `behind_at`
+  (`drizzle/0122_project_pace_rule.sql`). The rule is
+  `src/lib/project/project-pace.ts`, where it is called "pace" so it never
+  mixes with the old status or a task's; the mark is `project-pace.tsx`.
 
 ## The lead
 
@@ -143,6 +156,9 @@ So every project has one person answerable for it.
 
 So a long project shows whether it's on time well before its end date.
 
+- **No tooltips on the Milestones card**, on its "+" or on each milestone's
+  cog (Tyler, 19 Oct 2026: "Remove all the tooltips in status and milestone
+  left panel"). The buttons still carry their names for screen readers.
 - **A name and a date**, such as "Design signed off, Nov 15", in a folding
   Milestones card at the bottom of the details panel, under Status (Tyler,
   15 Oct 2026), soonest first and the ones with no date last. The "+" in the
@@ -180,9 +196,9 @@ So a long project shows whether it's on time well before its end date.
   in `src/server/project/reminder-jobs.ts`.
 - **Copy project and templates** copy milestones with no date, the same rule
   as tasks, and keep which tasks belong to each.
-- **A milestone is not a section.** A section is where a task sits; a
-  milestone is when a set of tasks must be finished (see
-  [Labels and sections](labels-and-sections.md)).
+- **A milestone is not a tag.** A tag says what a task is; a milestone is
+  when a set of tasks must be finished (see
+  [Tags and groups](tags-and-groups.md)).
 - **Saved** in `project_milestones` and `project_tasks.milestone_id`. Rules
   in `src/server/project/milestones.ts`; the panel's list is
   `project-milestones.tsx`.
@@ -221,7 +237,7 @@ So a team that runs the same kind of job starts each one in a click.
 
 - **"Save as template"** in Project settings, beside Archive, asks for a name
   (the project's own, selected) and keeps the project's plan: its colour,
-  description, sections, milestones, tasks with their steps, labels, type,
+  description, milestones, tasks with their steps, tags, type,
   field values and priority, and its pick of task types. That is what Copy
   project carries (Tyler, 15 Oct 2026).
 - **A template is a copy taken when it was saved**, so changing the project
@@ -256,35 +272,63 @@ members moved to the left. On 14 Oct 2026 he redrew the tasks panel's header
 (`assets/pasted-image-1792006703561170000.png`) and moved picking whose tasks
 show out of the left panel and into that header.
 
-- **Left: details.** From the top: "Description" as a small capital heading,
-  the lead and the client, then the Status card (see Project status) and the
-  Milestones card at the bottom. The two cards fold, and each remembers in this browser
-  whether it was left open. Tyler took Save as template off this panel on
-  15 Oct 2026; it is in Project settings. The star in the header stars the project for me
-  (see Stars below). The cog opens Project settings, a window with the name,
+- **Left: details.** From the top: the project's avatar, if it has one, with
+  the name, client and status beside it, then
+  "Description" as a small capital heading,
+  the status (when there is no avatar), the lead and the client, then the
+  Milestones card at the bottom, which folds and remembers in this browser
+  whether it was left open. The Status card that was here went with the
+  manual status on 19 Oct 2026 (see Project status). Tyler took Save as template off this panel on
+  15 Oct 2026; it is in Project settings. The pin in the header pins the project for me
+  (see Pins below). The cog opens Project settings, a window with the name,
   colour, description, client, due date, Doing limit, Everyone on the team,
-  Save as template, Archive, its members and its sections. Tyler, 10 Oct 2026: "add a
+  Save as template, Archive, its status rule, its pictures, its members and its task types. Tyler, 10 Oct 2026: "add a
   cog icon here and put all the project settings there". Each field saves when
-  it is left, and the colour and due date the moment they are picked, so the window ends with
-  Done. Closing it with Escape or a click outside saves the field being typed
+  it is left, and the colour, due date and pictures the moment they are picked, so the window ends with
+  Done. Each card in the window (Project, Status, Pictures, Members, Task types) folds shut from its heading, with an arrow that shows on hover, and
+  stays as it was left in this browser (Tyler, 19 Oct 2026). Members' "+ Invite"
+  sits under the list rather than in the heading, since the heading folds the card. Closing it with Escape or a click outside saves the field being typed
   in too. The Members card lists each member with their job title and how
   many open tasks they have, with leave or remove at the row's end. "+ Invite"
   lists teammates not yet on the project, and for the site admin ends
   with "Invite someone new to the team", the team's invite window.
-- **Middle: tasks.** Board, List, Calendar and Timeline tabs, then More, which
+- **The project's pictures.** Project settings' Pictures card holds a Banner
+  and an Avatar, each picked from the media library and taken away with its ×
+  (Tyler, 19 Oct 2026). The two boxes sit side by side at the shell's own
+  sizes for a picture field: the banner 192px wide like Share image, the
+  avatar an 80px square like the account Photo. The banner lies behind the top of the left panel, its
+  header included, drawn at 30 out of 100 strength and fading into the panel at
+  its foot, so the header's name, star and cog still read over it. The avatar
+  is a circle with a 2px white edge at the banner's foot with the project's
+  name and status beside it. The client is always under its own CLIENT
+  heading beside Lead (Tyler, 19 Oct 2026: "the client name should be here"). With neither
+  picture the panel looks as it did before. Like the team's pictures, each
+  must be one the site admin uploaded to the media library, or it is refused
+  with "Pick a photo you uploaded yourself.", so a project can't point at an
+  outside address. A picture whose address stops loading is left out rather
+  than drawn broken. A "Just me" list has no pictures. Saved in
+  `project_projects.banner_url` and `avatar_url` (migration 0121).
+- **Middle: tasks.** List, Board, Calendar and Timeline tabs, then More, which
   holds Activity, Files, Chat and the Bin. While Activity, Files or Chat
   shows, More wears its name. The tabs are words with a line under the one
   showing, sitting on the header's bottom edge, as Tyler drew them on 14 Oct
   2026. Everywhere else the UI rules' grey pills stay; this header is the one
   exception, by his choice. The Board has one column per status, each
   headed by the status's dot (To do yellow, Doing blue, Done green, Stuck
-  red), as tall as its cards. The List has the same tasks in rows, grouped
-  under the project's sections when it has any. Its tick boxes and drag
+  red), as tall as its cards. The List has the same tasks in rows, under
+  the headings picked in Filter's Group row, or none (see
+  [Tags and groups](tags-and-groups.md#group)). Its tick boxes and drag
   handles stay hidden until a small "Mass select" chip is pressed. The chip
   appears beside the Task heading's sort arrow when the pointer is over that
   heading, and always on a phone, which has no pointer to hover. While it is on it stays shown and reads "Hide select", which
   hides the tick boxes and handles again and clears the ticks (Tyler, 19 Oct 2026). Each visit starts with them hidden, and someone who
-  can only read the project never sees the chip. Each row's Actions holds the cog,
+  can only read the project never sees the chip. The table's first column
+  starts 16px in, under the List tab's word, and its last column ends 12px
+  in, level with New task, so it lines up with the header (Tyler, 19 Oct
+  2026). On each row, a status dot
+  before the title and the Status, Priority, Assigned to and Due cells each
+  open a dropdown that changes that one thing (Tyler, 19 Oct 2026; see
+  Changing tasks). Each row's Actions holds the cog,
   which opens the task, and a bin that deletes it after asking, the same as
   the Board card's Delete. The bin shows only on tasks I made, or on every
   task for whoever runs the team. The Calendar shows due dates
@@ -292,8 +336,9 @@ show out of the left panel and into that header.
   messages I haven't read says "3 new" on its card and row, and More and
   Chat say the same for the project's chat (see
   [Task chat](task-chat.md#new-messages)). The header's right end holds, in
-  order: the due-date dropdown ("All time"), the search as a magnifying
-  glass, Filter, Views, whose tasks show (the members' faces, with no
+  order (under a line drawn stronger than the app's other dividers, so it
+  shows against the List's grey header, Tyler, 19 Oct 2026): the search as a magnifying
+  glass, Filter (which holds the due date), Views, whose tasks show (the members' faces, with no
   background), and New task
   (see Search and filters below). Under 896px wide the dropdowns drop their
   words for their icons, and under 768px New task shows only its plus. A
@@ -318,8 +363,10 @@ show out of the left panel and into that header.
   A card drags between Board columns to change its status, and up or down
   to set the project's order. The Board and List change on their own when
   someone else changes a task (see [Task chat](task-chat.md#live-updates)).
-  The tab last used is remembered in this browser.
-- **A Board card** shows the title; the type, section and labels as small
+  The tab last used is remembered in this browser. A browser that has never
+  opened a project starts on List, the first tab (Tyler, 19 Oct 2026); one
+  that last showed the Board keeps showing the Board until another tab is picked.
+- **A Board card** shows the title; the type and tags as small
   tinted chips (a High priority mark first); "Date moved 5 times" as a
   yellow chip; a Stuck reason or a hand-back; then one line with the due
   date ("Oct 19 by 3:06 PM", or "Overdue · Oct 12" in red), steps as "0/2",
@@ -358,7 +405,7 @@ show out of the left panel and into that header.
 
 So whoever runs a project sees who is stuck and who is idle in one view.
 
-- **"Group by person"** is a switch in the Filter popover, on the Board only. On, the Board
+- **Group: Assigned to**, in Filter's Group row on the Board (the "Group by person" switch until 19 Oct 2026). On, the Board
   has one row per member of the project, then "Nobody assigned", each with
   the four status columns. The choice is remembered in this browser. A "Just
   me" list has no switch.
@@ -416,7 +463,7 @@ So the site admin sees how a project's work overlaps over the coming weeks.
   move two weeks, and Today comes back. Weekends are shaded and today is
   marked.
 - **Only a task with both dates is a bar**, from its start day to its due
-  date, under the project's sections like the List. A task missing either
+  date, under the headings of Filter's Group row like the List. A task missing either
   one stays off the Timeline (Tyler, 13 Oct 2026). The bar is in its status colour and says its status and who has
   it; a one-day bar is too short for words, so its label carries them. A
   task outside the six weeks shows its dates at the edge with an arrow.
@@ -539,10 +586,11 @@ goes, so it no longer ends up on whatever task was open.
   looks through each task's title and notes, every word typed, whatever its
   capitals. It doesn't look inside a task type's fields. The box stays open
   while it holds words; Escape empties and closes it. Filter opens a popover
-  with Status, Priority, Label and Type, which narrow the Board, List,
-  Calendar and Timeline at once, then Group by person, then Clear and Save as
+  with Status, Priority, Due, Tags and Type, which narrow the Board, List,
+  Calendar and Timeline at once, then Group (see
+  [Tags and groups](tags-and-groups.md#group)), then Clear and Save as
   view. Filter counts the filters set, "Filter 2", and Clear leaves the
-  header's own two dropdowns alone. Save as view with nothing picked
+  header's whose-tasks dropdown alone. Save as view with nothing picked
   says "Search or pick a filter first, then save it as a view." A search that
   finds nothing says so.
 - **Whose tasks show** is the dropdown with the members' faces: All members
@@ -550,8 +598,9 @@ goes, so it no longer ends up on whatever task was open.
   tasks ("Designer · 3 open tasks"), and Unassigned. The button shows the one picked.
   A "Just me" list has none. A link naming someone who has left the project
   keeps filtering and reads "Someone no longer on the project".
-- **The due-date dropdown** is All time, Overdue, Today, This week, Next
-  week and No date, on the reader's own clock. This week is today and the
+- **Due**, in Filter, is Any time, Overdue, Today, This week, Next
+  week and No date. It was a dropdown of its own in the header until Tyler
+  moved it into Filter on 19 Oct 2026. It works on the reader's own clock. This week is today and the
   six days after it; Next week is the seven after those. Overdue leaves out
   Done tasks and counts a task due today by a time that has passed, the same
   as the red date on a card. A saved view keeps it.
@@ -564,16 +613,23 @@ goes, so it no longer ends up on whatever task was open.
   every task. A task's finish time is saved when it becomes Done
   (`completed_at`) and cleared when it leaves Done. Tasks finished before
   10 Oct 2026 have none, and count as older.
-- **Labels, sections and the shared order** are in
-  [Labels and sections](labels-and-sections.md).
+- **Tags, the Group row and the shared order** are in
+  [Tags and groups](tags-and-groups.md).
 
-## Stars
+## Pins
 
-- **Each person stars their own projects**, from the star on the Projects
-  table's row or on the project page's details panel. Nobody else sees them.
-- **Starred projects sit first** on the Projects page, whatever the table is
+- **Each person pins their own projects**, from the pin on the Projects
+  table's row or in the project page's left panel header. Nobody else sees
+  them. It was a star until Tyler renamed it on 19 Oct 2026 ("That should be
+  pinned"); every star became a pin, and the code and database still call it
+  a star (`project_project_stars`, `starProject`).
+- **A pinned project is yellow**: the pin itself, and its whole row on the
+  Projects table (Tyler, 19 Oct 2026: "pinned stays yellow and add a yellow
+  backgrounded to pinned row"). The pin is also filled, so it never relies on
+  colour alone. The button is `pin-button.tsx`.
+- **Pinned projects sit first** on the Projects page, whatever the table is
   sorted by.
-- **Leaving a project takes its star off**, and so does leaving the team.
+- **Leaving a project takes its pin off**, and so does leaving the team.
 
 ## Opening a task
 
@@ -616,7 +672,10 @@ Neither puts a window over the page.
   appears. Typing and then clicking away saves too, so nothing written is
   lost. The dropdown opens leftward from the button, 16px clear of the
   window's edge. The editor opens with a cursor at the end of the note, so
-  the formatting bar shows only once words are selected. While notes are being written,
+  the formatting bar shows only once words are selected. Double-clicking the
+  notes opens the editor too, without the cog (Tyler, 19 Oct 2026: "double
+  clicking on the note should let me edit it"); a double-click on a link in
+  the notes follows the link instead. While notes are being written,
   Done sits at the right of the Notes card's footer whatever the cog says,
   under the notes, so the formatting bar over the first line never covers
   it.
@@ -639,7 +698,7 @@ Neither puts a window over the page.
   it is for and its fields one per row. Person ("Admin", or "· waiting")
   holds Assigned to, the hand-over note and Hand back; Dates ("Oct 14 to Oct
   23") holds Start day, Due date and Due by; Priority and type ("Normal ·
-  Video editing · 2 labels") holds Priority, Type, Section and Labels; Needs
+  Video editing") holds Priority and Type, the tags being under the title; Needs
   review is a tick box with nothing to open; then the task type's own fields
   ("3 fields"), and Plan ("Repeats · Reminder set", or "Nothing set") with
   repeat, snooze, waiting on and my reminder. Each card starts shut and
@@ -736,9 +795,11 @@ Neither puts a window over the page.
     days are new. A time can't be set on a task with no due date, and has to
     fall within a day of the date: "Pick a due date first, then the time
     it's due by." New task has no time field; add the time in the task.
-- **"Date moved 3 times"** shows beside the due date of a task not Done
-  whose date has moved from one day to another 3 or more times, on the task,
-  Board cards and List rows. Setting a first date or clearing one isn't a
+- **"Date moved 3 times"** shows on a task not Done whose date has moved
+  from one day to another 3 or more times: on the task, on Board cards, and
+  on List rows among the chips after the task's name. It sat beside the
+  date in the List's Due column until 19 Oct 2026, when it spilled into the
+  next column, which is 176px wide. Setting a first date or clearing one isn't a
   move, and the mark goes when the task is Done. Each move is in the task's
   History (see [History](history.md)). A date this year reads "Nov 30", and the year shows only for
   another year ("Jan 4, 2027"); snooze dates and time off read the same way.
@@ -750,12 +811,33 @@ Neither puts a window over the page.
   starting steps and notes and asks for its fields that are needed when made
   (see [Task types](task-types.md)).
 - **New task opens a dropdown**, not a window (Tyler, 14 Oct 2026): the
-  title, who it is for (me, when I'm on the project) and a due date. Enter or
-  Create task makes it, with the project's own type and that type's steps
-  and notes. "More options" opens the full New task window with what was
-  typed. So does a type that needs fields filled in when it is made (the
-  dropdown says so and its button reads Continue), and so does pasting
-  several lines. Clicking away keeps what was typed for the next opening.
+  title, who it is for (me, when I'm on the project), a due date, then
+  Status, Priority and, on a project's page, Milestone and Tags (Tyler,
+  19 Oct 2026: "there should be a way to add tags here as well as priority
+  and status", and "Add the milestone selection here"). Milestone lists the
+  project's milestones and No milestone, and shows only when the project has
+  one. A long name in Assigned to is cut with "…" rather than pushing into
+  Due date.
+  Tags work as under a task's title: type and press Enter for a pill with an
+  ×; a new name becomes the team's tag when the task is made. Enter in the
+  title or Create task makes it, with the project's own type and that type's
+  steps and notes, and with its priority and tags in the same save. Picking
+  Stuck asks why. There is no "More options" (Tyler, 19 Oct 2026: "we dont
+  need the 'more option' to open up a modal. Just keep it all in the
+  dropdown"). The full New task window, which has the same fields, still
+  opens on its own for a type that needs fields filled in when it is made
+  (the dropdown says so and its button reads Continue) and for pasting
+  several lines. Clicking away keeps the title typed for the next opening;
+  the rest starts again from where it was opened.
+- **A "+" on each List heading** starts a task in that group (Tyler, 19 Oct
+  2026: "if I hover over the sort parent there should be a '+' icon for me to
+  add a task that will slot into that sort"). It shows while the heading is
+  pointed at, and always on a phone. Under Doing it starts on Doing; under a
+  tag, with that tag; under a person, given to them; under a type, of that
+  type; under High, on High; under Today, due today; under a "No ..."
+  heading, with none. Overdue, Earlier, This week and Later have no "+",
+  since a new task can't be made late and those name no one day. The rule is
+  `startInGroup` in `project-tasks-panel.tsx`.
 - **New task in the header**, on every page. It opens the same dropdown with
   a Project picker. On a project's page it starts on that
   project; anywhere else, or on an archived project, on the last project used
@@ -769,7 +851,7 @@ Neither puts a window over the page.
   lines into one title instead. Pasted tasks are made without a type (Tyler's
   choice, 11 Oct 2026), and the window says "Pick their type one by one."
 - **Duplicate**, from the task's "More" menu, makes "<title> (copy)" in the
-  same project and section, with its notes, labels, steps (unticked), type
+  same project, with its notes, tags, steps (unticked), type
   and field values, To do and nobody assigned. The chat, history and files
   stay with the original, so a File field starts empty.
   The copy opens straight away.
@@ -777,7 +859,7 @@ Neither puts a window over the page.
 ### Changing tasks
 
 - **Many at once.** With Mass select on, ticking rows on a project's List tab
-  puts a "3 selected" button in the header, left of All time, with a rainbow
+  puts a "3 selected" button in the header, left of the search, with a rainbow
   running round its edge so the eye finds it (Tyler, 19 Oct 2026; it holds
   still when the device asks for less motion). Its dropdown holds Mark Done,
   Status, Hand to (with one optional note for all of them), Due date and Move
@@ -792,6 +874,22 @@ Neither puts a window over the page.
   alone. The result says "5 tasks changed, 1 refused." naming up to three
   refused tasks with their reasons, and "2 tasks unassigned." when handed to
   Nobody.
+- **One at a time, from the List.** The status dot before a title and the
+  Status cell both open To do, Doing, Done and Stuck, each with its dot; the
+  Assigned to (a face and name), Due (red-edged when overdue) and Steps ("1
+  of 4") cells are chips too, like Status (Tyler, 19 Oct 2026: "the assigned
+  to, due date and steps should also be chip ui"); Assigned to is at least
+  160px wide so a full name shows. The
+  Priority cell, where every priority is a chip (Normal and Low muted, High
+  with its up arrow; Tyler, 19 Oct 2026: "normal should be a chip too"),
+  opens Low, Normal and High; Assigned to opens Nobody and the
+  project's members; Due opens No due date, the quick days and the month
+  (Tyler, 19 Oct 2026). Each saves as the task's own panel does: Stuck asks
+  "Why is it stuck?" first, giving the task to someone other than me asks for
+  an optional note and waits for them to accept, and a refusal, such as Done
+  with a field still empty, says why and leaves the cell as it was. Picking
+  inside one of these never opens the task; clicking the title still does. An
+  archived project's cells don't open. The pieces are `task-cell-menus.tsx`.
 - **Pick a date…** in the bulk Due date opens the calendar at once. Escape or
   a click outside brings the menu back.
 - **Stuck says so, wherever it's set.** "Marked Stuck." from the task and from
@@ -805,8 +903,7 @@ Neither puts a window over the page.
   out, it says "You're not on any other project." If
   the person assigned isn't on the new one, the card says so and the task
   moves with nobody assigned (and their name kept). Steps, chat, files,
-  labels, type, field values and history go with it; the section stays
-  behind, since sections are one project's own. People on its steps who
+  tags, type, field values and history go with it. People on its steps who
   aren't on the new project come off them, and so does a Person field naming
   them. When the new project doesn't offer the task's type, the card says so
   and the task keeps it. Past check-in lines keep the old project, because that's where
@@ -1111,8 +1208,9 @@ Projects, Team and Task types to the members' menu and to each admin menu.
   Settings keeps it removed.
 - **My dashboard left the admins' menus** on 16 Oct 2026 (Tyler: "remove my
   dashboard from my menu"), by a pass of its own
-  (`workspace:<id>:no-my-dashboard`). The site admin has no tasks or
-  check-in, so the page only forwarded them to Team. The members' menu and
+  (`workspace:<id>:no-my-dashboard`). The site admin has no check-in, so
+  the page only forwarded them to Team, and it stays out of their menu even
+  now they can take tasks (Tyler, 19 Oct 2026: "I dont need my own dashboard"). The members' menu and
   the employee menu keep it.
 - **A link added later gets its own pass.** Task types (12 Oct 2026) went
   after Team in menus that already had the section, once each, with a marker
@@ -1125,7 +1223,7 @@ Projects, Team and Task types to the members' menu and to each admin menu.
 
 - **Tables:** `drizzle/0094_project_teams_projects_tasks.sql`, the chat's
   tags, followers and files in `drizzle/0097_project_task_chat_and_files.sql`,
-  labels, sections, the order, `completed_at` and stars in
+  tags (labels), the old sections, the order, `completed_at` and pins (stars) in
   `drizzle/0099_project_finding_and_sorting.sql`, and a step's person and date
   and the new history kinds in `drizzle/0100_project_making_and_changing.sql`,
   repeating, snoozing, waiting, "Just me" and the bin in
@@ -1135,7 +1233,7 @@ Projects, Team and Task types to the members' menu and to each admin menu.
   `project_task_reminders` and `project_step_lists` in
   `drizzle/0111_project_planning_tasks.sql`, described to the code in
   `src/server/project/schema.ts`. A task's `start_date` is in
-  `drizzle/0113_project_nine_features.sql`. A project's status, lead,
+  `drizzle/0113_project_nine_features.sql`. The old manual project status, the lead,
   client and "Everyone on the team", milestones, project events and
   templates are in `drizzle/0117_project_more_for_projects.sql`. The old single `waiting_on_task_id`
   column is still in the database, unread, until the move to

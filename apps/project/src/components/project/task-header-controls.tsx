@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Tabs as TabsPrimitive } from "radix-ui"
-import { CalendarIcon, CheckIcon, ChevronDownIcon, SearchIcon, UserIcon, UsersIcon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, SearchIcon, UserIcon, UsersIcon } from "lucide-react"
 
 import { PersonAvatar } from "@/components/project/task-bits"
 import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
@@ -14,7 +14,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ProjectMemberRow } from "@/lib/api/project/projects"
 import { plural } from "@/lib/format/plural"
-import { DUE_FILTERS, NOBODY_FILTER, type DueFilter } from "@/lib/project/task-filters"
+import { NOBODY_FILTER } from "@/lib/project/task-filters"
 import { cn } from "@/lib/utils"
 
 /**
@@ -69,41 +69,6 @@ export const UNDERLINE_TAB_CLASS = cn(
   "hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
   "data-[state=active]:border-foreground data-[state=active]:text-foreground"
 )
-
-const DUE_LABEL: Record<DueFilter, string> = Object.fromEntries(
-  DUE_FILTERS.map((option) => [option.key, option.label])
-) as Record<DueFilter, string>
-
-/** "All time" or one of the due-date filters, as the header's first dropdown. */
-export function DueFilterMenu({ value, onChange }: { value: DueFilter | undefined; onChange: (value: DueFilter | undefined) => void }) {
-  const label = value ? DUE_LABEL[value] : "All time"
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <DashboardToolbarButton
-          type="button"
-          variant="ghost"
-          aria-label={`Due date: ${label}`}
-          className={cn(value && "bg-muted text-foreground")}
-        >
-          <CalendarIcon className="size-4" />
-          <span className="@max-4xl:sr-only">{label}</span>
-          <ChevronDownIcon className="size-4 text-muted-foreground" />
-        </DashboardToolbarButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <CheckedItem checked={!value} onSelect={() => onChange(undefined)}>
-          All time
-        </CheckedItem>
-        {DUE_FILTERS.map((option) => (
-          <CheckedItem key={option.key} checked={value === option.key} onSelect={() => onChange(option.key)}>
-            {option.label}
-          </CheckedItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
 
 /**
  * The search as a magnifying glass that opens into the box. It stays open
@@ -254,15 +219,6 @@ function MemberItem({
         <span className="block truncate font-medium">{name}</span>
         <span className="block truncate text-xs text-muted-foreground">{detail}</span>
       </span>
-      {checked ? <CheckIcon className="size-4" /> : null}
-    </DropdownMenuItem>
-  )
-}
-
-function CheckedItem({ checked, onSelect, children }: { checked: boolean; onSelect: () => void; children: React.ReactNode }) {
-  return (
-    <DropdownMenuItem onSelect={onSelect} aria-checked={checked} role="menuitemcheckbox">
-      <span className="flex-1">{children}</span>
       {checked ? <CheckIcon className="size-4" /> : null}
     </DropdownMenuItem>
   )

@@ -20,8 +20,14 @@ two kinds of people, both ordinary shell accounts signing in on the one
 - **The site admin** runs every team without being on any. It is the shell's
   `admin` role. Tyler: "Im admin, I should be able to see everything" and
   "What tasks? if i only overseeas the team, why would I get tasks?" The site
-  admin is in no member list or count, has no tasks, no "Just me" list
-  and no check-in, and My dashboard sends them to the Team dashboard.
+  admin is in no member list or count, has no "Just me" list
+  and no check-in, and My dashboard sends them to the Team dashboard. They
+  can take a task on any project themselves without joining it (Tyler,
+  19 Oct 2026: "I should be able to assign myself (admin)"). They then show
+  as "Admin (you)" in Assigned to, the List's members dropdown and New task,
+  only to themselves; nobody else can hand them a task, and a task of theirs
+  moved to another project stays theirs. The rule is `requireAssignable` in
+  `src/server/project/tasks.ts`.
 
 ## Teams
 
@@ -71,7 +77,7 @@ two kinds of people, both ordinary shell accounts signing in on the one
   America/Toronto. The browser's zone and the team's sit at the top, and a
   saved zone the browser doesn't know is kept (`time-zone-select.tsx`).
 - **A wrong value stays in its box, marked red,** until it's fixed: a check-in
-  time that isn't a time, an empty label name, an empty section name. The
+  time that isn't a time, an empty tag name. The
   error says why, and a refused save keeps what was typed too.
 
 ## Team roles give no powers
@@ -421,8 +427,8 @@ So a blocker gets help where it was written, not in a side chat.
 
 The cog in the left panel's header opens the Team settings window: name,
 daily check-in time, time zone and work days, the check-in boxes' names, team
-holidays, starter tasks and the join link, the team's labels (see
-[Labels and sections](labels-and-sections.md)), and its saved step lists
+holidays, starter tasks and the join link, the team's tags (see
+[Tags and groups](tags-and-groups.md)), and its saved step lists
 (see [Projects and tasks](projects-and-tasks.md#tasks)). Only the site admin
 sees the cog: Team settings are theirs alone.
 

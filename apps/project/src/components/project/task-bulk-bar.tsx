@@ -35,7 +35,7 @@ const NOBODY = "nobody"
 const NO_DATE = "none"
 
 export type BulkTargets = {
-  people: { id: string; name: string }[]
+  people: { id: string; name: string; avatarUrl?: string }[]
   projects: { id: string; name: string; color: ProjectColor }[]
 }
 

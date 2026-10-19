@@ -235,7 +235,7 @@ export function MoveTaskCard({ detail, onDone }: { detail: TaskDetail; onDone: (
       </CardHeader>
       <CardContent className="grid gap-4">
         <p className="text-sm text-muted-foreground">
-          Its steps, chat, files, labels and history go with it. It leaves its section behind.
+          Its steps, chat, files, tags and history go with it.
         </p>
         <div className="grid gap-2">
           <Label htmlFor={MOVE_PICKER_ID}>Project</Label>

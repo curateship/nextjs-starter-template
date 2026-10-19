@@ -44,6 +44,19 @@
   divider colour is see-through, so the line sits on a one-pixel strip of the
   card colour rather than on the grey band, or it comes out darker than the
   line above it.
+- **The line under a table's heading row is drawn twice**, so it is a step
+  stronger than an ordinary divider and still follows Divider lines (Tyler,
+  19 Oct 2026, finding it missing at strength 5).
+- **A group heading inside a table is `TableGroupRow`** from
+  `src/components/ui/table.tsx`: a row spanning every column that names the
+  rows under it, such as a status or a client. It is a pale band with a
+  divider above and below, the first one dropping its top line under the
+  header's, a fixed 6px top and bottom, and its label held at the left edge
+  when the table scrolls sideways (`inset`, 24px unless the table's first
+  column sets its own). The table's extra 16px above its first row and below
+  its last skips it, so every heading is one height. A count or an add button
+  goes in its children; a button shows on hover with `group-hover/table-group`.
+  Project's List and Projects table were the first to use it (19 Oct 2026).
 - **The colour is set at the top of the stylesheet, never at the bottom and
   never from a component.** Tailwind's preflight resets everything to
   `border: 0 solid` and names no colour, so a border with no colour named is

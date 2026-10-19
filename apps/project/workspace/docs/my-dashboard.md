@@ -11,8 +11,11 @@ version.
 
 ## Left: me
 
-- **My dashboard is an employee's.** The site admin has no tasks or check-in,
-  so `/dashboard` sends them to the Team dashboard (Tyler, 16 Oct 2026).
+- **My dashboard is an employee's.** The site admin has no check-in, so
+  `/dashboard` sends them to the Team dashboard (Tyler, 16 Oct 2026). Tasks
+  they take themselves (since 19 Oct 2026) show on the project pages, where
+  the members dropdown can show just theirs, not here: "I dont need my own
+  dashboard".
 - **The header** shows my photo, my name, and my job title and team
   ("Designer · Sample team"). The cog beside it opens My settings, a dropdown with my email and
   the day I joined, then three cards that fold open, the same as a task's
@@ -75,8 +78,9 @@ version.
 ## Middle: my tasks
 
 The header is the project page's (Tyler, 14 Oct 2026): the same four views,
-Board, List, Calendar and Timeline, as underlined tabs, then the due-date
-dropdown ("All time"), the search as a magnifying glass, Filter, Views and New task. New task
+List, Board, Calendar and Timeline, as underlined tabs, then the search as a
+magnifying glass, Filter, Views and New task. List is first since 19 Oct 2026,
+as on the project page. New task
 opens the same dropdown as the signed-in header's, with a Project picker
 starting on the last project used. There is no members dropdown, since every
 task here is mine. Under 896px wide the dropdowns drop their words for their
@@ -135,9 +139,11 @@ A task whose chat has messages I haven't read says "3 new" beside its title,
 and opening it reads them (see [Task chat](task-chat.md#new-messages)).
 
 The magnifying glass opens the search box, which stays open while it holds
-words; Escape empties and closes it. The due-date dropdown is the project
-page's: All time, Overdue, Today, This week, Next week, No date. Filter holds
-Status, Priority, Label, Type and Client, then Clear and Save as view. All of
+words; Escape empties and closes it. Filter holds Status, Priority, Due,
+Tags, Type and Client, then Clear and Save as view. Due is the project
+page's: Any time, Overdue, Today, This week, Next week, No date. It was a
+dropdown of its own in the header until Tyler moved it into Filter on
+19 Oct 2026. All of
 it lives in the address like the project page's, and a saved view keeps the
 due date and the client (Tyler, 16 Oct 2026). Priority used to change the
 address without narrowing the list; it narrows it now. Client lists the

@@ -707,8 +707,8 @@ function BoardCard({
 }
 
 /**
- * A card as Tyler drew it on 13 Oct 2026: the title; the type, section and
- * labels as small tinted chips; any warning; then one line with the due
+ * A card as Tyler drew it on 13 Oct 2026: the title; the type and tags as
+ * small tinted chips; any warning; then one line with the due
  * date, steps, messages and what it waits on, and the person at its end.
  */
 function CardContent({
@@ -720,7 +720,7 @@ function CardContent({
   roomForMenu?: boolean
   showProject?: boolean
 }) {
-  const chips = task.type || task.priority === "high" || task.section || task.labels.length
+  const chips = task.type || task.priority === "high" || task.labels.length
   const slipping = task.dueMoves >= DUE_MOVED_MANY && task.status !== "done"
   return (
     <>
@@ -739,7 +739,6 @@ function CardContent({
         <span className="flex flex-wrap items-center gap-1">
           <PriorityMark priority={task.priority} />
           {task.type ? <TintChip color={task.type.color}>{task.type.name}</TintChip> : null}
-          {task.section ? <TintChip color="slate">{task.section.name}</TintChip> : null}
           {task.labels.map((label) => (
             <LabelChip key={label.id} label={label} />
           ))}

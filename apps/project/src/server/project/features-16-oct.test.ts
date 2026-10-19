@@ -3,14 +3,12 @@ import { and, asc, eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { NO_CLIENT_FILTER, clientChoices, matchesClient } from "@/lib/project/clients"
-import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { savedViewFiltersSchema, viewFilters } from "@/lib/project/saved-views"
 import { filterTasks, readTaskFilters } from "@/lib/project/task-filters"
 import type { CustomShellDb } from "@/server/db"
 import { inTeam, requireMembership } from "@/server/project/access"
 import { visibleClients } from "@/server/project/clients"
 import { createMilestone, setTaskMilestone } from "@/server/project/milestones"
-import { setNoticeSwitch } from "@/server/project/notice-switches"
 import { setRepeat } from "@/server/project/planning"
 import { makeRepeatCopies } from "@/server/project/planning-jobs"
 import {
@@ -19,7 +17,6 @@ import {
   removeProjectMember,
   setProjectArchived,
   setProjectClient,
-  setProjectHealth,
   setProjectLead,
   updateProject,
 } from "@/server/project/projects"
@@ -119,51 +116,6 @@ async function task(title: string, input: { assignee?: CustomShellUser | null; d
   )
   return id
 }
-
-describe("part 1: telling the project when its status changes", () => {
-  it("is the site admin's to set, and tells everyone on the project, with the reason", async () => {
-    // A project's status is one of its settings, so it is the site admin's alone.
-    await expect(
-      setProjectHealth(ben.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.onlySiteAdminSettings)
-    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
-    // The site admin set it and is on no project, so they hear nothing.
-    expect(await noticesFor(admin, "project_health")).toEqual([])
-    for (const person of [anna, ben, carla]) {
-      expect(await noticesFor(person, "project_health")).toEqual([
-        { message: "Tyler marked a project At risk", detail: "Website: Photos are late", href: `/projects/${website}` },
-      ])
-    }
-  })
-
-  it("tells them it is over when it goes back to On track or is cleared, and not otherwise", async () => {
-    // On track from no status is not news.
-    await setProjectHealth(admin.id, { projectId: website, health: "on_track", note: "" }, database)
-    expect(await noticesFor(ben, "project_health")).toEqual([])
-    await setProjectHealth(admin.id, { projectId: website, health: "off_track", note: "Lost the designer" }, database)
-    // The same status again tells nobody twice.
-    await setProjectHealth(admin.id, { projectId: website, health: "off_track", note: "Still no designer" }, database)
-    expect(await noticesFor(ben, "project_health")).toHaveLength(1)
-    await setProjectHealth(admin.id, { projectId: website, health: null, note: "" }, database)
-    expect(await noticesFor(ben, "project_health")).toEqual([
-      { message: "Tyler cleared a project's status", detail: "Website: Was Off track.", href: `/projects/${website}` },
-    ])
-  })
-
-  it("keeps one row per person per project within the hour, holding the latest status", async () => {
-    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
-    await setProjectHealth(admin.id, { projectId: website, health: "on_track", note: "" }, database)
-    const rows = await noticesFor(carla, "project_health")
-    expect(rows.map((row) => row.message)).toEqual(["Tyler marked a project On track"])
-  })
-
-  it("respects the person's own switch", async () => {
-    await setNoticeSwitch(carla.id, { id: "project_health", on: false }, database)
-    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
-    expect(await noticesFor(carla, "project_health")).toEqual([])
-    expect(await noticesFor(ben, "project_health")).toHaveLength(1)
-  })
-})
 
 describe("part 2: milestones and project due dates", () => {
   it("puts milestones not yet reached and projects due on the calendar's due dates", async () => {
@@ -314,11 +266,11 @@ describe("part 4: a repeating task's next copy keeps its whole setup", () => {
 })
 
 describe("part 5: the database says when something of the team's changed", () => {
-  it("names the team on project_team_live for time off, a project's status and a milestone", async () => {
+  it("names the team on project_team_live for time off, a project's settings and a milestone", async () => {
     const heard: string[] = []
     const stop = await client.listen("project_team_live", (payload) => heard.push(payload))
     await addTimeOff(ben.id, { firstDay: FRIDAY, lastDay: FRIDAY }, database)
-    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Late" }, database)
+    await updateProject(admin.id, { projectId: website, behindAt: 4 }, database)
     await createMilestone(anna.id, { projectId: website, name: "Launch", dueDate: FRIDAY }, database)
     // Notices arrive once the change is committed, on the next round trip.
     await client.query("SELECT 1")

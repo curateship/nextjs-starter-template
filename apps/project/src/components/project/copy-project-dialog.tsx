@@ -86,7 +86,7 @@ export function CopyProjectDialog({
           <DialogHeader>
             <DialogTitle>Copy {project.name}</DialogTitle>
             <DialogDescription>
-              The copy gets the same tasks, steps, labels and sections, all To do, with nobody
+              The copy gets the same tasks, steps and tags, all To do, with nobody
               assigned and no dates. You'll be its only member.
             </DialogDescription>
           </DialogHeader>

@@ -202,7 +202,7 @@ export function NewProjectDialog({
                   <div className="grid gap-2">
                     <FieldLabel
                       htmlFor="new-project-template"
-                      hint="A template brings its colour, description, sections, milestones and tasks. Every task starts To do, with nobody assigned and no dates."
+                      hint="A template brings its colour, description, milestones and tasks with their tags. Every task starts To do, with nobody assigned and no dates."
                     >
                       Start from
                     </FieldLabel>

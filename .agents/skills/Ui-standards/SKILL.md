@@ -254,6 +254,12 @@ card in the rail on `/admin/settings`.
   on 14 Oct 2026. It is `UnderlineTabs` in
   `apps/project/src/components/project/task-header-controls.tsx`. No other
   screen copies it without his say-so.
+- **The same header's bottom line is the one border that names its own shade**
+  (`border-b-muted-foreground/10`, `project-tasks-panel.tsx`). At the Divider
+  lines setting Tyler keeps (5), it vanished against the List's grey table
+  header; he asked for that line alone to show and every other line to stay as
+  it was (19 Oct 2026: "revert to the way it was but make that header divider
+  appear"). No other border copies it.
 
 ## Tables
 
@@ -279,6 +285,9 @@ card in the rail on `/admin/settings`.
   then describe the result with `src/lib/format/bulk-result.ts`.
 - Cap or clamp long text. Use horizontal scrolling only for real table
   overflow, and hide low-priority columns on narrow screens.
+- Rows grouped under headings use `TableGroupRow` from
+  `src/components/ui/table.tsx`, never a hand-styled `TableRow` with its own
+  band, lines or padding.
 - Loading, empty, error, populated, and pagination states stay inside the table
   surface.
 

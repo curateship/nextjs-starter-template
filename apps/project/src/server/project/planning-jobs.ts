@@ -14,7 +14,7 @@ import {
   projectTaskSteps,
   projectTasks,
 } from "@/server/project/schema"
-import { nextTaskPosition } from "@/server/project/sections"
+import { nextTaskPosition } from "@/server/project/task-order"
 import { copyFieldValues } from "@/server/project/task-types"
 import type { FileStorage } from "@/server/project/task-files"
 
@@ -35,7 +35,7 @@ type DueCopy = { taskId: string; seriesId: string; day: string; zone: string }
 
 /**
  * Once a new day starts in the team's time zone, a fresh copy of each
- * repeating task whose rule falls on that day: title, notes, labels, section,
+ * repeating task whose rule falls on that day: title, notes, labels,
  * type and field values (files stay behind), priority, the same person, To
  * do. The rule moves to the copy, so deleting the newest copy stops the
  * repeat.
@@ -145,7 +145,6 @@ export async function makeRepeatCopies(database: CustomShellDb = db, at = new Da
         dueAt: holder.dueAt && holder.dueDate ? momentOf(copy.day, localNow(holder.dueAt, copy.zone).time, copy.zone) : null,
         startDate: holder.startDate ? (shift === null ? copy.day : addDays(holder.startDate, shift)) : null,
         milestoneId: await milestoneStillAhead(tx, holder.milestoneId, copy.day),
-        sectionId: holder.sectionId,
         position: await nextTaskPosition(holder.projectId, tx),
         createdByUserId: holder.createdByUserId,
         createdAt: at,

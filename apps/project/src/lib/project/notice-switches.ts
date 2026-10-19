@@ -47,6 +47,8 @@ export const NOTICE_SWITCH_IDS = [
   "chat_reply",
   "blocker_reply",
   "team_announcement",
+  // No longer offered since the status stopped being set by hand (19 Oct 2026);
+  // kept so a choice already saved for it still reads.
   "project_health",
   "team_morning",
   "team_joined",
@@ -73,7 +75,6 @@ export const NOTICE_SWITCHES: NoticeSwitch[] = [
   { id: "chat_reply", label: "Replied to you in a project chat", group: "team" },
   { id: "blocker_reply", label: "Answered your blocker", group: "team" },
   { id: "team_announcement", label: "Posted an announcement", group: "team" },
-  { id: "project_health", label: "Changed a project's status", group: "team" },
   { id: "team_morning", label: "Who checked in this morning", group: "team", runsTheTeam: true },
   { id: "team_joined", label: "Joined the team through the link", group: "team", runsTheTeam: true },
 ]

@@ -1,5 +1,5 @@
 import { useRouter } from "@tanstack/react-router"
-import { StarIcon } from "lucide-react"
+import { PinIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { starProject } from "@/lib/api/project/sorting"
@@ -8,10 +8,12 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { cn } from "@/lib/utils"
 
 /**
- * Stars a project for me alone. Starred projects sit first on the Projects
- * page. The star is filled when on, so it never relies on colour alone.
+ * Pins a project for me alone, so it sits first on the Projects page. It was
+ * a star until Tyler renamed it on 19 Oct 2026 ("That should be pinned"); the
+ * saved choice is still called a star in the code and the database
+ * (`project_project_stars`), so every star became a pin.
  */
-export function StarButton({
+export function PinButton({
   project,
 }: {
   project: { id: string; name: string; starred: boolean }
@@ -23,17 +25,15 @@ export function StarButton({
       type="button"
       variant="ghost"
       size="icon"
-      aria-label={project.starred ? `Unstar ${project.name}` : `Star ${project.name}`}
+      aria-label={project.starred ? `Unpin ${project.name}` : `Pin ${project.name}`}
       aria-pressed={project.starred}
       disabled={busy}
       onClick={async () => {
         if (await run(() => starProject(project.id, !project.starred))) await router.invalidate()
       }}
     >
-      <StarIcon
-        className={cn("size-4", project.starred && "fill-amber-400 text-amber-500")}
-        aria-hidden
-      />
+      {/* Yellow while pinned (Tyler, 19 Oct 2026), and filled, so it never relies on colour alone. */}
+      <PinIcon className={cn("size-4", project.starred && "fill-amber-400 text-amber-500")} aria-hidden />
     </Button>
   )
 }

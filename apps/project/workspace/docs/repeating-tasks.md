@@ -31,7 +31,7 @@ forgotten.
 ## How copies appear
 
 - **At midnight in the team's time zone**, on each day the rule falls on, the
-  job makes a fresh copy: the title, notes, labels and section, the type and
+  job makes a fresh copy: the title, notes and tags, the type and
   its field values (files stay behind), the priority, the steps unticked, the same person
   (already accepted, so no new Waiting or notice), and To do. A copy skips
   the "Needed when made" check. A copy of a task with a due date is due on the day it was made

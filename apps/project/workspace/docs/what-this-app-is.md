@@ -103,8 +103,11 @@ in [Teams and invites](teams-and-invites.md#who-is-who).
   emailed link.
 - **The site admin oversees and does no work in a team.** Tyler: "What
   tasks? if i only overseeas the team, why would I get tasks?" He isn't a
-  member of the teams he creates, never checks in and gets no tasks. Only he
-  sees every project in a team, and only he gets the morning "5 of 6
+  member of the teams he creates, never checks in, and gets no tasks unless he
+  takes one himself. Since 19 Oct 2026 he can take a task on any project
+  without joining it (Tyler: "I should be able to assign myself (admin)").
+  Nobody else can hand him one, and he still has no My dashboard ("I dont
+  need my own dashboard"). Only he sees every project in a team, and only he gets the morning "5 of 6
   checked in" notice.
 - **The site admin runs every team.** Tyler: "Im admin, I should be able to
   see everything." Only the site admin creates teams, changes their
@@ -313,12 +316,13 @@ built. Each was the recommended option.
 
 - **A project's status** was set by its lead, the owner and admins. Since
   16 Oct 2026 it is one of the project's settings, so the site admin alone
-  sets it.
+  sets it. Since 19 Oct 2026 nobody sets it: it is worked out from late tasks
+  (see "Choices for the 19 Oct status" below).
 - **The lead hears Stuck, unblocked and Done** on every task in the
   project, not its chat.
 - **A saved template keeps what Copy project keeps**: description, colour,
-  sections, milestones without dates, tasks with steps, labels, type, field
-  values and priority.
+  milestones without dates, tasks with steps, tags, type, field values and
+  priority. (Sections went on 19 Oct 2026 and became tags.)
 - **A project with "Everyone on the team" on** can't be left, and nobody
   can be taken off it, until the switch is off. Tyler didn't know the
   feature and asked me to decide, so this is my call, open to change.
@@ -328,8 +332,9 @@ built. Each was the recommended option.
 Tyler answered these on 16 Oct 2026, before Features 16 Oct task 01 was
 built. Each was the recommended option.
 
-- **A project's status reaches the bell** when it goes At risk or Off track,
-  and again when it goes back to On track or the status is taken off.
+- **A project's status reached the bell** when it went At risk or Off track,
+  and again when it went back to On track or the status was taken off. That
+  ended with the manual status on 19 Oct 2026.
 - **"Milestone due tomorrow" goes to the project's lead**, or to the site
   admin when it has no lead.
 - **A task waiting for review shows in Needs attention after one work day**
@@ -361,3 +366,18 @@ order they get built.
 - Guests who see only some projects.
 - Online status, screenshots and activity timers. The check-in is the only thing
   the app tracks about a person.
+
+## Choices for the 19 Oct status
+
+Tyler asked on 19 Oct 2026 for the manual project status to go and for one
+worked out from late tasks, with the numbers set in Project settings. He
+picked the recommended option on all three questions.
+
+- **What decides it:** the count of late tasks, not their share of the open
+  ones. 0 late is On track, 1 or 2 Slowing down, 3 or more Behind, until the
+  site admin changes the numbers for a project.
+- **Who hears about a change:** nobody. The old status notices and their
+  switch went.
+- **The Projects table** keeps its Status column, showing the new status with
+  the late count. The old manual statuses stay saved but show nowhere, and the
+  Activity tab keeps their old lines.

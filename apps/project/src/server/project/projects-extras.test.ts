@@ -13,7 +13,6 @@ import {
   loadProjectsPage,
   updateProject,
 } from "@/server/project/projects"
-import { createSection } from "@/server/project/sections"
 import { sendMessage } from "@/server/project/task-chat"
 import {
   acceptTask,
@@ -23,7 +22,6 @@ import {
   loadTaskDetail,
   setTaskStatus,
   updateStep,
-  updateTask,
 } from "@/server/project/tasks"
 import { projectFor, startTeam } from "@/server/project/test-people"
 import type { CustomShellUser } from "@/server/schema"
@@ -69,10 +67,8 @@ async function task(title: string, assignee: CustomShellUser | null = ben, dueDa
 }
 
 describe("copying a project", () => {
-  it("copies tasks, steps, labels and sections, with no people, dates, chat or history", async () => {
-    const design = await createSection(admin.id, { projectId: website, name: "Design" }, database)
+  it("copies tasks, steps and tags, with no people, dates, chat or history", async () => {
     const brief = await task("Write the brief", ben, "2099-03-04")
-    await updateTask(actor(anna), { taskId: brief, sectionId: design.id }, database)
     const step = await addStep(actor(anna), { taskId: brief, text: "Call the client" }, database)
     await updateStep(actor(anna), { stepId: step.id, done: true }, database)
     const label = await createLabel(anna.id, { name: "Client", color: "pink" }, database)
@@ -93,11 +89,9 @@ describe("copying a project", () => {
     const copy = await loadProjectPage(ben.id, id, database)
     expect(copy.project).toMatchObject({ name: "Hart Dental", color: "pink", description: "Site for Bloom" })
     expect(copy.members.map((m) => m.name)).toEqual(["Ben"])
-    expect(copy.sections.map((s) => s.name)).toEqual(["Design"])
     expect(copy.tasks.map((t) => t.title)).toEqual(["Write the brief", "Launch"])
     const first = copy.tasks[0]
     expect(first).toMatchObject({ status: "todo", assignee: null, dueDate: null, commentCount: 0 })
-    expect(first.section?.name).toBe("Design")
     expect(first.labels.map((l) => l.name)).toEqual(["Client"])
     const detail = await loadTaskDetail(ben.id, first.id, database)
     expect(detail.steps.map((s) => [s.text, s.done])).toEqual([["Call the client", false]])
@@ -127,7 +121,6 @@ describe("a project's due date and progress", () => {
     )
     await updateProject(admin.id, { projectId: website, dueDate: "2099-11-30" }, database)
     let row = (await loadProjectsPage(anna.id, database)).projects[0]
-    expect(row.dueDate).toBe("2099-11-30")
     expect(row.counts).toEqual({ todo: 2, doing: 0, done: 0, stuck: 0 })
     await setTaskStatus(actor(ben), { taskId: a, status: "done", stuckReason: null }, database)
     row = (await loadProjectsPage(anna.id, database)).projects[0]
@@ -184,5 +177,22 @@ describe("the Activity tab", () => {
     const ids = [...first.entries, ...second.entries].map((e) => e.id)
     expect(new Set(ids).size).toBe(52)
     expect(second.more).toBe(false)
+  })
+})
+
+describe("the project's pictures", () => {
+  it("are the site admin's to set, only to their own uploads, and \"\" takes one away", async () => {
+    await expect(updateProject(anna.id, { projectId: website, bannerUrl: "" }, database)).rejects.toThrow(
+      PROJECT_ERRORS.onlySiteAdminSettings
+    )
+    for (const field of ["bannerUrl", "avatarUrl"] as const) {
+      await expect(
+        updateProject(admin.id, { projectId: website, [field]: "https://example.com/cat.png" }, database)
+      ).rejects.toThrow(PROJECT_ERRORS.photoNotYours)
+    }
+    await updateProject(admin.id, { projectId: website, bannerUrl: "", avatarUrl: "" }, database)
+    const { project } = await loadProjectPage(anna.id, website, database)
+    expect(project.bannerUrl).toBeNull()
+    expect(project.avatarUrl).toBeNull()
   })
 })

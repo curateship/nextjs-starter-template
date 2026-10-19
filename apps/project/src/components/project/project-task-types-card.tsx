@@ -1,7 +1,7 @@
 import { useRouter } from "@tanstack/react-router"
 
 import { TypeIconGlyph } from "@/components/project/task-type-icon"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
@@ -49,61 +49,56 @@ export function ProjectTaskTypesCard({ page }: { page: ProjectPage }) {
   }
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Task types</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <fieldset className="grid gap-2">
-          <legend className="mb-2 text-sm text-muted-foreground">
-            The types New task offers here. Tasks that already have a type keep it.
-          </legend>
-          {live.map((type) => {
-            const id = `project-type-${type.id}`
-            return (
-              <div key={type.id} className="flex items-center gap-2">
-                <Checkbox
-                  id={id}
-                  checked={!project.hiddenTypeIds.includes(type.id)}
-                  disabled={readOnly || busy}
-                  onCheckedChange={(checked) => toggle(type.id, checked === true)}
-                />
-                <Label htmlFor={id} className="flex items-center gap-2 font-normal">
-                  <TypeIconGlyph icon={type.icon} color={type.color} />
-                  {type.name}
-                </Label>
-              </div>
-            )
-          })}
-        </fieldset>
-        <div className="grid gap-2">
-          <FieldLabel htmlFor="project-default-type" hint="New task starts on this type in this project.">
-            Default type
-          </FieldLabel>
-          <Select
-            value={
-              project.defaultTypeId && offered.some((type) => type.id === project.defaultTypeId)
-                ? project.defaultTypeId
-                : NO_DEFAULT
-            }
-            disabled={readOnly || busy}
-            onValueChange={(value) => void save({ defaultTypeId: value === NO_DEFAULT ? null : value })}
-          >
-            <SelectTrigger id="project-default-type" className="w-full sm:w-fit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_DEFAULT}>Plain task</SelectItem>
-              {offered.map((type) => (
-                <SelectItem key={type.id} value={type.id}>
-                  <TypeIconGlyph icon={type.icon} color={type.color} />
-                  {type.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardContent>
-    </Card>
+    <CollapsibleSettingsCard storageId="project-settings-task-types" title="Task types" size="sm" contentClassName="grid gap-4">
+      <fieldset className="grid gap-2">
+        <legend className="mb-2 text-sm text-muted-foreground">
+          The types New task offers here. Tasks that already have a type keep it.
+        </legend>
+        {live.map((type) => {
+          const id = `project-type-${type.id}`
+          return (
+            <div key={type.id} className="flex items-center gap-2">
+              <Checkbox
+                id={id}
+                checked={!project.hiddenTypeIds.includes(type.id)}
+                disabled={readOnly || busy}
+                onCheckedChange={(checked) => toggle(type.id, checked === true)}
+              />
+              <Label htmlFor={id} className="flex items-center gap-2 font-normal">
+                <TypeIconGlyph icon={type.icon} color={type.color} />
+                {type.name}
+              </Label>
+            </div>
+          )
+        })}
+      </fieldset>
+      <div className="grid gap-2">
+        <FieldLabel htmlFor="project-default-type" hint="New task starts on this type in this project.">
+          Default type
+        </FieldLabel>
+        <Select
+          value={
+            project.defaultTypeId && offered.some((type) => type.id === project.defaultTypeId)
+              ? project.defaultTypeId
+              : NO_DEFAULT
+          }
+          disabled={readOnly || busy}
+          onValueChange={(value) => void save({ defaultTypeId: value === NO_DEFAULT ? null : value })}
+        >
+          <SelectTrigger id="project-default-type" className="w-full sm:w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_DEFAULT}>Plain task</SelectItem>
+            {offered.map((type) => (
+              <SelectItem key={type.id} value={type.id}>
+                <TypeIconGlyph icon={type.icon} color={type.color} />
+                {type.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </CollapsibleSettingsCard>
   )
 }

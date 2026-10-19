@@ -178,7 +178,7 @@ Each field's cog holds four settings:
 - **Project settings has a Task types card** that ticks which of the team's
   types this project offers. Every type is ticked until someone unticks it,
   so a type the team adds later is offered everywhere. Anyone who can change
-  the project can change these, the same as its sections.
+  the project can change these.
 - **Default type** is the one New task starts on in this project. Unticking
   the default type clears it.
 - **Unticking a type changes nothing on tasks that already have it.**

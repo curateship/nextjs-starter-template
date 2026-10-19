@@ -42,7 +42,8 @@ import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * A task's notes: read as formatted text with links that open in a new tab,
- * and written in the shared editor (select words for bold, lists and links).
+ * and written in the shared editor (select words for bold, lists and links),
+ * opened by Edit notes or by double-clicking the notes.
  * Edits save when the editor is left and when Done is pressed. Notes written
  * before 10 Oct 2026 are plain text and show exactly as typed until edited.
  *
@@ -226,32 +227,37 @@ export function TaskNotesField({
           />
           {linking.list}
         </div>
-      ) : taskNotesAreEmpty(saved) ? (
-        <p className="text-sm text-muted-foreground">No notes.</p>
-      ) : saved.kind === "text" ? (
-        <p className="text-sm break-words whitespace-pre-wrap">{saved.text}</p>
       ) : (
-        <div
-          className="break-words"
-          // Links in notes open in a new tab, so the task stays where it is. A
-          // link to a task opens that task here instead.
-          onClickCapture={(event) => {
-            const link = (event.target as Element).closest("a")
-            if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return
-            event.preventDefault()
-            const taskId = linkedTaskOf(link.getAttribute("href") ?? "")
-            const projectId = taskId ? openable[taskId] : undefined
-            if (taskId && projectId) {
-              void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: taskId } })
-            } else if (!taskId) {
-              window.open(link.href, "_blank", "noopener,noreferrer")
-            }
-          }}
-        >
-          {reading ? (
-            reading(notesForDisplay(saved.body, openable))
+        // Double-clicking the notes opens them for editing (Tyler, 19 Oct 2026).
+        <div onDoubleClick={readOnly ? undefined : startEditing}>
+          {taskNotesAreEmpty(saved) ? (
+            <p className="text-sm text-muted-foreground">No notes.</p>
+          ) : saved.kind === "text" ? (
+            <p className="text-sm break-words whitespace-pre-wrap">{saved.text}</p>
           ) : (
-            <WrittenPageBody body={notesForDisplay(saved.body, openable)} />
+            <div
+              className="break-words"
+              // Links in notes open in a new tab, so the task stays where it is. A
+              // link to a task opens that task here instead.
+              onClickCapture={(event) => {
+                const link = (event.target as Element).closest("a")
+                if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return
+                event.preventDefault()
+                const taskId = linkedTaskOf(link.getAttribute("href") ?? "")
+                const projectId = taskId ? openable[taskId] : undefined
+                if (taskId && projectId) {
+                  void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: taskId } })
+                } else if (!taskId) {
+                  window.open(link.href, "_blank", "noopener,noreferrer")
+                }
+              }}
+            >
+              {reading ? (
+                reading(notesForDisplay(saved.body, openable))
+              ) : (
+                <WrittenPageBody body={notesForDisplay(saved.body, openable)} />
+              )}
+            </div>
           )}
         </div>
       )}

@@ -25,6 +25,9 @@ export const TEAM_RIGHT_TAB_KEY = "project-team-right-tab"
 /** The Board's "Group by person" switch, remembered in this browser. */
 export const BOARD_GROUP_KEY = "project-board-group"
 
+/** What a project's List and Timeline group by, from Filter's Group row, kept per project. */
+export const taskGroupingKey = (projectId: string) => `project-task-grouping-${projectId}`
+
 /** The Team dashboard's middle tab (Calendar or Activity) and the calendar's Month or Week. */
 export const TEAM_MIDDLE_TAB_KEY = "project-team-middle-tab"
 export const TEAM_CALENDAR_VIEW_KEY = "project-team-calendar-view"

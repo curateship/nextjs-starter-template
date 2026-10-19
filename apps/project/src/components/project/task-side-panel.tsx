@@ -196,6 +196,7 @@ function SideBody({ side }: { side: TaskSide }) {
   return (
     <>
       {side.title}
+      {side.tags}
       {side.notices}
       {side.notes.empty ? null : (
         <PanelCard storageId="project-task-notes" title="Notes" settings quiet>

@@ -14,6 +14,7 @@ import { db } from "@/server/db"
 import {
   findMembership,
   isProjectMember,
+  isSiteAdmin,
   requireOpenProject,
   requireTaskAccess,
   visibleProjectIds,
@@ -25,12 +26,7 @@ import {
 import { markTaskRead, unreadByTask } from "@/server/project/chat-reads"
 import { taskRef, writeTaskNotices, type TaskNotice } from "@/server/project/notices"
 import { labelsForTasks, listTeamLabels, type Label } from "@/server/project/labels"
-import {
-  listSections,
-  nextTaskPosition,
-  requireSectionOf,
-  type Section,
-} from "@/server/project/sections"
+import { nextTaskPosition } from "@/server/project/task-order"
 import { loadTaskMessages, type ChatMessage } from "@/server/project/task-chat"
 import { keepNotesVersion } from "@/server/project/task-note-versions"
 import {
@@ -71,12 +67,14 @@ import {
 import {
   projectCheckinItems,
   projectCheckins,
+  projectLabels,
+  projectMilestones,
   projectProjectMembers,
   projectProjects,
-  projectSections,
   projectTaskComments,
   projectTaskEvents,
   projectTaskFollowers,
+  projectTaskLabels,
   projectTaskSteps,
   projectTasks,
   projectTeamMembers,
@@ -143,7 +141,6 @@ export type TaskCard = {
   /** How many days anyone picked this task on a check-in. */
   pickedDays: number
   labels: Label[]
-  section: { id: string; name: string } | null
   /** The milestone it counts toward, for the details panel's list of a milestone's tasks. */
   milestoneId: string | null
   /** The task's place in its project's own order. */
@@ -189,7 +186,6 @@ export async function listTaskCards(
       assignerName: assigner.name,
       returnerName: returner.name,
       reviewerName: reviewer.name,
-      sectionName: projectSections.name,
     })
     .from(projectTasks)
     .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
@@ -197,7 +193,6 @@ export async function listTaskCards(
     .leftJoin(assigner, eq(assigner.id, projectTasks.assignedByUserId))
     .leftJoin(returner, eq(returner.id, projectTasks.handedBackByUserId))
     .leftJoin(reviewer, eq(reviewer.id, projectTasks.reviewerUserId))
-    .leftJoin(projectSections, eq(projectSections.id, projectTasks.sectionId))
     // A task in the bin is gone from every list until it is brought back.
     .where(and(isNull(projectTasks.deletedAt), where))
     // Each project's own order, which the team sets by dragging.
@@ -282,10 +277,6 @@ export async function listTaskCards(
       unread: 0,
       pickedDays: pickedRows.find((p) => p.taskId === task.id)?.days ?? 0,
       labels: labels.get(task.id) ?? [],
-      section:
-        task.sectionId && row.sectionName !== null
-          ? { id: task.sectionId, name: row.sectionName }
-          : null,
       milestoneId: task.milestoneId,
       position: task.position,
       completedAt: task.completedAt?.toISOString() ?? null,
@@ -370,8 +361,6 @@ export type TaskDetail = {
   canDelete: boolean
   /** Every day it was picked or dropped, and every hand-over, oldest first. */
   history: TaskHistoryEntry[]
-  /** The project's sections, for the task's Section field. */
-  sections: Section[]
   /** The team's labels, for the task's Labels field. */
   labels: Label[]
   /** Other open projects this person can move the task to. */
@@ -478,12 +467,15 @@ export async function loadTaskDetail(
     steps,
     comments: await loadTaskMessages(membership, taskId, archived, database),
     files: await listTaskFiles(viewer, taskId, archived, database),
-    assignable: assignable.map((row) => ({ ...row, avatarUrl: row.avatarUrl ?? "" })),
+    assignable: [
+      ...assignable.map((row) => ({ ...row, avatarUrl: row.avatarUrl ?? "" })),
+      // The site admin can take the task themselves, so they are in their own list.
+      ...(membership.siteAdmin ? [{ ...(await siteAdminPerson(userId, database)), title: null }] : []),
+    ],
     following: Boolean(follow),
     archived,
     canDelete: task.createdByUserId === userId || runsTheTeam(membership.role),
     history: await loadTaskHistory(taskId, database, visible),
-    sections: await listSections(project.id, database),
     labels: await listTeamLabels(membership.teamId, database),
     moveTargets: await listMoveTargets(membership, task, database),
     waitingOn: ((await waitsFor([taskId], database)).get(taskId) ?? []).map((wait) => ({
@@ -529,7 +521,18 @@ export async function loadMyWork(userId: string, database = db): Promise<TaskCar
   return [...cards.filter((card) => card.waiting), ...cards.filter((card) => !card.waiting)]
 }
 
-export async function requireAssignable(projectId: string, userId: string, database: ProjectDb) {
+/**
+ * A task goes to a member of its project, or to the site admin when they take
+ * it themselves. The site admin is on no project, and only they can give a
+ * task to themselves (Tyler, 19 Oct 2026: "I should be able to assign myself").
+ */
+export async function requireAssignable(
+  projectId: string,
+  userId: string,
+  database: ProjectDb,
+  actorId?: string
+) {
+  if (userId === actorId && (await isSiteAdmin(userId, database))) return
   if (!(await isProjectMember(projectId, userId, database))) {
     throw new Error(PROJECT_ERRORS.notProjectMember)
   }
@@ -549,6 +552,11 @@ export async function createTask(
     /** Its type, and the values New task filled in for that type's fields. */
     typeId?: string | null
     fieldValues?: Record<string, unknown>
+    priority?: TaskPriority
+    /** The team's tags (labels) it starts with. */
+    labelIds?: string[]
+    /** One of this project's milestones. */
+    milestoneId?: string | null
   },
   database: ProjectDb = db
 ): Promise<{ id: string }> {
@@ -556,7 +564,7 @@ export async function createTask(
     const projectId = await resolveProjectId(actor.id, input.projectId, tx)
     input = { ...input, projectId }
     const { membership, project } = await requireOpenProject(actor.id, input.projectId, tx)
-    if (input.assigneeUserId) await requireAssignable(input.projectId, input.assigneeUserId, tx)
+    if (input.assigneeUserId) await requireAssignable(input.projectId, input.assigneeUserId, tx, actor.id)
     const at = now()
     const handedToSomeoneElse =
       input.assigneeUserId !== null && input.assigneeUserId !== actor.id
@@ -579,8 +587,27 @@ export async function createTask(
       handoverNote: handedToSomeoneElse ? (input.handoverNote ?? null) : null,
       firstHandedOutByUserId: handedToSomeoneElse ? actor.id : null,
       typeId: input.typeId ?? null,
+      priority: input.priority ?? "normal",
+      milestoneId: input.milestoneId ?? null,
+    }
+    if (task.milestoneId) {
+      const [milestone] = await tx
+        .select({ id: projectMilestones.id })
+        .from(projectMilestones)
+        .where(and(eq(projectMilestones.id, task.milestoneId), eq(projectMilestones.projectId, input.projectId)))
+        .limit(1)
+      if (!milestone) throw new Error(PROJECT_ERRORS.milestoneNotFound)
     }
     await tx.insert(projectTasks).values(task)
+    const labelIds = [...new Set(input.labelIds ?? [])]
+    if (labelIds.length) {
+      const found = await tx
+        .select({ id: projectLabels.id })
+        .from(projectLabels)
+        .where(and(inArray(projectLabels.id, labelIds), eq(projectLabels.teamId, project.teamId)))
+      if (found.length !== labelIds.length) throw new Error(PROJECT_ERRORS.labelNotFound)
+      await tx.insert(projectTaskLabels).values(labelIds.map((labelId) => ({ taskId: task.id, labelId })))
+    }
     if (input.typeId) {
       await writeNewTaskFields(tx, {
         membership,
@@ -638,7 +665,6 @@ export async function updateTask(
     /** An ISO moment on the due date; null clears the time. */
     dueAt?: string | null
     startDate?: string | null
-    sectionId?: string | null
     snoozedUntil?: string | null
     priority?: TaskPriority
   },
@@ -647,7 +673,6 @@ export async function updateTask(
   const { taskId, notesSession, dueAt: dueAtText, ...fields } = patch
   await database.transaction(async (tx) => {
     const { task } = await requireTaskAccess(actor.id, taskId, tx)
-    if (fields.sectionId) await requireSectionOf(task.projectId, fields.sectionId, tx)
     // Either end may move, from the task, the Calendar, the Timeline or a bulk
     // change, and none may leave the start after the due day.
     const start = fields.startDate !== undefined ? fields.startDate : task.startDate
@@ -785,7 +810,7 @@ export async function assignTask(
   await database.transaction(async (tx) => {
     const { task } = await requireTaskAccess(actor.id, input.taskId, tx)
     if (input.assigneeUserId === task.assigneeUserId) return
-    if (input.assigneeUserId) await requireAssignable(task.projectId, input.assigneeUserId, tx)
+    if (input.assigneeUserId) await requireAssignable(task.projectId, input.assigneeUserId, tx, actor.id)
     const at = now()
     const handedToSomeoneElse = Boolean(input.assigneeUserId) && input.assigneeUserId !== actor.id
     const note = handedToSomeoneElse ? (input.note ?? null) : null
@@ -1035,4 +1060,13 @@ export async function acceptManyTasks(
     }
   }
   return outcome
+}
+
+/** The site admin as someone a task can go to: their name and picture. */
+export async function siteAdminPerson(userId: string, database: ProjectDb) {
+  const [row] = await database
+    .select({ id: customShellUsers.id, name: customShellUsers.name, avatarUrl: customShellUsers.avatarUrl })
+    .from(customShellUsers)
+    .where(eq(customShellUsers.id, userId))
+  return { id: userId, name: row?.name ?? "", avatarUrl: row?.avatarUrl ?? "" }
 }

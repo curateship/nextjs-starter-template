@@ -6,7 +6,6 @@ import {
   createMilestoneSchema,
   createProjectSchema,
   projectClientSchema,
-  projectHealthSchema,
   projectLeadSchema,
   renameTemplateSchema,
   saveTemplateSchema,
@@ -36,7 +35,6 @@ import {
   removeProjectMember,
   setProjectArchived,
   setProjectClient,
-  setProjectHealth,
   setProjectLead,
   setStatusOrder,
   setWholeTeam,
@@ -58,7 +56,7 @@ export type {
 export type { Milestone } from "@/server/project/milestones"
 export type { TemplateRow } from "@/lib/project/templates"
 export type {
-  ProjectHealthView,
+  LateCandidate,
   ProjectListRow,
   ProjectMemberRow,
   ProjectPage,
@@ -139,11 +137,6 @@ const removeMemberFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) =>
     removeProjectMember(context.user.id, data.projectId, data.userId)
   )
-
-const healthFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(projectHealthSchema)
-  .handler(async ({ data, context }) => setProjectHealth(context.user.id, data))
 
 const leadFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -232,9 +225,6 @@ export function loadActivity(projectId: string, before?: { at: string; id: strin
 }
 export function removeMemberFromProject(projectId: string, userId: string) {
   return removeMemberFn({ data: { projectId, userId } })
-}
-export function saveProjectHealth(data: z.input<typeof projectHealthSchema>) {
-  return healthFn({ data })
 }
 export function saveProjectLead(projectId: string, userId: string | null) {
   return leadFn({ data: { projectId, userId } })
