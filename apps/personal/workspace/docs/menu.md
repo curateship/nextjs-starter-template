@@ -15,6 +15,20 @@ edited where it stands, with no settings screen.
   too), no drag handles and no link cogs. Tyler asked for this on 16 Oct
   2026: "I dont want to see all those 'add links' or draggable until its
   enabled." It starts off on every visit.
+- **Recent sits at the top of the menu**, under the logo row. It shows the last
+  three menu links opened, newest first, each once, with the open one marked.
+  Tyler asked for it on 18 Oct 2026. A deep page counts for the link that
+  holds it, the same link the menu marks, so a listing opened under Listings
+  puts Listings in Recent. A screen no link holds is skipped, and so is a link
+  since deleted.
+  - **Where it comes from:** the recent screens list the cog already keeps
+    (`app-panels.md`), so this browser alone remembers it, under
+    `personal-recent-screens` in localStorage. Nothing new is saved to the
+    menu file.
+  - **Hidden until a link is opened.** It folds like a section, remembered
+    under `personal-sidebar-recent`, and can't be renamed, edited or dragged.
+  - **Code:** `recentMenuLinks` in `src/lib/recent-screens.ts` picks the
+    links, `RecentLinks` in `src/components/sidebar.tsx` draws them.
 - **Fold a section** by clicking its name, as in Custom Shell. A small arrow
   shows on hover and points down while the section is open. This browser
   remembers which sections are folded, under

@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { parseAppUrl } from "@/lib/menu"
+import { activeLinkId, allLinks, parseAppUrl, type Menu, type MenuLink } from "@/lib/menu"
 
 /**
  * The last screens shown in the middle panel, newest first, deep pages
@@ -56,4 +56,22 @@ export function saveRecentScreens(list: RecentScreen[]) {
   } catch {
     // Blocked storage: the list lasts until the page reloads.
   }
+}
+
+const MAX_RECENT_LINKS = 3
+
+/**
+ * The menu links behind the latest screens, newest first, each once, at most
+ * three. A screen counts for the link it belongs to, the same one the menu
+ * marks; a screen no link holds, or a link since deleted, is skipped.
+ */
+export function recentMenuLinks(menu: Menu, recent: RecentScreen[]): MenuLink[] {
+  const links: MenuLink[] = []
+  for (const screen of recent) {
+    const id = activeLinkId(menu, screen.url)
+    const link = id ? allLinks(menu).find((entry) => entry.id === id) : undefined
+    if (link && !links.includes(link)) links.push(link)
+    if (links.length === MAX_RECENT_LINKS) break
+  }
+  return links
 }

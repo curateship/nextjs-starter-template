@@ -35,7 +35,7 @@ the sidebars or top nav".
   the bottom of the menu (Back, Forward, Reload and the cog's pop-out, recent
   screens, pin, zoom, phone view and sign-out), apps that refuse frames, and
   signing in once per app.
-- [The menu](menu.md): the logo row's name, logo and link, the edit switch,
+- [The menu](menu.md): Recent at the top, the logo row's name, logo and link, the edit switch,
   folding sections, sub-links, the links at the bottom, resizing the menu, adding, editing, renaming
   in place, choosing any Lucide icon or none, dragging links between lists and
   sections into order, links that open in their own tab, the start screen, and the file the menu is kept in.

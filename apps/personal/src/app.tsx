@@ -215,6 +215,7 @@ function Personal({
               <div className="relative h-full">
                 <Sidebar
                   menu={shown}
+                  recent={screens.recent}
                   update={update}
                   editing={editing}
                   onHome={() => {

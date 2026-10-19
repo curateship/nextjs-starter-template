@@ -11,7 +11,14 @@ import {
 
 import { BrandEditor, BrandLogo } from "@/components/brand-editor"
 import { sectionDragId, SECTIONS_LIST_ID, type SectionDragData } from "@/components/menu-drag"
-import { AddLinkButton, SortableLinks, useMenuActions } from "@/components/menu-links"
+import { LinkIconPicture } from "@/components/link-icon"
+import {
+  AddLinkButton,
+  linkAnchorProps,
+  OwnTabMark,
+  SortableLinks,
+  useMenuActions,
+} from "@/components/menu-links"
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
@@ -33,6 +40,7 @@ import {
   type MenuSection,
 } from "@/lib/menu"
 import { plural } from "@/lib/plural"
+import { recentMenuLinks, type RecentScreen } from "@/lib/recent-screens"
 import { useRememberedOpen } from "@/lib/use-remembered-open"
 import { cn } from "@/lib/utils"
 
@@ -174,7 +182,52 @@ function SidebarSection({
 }
 
 /**
- * The left menu: sections of links, each edited where it stands while editing
+ * "Recent" at the top of the left menu: the last three menu links opened,
+ * newest first, folded like a section. It is worked out from the recent
+ * screens list, so it has nothing to save and can't be edited or dragged.
+ * Tyler asked for it on 18 Oct 2026.
+ */
+export function RecentLinks({ menu, recent }: { menu: Menu; recent: RecentScreen[] }) {
+  const [open, setOpen] = useRememberedOpen("personal-sidebar-recent")
+  const { activeId, open: openLink } = useMenuActions()
+  const links = recentMenuLinks(menu, recent)
+  if (links.length === 0) return null
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} asChild>
+      <section aria-label="Recent" className="flex flex-col gap-0.5">
+        <div className="flex h-8 items-center px-2">
+          <h2 className="min-w-0 flex-1">
+            <CollapsibleTrigger className="group/section-label flex w-full min-w-0 items-center justify-between gap-1 rounded-md text-xs font-medium text-sidebar-foreground/70 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+              <span className="truncate">Recent</span>
+              <ChevronRightIcon className="size-4 shrink-0 opacity-0 transition-[opacity,transform] duration-200 group-hover/section-label:opacity-100 group-focus-visible/section-label:opacity-100 group-data-[state=open]/section-label:rotate-90" />
+            </CollapsibleTrigger>
+          </h2>
+        </div>
+        <CollapsibleContent className="pb-2">
+          <ul className="flex flex-col gap-0.5">
+            {links.map((link) => (
+              <li key={link.id}>
+                <a
+                  {...linkAnchorProps(link, openLink)}
+                  data-active={activeId === link.id ? "" : undefined}
+                  className="flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0"
+                >
+                  <LinkIconPicture name={link.icon} />
+                  <span className="truncate">{link.label}</span>
+                  <OwnTabMark link={link} />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </CollapsibleContent>
+      </section>
+    </Collapsible>
+  )
+}
+
+/**
+ * The left menu: "Recent", then sections of links, each edited where it stands while editing
  * is on, then the list of links at its bottom, then `footer`. "Edit the menu"
  * in the cog at the bottom turns editing on and off; off, the menu shows only
  * its sections and links. Deleting a section that still holds links asks
@@ -182,12 +235,15 @@ function SidebarSection({
  */
 export function Sidebar({
   menu,
+  recent,
   update,
   editing,
   onHome,
   footer,
 }: {
   menu: Menu
+  /** The last screens opened, newest first, for "Recent". */
+  recent: RecentScreen[]
   update: (change: (menu: Menu) => Menu) => void
   editing: boolean
   /** The logo and name go back to Personal's start page, when no screen is chosen for them. */
@@ -260,6 +316,7 @@ export function Sidebar({
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <nav aria-label="Screens" className="flex flex-col p-2">
+          <RecentLinks menu={menu} recent={recent} />
           <SortableContext
             id={SECTIONS_LIST_ID}
             items={menu.sections.map((section) => sectionDragId(section.id))}
