@@ -42,8 +42,18 @@ import {
 import { AiChoiceField } from "@/components/video-editor/ai-choice-field"
 import {
   useEditorRuntime,
+  useEditorSelector,
   type EditorClip,
 } from "@/components/video-editor/editor-store"
+import { useSavedTranscripts } from "@/components/video-editor/use-saved-transcripts"
+import type { TranscriberId, WriterId } from "@/lib/video/ai-choices"
+import {
+  translateCostCents,
+  voiceCostCents,
+  withEstimate,
+} from "@/lib/video/ai-estimates"
+import { sourceSpanMs } from "@/lib/video/clip-playback"
+import { hasSavedWords } from "@/lib/video/transcripts"
 import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { ELEVENLABS_KEY_MISSING_MESSAGE } from "@/lib/video/ai-providers"
@@ -52,14 +62,17 @@ import {
   DEFAULT_CAPTION_LOOK,
 } from "@/lib/video/caption-look"
 import { captionClipWordTimes } from "@/lib/video/caption-words"
-import { captionClipName } from "@/lib/video/captions"
+import { captionClipName, findCaptionSource } from "@/lib/video/captions"
 import { voiceoverRefusal } from "@/lib/video/saved-voiceovers"
 import { editorId, formatClock } from "@/lib/video/timeline-utils"
 import {
   DEFAULT_TRANSLATE_LANGUAGE,
   TRANSLATE_LANGUAGES,
   TRANSLATE_LINE_MAX,
+  TRANSLATE_LINES_MAX,
   TRANSLATE_NO_VOICE_MESSAGE,
+  TRANSLATE_TOO_MANY_LINES_MESSAGE,
+  TRANSLATE_VOICE_MODEL,
   TRANSLATE_NOTHING_TO_SAY_MESSAGE,
   TRANSLATE_ORIGINAL_VOLUME,
   TRANSLATE_TOO_LONG_TO_SPEAK_MESSAGE,
@@ -112,6 +125,12 @@ export function TranslateDialog({
   const [voiceId, setVoiceId] = React.useState("")
   // True once the voices came back, or came back as "no key".
   const [voicesAnswered, setVoicesAnswered] = React.useState(false)
+  const [pickedTranscriber, setPickedTranscriber] = React.useState<
+    TranscriberId | undefined
+  >()
+  const [pickedWriter, setPickedWriter] = React.useState<
+    WriterId | undefined
+  >()
 
   // Every opening starts clean: the timeline may have changed since.
   const [wasOpen, setWasOpen] = React.useState(open)
@@ -121,8 +140,53 @@ export function TranslateDialog({
       setTranscript(null)
       setLines(null)
       setTranslatedTo(null)
+      setPickedTranscriber(undefined)
+      setPickedWriter(undefined)
     }
   }
+
+  // The price before the press. Before anything is written down it is a
+  // guess from how long the talking runs; once the lines are in the window
+  // it is worked out from them, and writing down is not paid for again.
+  const tracks = useEditorSelector((state) => state.tracks)
+  const source = findCaptionSource(tracks)
+  const mediaId = source?.clip.mediaId
+  const { saved } = useSavedTranscripts(
+    mediaId && !transcript ? [mediaId] : [],
+    open
+  )
+  const transcriber =
+    pickedTranscriber ?? (available?.transcriber as TranscriberId | null)
+  const writer = pickedWriter ?? (available?.writer as WriterId | null)
+  const savedRow = saved.find((row) => row.mediaId === mediaId)
+  const translateCents = !writer
+    ? null
+    : transcript
+      ? translateCostCents({
+          writer,
+          linesCharacters: transcript.captions.reduce(
+            (sum, line) => sum + line.text.length,
+            0
+          ),
+          talkMs: 0,
+        })
+      : source && mediaId && transcriber
+        ? translateCostCents({
+            writer,
+            talkMs: sourceSpanMs(source.clip),
+            listen: {
+              transcriber,
+              fileSoundMs:
+                savedRow?.durationMs ??
+                source.clip.sourceDurationMs ??
+                sourceSpanMs(source.clip),
+              saved: hasSavedWords(saved, mediaId, transcriber),
+            },
+          })
+        : null
+  const readAloudCents = lines
+    ? voiceCostCents(TRANSLATE_VOICE_MODEL, translationScript(lines).length)
+    : null
 
   // Only ElevenLabs voices: the multilingual model is theirs. Asked for once a
   // translation is in hand, since until then nobody needs a voice. With an
@@ -178,6 +242,10 @@ export function TranslateDialog({
         await saveNow()
         heard = await writeCaptions(projectId)
         setTranscript(heard)
+      }
+      if (heard.captions.length > TRANSLATE_LINES_MAX) {
+        showErrorToast(TRANSLATE_TOO_MANY_LINES_MESSAGE)
+        return
       }
       const words = await translateCaptionLines(
         language,
@@ -357,8 +425,18 @@ export function TranslateDialog({
                 </div>
                 {translated ? null : (
                   <>
-                    <AiChoiceField kind="transcriber" available={available} />
-                    <AiChoiceField kind="writer" available={available} />
+                    <AiChoiceField
+                      kind="transcriber"
+                      available={available}
+                      onChanged={(id) =>
+                        setPickedTranscriber(id as TranscriberId)
+                      }
+                    />
+                    <AiChoiceField
+                      kind="writer"
+                      available={available}
+                      onChanged={(id) => setPickedWriter(id as WriterId)}
+                    />
                   </>
                 )}
               </CardContent>
@@ -476,7 +554,9 @@ export function TranslateDialog({
                   ) : (
                     <MicIcon />
                   )}
-                  {busy === "speaking" ? "Reading…" : "Read it aloud"}
+                  {busy === "speaking"
+                    ? "Reading…"
+                    : withEstimate("Read it aloud", readAloudCents)}
                 </Button>
               </>
             ) : (
@@ -494,9 +574,10 @@ export function TranslateDialog({
                   ? transcript
                     ? "Translating…"
                     : "Listening…"
-                  : changedLanguage
-                    ? `Translate into ${language}`
-                    : "Translate"}
+                  : withEstimate(
+                      changedLanguage ? `Translate into ${language}` : "Translate",
+                      translateCents
+                    )}
               </Button>
             )}
           </DialogFooter>

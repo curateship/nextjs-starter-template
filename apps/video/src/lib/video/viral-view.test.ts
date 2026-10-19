@@ -101,6 +101,8 @@ describe("creators", () => {
     hits: 1,
     typicalScore: 50,
     followedId: null,
+    watch: null,
+    lastCheckedAt: null,
     avatarUrl: null,
     profileUrl: "",
     postsPerWeek: null,

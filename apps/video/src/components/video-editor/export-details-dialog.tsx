@@ -86,6 +86,8 @@ export function ExportDetailsDialog({
   const dirty =
     title !== (item.title ?? "") || description !== (item.description ?? "")
   const lengthMs = item.duration_ms ?? 0
+  // A carousel's cover is its first slide. There is no moment to pick.
+  const carousel = item.kind === "carousel"
 
   async function handleSave() {
     if (!item) return
@@ -198,48 +200,57 @@ export function ExportDetailsDialog({
                       <CoverPlaceholder />
                     )}
                   </div>
-                  <div className="grid gap-2.5">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <Label htmlFor="export-cover-at">Take it from</Label>
-                      <span className="text-sm text-muted-foreground tabular-nums">
-                        {formatClock(coverMs)} of {formatClock(lengthMs)}
-                      </span>
-                    </div>
-                    <Slider
-                      id="export-cover-at"
-                      aria-label="Where to take the cover picture from"
-                      min={0}
-                      max={Math.max(1000, lengthMs)}
-                      step={100}
-                      value={[coverMs]}
-                      disabled={coverBusy}
-                      onValueChange={([next]) => setCoverMs(next)}
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={coverBusy}
-                      onClick={() => void handleCover()}
-                    >
-                      {coverBusy ? (
-                        <Loader2Icon className="animate-spin" />
-                      ) : null}
-                      Use this moment
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={frameBusy}
-                      onClick={() => void handleSaveFrame()}
-                    >
-                      {frameBusy ? (
-                        <Loader2Icon className="animate-spin" />
-                      ) : null}
-                      Save as a picture
-                    </Button>
-                  </div>
+                  {carousel ? (
+                    <p className="text-sm text-muted-foreground">
+                      The first slide is the cover. Move another slide to the
+                      front of the carousel and export again to change it.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="grid gap-2.5">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <Label htmlFor="export-cover-at">Take it from</Label>
+                          <span className="text-sm text-muted-foreground tabular-nums">
+                            {formatClock(coverMs)} of {formatClock(lengthMs)}
+                          </span>
+                        </div>
+                        <Slider
+                          id="export-cover-at"
+                          aria-label="Where to take the cover picture from"
+                          min={0}
+                          max={Math.max(1000, lengthMs)}
+                          step={100}
+                          value={[coverMs]}
+                          disabled={coverBusy}
+                          onValueChange={([next]) => setCoverMs(next)}
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={coverBusy}
+                          onClick={() => void handleCover()}
+                        >
+                          {coverBusy ? (
+                            <Loader2Icon className="animate-spin" />
+                          ) : null}
+                          Use this moment
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={frameBusy}
+                          onClick={() => void handleSaveFrame()}
+                        >
+                          {frameBusy ? (
+                            <Loader2Icon className="animate-spin" />
+                          ) : null}
+                          Save as a picture
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </DialogBody>

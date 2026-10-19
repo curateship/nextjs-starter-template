@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  clipFadeOutGain,
   MUSIC_FADE_OUT_MS,
   MUSIC_NO_ROOM_MESSAGE,
   MUSIC_START_VOLUME,
@@ -120,23 +119,5 @@ describe("when music cannot be laid down", () => {
 
   it("lets an ordinary track through", () => {
     expect(musicRefusal([], clips)).toBeNull()
-  })
-})
-
-describe("the fade at the end of a clip", () => {
-  const clip = { durationMs: 10_000, fadeOutMs: 2_000 }
-
-  it("leaves the sound alone until the fade starts", () => {
-    expect(clipFadeOutGain(clip, 0)).toBe(1)
-    expect(clipFadeOutGain(clip, 8_000)).toBe(1)
-  })
-
-  it("slides evenly down to silence at the very end", () => {
-    expect(clipFadeOutGain(clip, 9_000)).toBeCloseTo(0.5)
-    expect(clipFadeOutGain(clip, 10_000)).toBe(0)
-  })
-
-  it("does nothing on a clip without one", () => {
-    expect(clipFadeOutGain({ durationMs: 10_000 }, 9_999)).toBe(1)
   })
 })

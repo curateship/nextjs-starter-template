@@ -14,6 +14,7 @@ import {
   type RenderStatus,
 } from "@/lib/video/render"
 import { DEFAULT_NORMALIZE_LOUDNESS } from "@/lib/video/audio-loudness"
+import type { CarouselFormat } from "@/lib/video/carousel-schema"
 import type { AspectRatio } from "@/lib/video/timeline-schema"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
@@ -74,11 +75,19 @@ export const INTERRUPTED_MESSAGE =
 
 export type RenderJobSummary = {
   id: string
-  project_id: string
+  /** `carousel` for a kept carousel ZIP; see `carousel-exports.ts`. */
+  kind: "video" | "carousel"
+  /** Always set on a video export, never on a carousel export. */
+  project_id: string | null
   project_name: string | null
+  /** The carousel a carousel export came from, until it is deleted. */
+  carousel_id: string | null
+  carousel_name: string | null
+  /** How many slides a carousel export holds. Null for a video. */
+  slide_count: number | null
   status: RenderStatus
   quality: RenderQuality
-  aspect: AspectRatio
+  aspect: AspectRatio | CarouselFormat
   frame_rate: RenderFrameRate
   error_message: string | null
   /** Where this sits in the person's own queue, while it is waiting. */
@@ -98,15 +107,20 @@ type JobRow = typeof videoRenderJobs.$inferSelect
 
 export function serializeRenderJob(
   row: JobRow,
-  projectName: string | null = null
+  projectName: string | null = null,
+  carouselName: string | null = null
 ): RenderJobSummary {
   return {
     id: row.id,
+    kind: row.kind === "carousel" ? "carousel" : "video",
     project_id: row.projectId,
     project_name: projectName,
+    carousel_id: row.carouselId,
+    carousel_name: carouselName,
+    slide_count: row.slideRanges ? row.slideRanges.length : null,
     status: row.status as RenderStatus,
     quality: row.quality as RenderQuality,
-    aspect: row.aspect as AspectRatio,
+    aspect: row.aspect as AspectRatio | CarouselFormat,
     frame_rate: row.frameRate as RenderFrameRate,
     error_message: row.errorMessage,
     queue_position: null,
@@ -387,7 +401,10 @@ export async function retryRenderJob(
     )
     .limit(1)
   if (!job) throw new Error(RENDER_NOT_FOUND_MESSAGE)
-  if (job.status !== "error") throw new Error(ONLY_FAILED_RETRY_MESSAGE)
+  // A carousel export is never a failed row, and has no project to render.
+  if (job.status !== "error" || !job.projectId) {
+    throw new Error(ONLY_FAILED_RETRY_MESSAGE)
+  }
   const aspect = job.aspect as AspectRatio
 
   if (await findBusyShape(job.projectId, [aspect], database)) {

@@ -50,6 +50,7 @@ import {
   type VoiceoverResult,
 } from "@/lib/video/voice"
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
+import type { SavedTranscriptSummary } from "@/lib/video/transcripts"
 import { getAiKey } from "@/server/ai/keys"
 import { adminPost, userGet, userPost } from "@/server/guards"
 import { getAiKeysSaved } from "@/server/video/ai-keys-saved"
@@ -64,6 +65,7 @@ import {
 import { rewriteHook, type HookVariants } from "@/server/video/hooks"
 import { checkScript } from "@/server/video/script-check"
 import { translateLines } from "@/server/video/translate"
+import { listSavedTranscripts } from "@/server/video/transcripts"
 import { listVoices, speak } from "@/server/video/voice"
 import {
   analyseJumpCuts,
@@ -228,6 +230,7 @@ const transcriptFn = createServerFn({ method: "POST" })
     z.object({
       projectId: z.string().min(1).max(36),
       clipId: z.string().min(1).max(64),
+      fresh: z.boolean().optional(),
     })
   )
   .handler(async ({ data, context }): Promise<ClipTranscript> => {
@@ -236,15 +239,39 @@ const transcriptFn = createServerFn({ method: "POST" })
       userId: context.user.id,
       projectId: data.projectId,
       clipId: data.clipId,
+      fresh: data.fresh,
     })
   })
 
 /**
- * Writing down what a clip says. A POST rather than a GET because it is real
- * work that costs money, not a page's worth of reading.
+ * Writing down what a clip says. A POST rather than a GET because it can be
+ * real work that costs money, not a page's worth of reading. The file's saved
+ * words answer for nothing; `fresh` pays to write the file down again.
  */
-export function loadClipTranscript(projectId: string, clipId: string) {
-  return transcriptFn({ data: { projectId, clipId } })
+export function loadClipTranscript(
+  projectId: string,
+  clipId: string,
+  options: { fresh?: boolean } = {}
+) {
+  return transcriptFn({ data: { projectId, clipId, fresh: options.fresh } })
+}
+
+const savedTranscriptsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(
+    z.object({ mediaIds: z.array(z.string().min(1).max(36)).max(200) })
+  )
+  .handler(
+    async ({ data, context }): Promise<SavedTranscriptSummary[]> =>
+      listSavedTranscripts(context.user.id, data.mediaIds)
+  )
+
+/**
+ * Which of these files of the caller's own already have their words saved,
+ * so a window can say "no charge" before anything is pressed.
+ */
+export function loadSavedTranscripts(mediaIds: string[]) {
+  return savedTranscriptsFn({ data: { mediaIds } })
 }
 
 const saveAiDefaultsFn = createServerFn({ method: "POST" })
@@ -474,6 +501,7 @@ export function readAloud(options: {
 
 export type {
   AiDefaults,
+  SavedTranscriptSummary,
   ClipTranscript,
   HookVariants,
   JumpCutAnalysis,

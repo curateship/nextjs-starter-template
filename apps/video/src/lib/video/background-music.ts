@@ -51,18 +51,6 @@ export type MusicSource = {
   sourceDurationMs: number
 }
 
-/** How far the clip's own sound has faded at this point in the clip. */
-export function clipFadeOutGain(
-  clip: Pick<Clip, "durationMs" | "fadeOutMs">,
-  clipMs: number
-): number {
-  const fade = Math.min(clip.fadeOutMs ?? 0, clip.durationMs)
-  if (fade <= 0) return 1
-  const left = clip.durationMs - clipMs
-  if (left >= fade) return 1
-  return Math.max(0, left / fade)
-}
-
 /**
  * The clips that cover `projectMs` with one music file, back to back from the
  * start. An empty project has no length to cover, so the track is laid once at

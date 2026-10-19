@@ -4,6 +4,7 @@ import { z } from "zod"
 import {
   findHook,
   HOOK_NO_TEXT_MESSAGE,
+  HOOK_SPOKEN_WINDOW_MS,
   HOOK_TEXT_MAX,
   spokenHookLine,
   type Hook,
@@ -25,9 +26,6 @@ import { askWriter } from "@/server/video/writer"
  */
 
 const HOOK_LABEL = "Hook"
-
-/** How much of the opening is listened to when looking for the spoken line. */
-const HOOK_SPOKEN_WINDOW_MS = 12_000
 
 const variantsSchema = z.object({
   variants: z.array(z.string().max(HOOK_TEXT_MAX)).max(6),

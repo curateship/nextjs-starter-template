@@ -23,6 +23,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [clip-colour.md](clip-colour.md) — what the brightness, contrast and
   saturation sliders do, and how the preview matches the export's `eq` filter
   to within a few levels.
+- [clip-fades.md](clip-fades.md) — the four fade sliders for sound and
+  picture, what happens when two fades are longer than the clip, why a
+  transition wins over a picture fade at its seam, and how a split shares the
+  fades out.
 - [clip-motion.md](clip-motion.md) — the four slow moves a still picture can
   make across its time on screen, and why the export draws them with
   `perspective` rather than `zoompan`.
@@ -34,8 +38,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   for every video, how long it takes, what a failure looks like, what Try
   again does, and how often the editor asks.
 - [waveforms.md](waveforms.md) — the shape of the sound drawn along a sound
-  clip, how the background worker builds it, and why trimming slides the shape
-  instead of squashing it.
+  clip and in a strip along the bottom of a video clip, how the background
+  worker builds it, and why trimming slides the shape instead of squashing it.
 - [background-music.md](background-music.md) — the Music panel: where the
   tracks come from, why a track arrives ducked and at a quarter volume, and
   what happens when the music and the video are different lengths.
@@ -55,6 +59,14 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   up each word as it is said: where it is switched on, where the word times
   come from, what happens when the words are edited, and what it costs to
   export.
+- [saved-transcripts.md](saved-transcripts.md) — a recording written down
+  once and kept: which tools read the kept words, why Whisper's and Gemini's
+  are kept apart, Transcribe again, the pieces a long recording is sent in,
+  and what deleting removes.
+- [price-before-you-press.md](price-before-you-press.md) — the price on the
+  Captions, Hook, Another language and Transcript buttons: what each one
+  counts, how it is worked out from the shell's price list, and how it
+  compared with the meter.
 - [another-language.md](another-language.md) — translating what is said into
   another language, which AI does which half, why nothing lands until it is
   read and corrected, how the original is turned down under a new voice, and
@@ -154,12 +166,19 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   layout onto other slides: what travels (place, size, font, colour, Fit),
   what never does (words, pictures, background), how layers are matched, and
   the one Undo that puts it all back.
+- [carousel-slide-order.md](carousel-slide-order.md) — dragging slides into a
+  new order in the list or grid, by mouse, finger or keyboard, and Cmd+Z and
+  Shift+Cmd+Z in the carousel editor.
+- [carousel-exports.md](carousel-exports.md) — a carousel export kept on its
+  own Carousel exports dashboard: the ZIP, its cover, the menu link under
+  Carousels, downloading, sharing and clearing out, why it is a row of the
+  video exports table, and why deleting the carousel keeps it.
 - [visual-style.md](visual-style.md) — a project's look: the style line and
   look picture set in a project's Settings window, which AI tools send them, and
   why a bad style line spoils every scene at once.
 - [creator-research.md](creator-research.md) — following a creator, the
-  six-hourly watch timer and what it costs, and what Save & break down
-  downloads, spends and writes down.
+  six-hourly watch timer, pausing one creator, what Download and AI analyse
+  download, spend and write down, and what deleting a saved video removes.
 
 The AI tools, the credit ledger and the rest of the export and render path were
 built before this folder existed, and none of them is written up.

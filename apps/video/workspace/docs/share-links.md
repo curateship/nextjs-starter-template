@@ -1,7 +1,8 @@
 # Share links
 
 A share link lets somebody with no account watch one finished export in their
-browser. You make it on the Exports page, send it, and turn it off when you are
+browser, or look through one kept carousel. You make it on the Exports page,
+or on Carousel exports for a carousel, send it, and turn it off when you are
 done.
 
 **The link is the only thing standing between the file and anybody who has
@@ -16,14 +17,21 @@ anyone can.
 - **The export's own title**, under the video, in the browser tab, and in the
   preview a chat app draws when the link is pasted. An export with no title
   shows no words at all.
-- **Nothing else.** No account name or email, no project name, no other
-  exports, and no link back into the app. The page has no links on it at all.
+- **For a carousel, its slides and its caption instead of a video.** The
+  slides run down the page one after another, in a column no wider than a
+  phone, then the title and the caption as they were exported. The viewer can
+  save any slide as a picture. The ZIP itself is not offered.
+- **Nothing else.** No account name or email, no project or carousel name, no
+  other exports, and no link back into the app. The page has no links on it at
+  all.
 
 ## Making one
 
-- **Where:** the Exports page, the link icon on a finished export's row. Rows
-  still waiting, rendering or failed have no link icon, because there is no
-  file to share.
+- **Where:** the link icon on a finished export's row, on the Exports page for
+  a video and on Carousel exports for a carousel. Rows still waiting,
+  rendering or failed have no link icon, because there is no file to share. A
+  kept carousel always has one, because it is finished the moment it is
+  exported.
 - **How long it works:** until you turn it off, or for 1, 7 or 30 days. The
   choice is made when the link is made. To change it, turn the link off and
   make a new one, which gives a new address.
@@ -40,12 +48,18 @@ anyone can.
 - **An expiry** does the same thing on its own when the time passes. The window
   then says when the last link stopped working.
 - **Deleting the export** deletes its links with it.
+- **Deleting the carousel** a kept carousel came from does not. The export and
+  its link stay (see [carousel-exports.md](carousel-exports.md)).
 - **Deleting the account** that made a link deletes the link too.
 
-Every dead link opens the same page: "This video is no longer available", with
+Every dead link opens the same page: "This link is no longer available", with
 a line asking the viewer to get a new link from whoever sent it. The page never
-says which of the reasons it was, so a stranger trying addresses learns
-nothing.
+says which of the reasons it was, or whether it was a video or a carousel, so a
+stranger trying addresses learns nothing.
+
+On a carousel, each slide is asked for separately and checked on its own
+request, so a link turned off while the page is open stops the next slide, and
+the page then gives way to the same notice.
 
 ## Why it is built this way
 
@@ -68,6 +82,10 @@ nothing.
 
 ## Checking it locally
 
+A shared carousel works locally. Its slides are fetched and drawn from memory
+rather than pointed at with a plain picture address, for the same reason the
+export covers are.
+
 In local development the video on the shared page does not play. The dev
 server answers any request a browser makes for a `<video>` with a 404, going by
 the `Sec-Fetch-Dest: video` header. The same trap is already written up for
@@ -85,5 +103,5 @@ deployment does not have that dev-only step.
   the one with no session behind it, listed with its reason in
   `src/app/open-endpoints.ts`.
 - `src/routes/share.tsx`: the page. `src/routes/api/v1/video/share/$token/file.ts`:
-  the file.
+  the file, and one carousel slide when the address ends `?slide=2`.
 - `src/components/video-editor/export-share-dialog.tsx`: the Share window.

@@ -14,7 +14,12 @@ import {
   clipVolume,
   sourceMsAt,
 } from "@/lib/video/clip-playback"
-import { clipFadeOutGain } from "@/lib/video/background-music"
+import {
+  fadeLevelAt,
+  pictureFades,
+  soundFadeGain,
+  type FadePair,
+} from "@/lib/video/clip-fades"
 import { clipFit } from "@/lib/video/clip-frame-fit"
 import {
   clipScale,
@@ -85,18 +90,22 @@ const MEDIA_LOOK_AHEAD_MS = 2000
 // Video and audio need their track as well, because a muted lane silences
 // them. `transition` is the blend entering this clip: a crossfade or slide
 // draws it early over the clip before it; a dip is a separate black layer.
+// `fades` is the picture fading in and out, once the lane's transitions have
+// overruled any fade at their seams (see clip-fades.ts).
 type MediaEntry = {
   clip: EditorClip
   track: EditorTrack
   zIndex: number
   order: number
   transition?: ClipTransition | null
+  fades: FadePair
 }
 // Pictures and text are still — they only need to know what covers what.
 type VisualEntry = {
   clip: EditorClip
   zIndex: number
   transition?: ClipTransition | null
+  fades: FadePair
 }
 type DipWindow = { seamMs: number; durationMs: number }
 type PlaybackFrame = {
@@ -165,19 +174,25 @@ function flattenTracks(tracks: EditorTrack[]) {
   tracks.forEach((track, trackIndex) => {
     const zIndex = tracks.length - trackIndex
     track.clips.forEach((clip, index) => {
-      const transition = resolveIncomingTransition(
-        clip,
-        index > 0 ? track.clips[index - 1] : null
-      )
+      const previous = index > 0 ? track.clips[index - 1] : null
+      const transition = resolveIncomingTransition(clip, previous)
+      const fades = pictureFades(clip, previous, track.clips[index + 1] ?? null)
       if (transition?.kind === "dip") {
         dips.push({ seamMs: clip.startMs, durationMs: transition.durationMs })
       }
       if (clip.kind === "text") {
-        texts.push({ clip, zIndex })
+        texts.push({ clip, zIndex, fades })
       } else if (clip.kind === "image" && clip.url) {
-        images.push({ clip, zIndex, transition })
+        images.push({ clip, zIndex, transition, fades })
       } else if (clip.url) {
-        media.push({ clip, track, zIndex, order: media.length, transition })
+        media.push({
+          clip,
+          track,
+          zIndex,
+          order: media.length,
+          transition,
+          fades,
+        })
       }
     })
   })
@@ -610,7 +625,16 @@ export function EditorPreview() {
         if (element.style.transform !== transform) {
           element.style.transform = transform
         }
-        const opacity = at ? String(at.opacity) : ""
+        // A picture fade multiplies into the entrance, the way the export's
+        // fade takes down a layer that already carries the entrance.
+        const level =
+          (at ? at.opacity : 1) *
+          fadeLevelAt(
+            entry.fades,
+            entry.clip.durationMs,
+            timeMs - entry.clip.startMs
+          )
+        const opacity = level === 1 ? "" : String(level)
         if (element.style.opacity !== opacity) element.style.opacity = opacity
 
         // The word being said. Each word's span remembers the colour it was
@@ -666,7 +690,10 @@ export function EditorPreview() {
             element.style.transform = transform
           }
         } else {
-          if (element.style.opacity !== "1") element.style.opacity = "1"
+          const opacity = String(
+            fadeLevelAt(entry.fades, clip.durationMs, timeMs - clip.startMs)
+          )
+          if (element.style.opacity !== opacity) element.style.opacity = opacity
           const zIndex = String(entry.zIndex)
           if (element.style.zIndex !== zIndex) element.style.zIndex = zIndex
           if (element.style.transform) element.style.transform = ""
@@ -685,7 +712,7 @@ export function EditorPreview() {
         if (element.muted !== muted) element.muted = muted
         const volume =
           clipVolume(clip) *
-          clipFadeOutGain(clip, timeMs - clip.startMs) *
+          soundFadeGain(clip, timeMs - clip.startMs) *
           (entry.track.duck ? sampleEnvelope(duckEnvelope, timeMs) : 1)
         if (element.volume !== volume) element.volume = volume
         const rate = clipSpeed(clip)
@@ -720,7 +747,7 @@ export function EditorPreview() {
         if (element.muted !== muted) element.muted = muted
         const volume =
           clipVolume(clip) *
-          clipFadeOutGain(clip, timeMs - clip.startMs) *
+          soundFadeGain(clip, timeMs - clip.startMs) *
           (track.duck ? sampleEnvelope(duckEnvelope, timeMs) : 1)
         if (element.volume !== volume) element.volume = volume
         const rate = clipSpeed(clip)
@@ -750,7 +777,8 @@ export function EditorPreview() {
             ? entry.transition
             : null
         const motion = clipMotion(clip)
-        if (!transition && !motion) continue
+        const fading = entry.fades.inMs > 0 || entry.fades.outMs > 0
+        if (!transition && !motion && !fading) continue
         const element = imageRefs.current.get(clip.id)
         if (!element) continue
         const moveCss = motion
@@ -778,7 +806,10 @@ export function EditorPreview() {
             transform = `translateX(${slide}) ${moveCss}`.trim()
           }
         } else {
-          if (element.style.opacity !== "1") element.style.opacity = "1"
+          const opacity = String(
+            fadeLevelAt(entry.fades, clip.durationMs, timeMs - clip.startMs)
+          )
+          if (element.style.opacity !== opacity) element.style.opacity = opacity
           const zIndex = String(entry.zIndex)
           if (element.style.zIndex !== zIndex) element.style.zIndex = zIndex
         }

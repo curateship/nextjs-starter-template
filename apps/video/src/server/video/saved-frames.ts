@@ -85,11 +85,13 @@ export async function saveOwnedExportFrame({
   atMs: number
 }): Promise<SavedFrame> {
   const row = await getOwnedExport(userId, exportId)
-  if (row.status !== "ready" || !row.storagePath) {
+  // A carousel export has no project and no moments to take a frame from.
+  const projectId = row.projectId
+  if (row.status !== "ready" || !row.storagePath || !projectId) {
     throw new Error(RENDER_NOT_FOUND_MESSAGE)
   }
   const storagePath = row.storagePath
-  const project = await getOwnedProject(userId, row.projectId)
+  const project = await getOwnedProject(userId, projectId)
 
   // The slider runs to the very end, where there is no frame left to take.
   const lastFrameMs = Math.max(0, (row.durationMs ?? 0) - 1000 / row.frameRate)
@@ -102,7 +104,7 @@ export async function saveOwnedExportFrame({
 
     return keepFrame({
       userId,
-      projectId: row.projectId,
+      projectId,
       name: savedFrameName(project.name, momentMs),
       bytes,
     })

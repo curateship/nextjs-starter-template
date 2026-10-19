@@ -105,6 +105,8 @@ function clampZoom(pxPerSecond: number) {
 // The sound shape's colour, the same for the placeholder and the real thing so
 // nothing changes colour when the real shape arrives.
 const AUDIO_WAVE_COLOR = "#16a34a"
+// The same green, lighter, so it reads on the dark band over a video's frames.
+const VIDEO_WAVE_COLOR = "#86efac"
 
 const ACCENTS = {
   video: "var(--acc)",
@@ -752,7 +754,12 @@ function TimelineRow({
           )
           return (
             <React.Fragment key={clip.id}>
-              <ClipChip clip={clip} trackIndex={index} accent={accent} />
+              <ClipChip
+                clip={clip}
+                trackIndex={index}
+                accent={accent}
+                trackMuted={track.muted}
+              />
               {transition ? (
                 <SeamBadge clip={clip} transition={transition} />
               ) : null}
@@ -790,10 +797,12 @@ const ClipChip = React.memo(function ClipChip({
   clip,
   trackIndex,
   accent,
+  trackMuted,
 }: {
   clip: EditorClip
   trackIndex: number
   accent: string
+  trackMuted: boolean
 }) {
   const selected = useEditorSelector((state) =>
     state.selectedClipIds.includes(clip.id)
@@ -852,11 +861,12 @@ const ClipChip = React.memo(function ClipChip({
     })
   }, [stripState, mediaId])
 
-  // The real shape of the sound along an audio clip. Until it arrives the
-  // made-up pattern below stays, and the swap happens in one paint.
+  // The real shape of the sound along an audio or video clip. Until it
+  // arrives an audio clip keeps the made-up pattern below, and the swap
+  // happens in one paint. A video clip draws nothing until then.
   const [waveform, setWaveform] = React.useState<Waveform | null>(null)
   React.useEffect(() => {
-    if (kind !== "audio" || !mediaId) return
+    if ((kind !== "audio" && kind !== "video") || !mediaId) return
     let cancelled = false
     getWaveform(mediaId)
       .then((loaded) => {
@@ -892,6 +902,8 @@ const ClipChip = React.memo(function ClipChip({
     [snapGuide]
   )
 
+  // The clip's sound is off: its own switch, its lane's, or its volume at 0.
+  const silent = trackMuted || !!clip.muted || clip.volume === 0
   const left = msToPx(clip.startMs, pps)
   const width = Math.max(6, msToPx(clip.durationMs, pps))
   const showDuration = width > 76
@@ -1277,6 +1289,44 @@ const ClipChip = React.memo(function ClipChip({
         >
           <path d={waveform.path} fill={AUDIO_WAVE_COLOR} />
         </svg>
+      ) : null}
+      {clip.kind === "video" && waveform?.path ? (
+        // A thin strip along the bottom third, over the frames, on a dark
+        // band so it reads over any picture. Faded when the clip's sound is
+        // off, so a muted clip still shows where its words are.
+        <div
+          data-clip-waveform
+          data-muted={silent || undefined}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: "33%",
+            overflow: "hidden",
+            pointerEvents: "none",
+            background: "rgba(0,0,0,.38)",
+            opacity: silent ? 0.4 : 1,
+          }}
+        >
+          <svg
+            aria-hidden
+            viewBox={`0 0 ${waveform.pointCount} 2`}
+            preserveAspectRatio="none"
+            style={{
+              position: "absolute",
+              top: "8%",
+              height: "84%",
+              ...waveformPlacement(
+                waveform,
+                { trimStartMs: clip.trimStartMs, speed: clipSpeed(clip) },
+                pps
+              ),
+            }}
+          >
+            <path d={waveform.path} fill={VIDEO_WAVE_COLOR} />
+          </svg>
+        </div>
       ) : null}
       {overlay ? <div style={overlay} /> : null}
       {showLabel ? (

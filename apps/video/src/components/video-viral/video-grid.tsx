@@ -8,7 +8,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
+import { FieldLabel } from "@/components/ui/field-label"
 import { ScrollBar } from "@/components/ui/scroll-area"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -18,7 +20,7 @@ import {
 } from "@/components/ui/table"
 import { StarMenu, type Favourites } from "@/components/video-viral/star-menu"
 import { ViralScoreCell } from "@/components/video-viral/viral-score-cell"
-import { formatDate } from "@/lib/format/format-time"
+import { formatDate, formatTimeAgo } from "@/lib/format/format-time"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 import {
@@ -58,6 +60,8 @@ type GridProps = {
   favourites: Favourites
   onFavouritesChanged: () => Promise<void>
   projectId: string | null
+  /** A button drawn under each card, such as AI analyse on the Downloaded tab. */
+  cardAction?: (video: ViralVideo) => React.ReactNode
 }
 
 export function VideoGrid({
@@ -105,6 +109,9 @@ export function VideoGrid({
               <SavedChip status={video.savedStatus} />
             </span>
           </button>
+          {props.cardAction ? (
+            <span className="grid px-2 pb-2">{props.cardAction(video)}</span>
+          ) : null}
           {ticked && onTick ? (
             <span className="absolute top-1.5 left-1.5 flex items-center rounded-md bg-background/90 p-1">
               <Checkbox
@@ -334,14 +341,17 @@ export function VideoList({
                 {formatDuration(video.durationSeconds) || "—"}
               </TableCell>
               <TableCell column="actions">
-                {video.sample ? null : (
-                  <StarMenu
-                    videos={[video]}
-                    favourites={props.favourites}
-                    sourceProjectId={props.projectId}
-                    onChanged={props.onFavouritesChanged}
-                  />
-                )}
+                <span className="flex items-center justify-end gap-1">
+                  {props.cardAction ? props.cardAction(video) : null}
+                  {video.sample ? null : (
+                    <StarMenu
+                      videos={[video]}
+                      favourites={props.favourites}
+                      sourceProjectId={props.projectId}
+                      onChanged={props.onFavouritesChanged}
+                    />
+                  )}
+                </span>
               </TableCell>
             </TableRow>
           ))}
@@ -352,27 +362,38 @@ export function VideoList({
   )
 }
 
-/** The Creators view: one row per channel, most hits first. */
+/**
+ * The Creators view: one row per channel, most hits first. A followed
+ * creator's row also carries the watch timer's switch and when it last
+ * looked. Creators found only through search results are never checked, so
+ * their rows have neither.
+ */
 export function CreatorList({
   creators,
   selectedKey,
   onPick,
+  onWatchChange,
 }: {
   creators: ViralCreator[]
   selectedKey: string | null
   onPick: (creator: ViralCreator) => void
+  /** Check for new posts, switched on or off for one followed creator. */
+  onWatchChange?: (creator: ViralCreator, watch: boolean) => void
 }) {
   return (
     <ul aria-label="Creators" className="divide-y">
       {creators.map((creator) => (
-        <li key={creator.key}>
+        <li
+          key={creator.key}
+          className={cn(creator.key === selectedKey && "bg-muted")}
+        >
           <button
             type="button"
             aria-current={creator.key === selectedKey ? "true" : undefined}
             onClick={() => onPick(creator)}
             className={cn(
               "flex w-full items-center gap-3 px-3 py-2.5 text-left",
-              creator.key === selectedKey ? "bg-muted" : "hover:bg-muted/50",
+              creator.key === selectedKey ? null : "hover:bg-muted/50",
               focusRing
             )}
           >
@@ -388,7 +409,9 @@ export function CreatorList({
               <span className="flex min-w-0 items-center gap-2">
                 <span className="truncate text-sm font-medium">{creator.name}</span>
                 {creator.followedId ? (
-                  <Badge variant="secondary">Following</Badge>
+                  <Badge variant="secondary">
+                    {creator.watch === false ? "Paused" : "Following"}
+                  </Badge>
                 ) : null}
               </span>
               <span className="truncate text-xs text-muted-foreground">
@@ -410,8 +433,49 @@ export function CreatorList({
               <span>typical {creator.typicalScore ?? "—"}</span>
             </span>
           </button>
+          {creator.followedId && onWatchChange ? (
+            <CreatorWatchRow creator={creator} onWatchChange={onWatchChange} />
+          ) : null}
         </li>
       ))}
     </ul>
   )
+}
+
+/** "Check for new posts" and "Last checked 2 hours ago", on a followed row. */
+function CreatorWatchRow({
+  creator,
+  onWatchChange,
+}: {
+  creator: ViralCreator
+  onWatchChange: (creator: ViralCreator, watch: boolean) => void
+}) {
+  const id = `creator-watch-${creator.followedId}`
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 pb-2.5 pl-15">
+      <span className="flex items-center gap-2">
+        <Switch
+          id={id}
+          checked={creator.watch !== false}
+          onCheckedChange={(checked) => onWatchChange(creator, checked)}
+        />
+        <FieldLabel
+          htmlFor={id}
+          className="text-xs"
+          hint="The watch timer looks for their new posts every six hours. They are one creator in every project they are in, so switching this off pauses them in all of those projects. Posts already saved stay."
+        >
+          Check for new posts
+        </FieldLabel>
+      </span>
+      <span className="text-xs text-muted-foreground">
+        {creator.lastCheckedAt ? `Last checked ${checkedAgo(creator.lastCheckedAt)}` : "Not checked yet"}
+      </span>
+    </div>
+  )
+}
+
+/** "2 hours ago", "yesterday", "just now", to follow "Last checked". */
+function checkedAgo(at: string) {
+  const ago = formatTimeAgo(at)
+  return ago.charAt(0).toLowerCase() + ago.slice(1)
 }

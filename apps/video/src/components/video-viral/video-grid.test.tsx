@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { VideoGrid, VideoList } from "@/components/video-viral/video-grid"
-import type { ViralVideo } from "@/lib/video/viral"
+import { CreatorList, VideoGrid, VideoList } from "@/components/video-viral/video-grid"
+import type { ViralCreator, ViralVideo } from "@/lib/video/viral"
 import { scoreViralVideo } from "@/lib/video/viral-score"
 
 function video(id: string, savedStatus: string | null): ViralVideo {
@@ -124,5 +124,77 @@ describe("a video being saved and broken down", () => {
       )
     )
     expect(processing()).toEqual(["downloading", "watching"])
+  })
+})
+
+describe("a downloaded video", () => {
+  it("is finished, not amber, and carries its Downloaded chip", () => {
+    act(() =>
+      root.render(
+        <TooltipProvider>
+          <VideoGrid size="medium" {...COMMON} videos={[video("kept", "downloaded")]} />
+        </TooltipProvider>
+      )
+    )
+    expect(processing()).toEqual([])
+    expect(container.textContent).toContain("Downloaded")
+  })
+})
+
+function creator(name: string, followed: Partial<ViralCreator> | null): ViralCreator {
+  return {
+    key: `tiktok:@${name}`,
+    platform: "tiktok",
+    channelId: null,
+    name,
+    handle: name,
+    subscribers: null,
+    hits: 0,
+    typicalScore: null,
+    followedId: followed ? `creator-${name}` : null,
+    watch: followed ? true : null,
+    lastCheckedAt: null,
+    avatarUrl: null,
+    profileUrl: "",
+    postsPerWeek: null,
+    ...followed,
+  }
+}
+
+describe("the Creators list", () => {
+  it("gives followed rows the switch and when they were last checked, and search-only rows neither", () => {
+    const changes: [string, boolean][] = []
+    act(() =>
+      root.render(
+        <TooltipProvider>
+          <CreatorList
+            creators={[
+              creator("watched", { lastCheckedAt: new Date(Date.now() - 2 * 3_600_000).toISOString() }),
+              creator("paused", { watch: false }),
+              creator("found", null),
+            ]}
+            selectedKey={null}
+            onPick={() => undefined}
+            onWatchChange={(one, watch) => changes.push([one.name, watch])}
+          />
+        </TooltipProvider>
+      )
+    )
+    const rows = [...container.querySelectorAll("li")]
+    expect(rows[0].textContent).toContain("Check for new posts")
+    expect(rows[0].textContent).toContain("Last checked 2 hours ago")
+    expect(rows[1].textContent).toContain("Paused")
+    expect(rows[1].textContent).toContain("Not checked yet")
+    expect(rows[2].textContent).not.toContain("Check for new posts")
+    expect(rows[2].querySelector('[role="switch"]')).toBeNull()
+
+    const switches = [...container.querySelectorAll<HTMLButtonElement>('[role="switch"]')]
+    expect(switches.map((one) => one.getAttribute("aria-checked"))).toEqual(["true", "false"])
+    act(() => switches[0].click())
+    act(() => switches[1].click())
+    expect(changes).toEqual([
+      ["watched", false],
+      ["paused", true],
+    ])
   })
 })

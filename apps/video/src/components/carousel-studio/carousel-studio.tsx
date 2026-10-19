@@ -2,6 +2,22 @@ import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import {
   AlignCenterIcon,
   AlignLeftIcon,
   AlignRightIcon,
@@ -14,6 +30,7 @@ import {
   CopyIcon,
   DownloadIcon,
   EyeIcon,
+  GripVerticalIcon,
   ImageIcon,
   LayersIcon,
   LayoutGridIcon,
@@ -76,6 +93,7 @@ import {
 } from "@/components/ui/tooltip"
 import {
   duplicateCarousel,
+  exportCarousel,
   getCarouselErrorMessage,
   polishCarouselText,
   saveCarousel,
@@ -125,7 +143,6 @@ import {
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
-import { exportCarouselZip } from "@/components/carousel-studio/carousel-export"
 import "@/components/video-editor/studio.css"
 
 export type Snapshot = {
@@ -158,6 +175,7 @@ export type BuilderAction =
   | { type: "ADD_SLIDE" }
   | { type: "DUPLICATE_SLIDE"; slideId: string }
   | { type: "DELETE_SLIDE"; slideId: string }
+  | { type: "MOVE_SLIDE"; slideId: string; toIndex: number }
   | { type: "ADD_ITEM"; slideId: string; item: CarouselSlideItem }
   | { type: "DELETE_ITEM"; slideId: string; itemId: string }
   | { type: "MOVE_LAYER"; slideId: string; itemId: string; direction: 1 | -1 }
@@ -507,18 +525,19 @@ export function CarouselBuilderPage({
     setExporting(true)
     setExportError(null)
     try {
+      // The server zips what is saved, so what is on screen is saved first.
       await flushSave()
-      await exportCarouselZip({
-        carouselId: document.id,
-        name: document.name,
-        slideCount: state.slides.length,
-        caption: state.caption,
-      })
+      const kept = await exportCarousel(document.id)
+      downloadKeptExport(kept.id, kept.title ?? document.name)
       setExportOpen(false)
+      toast.success("Carousel exported. A copy is kept in Carousel exports.", {
+        action: {
+          label: "Open Carousel exports",
+          onClick: () => void navigate({ to: "/admin/video-carousel-exports" }),
+        },
+      })
     } catch (error) {
-      setExportError(
-        error instanceof Error ? error.message : "Carousel export failed."
-      )
+      setExportError(getCarouselErrorMessage(error))
     } finally {
       setExporting(false)
     }
@@ -640,16 +659,27 @@ export function CarouselBuilderPage({
 
   React.useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented) return
+      if (previewOpen || exportOpen || pushOpen) return
+      // While typing, the box's own undo handles the words being typed.
+      if (isTextEntryTarget(event.target)) return
+
+      // Cmd+Z undoes and Shift+Cmd+Z redoes. Control+Z is left alone:
+      // Tyler's own keyboard setup uses it (19 Oct 2026).
       if (
-        event.defaultPrevented ||
-        (event.key !== "Backspace" && event.key !== "Delete")
+        event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === "z"
       ) {
+        event.preventDefault()
+        dispatch({ type: event.shiftKey ? "REDO" : "UNDO" })
         return
       }
+
+      if (event.key !== "Backspace" && event.key !== "Delete") return
       if (event.altKey || event.ctrlKey || event.metaKey) return
-      if (previewOpen || exportOpen) return
       if (!selectedSlideId || !state.selectedItemId) return
-      if (isTextEntryTarget(event.target)) return
 
       event.preventDefault()
       dispatch({
@@ -661,7 +691,7 @@ export function CarouselBuilderPage({
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [exportOpen, previewOpen, selectedSlideId, state.selectedItemId])
+  }, [exportOpen, previewOpen, pushOpen, selectedSlideId, state.selectedItemId])
 
   const slideIndex = state.slides.findIndex((s) => s.id === selectedSlideId)
 
@@ -683,6 +713,9 @@ export function CarouselBuilderPage({
           onDuplicateSlide={duplicateSlide}
           onDeleteSlide={(slideId) =>
             dispatch({ type: "DELETE_SLIDE", slideId })
+          }
+          onMoveSlide={(slideId, toIndex) =>
+            dispatch({ type: "MOVE_SLIDE", slideId, toIndex })
           }
           onAddItem={addItem}
         />
@@ -1070,6 +1103,7 @@ function CarouselContextPanel({
   onAddSlide,
   onDuplicateSlide,
   onDeleteSlide,
+  onMoveSlide,
   onAddItem,
 }: {
   carouselId: string
@@ -1082,6 +1116,7 @@ function CarouselContextPanel({
   onAddSlide: () => void
   onDuplicateSlide: (slideId: string) => void
   onDeleteSlide: (slideId: string) => void
+  onMoveSlide: (slideId: string, toIndex: number) => void
   onAddItem: (item: CarouselSlideItem) => void
 }) {
   const [slidesView, setSlidesView] = React.useState<"list" | "grid">("list")
@@ -1114,6 +1149,7 @@ function CarouselContextPanel({
               onAddSlide={onAddSlide}
               onDuplicateSlide={onDuplicateSlide}
               onDeleteSlide={onDeleteSlide}
+              onMoveSlide={onMoveSlide}
             />
           ) : panel === "text" ? (
             <TextPanelBody onAddItem={onAddItem} />
@@ -1194,6 +1230,7 @@ function SlidesPanelBody({
   onAddSlide,
   onDuplicateSlide,
   onDeleteSlide,
+  onMoveSlide,
 }: {
   view: "list" | "grid"
   slides: CarouselSlide[]
@@ -1204,8 +1241,22 @@ function SlidesPanelBody({
   onAddSlide: () => void
   onDuplicateSlide: (slideId: string) => void
   onDeleteSlide: (slideId: string) => void
+  onMoveSlide: (slideId: string, toIndex: number) => void
 }) {
   const canDelete = slides.length > 1
+  // A press has to travel 8px before it is a drag, so a click still picks the
+  // slide. The grip on each slide moves it from the keyboard.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+  const slideIds = slides.map((slide) => slide.id)
+
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return
+    const toIndex = slideIds.indexOf(String(over.id))
+    if (toIndex !== -1) onMoveSlide(String(active.id), toIndex)
+  }
 
   const addButton = (
     <Button
@@ -1221,7 +1272,12 @@ function SlidesPanelBody({
   )
 
   return (
-    <div>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={slideIds} strategy={verticalListSortingStrategy}>
       {view === "list" ? (
         <div
           style={{
@@ -1269,10 +1325,39 @@ function SlidesPanelBody({
           ))}
         </div>
       )}
+      </SortableContext>
 
       {addButton}
-    </div>
+    </DndContext>
   )
+}
+
+/**
+ * One slide in the Slides list or grid, draggable to a new place. The whole
+ * slide drags with a mouse or a finger; the grip is the keyboard's way in,
+ * because Space and Enter on the slide itself still pick it.
+ */
+function useSortableSlide(slideId: string) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: slideId })
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    position: "relative",
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.85 : undefined,
+  }
+  return {
+    nodeProps: { ref: setNodeRef, style, ...listeners },
+    gripProps: { ref: setActivatorNodeRef, ...attributes },
+  }
 }
 
 const TEXT_OVERFLOW_LABEL = "text on it does not fit its box"
@@ -1320,14 +1405,18 @@ function SlideListRow({
 }) {
   const thumbWidth = 46
   const thumbHeight = Math.round(thumbWidth / FORMAT_RATIOS[format])
+  const { nodeProps, gripProps } = useSortableSlide(slide.id)
 
   return (
     <div
+      {...nodeProps}
       style={{
+        ...nodeProps.style,
         display: "flex",
         alignItems: "center",
-        gap: 10,
+        gap: 6,
         padding: 8,
+        paddingLeft: 2,
         minWidth: 0,
         background: "var(--panel2)",
         border: `1px solid ${selected ? "var(--acc)" : "var(--line)"}`,
@@ -1335,6 +1424,15 @@ function SlideListRow({
         boxShadow: selected ? "0 0 0 2px var(--acc-soft)" : "none",
       }}
     >
+      <button
+        type="button"
+        {...gripProps}
+        aria-label={`Move slide ${index + 1}`}
+        className="st-hovbg"
+        style={{ ...slideRowIconBtn, ...gripStyle, width: 18 }}
+      >
+        <GripVerticalIcon size={14} />
+      </button>
       <button
         type="button"
         onClick={onSelect}
@@ -1437,8 +1535,13 @@ function SlideGridCard({
   onDuplicate: () => void
   onDelete: () => void
 }) {
+  const { nodeProps, gripProps } = useSortableSlide(slide.id)
+
   return (
-    <div className="group relative">
+    <div
+      {...nodeProps}
+      className="group"
+    >
       <button
         type="button"
         onClick={onSelect}
@@ -1485,6 +1588,15 @@ function SlideGridCard({
       <div className="absolute top-[5px] right-[5px] flex gap-[3px] opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
         <button
           type="button"
+          {...gripProps}
+          className="st-hovbright"
+          aria-label={`Move slide ${index + 1}`}
+          style={{ ...gridCardIconBtn, ...gripStyle }}
+        >
+          <GripVerticalIcon size={12} />
+        </button>
+        <button
+          type="button"
           className="st-hovbright"
           onClick={onDuplicate}
           aria-label="Duplicate slide"
@@ -1512,6 +1624,10 @@ function SlideGridCard({
     </div>
   )
 }
+
+// A finger on the grip drags at once instead of scrolling the list. Anywhere
+// else on a slide, a finger still scrolls.
+const gripStyle: React.CSSProperties = { cursor: "grab", touchAction: "none" }
 
 const slideRowIconBtn: React.CSSProperties = {
   height: 30,
@@ -3439,7 +3555,8 @@ function ExportDialog({
         <DialogHeader>
           <DialogTitle>Export Carousel</DialogTitle>
           <DialogDescription>
-            Download every slide as a full-size PNG in one ZIP file.
+            Download every slide as a full-size PNG in one ZIP file. A copy is
+            kept in Carousel exports, to download again or share by link.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -3846,6 +3963,22 @@ export function builderReducer(
         selectedSlideId: selectedSlide.id,
         selectedItemId: selectedSlide.items[0]?.id ?? null,
       })
+    }
+    case "MOVE_SLIDE": {
+      // A drag in the Slides list. The picked slide and layer stay picked,
+      // wherever they end up, and one Undo puts the order back.
+      const from = state.slides.findIndex(
+        (slide) => slide.id === action.slideId
+      )
+      const to = Math.min(
+        state.slides.length - 1,
+        Math.max(0, Math.round(action.toIndex))
+      )
+      if (from === -1 || from === to) return state
+      const slides = [...state.slides]
+      const [moved] = slides.splice(from, 1)
+      slides.splice(to, 0, moved)
+      return withHistory(state, { ...state, slides })
     }
     case "ADD_ITEM": {
       const slide = state.slides.find((item) => item.id === action.slideId)
@@ -4344,6 +4477,16 @@ function positionPatch(
   if (key === "y") return { y: clamp01(normalized, 1 - item.height) }
   if (key === "width") return { width: clampSize(normalized, 1 - item.x) }
   return { height: clampSize(normalized, 1 - item.y) }
+}
+
+/** Hands the kept ZIP over as a download, the way the Exports page does. */
+function downloadKeptExport(exportId: string, name: string) {
+  const link = window.document.createElement("a")
+  link.href = `/api/v1/video/exports/${encodeURIComponent(exportId)}/file?filename=${encodeURIComponent(name)}`
+  link.download = ""
+  window.document.body.append(link)
+  link.click()
+  link.remove()
 }
 
 function builderId() {

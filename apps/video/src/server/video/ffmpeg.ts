@@ -14,8 +14,9 @@ export const FFMPEG_MISSING_MESSAGE = "ffmpeg is not installed on this server"
 
 /**
  * How long one run may take before it is given up on, unless the caller says
- * otherwise. A clip being listened to is capped at ten minutes of sound and
- * takes seconds. Only an export can run longer, and it passes its own limit.
+ * otherwise. A file being written down is at most thirty minutes of sound,
+ * and pulling that out as a small WAV takes seconds. Only an export can run
+ * longer, and it passes its own limit.
  */
 export const FFMPEG_TIMEOUT_MS = 10 * 60_000
 

@@ -105,8 +105,8 @@ Restore does three things in order:
 2. Keeps that timeline as a version marked "Before restoring", unless
    History already holds it. If that fails, nothing is restored and the error says so, because a restore you
    cannot take back is the thing this rule exists to prevent.
-3. Puts the chosen version on the timeline as one edit. Ctrl+Z takes it back
-   while the tab is open, and the next autosave stores it.
+3. Puts the chosen version on the timeline as one edit. The timeline's Undo
+   button takes it back while the tab is open, and the next autosave stores it.
 
 To undo a restore after a reload, open History and restore the "Before
 restoring" version at the top. You can go back and forth between the two as
@@ -114,7 +114,7 @@ often as you like. The list stays at two rows, because each cut is already
 in it.
 
 - **The shape comes back too.** A version restores its shape as well as its
-  clips. Ctrl+Z takes back the clips but not the shape, the same as changing
+  clips. Undo takes back the clips but not the shape, the same as changing
   the shape by hand. The "Before restoring" version has both.
 - **A read-only window cannot restore.** It says so and offers a reload, the
   same as any other change in that window (`two-windows.md`).

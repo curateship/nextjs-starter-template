@@ -1,64 +1,27 @@
+/**
+ * A ZIP written without compression, for a kept carousel export.
+ *
+ * Slide PNGs are already compressed, so squeezing them again saves next to
+ * nothing. Storing them as they are also puts each file's bytes in one
+ * unbroken run inside the ZIP, and `entries` says where each run starts. That
+ * is what lets the share page read one slide out of the stored ZIP with a
+ * ranged read instead of fetching the whole file.
+ */
+
+// Every file is dated 1 Jan 1980, the earliest date a ZIP can hold, so the
+// same slides always make the same bytes.
 const ZIP_EPOCH = new Date("1980-01-01T00:00:00Z")
 
-type ExportFile = { name: string; data: Uint8Array }
+export type StoredZipFile = { name: string; data: Uint8Array }
+export type StoredZipEntry = { name: string; start: number; size: number }
 
-/** The server rasterizes each saved slide with the same bundled Inter file as
- * video export. The browser only packs those PNGs and the caption together. */
-export async function exportCarouselZip({
-  carouselId,
-  name,
-  slideCount,
-  caption,
-}: {
-  carouselId: string
-  name: string
-  slideCount: number
-  caption: string
-}) {
-  const files: ExportFile[] = []
-  for (let index = 0; index < slideCount; index += 1) {
-    const response = await fetch(
-      `/api/v1/video/carousels/${encodeURIComponent(carouselId)}/slides/${index}`
-    )
-    if (!response.ok) {
-      throw new Error(`Slide ${index + 1} could not be exported.`)
-    }
-    files.push({
-      name: `slides/slide-${String(index + 1).padStart(2, "0")}.png`,
-      data: new Uint8Array(await response.arrayBuffer()),
-    })
-  }
-  files.push({
-    name: "caption.txt",
-    data: new TextEncoder().encode(caption.trim() ? `${caption.trim()}\n` : ""),
-  })
-  downloadBlob(createStoredZip(files), `${safeFilename(name)}.zip`)
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.href = url
-  link.download = filename
-  document.body.append(link)
-  link.click()
-  link.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 0)
-}
-
-function safeFilename(value: string) {
-  return (
-    value
-      .trim()
-      .replace(/[^a-z0-9]+/gi, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 80) || "carousel"
-  )
-}
-
-function createStoredZip(files: ExportFile[]) {
+export function createStoredZip(files: StoredZipFile[]): {
+  bytes: Uint8Array
+  entries: StoredZipEntry[]
+} {
   const localParts: Uint8Array[] = []
   const centralParts: Uint8Array[] = []
+  const entries: StoredZipEntry[] = []
   let offset = 0
   for (const file of files) {
     const name = new TextEncoder().encode(file.name)
@@ -66,6 +29,11 @@ function createStoredZip(files: ExportFile[]) {
     const local = localFileHeader(name, file.data, crc)
     localParts.push(local, file.data)
     centralParts.push(centralDirectoryHeader(name, file.data, crc, offset))
+    entries.push({
+      name: file.name,
+      start: offset + local.byteLength,
+      size: file.data.byteLength,
+    })
     offset += local.byteLength + file.data.byteLength
   }
   const centralSize = centralParts.reduce(
@@ -77,15 +45,15 @@ function createStoredZip(files: ExportFile[]) {
     ...centralParts,
     endOfCentralDirectory(files.length, centralSize, offset),
   ]
-  const archive = new Uint8Array(
+  const bytes = new Uint8Array(
     parts.reduce((size, part) => size + part.byteLength, 0)
   )
   let cursor = 0
   for (const part of parts) {
-    archive.set(part, cursor)
+    bytes.set(part, cursor)
     cursor += part.byteLength
   }
-  return new Blob([archive.buffer], { type: "application/zip" })
+  return { bytes, entries }
 }
 
 function localFileHeader(name: Uint8Array, data: Uint8Array, crc: number) {

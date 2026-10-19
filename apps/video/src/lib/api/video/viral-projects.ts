@@ -36,6 +36,7 @@ import {
   unfollowInProject,
 } from "@/server/video/viral/project-creators"
 import { suggestKeywords } from "@/server/video/viral/keyword-ideas"
+import { setCreatorWatch } from "@/server/video/creators/creators"
 import {
   VIRAL_DAY_CHOICES,
   VIRAL_DESCRIPTION_MAX,
@@ -460,4 +461,19 @@ const unfollowFn = createServerFn({ method: "POST" })
 
 export function unfollowViralCreator(projectId: string, creatorId: string) {
   return unfollowFn({ data: { projectId, creatorId } })
+}
+
+const watchFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ creatorId: id, watch: z.boolean() }))
+  .handler(async ({ data, context }) =>
+    setCreatorWatch(context.user.id, data.creatorId, data.watch)
+  )
+
+/**
+ * Check for new posts, on or off, for one followed creator. It is the
+ * creator's own switch, so it pauses or resumes them in every project.
+ */
+export function setViralCreatorWatch(creatorId: string, watch: boolean) {
+  return watchFn({ data: { creatorId, watch } })
 }

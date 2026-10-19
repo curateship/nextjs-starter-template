@@ -1,6 +1,7 @@
 import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
 import {
+  DownloadIcon,
   EyeOffIcon,
   FilmIcon,
   GridIcon,
@@ -9,6 +10,7 @@ import {
   PlusIcon,
   SparklesIcon,
   StarIcon,
+  Trash2Icon,
   XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -29,7 +31,7 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -39,6 +41,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AddCreatorDialog } from "@/components/video-viral/add-creator-dialog"
 import { CreatorCard } from "@/components/video-viral/creator-card"
+import { DeleteSavedVideosDialog } from "@/components/video-viral/delete-saved-videos-dialog"
 import { PlayerPanel } from "@/components/video-viral/player-panel"
 import { ProjectPanel } from "@/components/video-viral/project-panel"
 import { StarMenu, type Favourites } from "@/components/video-viral/star-menu"
@@ -59,6 +62,7 @@ import {
   refreshViralKeyword,
   removeViralKeywordFn,
   searchViralProject,
+  setViralCreatorWatch,
   unfollowViralCreator,
 } from "@/lib/api/video/viral-projects"
 import { saveVideos } from "@/lib/api/video/viral-videos"
@@ -144,6 +148,9 @@ export function ViralProjectScreenView({
   const [addingCreator, setAddingCreator] = React.useState(false)
   const [removing, setRemoving] = React.useState<ViralKeyword | null>(null)
   const [offerSearch, setOfferSearch] = React.useState(false)
+  const [deletingVideos, setDeletingVideos] = React.useState<ViralVideo[]>([])
+  // A switch flipped here shows at once, before the screen reads itself again.
+  const [watchOverride, setWatchOverride] = React.useState<Record<string, boolean>>({})
   const [run, busy] = useAsyncAction(getViralErrorMessage)
   // Typing stays instant; the address catches up a moment later.
   const [searchText, setSearchText] = useSearchBoxText(text, (next) =>
@@ -201,8 +208,13 @@ export function ViralProjectScreenView({
     [project.min_score, project.min_views, screen.videos]
   )
   const creators = React.useMemo(
-    () => filterCreators(screen.creators, range, view === "creators" ? text : ""),
-    [range, screen.creators, text, view]
+    () =>
+      filterCreators(screen.creators, range, view === "creators" ? text : "").map((creator) =>
+        creator.followedId && creator.followedId in watchOverride
+          ? { ...creator, watch: watchOverride[creator.followedId] }
+          : creator
+      ),
+    [range, screen.creators, text, view, watchOverride]
   )
   const glance = atAGlance(projectVideos, screen.creators)
 
@@ -217,10 +229,14 @@ export function ViralProjectScreenView({
         }
       : (uploads[pickedCreator.key] ?? { state: "loading" })
     : undefined
-  // The Broken down tab is the Videos tab's list, with its filters, kept to
-  // the videos whose breakdown has finished.
+  // The Downloaded and Broken down tabs are the Videos tab's list, with its
+  // filters, kept to the videos downloaded with no AI yet and to the videos
+  // whose breakdown has finished.
+  const isDownloaded = (video: ViralVideo) => video.savedStatus === "downloaded"
   const isBrokenDown = (video: ViralVideo) => video.savedStatus === "ready"
-  const brokenDownCount = projectVideos.map(progress.apply).filter(isBrokenDown).length
+  const appliedProjectVideos = projectVideos.map(progress.apply)
+  const downloadedCount = appliedProjectVideos.filter(isDownloaded).length
+  const brokenDownCount = appliedProjectVideos.filter(isBrokenDown).length
   const middleVideos =
     view === "creators" && pickedCreator
       ? creatorUploads?.state === "ready"
@@ -228,7 +244,9 @@ export function ViralProjectScreenView({
         : []
       : view === "broken"
         ? shown.map(progress.apply).filter(isBrokenDown)
-        : shown.map(progress.apply)
+        : view === "downloaded"
+          ? shown.map(progress.apply).filter(isDownloaded)
+          : shown.map(progress.apply)
 
   // The picked video is looked for everywhere this screen has videos, so a
   // filter that hides it does not stop it playing.
@@ -367,20 +385,58 @@ export function ViralProjectScreenView({
     })
   }
 
-  async function saveTicked() {
+  /** Download (no AI) or AI analyse, for some videos in one request. */
+  async function saveMany(videos: ViralVideo[], analyse: boolean) {
     await run(async () => {
-      const saving = tickedVideos.filter((video) => !video.sample)
+      const saving = videos.filter((video) => !video.sample)
       const saved = await saveVideos(
         saving.map((video) => video.url),
-        project.id
+        project.id,
+        analyse
       )
       saved.forEach((detail, index) =>
         progress.report(saving[index].key, { id: detail.id, status: detail.status })
       )
       setTicked(new Set())
       await refresh()
-      toast.success(`${saved.length} ${plural(saved.length, "video")} saved for breaking down. Each shows its progress on its card.`)
+      const count = `${saved.length} ${plural(saved.length, "video")}`
+      toast.success(
+        analyse
+          ? `${count} sent to AI analyse. Each shows its progress on its card.`
+          : `Downloading ${count}. No AI runs. ${saved.length === 1 ? "It shows" : "They show"} on the Downloaded tab once ${saved.length === 1 ? "it is" : "they are"} in.`
+      )
     })
+  }
+
+  async function changeWatch(creator: ViralCreator, watch: boolean) {
+    const creatorId = creator.followedId
+    if (!creatorId) return
+    setWatchOverride((was) => ({ ...was, [creatorId]: watch }))
+    await run(async () => {
+      try {
+        await setViralCreatorWatch(creatorId, watch)
+      } catch (error) {
+        setWatchOverride((was) => {
+          const next = { ...was }
+          delete next[creatorId]
+          return next
+        })
+        throw error
+      }
+      await refresh()
+      toast.success(
+        watch
+          ? `Checking ${creator.name} for new posts again, in every project they are in.`
+          : `${creator.name} is paused in every project they are in. Their saved posts stay.`
+      )
+    })
+  }
+
+  /** The saved copies are gone: their cards drop the saved state at once. */
+  async function afterDelete(keys: string[]) {
+    progress.forget(keys)
+    setTicked(new Set())
+    await refresh()
   }
 
   async function follow(creator: ViralCreator) {
@@ -423,19 +479,27 @@ export function ViralProjectScreenView({
     />
   )
 
+  // Four tabs are wider than a phone. There the header wraps, the buttons
+  // beside the tabs drop to a second line, and the tab row slides sideways
+  // rather than running off the card's edge.
   const viewTabs = (
-    <Tabs
-      value={view}
-      onValueChange={(next) =>
-        setSearch({ view: next === "videos" ? undefined : next, creator: undefined })
-      }
-    >
-      <TabsList>
-        <TabsTrigger value="videos">Videos {projectVideos.length}</TabsTrigger>
-        <TabsTrigger value="broken">Broken down {brokenDownCount}</TabsTrigger>
-        <TabsTrigger value="creators">Creators {screen.creators.length}</TabsTrigger>
-      </TabsList>
-    </Tabs>
+    <ScrollArea className="max-w-full min-w-0">
+      <Tabs
+        value={view}
+        onValueChange={(next) =>
+          setSearch({ view: next === "videos" ? undefined : next, creator: undefined })
+        }
+        className="w-max"
+      >
+        <TabsList>
+          <TabsTrigger value="videos">Videos {projectVideos.length}</TabsTrigger>
+          <TabsTrigger value="downloaded">Downloaded {downloadedCount}</TabsTrigger>
+          <TabsTrigger value="broken">Broken down {brokenDownCount}</TabsTrigger>
+          <TabsTrigger value="creators">Creators {screen.creators.length}</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
   )
 
   const layoutToggle = (
@@ -533,6 +597,8 @@ export function ViralProjectScreenView({
           <span className="sr-only">Show every keyword</span>
         </Button>
       ) : null}
+      {/* Here rather than beside the tabs, which fill the header with four. */}
+      <div className="ml-auto">{layoutToggle}</div>
     </div>
   )
 
@@ -552,13 +618,26 @@ export function ViralProjectScreenView({
     </div>
   )
 
+  // On the Downloaded and Broken down tabs every ticked video is saved, so
+  // Delete is offered there. Download has nothing left to do on either, and
+  // AI analyse nothing on Broken down.
+  const savedTab = view === "downloaded" || view === "broken"
+  const tickedSaved = tickedVideos.filter((video) => video.savedVideoId)
   const bulkBar = tickedVideos.length ? (
     <div className="flex flex-wrap items-center gap-2 border-b bg-muted/40 p-3">
       <span className="text-sm">{tickedVideos.length} ticked</span>
-      <DashboardToolbarButton type="button" variant="outline" disabled={busy || project.sample} onClick={() => void saveTicked()}>
-        {busy ? <Loader2Icon className="size-4 animate-spin" /> : <SparklesIcon className="size-4" />}
-        Save &amp; break down
-      </DashboardToolbarButton>
+      {savedTab ? null : (
+        <DashboardToolbarButton type="button" variant="outline" disabled={busy || project.sample} onClick={() => void saveMany(tickedVideos, false)}>
+          {busy ? <Loader2Icon className="size-4 animate-spin" /> : <DownloadIcon className="size-4" />}
+          Download
+        </DashboardToolbarButton>
+      )}
+      {view === "broken" ? null : (
+        <DashboardToolbarButton type="button" variant="outline" disabled={busy || project.sample} onClick={() => void saveMany(tickedVideos, true)}>
+          {busy ? <Loader2Icon className="size-4 animate-spin" /> : <SparklesIcon className="size-4" />}
+          AI analyse
+        </DashboardToolbarButton>
+      )}
       {project.sample ? null : (
         <StarMenu
           videos={tickedVideos}
@@ -580,6 +659,12 @@ export function ViralProjectScreenView({
         <EyeOffIcon className="size-4" />
         Hide their channels
       </DashboardToolbarButton>
+      {savedTab && tickedSaved.length ? (
+        <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => setDeletingVideos(tickedSaved)}>
+          <Trash2Icon className="size-4" />
+          Delete
+        </DashboardToolbarButton>
+      ) : null}
       <DashboardToolbarButton type="button" variant="ghost" onClick={() => setTicked(new Set())}>
         Clear
       </DashboardToolbarButton>
@@ -595,6 +680,22 @@ export function ViralProjectScreenView({
     favourites,
     onFavouritesChanged: refresh,
     projectId: project.id,
+    // Each downloaded video carries its own AI analyse button.
+    cardAction:
+      view === "downloaded"
+        ? (video: ViralVideo) => (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void saveMany([video], true)}
+            >
+              <SparklesIcon />
+              AI analyse
+            </Button>
+          )
+        : undefined,
   }
 
   const videoContent = (emptyText: string) =>
@@ -619,7 +720,11 @@ export function ViralProjectScreenView({
 
   const brokenDownEmpty = brokenDownCount
     ? "No broken-down video matches these filters."
-    : "Nothing broken down yet. Pick a video and press Save & break down. It shows here once the AI has watched it."
+    : "Nothing broken down yet. Pick a video and press AI analyse. It shows here once the AI has watched it."
+
+  const downloadedEmpty = downloadedCount
+    ? "No downloaded video matches these filters."
+    : "Nothing downloaded without AI yet. Pick a video and press Download. It keeps the video in your media library and spends no AI."
 
   const videosEmpty = !screen.keywords.length
     ? "Add a keyword on the left, then press Search."
@@ -669,7 +774,7 @@ export function ViralProjectScreenView({
   } else if (view === "creators") {
     middle = (
       <>
-        <DashboardCardHeader>
+        <DashboardCardHeader className="flex-wrap">
           {viewTabs}
           <div className="ml-auto">
             <DashboardToolbarButton type="button" variant="outline" disabled={project.sample} onClick={() => setAddingCreator(true)}>
@@ -681,7 +786,12 @@ export function ViralProjectScreenView({
         {creatorsToolbar}
         <ScrollArea className="min-h-0 flex-1">
           {creators.length ? (
-            <CreatorList creators={creators} selectedKey={pickedCreator?.key ?? null} onPick={pickCreator} />
+            <CreatorList
+              creators={creators}
+              selectedKey={pickedCreator?.key ?? null}
+              onPick={pickCreator}
+              onWatchChange={project.sample ? undefined : (creator, watch) => void changeWatch(creator, watch)}
+            />
           ) : (
             <p className="px-4 py-10 text-center text-sm text-muted-foreground">
               {screen.creators.length
@@ -695,17 +805,18 @@ export function ViralProjectScreenView({
   } else {
     middle = (
       <>
-        <DashboardCardHeader>
+        <DashboardCardHeader className="flex-wrap">
           {viewTabs}
-          <div className="ml-auto flex items-center gap-2">
-            {searching ? <Loader2Icon className="size-4 animate-spin text-muted-foreground" aria-label="Searching" /> : null}
-            {layoutToggle}
-          </div>
+          {searching ? (
+            <Loader2Icon className="ml-auto size-4 animate-spin text-muted-foreground" aria-label="Searching" />
+          ) : null}
         </DashboardCardHeader>
         {videosToolbar}
         {bulkBar}
         <ScrollArea className="min-h-0 flex-1">
-          {videoContent(view === "broken" ? brokenDownEmpty : videosEmpty)}
+          {videoContent(
+            view === "broken" ? brokenDownEmpty : view === "downloaded" ? downloadedEmpty : videosEmpty
+          )}
         </ScrollArea>
       </>
     )
@@ -721,6 +832,7 @@ export function ViralProjectScreenView({
         onHideChannel={(video) => void hideChannels([video])}
         onBack={pickedCreator ? () => setSearch({ video: undefined }) : undefined}
         onSavedChange={progress.report}
+        onDeleted={(video) => afterDelete([video.key])}
       />
     ) : (
       <CreatorCard
@@ -775,6 +887,30 @@ export function ViralProjectScreenView({
         open={addingCreator}
         onOpenChange={setAddingCreator}
         onAdded={refresh}
+      />
+
+      <DeleteSavedVideosDialog
+        videos={deletingVideos.flatMap((video) =>
+          video.savedVideoId ? [{ savedVideoId: video.savedVideoId, title: video.title }] : []
+        )}
+        onOpenChange={(open) => {
+          if (!open) setDeletingVideos([])
+        }}
+        onDeleted={async (result) => {
+          const deleted = new Set(result.deleted)
+          const keys = deletingVideos
+            .filter((video) => video.savedVideoId && deleted.has(video.savedVideoId))
+            .map((video) => video.key)
+          setDeletingVideos([])
+          await afterDelete(keys)
+          toast.success(
+            `${keys.length} saved ${plural(keys.length, "video")} deleted.${
+              result.filesKept
+                ? ` ${result.filesKept} ${plural(result.filesKept, "file")} stayed in your media library, because a project still uses ${result.filesKept === 1 ? "it" : "them"}.`
+                : ""
+            }`
+          )
+        }}
       />
 
       <ConfirmDialog

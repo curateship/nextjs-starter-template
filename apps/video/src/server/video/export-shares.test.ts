@@ -99,9 +99,12 @@ describe("making a link", () => {
     const link = await share(job.id)
 
     expect(await readSharedExportView(link.token, database)).toEqual({
+      kind: "video",
       title: "Spring launch",
       width: 1080,
       height: 1920,
+      slide_count: 0,
+      caption: null,
     })
   })
 

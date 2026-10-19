@@ -2,9 +2,13 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { and, eq } from "drizzle-orm"
-import { z } from "zod"
 
-import { clipSpeed, sourceSpanMs } from "@/lib/video/clip-playback"
+import {
+  clipMsAt,
+  clipSpeed,
+  sourceEndMs,
+  sourceSpanMs,
+} from "@/lib/video/clip-playback"
 import type { FillerWord } from "@/lib/video/filler-words"
 import { sanitizeFillerTerms } from "@/lib/video/filler-words"
 import {
@@ -28,23 +32,20 @@ import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
 import { MIN_CLIP_MS } from "@/lib/video/timeline-utils"
 import type { EditorClip } from "@/components/video-editor/editor-store"
 import { pickTranscriber } from "@/lib/video/ai-choices"
-import { runAiCall } from "@/server/ai/usage"
+import { wordsInStretch, type FileWord } from "@/lib/video/transcripts"
 import { db } from "@/server/db"
 import { customShellMedia } from "@/server/schema"
 import { getAiKeysSaved } from "@/server/video/ai-keys-saved"
 import { runFfmpeg } from "@/server/video/ffmpeg"
-import {
-  generateJson,
-  requireGeminiKey,
-  withGeminiFile,
-} from "@/server/video/gemini"
+import { requireGeminiKey } from "@/server/video/gemini"
 import { videoProjects } from "@/server/video/schema"
 import { getAiDefaults } from "@/server/video/settings"
-import {
-  requireOpenAiKey,
-  transcribeWithWhisper,
-} from "@/server/video/whisper"
 import { downloadToFile } from "@/server/video/storage-files"
+import {
+  fileWords,
+  readSavedTranscript,
+  transcribeSound,
+} from "@/server/video/transcripts"
 
 /**
  * Looking through a clip for what could come out of it.
@@ -58,7 +59,6 @@ import { downloadToFile } from "@/server/video/storage-files"
  * cutting is the editor's job, and one press of undo puts it all back.
  */
 
-const WORDS_MODEL = "gemini-3.8-flash"
 const WORDS_LABEL = "Filler words"
 
 /** Below this, for at least this long, counts as quiet. */
@@ -70,33 +70,6 @@ const SILENCE_MIN_SECONDS = 0.25
  * a machine; letting somebody start ten at once helps nobody.
  */
 const busyWith = new Set<string>()
-
-const wordsSchema = z.object({
-  words: z
-    .array(
-      z.object({
-        text: z.string().max(80),
-        startMs: z.number().finite(),
-        endMs: z.number().finite(),
-      })
-    )
-    .max(5000),
-})
-
-function wordsPrompt(durationMs: number) {
-  return `Write down every word spoken in this sound, with when it was said.
-
-The sound is ${durationMs} milliseconds long. Every time must be a whole number of milliseconds between 0 and ${durationMs}, measured from the start of the sound.
-
-Answer with JSON only, in exactly this shape, and nothing else:
-{ "words": [{ "text": "hello", "startMs": 0, "endMs": 320 }] }
-
-Rules:
-- One entry per spoken word, in the order they were said.
-- Include hesitations exactly as they sound: "um", "uh", "er".
-- Keep the word as spoken, without punctuation.
-- If nobody speaks, answer { "words": [] }.`
-}
 
 export type ClipTranscript = {
   clipId: string
@@ -208,7 +181,7 @@ async function run({
 
   const dir = await mkdtemp(path.join(tmpdir(), "video-jump-cuts-"))
   try {
-    const wav = await extractClipAudio(dir, media.storagePath, clip)
+    const { source, wav } = await extractClipAudio(dir, media.storagePath, clip)
 
     // Listening is quick and free, and it is what makes a cut land in the
     // right place: the times a word was said are an estimate, the quiet is
@@ -228,13 +201,15 @@ async function run({
     const silenceRanges = toClipTimes(parseSilencedetectOutput(noise), clip)
 
     if (mode === "filler") {
-      const words = toClipTimes(
-        await transcribeWords(
+      // The file's saved words when there are some, or the whole file written
+      // down and saved now. Only the clip's own stretch is used here.
+      const words = inClipTime(
+        await wordsOfFile({
           userId,
           projectId,
-          await readFile(wav),
-          Math.round(sourceSpanMs(clip))
-        ),
+          media,
+          localSource: source,
+        }),
         clip
       )
       return {
@@ -287,15 +262,44 @@ export async function transcribeOpening({
     ...clip,
     durationMs: Math.min(clip.durationMs, windowMs),
   }
+  // A file already written down has its opening in the saved words, for
+  // nothing. Otherwise only the opening is sent, and not saved, because a
+  // few seconds of a file is not the file.
+  const transcriber = pickTranscriber(
+    await getAiDefaults(),
+    await getAiKeysSaved()
+  )
+  const saved = transcriber
+    ? await readSavedTranscript(userId, media.id, transcriber.id)
+    : null
+  if (saved) {
+    return wordsInStretch(
+      saved.words,
+      opening.trimStartMs,
+      sourceEndMs(opening)
+    ).map((word) => ({
+      text: word.text,
+      startMs: word.startMs - opening.trimStartMs,
+      endMs: word.endMs - opening.trimStartMs,
+    }))
+  }
+  if (!transcriber) {
+    await requireGeminiKey()
+    throw new Error(JUMP_CUT_FAILED_MESSAGE)
+  }
   const dir = await mkdtemp(path.join(tmpdir(), "video-hook-"))
   try {
-    const wav = await extractClipAudio(dir, media.storagePath, opening)
-    return await transcribeWords(
+    const { wav } = await extractClipAudio(dir, media.storagePath, opening)
+    return await transcribeSound({
       userId,
       projectId,
-      await readFile(wav),
-      Math.round(opening.durationMs)
-    )
+      transcriber,
+      feature: "jump_cut_analysis",
+      label: WORDS_LABEL,
+      audio: await readFile(wav),
+      // The sound runs at the recording's own pace, whatever the clip's speed.
+      durationMs: Math.round(sourceSpanMs(opening)),
+    })
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
@@ -304,15 +308,22 @@ export async function transcribeOpening({
 /**
  * Every word of one clip, with when it was said — what the transcript panel
  * lists and what crossing words out is measured against.
+ *
+ * The words come from the file's saved transcript, so opening the panel on a
+ * clip a second time, or on another clip of the same file, costs nothing.
+ * `fresh` is "Transcribe again": it pays for the whole file once more and
+ * replaces what was saved.
  */
 export async function transcribeClip({
   userId,
   projectId,
   clipId,
+  fresh = false,
 }: {
   userId: string
   projectId: string
   clipId: string
+  fresh?: boolean
 }): Promise<ClipTranscript> {
   if (busyWith.has(userId)) throw new Error(JUMP_CUT_BUSY_MESSAGE)
   busyWith.add(userId)
@@ -324,7 +335,11 @@ export async function transcribeClip({
     })
     const dir = await mkdtemp(path.join(tmpdir(), "video-transcript-"))
     try {
-      const wav = await extractClipAudio(dir, media.storagePath, clip)
+      const { source, wav } = await extractClipAudio(
+        dir,
+        media.storagePath,
+        clip
+      )
       const noise = await runFfmpeg(
         [
           "-i",
@@ -337,15 +352,21 @@ export async function transcribeClip({
         ],
         JUMP_CUT_FAILED_MESSAGE
       )
-      const words = await transcribeWords(
+      const words = await wordsOfFile({
         userId,
         projectId,
-        await readFile(wav),
-        Math.round(sourceSpanMs(clip))
-      )
+        media,
+        localSource: source,
+        fresh,
+      })
       return {
         clipId,
-        words: toClipTimes(words, clip),
+        // Along the timeline, which is where the panel places each word.
+        words: inClipTime(words, clip).map((word) => ({
+          ...word,
+          startMs: clip.startMs + word.startMs,
+          endMs: clip.startMs + word.endMs,
+        })),
         silences: toClipTimes(parseSilencedetectOutput(noise), clip),
         source: {
           clipId: clip.id,
@@ -367,86 +388,56 @@ export async function transcribeClip({
 }
 
 /**
- * What was said and when, as one charge on the person's own budget.
- *
- * Whichever AI has been chosen for the job does it — Whisper measures the
- * times, Gemini estimates them — and the answer is the same shape either way.
+ * Every word of the clip's file, saved or written down now with whichever AI
+ * is chosen. With no key for either, the Gemini key is the one asked for.
  */
-async function transcribeWords(
-  userId: string,
-  projectId: string,
-  audio: Uint8Array,
-  durationMs: number
-): Promise<FillerWord[]> {
-  const chosen = pickTranscriber(
+async function wordsOfFile({
+  userId,
+  projectId,
+  media,
+  localSource,
+  fresh,
+}: {
+  userId: string
+  projectId: string
+  media: { id: string; storagePath: string }
+  localSource: string
+  fresh?: boolean
+}): Promise<FileWord[]> {
+  const transcriber = pickTranscriber(
     await getAiDefaults(),
     await getAiKeysSaved()
   )
-  if (chosen?.id === "openai") {
-    const apiKey = await requireOpenAiKey()
-    return runAiCall(
-      {
-        userId,
-        provider: "openai",
-        model: chosen.model,
-        feature: "jump_cut_analysis",
-        metadata: { projectId },
-      },
-      async () => {
-        const answer = await transcribeWithWhisper({
-          apiKey,
-          audio,
-          label: WORDS_LABEL,
-        })
-        return {
-          result: answer.words.map((word) => ({
-            text: word.text,
-            startMs: Math.max(0, word.startMs),
-            endMs: Math.min(durationMs, word.endMs),
-          })),
-          // Whisper is charged by the minute of sound, not by tokens.
-          usage: { inputTokens: 0, outputTokens: 0, units: durationMs / 60_000 },
-        }
-      }
-    )
+  if (!transcriber) {
+    await requireGeminiKey()
+    throw new Error(JUMP_CUT_FAILED_MESSAGE)
   }
+  return fileWords({
+    userId,
+    media,
+    transcriber,
+    feature: "jump_cut_analysis",
+    label: WORDS_LABEL,
+    projectId,
+    tooLongMessage: JUMP_CUT_TOO_LONG_MESSAGE,
+    failedMessage: JUMP_CUT_FAILED_MESSAGE,
+    fresh,
+    localSource,
+  })
+}
 
-  const apiKey = await requireGeminiKey()
-  return runAiCall(
-    {
-      userId,
-      provider: "gemini",
-      model: WORDS_MODEL,
-      feature: "jump_cut_analysis",
-      metadata: { projectId },
-    },
-    async () => {
-      const answer = await withGeminiFile(
-        audio,
-        "audio/wav",
-        apiKey,
-        WORDS_LABEL,
-        (sound) =>
-          generateJson({
-            apiKey,
-            model: WORDS_MODEL,
-            parts: [sound, { text: wordsPrompt(durationMs) }],
-            schema: wordsSchema,
-            label: WORDS_LABEL,
-          })
-      )
-      return {
-        result: answer.value.words.map((word) => ({
-          text: word.text,
-          startMs: Math.max(0, Math.round(word.startMs)),
-          endMs: Math.min(durationMs, Math.round(word.endMs)),
-        })),
-        usage: {
-          inputTokens: answer.inputTokens,
-          outputTokens: answer.outputTokens,
-        },
-      }
-    }
+/**
+ * The words of a file that the clip plays, moved into the clip's own time:
+ * 0 is the clip's first frame, and a clip at 2x reaches each word in half
+ * the time it sits into the file.
+ */
+function inClipTime(words: FileWord[], clip: EditorClip): FillerWord[] {
+  return wordsInStretch(words, clip.trimStartMs, sourceEndMs(clip)).map(
+    (word) => ({
+      text: word.text,
+      startMs: clipMsAt(clip, word.startMs),
+      endMs: clipMsAt(clip, word.endMs),
+    })
   )
 }
 
@@ -504,8 +495,9 @@ async function findClipAndMedia({
 }
 
 /**
- * Just the stretch of sound this clip actually uses, small and mono — the
- * shape both listening and transcribing want.
+ * Just the stretch of sound this clip actually uses, small and mono, the
+ * shape listening wants. The downloaded file comes back too, for writing the
+ * whole file down without fetching it again.
  */
 async function extractClipAudio(
   dir: string,
@@ -537,7 +529,7 @@ async function extractClipAudio(
     ],
     JUMP_CUT_FAILED_MESSAGE
   )
-  return wav
+  return { source, wav }
 }
 
 function findClipOnTrack(

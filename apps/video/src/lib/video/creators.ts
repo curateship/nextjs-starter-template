@@ -24,11 +24,14 @@ export const creatorPlatformLabels: Record<CreatorPlatform, string> = {
 
 /**
  * What a saved video's job is doing. `waiting` is a row nobody has picked up
- * yet; `ready` has a breakdown; `failed` keeps its reason and can be retried.
+ * yet; `downloaded` is in the media library with no AI run, because it was
+ * saved with Download alone; `ready` has a breakdown; `failed` keeps its
+ * reason and can be retried.
  */
 export const SAVED_VIDEO_STATUSES = [
   "waiting",
   "downloading",
+  "downloaded",
   "analysing",
   "ready",
   "failed",
@@ -40,12 +43,16 @@ export type SavedVideoStatus = (typeof SAVED_VIDEO_STATUSES)[number]
 export const savedVideoStatusLabels: Record<SavedVideoStatus, string> = {
   waiting: "Waiting",
   downloading: "Downloading",
+  downloaded: "Downloaded",
   analysing: "Watching it",
   ready: "Broken down",
   failed: "Failed",
 }
 
-/** True while the job is still moving, so the screen keeps asking. */
+/**
+ * True while the job is still moving, so the screen keeps asking. A
+ * `downloaded` video is finished: nothing moves until AI analyse is pressed.
+ */
 export function isSavedVideoWorking(status: SavedVideoStatus): boolean {
   return status === "waiting" || status === "downloading" || status === "analysing"
 }

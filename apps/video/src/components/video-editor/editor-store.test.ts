@@ -739,6 +739,103 @@ describe("laying music under the project", () => {
   })
 })
 
+describe("fades when a clip is cut", () => {
+  const faded = createInitialEditorState({
+    aspect: "9:16",
+    tracks: [
+      {
+        id: "footage",
+        muted: false,
+        clips: [
+          {
+            id: "take",
+            kind: "video",
+            name: "Talking",
+            mediaId: "media-1",
+            startMs: 0,
+            durationMs: 8_000,
+            trimStartMs: 0,
+            fadeInMs: 3_000,
+            fadeOutMs: 1_500,
+            pictureFadeInMs: 500,
+            pictureFadeOutMs: 1_000,
+          },
+        ],
+      },
+    ],
+  })
+  const fadesOf = (clip: EditorClip) => ({
+    fadeInMs: clip.fadeInMs,
+    fadeOutMs: clip.fadeOutMs,
+    pictureFadeInMs: clip.pictureFadeInMs,
+    pictureFadeOutMs: clip.pictureFadeOutMs,
+  })
+
+  it("keeps the fades in on the left half and the fades out on the right", () => {
+    const split = editorReducer(faded, {
+      type: "SPLIT_CLIP",
+      clipId: "take",
+      atMs: 4_000,
+    })
+    const [left, right] = split.tracks[0].clips
+    expect(fadesOf(left)).toEqual({
+      fadeInMs: 3_000,
+      fadeOutMs: undefined,
+      pictureFadeInMs: 500,
+      pictureFadeOutMs: undefined,
+    })
+    expect(fadesOf(right)).toEqual({
+      fadeInMs: undefined,
+      fadeOutMs: 1_500,
+      pictureFadeInMs: undefined,
+      pictureFadeOutMs: 1_000,
+    })
+  })
+
+  it("puts both fades back on one press of undo", () => {
+    const split = editorReducer(faded, {
+      type: "SPLIT_CLIP",
+      clipId: "take",
+      atMs: 4_000,
+    })
+    expect(editorReducer(split, { type: "UNDO" }).tracks).toEqual(faded.tracks)
+  })
+
+  it("fades only the two ends of a take that jump cuts cut into pieces", () => {
+    const after = editorReducer(faded, {
+      type: "APPLY_JUMP_CUTS",
+      clipId: "take",
+      removals: [
+        { clipStartMs: 2_000, clipEndMs: 2_500 },
+        { clipStartMs: 5_000, clipEndMs: 5_500 },
+      ],
+      rippleClipIds: [],
+    })
+    const pieces = after.tracks[0].clips
+    expect(pieces).toHaveLength(3)
+    expect(pieces.map(fadesOf)).toEqual([
+      {
+        fadeInMs: 3_000,
+        fadeOutMs: undefined,
+        pictureFadeInMs: 500,
+        pictureFadeOutMs: undefined,
+      },
+      {
+        fadeInMs: undefined,
+        fadeOutMs: undefined,
+        pictureFadeInMs: undefined,
+        pictureFadeOutMs: undefined,
+      },
+      {
+        fadeInMs: undefined,
+        fadeOutMs: 1_500,
+        pictureFadeInMs: undefined,
+        pictureFadeOutMs: 1_000,
+      },
+    ])
+  })
+})
+
 describe("adding words or a sticker", () => {
   const sticker = (id: string): EditorClip => ({ ...caption(id, 0), text: "🔥" })
 

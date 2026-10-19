@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router"
 
+import { readCarouselExportSlide } from "@/server/video/carousel-exports"
 import { findSharedExport } from "@/server/video/export-shares"
 import { streamPrivateR2Object } from "@/server/video/r2-response"
+
+const NO_STORE = { "Cache-Control": "no-store" }
 
 /**
  * The file behind a share link, for somebody with no account. The token in the
@@ -11,6 +14,9 @@ import { streamPrivateR2Object } from "@/server/video/r2-response"
  *
  * `no-store` keeps the browser and anything between it and here from holding
  * a copy that would outlive the link.
+ *
+ * A shared carousel answers `?slide=2` with that one slide's PNG, read out of
+ * the kept ZIP by its byte range, the same check made first.
  */
 export const Route = createFileRoute("/api/v1/video/share/$token/file")({
   server: {
@@ -34,9 +40,19 @@ export const Route = createFileRoute("/api/v1/video/share/$token/file")({
           )
         }
 
+        const url = new URL(request.url)
+        const slide = url.searchParams.get("slide")
+        if (shared.kind === "carousel" && slide !== null) {
+          return sharedSlideResponse(
+            shared.storagePath,
+            shared.slideRanges,
+            Number(slide)
+          )
+        }
+
         const response = await streamPrivateR2Object({
           storagePath: shared.storagePath,
-          contentType: "video/mp4",
+          contentType: shared.kind === "carousel" ? "application/zip" : "video/mp4",
           range: request.headers.get("Range"),
           cacheControl: "no-store",
         })
@@ -48,3 +64,34 @@ export const Route = createFileRoute("/api/v1/video/share/$token/file")({
     },
   },
 })
+
+async function sharedSlideResponse(
+  storagePath: string,
+  ranges: Parameters<typeof readCarouselExportSlide>[1],
+  index: number
+) {
+  let png: Awaited<ReturnType<typeof readCarouselExportSlide>>
+  try {
+    png = await readCarouselExportSlide(storagePath, ranges, index)
+  } catch (error) {
+    console.error("Shared carousel slide could not be read", error)
+    return Response.json(
+      { detail: "The slide could not be loaded right now" },
+      { status: 503, headers: NO_STORE }
+    )
+  }
+  if (!png) {
+    return Response.json(
+      { detail: "That slide is not in this carousel" },
+      { status: 404, headers: NO_STORE }
+    )
+  }
+  return new Response(png, {
+    headers: {
+      ...NO_STORE,
+      "Content-Disposition": `inline; filename="slide-${index + 1}.png"`,
+      "Content-Type": "image/png",
+      "X-Content-Type-Options": "nosniff",
+    },
+  })
+}

@@ -11,19 +11,34 @@ recording anything again.
    multilingual voice can speak (`TRANSLATE_LANGUAGES` in
    `src/lib/video/translate.ts`). Anything that can be captioned can also be
    read aloud.
-2. **Press Translate.** The window first writes down the talking the same way
-   the Captions tool does. It uses the same clip, the longest one with sound
-   on a lane that isn't muted. Then it sends the lines off to be translated.
+2. **Press Translate.** The button says what it will cost, for example
+   "Translate · about 3¢" ([price-before-you-press.md](price-before-you-press.md)).
+   The window first writes down the talking the same way the Captions tool
+   does. It uses the same clip, the longest one with sound on a lane that
+   isn't muted, and the recording's kept words when it has them
+   ([saved-transcripts.md](saved-transcripts.md)). Then it sends the lines off
+   to be translated.
 3. **Read it and correct it.** Every line is shown with its time and the
    original words above it. Any line can be edited. Nothing touches the
    timeline until one of the two buttons below is pressed.
 4. **Add captions, or read it aloud.** Either one is a single step of undo.
 
 Picking a different language after translating hides the two buttons until
-Translate is pressed again. The words already written down are kept while the
-window stays open, so a second language only pays for the translation, not for
-listening again. Closing the window after a translation asks first, because the
-translation has already been paid for.
+Translate is pressed again. The words written down are kept with the
+recording, so a second language, or a second visit to the window, only pays for
+the translation, not for listening again. Closing the window after a
+translation asks first, because the translation has already been paid for.
+
+A translation takes up to 1,000 caption lines (`TRANSLATE_LINES_MAX` in
+`src/lib/video/translate.ts`). A minute of talking is about 40 lines, so that
+is about 25 minutes, while Captions goes up to 30.
+
+- **What a longer talk gets:** "This project has more than 1,000 caption
+  lines, which is as many as one translation takes", and nothing is sent to
+  the writer.
+- **What it has already paid for:** writing the recording down, which comes
+  first. Those words are kept, so Captions on the same recording is then
+  free.
 
 ## Who does which half
 
@@ -82,7 +97,7 @@ Every call goes through the shell's AI meter, under its own name on
 
 | Row on the dashboard | What it is |
 | --- | --- |
-| Caption generation | Writing down the talking, once per window |
+| Caption generation | Writing down the recording, once, then kept |
 | Translation | Each press of Translate |
 | Translation voice | Each press of Read it aloud |
 
@@ -94,7 +109,8 @@ language costs about:
   1,000 out with GPT-5 mini, which is $0.002. The same lines with Claude Opus 5
   come to about $0.026, plus whatever thinking it is billed for.
 - **Reading aloud:** about $0.14. A minute of speech is roughly 900 characters,
-  and ElevenLabs is priced at $0.00015 a character.
+  and ElevenLabs is priced at $0.00015 a character. The "Read it aloud" button
+  says the price for the real translation before it is pressed.
 
 The voice is nearly all of the cost. Captions alone come to about a cent a
 minute.

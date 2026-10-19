@@ -106,6 +106,10 @@ check" (`script_check`) on `/admin/ai`.
   `scriptCheckCostCents` in `src/lib/video/script-check.ts`: the instructions
   (about 2,400 characters) plus the script, at four characters a token, plus
   the tokens each writer answers with.
+- **The other AI windows price the same way.** Captions, Hook, Another
+  language and the Transcript panel put their figure on the button, worked out
+  in `src/lib/video/ai-estimates.ts` and worded by the same `formatCheckCost`
+  ([price-before-you-press.md](price-before-you-press.md)).
 - **Measured with GPT-5 mini on 12 Oct 2026:** a 1,007-character script used
   779 tokens in and 2,628 out, which is 779 × $0.25 + 2,628 × $2 per million,
   or about $0.0055. Most of that is GPT's thinking.

@@ -17,6 +17,7 @@ import {
   MIN_CLIP_SATURATION,
 } from "./clip-colour"
 import { CLIP_MOTIONS } from "./clip-motion"
+import { MAX_FADE_MS, MIN_FADE_MS } from "./clip-fades"
 import { TRANSITION_KINDS } from "./clip-transitions"
 import { CAPTION_ANIMATION_IDS } from "./caption-animations"
 import { MAX_CAPTION_WORDS } from "./caption-words"
@@ -88,9 +89,16 @@ export const clipSchema = z
       .max(MAX_CLIP_SATURATION)
       .optional(),
     // How long the sound takes to fade away at the clip's end. Set on music
-    // laid under a project and cut short (see background-music.ts). Absent
-    // means it stops where the clip stops, as every clip always did.
+    // laid under a project and cut short (see background-music.ts), and by
+    // the Sound fade out slider. Absent means it stops where the clip stops,
+    // as every clip always did. Its bounds stay as wide as they always were,
+    // because projects were saved under them (see clip-fades.ts).
     fadeOutMs: z.number().nonnegative().finite().optional(),
+    // The other three fades: the sound coming up at the start, and the
+    // picture fading in from see-through and out to it. Absent means none.
+    fadeInMs: z.number().min(MIN_FADE_MS).max(MAX_FADE_MS).optional(),
+    pictureFadeInMs: z.number().min(MIN_FADE_MS).max(MAX_FADE_MS).optional(),
+    pictureFadeOutMs: z.number().min(MIN_FADE_MS).max(MAX_FADE_MS).optional(),
     // How long the whole source file runs, so a trim cannot reach past its end.
     sourceDurationMs: z.number().nonnegative().finite().optional(),
     // Text clips.

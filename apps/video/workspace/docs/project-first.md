@@ -12,7 +12,7 @@ about it. The AI clip panel itself is in `ai-clip.md`.
   with it.
 - **The viral video it copies,** when it was made with Copy this
   (`video_projects.source_viral_video_id`). Deleting the saved video blanks it
-  and the project stays.
+  and the project stays, with the video's title kept on it.
 - **Its look, its spend limit, its exports,** as before.
 
 Actors are shared, because one face is used in many videos. Deleting a project
@@ -33,6 +33,15 @@ breakdown underneath: its parts with the hook marked, its cuts and every word.
 Clicking a line jumps the player there. While the video is downloading or
 being read, the panel says so and asks again every 3 seconds. A failed
 download offers Try again.
+
+When the saved video is deleted in Viral, the panel says "The original video,
+<title>, was deleted" instead of the player and breakdown. The title is
+written onto the project just before the delete
+(`video_projects.source_viral_video_title`), because the delete blanks the
+project's link to the video. The delete window in Viral lists this project
+first, so nobody deletes a video without knowing which projects copied it.
+A duplicate of the project carries the title too, so its Copy panel says the
+same.
 
 A project starts copying a video from **Copy this** under a video in a Viral
 project or a favourites collection. It makes a new project named after the

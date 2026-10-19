@@ -83,17 +83,21 @@ One grey card per group:
 
 ### The middle panel
 
-Three tabs: **Videos**, **Broken down** and **Creators**.
+Four tabs: **Videos**, **Downloaded**, **Broken down** and **Creators**. On a
+phone the four are wider than the screen, so the row of tabs slides sideways.
 
 The Videos tab has a grid of covers or a list of rows. Both choices and the
-card size (small, medium or large) are remembered in this browser.
+card size (small, medium or large) are remembered in this browser. The grid
+and list switch sits at the end of the toolbar under the tabs, because four
+tabs fill the header.
 
 - Each card shows the cover (upright for a Short, wide for anything longer),
   the score, the length, a **New** badge, the title, the channel, the views
   and when it was posted.
-- **A video being saved and broken down stands out** with an amber border and
-  background, and an amber strip under its cover saying "Waiting…",
-  "Downloading…" or "Watching it…". In the list its row is amber with the
+- **A video being downloaded or broken down stands out** with an amber border
+  and background, and an amber strip under its cover saying "Waiting…",
+  "Downloading…" or "Watching it…". A video saved with Download alone stops
+  being amber once its file is in, and carries a Downloaded chip. In the list its row is amber with the
   same words. It stays that way while you click other videos: the screen asks
   about every working video in one request every 3 seconds, stops asking once
   none is working, and reads the project again when one finishes so its new
@@ -107,14 +111,26 @@ card size (small, medium or large) are remembered in this browser.
 - **Fit** hides videos the AI judged off-topic (below 40 or below 70). A video
   the AI has not judged yet is kept, so the filter never seems to remove
   something it never looked at.
-- **Ticking videos** offers Save & break down, Star and Hide their channels
-  for all of them in one request each.
+- **Ticking videos** offers Download, AI analyse, Star and Hide their
+  channels for all of them in one request each.
+
+The **Downloaded** tab is the same list kept to the videos saved with
+Download whose AI has not run, with the same search, sort, source and fit,
+and its own count. Each card has its own **AI analyse** button, which moves
+it to Broken down without downloading it again. Ticking videos there offers
+AI analyse and **Delete**. Tyler asked for this tab on 18 Oct 2026. The
+address keeps it (`?view=downloaded`).
 
 The **Broken down** tab is the same list kept to the videos whose breakdown
 has finished, with the same search, sort, source and fit, and its own count.
 A video still being broken down is not in it yet; it is the amber card on the
-Videos tab. Tyler asked for this tab on 17 Oct 2026. The address keeps it
-(`?view=broken`).
+Videos tab. Ticking videos there offers **Delete**, and no Download or AI
+analyse, since both are done. Tyler asked for this tab on 17 Oct 2026. The
+address keeps it (`?view=broken`).
+
+Delete opens a window that lists the editor projects made from those videos
+with Copy this, and says what happens to the downloaded files
+(`creator-research.md`, "Deleting a saved video").
 
 None of the sorting, searching or filtering asks the server or YouTube.
 
@@ -125,17 +141,20 @@ Picking a video plays it here.
 - **Playing costs nothing.** A YouTube video plays in YouTube's own embed,
   through the no-cookie address so looking at research is not tracked. TikTok
   and Instagram show their cover and a button out to their own site. A video
-  that was saved and broken down plays from the app's own copy instead.
+  that was downloaded plays from the app's own copy instead.
 - Under the player: views, likes and comments; the star; **Open on YouTube**;
-  **Copy link**; and **Hide** for the channel.
+  **Copy link**; **Delete** for a saved video; and **Hide** for the channel.
 - **Why it scores N** lists the five parts of the score with the points each
   gave, such as "21.8 of 25", and what was missing. The score itself is in
   `viral-score.md`.
-- **Copy this** and **Save & break down** work as they always have
-  (`creator-research.md` for what saving downloads and spends). Pressed here,
-  both remember this project: Copy this saves the project's id on the editor
-  project it makes, and the breakdown's AI cost counts against this project's
-  spend limit.
+- **Copy this**, **Download** and **AI analyse** sit under the score, with a
+  line above them saying only AI analyse spends AI money
+  (`creator-research.md` for what each downloads and spends). A downloaded
+  video shows AI analyse alone, with a line saying no AI has watched it yet.
+  Pressed here, they remember this project: Copy this saves the project's id
+  on the editor project it makes, and the breakdown's AI cost counts against
+  this project's spend limit. Download spends no AI, so a spend limit never
+  refuses it.
 
 ### The address
 
@@ -269,6 +288,11 @@ creator followed in the project, most hits first.
   YouTube channels can be looked at without following them.
 - **How often they post** is videos a week over the last 4 weeks. With fewer
   than 3 posts known it says "Not enough posts yet".
+- **Check for new posts** is a switch on each followed creator's row, with
+  "Last checked 2 hours ago" beside it. Switching it off pauses the watch
+  timer for that creator in every project they are in, because a creator is
+  stored once (`creator-research.md`, "Pausing one creator"). Creators found
+  only through the search have neither, because the timer never checks them.
 - **Follow** adds them to this project. A YouTube creator's 10 newest uploads
   are read at once, so the grid has them before the watch timer's next turn.
 - **Add a creator** takes a profile link, for somebody the search did not
@@ -344,9 +368,10 @@ Migration `0114_video_viral_projects.sql` did this once, on 17 Oct 2026:
 
 ## Deployment
 
-- Migrations 0114, 0115 and 0116 must run on the live database. 0114 moves
-  the old searches and folders as above, 0115 adds the Favourites link, and
-  0116 adds the saved covers (`creator-research.md`).
+- Migrations 0114, 0115, 0116 and 0121 must run on the live database. 0114
+  moves the old searches and folders as above, 0115 adds the Favourites link,
+  0116 adds the saved covers, and 0121 adds the Downloaded status and the title
+  a deleted video leaves on projects copied from it (`creator-research.md`).
 - The background search worker runs wherever the app's worker loop runs. It
   only ever searches keywords somebody queued after the allowance check.
 - The YouTube key is the one in Settings → YouTube (`viral-search.md`).

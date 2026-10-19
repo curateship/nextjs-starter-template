@@ -115,6 +115,10 @@ const edits: { name: string; action: BuilderAction }[] = [
     },
   },
   { name: "resetting a slide", action: { type: "RESET_DEFAULTS" } },
+  {
+    name: "moving a slide",
+    action: { type: "MOVE_SLIDE", slideId: "slide-2", toIndex: 0 },
+  },
 ]
 
 describe("carousel studio history", () => {
@@ -200,6 +204,63 @@ describe("carousel studio history", () => {
         type: "PUSH_LAYOUT",
         sourceSlideId: "slide-1",
         targetSlideIds: ["slide-2"],
+      })
+    ).toBe(state)
+  })
+
+  it("moves slide 5 to first, keeps it picked, and one undo puts it back", () => {
+    const deck: CarouselSlide[] = Array.from({ length: 6 }, (_, index) => ({
+      id: `s${index + 1}`,
+      title: `Slide ${index + 1}`,
+      backgroundColor: "#ffffff",
+      items: [{ ...text, id: `t${index + 1}` }],
+    }))
+    const before: BuilderState = {
+      ...initial(),
+      slides: deck,
+      selectedSlideId: "s5",
+      selectedItemId: "t5",
+    }
+    const moved = builderReducer(before, {
+      type: "MOVE_SLIDE",
+      slideId: "s5",
+      toIndex: 0,
+    })
+    // The saved order is the export's file order: slide-01.png is now s5.
+    expect(moved.slides.map((slide) => slide.id)).toEqual([
+      "s5",
+      "s1",
+      "s2",
+      "s3",
+      "s4",
+      "s6",
+    ])
+    expect(moved.selectedSlideId).toBe("s5")
+    expect(moved.selectedItemId).toBe("t5")
+    expect(moved.past).toHaveLength(1)
+
+    const undone = builderReducer(moved, { type: "UNDO" })
+    expect(undone.slides.map((slide) => slide.id)).toEqual(
+      deck.map((slide) => slide.id)
+    )
+    const redone = builderReducer(undone, { type: "REDO" })
+    expect(redone.slides.map((slide) => slide.id)[0]).toBe("s5")
+  })
+
+  it("adds no undo step for a slide dropped where it started", () => {
+    const state = initial()
+    expect(
+      builderReducer(state, {
+        type: "MOVE_SLIDE",
+        slideId: "slide-1",
+        toIndex: 0,
+      })
+    ).toBe(state)
+    expect(
+      builderReducer(state, {
+        type: "MOVE_SLIDE",
+        slideId: "missing",
+        toIndex: 1,
       })
     ).toBe(state)
   })

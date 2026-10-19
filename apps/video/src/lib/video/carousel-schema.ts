@@ -15,6 +15,16 @@ export const CAROUSEL_CONFLICT_MESSAGE =
 export const SAVED_CAROUSEL_INVALID_MESSAGE =
   "The saved slides could not be read. Start a new carousel to keep editing."
 
+// Exporting a carousel: drawing its slides, then keeping the ZIP on the
+// Exports page (`src/server/video/carousel-exports.ts`).
+export const CAROUSEL_MEDIA_MISSING_MESSAGE =
+  "A slide image is no longer in the media library."
+export const CAROUSEL_EXPORT_FAILED_MESSAGE = "The slide could not be exported."
+export const CAROUSEL_EMPTY_EXPORT_MESSAGE =
+  "This carousel has no slides to export."
+export const CAROUSEL_KEEP_FAILED_MESSAGE =
+  "The carousel could not be kept. Try exporting it again in a minute."
+
 export type CarouselFormat = (typeof CAROUSEL_FORMATS)[number]
 export type CarouselTextAlign = "left" | "center" | "right"
 export type CarouselMediaFit = "fill" | "cover" | "contain"

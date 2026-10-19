@@ -111,11 +111,21 @@ export function CopyPanel() {
           </div>
         ) : !video ? (
           <div className="grid justify-items-center gap-3 p-4 text-center text-sm text-muted-foreground">
-            <p>
-              This project copies no video. Find one that went viral in a
-              Viral project and press Copy this under it. It opens as a new
-              project with the video here.
-            </p>
+            {detail?.deletedVideoTitle ? (
+              // The saved video was deleted after this project copied it.
+              // The title was written onto the project just before.
+              <p>
+                The original video, {detail.deletedVideoTitle}, was deleted.
+                This project keeps everything it made, but the video and its
+                breakdown are gone.
+              </p>
+            ) : (
+              <p>
+                This project copies no video. Find one that went viral in a
+                Viral project and press Copy this under it. It opens as a new
+                project with the video here.
+              </p>
+            )}
             <OpenViralButton viral={detail?.viral ?? null} />
           </div>
         ) : (

@@ -679,9 +679,10 @@ async function insertProjectCopy(
         // series starts from the same one.
         style: source.style,
         styleMediaId: source.styleMediaId,
-        // So do the viral video it copies, the Viral project it came from,
-        // and its spend limit.
+        // So do the viral video it copies (or that video's title, once it
+        // was deleted), the Viral project it came from, and its spend limit.
         sourceViralVideoId: source.sourceViralVideoId,
+        sourceViralVideoTitle: source.sourceViralVideoTitle,
         sourceViralProjectId: source.sourceViralProjectId,
         spendLimitCents: source.spendLimitCents,
         // The copy is its own project from version 1; it shares nothing with
@@ -1061,7 +1062,9 @@ export async function deleteOwnedProjects(
   const exportRows = await database
     .select({
       id: videoRenderJobs.id,
-      projectId: videoRenderJobs.projectId,
+      // From the joined project, so it is never empty: a carousel export
+      // has no project and never matches the join.
+      projectId: videoProjects.id,
       storagePath: videoRenderJobs.storagePath,
       thumbnailStoragePath: videoRenderJobs.thumbnailStoragePath,
     })

@@ -33,7 +33,21 @@ import {
 } from "@/lib/api/video/ai-tools"
 import { AiChoiceField } from "@/components/video-editor/ai-choice-field"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { spreadHookAcross } from "@/lib/video/hooks"
+import {
+  findHook,
+  HOOK_SPOKEN_WINDOW_MS,
+  spreadHookAcross,
+} from "@/lib/video/hooks"
+import type { TranscriberId, WriterId } from "@/lib/video/ai-choices"
+import {
+  formatAiEstimate,
+  hookCostCents,
+  voiceCostCents,
+  withEstimate,
+} from "@/lib/video/ai-estimates"
+import { sourceSpanMs } from "@/lib/video/clip-playback"
+import { hasSavedWords } from "@/lib/video/transcripts"
+import { useSavedTranscripts } from "@/components/video-editor/use-saved-transcripts"
 import {
   useEditorRuntime,
   useEditorSelector,
@@ -65,6 +79,12 @@ export function HookDialog({
   const [saying, setSaying] = React.useState<string | null>(null)
   const [voices, setVoices] = React.useState<Voice[] | null>(null)
   const [voiceId, setVoiceId] = React.useState("")
+  // The model the remembered voice reads with, which is what the server
+  // reads a spoken hook with too.
+  const [voiceModel, setVoiceModel] = React.useState<string | null>(null)
+  const [pickedWriter, setPickedWriter] = React.useState<
+    WriterId | undefined
+  >()
 
   // Only fetched when the opening line is actually spoken — otherwise this is
   // a question about a voice nobody needs.
@@ -76,6 +96,7 @@ export function HookDialog({
       .then(([loaded, remembered]) => {
         if (!active) return
         setVoices(loaded)
+        setVoiceModel(remembered?.modelId ?? null)
         const known = loaded.some((one) => one.id === remembered?.voiceId)
         setVoiceId(
           known && remembered ? remembered.voiceId : (loaded[0]?.id ?? "")
@@ -92,7 +113,57 @@ export function HookDialog({
   const [wasOpen, setWasOpen] = React.useState(open)
   if (wasOpen !== open) {
     setWasOpen(open)
-    if (open) setAnswer(null)
+    if (open) {
+      setAnswer(null)
+      setPickedWriter(undefined)
+    }
+  }
+
+  // The price before the press, from the same opening the server will find:
+  // the writer's share, plus writing down the spoken opening first when
+  // nothing is on screen and the file's words are not saved.
+  const opening = findHook(tracks)
+  const spokenClip = opening?.spokenBy
+    ? tracks
+        .flatMap((track) => track.clips)
+        .find((clip) => clip.id === opening.spokenBy?.clipId)
+    : undefined
+  const listensFirst = !!opening && !opening.text && !!spokenClip?.mediaId
+  const { saved } = useSavedTranscripts(
+    listensFirst && spokenClip?.mediaId ? [spokenClip.mediaId] : [],
+    open
+  )
+  const writer = pickedWriter ?? (available?.writer as WriterId | null)
+  const transcriber = available?.transcriber as TranscriberId | null
+  const priceCents =
+    opening && writer
+      ? hookCostCents({
+          writer,
+          // A spoken opening is about fourteen words before it is heard.
+          lineCharacters: opening.text.length || 80,
+          listen:
+            listensFirst && spokenClip?.mediaId && transcriber
+              ? {
+                  transcriber,
+                  soundMs: Math.min(
+                    sourceSpanMs(spokenClip),
+                    HOOK_SPOKEN_WINDOW_MS
+                  ),
+                  saved: hasSavedWords(saved, spokenClip.mediaId, transcriber),
+                }
+              : undefined,
+        })
+      : null
+
+  /** What saying one line aloud costs with the voice picked. */
+  function sayingCents(line: string) {
+    const speaker = voices?.find((one) => one.id === voiceId)
+    if (!speaker) return null
+    const model =
+      speaker.speaker === "openai"
+        ? "gpt-4o-mini-tts"
+        : (voiceModel ?? "eleven_multilingual_v2")
+    return voiceCostCents(model, line.length)
   }
 
   async function think() {
@@ -268,7 +339,9 @@ export function HookDialog({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-2">
-                  {answer.variants.map((line) => (
+                  {answer.variants.map((line) => {
+                    const cents = answer.hook.spokenBy ? sayingCents(line) : null
+                    return (
                     <button
                       key={line}
                       type="button"
@@ -280,8 +353,15 @@ export function HookDialog({
                       )}
                     >
                       {saying === line ? "Saying it aloud…" : line}
+                      {cents !== null && saying !== line ? (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          · read aloud {formatAiEstimate(cents)}
+                        </span>
+                      ) : null}
                     </button>
-                  ))}
+                    )
+                  })}
                 </CardContent>
               </Card>
             </>
@@ -296,7 +376,11 @@ export function HookDialog({
                   seconds and offers three other ways of saying it. Picking one
                   replaces those words; undo puts them back.
                 </p>
-                <AiChoiceField kind="writer" available={available} />
+                <AiChoiceField
+                  kind="writer"
+                  available={available}
+                  onChanged={(id) => setPickedWriter(id as WriterId)}
+                />
               </CardContent>
             </Card>
           )}
@@ -321,9 +405,7 @@ export function HookDialog({
             )}
             {thinking
               ? "Thinking…"
-              : answer
-                ? "Try again"
-                : "Show me three"}
+              : withEstimate(answer ? "Try again" : "Show me three", priceCents)}
           </Button>
         </DialogFooter>
       </DialogContent>
