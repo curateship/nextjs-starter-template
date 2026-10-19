@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { allLinks, defaultMenu } from "@/lib/menu"
-import { addRecentLink, recentLinksIn } from "@/lib/recent-links"
+import { addRecentLink, recentLinksIn, removeRecentLink } from "@/lib/recent-links"
 
 const inMenu = new Set(["a", "b", "c", "d"])
 
@@ -16,6 +16,12 @@ describe("recent links", () => {
     const ids = ["c", "b", "a"]
     expect(addRecentLink(ids, "a", inMenu)).toBe(ids)
     expect(addRecentLink(ids, "b", inMenu)).toBe(ids)
+  })
+
+  it("takes a link out, and lets it back in when opened again", () => {
+    const ids = removeRecentLink(["c", "b", "a"], "b")
+    expect(ids).toEqual(["c", "a"])
+    expect(addRecentLink(ids, "b", inMenu)).toEqual(["b", "c", "a"])
   })
 
   it("drops links no longer in the menu", () => {

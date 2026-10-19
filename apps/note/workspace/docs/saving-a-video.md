@@ -146,7 +146,8 @@ A step that fails stops the rest, so pressing Delete again finishes the job.
 A file a sent newsletter carries is kept in the library, the shell's own rule,
 because an inbox copy can outlive every record of the email.
 The original on YouTube, TikTok or wherever stays where it is. A worker part
-way through the video finds its row gone and throws its work away.
+way through the video finds its row gone and throws its work away. A written
+note linked to the video keeps its text and says the video was deleted.
 
 ## What a deploy needs
 
@@ -156,7 +157,8 @@ way through the video finds its row gone and throws its work away.
   site's address for uploads.
 - A Gemini key saved in Settings → AI for Analyse.
 - Migrations `0096_note_videos.sql` (the tables) and
-  `0097_note_videos_menu.sql` (the menu link) run on the way in.
+  `0097_note_videos_menu.sql` (the menu link) run on the way in, and for
+  written notes `0098_note_notes.sql` and `0099_note_notes_menu.sql`.
 
 ## The tables
 

@@ -145,7 +145,7 @@ function Personal({
   const sidebarWidth = menu.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH
   const sidebarShade = sidebarShadeColor(menu.sidebarShade ?? 0)
   const activeId = activeLinkId(menu, screen?.url ?? null)
-  const recentLinks = useRecentLinks(menu, activeId)
+  const recent = useRecentLinks(menu, activeId)
   useFavicon(menu.brand?.logo)
   const places = placesOf(menu)
   const openAt = (url: string, linkId?: string, title?: string) => {
@@ -234,7 +234,8 @@ function Personal({
               <div className="relative h-full">
                 <Sidebar
                   menu={shown}
-                  recentLinks={recentLinks}
+                  recentLinks={recent.links}
+                  onRemoveRecent={recent.remove}
                   update={update}
                   editing={editing}
                   onHome={() => {

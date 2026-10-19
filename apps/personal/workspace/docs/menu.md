@@ -27,6 +27,13 @@ edited where it stands, with no settings screen.
   - **Where it is kept:** this browser alone, under `personal-recent-links` in
     localStorage, as the links' ids. Nothing is saved to the menu file. A link
     deleted from the menu drops out of Recent.
+  - **An × takes a link out of Recent.** It shows at the row's right end when
+    the row is hovered, and leaves the link in its menu section. The row and
+    its × light up as one, with no separate box round the × (Tyler, 19 Oct
+    2026: "should be just one hover the whole row"). The link comes back the
+    next time it is opened after another link, or when the page reloads on
+    its screen, since a reload counts as opening it. Tyler, 19 Oct 2026: "add
+    an x on hover over the recent tabs to remove them".
   - **Hidden until a link is opened.** It folds like a section, remembered
     under `personal-sidebar-recent`, and can't be renamed, edited or dragged.
   - **Code:** `src/lib/recent-links.ts` keeps the order,
@@ -74,7 +81,10 @@ edited where it stands, with no settings screen.
   the browser tab's icon too.
 - **Sub-links, as in Custom Shell.** A left-menu link can hold links of its
   own, one level deep. They sit under it, indented behind a thin line, and the
-  open one darkens its stretch of that line. Tyler asked for this on 16 Oct
+  open one darkens its stretch of that line, drawn on top of it (each sub-link
+  sits 1px left, as Custom Shell's do, in `src/components/menu-links.tsx`).
+  Without that shift the dark mark sat beside the grey line and read as a
+  double line; Tyler flagged it on 19 Oct 2026. Tyler asked for sub-links on 16 Oct
   2026: "sidebar nav can have subnav that is wired to the top left nav like how
   shell does it." The top row that mirrored them went with Personal's top bar
   on 18 Oct 2026; the app's own top navigation does that job now.

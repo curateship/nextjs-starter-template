@@ -18,3 +18,4 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [Reminders and the calendar feed](reminders-and-calendar-feed.md): workout-day reminders, the missed-workout nudge, the Google or Apple Calendar feed, and where bell notices lead.
 - [Coaching](coaching.md): coaches, asking a client, what a linked coach can and can't do, and ending it.
 - [Sharing a program](sharing-a-program.md): the public page at `/r/<code>` and copying it.
+- [Going live](launch.md): the live address, the German server, the Coolify resources, email, storage, every live value, and the release record.
