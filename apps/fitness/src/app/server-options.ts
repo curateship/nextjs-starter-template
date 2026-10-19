@@ -1,4 +1,6 @@
 import type { AppServerOptions } from "@/server/app-options"
+import { addFitnessNavigation } from "@/server/fitness/navigation"
+import { runReminderJobs } from "@/server/fitness/reminders"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -20,4 +22,13 @@ import type { AppServerOptions } from "@/server/app-options"
  * only walks that folder, so an endpoint declared here would be an unguarded
  * door nobody is told about.
  */
-export const appServerOptions: AppServerOptions = {}
+export const appServerOptions: AppServerOptions = {
+  background: {
+    workers: [
+      // Adds Programs and Exercises to each left menu once.
+      { name: "fitness-navigation", tick: () => addFitnessNavigation() },
+      // Workout-day reminders and the nudge the day after a missed workout.
+      { name: "fitness-reminders", tick: () => runReminderJobs() },
+    ],
+  },
+}

@@ -14,26 +14,50 @@ import {
   UsersIcon,
   type LucideIcon,
 } from "lucide-react"
+import { DynamicIcon } from "lucide-react/dynamic"
 
-import type { LinkIcon as LinkIconName } from "@/lib/menu"
+import { isLucideIconName } from "@/lib/link-icons"
 
-export const LINK_ICON_PICTURES: Record<LinkIconName, { icon: LucideIcon; label: string }> = {
-  "layout-dashboard": { icon: LayoutDashboardIcon, label: "Dashboard" },
-  list: { icon: ListIcon, label: "List" },
-  folder: { icon: FolderIcon, label: "Folder" },
-  "file-text": { icon: FileTextIcon, label: "Page" },
-  newspaper: { icon: NewspaperIcon, label: "Posts" },
-  calendar: { icon: CalendarIcon, label: "Calendar" },
-  users: { icon: UsersIcon, label: "People" },
-  inbox: { icon: InboxIcon, label: "Inbox" },
-  chart: { icon: ChartColumnIcon, label: "Chart" },
-  store: { icon: StoreIcon, label: "Shop" },
-  star: { icon: StarIcon, label: "Star" },
-  settings: { icon: SettingsIcon, label: "Settings" },
-  link: { icon: LinkGlyph, label: "Link" },
+/**
+ * The icons the first menus offered, drawn straight away. Any other Lucide
+ * icon is fetched the first time it shows. "chart" is an old name that Lucide
+ * calls "chart-column".
+ */
+const DRAWN_NOW: Record<string, LucideIcon> = {
+  "layout-dashboard": LayoutDashboardIcon,
+  list: ListIcon,
+  folder: FolderIcon,
+  "file-text": FileTextIcon,
+  newspaper: NewspaperIcon,
+  calendar: CalendarIcon,
+  users: UsersIcon,
+  inbox: InboxIcon,
+  chart: ChartColumnIcon,
+  "chart-column": ChartColumnIcon,
+  store: StoreIcon,
+  star: StarIcon,
+  settings: SettingsIcon,
+  link: LinkGlyph,
 }
 
-export function LinkIconPicture({ name, className = "size-4" }: { name: LinkIconName; className?: string }) {
-  const Icon = LINK_ICON_PICTURES[name].icon
-  return <Icon className={className} aria-hidden />
+/** A link's icon, or nothing when the link has none. */
+export function LinkIconPicture({
+  name,
+  className = "size-4",
+}: {
+  name: string | undefined
+  className?: string
+}) {
+  if (!name) return null
+  const Icon = DRAWN_NOW[name]
+  if (Icon) return <Icon className={className} aria-hidden />
+  if (!isLucideIconName(name)) return <LinkGlyph className={className} aria-hidden />
+  return (
+    <DynamicIcon
+      name={name}
+      className={className}
+      aria-hidden
+      fallback={() => <span className={className} aria-hidden />}
+    />
+  )
 }

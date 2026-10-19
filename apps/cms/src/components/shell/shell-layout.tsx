@@ -120,7 +120,11 @@ import { setToastSeconds } from "@/lib/toast/toast-duration"
 import { plural } from "@/lib/format/plural"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { focusRing } from "@/lib/layout/focus-ring"
-import { usePanelReport, usePanelView } from "@/lib/layout/panel-view"
+import {
+  usePanelGo,
+  usePanelReport,
+  usePanelView,
+} from "@/lib/layout/panel-view"
 import { cn } from "@/lib/utils"
 
 // Debounce window before an edit on the settings page is auto-saved.
@@ -616,6 +620,7 @@ export function ShellLayout({
     user.role
   )
   usePanelReport(panelView, currentPath, pageTitle)
+  usePanelGo(panelView, (path) => void navigate({ href: path }))
   const headerLeftContent = appHeaderLeftContentForRole(user.role)
   const topLeftContent = getTopLeftContent(
     config,

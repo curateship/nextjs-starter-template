@@ -6,6 +6,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 
 ## What is in this folder
 
+- [launch.md](launch.md) — where Video runs live, every value it needs, how to
+  deploy it, and the record of each release.
 - [shell-integration.md](shell-integration.md) — what the shell gives Video,
   what the last merge carried, the migrations it owes, and the files that stay
   Video's own.

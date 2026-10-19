@@ -2,6 +2,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { build } from "esbuild"
+import { workerDropCss } from "./worker-drop-css.mjs"
 import { workerFileUrls } from "./worker-file-urls.mjs"
 import { workerPageRegistry } from "./worker-page-registry.mjs"
 
@@ -27,14 +28,19 @@ import { workerPageRegistry } from "./worker-page-registry.mjs"
  * calls into it.
  *
  * The one alias below is a package with no `exports` map: bundlers guess the
- * missing extension and Node does not.
+ * missing extension and Node does not. Stylesheets are dropped for a related
+ * reason: Node cannot open one at all. See `worker-drop-css.mjs`.
  */
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const outdir = path.join(root, "worker/dist")
 
 await build({
-  plugins: [workerPageRegistry(root), workerFileUrls(root, outdir)],
+  plugins: [
+    workerDropCss(),
+    workerPageRegistry(root),
+    workerFileUrls(root, outdir),
+  ],
   entryPoints: [
     path.join(root, "worker/src/worker.ts"),
     path.join(root, "worker/src/health.ts"),

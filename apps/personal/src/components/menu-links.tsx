@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useDndContext, useDroppable } from "@dnd-kit/core"
 import {
-  horizontalListSortingStrategy,
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
@@ -112,16 +111,12 @@ function withStart(menu: Menu, linkId: string, draft: LinkDraft) {
   return setStartLink(menu, linkId, draft.start && draft.opens !== "tab")
 }
 
-type Orientation = "vertical" | "horizontal"
-
 /** A link's name turned into a box: Enter or leaving the box keeps it, Escape drops it. */
 function LinkRename({
   link,
-  vertical,
   onDone,
 }: {
   link: MenuLink
-  vertical: boolean
   onDone: (label: string | null) => void
 }) {
   const [draft, setDraft] = React.useState(link.label)
@@ -133,7 +128,7 @@ function LinkRename({
       aria-label={`Rename ${link.label}`}
       value={draft}
       maxLength={60}
-      className={cn("h-7 text-sm", vertical ? "min-w-0 flex-1" : "w-36")}
+      className="h-7 min-w-0 flex-1 text-sm"
       onFocus={(event) => event.currentTarget.select()}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => {
@@ -159,12 +154,10 @@ function LinkRename({
 function MenuLinkItem({
   link,
   place,
-  orientation,
   nested,
 }: {
   link: MenuLink
   place: Place
-  orientation: Orientation
   /** A sub-link, drawn smaller under its link. */
   nested: boolean
 }) {
@@ -196,7 +189,6 @@ function MenuLinkItem({
   const inActive = active || subLinks.some((child) => child.id === activeId)
   // Only a left-menu link may hold sub-links, and only one level deep.
   const canHoldSubLinks = place.kind === "section"
-  const vertical = orientation === "vertical"
   const anchor = linkAnchorProps(link, open)
 
   const row = (
@@ -204,15 +196,13 @@ function MenuLinkItem({
       data-active={inActive && !nested ? "" : undefined}
       className={cn(
         "group/link relative flex items-center rounded-md",
-        vertical &&
-          !nested &&
+        !nested &&
           "hover:bg-sidebar-accent data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
       )}
     >
       {renaming && editingMenu ? (
         <LinkRename
           link={link}
-          vertical={vertical}
           onDone={(label) => {
             setRenaming(false)
             const name = label?.trim()
@@ -252,12 +242,7 @@ function MenuLinkItem({
                   "relative h-7 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground before:absolute before:top-0 before:bottom-0 before:left-[-10px] before:w-px before:bg-transparent before:transition-colors",
                   active && "font-medium text-sidebar-accent-foreground before:bg-sidebar-foreground/40"
                 )
-              : "h-8",
-            // A full top bar shrinks each name and cuts it short rather than
-            // scrolling, because a scrolling row would clip the buttons that
-            // hang under a link.
-            !vertical &&
-              "min-w-0 whitespace-nowrap hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent"
+              : "h-8"
           )}
         >
           <LinkIconPicture name={link.icon} />
@@ -283,14 +268,12 @@ function MenuLinkItem({
            Hidden, and ignoring clicks, until the link is hovered or one of
            them has focus. In the left menu they cover the end of the name
            while hovered, left of the fold arrow, so a narrow menu keeps whole
-           names the rest of the time; in the top bar they hang under the
-           link, so they never cover a short name. */
+           names the rest of the time. */
         <div
           className={cn(
             "pointer-events-none absolute z-20 flex items-center rounded-md bg-sidebar-accent opacity-0 group-hover/link:pointer-events-auto group-hover/link:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 has-[[data-state=open]]:pointer-events-auto has-[[data-state=open]]:opacity-100",
-            vertical
-              ? cn("top-1/2 -translate-y-1/2", subLinks.length ? "right-9" : "right-1")
-              : "top-full left-1/2 -translate-x-1/2 border border-sidebar-border shadow-sm",
+            "top-1/2 -translate-y-1/2",
+            subLinks.length ? "right-9" : "right-1",
             isDragging && "opacity-100"
           )}
         >
@@ -317,7 +300,7 @@ function MenuLinkItem({
                 <SettingsIcon />
               </Button>
             </PopoverTrigger>
-            <PopoverContent side={vertical ? "right" : "bottom"} align="start" className="w-80">
+            <PopoverContent side="right" align="start" className="w-80">
               <LinkEditor
                 initial={{
                   label: link.label,
@@ -356,7 +339,6 @@ function MenuLinkItem({
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
         "relative",
-        !vertical && "min-w-0 shrink",
         // The link stays as a faint placeholder where it will land; a copy of
         // it follows the pointer.
         isDragging && "z-10 opacity-50"
@@ -369,7 +351,6 @@ function MenuLinkItem({
             <SortableLinks
               links={subLinks}
               place={{ kind: "under", linkId: link.id }}
-              orientation="vertical"
               nested
             />
           </CollapsibleContent>
@@ -402,7 +383,6 @@ function MenuLinkItem({
 export function SortableLinks({
   links,
   place,
-  orientation,
   nested = false,
   className,
   dropClassName,
@@ -410,7 +390,6 @@ export function SortableLinks({
 }: {
   links: MenuLink[]
   place: Place
-  orientation: Orientation
   /** Sub-links under a left-menu link, drawn like Custom Shell's. */
   nested?: boolean
   className?: string
@@ -440,18 +419,14 @@ export function SortableLinks({
       <SortableContext
         id={placeKey(place)}
         items={links.map((link) => linkDragId(link.id))}
-        strategy={
-          orientation === "vertical" ? verticalListSortingStrategy : horizontalListSortingStrategy
-        }
+        strategy={verticalListSortingStrategy}
       >
         <ul
           className={cn(
-            orientation === "horizontal"
-              ? "flex items-center gap-1"
-              : nested
-                ? // Custom Shell's sub-menu: indented behind a line.
-                  "mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border px-2.5 py-0.5"
-                : "flex flex-col gap-0.5",
+            nested
+              ? // Custom Shell's sub-menu: indented behind a line.
+                "mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border px-2.5 py-0.5"
+              : "flex flex-col gap-0.5",
             className
           )}
         >
@@ -460,7 +435,6 @@ export function SortableLinks({
               key={link.id}
               link={link}
               place={place}
-              orientation={orientation}
               nested={nested}
             />
           ))}
@@ -473,7 +447,7 @@ export function SortableLinks({
 
 /**
  * The + that adds a link to a place, with the same form as editing one: a row
- * at the end of a section, an icon in the top bar, or a small control on a
+ * at the end of a list, or a small control on a
  * left-menu link that adds a sub-link under it.
  */
 export function AddLinkButton({
@@ -485,7 +459,7 @@ export function AddLinkButton({
   place: Place
   /** Spoken label, and the visible one for a row. */
   label: string
-  look?: "row" | "icon" | "control"
+  look?: "row" | "control"
   onAdded?: () => void
 }) {
   const { editing, places, openUrl, update } = useMenuActions()
@@ -503,7 +477,7 @@ export function AddLinkButton({
         {label}
       </Button>
     ) : (
-      <Button variant="ghost" size={look === "icon" ? "icon-sm" : "icon-xs"} aria-label={label}>
+      <Button variant="ghost" size="icon-xs" aria-label={label}>
         <PlusIcon />
       </Button>
     )
@@ -511,13 +485,7 @@ export function AddLinkButton({
   return (
     <Popover open={adding} onOpenChange={setAdding}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      {/* The top bar's + sits at the bar's right end, so its form opens
-          leftwards from it rather than running into the edge of the screen. */}
-      <PopoverContent
-        side={look === "icon" ? "bottom" : "right"}
-        align={look === "icon" ? "end" : "start"}
-        className="w-80"
-      >
+      <PopoverContent side="right" align="start" className="w-80">
         <LinkEditor
           initial={{ label: "", url: "", icon: "link", opens: "panel", start: false }}
           place={place}

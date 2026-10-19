@@ -20,5 +20,34 @@
   "trade": {
     "server": "de",
     "ownScript": "cd apps/trade && npm run deploy (engine, then worker, then web)"
+  },
+  "personal": {
+    "server": "de",
+    "project": "Personal",
+    "healthUrl": "https://personal.barelycompany.com/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "q5zidodlzqnja0etohqln7la"
+      }
+    ]
+  },
+  "video": {
+    "server": "de",
+    "project": "Video",
+    "healthUrl": "https://video.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "x9xjideeh5zv8xa8vh80szvo"
+      },
+      {
+        "role": "worker",
+        "uuid": "uzeo56eu7x1gnqbqb4mwugvu"
+      }
+    ],
+    "database": {
+      "uuid": "cms4hc61idk3pxmalek6vws2"
+    }
   }
 }
