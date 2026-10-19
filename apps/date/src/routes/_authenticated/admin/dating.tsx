@@ -4,7 +4,7 @@ import { DatingWorkspace, type DatingSearch } from "@/components/dating/dating-w
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { loadDatingDashboard } from "@/lib/api/dating/dashboard"
 import { datingErrorMessage } from "@/lib/dating/errors"
-import { PROFILE_FILTERS } from "@/lib/dating/options"
+import { LIST_TABS, PROFILE_FILTERS } from "@/lib/dating/options"
 import { readOneOf } from "@/lib/nav/list-search"
 
 /** Ids are ours, so anything that is not a short plain id is dropped. */
@@ -20,7 +20,7 @@ function id(value: unknown): string | undefined {
  */
 export const Route = createFileRoute("/_authenticated/admin/dating")({
   validateSearch: (search: Record<string, unknown>): DatingSearch => ({
-    tab: readOneOf(search.tab, ["profiles", "matches"] as const),
+    tab: readOneOf(search.tab, LIST_TABS),
     filter: readOneOf(search.filter, PROFILE_FILTERS),
     profile: id(search.profile),
     match: id(search.match),

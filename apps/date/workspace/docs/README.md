@@ -1,6 +1,6 @@
 # Date's docs
 
-What Date does and why, one file per part. Tyler's decisions of 17 Oct 2026 are in `../tasks/tinder/01-ai-tinder.md` and outrank the code.
+What Date does and why, one file per part. Tyler's decisions of 17 Oct 2026 are in `../tasks/tinder/01-ai-tinder.md`, and of 18 Oct 2026 in `../tasks/features/01-chats-and-replies.md`. Both outrank the code.
 
 - [phone/phone-link.md](phone/phone-link.md): the Date phone app, pairing, the signed messages and the plain actions a phone runs.
 - [phone/screen-window.md](phone/screen-window.md): the phone's live screen on the dashboard, and taps from it.
@@ -10,3 +10,5 @@ What Date does and why, one file per part. Tyler's decisions of 17 Oct 2026 are 
 - [ai/spend.md](ai/spend.md): what the AI costs and the monthly cap.
 - [settings.md](settings.md): Settings → App settings → Dating.
 - [dating-dashboard.md](dating-dashboard.md): the three-column dashboard, the Phone screen and the sample data.
+- [chats/chats-and-replies.md](chats/chats-and-replies.md): openers, the one follow-up, what they told you, chats that are over or scams, they unmatched, Show 3, tone, Tidy, the member's voice, warming or cooling, Ask Date, dead matches and the Openers tab.
+- [chats/dates-and-calendar.md](chats/dates-and-calendar.md): a yes to a date, the Dates tab, Before your date, the Calendar screen and Google Calendar.

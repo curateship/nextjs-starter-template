@@ -146,14 +146,41 @@ export const MESSAGE_STATUS_WORDS: Record<MessageStatus, string> = {
  * says it is an AI and never denies it, and it sends nothing sexual. A missing
  * fact about Tyler is a question for him instead of a guess.
  */
-export const MATCH_FLAGS = ["asked_if_bot", "sexual", "missing_fact"] as const
+export const MATCH_FLAGS = ["asked_if_bot", "sexual", "missing_fact", "scam"] as const
 export type MatchFlag = (typeof MATCH_FLAGS)[number]
 
 export const MATCH_FLAG_WORDS: Record<MatchFlag, string> = {
   asked_if_bot: "They asked whether this is a bot or an AI. Reply yourself; the AI will not draft here until you let it again.",
   sexual: "The chat turned sexual. The AI will not draft here until you let it again.",
   missing_fact: "The AI needs a fact about you to answer. Answer the question below and it drafts again.",
+  scam: "This looks like a scam: money, gift cards, crypto, a quick move to another app, or a link. The AI will not draft here until you let it again.",
 }
+
+/** The flags that stop the AI drafting until the member lets it again. A missing fact clears itself once answered. */
+export const STOPPING_FLAGS: readonly MatchFlag[] = ["asked_if_bot", "sexual", "scam"]
+
+/** What a waiting draft is: an answer to their message, a first message to a new match, or the one follow-up on a quiet chat. */
+export const DRAFT_KINDS = ["reply", "opener", "nudge"] as const
+export type DraftKind = (typeof DRAFT_KINDS)[number]
+
+/** The kinds of first message the AI writes, so Date can count which get replies. */
+export const OPENER_STYLES = ["prompt_question", "photo_comment", "joke", "simple_hello", "other"] as const
+export type OpenerStyle = (typeof OPENER_STYLES)[number]
+
+export const OPENER_STYLE_WORDS: Record<OpenerStyle, string> = {
+  prompt_question: "A question about their profile",
+  photo_comment: "A comment on a photo",
+  joke: "A joke",
+  simple_hello: "A simple hello",
+  other: "Something else",
+}
+
+/** The tone buttons beside Regenerate. */
+export const DRAFT_TONES = ["shorter", "funnier", "warmer"] as const
+export type DraftTone = (typeof DRAFT_TONES)[number]
+
+/** Where a chat is heading, from how fast they answer and how long their messages are. */
+export type ChatTrend = "warming" | "steady" | "cooling" | "too_early"
 
 /**
  * The red flags a card can carry. Three are worked out from the card itself;
@@ -186,8 +213,9 @@ export const CARD_FLAG_WORDS: Record<CardFlag, string> = {
 export const PROFILE_FILTERS = ["all", "liked", "passed", "unswiped"] as const
 export type ProfileFilter = (typeof PROFILE_FILTERS)[number]
 
-/** The left column's two tabs. */
-export type ListTab = "profiles" | "matches"
+/** The left column's tabs: cards, chats, and the chats where a date was agreed. */
+export const LIST_TABS = ["profiles", "matches", "dates"] as const
+export type ListTab = (typeof LIST_TABS)[number]
 
 /** The three columns' remembered widths. Not in the shell's `panelLayoutKey`, which is a shell file. */
 export const DATING_PANEL_LAYOUT_KEY = "date-dating-workspace"
