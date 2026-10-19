@@ -74,6 +74,36 @@ describe("kept frames", () => {
   })
 })
 
+describe("the screen that stays loaded", () => {
+  const trade = "https://trade.barelycompany.com/protocols/hyper-liquid"
+
+  it("is never dropped, and three other screens stay loaded beside it", () => {
+    let state = openScreen(NO_FRAMES, trade, "Trade", trade)
+    for (const url of [listings, project, dashboard, video]) {
+      state = openScreen(state, url, "", trade)
+    }
+    expect(state.kept.map((frame) => frame.url)).toEqual([trade, project, dashboard, video])
+    const back = openScreen(state, trade, "", trade)
+    expect(openFrame(back)!.url).toBe(trade)
+    expect(openFrame(back)!.load).toBe(0)
+  })
+
+  it("drops back to three once it stops staying loaded", () => {
+    let state = openScreen(NO_FRAMES, trade, "", trade)
+    for (const url of [listings, project, dashboard]) state = openScreen(state, url, "", trade)
+    expect(state.kept).toHaveLength(4)
+    state = openScreen(state, video)
+    expect(state.kept.map((frame) => frame.url)).toEqual([project, dashboard, video])
+  })
+
+  it("is kept when Back or Forward opens another screen", () => {
+    let state = openScreen(NO_FRAMES, trade, "", trade)
+    for (const url of [listings, project, dashboard]) state = openScreen(state, url, "", trade)
+    state = showAddress(state, video, "", trade)
+    expect(state.kept.map((frame) => frame.url)).toEqual([trade, project, dashboard, video])
+  })
+})
+
 describe("starting state", () => {
   it("is empty", () => {
     expect(openFrame(NO_FRAMES)).toBeNull()

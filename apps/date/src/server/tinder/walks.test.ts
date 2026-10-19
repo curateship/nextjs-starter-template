@@ -327,12 +327,31 @@ describe("Tinder walks", () => {
       expect(again[8]).toMatchObject({ text: "Saturday?", direction: "in" })
     })
 
+    it("marks a chat they unmatched once two complete reads of the list miss it", async () => {
+      phone({ chats: chats() })
+      await run("read-matches")
+      const [noor] = await db.select().from(dateMatches).where(eq(dateMatches.theirName, "Noor"))
+      await run("read-conversation", { matchId: noor.id })
+      // Noor unmatched: Tinder's list no longer shows her.
+      fake.chats = fake.chats.filter((chat) => chat.name !== "Noor")
+      const first = await run("read-matches")
+      expect(first.result).toMatchObject({ complete: true, theyUnmatched: [] })
+      const second = await run("read-matches")
+      expect(second.result).toMatchObject({ complete: true, theyUnmatched: [noor.id] })
+      const [after] = await db.select().from(dateMatches).where(eq(dateMatches.id, noor.id))
+      expect(after).toMatchObject({ unmatchedBy: "them" })
+      expect(after.unmatchedAt).not.toBeNull()
+      // Ava, a new match with no messages, is never counted.
+      const [ava] = await db.select().from(dateMatches).where(eq(dateMatches.theirName, "Ava"))
+      expect(ava.unmatchedAt).toBeNull()
+    })
+
     it("sends a message once, confirms it in the chat, and refuses the same words again", async () => {
       phone({ chats: chats() })
       await run("read-matches")
       const [noor] = await db.select().from(dateMatches).where(eq(dateMatches.theirName, "Noor"))
       await run("read-conversation", { matchId: noor.id })
-      const messageId = await createOutgoingMessage(noor.id, "Saturday morning at Basecamp?", "member", true, db, clock)
+      const messageId = await createOutgoingMessage(noor.id, "Saturday morning at Basecamp?", "member", { proposesDate: true }, db, clock)
       const walk = await run("send-message", { matchId: noor.id, messageId })
       expect(walk.status).toBe("done")
       expect(fake.sent).toEqual(["Saturday morning at Basecamp?"])
@@ -342,7 +361,7 @@ describe("Tinder walks", () => {
       expect(after.dateProposedAt).not.toBeNull()
       expect(after.messagesFromUs).toBe(5)
 
-      await expect(createOutgoingMessage(noor.id, "saturday  morning at basecamp?", "ai", false, db, clock)).rejects.toThrow(
+      await expect(createOutgoingMessage(noor.id, "saturday  morning at basecamp?", "ai", { proposesDate: false }, db, clock)).rejects.toThrow(
         /never sent twice/
       )
     })
@@ -352,7 +371,7 @@ describe("Tinder walks", () => {
       await run("read-matches")
       const [noor] = await db.select().from(dateMatches).where(eq(dateMatches.theirName, "Noor"))
       await run("read-conversation", { matchId: noor.id })
-      const messageId = await createOutgoingMessage(noor.id, "Saturday?", "member", false, db, clock)
+      const messageId = await createOutgoingMessage(noor.id, "Saturday?", "member", { proposesDate: false }, db, clock)
       const walk = await run("send-message", { matchId: noor.id, messageId })
       expect(walk.status).toBe("failed")
       expect(walk.error).toMatch(/next read of this chat will say/)
@@ -429,7 +448,7 @@ describe("Tinder walks", () => {
       phone({ chats: [] })
       const matchId = uuid()
       await db.insert(dateMatches).values({ id: matchId, userId, workspaceId, phoneId, theirName: "Noor" })
-      const messageId = await createOutgoingMessage(matchId, "Hi!", "member", false, db, clock)
+      const messageId = await createOutgoingMessage(matchId, "Hi!", "member", { proposesDate: false }, db, clock)
       await queueWalk({ userId, phoneId, kind: "send-message", input: { matchId, messageId }, askedBy: "member" }, db, clock)
       await claimNextWalk(phoneId, db, clock)
       await expireWalkLeases(db, new Date(clock.getTime() + 6 * 60_000))

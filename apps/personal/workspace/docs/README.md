@@ -31,14 +31,15 @@ the sidebars or top nav".
 ## Docs
 
 - [App panels](app-panels.md): why each app shows its own top navigation,
-  hiding an app's own left menu, Personal's addresses, keeping the last three screens loaded, the controls at
+  hiding an app's own left menu, Personal's addresses, keeping the last three screens loaded and one link
+  that stays loaded, the controls at
   the bottom of the menu (Back, Forward, Reload and the cog's pop-out, recent
   screens, pin, zoom, phone view and sign-out), apps that refuse frames, and
   signing in once per app.
-- [The menu](menu.md): Recent at the top, the logo row's name, logo and link, the edit switch,
+- [The menu](menu.md): Recent at the top, the menu's shade, the logo row's name, logo, tab icon and link, the edit switch,
   folding sections, sub-links, the links at the bottom, resizing the menu, adding, editing, renaming
   in place, choosing any Lucide icon or none, dragging links between lists and
-  sections into order, links that open in their own tab, the start screen, and the file the menu is kept in.
+  sections into order, links that open in their own tab, the start screen, the link that stays loaded, and the file the menu is kept in.
 - [Signing in](sign-in.md): the one password, where it is kept, 30-day
   sign-ins, wrong passwords and the 15-minute lock-out, signing out, and what
   the sign-in does not cover.

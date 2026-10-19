@@ -1,23 +1,35 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { FlagIcon, Loader2Icon, MonitorSmartphoneIcon, PlayIcon, ScanSearchIcon, SendIcon, SparklesIcon, SquareIcon, TriangleAlertIcon } from "lucide-react"
+import { FlagIcon, Layers3Icon, Loader2Icon, MonitorSmartphoneIcon, PlayIcon, ScanSearchIcon, SendIcon, SparklesIcon, SquareIcon, TriangleAlertIcon, Undo2Icon, WandSparklesIcon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { InspectorCard, InspectorCollapseAllButton, InspectorCollapseAllProvider, useInspectorCollapseAll } from "@/components/shared/inspector-card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { DatingDashboard, MatchDetail, ProfileDetail } from "@/lib/api/dating/dashboard"
-import { CARD_FLAG_WORDS, MATCH_FLAG_WORDS, STOP_REASON_WORDS, WALK_WORDS } from "@/lib/dating/options"
+import { CHAT_TREND_WORDS } from "@/lib/dating/chat-trend"
+import { CARD_FLAG_WORDS, DRAFT_TONES, MATCH_FLAG_WORDS, OPENER_STYLE_WORDS, STOP_REASON_WORDS, WALK_WORDS, type DraftTone } from "@/lib/dating/options"
 
+import { ChatSettingsCard, DateBriefCard, FactsCard } from "./chat-cards"
 import { DatingPicture } from "./picture"
 import { dollars, whenWords } from "./words"
 
 export type RailActions = {
   send: (text: string) => Promise<boolean>
   regenerate: () => void
+  showThree: () => void
+  tone: (tone: DraftTone) => void
+  /** The member's words tidied into their voice, or null when it failed (the toast says why). */
+  tidy: (text: string) => Promise<string | null>
+  saveFact: (factId: string | null, text: string) => Promise<boolean>
+  deleteFact: (factId: string) => Promise<boolean>
+  setAiDrafts: (on: boolean) => void
+  saveNote: (note: string) => Promise<boolean>
+  planDate: () => void
   answer: (answer: string) => Promise<boolean>
   letDraft: () => void
   readCardAgain: () => void
@@ -97,8 +109,20 @@ export function DatingRail({
         <InspectorCollapseAllProvider signal={collapse.signal}>
           <div className="grid gap-3 p-3">
             {profile ? <ProfileThoughts profile={profile} busy={busy} onReadAgain={actions.readCardAgain} /> : null}
+            {match ? <DateBriefCard match={match} onPlan={actions.planDate} onOpenPhoto={(id) => actions.openPicture({ id, title: match.theirName })} /> : null}
             {match ? <MatchThoughts match={match} busy={busy} onAnswer={actions.answer} onLetDraft={actions.letDraft} /> : null}
-            {match ? <ReplyCard key={`${match.id}:${match.draftMadeAt?.getTime() ?? 0}`} match={match} automate={data.settings.automate} busy={busy} onSend={actions.send} onRegenerate={actions.regenerate} /> : null}
+            {match ? (
+              <ReplyCard
+                key={`${match.id}:${match.draftMadeAt?.getTime() ?? 0}`}
+                match={match}
+                automate={data.settings.automate}
+                drafts={data.drafts}
+                busy={busy}
+                actions={actions}
+              />
+            ) : null}
+            {match ? <FactsCard key={`facts:${match.id}`} match={match} onSave={actions.saveFact} onDelete={actions.deleteFact} /> : null}
+            {match ? <ChatSettingsCard key={`chat:${match.id}`} match={match} onAiDrafts={actions.setAiDrafts} onSaveNote={actions.saveNote} /> : null}
             <PhoneCard data={data} busy={busy} actions={actions} />
             <SwipingCard data={data} />
             <MyProfileCard data={data} busy={busy} actions={actions} />
@@ -197,6 +221,13 @@ function MatchThoughts({
           {match.messagesFromUs} sent by you, {match.messagesFromThem} by {match.theirName}.{" "}
           {match.dateProposedAt ? `A date was suggested ${whenWords(match.dateProposedAt)}.` : "No date suggested yet."}
         </Line>
+        <div className="grid gap-0.5 text-sm">
+          <p className="font-medium">{CHAT_TREND_WORDS[match.trend.trend]}</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {match.trend.reason.replace(/^[^:]+:\s*/, "")}
+            {match.trend.trend === "too_early" ? "" : " Times are when Date saw each message."}
+          </p>
+        </div>
         {match.flagged === "missing_fact" ? (
           <form
             className="grid gap-2"
@@ -229,29 +260,54 @@ function MatchThoughts({
   )
 }
 
+const TONE_WORDS: Record<DraftTone, string> = { shorter: "Shorter", funnier: "Funnier", warmer: "Warmer" }
+
+function draftLabel(match: MatchDetail): string {
+  if (!match.draft) return "Your message"
+  if (match.draftKind === "opener") return "The AI's first message, yours to change"
+  if (match.draftKind === "nudge") return "The AI's one follow-up, yours to change"
+  return "The AI's draft, yours to change"
+}
+
+/** Why the AI writes nothing here, when it does not. The member can still write and send. */
+function quietWords(match: MatchDetail): string | null {
+  if (match.aiOff) return "You took this chat over, so the AI writes nothing here."
+  if (match.movedToTextAt) return `You moved this chat to text ${whenWords(match.movedToTextAt)}, so the AI writes nothing here.`
+  if (match.endedAt) return "The AI read this chat as over, so it writes nothing here."
+  return null
+}
+
 function ReplyCard({
   match,
   automate,
+  drafts,
   busy,
-  onSend,
-  onRegenerate,
+  actions,
 }: {
   match: MatchDetail
   automate: boolean
+  drafts: DatingDashboard["drafts"]
   busy: string | null
-  onSend: (text: string) => Promise<boolean>
-  onRegenerate: () => void
+  actions: RailActions
 }) {
   const [text, setText] = React.useState(match.draft)
+  // The member's own words from before a Tidy, for Undo.
+  const [beforeTidy, setBeforeTidy] = React.useState<string | null>(null)
   const boxId = React.useId()
   const lastAi = [...match.messages].reverse().find((message) => message.direction === "out" && message.sentBy === "ai" && message.status === "sent")
   const automated = automate && Boolean(match.draft) && Boolean(match.draftSendAt)
+  const quiet = quietWords(match)
+  const aiCanWrite = !quiet
 
   if (match.unmatchedAt) {
     return (
       <InspectorCard storageId="date-rail-reply" title="Reply">
         <div className="mt-3">
-          <Line>You unmatched {match.theirName}, so nothing can be sent.</Line>
+          <Line>
+            {match.unmatchedBy === "them"
+              ? `${match.theirName} unmatched you: the chat is gone from Tinder. Nothing can be sent.`
+              : `You unmatched ${match.theirName}, so nothing can be sent.`}
+          </Line>
         </div>
       </InspectorCard>
     )
@@ -263,16 +319,21 @@ function ReplyCard({
         className="mt-3 grid gap-2"
         onSubmit={(event) => {
           event.preventDefault()
-          void onSend(text).then((ok) => ok && setText(""))
+          void actions.send(text).then((ok) => {
+            if (!ok) return
+            setText("")
+            setBeforeTidy(null)
+          })
         }}
       >
-        <Label htmlFor={boxId}>{match.draft ? "The AI's draft, yours to change" : "Your message"}</Label>
+        {quiet ? <Line>{quiet}</Line> : null}
+        <Label htmlFor={boxId}>{draftLabel(match)}</Label>
         <Textarea
           id={boxId}
           value={text}
           readOnly={automated}
           onChange={(event) => setText(event.target.value)}
-          placeholder={match.aiBusy ? "The AI is writing…" : match.flagged ? "Write your own reply." : "Write a message, or wait for the AI's draft."}
+          placeholder={match.aiBusy ? "The AI is writing…" : match.flagged || quiet ? "Write your own reply." : "Write a message, or wait for the AI's draft."}
           rows={2}
         />
         <p className="text-xs text-muted-foreground">
@@ -280,6 +341,25 @@ function ReplyCard({
             ? `The AI sends this by itself at ${whenWords(match.draftSendAt)}. Switch automate off in Settings → Dating to send it yourself.`
             : `${text.trim().length} characters.${match.draftProposesDate && text.trim() === match.draft.trim() ? " This draft suggests meeting up." : ""}`}
         </p>
+        {match.draftChoices.length && !automated ? (
+          <div className="grid gap-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Or pick one of these</p>
+            {[match.draft, ...match.draftChoices].map((choice, index) => (
+              <button
+                key={`${index}:${choice}`}
+                type="button"
+                aria-pressed={text.trim() === choice.trim()}
+                className="rounded-md border bg-background px-2.5 py-2 text-left text-sm leading-snug hover:bg-muted/60 aria-pressed:border-primary"
+                onClick={() => {
+                  setText(choice)
+                  setBeforeTidy(null)
+                }}
+              >
+                {choice}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {match.aiError ? <p className="text-sm text-destructive">{match.aiError}</p> : null}
         {lastAi && !match.draft ? <Line>Sent by AI at {whenWords(lastAi.sentAt)}.</Line> : null}
         <div className="flex flex-wrap gap-2">
@@ -289,11 +369,71 @@ function ReplyCard({
               Send from phone
             </Button>
           )}
-          <Button type="button" variant="outline" disabled={busy === "regenerate"} onClick={onRegenerate}>
-            {busy === "regenerate" ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-            {match.draft ? "Regenerate" : "Draft with AI"}
-          </Button>
+          {automated ? null : beforeTidy !== null ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setText(beforeTidy)
+                setBeforeTidy(null)
+              }}
+            >
+              <Undo2Icon /> Undo tidy
+            </Button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy === "tidy"}
+                  onClick={() => {
+                    const mine = text
+                    void actions.tidy(mine).then((tidied) => {
+                      if (tidied === null) return
+                      setBeforeTidy(mine)
+                      setText(tidied)
+                    })
+                  }}
+                >
+                  {busy === "tidy" ? <Loader2Icon className="animate-spin" /> : <WandSparklesIcon />}
+                  Tidy
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Puts your own words in your voice, keeping what you meant. You see it before Send.</TooltipContent>
+            </Tooltip>
+          )}
         </div>
+        {aiCanWrite ? (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" disabled={busy === "regenerate"} onClick={actions.regenerate}>
+              {busy === "regenerate" ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+              {match.draft ? "Regenerate" : "Draft with AI"}
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" variant="outline" disabled={busy === "three"} onClick={actions.showThree}>
+                  {busy === "three" ? <Loader2Icon className="animate-spin" /> : <Layers3Icon />}
+                  Show 3
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Three different drafts to pick from. Automate only ever sends the first.</TooltipContent>
+            </Tooltip>
+            {match.draft
+              ? DRAFT_TONES.map((tone) => (
+                  <Button key={tone} type="button" variant="ghost" disabled={busy === `tone:${tone}`} onClick={() => actions.tone(tone)}>
+                    {busy === `tone:${tone}` ? <Loader2Icon className="animate-spin" /> : null}
+                    {TONE_WORDS[tone]}
+                  </Button>
+                ))
+              : null}
+          </div>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
+          {drafts.of
+            ? `${drafts.unchanged} of your last ${drafts.of} drafts sent unchanged.`
+            : "None of the AI's drafts sent yet. This counts how many go unchanged."}
+        </p>
       </form>
     </InspectorCard>
   )
@@ -504,31 +644,61 @@ function TallyCard({ data }: { data: DatingDashboard }) {
   const [today, ...earlier] = data.tally
   return (
     <InspectorCard storageId="date-rail-tally" title="Daily tally">
-      <div className="mt-3 grid gap-3">
-        {today ? (
-          <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm">
-            <dt className="text-muted-foreground">Swipes today</dt>
-            <dd className="tabular-nums">{today.swipes}</dd>
-            <dt className="text-muted-foreground">Likes</dt>
-            <dd className="tabular-nums">{today.likes}</dd>
-            <dt className="text-muted-foreground">Matches</dt>
-            <dd className="tabular-nums">{today.matches}</dd>
-            <dt className="text-muted-foreground">Messages sent</dt>
-            <dd className="tabular-nums">{today.messages}</dd>
-            <dt className="text-muted-foreground">Dates suggested</dt>
-            <dd className="tabular-nums">{today.datesProposed}</dd>
-          </dl>
-        ) : null}
-        <ul className="grid gap-1 text-xs text-muted-foreground">
-          {earlier.map((day, index) => (
-            <li key={day.day}>
-              <span className="font-medium text-foreground">{dayName(day.day, index + 1)}</span>: {day.swipes} swipes, {day.likes} likes, {day.matches} matches,{" "}
-              {day.messages} sent, {day.datesProposed} dates
-            </li>
-          ))}
-        </ul>
-        <p className="text-xs text-muted-foreground">Sample cards and chats are not counted.</p>
-      </div>
+      <Tabs defaultValue="days" className="mt-3 gap-3">
+        <TabsList className="justify-start">
+          <TabsTrigger value="days" className="flex-none">
+            Days
+          </TabsTrigger>
+          <TabsTrigger value="openers" className="flex-none">
+            Openers
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="days" className="grid gap-3">
+          {today ? (
+            <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm">
+              <dt className="text-muted-foreground">Swipes today</dt>
+              <dd className="tabular-nums">{today.swipes}</dd>
+              <dt className="text-muted-foreground">Likes</dt>
+              <dd className="tabular-nums">{today.likes}</dd>
+              <dt className="text-muted-foreground">Matches</dt>
+              <dd className="tabular-nums">{today.matches}</dd>
+              <dt className="text-muted-foreground">Messages sent</dt>
+              <dd className="tabular-nums">{today.messages}</dd>
+              <dt className="text-muted-foreground">Dates suggested</dt>
+              <dd className="tabular-nums">{today.datesProposed}</dd>
+            </dl>
+          ) : null}
+          <ul className="grid gap-1 text-xs text-muted-foreground">
+            {earlier.map((day, index) => (
+              <li key={day.day}>
+                <span className="font-medium text-foreground">{dayName(day.day, index + 1)}</span>: {day.swipes} swipes, {day.likes} likes, {day.matches} matches,{" "}
+                {day.messages} sent, {day.datesProposed} dates
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted-foreground">Sample cards and chats are not counted.</p>
+        </TabsContent>
+        <TabsContent value="openers" className="grid gap-3">
+          {data.openers.length ? (
+            <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm">
+              {data.openers.map((row) => (
+                <React.Fragment key={row.style}>
+                  <dt className="text-muted-foreground">{OPENER_STYLE_WORDS[row.style]}</dt>
+                  <dd className="tabular-nums">
+                    {row.replied} of {row.sent} replied
+                  </dd>
+                </React.Fragment>
+              ))}
+            </dl>
+          ) : (
+            <Line>No first messages sent yet. Each one the AI writes is counted here by kind.</Line>
+          )}
+          <p className="text-xs text-muted-foreground">
+            A reply means an answer within three days. Based on {data.openers.reduce((sum, row) => sum + row.sent, 0)} openers so far; a few dozen are needed before the
+            numbers mean much.
+          </p>
+        </TabsContent>
+      </Tabs>
     </InspectorCard>
   )
 }

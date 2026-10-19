@@ -34,6 +34,8 @@ export const datingSettingsShape = z.object({
   /** Messages the member has sent, three to five, so the AI writes in their voice. */
   examples: z.array(z.string().max(500)).max(MAX_EXAMPLES).default([]),
   style: z.enum(DATING_STYLES).default("examples"),
+  /** The member's last ten own messages, written or changed by them, are also examples of their voice. On to start with (18 Oct 2026). */
+  learnFromSends: z.boolean().default(true),
   /** Like a card scored at this or more, out of 100. */
   likeAbove: z.number().int().min(0).max(100).default(70),
   /** Tyler, 17 Oct 2026: "AI can craft messages and I will send it, but that should be an option if I want it automated later." Off to start with. */

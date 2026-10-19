@@ -11,7 +11,7 @@ import { phoneIsBusy, queueWalk, runWalkList, type RunOptions } from "@/server/t
 import { dateMatches, dateOwnProfiles, dateProfiles, dateWalks } from "@/server/tinder/schema"
 import { createOutgoingMessage, settleMessage } from "@/server/tinder/store"
 
-import { decideSwipe, draftReply, reviewOwnProfile, scoreCard, type AiDeps } from "./ai"
+import { decideSwipe, draftReply, makeDateBrief, readChatNotes, reviewOwnProfile, scoreCard, type AiDeps } from "./ai"
 import { newestMessages } from "./dashboard"
 import { readDatingSettings } from "./settings"
 import { spendCapReached } from "./spend"
@@ -95,10 +95,16 @@ function detached(key: string, job: () => Promise<unknown>): Promise<unknown>[] 
   ]
 }
 
+/** A chat whose newest message is ours, unanswered this long, gets its one follow-up. Tyler's choice, 18 Oct 2026. */
+export const NUDGE_AFTER_MS = 3 * 86_400_000
+
 /**
- * The AI's part of a pass: new cards read, conversations whose newest message
- * is theirs drafted, and the member's own profile reviewed once it is read.
- * Sample records are never sent to the AI.
+ * The AI's part of a pass: new cards read; chats with something new read for
+ * notes; replies drafted where their message is newest; a first message for a
+ * new match whose card Date read; the one follow-up on a chat quiet for three
+ * days; the brief for an agreed date; and the member's own profile reviewed
+ * once it is read. Sample records are never sent to the AI, and a chat that is
+ * over, moved to text or taken over by the member is left alone.
  */
 function aiWork(phone: Phone, db: CustomShellDb, now: Date, deps: AiDeps): Promise<unknown>[] {
   return detached(`ai:${phone.id}`, async () => {
@@ -112,28 +118,58 @@ function aiWork(phone: Phone, db: CustomShellDb, now: Date, deps: AiDeps): Promi
       .limit(CARDS_PER_PASS)
     for (const card of cards) await scoreCard(card.id, db, now, deps)
 
-    const matches = await db
+    const live = await db
       .select()
+      .from(dateMatches)
+      .where(and(eq(dateMatches.phoneId, phone.id), eq(dateMatches.sample, false), isNull(dateMatches.unmatchedAt)))
+    const newest = new Map((await newestMessages(live.map((match) => match.id), db)).map((message) => [message.matchId, message]))
+
+    // Notes first, so a draft written on this pass already knows the new facts.
+    for (const match of live) {
+      const last = newest.get(match.id)
+      if (last && match.messagesFromThem > 0 && last.position > match.notesReadThrough) await readChatNotes(match.id, db, now, deps)
+    }
+
+    const writable = live.filter(
+      (match) =>
+        !match.flaggedReason &&
+        !match.endedAt &&
+        !match.movedToTextAt &&
+        !match.aiOff &&
+        match.draft === "" &&
+        match.aiError === ""
+    )
+    for (const match of writable) {
+      const last = newest.get(match.id)
+      if (!last) {
+        // A new match nobody has written to, whose card Date read: a first
+        // message. Not while the chat list says there is something to read.
+        if (match.profileId && !match.needsRead) await draftReply(match.id, db, now, deps, { mode: "opener" })
+        continue
+      }
+      // Their move otherwise. `draftReply` makes the final call.
+      if (last.direction === "in" || last.status !== "sent") {
+        await draftReply(match.id, db, now, deps)
+        continue
+      }
+      const sent = last.sentAt ?? last.createdAt
+      if (!match.nudgedAt && now.getTime() - sent.getTime() >= NUDGE_AFTER_MS) await draftReply(match.id, db, now, deps, { mode: "nudge" })
+    }
+
+    // Read again: the notes above may have just noted a yes.
+    const agreed = await db
+      .select({ id: dateMatches.id })
       .from(dateMatches)
       .where(
         and(
           eq(dateMatches.phoneId, phone.id),
           eq(dateMatches.sample, false),
           isNull(dateMatches.unmatchedAt),
-          isNull(dateMatches.flaggedReason),
-          eq(dateMatches.draft, ""),
-          eq(dateMatches.aiError, "")
+          isNotNull(dateMatches.dateAcceptedAt),
+          isNull(dateMatches.briefMadeAt)
         )
       )
-    // Only conversations whose newest message is theirs, or ours that did not
-    // go: it is their move otherwise. `draftReply` makes the final call.
-    const newest = await newestMessages(
-      matches.filter((match) => match.messagesFromThem > 0).map((match) => match.id),
-      db
-    )
-    for (const message of newest) {
-      if (message.direction === "in" || message.status !== "sent") await draftReply(message.matchId, db, now, deps)
-    }
+    for (const match of agreed) await makeDateBrief(match.id, db, now, deps)
 
     const [own] = await db
       .select({ phoneId: dateOwnProfiles.phoneId })
@@ -161,6 +197,9 @@ async function sendDueDrafts(phone: Phone, settings: DatingSettings, db: CustomS
         eq(dateMatches.sample, false),
         isNull(dateMatches.unmatchedAt),
         isNull(dateMatches.flaggedReason),
+        isNull(dateMatches.endedAt),
+        isNull(dateMatches.movedToTextAt),
+        eq(dateMatches.aiOff, false),
         ne(dateMatches.draft, "")
       )
     )
@@ -175,7 +214,15 @@ async function sendDueDrafts(phone: Phone, settings: DatingSettings, db: CustomS
     }
     if (match.draftSendAt > now) continue
     if (await walkRefusal(phone, "send-message", settings, db, now)) return
-    const messageId = await createOutgoingMessage(match.id, match.draft, "ai", match.draftProposesDate, db, now)
+    // The first draft only: two more from "Show 3" are for the member to pick from.
+    const messageId = await createOutgoingMessage(
+      match.id,
+      match.draft,
+      "ai",
+      { proposesDate: match.draftProposesDate, draftText: match.draft, openerStyle: match.draftKind === "opener" ? match.draftOpenerStyle : null },
+      db,
+      now
+    )
     try {
       await queueWalk({ userId: phone.userId, phoneId: phone.id, kind: "send-message", input: { matchId: match.id, messageId }, askedBy: "ai" }, db, now)
     } catch (error) {

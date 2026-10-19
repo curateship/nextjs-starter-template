@@ -1,15 +1,20 @@
 import * as React from "react"
+import { CalendarPlusIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
+import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { NumberField } from "@/components/ui/number-field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { disconnectGoogleCalendar, loadGoogleCalendar, type CalendarConnection } from "@/lib/api/dating/chats"
 import { loadDatingSettings, saveDatingSettingsNow } from "@/lib/api/dating/settings"
 import { datingErrorMessage } from "@/lib/dating/errors"
 import { DATING_STYLES, DATING_STYLE_WORDS, datingSettingsProblem, MAX_EXAMPLES, type DatingSettings, type DatingStyle } from "@/lib/dating/settings"
@@ -144,6 +149,13 @@ function DatingSettingsTab() {
             />
           ))}
         </div>
+        <SettingsSwitchRow
+          id="date-learn-from-sends"
+          checked={values.learnFromSends}
+          onCheckedChange={(on) => set("learnFromSends", on, "now")}
+          label="Also learn from my last 10 sent messages"
+          hint="Messages you write yourself, or change before sending, become extra examples of your voice. The AI's own messages, drafts sent unchanged and anything with a phone number are left out."
+        />
         <div className="grid gap-2">
           <FieldLabel htmlFor="date-style">Style</FieldLabel>
           <Select value={values.style} onValueChange={(style) => set("style", style as DatingStyle, "now")}>
@@ -276,7 +288,108 @@ function DatingSettingsTab() {
           onCommit={commit}
         />
       </CollapsibleSettingsCard>
+
+      <GoogleCalendarCard />
     </CardGroup>
+  )
+}
+
+const GOOGLE_RETURN_WORDS: Record<string, { ok: boolean; words: string }> = {
+  connected: { ok: true, words: "Google Calendar is connected. Each date with a time goes there too." },
+  denied: { ok: false, words: "Google Calendar was not connected: access was not allowed on Google's screen." },
+  failed: { ok: false, words: "Google Calendar could not be connected. Try Connect again." },
+  "not-set-up": { ok: false, words: "Google is not set up on this server, so the calendar cannot be connected yet." },
+}
+
+/**
+ * Google Calendar, one way (part 15 of "features/01-chats-and-replies"):
+ * Date adds, moves and removes its own event for each date with a time, and
+ * never reads the calendar. Connect goes to Google and back; Disconnect asks
+ * first.
+ */
+function GoogleCalendarCard() {
+  const [google, setGoogle] = React.useState<CalendarConnection | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+  const [confirming, setConfirming] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+  const [reloads, setReloads] = React.useState(0)
+
+  React.useEffect(() => {
+    let live = true
+    loadGoogleCalendar().then(
+      (next) => live && setGoogle(next),
+      (failure: unknown) => live && setError(datingErrorMessage(failure))
+    )
+    return () => {
+      live = false
+    }
+  }, [reloads])
+
+  // Coming back from Google: say how it went once, then take the word out of the address.
+  React.useEffect(() => {
+    const url = new URL(window.location.href)
+    const back = GOOGLE_RETURN_WORDS[url.searchParams.get("google") ?? ""]
+    if (!back) return
+    if (back.ok) toast.success(back.words)
+    else showErrorToast(back.words)
+    url.searchParams.delete("google")
+    window.history.replaceState(window.history.state, "", url.toString())
+  }, [])
+
+  return (
+    <CollapsibleSettingsCard
+      storageId="date-settings-google"
+      title="Google Calendar"
+      description="Each date you give a time goes into your Google Calendar too, and moves or goes with it. Date only writes its own events and never reads your calendar."
+      contentClassName="grid gap-4"
+    >
+      {!google ? (
+        error ? (
+          <ErrorRow message={error} onRetry={() => setReloads((count) => count + 1)} />
+        ) : (
+          <LoadingRow label="Checking Google Calendar" />
+        )
+      ) : google.connected ? (
+        <>
+          <p className="text-sm">Connected{google.email ? ` as ${google.email}` : ""}.</p>
+          {google.lastError ? <p className="text-sm text-destructive">Last time Google refused: {google.lastError}</p> : null}
+          <Button type="button" variant="outline" className="justify-self-start" onClick={() => setConfirming(true)}>
+            Disconnect
+          </Button>
+        </>
+      ) : google.available ? (
+        <Button asChild className="justify-self-start">
+          <a href="/api/dating/google-calendar">
+            <CalendarPlusIcon /> Connect Google Calendar
+          </a>
+        </Button>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Not set up on this server yet. It needs the Google app's two keys, the same ones Continue with Google uses, with the Calendar API switched on and
+          /api/dating/google-calendar/callback listed as a redirect address.
+        </p>
+      )}
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title="Disconnect Google Calendar?"
+        description="Date stops adding dates to it. Events already there stay in your calendar."
+        confirmLabel="Disconnect"
+        loading={busy}
+        onConfirm={() => {
+          setBusy(true)
+          dismissErrorToast()
+          disconnectGoogleCalendar()
+            .then(async () => {
+              setConfirming(false)
+              setGoogle(await loadGoogleCalendar())
+              toast.success("Google Calendar is disconnected.")
+            })
+            .catch((failure: unknown) => showErrorToast(datingErrorMessage(failure)))
+            .finally(() => setBusy(false))
+        }}
+      />
+    </CollapsibleSettingsCard>
   )
 }
 

@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull } from "drizzle-orm"
+import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm"
 
-import type { CardFlag, MatchFlag, MessageSender, MessageStatus, SwipeDecision, WalkKind, WalkStatus } from "@/lib/dating/options"
+import { chatTrend, TREND_NEEDS_FROM_THEM, type TrendMessage, type TrendRead } from "@/lib/dating/chat-trend"
+import type { CardFlag, ChatTrend, DraftKind, MatchFlag, MessageSender, MessageStatus, OpenerStyle, SwipeDecision, WalkKind, WalkStatus } from "@/lib/dating/options"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { listPhones, type PhoneView } from "@/server/phone/link"
 import { datePhones } from "@/server/phone/schema"
@@ -11,6 +12,7 @@ import {
   dateOwnProfiles,
   dateProfiles,
   dateWalks,
+  type MatchFact,
   type OwnProfileReview,
   type ProfileHandles,
   type ProfileSection,
@@ -49,8 +51,33 @@ export type MatchListItem = {
   hasDraft: boolean
   flagged: MatchFlag | null
   unmatched: boolean
+  /** Who unmatched, when somebody did. */
+  unmatchedBy: "member" | "them" | null
+  /** The AI read the chat as over. */
+  ended: boolean
+  movedToText: boolean
+  /** The member took the chat over. */
+  aiOff: boolean
+  dateAccepted: boolean
+  trend: ChatTrend
   sample: boolean
 }
+
+/** A chat where they said yes to a drink or coffee: the Dates tab and the Calendar screen. */
+export type DateListItem = {
+  matchId: string
+  theirName: string
+  photoId: string | null
+  acceptedAt: Date
+  acceptedLine: string
+  theirNumber: string
+  dateAt: Date | null
+  datePlace: string
+  sample: boolean
+}
+
+/** How many openers of one kind went out, and how many got an answer within three days. */
+export type OpenerTally = { style: OpenerStyle; sent: number; replied: number }
 
 export type WalkView = {
   id: string
@@ -87,6 +114,10 @@ export type DatingDashboard = {
   matches: MatchListItem[]
   own: OwnProfileView | null
   tally: DayTally[]
+  dates: DateListItem[]
+  /** Of the member's last 20 sends that started as the AI's draft, how many went unchanged. */
+  drafts: { unchanged: number; of: number }
+  openers: OpenerTally[]
   hasSamples: boolean
 }
 
@@ -153,9 +184,14 @@ export async function loadDashboard(
   ])
 
   // Each match's last line: the newest message kept, or what the chat list showed.
-  const lastLines = new Map(
-    (await newestMessages(matchRows.map((match) => match.id), db)).map((message) => [message.matchId, message.text])
-  )
+  const [newest, trends, drafts, openers] = await Promise.all([
+    newestMessages(matchRows.map((match) => match.id), db),
+    // A chat with fewer messages from them than a trend needs is too early to tell, so its messages are not read.
+    trendsFor(matchRows.filter((match) => !match.unmatchedAt && match.messagesFromThem >= TREND_NEEDS_FROM_THEM).map((match) => match.id), db),
+    draftsSentUnchanged(userId, db),
+    openerTally(userId, workspaceId, db),
+  ])
+  const lastLines = new Map(newest.map((message) => [message.matchId, message.text]))
 
   const timeZone = phone?.timeZone ?? ""
   return {
@@ -200,8 +236,20 @@ export async function loadDashboard(
       hasDraft: row.draft !== "",
       flagged: row.flaggedReason,
       unmatched: row.unmatchedAt !== null,
+      unmatchedBy: row.unmatchedAt ? (row.unmatchedBy ?? "member") : null,
+      ended: row.endedAt !== null,
+      movedToText: row.movedToTextAt !== null,
+      aiOff: row.aiOff,
+      dateAccepted: row.dateAcceptedAt !== null,
+      trend: trends.get(row.id)?.trend ?? "too_early",
       sample: row.sample,
     })),
+    dates: matchRows
+      .filter((row) => row.dateAcceptedAt && !row.unmatchedAt)
+      .map((row) => dateListItem(row))
+      .sort((a, b) => b.acceptedAt.getTime() - a.acceptedAt.getTime()),
+    drafts,
+    openers,
     own: ownRow[0]
       ? {
           name: ownRow[0].name,
@@ -216,6 +264,105 @@ export async function loadDashboard(
     tally: await dailyTally(userId, workspaceId, timeZone, db, now),
     hasSamples: profileRows.some((row) => row.sample) || matchRows.some((row) => row.sample),
   }
+}
+
+export function dateListItem(row: typeof dateMatches.$inferSelect): DateListItem {
+  return {
+    matchId: row.id,
+    theirName: row.theirName,
+    photoId: row.photoId,
+    acceptedAt: row.dateAcceptedAt ?? row.updatedAt,
+    acceptedLine: row.dateAcceptedLine,
+    theirNumber: row.theirNumber,
+    dateAt: row.dateAt,
+    datePlace: row.datePlace,
+    sample: row.sample,
+  }
+}
+
+/** Each chat's warming or cooling, from its messages. One query for all of them. */
+async function trendsFor(matchIds: string[], db: CustomShellDb = defaultDb): Promise<Map<string, TrendRead>> {
+  if (!matchIds.length) return new Map()
+  const rows = await db
+    .select({
+      matchId: dateMessages.matchId,
+      direction: dateMessages.direction,
+      status: dateMessages.status,
+      length: sql<number>`length(${dateMessages.text})`,
+      at: dateMessages.createdAt,
+    })
+    .from(dateMessages)
+    .where(inArray(dateMessages.matchId, matchIds))
+    .orderBy(dateMessages.matchId, asc(dateMessages.position))
+  const byMatch = new Map<string, TrendMessage[]>()
+  for (const row of rows) {
+    if (row.direction === "out" && row.status !== "sent") continue
+    const list = byMatch.get(row.matchId) ?? []
+    list.push({ direction: row.direction, length: Number(row.length), at: row.at })
+    byMatch.set(row.matchId, list)
+  }
+  return new Map(matchIds.map((id) => [id, chatTrend(byMatch.get(id) ?? [])]))
+}
+
+/** How many of the member's last sends, of the ones that began as the AI's draft, went exactly as drafted. */
+const READY_TO_AUTOMATE_OF = 20
+
+export async function draftsSentUnchanged(userId: string, db: CustomShellDb = defaultDb): Promise<{ unchanged: number; of: number }> {
+  const rows = await db
+    .select({ text: dateMessages.text, draftText: dateMessages.draftText })
+    .from(dateMessages)
+    .innerJoin(dateMatches, eq(dateMatches.id, dateMessages.matchId))
+    .where(
+      and(
+        eq(dateMessages.userId, userId),
+        eq(dateMessages.direction, "out"),
+        eq(dateMessages.sentBy, "member"),
+        eq(dateMessages.status, "sent"),
+        isNotNull(dateMessages.draftText),
+        eq(dateMatches.sample, false)
+      )
+    )
+    .orderBy(desc(dateMessages.sentAt))
+    .limit(READY_TO_AUTOMATE_OF)
+  return { unchanged: rows.filter((row) => row.text.trim() === row.draftText?.trim()).length, of: rows.length }
+}
+
+/** An opener counts as answered when a message of theirs came within this long. */
+const OPENER_REPLY_WITHIN_MS = 3 * 86_400_000
+
+/** Which kinds of first message got an answer within three days. Sample chats are left out. */
+export async function openerTally(userId: string, workspaceId: string, db: CustomShellDb = defaultDb): Promise<OpenerTally[]> {
+  const openers = await db
+    .select({ matchId: dateMessages.matchId, style: dateMessages.openerStyle, position: dateMessages.position, sentAt: dateMessages.sentAt })
+    .from(dateMessages)
+    .innerJoin(dateMatches, eq(dateMatches.id, dateMessages.matchId))
+    .where(
+      and(
+        eq(dateMatches.userId, userId),
+        eq(dateMatches.workspaceId, workspaceId),
+        eq(dateMatches.sample, false),
+        eq(dateMessages.direction, "out"),
+        eq(dateMessages.status, "sent"),
+        isNotNull(dateMessages.openerStyle)
+      )
+    )
+  if (!openers.length) return []
+  const answers = await db
+    .select({ matchId: dateMessages.matchId, position: dateMessages.position, at: dateMessages.createdAt })
+    .from(dateMessages)
+    .where(and(inArray(dateMessages.matchId, [...new Set(openers.map((row) => row.matchId))]), eq(dateMessages.direction, "in")))
+  const tally = new Map<OpenerStyle, OpenerTally>()
+  for (const opener of openers) {
+    const style = opener.style as OpenerStyle
+    const row = tally.get(style) ?? { style, sent: 0, replied: 0 }
+    row.sent += 1
+    const sent = opener.sentAt?.getTime() ?? 0
+    if (answers.some((answer) => answer.matchId === opener.matchId && answer.position > opener.position && answer.at.getTime() - sent <= OPENER_REPLY_WITHIN_MS)) {
+      row.replied += 1
+    }
+    tally.set(style, row)
+  }
+  return [...tally.values()].sort((a, b) => b.sent - a.sent)
 }
 
 /**
@@ -376,9 +523,29 @@ export type MatchDetail = {
   unmatchedAt: Date | null
   messagesFromThem: number
   messagesFromUs: number
+  draftKind: DraftKind
+  /** Two more drafts from "Show 3", to pick from. */
+  draftChoices: string[]
+  /** What they told the member. Deleted ones are left out. */
+  facts: MatchFact[]
+  memberNote: string
+  aiOff: boolean
+  endedAt: Date | null
+  endedLine: string
+  movedToTextAt: Date | null
+  unmatchedBy: "member" | "them" | null
+  nudgedAt: Date | null
+  dateAcceptedAt: Date | null
+  dateAcceptedLine: string
+  theirNumber: string
+  dateAt: Date | null
+  datePlace: string
+  briefLines: string[]
+  briefMadeAt: Date | null
+  trend: TrendRead
   sample: boolean
   /** The card this match came from, when Date read it. */
-  profile: { id: string; age: number | null; score: number | null; read: string[]; flags: CardFlag[] } | null
+  profile: { id: string; age: number | null; score: number | null; read: string[]; flags: CardFlag[]; photoIds: string[] } | null
   /** Walks for this match waiting for the phone, or on it now. */
   pending: WalkKind[]
 }
@@ -424,8 +591,30 @@ export async function loadMatchDetail(userId: string, matchId: string, db: Custo
     unmatchedAt: row.unmatchedAt,
     messagesFromThem: row.messagesFromThem,
     messagesFromUs: row.messagesFromUs,
+    draftKind: row.draftKind,
+    draftChoices: row.draftChoices,
+    facts: row.facts.filter((fact) => !fact.deleted),
+    memberNote: row.memberNote,
+    aiOff: row.aiOff,
+    endedAt: row.endedAt,
+    endedLine: row.endedLine,
+    movedToTextAt: row.movedToTextAt,
+    unmatchedBy: row.unmatchedAt ? (row.unmatchedBy ?? "member") : null,
+    nudgedAt: row.nudgedAt,
+    dateAcceptedAt: row.dateAcceptedAt,
+    dateAcceptedLine: row.dateAcceptedLine,
+    theirNumber: row.theirNumber,
+    dateAt: row.dateAt,
+    datePlace: row.datePlace,
+    briefLines: row.briefLines,
+    briefMadeAt: row.briefMadeAt,
+    trend: chatTrend(
+      messages
+        .filter((message) => message.direction === "in" || message.status === "sent")
+        .map((message) => ({ direction: message.direction, length: message.text.length, at: message.createdAt }))
+    ),
     sample: row.sample,
-    profile: card ? { id: card.id, age: card.age, score: card.aiScore, read: card.aiRead, flags: card.aiFlags } : null,
+    profile: card ? { id: card.id, age: card.age, score: card.aiScore, read: card.aiRead, flags: card.aiFlags, photoIds: card.photoIds } : null,
     pending: pending.filter((walk) => walk.input.matchId === row.id).map((walk) => walk.kind),
   }
 }
@@ -440,6 +629,9 @@ export async function newestMessages(matchIds: string[], db: CustomShellDb = def
       direction: dateMessages.direction,
       status: dateMessages.status,
       text: dateMessages.text,
+      position: dateMessages.position,
+      sentAt: dateMessages.sentAt,
+      createdAt: dateMessages.createdAt,
     })
     .from(dateMessages)
     .where(inArray(dateMessages.matchId, matchIds))

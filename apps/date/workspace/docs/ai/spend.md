@@ -1,6 +1,7 @@
 # What the AI costs
 
-- **Every call goes through the shell's usage meter** (`runAiCall`), tagged `dating-read-card`, `dating-draft-reply` or `dating-review-profile`, so it shows on the AI usage screen like any other.
+- **Every call goes through the shell's usage meter** (`runAiCall`), tagged `dating-read-card`, `dating-draft-reply` (answers, first messages, follow-ups, Show 3, tone and Tidy), `dating-chat-notes` (what they told you and a yes to a date), `dating-date-brief`, `dating-ask-matches` or `dating-review-profile`, so it shows on the AI usage screen like any other.
+- **A new message from them costs two calls**: the notes call, small, text only and at low effort, then the draft. Show 3 is one call that writes three.
 - **There is no table of Date's own.** The cap reads the meter's rows for those tags.
 - **The price is Date's own for now.** Claude Opus 5.5 is $4 per million tokens in and $20 out, from the claude-api skill's table cached 6 Oct 2026. The shell's price list (`src/lib/ai/ai-models.ts`, a shell file) does not have the model yet, so the AI usage screen shows these calls at $0 until the shell adds it.
 - **The cap**, $20 a month by default, is in Settings → Dating. Once this month's spend reaches it, no call is made. Swiping stops, and the Swiping card says "Spend cap reached" and shows the spend against the cap. A button that needs the AI says the same in its message.
