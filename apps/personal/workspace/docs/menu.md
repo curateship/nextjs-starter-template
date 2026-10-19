@@ -26,11 +26,18 @@ edited where it stands, with no settings screen.
     sub-links and bottom links included, and for links that open in their own
     tab.
   - **A pinned link stays in its own section too.** Pinned is a second way in,
-    not a move. It is renamed, edited and dragged in its section, not in
-    Pinned.
-  - **An × unpins a link from Pinned itself.** It shows at the row's right end
-    when the row is hovered, only while editing is on, so a stray click can't
-    unpin anything. The row and its × light up as one, with no separate box
+    not a move. It is renamed and edited in its section, not in Pinned.
+  - **Drag Pinned into a new order** by the handle that shows at a row's right
+    end when it is hovered, only while editing is on (Tyler, 19 Oct 2026: "I
+    shopuld be able to drag and drop pinned tabs"). A pinned row moves only
+    within Pinned; dragging it never moves the link in its section, and the
+    section's own handle never moves Pinned. The new order is saved to
+    `pinnedLinkIds` on the drop. Code: `movePinned` in `src/lib/menu.ts`,
+    `PinnedRow` in `src/components/sidebar.tsx`, the `pinned` drag kind in
+    `src/components/menu-drag.tsx`.
+  - **An × unpins a link from Pinned itself.** It shows next to the drag
+    handle when the row is hovered, only while editing is on, so a stray click
+    can't unpin anything. The row and its × light up as one, with no separate box
     round the × (Tyler, 19 Oct 2026: "should be just one hover the whole
     row").
   - **Where it is kept:** the menu file, as `pinnedLinkIds`, so every browser

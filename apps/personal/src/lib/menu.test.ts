@@ -15,6 +15,7 @@ import {
   sidebarShadeLabel,
   moveLink,
   moveLinkTo,
+  movePinned,
   moveSection,
   personalPath,
   pinnedLinks,
@@ -442,6 +443,16 @@ describe("pinned links", () => {
     menu = setPinned(setPinned(menu, "link-cms-listings", false), "link-project-dashboard", false)
     expect(menu).not.toHaveProperty("pinnedLinkIds")
     expect(menuSchema.safeParse(menu).success).toBe(true)
+  })
+
+  it("move to a new place in Pinned only", () => {
+    let menu = setPinned(defaultMenu(), "link-cms-listings", true)
+    menu = setPinned(menu, "link-project-dashboard", true)
+    const moved = movePinned(menu, "link-project-dashboard", "link-cms-listings")
+    expect(moved.pinnedLinkIds).toEqual(["link-project-dashboard", "link-cms-listings"])
+    expect(moved.sections).toBe(menu.sections)
+    expect(movePinned(menu, "link-cms-listings", "link-cms-listings")).toBe(menu)
+    expect(movePinned(menu, "link-cms-listings", "not-pinned")).toBe(menu)
   })
 
   it("keeps a pinned link in its section", () => {
