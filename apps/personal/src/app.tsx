@@ -24,6 +24,7 @@ import {
   setSidebarShade,
   sidebarShadeColor,
   startLink,
+  stayLoadedLink,
   type Menu,
 } from "@/lib/menu"
 import { useFavicon } from "@/lib/use-favicon"
@@ -130,6 +131,7 @@ function Personal({
 } & Pick<ReturnType<typeof useMenu>, "saveStatus" | "retrySave">) {
   const screens = useOpenScreen(
     startLink(menu)?.url ?? null,
+    stayLoadedLink(menu)?.url ?? null,
     (url) => screenName(menu, url),
     menu.brand?.name
   )
@@ -156,6 +158,7 @@ function Personal({
     openUrl: screen?.url ?? null,
     activeId,
     startLinkId: menu.startLinkId ?? null,
+    stayLoaded: stayLoadedLink(menu),
     open: openAt,
     update,
   }

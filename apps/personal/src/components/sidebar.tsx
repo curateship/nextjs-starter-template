@@ -41,6 +41,7 @@ import {
   type MenuSection,
 } from "@/lib/menu"
 import { plural } from "@/lib/plural"
+import { useMenuFormSide } from "@/lib/use-menu-form-side"
 import { useRememberedOpen } from "@/lib/use-remembered-open"
 import { cn } from "@/lib/utils"
 
@@ -259,6 +260,7 @@ export function Sidebar({
   }
   const [deleting, setDeleting] = React.useState<MenuSection | null>(null)
   const [brandOpen, setBrandOpen] = React.useState(false)
+  const formSide = useMenuFormSide()
   const { open, openUrl } = useMenuActions()
   const brand = menu.brand
 
@@ -295,7 +297,7 @@ export function Sidebar({
                 <SettingsIcon />
               </Button>
             </PopoverTrigger>
-            <PopoverContent side="right" align="start" className="w-80">
+            <PopoverContent side={formSide} align="start" collisionPadding={8} className="w-80">
               <BrandEditor
                 brand={brand}
                 openUrl={openUrl}

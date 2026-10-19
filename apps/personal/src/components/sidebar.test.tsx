@@ -13,6 +13,7 @@ function render(ids: string[], activeId: string | null = null) {
     openUrl: null,
     activeId,
     startLinkId: null,
+    stayLoaded: null,
     open: () => {},
     update: () => {},
   }

@@ -23,7 +23,9 @@ import {
   screenName,
   setAppMenuWidth,
   setStartLink,
+  setStayLoadedLink,
   startLink,
+  stayLoadedLink,
   updateLink,
   type MenuLink,
 } from "@/lib/menu"
@@ -259,6 +261,42 @@ describe("the start screen", () => {
       { kind: "section", sectionId: "section-cms" }
     )
     expect(startLink(menu)).toBeNull()
+  })
+})
+
+describe("the link that stays loaded", () => {
+  it("is one link at a time, apart from the start screen, and turning it off clears it", () => {
+    let menu = setStartLink(defaultMenu(), "link-cms-dashboard", true)
+    menu = setStayLoadedLink(menu, "link-cms-dashboard", true)
+    expect(stayLoadedLink(menu)?.id).toBe("link-cms-dashboard")
+    menu = setStayLoadedLink(menu, "link-cms-listings", true)
+    expect(stayLoadedLink(menu)?.id).toBe("link-cms-listings")
+    expect(startLink(menu)?.id).toBe("link-cms-dashboard")
+    expect(menuSchema.safeParse(menu).success).toBe(true)
+    menu = setStayLoadedLink(menu, "link-cms-listings", false)
+    expect(menu).not.toHaveProperty("stayLoadedLinkId")
+    expect(menu.startLinkId).toBe("link-cms-dashboard")
+  })
+
+  it("is cleared when its link or its section is deleted, and the start screen is kept", () => {
+    const menu = setStayLoadedLink(
+      setStartLink(defaultMenu(), "link-project-dashboard", true),
+      "link-cms-listings",
+      true
+    )
+    const gone = removeSection(menu, "section-cms")
+    expect(gone).not.toHaveProperty("stayLoadedLinkId")
+    expect(gone.startLinkId).toBe("link-project-dashboard")
+    expect(removeLink(menu, "link-cms-listings")).not.toHaveProperty("stayLoadedLinkId")
+  })
+
+  it("is skipped when the link opens in its own tab", () => {
+    const menu = updateLink(
+      setStayLoadedLink(defaultMenu(), "link-cms-listings", true),
+      { ...defaultMenu().sections[1].links[1], opens: "tab" },
+      { kind: "section", sectionId: "section-cms" }
+    )
+    expect(stayLoadedLink(menu)).toBeNull()
   })
 })
 
