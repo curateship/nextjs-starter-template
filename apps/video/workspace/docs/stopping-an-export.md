@@ -6,6 +6,22 @@ is kept. When several shapes of the project are on their way, the button reads
 **Stop all 3** (or however many there are) and stops every one of them. See
 [export-shapes.md](export-shapes.md).
 
+## Stopping one export
+
+The Exports panel at the foot of the editor rail and the Exports page in the
+left menu show **Stop export** on every export that is waiting or being made,
+where a finished one has its delete button. Tyler asked for this on 19 Oct
+2026: an export still being made should be stopped, not deleted.
+
+- **It stops that one export only.** With a tall and a wide export on their
+  way, stopping the tall one leaves the wide one going, and the wide one
+  starts at once if it was waiting (`cancelRenderJob` in
+  `src/server/video/render-queue.ts`).
+- **The stopped export leaves the list,** because it has no file. Everything
+  below about what a stop leaves behind is the same.
+- **Stopping one that has just finished** is refused with "There is no export
+  to stop", and the list shows the finished file on its next check.
+
 ## What happens when you press it
 
 - **The row changes first.** Every waiting or rendering row of the project in

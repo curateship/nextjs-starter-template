@@ -76,8 +76,10 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   ASSET_ASPECT_RATIOS,
   DEFAULT_IMAGE_MODEL,
+  PROJECT_SHOTS_FULL_MESSAGE,
   projectClipAspect,
   shotPieces,
+  SHOTS_AT_ONCE_PER_PROJECT,
   VEO_MODEL,
   type AssetAspectRatio,
   type ShotLengthSeconds,
@@ -98,7 +100,8 @@ import { cn } from "@/lib/utils"
  * Actors are shared across projects; first frames and shots belong to this
  * project alone. A shot is made by the background worker, so closing the
  * panel or the tab never stops it, and the panel asks again while one is
- * being made.
+ * being made. Up to three shots can be made at once, so several directions
+ * for one frame can be tried side by side (`workspace/docs/several-ai-clips.md`).
  */
 
 /** How often the panel asks again while a shot is being made. */
@@ -166,7 +169,8 @@ export function AiClipPanel() {
 
   // While a shot is being made, ask again. The spend line moves when one
   // finishes, because Veo is paid for once the clip is made.
-  const working = shots?.some(shotWorking) ?? false
+  const makingCount = shots?.filter(shotWorking).length ?? 0
+  const working = makingCount > 0
   React.useEffect(() => {
     if (!working) return
     let active = true
@@ -202,9 +206,13 @@ export function AiClipPanel() {
   const pieces = shotPieces(lengthSeconds).count
   const frameCostCents = aiUnitCostCents(DEFAULT_IMAGE_MODEL, variants)
   const shotCostCents = aiUnitCostCents(VEO_MODEL, lengthSeconds)
-  const latestShot = frame
-    ? (shots?.find((shot) => shot.first_frame_id === frame.id) ?? null)
-    : null
+  // The picked frame's newest shots, as many as can be made at once, so
+  // directions tried side by side show side by side.
+  const frameShots = frame
+    ? (shots ?? [])
+        .filter((shot) => shot.first_frame_id === frame.id)
+        .slice(0, SHOTS_AT_ONCE_PER_PROJECT)
+    : []
 
   function reportError(message: string) {
     showErrorToast(
@@ -261,6 +269,10 @@ export function AiClipPanel() {
       )
       return
     }
+    if (makingCount >= SHOTS_AT_ONCE_PER_PROJECT) {
+      reportError(PROJECT_SHOTS_FULL_MESSAGE)
+      return
+    }
     setShotBusy(true)
     try {
       const shot = await createGeneration({
@@ -271,7 +283,9 @@ export function AiClipPanel() {
       })
       setShots((current) => [shot, ...(current ?? [])])
       toast.success(
-        "The shot is being made. It takes a few minutes, and you can close this panel meanwhile."
+        makingCount + 1 < SHOTS_AT_ONCE_PER_PROJECT
+          ? "The shot is being made. It takes a few minutes. Change the direction and make another to compare them."
+          : "The shot is being made. It takes a few minutes, and you can close this panel meanwhile."
       )
     } catch (error) {
       reportError(getGenerationErrorMessage(error))
@@ -582,33 +596,39 @@ export function AiClipPanel() {
               </p>
               <Button
                 type="button"
-                disabled={!frame || shotBusy || working}
+                disabled={!frame || shotBusy}
                 onClick={() => void makeShot()}
               >
-                {shotBusy || working ? (
-                  <Loader2Icon className="animate-spin" />
-                ) : (
-                  <FilmIcon />
-                )}
-                {working ? "Making a shot" : "Make the shot"}
+                {shotBusy ? <Loader2Icon className="animate-spin" /> : <FilmIcon />}
+                Make the shot
               </Button>
               {working ? (
                 <p className="text-xs text-muted-foreground">
-                  A project makes one shot at a time. This one carries on if
-                  you close the panel or the tab.
+                  Making {makingCount} of the {SHOTS_AT_ONCE_PER_PROJECT} shots
+                  a project can make at once. Each carries on if you close the
+                  panel or the tab.
                 </p>
               ) : null}
             </Step>
 
-            <Step number={4} title="Drag it onto the timeline" waiting={!latestShot}>
-              {latestShot ? (
-                <ShotRow
-                  shot={latestShot}
-                  busy={busyRowId === latestShot.id}
-                  dragHandlers={dragHandlers}
-                  onRetry={() => void retryShot(latestShot)}
-                  onDelete={() => setDeleting({ kind: "shot", shot: latestShot })}
-                />
+            <Step
+              number={4}
+              title="Drag it onto the timeline"
+              waiting={!frameShots.length}
+            >
+              {frameShots.length ? (
+                <div className="grid gap-3">
+                  {frameShots.map((shot) => (
+                    <ShotRow
+                      key={shot.id}
+                      shot={shot}
+                      busy={busyRowId === shot.id}
+                      dragHandlers={dragHandlers}
+                      onRetry={() => void retryShot(shot)}
+                      onDelete={() => setDeleting({ kind: "shot", shot })}
+                    />
+                  ))}
+                </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
                   The finished shot shows here. Drag it to where it should play.
@@ -848,7 +868,25 @@ function FrameRow({
   )
 }
 
-/** One shot: being made, failed with a reason, or ready to drag. */
+/**
+ * Where a shot being made has got to. Google gives no percentage, so this is
+ * the part it is on and when it was asked for.
+ */
+function shotProgress(shot: GenerationItem) {
+  const started = new Date(shot.created_at).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+  if (shot.status === "queued") return `Waiting for its turn since ${started}`
+  const part = shot.pieces.findIndex((piece) => piece.status !== "ready") + 1
+  const parts = shot.pieces.length > 1 ? `, part ${part} of ${shot.pieces.length}` : ""
+  return `${shot.duration_seconds} second shot${parts}, being made since ${started}`
+}
+
+/**
+ * One shot: being made, failed with a reason, or ready to drag. Its direction
+ * sits on top, so shots tried side by side can be told apart.
+ */
 function ShotRow({
   shot,
   busy,
@@ -864,7 +902,10 @@ function ShotRow({
 }) {
   const first = shot.pieces[0]?.output ?? null
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1">
+      <p className="col-span-2 line-clamp-2 text-xs [overflow-wrap:anywhere]">
+        {shot.pieces.map((piece) => piece.prompt).join(" / ")}
+      </p>
       {shot.status === "ready" && first ? (
         <button
           type="button"
@@ -895,8 +936,8 @@ function ShotRow({
         </div>
       ) : (
         <span className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2Icon className="size-3.5 animate-spin" />
-          Making a {shot.duration_seconds} second shot
+          <Loader2Icon className="size-3.5 shrink-0 animate-spin" />
+          {shotProgress(shot)}
         </span>
       )}
       <Button

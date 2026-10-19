@@ -56,6 +56,10 @@ describe("the AI and the swipe loop", () => {
 
   /** Claude, as the test wants it: each call takes the next answer, and every question is kept. */
   const ask: AiAsk = async (question) => {
+    // Reading a chat for notes runs on every pass with new messages; these tests are about the rest, so it finds nothing.
+    if (question.label.endsWith("chat for notes")) {
+      return { refused: false, value: question.schema.parse({ newFacts: [], dateAccepted: false, acceptedLine: "", phoneNumber: "" }), inputTokens: 500, outputTokens: 20 }
+    }
     asked.push({ system: question.system, text: question.text, images: question.images?.length ?? 0, label: question.label })
     const next = answers.shift()
     if (!next) throw new Error("The test gave Claude no answer for this.")

@@ -6,7 +6,7 @@ A walk is a list of plain phone actions that does one thing in Tinder. Walks run
 
 - **Read the card in front.** The card's name, age, distance and verified badge, every photo by tapping through until the first comes back or nothing moves, and the full profile by opening it and scrolling to the bottom. It leaves the phone on the same card.
 - **Like and Pass.** Only once the card in front is checked to be the one that was read: same name, same age, one of its photos on screen. Otherwise nothing is swiped. A like that comes back "It's a Match!" becomes a match at once.
-- **Read the chats.** New matches and conversations, a few screenfuls down. A conversation whose last line changed is read next.
+- **Read the chats.** New matches and conversations, a few screenfuls down. A conversation whose last line changed is read next. A read that reaches the bottom of the list is complete, and a chat with messages missing from two complete reads in a row is marked "They unmatched" (`../chats/chats-and-replies.md`).
 - **Read a conversation.** Every message back to the start or eight screenfuls, theirs on the left, ours on the right.
 - **Send a message.** Types it, taps Send and checks it showed in the chat.
 - **Unmatch.** Through Tinder's own menu and its confirm.

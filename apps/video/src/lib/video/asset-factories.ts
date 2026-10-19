@@ -1,3 +1,5 @@
+import { formatCents } from "@/lib/video/project-spend"
+
 export const IMAGE_MODELS = [
   { id: "gemini-2.5-flash-image", label: "Nano Banana" },
   { id: "gemini-3.1-flash-image", label: "Nano Banana 2" },
@@ -62,6 +64,49 @@ export function shotPieces(length: ShotLengthSeconds): {
     return { count: 1, seconds: length as VideoDurationSeconds }
   }
   return { count: length / PIECE_SECONDS, seconds: PIECE_SECONDS }
+}
+
+/**
+ * How many shots may be made at once: three in one project and six across one
+ * person's projects. Every shot is paid for when it arrives, so without a cap
+ * a run of presses is a bill nobody added up. Migration
+ * 0117_video_shots_at_once.sql holds the same two numbers and the same two
+ * sentences, and the database refuses a fourth even if two presses land
+ * together. `workspace/docs/several-ai-clips.md` says why.
+ */
+export const SHOTS_AT_ONCE_PER_PROJECT = 3
+export const SHOTS_AT_ONCE_PER_PERSON = 6
+export const PROJECT_SHOTS_FULL_MESSAGE =
+  "This project is already making 3 shots. Wait for one to finish."
+export const PERSON_SHOTS_FULL_MESSAGE =
+  "You are already making 6 shots across your projects. Wait for one to finish."
+
+const ALLOWANCE_SHORT_START = "Your monthly AI allowance has"
+
+/**
+ * The refusal when a shot will not fit in what is left of the monthly
+ * allowance. Shots still being made are paid for only when they arrive, so
+ * they are counted here as already spoken for.
+ */
+export function shotAllowanceShortMessage({
+  leftCents,
+  generatingCents,
+  nextCents,
+}: {
+  leftCents: number
+  generatingCents: number
+  nextCents: number
+}) {
+  const short = formatCents(generatingCents + nextCents - leftCents)
+  const generating =
+    generatingCents > 0
+      ? ` Shots still being made will take ${formatCents(generatingCents)} of it, and this one costs ${formatCents(nextCents)}`
+      : ` This shot costs ${formatCents(nextCents)}`
+  return `${ALLOWANCE_SHORT_START} ${formatCents(leftCents)} left.${generating}, so it is ${short} short.`
+}
+
+export function isShotAllowanceShortMessage(message: string) {
+  return message.startsWith(ALLOWANCE_SHORT_START)
 }
 
 export function imageProvider(model: ImageModelId): "gemini" | "openai" {

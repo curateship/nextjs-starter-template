@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm"
+import { and, asc, desc, eq, gt, inArray, isNull, or } from "drizzle-orm"
 
-import type { MessageSender, SwipeDecision } from "@/lib/dating/options"
+import type { MessageSender, OpenerStyle, SwipeDecision } from "@/lib/dating/options"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { hashDistance } from "@/server/phone/pictures"
@@ -133,12 +133,22 @@ export async function saveChatList(
   owner: { userId: string; workspaceId: string; phoneId: string },
   chats: ListedChat[],
   db: CustomShellDb = defaultDb,
-  now: Date = new Date()
-): Promise<{ added: number; toRead: string[] }> {
+  now: Date = new Date(),
+  /** The read reached the bottom of the list, so a chat not in it is not on Tinder any more. */
+  complete = false
+): Promise<{ added: number; toRead: string[]; theyUnmatched: string[] }> {
+  // A chat marked "they unmatched" is looked for too: one that shows up again
+  // was read wrong, and is put back rather than becoming a second match.
   const kept = await db
     .select()
     .from(dateMatches)
-    .where(and(eq(dateMatches.userId, owner.userId), eq(dateMatches.phoneId, owner.phoneId), isNull(dateMatches.unmatchedAt)))
+    .where(
+      and(
+        eq(dateMatches.userId, owner.userId),
+        eq(dateMatches.phoneId, owner.phoneId),
+        or(isNull(dateMatches.unmatchedAt), eq(dateMatches.unmatchedBy, "them"))
+      )
+    )
   let added = 0
   const toRead: string[] = []
   const claimed = new Set<string>()
@@ -158,6 +168,8 @@ export async function saveChatList(
           ...(known.avatarHash ? {} : { avatarHash: chat.avatarHash }),
           ...(known.photoId || !chat.photoId ? {} : { photoId: chat.photoId }),
           ...(changed ? { lastPreview: chat.preview, needsRead: true } : {}),
+          ...(known.missingReads ? { missingReads: 0 } : {}),
+          ...(known.unmatchedAt ? { unmatchedAt: null, unmatchedBy: null } : {}),
           updatedAt: now,
         })
         .where(eq(dateMatches.id, known.id))
@@ -196,7 +208,39 @@ export async function saveChatList(
     claimed.add(id)
     if (chat.preview) toRead.push(id)
   }
-  return { added, toRead }
+  const theyUnmatched = complete ? await countMissing(kept.filter((match) => !claimed.has(match.id) && !match.unmatchedAt), db, now) : []
+  return { added, toRead, theyUnmatched }
+}
+
+/** Complete reads of the chat list in a row that must miss a chat before it counts as unmatched by them. */
+const MISSING_READS_TO_UNMATCH = 2
+
+/**
+ * Chats a complete read of the list did not show. Only a chat with messages
+ * counts: it sits in the list of conversations, which is read to the bottom,
+ * while a new match with none sits in the row across the top, which is not
+ * read to its end. Two complete reads in a row without a chat mean they
+ * unmatched; one can be a screen read badly. Returns the matches marked.
+ */
+async function countMissing(missing: Array<typeof dateMatches.$inferSelect>, db: CustomShellDb, now: Date): Promise<string[]> {
+  const marked: string[] = []
+  for (const match of missing) {
+    if (match.sample || match.messagesFromThem + match.messagesFromUs === 0) continue
+    const reads = match.missingReads + 1
+    const gone = reads >= MISSING_READS_TO_UNMATCH
+    await db
+      .update(dateMatches)
+      .set({
+        missingReads: reads,
+        ...(gone
+          ? { unmatchedAt: now, unmatchedBy: "them" as const, draft: "", draftMadeAt: null, draftSendAt: null, draftForMessageId: null, draftChoices: [] }
+          : {}),
+        updatedAt: now,
+      })
+      .where(eq(dateMatches.id, match.id))
+    if (gone) marked.push(match.id)
+  }
+  return marked
 }
 
 /** The words' fingerprint for the never-twice rule: the same words, whatever their capitals and spacing. */
@@ -314,7 +358,15 @@ export async function refreshMatchCounts(
   const messages = await db.select().from(dateMessages).where(eq(dateMessages.matchId, matchId)).orderBy(asc(dateMessages.position))
   const counted = messages.filter((message) => message.direction === "in" || message.status === "sent")
   const newest = counted[counted.length - 1]
-  const draftStale = !newest || newest.direction === "out" || match.draftForMessageId !== newest.id
+  // An answer goes stale when anything newer arrives or ours went; a first
+  // message once the chat has started; a follow-up once our last message is
+  // no longer the newest.
+  const draftStale =
+    match.draftKind === "opener"
+      ? counted.length > 0
+      : match.draftKind === "nudge"
+        ? !newest || newest.direction !== "out" || match.draftForMessageId !== newest.id
+        : !newest || newest.direction === "out" || match.draftForMessageId !== newest.id
   await db
     .update(dateMatches)
     .set({
@@ -323,10 +375,32 @@ export async function refreshMatchCounts(
       unreadCount: match.unreadCount + change.newFromThem,
       ...(change.newFromThem > 0 ? { lastMessageAt: now } : {}),
       needsRead: false,
-      ...(draftStale && match.draft ? { draft: "", draftMadeAt: null, draftForMessageId: null, draftSendAt: null, draftProposesDate: false } : {}),
+      ...(draftStale && match.draft ? NO_DRAFT : {}),
       updatedAt: now,
     })
     .where(eq(dateMatches.id, matchId))
+}
+
+/** A match with no draft waiting. */
+export const NO_DRAFT = {
+  draft: "",
+  draftMadeAt: null,
+  draftForMessageId: null,
+  draftSendAt: null,
+  draftProposesDate: false,
+  draftChoices: [],
+  draftKind: "reply",
+  draftOpenerStyle: null,
+} satisfies Partial<typeof dateMatches.$inferInsert>
+
+/** What a message of ours carries from the draft it came from. */
+export type OutgoingDetails = {
+  /** The AI's words suggest meeting up or offer the member's number. */
+  proposesDate: boolean
+  /** The AI's draft as it stood when Send was pressed, or null when there was none. */
+  draftText?: string | null
+  /** The kind of first message it is, when it was the AI's opener. */
+  openerStyle?: OpenerStyle | null
 }
 
 /** How long the same words in the same match are refused after they were sent. */
@@ -341,7 +415,7 @@ export async function createOutgoingMessage(
   matchId: string,
   text: string,
   sentBy: Exclude<MessageSender, "them">,
-  proposesDate: boolean,
+  details: OutgoingDetails,
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<string> {
@@ -388,13 +462,15 @@ export async function createOutgoingMessage(
     text: words,
     hash,
     status: "sending",
-    proposesDate,
+    proposesDate: details.proposesDate,
+    draftText: details.draftText?.trim() || null,
+    openerStyle: details.openerStyle ?? null,
     position: (last?.position ?? 0) + 1,
     createdAt: now,
   })
   await db
     .update(dateMatches)
-    .set({ draft: "", draftMadeAt: null, draftForMessageId: null, draftSendAt: null, draftProposesDate: false, updatedAt: now })
+    .set({ ...NO_DRAFT, updatedAt: now })
     .where(eq(dateMatches.id, matchId))
   return id
 }

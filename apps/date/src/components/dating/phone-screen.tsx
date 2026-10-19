@@ -236,7 +236,7 @@ export function PhoneScreen({ initial }: { initial: PhoneScreenData }) {
         <CardHeader>
           <CardTitle>Sample data</CardTitle>
           <CardDescription>
-            Twelve sample cards and four conversations, to look around the Dating dashboard before a phone is paired. The AI never reads them and no button on
+            Twelve sample cards and seven conversations, to look around the Dating dashboard before a phone is paired. The AI never reads them and no button on
             one reaches a phone.
           </CardDescription>
         </CardHeader>

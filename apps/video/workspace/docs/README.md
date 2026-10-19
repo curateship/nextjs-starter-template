@@ -90,9 +90,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [share-links.md](share-links.md) — a link to one finished export that
   somebody with no account can watch: what it shows, how to turn it off, and
   why the link is the only lock on the file.
-- [export-storage.md](export-storage.md) — the space finished exports take,
-  what deleting an export or a project removes from storage, and clearing out
-  every export older than a date, with shared ones kept unless ticked.
+- [export-storage.md](export-storage.md) — what deleting an export or a
+  project removes from storage, and clearing out every export older than a
+  date, with shared ones kept unless ticked.
 - [saved-frames.md](saved-frames.md) — keeping one frame of an export or of
   the editor as a picture: where the two buttons are, what size the picture
   is, where it lands, and when the editor picture and the preview differ.
@@ -132,6 +132,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   is shared, the Copy and Exports panels at the foot of the rail, Copy this,
   a project's AI spend and its spend limit, and archive, pin and the actor
   filter on the projects list.
+- [several-ai-clips.md](several-ai-clips.md) — up to three AI shots at once
+  in a project and six per person: why the caps exist, how shots still being
+  made count against the allowance and the spend limit, and how the worker
+  keeps every shot moving.
 - [ai-clip.md](ai-clip.md) — the editor's AI clip panel: an actor, a first
   frame, a shot, then dragging it onto the timeline; what each step costs,
   where frames and shots are kept, and a carousel from first frames.

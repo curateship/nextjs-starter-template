@@ -86,18 +86,22 @@ export async function readProjectSpend(
  * `nextCents` is what the call will cost when that is known up front (a
  * picture, a clip, a voice). A call priced by the words it writes cannot be
  * known first, so it passes 0 and is refused only once the limit is reached.
+ * `generatingCents` is what AI shots already being made will add when they
+ * arrive, which the meter does not hold yet.
  */
 export async function requireProjectBudget(
   userId: string,
   projectId: string,
   nextCents: number,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  generatingCents = 0
 ) {
   const project = await getOwnedProject(userId, projectId, database)
   await refuseOverLimit(
     await spentByTool(userId, projectId, database),
     project.spendLimitCents,
-    nextCents
+    nextCents,
+    generatingCents
   )
 }
 
@@ -141,15 +145,18 @@ export async function requireViralProjectBudget(
 async function refuseOverLimit(
   rows: { cents: number }[],
   limitCents: number | null,
-  nextCents: number
+  nextCents: number,
+  generatingCents = 0
 ) {
   if (limitCents === null) return
   const spentCents = rows.reduce((sum, row) => sum + row.cents, 0)
   const over =
-    nextCents > 0 ? spentCents + nextCents > limitCents : spentCents >= limitCents
+    nextCents > 0
+      ? spentCents + generatingCents + nextCents > limitCents
+      : spentCents >= limitCents
   if (over) {
     throw new Error(
-      projectSpendLimitMessage({ spentCents, nextCents, limitCents })
+      projectSpendLimitMessage({ spentCents, generatingCents, nextCents, limitCents })
     )
   }
 }
