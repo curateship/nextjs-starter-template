@@ -2,6 +2,8 @@ import * as React from "react"
 import { Loader2Icon, SparklesIcon } from "lucide-react"
 
 import { ImageUpload } from "@/components/shared/image-upload"
+import { ActorSheetCard } from "@/components/video-assets/actor-sheet-card"
+import { TagInput } from "@/components/video-assets/tag-input"
 import { ProjectLookSelect } from "@/components/video-assets/project-look-select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,7 +36,10 @@ import {
 } from "@/lib/api/video/actors"
 import type { ProjectItem } from "@/lib/api/video/projects"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import type { ImageModelId } from "@/lib/video/asset-factories"
+import {
+  normalizeAssetTags,
+  type ImageModelId,
+} from "@/lib/video/asset-factories"
 
 type FormState = {
   name: string
@@ -88,6 +93,7 @@ export function ActorFormDialog({
   look,
   onClose,
   onSaved,
+  onSheetChanged,
 }: {
   open: boolean
   /** Null makes a new actor. */
@@ -96,6 +102,11 @@ export function ActorFormDialog({
   onClose: () => void
   /** Handed the saved actor and whether its picture was made again. */
   onSaved: (actor: ActorItem, reposed: boolean) => void
+  /**
+   * Handed the actor after a change to its character sheet, which saves on
+   * its own. Only an actor being edited has a sheet to change.
+   */
+  onSheetChanged?: (actor: ActorItem) => void
 }) {
   const [form, setForm] = React.useState<FormState>(() =>
     startingForm(actor, look)
@@ -171,26 +182,37 @@ export function ActorFormDialog({
                 />
               </CardContent>
             </Card>
+            {actor && onSheetChanged ? (
+              <ActorSheetCard actor={actor} onChange={onSheetChanged} />
+            ) : null}
             <Card size="sm">
               <CardHeader><CardTitle>Generation</CardTitle></CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="actor-model">Model</Label>
-                  <Select value={form.model} onValueChange={(model) => setForm({ ...form, model: model as ImageModelId })}>
-                    <SelectTrigger id="actor-model"><SelectValue /></SelectTrigger>
-                    <SelectContent>{IMAGE_MODELS.map((model) => <SelectItem key={model.id} value={model.id}>{model.label}</SelectItem>)}</SelectContent>
-                  </Select>
+              <CardContent className="grid gap-4">
+                <div className="flex flex-wrap gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="actor-model">Model</Label>
+                    <Select value={form.model} onValueChange={(model) => setForm({ ...form, model: model as ImageModelId })}>
+                      <SelectTrigger id="actor-model"><SelectValue /></SelectTrigger>
+                      <SelectContent>{IMAGE_MODELS.map((model) => <SelectItem key={model.id} value={model.id}>{model.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="actor-status">Status</Label>
+                    <Select value={form.status} onValueChange={(status) => setForm({ ...form, status: status as FormState["status"] })}>
+                      <SelectTrigger id="actor-status"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="actor-status">Status</Label>
-                  <Select value={form.status} onValueChange={(status) => setForm({ ...form, status: status as FormState["status"] })}>
-                    <SelectTrigger id="actor-status"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2 sm:col-span-2">
                   <Label htmlFor="actor-tags">Tags</Label>
-                  <Input id="actor-tags" value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="host, product, casual" />
+                  <TagInput
+                    id="actor-tags"
+                    value={normalizeAssetTags(form.tags)}
+                    onChange={(tags) => setForm({ ...form, tags: tags.join(", ") })}
+                    placeholder="Type a tag and press Enter"
+                    disabled={busy}
+                  />
                 </div>
                 {"projects" in look ? (
                   <ProjectLookSelect

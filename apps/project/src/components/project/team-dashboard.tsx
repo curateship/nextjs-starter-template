@@ -69,10 +69,10 @@ import {
   type TeamFigures,
   type TeamMemberRow,
 } from "@/lib/api/project/teams"
-import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
+import { formatMonthAndYear } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { addDays, clockIn, dayLabel, longDayLabel, shortDayLabel, zoneCity } from "@/lib/project/days"
+import { addDays, clockIn, dayLabel, fullDayLabel, localNow, longDayLabel, shortDayLabel, zoneCity } from "@/lib/project/days"
 import { matchesClient } from "@/lib/project/clients"
 import { useMyLive } from "@/lib/project/use-my-live"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -399,7 +399,8 @@ function TeamPanel({ data, figures }: { data: TeamDashboardData; figures: TeamFi
         {/* The check-in schedule is in Team settings (the cog), so it isn't repeated here (Tyler, 14 Oct 2026). */}
         <TeamCover
           team={team}
-          created={`Created ${formatDate(team.createdAt)} · ${zoneCity(team.timeZone)}`}
+          // Dated in the team's zone, the one it names, so the server and every browser agree.
+          created={`Created ${fullDayLabel(localNow(new Date(team.createdAt), team.timeZone).day)} · ${zoneCity(team.timeZone)}`}
           canEdit={canRun}
           // Team settings are the site admin's alone, so nobody else sees the cog.
           onSettings={canRun ? () => setSettingsOpen(true) : null}

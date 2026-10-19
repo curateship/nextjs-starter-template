@@ -151,3 +151,95 @@ export function findTextOverflow(
   }
   return overflow
 }
+
+type LayerKind = "text" | "picture" | "shadow"
+
+function layerKind(item: CarouselSlideItem): LayerKind {
+  if (item.type === "text") return "text"
+  if (item.type === "gradient-shadow") return "shadow"
+  return "picture"
+}
+
+// Each kind's layers, bottom first. Equal z-orders keep their saved order.
+function layersByKind(slide: CarouselSlide) {
+  const byKind = new Map<LayerKind, CarouselSlideItem[]>()
+  slide.items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => a.item.zIndex - b.item.zIndex || a.index - b.index)
+    .forEach(({ item }) => {
+      const kind = layerKind(item)
+      const layers = byKind.get(kind)
+      if (layers) layers.push(item)
+      else byKind.set(kind, [item])
+    })
+  return byKind
+}
+
+/**
+ * Which layer on `target` takes the look of which layer on `source`: the
+ * lowest text on one matches the lowest text on the other, and so on up, kind
+ * by kind. Layers with no partner are left out.
+ */
+export function matchSlideLayers(source: CarouselSlide, target: CarouselSlide) {
+  const sourceLayers = layersByKind(source)
+  const matches = new Map<string, CarouselSlideItem>()
+  for (const [kind, targetItems] of layersByKind(target)) {
+    const sourceItems = sourceLayers.get(kind) ?? []
+    targetItems.forEach((item, index) => {
+      if (sourceItems[index]) matches.set(item.id, sourceItems[index])
+    })
+  }
+  return matches
+}
+
+/**
+ * Gives a layer another layer's place, size and look while keeping what it
+ * says or shows, and its own z-order. What travels is listed in
+ * workspace/docs/carousel-push-layout.md.
+ */
+function takeLayout(
+  item: CarouselSlideItem,
+  from: CarouselSlideItem
+): CarouselSlideItem {
+  const box = { x: from.x, y: from.y, width: from.width, height: from.height }
+  // Layers are matched kind to kind, so a mismatch here never happens.
+  if (item.type === "text") {
+    if (from.type !== "text") return item
+    const { fontId, fontSize, color, align } = from
+    return { ...item, ...box, fontId, fontSize, color, align }
+  }
+  if (item.type === "gradient-shadow") {
+    if (from.type !== "gradient-shadow") return item
+    const { direction: _ownDirection, ...rest } = item
+    const next = { ...rest, ...box, color: from.color, opacity: from.opacity }
+    return from.direction ? { ...next, direction: from.direction } : next
+  }
+  if (from.type === "text" || from.type === "gradient-shadow") return item
+  return { ...item, ...box, fit: from.fit }
+}
+
+/**
+ * Copies one slide's layout onto the slides named in `targetIds`. Only
+ * matched layers change; the words, pictures, background and every unmatched
+ * layer stay as they were. The source slide is never changed.
+ */
+export function pushSlideLayout(
+  slides: CarouselSlide[],
+  sourceId: string,
+  targetIds: ReadonlySet<string>
+): CarouselSlide[] {
+  const source = slides.find((slide) => slide.id === sourceId)
+  if (!source) return slides
+  return slides.map((slide) => {
+    if (slide.id === sourceId || !targetIds.has(slide.id)) return slide
+    const matches = matchSlideLayers(source, slide)
+    if (!matches.size) return slide
+    return {
+      ...slide,
+      items: slide.items.map((item) => {
+        const from = matches.get(item.id)
+        return from ? takeLayout(item, from) : item
+      }),
+    }
+  })
+}

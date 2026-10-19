@@ -63,6 +63,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -95,7 +96,12 @@ import {
 } from "@/lib/api/media/media"
 import { attachEditorMedia, listVideoMedia } from "@/lib/api/video/media"
 import type { CarouselShadowDirection } from "@/lib/video/carousel-schema"
-import { findTextOverflow, relayoutSlides } from "@/lib/video/carousel-layout"
+import {
+  findTextOverflow,
+  matchSlideLayers,
+  pushSlideLayout,
+  relayoutSlides,
+} from "@/lib/video/carousel-layout"
 import {
   CAROUSEL_CONFLICT_MESSAGE,
   CAROUSEL_FORMATS,
@@ -109,7 +115,11 @@ import {
   type TextFontId,
 } from "@/lib/video/text-fonts"
 import { cn } from "@/lib/utils"
-import { showErrorToast, useErrorToast } from "@/lib/toast/error-toast"
+import {
+  dismissErrorToast,
+  showErrorToast,
+  useErrorToast,
+} from "@/lib/toast/error-toast"
 import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
@@ -152,6 +162,7 @@ export type BuilderAction =
   | { type: "DELETE_ITEM"; slideId: string; itemId: string }
   | { type: "MOVE_LAYER"; slideId: string; itemId: string; direction: 1 | -1 }
   | { type: "RESET_DEFAULTS" }
+  | { type: "PUSH_LAYOUT"; sourceSlideId: string; targetSlideIds: string[] }
   | { type: "UNDO" }
   | { type: "REDO" }
 
@@ -312,6 +323,7 @@ export function CarouselBuilderPage({
   const [exportError, setExportError] = React.useState<string | null>(null)
   const [polishing, setPolishing] = React.useState(false)
   const [copyingTo, setCopyingTo] = React.useState<CarouselFormat | null>(null)
+  const [pushOpen, setPushOpen] = React.useState(false)
   const navigate = useNavigate()
   const horizontalLayout = useRememberedPanelLayout(LAYOUT_KEY)
   const panelRef = React.useRef<PanelImperativeHandle>(null)
@@ -323,6 +335,9 @@ export function CarouselBuilderPage({
   const panelDoubleClick = useBlankSpaceDoubleClick(togglePanel)
   const inspectorDoubleClick = useBlankSpaceDoubleClick(toggleInspector)
   const pendingRef = React.useRef<Snapshot | null>(null)
+  // What the server holds, or will once the save in flight lands. The opening
+  // document to start with, so merely viewing never saves.
+  const sentRef = React.useRef<Snapshot | null>(document)
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeSaveRef = React.useRef<Promise<void> | null>(null)
   const versionRef = React.useRef(document.version)
@@ -392,13 +407,17 @@ export function CarouselBuilderPage({
   )
 
   React.useEffect(() => {
-    // React runs effects twice while developing. The opening document is not
-    // an edit, so it must never increase the version simply by being viewed.
+    // React runs effects twice while developing, and an undo can land back on
+    // what was last sent. Neither is an edit, so neither saves. An undo back to
+    // the opening document after a save is an edit, and does save.
+    const sent = sentRef.current
     if (
-      snapshot.slides === document.slides &&
-      snapshot.caption === document.caption &&
-      snapshot.format === document.format
+      sent &&
+      snapshot.slides === sent.slides &&
+      snapshot.caption === sent.caption &&
+      snapshot.format === sent.format
     ) {
+      pendingRef.current = null
       return
     }
     if (conflictRef.current) return
@@ -409,11 +428,14 @@ export function CarouselBuilderPage({
       pendingRef.current = null
       setSaveStatus("saving")
       setStatusError(null)
+      sentRef.current = snapshot
       const save = persist(snapshot)
       activeSaveRef.current = save
       save
         .then(() => setSaveStatus("saved"))
         .catch((error) => {
+          // The server may hold anything now, so the next change saves.
+          if (sentRef.current === snapshot) sentRef.current = null
           setSaveStatus("error")
           setStatusError(getCarouselErrorMessage(error))
           pendingRef.current ??= snapshot
@@ -428,7 +450,7 @@ export function CarouselBuilderPage({
       clearTimeout(timer)
       if (saveTimerRef.current === timer) saveTimerRef.current = null
     }
-  }, [document.caption, document.format, document.slides, persist, snapshot])
+  }, [persist, snapshot])
 
   React.useEffect(() => {
     reportSaveStatus(
@@ -464,12 +486,14 @@ export function CarouselBuilderPage({
     pendingRef.current = null
     setSaveStatus("saving")
     setStatusError(null)
+    sentRef.current = pending
     const save = persist(pending)
     activeSaveRef.current = save
     try {
       await save
       setSaveStatus("saved")
     } catch (error) {
+      if (sentRef.current === pending) sentRef.current = null
       setSaveStatus("error")
       setStatusError(getCarouselErrorMessage(error))
       pendingRef.current ??= pending
@@ -516,6 +540,51 @@ export function CarouselBuilderPage({
     } finally {
       setCopyingTo(null)
     }
+  }
+
+  function pushLayout(targetSlideIds: string[]) {
+    if (!selectedSlide) return
+    if (!targetSlideIds.length) {
+      showErrorToast("Pick at least one slide to line up with this one.")
+      return
+    }
+    // The reducer runs the same push, so this is what the slides will be.
+    const pushed = pushSlideLayout(
+      state.slides,
+      selectedSlide.id,
+      new Set(targetSlideIds)
+    )
+    const changed = pushed.filter((slide, index) => slide !== state.slides[index])
+    if (!changed.length) {
+      showErrorToast(
+        "None of those slides has a layer like the ones on this slide, so nothing changed."
+      )
+      return
+    }
+    dispatch({
+      type: "PUSH_LAYOUT",
+      sourceSlideId: selectedSlide.id,
+      targetSlideIds,
+    })
+    setPushOpen(false)
+    // An earlier "pick a slide" or "nothing matched" no longer applies. A
+    // saving failure shares the toast and must stay up.
+    if (!hasConflict && !statusError) dismissErrorToast()
+
+    const done = `${changed.length} ${changed.length === 1 ? "slide" : "slides"} aligned to this one.`
+    const overflow = findTextOverflow(changed, state.format)
+    if (!overflow.size) {
+      toast.success(done)
+      return
+    }
+    const names = pushed.flatMap((slide, index) =>
+      overflow.has(slide.id)
+        ? [`slide ${index + 1}${slide.title ? ` "${slide.title}"` : ""}`]
+        : []
+    )
+    toast.warning(done, {
+      description: `Text does not fit its box on ${new Intl.ListFormat("en").format(names)}, so the export would cut it off.`,
+    })
   }
 
   function addItem(item: CarouselSlideItem) {
@@ -744,6 +813,8 @@ export function CarouselBuilderPage({
               format={state.format}
               copyingTo={copyingTo}
               onCopyToFormat={(format) => void copyToFormat(format)}
+              canPushLayout={state.slides.length > 1}
+              onPushLayout={() => setPushOpen(true)}
               overflowItems={textOverflow.get(selectedSlide.id) ?? NO_ITEMS}
               onSelectItem={(itemId) =>
                 dispatch({ type: "SELECT_ITEM", itemId })
@@ -808,6 +879,16 @@ export function CarouselBuilderPage({
         }
         onExport={() => void handleExport()}
       />
+      {selectedSlide ? (
+        <PushLayoutDialog
+          open={pushOpen}
+          onOpenChange={setPushOpen}
+          source={selectedSlide}
+          slides={state.slides}
+          format={state.format}
+          onPush={pushLayout}
+        />
+      ) : null}
     </div>
   )
 }
@@ -2591,6 +2672,8 @@ function CarouselInspector({
   format,
   copyingTo,
   onCopyToFormat,
+  canPushLayout,
+  onPushLayout,
   overflowItems,
   onSelectItem,
   onUpdateSlide,
@@ -2603,6 +2686,8 @@ function CarouselInspector({
   format: CarouselFormat
   copyingTo: CarouselFormat | null
   onCopyToFormat: (format: CarouselFormat) => void
+  canPushLayout: boolean
+  onPushLayout: () => void
   overflowItems: CarouselTextItem[]
   onSelectItem: (itemId: string) => void
   onUpdateSlide: (patch: Partial<CarouselSlide>) => void
@@ -2651,6 +2736,8 @@ function CarouselInspector({
               format={format}
               copyingTo={copyingTo}
               onCopyToFormat={onCopyToFormat}
+              canPushLayout={canPushLayout}
+              onPushLayout={onPushLayout}
               overflowItems={overflowItems}
               onSelectItem={onSelectItem}
               onUpdateSlide={onUpdateSlide}
@@ -2683,6 +2770,8 @@ function SlideInspector({
   format,
   copyingTo,
   onCopyToFormat,
+  canPushLayout,
+  onPushLayout,
   overflowItems,
   onSelectItem,
   onUpdateSlide,
@@ -2691,6 +2780,8 @@ function SlideInspector({
   format: CarouselFormat
   copyingTo: CarouselFormat | null
   onCopyToFormat: (format: CarouselFormat) => void
+  canPushLayout: boolean
+  onPushLayout: () => void
   overflowItems: CarouselTextItem[]
   onSelectItem: (itemId: string) => void
   onUpdateSlide: (patch: Partial<CarouselSlide>) => void
@@ -2722,7 +2813,7 @@ function SlideInspector({
       ) : null}
       <InspectorCard
         title="Slide"
-        description="This slide's name and background, and copies of the carousel in other shapes."
+        description="This slide's name and background, its layout on other slides, and copies of the carousel in other shapes."
       >
         <div className="grid gap-2">
           <FieldLabel htmlFor="carousel-slide-name">Slide name</FieldLabel>
@@ -2733,6 +2824,18 @@ function SlideInspector({
             onChange={(event) => onUpdateSlide({ title: event.target.value })}
           />
         </div>
+
+        {canPushLayout ? (
+          <div className="grid gap-2">
+            <FieldLabel hint="Moves the layers on the slides you pick to where they sit here, with the same sizes, fonts and colours. Their words and pictures stay.">
+              This slide's layout
+            </FieldLabel>
+            <Button type="button" variant="outline" onClick={onPushLayout}>
+              <LayersIcon />
+              Align all slides
+            </Button>
+          </div>
+        ) : null}
 
         <div className="grid gap-2">
           <FieldLabel hint="Makes a new carousel in that shape with the layers moved to suit, and opens it. This one is not changed.">
@@ -3402,6 +3505,163 @@ function ExportDialog({
   )
 }
 
+// Picks the slides that take the source slide's layout. Every other slide
+// starts ticked, and each row says how many of its layers will change.
+function PushLayoutDialog({
+  open,
+  onOpenChange,
+  source,
+  slides,
+  format,
+  onPush,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  source: CarouselSlide
+  slides: CarouselSlide[]
+  format: CarouselFormat
+  onPush: (targetSlideIds: string[]) => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Align all slides</DialogTitle>
+          <DialogDescription>
+            Layers on the slides you pick move to where they sit on this slide
+            and take its sizes, fonts and colours. Their words and pictures stay
+            as they are.
+          </DialogDescription>
+        </DialogHeader>
+        {open ? (
+          <PushLayoutForm
+            source={source}
+            slides={slides}
+            format={format}
+            onCancel={() => onOpenChange(false)}
+            onPush={onPush}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function PushLayoutForm({
+  source,
+  slides,
+  format,
+  onCancel,
+  onPush,
+}: {
+  source: CarouselSlide
+  slides: CarouselSlide[]
+  format: CarouselFormat
+  onCancel: () => void
+  onPush: (targetSlideIds: string[]) => void
+}) {
+  const others = slides.flatMap((slide, index) =>
+    slide.id === source.id ? [] : [{ slide, index }]
+  )
+  const [picked, setPicked] = React.useState(
+    () => new Set(others.map(({ slide }) => slide.id))
+  )
+  const allPicked = picked.size === others.length
+  const thumbWidth = 32
+  const thumbHeight = Math.round(thumbWidth / FORMAT_RATIOS[format])
+
+  function toggle(slideId: string, checked: boolean) {
+    setPicked((current) => {
+      const next = new Set(current)
+      if (checked) next.add(slideId)
+      else next.delete(slideId)
+      return next
+    })
+  }
+
+  return (
+    <>
+      <DialogBody>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Slides</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <label
+              htmlFor="push-layout-all"
+              className="flex items-center gap-3 text-sm font-medium"
+            >
+              <Checkbox
+                id="push-layout-all"
+                checked={
+                  allPicked ? true : picked.size ? "indeterminate" : false
+                }
+                onCheckedChange={(checked) =>
+                  setPicked(
+                    checked === true
+                      ? new Set(others.map(({ slide }) => slide.id))
+                      : new Set()
+                  )
+                }
+              />
+              All other slides
+            </label>
+            <ul className="-mx-3 grid gap-3 border-t px-3 pt-4">
+              {others.map(({ slide, index }) => {
+                const matched = matchSlideLayers(source, slide).size
+                const id = `push-layout-${slide.id}`
+                return (
+                  <li key={slide.id}>
+                    <label
+                      htmlFor={id}
+                      className="flex min-w-0 items-center gap-3 text-sm"
+                    >
+                      <Checkbox
+                        id={id}
+                        checked={picked.has(slide.id)}
+                        onCheckedChange={(checked) =>
+                          toggle(slide.id, checked === true)
+                        }
+                      />
+                      <span
+                        aria-hidden
+                        className="flex-none overflow-hidden rounded-sm border"
+                        style={{ width: thumbWidth, height: thumbHeight }}
+                      >
+                        <StaticSlidePreview slide={slide} format={format} />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="text-muted-foreground tabular-nums">
+                          {String(index + 1).padStart(2, "0")}
+                        </span>{" "}
+                        {slide.title || "Untitled"}
+                      </span>
+                      <span className="flex-none text-xs text-muted-foreground">
+                        {matched
+                          ? `${matched} of ${slide.items.length} ${slide.items.length === 1 ? "layer" : "layers"} change`
+                          : "No layers like this slide's"}
+                      </span>
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
+          </CardContent>
+        </Card>
+      </DialogBody>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="button" onClick={() => onPush([...picked])}>
+          <LayersIcon />
+          {`Align ${picked.size} ${picked.size === 1 ? "slide" : "slides"}`}
+        </Button>
+      </DialogFooter>
+    </>
+  )
+}
+
 function StaticSlidePreview({
   slide,
   format,
@@ -3628,6 +3888,18 @@ export function builderReducer(
         ...state,
         slides: resetSlidesToDefaults(state.slides, state.selectedSlideId),
       })
+    case "PUSH_LAYOUT": {
+      const slides = pushSlideLayout(
+        state.slides,
+        action.sourceSlideId,
+        new Set(action.targetSlideIds)
+      )
+      // Nothing matched, so there is nothing to undo either.
+      if (slides.every((slide, index) => slide === state.slides[index])) {
+        return state
+      }
+      return withHistory(state, { ...state, slides })
+    }
     case "UNDO": {
       const previous = state.past[state.past.length - 1]
       if (!previous) return state

@@ -3,6 +3,7 @@ import { inArray, or, sql } from "drizzle-orm"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   videoActors,
+  videoActorSheetPictures,
   videoAiGenerations,
   videoCarouselMedia,
   videoCarousels,
@@ -17,7 +18,7 @@ import {
 
 /**
  * Which of these files something in Video still uses: a timeline, a carousel
- * slide, a project's shelf or look, an actor, a first frame, an AI clip, a
+ * slide, a project's shelf or look, an actor or its sheet, a first frame, an AI clip, a
  * collection, the music or voiceover shelf, or a saved viral video. Asked
  * before a project's first frames and clips are cleared out of storage, so a
  * picture shared with a duplicate, or dragged into another project, stays.
@@ -41,6 +42,7 @@ export async function mediaStillInUse(
   const [
     frames,
     actors,
+    sheets,
     clips,
     shelves,
     looks,
@@ -65,6 +67,10 @@ export async function mediaStillInUse(
           inArray(videoActors.referenceMediaId, ids)
         )
       ),
+    database
+      .select({ id: videoActorSheetPictures.mediaId })
+      .from(videoActorSheetPictures)
+      .where(inArray(videoActorSheetPictures.mediaId, ids)),
     database
       .select({
         id: videoAiGenerations.outputMediaId,
@@ -125,6 +131,7 @@ export async function mediaStillInUse(
   ])
 
   add(frames)
+  add(sheets)
   for (const row of [...actors, ...clips]) {
     if (row.id) used.add(row.id)
     if (row.other) used.add(row.other)

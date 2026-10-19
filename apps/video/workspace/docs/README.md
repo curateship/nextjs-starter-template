@@ -140,6 +140,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   in a project and six per person: why the caps exist, how shots still being
   made count against the allowance and the spend limit, and how the worker
   keeps every shot moving.
+- [actors.md](actors.md) — an actor's character sheet: several pictures of
+  one person with one main picture, which ones a first frame sends and how
+  many each picture model takes, and what removing or deleting keeps.
 - [ai-clip.md](ai-clip.md) — the editor's AI clip panel: an actor, a first
   frame, a shot, then dragging it onto the timeline; what each step costs,
   where frames and shots are kept, and a carousel from first frames.
@@ -147,6 +150,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   4:5, square and story: the Format buttons, making a copy in another shape,
   the rule that moves each layer, what it will not fix, and the flag on text
   that no longer fits its box.
+- [carousel-push-layout.md](carousel-push-layout.md) — Align all slides, copying one slide's
+  layout onto other slides: what travels (place, size, font, colour, Fit),
+  what never does (words, pictures, background), how layers are matched, and
+  the one Undo that puts it all back.
 - [visual-style.md](visual-style.md) — a project's look: the style line and
   look picture set in a project's Settings window, which AI tools send them, and
   why a bad style line spoils every scene at once.

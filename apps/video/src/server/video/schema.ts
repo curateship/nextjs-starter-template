@@ -628,6 +628,41 @@ export const videoActors = pgTable(
 )
 
 /**
+ * One picture on an actor's character sheet, pointing at a Media file. The
+ * main picture is the one `video_actors.image_media_id` names, and the app
+ * keeps it on the sheet as well. Removing a row never deletes the file; a
+ * file deleted from Media leaves the sheet with it. drizzle/0119 explains.
+ */
+export const videoActorSheetPictures = pgTable(
+  "video_actor_sheet_pictures",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    actorId: varchar("actor_id", { length: 36 })
+      .notNull()
+      .references(() => videoActors.id, { onDelete: "cascade" }),
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    label: varchar("label", { length: 60 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_video_actor_sheet_pictures_actor_media").on(
+      table.actorId,
+      table.mediaId
+    ),
+    index("ix_video_actor_sheet_pictures_actor_created").on(
+      table.actorId,
+      table.createdAt
+    ),
+    index("ix_video_actor_sheet_pictures_media_id").on(table.mediaId),
+  ]
+)
+
+/**
  * An opening image of an actor, made inside one project and belonging to it
  * alone. Deleting the project deletes it. `projectId` is null only on frames
  * made before 0112 that no timeline used; nothing shows those.
@@ -658,6 +693,8 @@ export const videoFirstFrames = pgTable(
     referenceMediaId: varchar("reference_media_id", {
       length: 36,
     }).references(() => customShellMedia.id, { onDelete: "set null" }),
+    /** The actor's pictures this frame was drawn from, in the order sent. */
+    actorMediaIds: jsonb("actor_media_ids").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -892,6 +929,7 @@ export type VideoProjectThumbnailRow = typeof videoProjectThumbnails.$inferSelec
 export type VideoCarouselRow = typeof videoCarousels.$inferSelect
 export type VideoRenderJobRow = typeof videoRenderJobs.$inferSelect
 export type VideoActorRow = typeof videoActors.$inferSelect
+export type VideoActorSheetPictureRow = typeof videoActorSheetPictures.$inferSelect
 export type VideoFirstFrameRow = typeof videoFirstFrames.$inferSelect
 export type VideoAiGenerationRow = typeof videoAiGenerations.$inferSelect
 

@@ -2,7 +2,10 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { describeAuthError } from "@/lib/api/error-message"
-import { ASSET_ASPECT_RATIOS } from "@/lib/video/asset-factories"
+import {
+  ASSET_ASPECT_RATIOS,
+  SHEET_PICTURE_NOT_FOUND_MESSAGE,
+} from "@/lib/video/asset-factories"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
 import { userGet, userPost } from "@/server/guards"
@@ -20,6 +23,7 @@ const payloadSchema = z.object({
   actorId: z.string().min(1).max(36),
   prompt: z.string().trim().min(1).max(5000),
   variants: z.number().int().min(1).max(4),
+  sheetPictureIds: z.array(z.string().min(1).max(36)).max(4).nullable().optional(),
   aspectRatio: z.enum(ASSET_ASPECT_RATIOS).nullable().optional(),
 })
 
@@ -27,6 +31,7 @@ export function getFirstFrameErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ""
   if (message.startsWith("Google ")) return message
   if (isProjectSpendLimitMessage(message)) return message
+  if (message.startsWith("This picture model takes up to ")) return message
   if (
     [
       PROJECT_NOT_FOUND_MESSAGE,
@@ -36,6 +41,7 @@ export function getFirstFrameErrorMessage(error: unknown) {
       "Pick 9:16 or 16:9 for this project's first frames",
       "Add a Google Gemini key in Settings first",
       "Wait for this first frame's video generation to finish",
+      SHEET_PICTURE_NOT_FOUND_MESSAGE,
     ].includes(message)
   ) return message
   if (message.includes("AI_LIMIT_REACHED")) return "Your monthly AI allowance is used up."

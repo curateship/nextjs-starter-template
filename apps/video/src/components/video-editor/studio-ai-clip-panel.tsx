@@ -74,12 +74,14 @@ import {
 import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
+  actorPicturesPerRequest,
   ASSET_ASPECT_RATIOS,
   DEFAULT_IMAGE_MODEL,
   PROJECT_SHOTS_FULL_MESSAGE,
   projectClipAspect,
   shotPieces,
   SHOTS_AT_ONCE_PER_PROJECT,
+  tooManyActorPicturesMessage,
   VEO_MODEL,
   type AssetAspectRatio,
   type ShotLengthSeconds,
@@ -132,6 +134,11 @@ export function AiClipPanel() {
   const [scene, setScene] = React.useState("")
   const [sceneInvalid, setSceneInvalid] = React.useState(false)
   const [variants, setVariants] = React.useState(2)
+  // The sheet pictures picked for the actor they were picked on.
+  const [pickedPictures, setPickedPictures] = React.useState<{
+    actorId: string
+    ids: string[]
+  } | null>(null)
   const [chosenShape, setChosenShape] = React.useState<AssetAspectRatio>("9:16")
   const [framesBusy, setFramesBusy] = React.useState(false)
   const [pickedFrameId, setPickedFrameId] = React.useState<string | null>(null)
@@ -202,6 +209,24 @@ export function AiClipPanel() {
     frames?.find((candidate) => candidate.id === (pickedFrameId ?? "")) ??
     frames?.[0] ??
     null
+  // Which of the actor's sheet pictures a first frame is drawn from: the
+  // main picture until others are picked, and never more than the model takes.
+  const pictureLimit = actorPicturesPerRequest(
+    DEFAULT_IMAGE_MODEL,
+    Boolean(project.look?.picture_url)
+  )
+  const pictureIds = (() => {
+    if (!actor) return []
+    const picked =
+      pickedPictures?.actorId === actor.id
+        ? pickedPictures.ids.filter((id) =>
+            actor.sheet.some((picture) => picture.id === id)
+          )
+        : []
+    if (picked.length) return picked
+    const main = actor.sheet.find((picture) => picture.main)
+    return main ? [main.id] : []
+  })()
   const projectShape = projectClipAspect(editorAspect)
   const pieces = shotPieces(lengthSeconds).count
   const frameCostCents = aiUnitCostCents(DEFAULT_IMAGE_MODEL, variants)
@@ -223,6 +248,26 @@ export function AiClipPanel() {
     )
   }
 
+  function togglePicture(pictureId: string) {
+    if (!actor) return
+    if (pictureIds.includes(pictureId)) {
+      if (pictureIds.length === 1) {
+        reportError(`Send at least one picture of ${actor.name}.`)
+        return
+      }
+      setPickedPictures({
+        actorId: actor.id,
+        ids: pictureIds.filter((id) => id !== pictureId),
+      })
+      return
+    }
+    if (pictureIds.length >= pictureLimit) {
+      reportError(tooManyActorPicturesMessage(pictureLimit))
+      return
+    }
+    setPickedPictures({ actorId: actor.id, ids: [...pictureIds, pictureId] })
+  }
+
   async function makeFrames() {
     if (!actor) return
     if (!scene.trim()) {
@@ -239,6 +284,7 @@ export function AiClipPanel() {
         actorId: actor.id,
         prompt: scene,
         variants,
+        sheetPictureIds: pictureIds,
         aspectRatio: projectShape ? null : chosenShape,
       })
       setFrames((current) => [...result.firstFrames, ...(current ?? [])])
@@ -465,6 +511,46 @@ export function AiClipPanel() {
                   }}
                 />
               </div>
+              {actor && actor.sheet.length > 1 ? (
+                <div className="grid min-w-0 gap-2">
+                  <span className="text-sm font-medium" id="ai-clip-pictures">
+                    Pictures of {actor.name} to send
+                  </span>
+                  <div
+                    role="group"
+                    aria-labelledby="ai-clip-pictures"
+                    className="grid grid-cols-4 gap-2"
+                  >
+                    {actor.sheet.map((picture) => (
+                      <button
+                        key={picture.id}
+                        type="button"
+                        aria-pressed={pictureIds.includes(picture.id)}
+                        disabled={framesBusy}
+                        onClick={() => togglePicture(picture.id)}
+                        className={cn(
+                          "grid min-w-0 gap-1 rounded-lg border bg-background p-1 text-left text-[0.625rem]",
+                          pictureIds.includes(picture.id) &&
+                            "border-primary ring-2 ring-primary/30"
+                        )}
+                      >
+                        <img
+                          src={picture.url}
+                          alt=""
+                          draggable={false}
+                          className="aspect-[3/4] w-full rounded-md bg-muted object-cover"
+                        />
+                        <span className="truncate">
+                          {picture.label || (picture.main ? "Main" : "No label")}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Up to {pictureLimit} at once. The main picture goes first.
+                  </p>
+                </div>
+              ) : null}
               <div className="flex flex-wrap items-end gap-2">
                 <div className="grid gap-2">
                   <Label htmlFor="ai-clip-variants">How many</Label>
@@ -830,6 +916,11 @@ function FrameRow({
           <span className="truncate text-[0.625rem] text-muted-foreground">
             {frame.actor.name} · {frame.aspect_ratio}
           </span>
+          {frame.made_from.length ? (
+            <span className="line-clamp-2 text-[0.625rem] text-muted-foreground">
+              From {frame.made_from.join(", ")}
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="flex items-center justify-between gap-2">

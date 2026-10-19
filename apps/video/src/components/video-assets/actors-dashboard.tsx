@@ -58,6 +58,13 @@ export function ActorsDashboard({
     setEditing(null)
   }
 
+  function handleSheetChanged(changed: ActorItem) {
+    setActors((current) =>
+      current.map((actor) => (actor.id === changed.id ? changed : actor))
+    )
+    setEditing(changed)
+  }
+
   async function confirmDelete() {
     if (!deleting) return
     setDeleteBusy(true)
@@ -96,7 +103,14 @@ export function ActorsDashboard({
           visible.length ? (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3 p-4">
               {visible.map((actor) => (
-                <Card key={actor.id} size="sm" className="overflow-hidden">
+                // A click anywhere on the card opens the actor; the cog does the
+                // same from the keyboard.
+                <Card
+                  key={actor.id}
+                  size="sm"
+                  className="cursor-pointer overflow-hidden"
+                  onClick={() => setEditing(actor)}
+                >
                   <img
                     src={actor.image_url}
                     alt={actor.name}
@@ -112,7 +126,14 @@ export function ActorsDashboard({
                     <p className="line-clamp-2 text-sm text-muted-foreground">
                       {actor.prompt}
                     </p>
-                    <div className="flex flex-wrap gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {actor.sheet.length}{" "}
+                      {actor.sheet.length === 1 ? "picture" : "pictures"} on the sheet
+                    </p>
+                    <div
+                      className="flex flex-wrap gap-2"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <Button size="icon-sm" variant="outline" onClick={() => setEditing(actor)} aria-label={`Edit ${actor.name}`}>
                         <SettingsIcon />
                       </Button>
@@ -139,6 +160,7 @@ export function ActorsDashboard({
         look={{ projects }}
         onClose={() => setEditing(null)}
         onSaved={handleSaved}
+        onSheetChanged={handleSheetChanged}
       />
 
       <ConfirmDialog

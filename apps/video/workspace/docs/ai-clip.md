@@ -20,7 +20,11 @@ shut. A shut card stays shut for that browser.
    project's shape and look without asking. A square or 4:3 project asks for
    9:16 or 16:9, because the picture models and Veo make only those two. The
    line above the button says which shape and look it will use and what it
-   costs: $0.039 a picture, so two are about $0.08.
+   costs: $0.039 a picture, so two are about $0.08. An actor with more than
+   one picture on its character sheet shows "Pictures of <name> to send":
+   the main picture is picked to start with, and others can be added up to
+   what the picture model takes (see `actors.md`). Each frame says under its
+   name which pictures it was made from.
 3. **Make the shot.** Veo brings the picked first frame to life. Pick the
    length (4 to 32 seconds) and say what happens; a shot longer than 8 seconds
    asks what happens in each 8 seconds (see `longer-ai-clips.md`). The price
@@ -48,7 +52,8 @@ frame with the shots made from it underneath.
 ## Where things are kept
 
 - **Actors are shared** across every project. The Actors dashboard in the
-  left menu is where one is renamed, re-posed or deleted.
+  left menu is where one is renamed, re-posed or deleted, and where its
+  character sheet is filled (`actors.md`).
 - **First frames belong to one project** (`video_first_frames.project_id`).
   Deleting the project deletes them, and their pictures leave storage unless
   something else still uses them, such as a duplicate of the project.

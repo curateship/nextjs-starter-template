@@ -14,4 +14,5 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [Repeating tasks](repeating-tasks.md): tasks that come back every work day, week, 2 weeks, month, 3 months or last work day of the month, and why a copy waits for the last one to be Done.
 - [Meetings](meetings.md): meetings on the Team dashboard's calendar, who can change them, repeats, the bell notice, the week view, the team's due dates, milestones and who is away on the calendar, times in each person's own zone, and the meeting's window: Add to my calendar, Going or Not going, and notes per date whose lines become tasks.
 - [Needs attention and workload](needs-attention.md): the Team dashboard's tabs listing tasks that need help and each person's open work.
+- [Going live](launch.md): where the live site at project.barelycompany.com runs, Tyler's launch choices, every live setting by name, how to deploy, and the release record.
 - [Fields that save themselves](fields-that-save-themselves.md): the one Saving…, Saved or Not saved sign on job titles, check-in times, Team settings and check-in notes.
