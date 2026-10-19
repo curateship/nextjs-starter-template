@@ -2,7 +2,9 @@ import { boolean, index, integer, jsonb, pgTable, text, timestamp, varchar } fro
 
 import type {
   CardFlag,
+  DraftKind,
   MatchFlag,
+  OpenerStyle,
   MessageSender,
   MessageStatus,
   SwipeDecision,
@@ -15,7 +17,8 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
 /**
  * What Date reads off Tinder and does there: the cards it read, the matches
  * and their messages, the member's own profile, and the job list of walks.
- * The SQL is `drizzle/0097_date_tinder.sql`. Stored fields are never renamed.
+ * The SQL is `drizzle/0097_date_tinder.sql` and `drizzle/0100_date_chats.sql`.
+ * Stored fields are never renamed.
  */
 
 /** One section of a profile as Tinder lays it out, such as "About me" or "Interests". */
@@ -23,6 +26,13 @@ export type ProfileSection = { heading: string; items: string[] }
 
 /** Accounts a card links to. Empty when the card shows none. */
 export type ProfileHandles = { instagram?: string; spotifyArtists?: string[]; anthem?: string }
+
+/**
+ * One thing a match told the member, read from the chat. `edited` means the
+ * member wrote or changed it, so the AI leaves it alone. A fact the member
+ * deleted is kept as `deleted`, hidden, so the AI does not add it back.
+ */
+export type MatchFact = { id: string; text: string; edited: boolean; deleted?: boolean }
 
 /** The AI's suggestions for the member's own profile. Suggestions only; nothing is changed on the phone. */
 export type OwnProfileReview = {
@@ -123,6 +133,43 @@ export const dateMatches = pgTable(
     askQuestion: text("ask_question").notNull().default(""),
     dateProposedAt: timestamp("date_proposed_at", { withTimezone: true }),
     unmatchedAt: timestamp("unmatched_at", { withTimezone: true }),
+    /** Who unmatched: the member, through the dashboard, or them, seen as gone from Tinder's chat list. */
+    unmatchedBy: varchar("unmatched_by", { length: 10 }).$type<"member" | "them">(),
+    /** Complete reads of the chat list in a row that did not show this match. Two mean they unmatched. */
+    missingReads: integer("missing_reads").notNull().default(0),
+    /** What they told you, read from the chat by the AI. The member may edit or delete each one. */
+    facts: jsonb("facts").$type<MatchFact[]>().notNull().default([]),
+    /** The chat's messages up to this place have been read for facts and a yes to a date. */
+    notesReadThrough: integer("notes_read_through").notNull().default(0),
+    notesStartedAt: timestamp("notes_started_at", { withTimezone: true }),
+    /** What the waiting draft is: an answer, a first message, or the one follow-up on a quiet chat. */
+    draftKind: varchar("draft_kind", { length: 10 }).$type<DraftKind>().notNull().default("reply"),
+    /** An opener's kind, so Date can count which kinds get replies. */
+    draftOpenerStyle: varchar("draft_opener_style", { length: 20 }).$type<OpenerStyle>(),
+    /** Two more drafts "Show 3" wrote. Automate never sends these; it sends `draft`. */
+    draftChoices: jsonb("draft_choices").$type<string[]>().notNull().default([]),
+    /** The one follow-up on a quiet chat was drafted. There is never a second. */
+    nudgedAt: timestamp("nudged_at", { withTimezone: true }),
+    /** The AI read the chat as over, and the line of theirs that says so. */
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    endedLine: text("ended_line").notNull().default(""),
+    /** They said yes to the drink or coffee the member offered, and the number they sent, if any. */
+    dateAcceptedAt: timestamp("date_accepted_at", { withTimezone: true }),
+    dateAcceptedLine: text("date_accepted_line").notNull().default(""),
+    theirNumber: varchar("their_number", { length: 40 }).notNull().default(""),
+    movedToTextAt: timestamp("moved_to_text_at", { withTimezone: true }),
+    /** The brief before a date: three lines from the chat, picked once. */
+    briefLines: jsonb("brief_lines").$type<string[]>().notNull().default([]),
+    briefMadeAt: timestamp("brief_made_at", { withTimezone: true }),
+    /** The date's time and place, typed by the member. The AI never sets these. */
+    dateAt: timestamp("date_at", { withTimezone: true }),
+    datePlace: text("date_place").notNull().default(""),
+    /** The event Date made in the member's Google Calendar for this date. */
+    googleEventId: varchar("google_event_id", { length: 200 }).notNull().default(""),
+    /** The member took this chat over: the AI writes nothing here. */
+    aiOff: boolean("ai_off").notNull().default(false),
+    /** The member's note to the AI about this chat only. */
+    memberNote: text("member_note").notNull().default(""),
     sample: boolean("sample").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -152,6 +199,10 @@ export const dateMessages = pgTable(
     proposesDate: boolean("proposes_date").notNull().default(false),
     /** Its place in the conversation; larger is later. */
     position: integer("position").notNull(),
+    /** The AI's draft as it stood when the member pressed Send. Equal to `text` means sent unchanged. */
+    draftText: text("draft_text"),
+    /** An opener's kind, carried from the draft it was sent from. */
+    openerStyle: varchar("opener_style", { length: 20 }).$type<OpenerStyle>(),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

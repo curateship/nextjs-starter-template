@@ -50,17 +50,21 @@ function stepOf(state: unknown) {
  * The screens in the middle panel and Personal's address, kept in step.
  * Opening a screen adds a history entry and shows its frame, and a reload of
  * Personal lands on the same screen. `startUrl` is the screen a visit to
- * Personal's bare address opens, if one is chosen. `nameOf` gives a screen its
- * name from the menu.
+ * Personal's bare address opens, if one is chosen. `stayUrl` is the screen
+ * whose frame stays loaded once opened, if one is chosen. `nameOf` gives a
+ * screen its name from the menu.
  */
 export function useOpenScreen(
   startUrl: string | null,
+  stayUrl: string | null,
   nameOf: (url: string) => string,
   appName = DEFAULT_BRAND_NAME
 ) {
   const nameRef = React.useRef(nameOf)
+  const stayRef = React.useRef(stayUrl)
   React.useEffect(() => {
     nameRef.current = nameOf
+    stayRef.current = stayUrl
   })
   const [frames, setFrames] = React.useState<Frames>(() => {
     const url =
@@ -132,7 +136,9 @@ export function useOpenScreen(
       stepped(step === null ? "back" : from === null || step > from ? "forward" : "back")
       stepRef.current = step
       const url = appUrlFromPersonalPath(currentAddress())
-      commit(showAddress(framesRef.current, url, url ? nameRef.current(url) : ""))
+      commit(
+        showAddress(framesRef.current, url, url ? nameRef.current(url) : "", stayRef.current)
+      )
     }
     window.addEventListener("popstate", onPopState)
     return () => window.removeEventListener("popstate", onPopState)
@@ -142,7 +148,7 @@ export function useOpenScreen(
   const open = React.useCallback(
     (url: string, title?: string) => {
       push(personalPath(url))
-      commit(openScreen(framesRef.current, url, title ?? nameRef.current(url)))
+      commit(openScreen(framesRef.current, url, title ?? nameRef.current(url), stayRef.current))
     },
     [commit, push]
   )

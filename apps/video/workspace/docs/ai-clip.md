@@ -62,7 +62,9 @@ frame with the shots made from it underneath.
 A shot is made by the background worker on the server. Closing the panel,
 switching icons or closing the tab never stops it. While a shot is being made
 the panel asks again every 5 seconds; reopening it shows the shot making or
-finished. A project makes one shot at a time.
+finished. A project makes up to three shots at once, so several directions
+for one frame can be tried side by side, and step 4 shows the picked frame's
+newest three, each with its direction (see `several-ai-clips.md`).
 
 ## What it costs
 

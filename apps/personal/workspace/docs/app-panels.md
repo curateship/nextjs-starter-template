@@ -92,6 +92,15 @@ half-filled form.
 - **A fourth screen drops the frame shown longest ago.** `MAX_KEPT_FRAMES` in
   `src/lib/frames.ts` is the cap. Each kept frame is a whole app running, so
   an app that checks for new data on a timer keeps doing it while hidden.
+- **One link can stay loaded on top of the three.** "Stay loaded" in a
+  link's form (`menu.md`) marks it. Once that link's screen has been opened,
+  its frame is never the one dropped, and it doesn't count toward the three,
+  so three other screens stay loaded beside it. Tyler asked for this on
+  18 Oct 2026 and chose one link, loaded on its first click rather than as
+  soon as Personal opens. The frame belongs to the link's own address, so a
+  deeper page of the same app opened from Recent screens is an ordinary
+  frame. Turning the switch off lets the frame go the next time one is
+  dropped. `addFrame` in `src/lib/frames.ts` skips it.
 - **The frames are never moved around the page**, because moving an iframe in
   the page reloads it. They stay in the order they were opened.
 - **"Opening trade.barelycompany.com"** with a spinner shows until a frame's

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, MessagesSquareIcon, RefreshCwIcon, UserRoundXIcon } from "lucide-react"
+import { Loader2Icon, MessageSquareShareIcon, MessagesSquareIcon, RefreshCwIcon, UserRoundXIcon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Badge } from "@/components/ui/badge"
@@ -25,11 +25,16 @@ export function ConversationView({
   busy,
   onRefresh,
   onUnmatch,
+  onMovedToText,
+  onNotOver,
 }: {
   match: MatchDetail
   back: (() => void) | null
   busy: string | null
   onRefresh: () => void
+  /** Moved to text, or its Undo. */
+  onMovedToText: (moved: boolean) => void
+  onNotOver: () => void
   /** Resolves true when the unmatch was put on the phone's list. */
   onUnmatch: () => Promise<boolean>
 }) {
@@ -59,6 +64,16 @@ export function ConversationView({
               </TooltipTrigger>
               <TooltipContent>Read this chat again from the phone</TooltipContent>
             </Tooltip>
+            {match.unmatchedAt || match.movedToTextAt ? null : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" aria-label="Moved to text" disabled={busy === "moved"} onClick={() => onMovedToText(true)}>
+                    {busy === "moved" ? <Loader2Icon className="animate-spin" /> : <MessageSquareShareIcon />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Moved to text: the AI stops here, and the chat and what they told you stay</TooltipContent>
+              </Tooltip>
+            )}
             {match.unmatchedAt ? null : (
               <Button type="button" variant="ghost" onClick={() => setConfirming(true)}>
                 <UserRoundXIcon /> Unmatch
@@ -101,7 +116,23 @@ export function ConversationView({
             )
           })}
           {match.unmatchedAt ? (
-            <p className="text-center text-sm text-muted-foreground">You unmatched {match.theirName} {whenWords(match.unmatchedAt)}.</p>
+            <p className="text-center text-sm text-muted-foreground">
+              {match.unmatchedBy === "them"
+                ? `${match.theirName} unmatched you: the chat was gone from Tinder's list by ${whenWords(match.unmatchedAt)}.`
+                : `You unmatched ${match.theirName} ${whenWords(match.unmatchedAt)}.`}
+            </p>
+          ) : null}
+          {match.endedAt && !match.unmatchedAt ? (
+            <Notice
+              words={`The AI read this chat as over ${whenWords(match.endedAt)}${match.endedLine ? `, from "${match.endedLine}"` : ""}. It writes nothing here. Unmatching stays yours.`}
+              action={{ label: "Not over", busy: busy === "not-over", onClick: onNotOver }}
+            />
+          ) : null}
+          {match.movedToTextAt && !match.unmatchedAt ? (
+            <Notice
+              words={`Moved to text ${whenWords(match.movedToTextAt)}. The AI writes nothing here, and the chat stays.`}
+              action={{ label: "Undo", busy: busy === "moved", onClick: () => onMovedToText(false) }}
+            />
           ) : null}
           {match.pending.length ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -127,6 +158,19 @@ export function ConversationView({
           void onUnmatch().then((ok) => ok && setConfirming(false))
         }}
       />
+    </div>
+  )
+}
+
+/** A line in the chat about its state, with the one button that changes it. */
+function Notice({ words, action }: { words: string; action: { label: string; busy: boolean; onClick: () => void } }) {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-2 rounded-md border bg-background px-3 py-2 text-center text-sm text-muted-foreground">
+      <span>{words}</span>
+      <Button type="button" variant="outline" disabled={action.busy} onClick={action.onClick}>
+        {action.busy ? <Loader2Icon className="animate-spin" /> : null}
+        {action.label}
+      </Button>
     </div>
   )
 }

@@ -7,6 +7,7 @@ import {
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react"
 
 import { BrandEditor, BrandLogo } from "@/components/brand-editor"
@@ -41,6 +42,7 @@ import {
   type MenuSection,
 } from "@/lib/menu"
 import { plural } from "@/lib/plural"
+import { useMenuFormSide } from "@/lib/use-menu-form-side"
 import { useRememberedOpen } from "@/lib/use-remembered-open"
 import { cn } from "@/lib/utils"
 
@@ -184,9 +186,17 @@ function SidebarSection({
 /**
  * "Recent" at the top of the left menu, folded like a section. Its links
  * come from `useRecentLinks` and can't be edited or dragged here. Tyler asked
- * for it on 18 Oct 2026.
+ * for it on 18 Oct 2026. Hovering a row shows an × that takes it out of
+ * Recent, not out of the menu: Tyler, 19 Oct 2026, "add an x on hover over
+ * the recent tabs to remove them".
  */
-export function RecentLinks({ links }: { links: MenuLink[] }) {
+export function RecentLinks({
+  links,
+  onRemove,
+}: {
+  links: MenuLink[]
+  onRemove: (id: string) => void
+}) {
   const [open, setOpen] = useRememberedOpen("personal-sidebar-recent")
   const { activeId, open: openLink } = useMenuActions()
   if (links.length === 0) return null
@@ -205,16 +215,28 @@ export function RecentLinks({ links }: { links: MenuLink[] }) {
         <CollapsibleContent className="pb-2">
           <ul className="flex flex-col gap-0.5">
             {links.map((link) => (
-              <li key={link.id}>
+              <li key={link.id} className="group/recent relative">
                 <a
                   {...linkAnchorProps(link, openLink)}
                   data-active={activeId === link.id ? "" : undefined}
-                  className="flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0"
+                  className="flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden group-hover/recent:bg-sidebar-accent group-hover/recent:pr-8 focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0"
                 >
                   <LinkIconPicture name={link.icon} />
                   <span className="truncate">{link.label}</span>
                   <OwnTabMark link={link} />
                 </a>
+                {/* The whole row is the one hover, × included: the × has no
+                    box of its own, and the name makes room for it only while
+                    hovered, so it keeps its whole name the rest of the time. */}
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={`Remove ${link.label} from Recent`}
+                  className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground opacity-0 group-hover/recent:opacity-100 hover:bg-transparent hover:text-foreground focus-visible:opacity-100 dark:hover:bg-transparent"
+                  onClick={() => onRemove(link.id)}
+                >
+                  <XIcon />
+                </Button>
               </li>
             ))}
           </ul>
@@ -234,6 +256,7 @@ export function RecentLinks({ links }: { links: MenuLink[] }) {
 export function Sidebar({
   menu,
   recentLinks,
+  onRemoveRecent,
   update,
   editing,
   onHome,
@@ -242,6 +265,8 @@ export function Sidebar({
   menu: Menu
   /** The links "Recent" shows, newest first. */
   recentLinks: MenuLink[]
+  /** Takes a link out of "Recent", leaving it in the menu. */
+  onRemoveRecent: (id: string) => void
   update: (change: (menu: Menu) => Menu) => void
   editing: boolean
   /** The logo and name go back to Personal's start page, when no screen is chosen for them. */
@@ -259,6 +284,7 @@ export function Sidebar({
   }
   const [deleting, setDeleting] = React.useState<MenuSection | null>(null)
   const [brandOpen, setBrandOpen] = React.useState(false)
+  const formSide = useMenuFormSide()
   const { open, openUrl } = useMenuActions()
   const brand = menu.brand
 
@@ -295,7 +321,7 @@ export function Sidebar({
                 <SettingsIcon />
               </Button>
             </PopoverTrigger>
-            <PopoverContent side="right" align="start" className="w-80">
+            <PopoverContent side={formSide} align="start" collisionPadding={8} className="w-80">
               <BrandEditor
                 brand={brand}
                 openUrl={openUrl}
@@ -314,7 +340,7 @@ export function Sidebar({
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <nav aria-label="Screens" className="flex flex-col p-2">
-          <RecentLinks links={recentLinks} />
+          <RecentLinks links={recentLinks} onRemove={onRemoveRecent} />
           <SortableContext
             id={SECTIONS_LIST_ID}
             items={menu.sections.map((section) => sectionDragId(section.id))}

@@ -718,8 +718,10 @@ export const videoAiGenerations = pgTable(
       "video_ai_generations_lease_check",
       sql`(${table.leaseToken} is null) = (${table.leaseExpiresAt} is null)`
     ),
-    uniqueIndex("ux_video_ai_generations_project_active")
-      .on(table.projectId)
+    // How many may be queued or processing at once is a trigger, not an
+    // index: drizzle/0117_video_shots_at_once.sql.
+    index("ix_video_ai_generations_user_running")
+      .on(table.userId, table.projectId)
       .where(sql`${table.status} in ('queued', 'processing')`),
     index("ix_video_ai_generations_user_created").on(
       table.userId,

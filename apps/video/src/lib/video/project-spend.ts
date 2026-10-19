@@ -45,22 +45,32 @@ export function formatCents(cents: number) {
 const LIMIT_MESSAGE_START = "This project has spent"
 
 /**
- * The sentence a refused call ends with. It carries the three numbers, so the
- * person can see the sum: what is spent, what the next step costs, and the
- * limit it would pass.
+ * The sentence a refused call ends with. It carries the numbers, so the
+ * person can see the sum: what is spent, what shots still being made will
+ * add when they arrive, what the next step costs, and how far short the
+ * limit falls.
  */
 export function projectSpendLimitMessage({
   spentCents,
+  generatingCents = 0,
   nextCents,
   limitCents,
 }: {
   spentCents: number
+  generatingCents?: number
   nextCents: number
   limitCents: number
 }) {
+  const generating =
+    generatingCents > 0
+      ? `, shots still being made will add ${formatCents(generatingCents)}`
+      : ""
+  const short = spentCents + generatingCents + nextCents - limitCents
   const next =
-    nextCents > 0 ? `, and this costs about ${formatCents(nextCents)}` : ""
-  return `${LIMIT_MESSAGE_START} ${formatCents(spentCents)} of its ${formatCents(limitCents)} limit${next}. Raise the limit in the project's settings.`
+    nextCents > 0
+      ? `, and this costs about ${formatCents(nextCents)}, so the limit is ${formatCents(short)} short`
+      : ""
+  return `${LIMIT_MESSAGE_START} ${formatCents(spentCents)} of its ${formatCents(limitCents)} limit${generating}${next}. Raise the limit in the project's settings.`
 }
 
 export function isProjectSpendLimitMessage(message: string) {

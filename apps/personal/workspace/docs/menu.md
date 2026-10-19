@@ -27,6 +27,13 @@ edited where it stands, with no settings screen.
   - **Where it is kept:** this browser alone, under `personal-recent-links` in
     localStorage, as the links' ids. Nothing is saved to the menu file. A link
     deleted from the menu drops out of Recent.
+  - **An × takes a link out of Recent.** It shows at the row's right end when
+    the row is hovered, and leaves the link in its menu section. The row and
+    its × light up as one, with no separate box round the × (Tyler, 19 Oct
+    2026: "should be just one hover the whole row"). The link comes back the
+    next time it is opened after another link, or when the page reloads on
+    its screen, since a reload counts as opening it. Tyler, 19 Oct 2026: "add
+    an x on hover over the recent tabs to remove them".
   - **Hidden until a link is opened.** It folds like a section, remembered
     under `personal-sidebar-recent`, and can't be renamed, edited or dragged.
   - **Code:** `src/lib/recent-links.ts` keeps the order,
@@ -74,7 +81,10 @@ edited where it stands, with no settings screen.
   the browser tab's icon too.
 - **Sub-links, as in Custom Shell.** A left-menu link can hold links of its
   own, one level deep. They sit under it, indented behind a thin line, and the
-  open one darkens its stretch of that line. Tyler asked for this on 16 Oct
+  open one darkens its stretch of that line, drawn on top of it (each sub-link
+  sits 1px left, as Custom Shell's do, in `src/components/menu-links.tsx`).
+  Without that shift the dark mark sat beside the grey line and read as a
+  double line; Tyler flagged it on 19 Oct 2026. Tyler asked for sub-links on 16 Oct
   2026: "sidebar nav can have subnav that is wired to the top left nav like how
   shell does it." The top row that mirrored them went with Personal's top bar
   on 18 Oct 2026; the app's own top navigation does that job now.
@@ -91,6 +101,13 @@ edited where it stands, with no settings screen.
   asked for them fainter on 16 Oct 2026. `src/theme.css` is Custom Shell's copy and is not
   changed, and dark mode fades the same way.
 - **On a phone** the menu hides behind the menu button at the bottom left.
+- **The menu's forms open beside it, or below on a phone.** A link's form,
+  Add link and the logo row's form open to the right of the menu. Under 768
+  pixels wide, where the menu opens over the page, they open below the item
+  instead, above it when there is no room below, and slide sideways to stay
+  8 pixels inside the screen. Opening to the right ran 73 pixels off a
+  390-pixel phone. Tyler asked for the fix on 19 Oct 2026.
+  `src/lib/use-menu-form-side.ts`.
 
 ## Editing
 
@@ -190,6 +207,15 @@ Everything here needs editing switched on.
   the start: turning it on for one turns it off for the one before. Saved as
   `startLinkId` on the menu, and cleared when that link, the link it sits
   under, or its section is deleted. A tab link has no switch.
+- **Stay loaded:** a switch in a panel link's form, under "Personal opens
+  here". Turned on, that link's screen stays loaded once opened, however many
+  other screens are opened after it, so going back to it is instant and keeps
+  its place (`app-panels.md`). Only one link can stay loaded: turning it on
+  for one turns it off for the one before, and the info icon by its name says
+  which link it takes over from. Saved as `stayLoadedLinkId` on the menu, and
+  cleared when that link, the link it sits under, or its section is deleted.
+  A tab link has no switch. Tyler asked for it on 18 Oct 2026. The two
+  "one link only" fields share `setOneLink` in `src/lib/menu.ts`.
 - **A wrong address is refused in the form:** it must start with http:// or
   https://. Names are up to 60 characters.
 

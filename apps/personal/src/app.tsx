@@ -24,6 +24,7 @@ import {
   setSidebarShade,
   sidebarShadeColor,
   startLink,
+  stayLoadedLink,
   type Menu,
 } from "@/lib/menu"
 import { useFavicon } from "@/lib/use-favicon"
@@ -130,6 +131,7 @@ function Personal({
 } & Pick<ReturnType<typeof useMenu>, "saveStatus" | "retrySave">) {
   const screens = useOpenScreen(
     startLink(menu)?.url ?? null,
+    stayLoadedLink(menu)?.url ?? null,
     (url) => screenName(menu, url),
     menu.brand?.name
   )
@@ -143,7 +145,7 @@ function Personal({
   const sidebarWidth = menu.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH
   const sidebarShade = sidebarShadeColor(menu.sidebarShade ?? 0)
   const activeId = activeLinkId(menu, screen?.url ?? null)
-  const recentLinks = useRecentLinks(menu, activeId)
+  const recent = useRecentLinks(menu, activeId)
   useFavicon(menu.brand?.logo)
   const places = placesOf(menu)
   const openAt = (url: string, linkId?: string, title?: string) => {
@@ -156,6 +158,7 @@ function Personal({
     openUrl: screen?.url ?? null,
     activeId,
     startLinkId: menu.startLinkId ?? null,
+    stayLoaded: stayLoadedLink(menu),
     open: openAt,
     update,
   }
@@ -231,7 +234,8 @@ function Personal({
               <div className="relative h-full">
                 <Sidebar
                   menu={shown}
-                  recentLinks={recentLinks}
+                  recentLinks={recent.links}
+                  onRemoveRecent={recent.remove}
                   update={update}
                   editing={editing}
                   onHome={() => {

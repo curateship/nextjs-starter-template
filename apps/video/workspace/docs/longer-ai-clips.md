@@ -75,11 +75,10 @@ costs and may refuse its people setting from some countries.
   its last frame could not be read, Google has still charged for it.
 - **Deleting:** deleting a shot in the AI clip panel removes every piece of
   it from the list. Clips already on the timeline stay there.
-- **One shot per project at a time:** a new video for a project is refused
-  while a shot for it is running or stopped with pieces still waiting. Try
-  again or delete the stopped shot first. Try again is refused the same way while
-  another video runs on the project, which can happen when a shot's last
-  piece is the one that failed.
+- **Shots at once:** a long shot takes one of the project's three places
+  while any of its pieces is being made, and none once a piece has failed.
+  Try again is refused while the project is already making three (see
+  `several-ai-clips.md`).
 
 ## Why the job limits did not move
 

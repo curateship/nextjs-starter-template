@@ -35,12 +35,14 @@ import {
   placeKey,
   removeLink,
   setStartLink,
+  setStayLoadedLink,
   updateLink,
   type Menu,
   type MenuLink,
   type Place,
 } from "@/lib/menu"
 import { plural } from "@/lib/plural"
+import { useMenuFormSide } from "@/lib/use-menu-form-side"
 import { useRememberedOpen } from "@/lib/use-remembered-open"
 import { cn } from "@/lib/utils"
 
@@ -51,6 +53,8 @@ type MenuActions = {
   openUrl: string | null
   activeId: string | null
   startLinkId: string | null
+  /** The link whose screen stays loaded once opened, if there is one. */
+  stayLoaded: MenuLink | null
   /** Opens a screen; `linkId` is the menu link clicked, if one was. */
   open: (url: string, linkId?: string) => void
   update: (change: (menu: Menu) => Menu) => void
@@ -106,9 +110,14 @@ function withDraft(link: Pick<MenuLink, "id"> & Partial<MenuLink>, draft: LinkDr
   }
 }
 
-/** Saves the form's "Personal opens here" switch for a link. A tab link can't be the start. */
-function withStart(menu: Menu, linkId: string, draft: LinkDraft) {
-  return setStartLink(menu, linkId, draft.start && draft.opens !== "tab")
+/**
+ * Saves the form's "Personal opens here" and "Stay loaded" switches for a
+ * link. A tab link never fills the panel, so it can be neither.
+ */
+function withSwitches(menu: Menu, linkId: string, draft: LinkDraft) {
+  const panel = draft.opens !== "tab"
+  const started = setStartLink(menu, linkId, draft.start && panel)
+  return setStayLoadedLink(started, linkId, draft.stayLoaded && panel)
 }
 
 /** A link's name turned into a box: Enter or leaving the box keeps it, Escape drops it. */
@@ -167,10 +176,12 @@ function MenuLinkItem({
     openUrl,
     activeId,
     startLinkId,
+    stayLoaded,
     open,
     update,
   } = useMenuActions()
   const [editorOpen, setEditorOpen] = React.useState(false)
+  const formSide = useMenuFormSide()
   const [confirmingDelete, setConfirmingDelete] = React.useState(false)
   const [renaming, setRenaming] = React.useState(false)
   // Switching editing off closes a half-done rename, as sections do.
@@ -237,9 +248,10 @@ function MenuLinkItem({
             "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:shrink-0",
             nested
               ? // Custom Shell's sub-link: a short row whose open one darkens
-                // its stretch of the line on the left.
+                // its stretch of the line on the left. The 1px shift left puts
+                // that mark on the line, not beside it.
                 cn(
-                  "relative h-7 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground before:absolute before:top-0 before:bottom-0 before:left-[-10px] before:w-px before:bg-transparent before:transition-colors",
+                  "relative h-7 -translate-x-px hover:bg-sidebar-accent hover:text-sidebar-accent-foreground before:absolute before:top-0 before:bottom-0 before:left-[-10px] before:w-px before:bg-transparent before:transition-colors",
                   active && "font-medium text-sidebar-accent-foreground before:bg-sidebar-foreground/40"
                 )
               : "h-8"
@@ -300,7 +312,7 @@ function MenuLinkItem({
                 <SettingsIcon />
               </Button>
             </PopoverTrigger>
-            <PopoverContent side="right" align="start" className="w-80">
+            <PopoverContent side={formSide} align="start" collisionPadding={8} className="w-80">
               <LinkEditor
                 initial={{
                   label: link.label,
@@ -308,14 +320,18 @@ function MenuLinkItem({
                   icon: link.icon,
                   opens: link.opens ?? "panel",
                   start: startLinkId === link.id,
+                  stayLoaded: stayLoaded?.id === link.id,
                 }}
+                stayLoadedElsewhere={
+                  stayLoaded && stayLoaded.id !== link.id ? stayLoaded.label : null
+                }
                 place={place}
                 places={places.filter((choice) => canPlace(link, choice.place))}
                 openUrl={openUrl}
                 submitLabel="Save"
                 onSubmit={(draft, to) => {
                   update((menu) =>
-                    withStart(updateLink(menu, withDraft(link, draft), to), link.id, draft)
+                    withSwitches(updateLink(menu, withDraft(link, draft), to), link.id, draft)
                   )
                   setEditorOpen(false)
                 }}
@@ -462,8 +478,9 @@ export function AddLinkButton({
   look?: "row" | "control"
   onAdded?: () => void
 }) {
-  const { editing, places, openUrl, update } = useMenuActions()
+  const { editing, places, openUrl, stayLoaded, update } = useMenuActions()
   const [adding, setAdding] = React.useState(false)
+  const formSide = useMenuFormSide()
   if (!editing) return null
 
   const trigger =
@@ -485,9 +502,17 @@ export function AddLinkButton({
   return (
     <Popover open={adding} onOpenChange={setAdding}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent side="right" align="start" className="w-80">
+      <PopoverContent side={formSide} align="start" collisionPadding={8} className="w-80">
         <LinkEditor
-          initial={{ label: "", url: "", icon: "link", opens: "panel", start: false }}
+          initial={{
+            label: "",
+            url: "",
+            icon: "link",
+            opens: "panel",
+            start: false,
+            stayLoaded: false,
+          }}
+          stayLoadedElsewhere={stayLoaded?.label ?? null}
           place={place}
           places={places}
           openUrl={openUrl}
@@ -495,7 +520,7 @@ export function AddLinkButton({
           onSubmit={(draft, to) => {
             const id = newId("link")
             update((menu) =>
-              withStart(addLink(menu, to, withDraft({ id }, draft)), id, draft)
+              withSwitches(addLink(menu, to, withDraft({ id }, draft)), id, draft)
             )
             setAdding(false)
             onAdded?.()

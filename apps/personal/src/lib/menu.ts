@@ -119,6 +119,11 @@ export const menuSchema = z.object({
   sidebarShade: z.number().int().min(MIN_SIDEBAR_SHADE).max(MAX_SIDEBAR_SHADE).optional(),
   /** The link Personal opens on a visit to its bare address. Missing means the empty start page. */
   startLinkId: z.string().min(1).max(64).optional(),
+  /**
+   * The link whose screen stays loaded once opened, however many other screens
+   * are opened after it. Missing means none.
+   */
+  stayLoadedLinkId: z.string().min(1).max(64).optional(),
   /** The logo row's name, picture and link. Missing means Personal's own. */
   brand: brandSchema.optional(),
   /**
@@ -331,27 +336,50 @@ export function sidebarShadeLabel(shade: number) {
   return `${Math.abs(shade)} ${shade > 0 ? "lighter" : "darker"}`
 }
 
-/** The link Personal opens on its bare address, if it still exists and fills the panel. */
-export function startLink(menu: Menu) {
-  const link = allLinks(menu).find((l) => l.id === menu.startLinkId)
+/** The menu's fields that each name one panel link: the start screen, and the screen that stays loaded. */
+type OneLink = "startLinkId" | "stayLoadedLinkId"
+
+/** The link a field names, if it still exists and fills the panel. */
+function oneLink(menu: Menu, field: OneLink) {
+  const link = allLinks(menu).find((l) => l.id === menu[field])
   return link && !opensInTab(link) ? link : null
 }
 
-/** Makes a link the start screen, or stops it being one. There is only ever one. */
-export function setStartLink(menu: Menu, linkId: string, start: boolean): Menu {
-  if (start) return menu.startLinkId === linkId ? menu : { ...menu, startLinkId: linkId }
-  if (menu.startLinkId !== linkId) return menu
-  const { startLinkId: _off, ...rest } = menu
+/** Makes a link the one a field names, or stops it being that. There is only ever one. */
+function setOneLink(menu: Menu, field: OneLink, linkId: string, on: boolean): Menu {
+  if (on) return menu[field] === linkId ? menu : { ...menu, [field]: linkId }
+  if (menu[field] !== linkId) return menu
+  const { [field]: _off, ...rest } = menu
   return rest
 }
 
-/** Forgets the start link once it is no longer in the menu. */
-function withoutLostStart(menu: Menu): Menu {
-  if (!menu.startLinkId || allLinks(menu).some((link) => link.id === menu.startLinkId)) {
-    return menu
+/** The link Personal opens on its bare address. */
+export function startLink(menu: Menu) {
+  return oneLink(menu, "startLinkId")
+}
+
+export function setStartLink(menu: Menu, linkId: string, start: boolean): Menu {
+  return setOneLink(menu, "startLinkId", linkId, start)
+}
+
+/** The link whose screen stays loaded once opened. */
+export function stayLoadedLink(menu: Menu) {
+  return oneLink(menu, "stayLoadedLinkId")
+}
+
+export function setStayLoadedLink(menu: Menu, linkId: string, stay: boolean): Menu {
+  return setOneLink(menu, "stayLoadedLinkId", linkId, stay)
+}
+
+/** Forgets the start link and the stay-loaded link once they are no longer in the menu. */
+function withoutLostLinks(menu: Menu): Menu {
+  const ids = new Set(allLinks(menu).map((link) => link.id))
+  let next = menu
+  for (const field of ["startLinkId", "stayLoadedLinkId"] as const) {
+    const id = next[field]
+    if (id && !ids.has(id)) next = setOneLink(next, field, id, false)
   }
-  const { startLinkId: _gone, ...rest } = menu
-  return rest
+  return next
 }
 
 /** Every link, sub-links included. */
@@ -436,7 +464,7 @@ export function removeLink(menu: Menu, linkId: string): Menu {
   const place = placeOf(menu, linkId)
   const links = place ? linksAt(menu, place) : null
   if (!place || !links) return menu
-  return withoutLostStart(withLinksAt(menu, place, links.filter((link) => link.id !== linkId)))
+  return withoutLostLinks(withLinksAt(menu, place, links.filter((link) => link.id !== linkId)))
 }
 
 /** Moves a link to where another link in the same place was dropped. */
@@ -501,7 +529,7 @@ export function renameSection(menu: Menu, sectionId: string, title: string): Men
 }
 
 export function removeSection(menu: Menu, sectionId: string): Menu {
-  return withoutLostStart({
+  return withoutLostLinks({
     ...menu,
     sections: menu.sections.filter((section) => section.id !== sectionId),
   })

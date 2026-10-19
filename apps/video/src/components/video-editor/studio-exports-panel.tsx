@@ -3,6 +3,7 @@ import {
   DownloadIcon,
   FilmIcon,
   Link2Icon,
+  Loader2Icon,
   RotateCwIcon,
   SettingsIcon,
   Trash2Icon,
@@ -26,6 +27,7 @@ import {
   getExportErrorMessage,
   listExports,
   retryExport,
+  stopExport,
   type ExportListWithShares,
   type RenderJobSummary,
 } from "@/lib/api/video/exports"
@@ -39,7 +41,9 @@ const POLL_MS = 3_000
 /**
  * The Exports panel at the foot of the editor rail: every export of this
  * project, newest first, with its download, share link, details, Try again
- * and delete. The Exports page in the left menu still lists every project's.
+ * and delete. An export still waiting or being made has Stop export instead
+ * of delete, and stopping it leaves the project's other exports going. The
+ * Exports page in the left menu still lists every project's.
  * New exports are started from the Export button at the top, as before.
  */
 export function ExportsPanel() {
@@ -87,6 +91,19 @@ export function ExportsPanel() {
       showErrorToast(getExportErrorMessage(error))
     } finally {
       setBusyId(null)
+    }
+  }
+
+  async function stop(item: RenderJobSummary) {
+    setBusyId(item.id)
+    try {
+      await stopExport(item.id)
+      toast.success("Export stopped. No file was made.")
+    } catch (error) {
+      showErrorToast(getExportErrorMessage(error))
+    } finally {
+      setBusyId(null)
+      reload()
     }
   }
 
@@ -214,16 +231,32 @@ export function ExportsPanel() {
                           <RotateCwIcon />
                         </Button>
                       ) : null}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        disabled={busyId === item.id}
-                        aria-label={`Delete ${name}`}
-                        onClick={() => setDeleting(item)}
-                      >
-                        <Trash2Icon />
-                      </Button>
+                      {isExportActive(item) ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={busyId === item.id}
+                          aria-label={`Stop export ${name}`}
+                          onClick={() => void stop(item)}
+                        >
+                          {busyId === item.id ? (
+                            <Loader2Icon className="animate-spin" />
+                          ) : null}
+                          Stop export
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={busyId === item.id}
+                          aria-label={`Delete ${name}`}
+                          onClick={() => setDeleting(item)}
+                        >
+                          <Trash2Icon />
+                        </Button>
+                      )}
                     </div>
                   </li>
                 )
