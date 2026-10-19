@@ -18,6 +18,7 @@ import {
   fitnessStrengthSettings,
   fitnessWorkouts,
 } from "@/server/fitness/schema"
+import { isOwnedImageUrl } from "@/server/media/library"
 import { customShellUsers } from "@/server/schema"
 
 export type ProgramSummary = {
@@ -174,6 +175,27 @@ export async function renameProgram(actorId: string, programId: string, name: st
   await database
     .update(fitnessPrograms)
     .set({ name: trimmed, updatedAt: now() })
+    .where(eq(fitnessPrograms.id, programId))
+}
+
+/**
+ * Sets or clears the program's banner and its square picture. A picture must
+ * be one the person changing it uploaded, the same rule as a profile photo,
+ * so a program never shows an outside address. A field left out is kept.
+ */
+export async function setProgramPictures(
+  actorId: string,
+  programId: string,
+  pictures: { bannerUrl?: string | null; avatarUrl?: string | null },
+  database: FitnessDb = db
+) {
+  await programFor(actorId, programId, database, { forChange: true })
+  for (const url of [pictures.bannerUrl, pictures.avatarUrl]) {
+    if (url && !(await isOwnedImageUrl(actorId, url, database))) throw new Error(FITNESS_ERRORS.pictureNotYours)
+  }
+  await database
+    .update(fitnessPrograms)
+    .set({ ...pictures, updatedAt: now() })
     .where(eq(fitnessPrograms.id, programId))
 }
 

@@ -14,8 +14,8 @@ import {
 } from "@/server/fitness/calendar"
 import { builtInBySlug, listExercises, swapsFor, avoidExercise } from "@/server/fitness/exercises"
 import { applyTemplate, copyWeekDay, loadWeek, restWeekDay, saveBaselineLift, saveStrengthSettings, setWeekDay } from "@/server/fitness/week"
-import { createProgram, listPrograms } from "@/server/fitness/programs"
-import { fitnessNoticeLinks, fitnessDayExercises, fitnessScheduledWorkouts } from "@/server/fitness/schema"
+import { createProgram, listPrograms, setProgramPictures } from "@/server/fitness/programs"
+import { fitnessNoticeLinks, fitnessDayExercises, fitnessPrograms, fitnessScheduledWorkouts } from "@/server/fitness/schema"
 import {
   finishWorkout,
   discardUntouchedWorkouts,
@@ -65,6 +65,19 @@ async function doEverySet(workout: WorkoutView, reps?: number) {
 }
 
 describe("programs", () => {
+  it("keeps a banner and picture only from the person's own uploads, and clears them", async () => {
+    const { programId } = await fiveByFive()
+    await expect(
+      setProgramPictures(anna.id, programId, { bannerUrl: "https://tracker.example.test/pixel.png" }, database)
+    ).rejects.toThrow(FITNESS_ERRORS.pictureNotYours)
+    await setProgramPictures(anna.id, programId, { bannerUrl: null, avatarUrl: null }, database)
+    const [row] = await database
+      .select({ bannerUrl: fitnessPrograms.bannerUrl, avatarUrl: fitnessPrograms.avatarUrl })
+      .from(fitnessPrograms)
+      .where(eq(fitnessPrograms.id, programId))
+    expect(row).toEqual({ bannerUrl: null, avatarUrl: null })
+  })
+
   it("refuses a routine type that isn't ready", async () => {
     await expect(
       createProgram(anna.id, anna.id, { name: "Bars", routineType: "calisthenics" }, database)

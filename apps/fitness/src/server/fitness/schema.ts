@@ -62,6 +62,9 @@ export const fitnessPrograms = pgTable("fitness_programs", {
   builtByUserId: varchar("built_by_user_id", { length: 36 }).references(userRef, {
     onDelete: "set null",
   }),
+  /** Pictures from the person's own uploads (`drizzle/0099_fitness_program_pictures.sql`). */
+  bannerUrl: varchar("banner_url", { length: 2048 }),
+  avatarUrl: varchar("avatar_url", { length: 2048 }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 })

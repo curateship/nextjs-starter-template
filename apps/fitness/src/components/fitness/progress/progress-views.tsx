@@ -1,20 +1,19 @@
 import * as React from "react"
-import { LineChartIcon, SquareMousePointerIcon } from "lucide-react"
 
 import { PanelCard } from "@/components/fitness/panel-card"
 import { BodyweightCard } from "@/components/fitness/progress/bodyweight-card"
-import { LiftChart } from "@/components/fitness/progress/lift-chart"
-import { MOST_COMPARED, ONE_REP_MAX_HINT, RecordsList } from "@/components/fitness/progress/records-list"
+import { LiftChart, type LiftMetric } from "@/components/fitness/progress/lift-chart"
+import { ONE_REP_MAX_HINT, RecordsList } from "@/components/fitness/progress/records-list"
 import { WeeklySets } from "@/components/fitness/progress/weekly-sets"
-import { PanelBody, PanelHeader, PanelToolbar } from "@/components/fitness/dashboard/panel-parts"
+import { PanelBody, PanelHeader } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
-import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { SegmentedChoice } from "@/components/fitness/segmented-choice"
+import { Button } from "@/components/ui/button"
 import type { LiftRecord } from "@/lib/api/fitness/progress"
 import { formatDay } from "@/lib/fitness/dates"
-import { formatWeight } from "@/lib/fitness/weights"
+import { formatWeight, formatWeightNumber } from "@/lib/fitness/weights"
 import { useSelection } from "@/lib/hooks/use-selection"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 /** The person's lifts of this program's routine type only: a program never lists another type's lifts. */
 function ownRecords(page: ProgramViewProps["page"]) {
@@ -27,107 +26,177 @@ function shownLift(records: readonly LiftRecord[], pick: string | undefined) {
   return records.find((record) => record.exerciseId === pick) ?? records[0] ?? null
 }
 
+const METRIC_LABELS: Record<LiftMetric, string> = {
+  oneRepMax: "best one-rep max",
+  heaviest: "heaviest lifted",
+}
+
+const METRIC_CHOICES: { value: LiftMetric; label: string }[] = [
+  { value: "oneRepMax", label: "One-rep max" },
+  { value: "heaviest", label: "Heaviest" },
+]
+
 /**
- * Progress in the middle panel: four tiles, the chart of one lift (or up to
- * four compared), every lift's records, and sets per muscle. Clicking a lift
- * puts it on the chart and opens its numbers on the right.
+ * A grey card in the Progress view's middle panel, as Tyler drew them on
+ * 18 Oct 2026: a heading with a muted note and its own buttons at the right,
+ * then the body. It doesn't fold: the view is short, and everything on it is
+ * worth seeing.
+ */
+function ProgressCard({
+  title,
+  meta,
+  actions,
+  flush = false,
+  label,
+  children,
+}: {
+  title: React.ReactNode
+  meta?: React.ReactNode
+  actions?: React.ReactNode
+  /** The body runs to the card's edges, for a table. */
+  flush?: boolean
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <section aria-label={label} className="min-w-0 rounded-xl border bg-muted/40">
+      <div className="flex min-h-14 flex-wrap items-center gap-2 px-4 py-3">
+        <h3 className="min-w-40 flex-1 truncate text-[15px] font-semibold">
+          {title}
+          {meta ? <span className="font-normal text-muted-foreground"> · {meta}</span> : null}
+        </h3>
+        {actions}
+      </div>
+      <div className={flush ? "border-t" : "px-4 pb-4"}>{children}</div>
+    </section>
+  )
+}
+
+/**
+ * Progress in the middle panel, as Tyler drew it on 18 Oct 2026: four figures
+ * in one strip, the chart of one lift (or up to four compared), every lift's
+ * records, and sets per muscle, each in a card. Clicking a lift puts it on
+ * the chart and opens its numbers on the right. Compare shows a tick box on
+ * each lift; ticking two to four draws them together.
  */
 export function ProgressMiddle({ page, search, go }: ProgramViewProps) {
-  const [query, setQuery] = React.useState("")
-  const [compared, setCompared] = React.useState<string[]>([])
+  const [metric, setMetric] = React.useState<LiftMetric>("oneRepMax")
+  const [comparing, setComparing] = React.useState(false)
   const selection = useSelection()
   if (page.viewData.view !== "progress") return null
   const { weeklyGoal, weighIns, weeklySets, preferences, personId } = page.viewData.progress
   const records = ownRecords(page)
   const unit = preferences.unit
   const shown = shownLift(records, search.pick)
-  const chartIds = compared.length > 1 ? compared : shown ? [shown.exerciseId] : []
+  const ticked = records.map((record) => record.exerciseId).filter((id) => selection.selected.has(id))
+  const compared = comparing && ticked.length > 1 ? ticked : null
+  const chartIds = compared ?? (shown ? [shown.exerciseId] : [])
   const latest = weighIns[weighIns.length - 1]
 
-  function compare() {
-    const ids = records.map((record) => record.exerciseId).filter((id) => selection.selected.has(id))
-    if (ids.length < 2) {
-      showErrorToast("Tick at least two lifts to compare them.")
-      return
-    }
-    if (ids.length > MOST_COMPARED) {
-      showErrorToast(`Compare at most ${MOST_COMPARED} lifts at once, so each keeps a colour of its own.`)
-      return
-    }
-    setCompared(ids)
-  }
-
   return (
-    <>
-      <PanelToolbar>
-        <DashboardToolbarSearch
-          aria-label="Search lifts"
-          placeholder="Search lifts"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        {compared.length > 1 ? (
-          <DashboardToolbarButton type="button" variant="outline" onClick={() => setCompared([])}>
-            Stop comparing
-          </DashboardToolbarButton>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DashboardToolbarButton type="button" variant="outline" onClick={compare}>
-                <LineChartIcon />
-                Compare
-              </DashboardToolbarButton>
-            </TooltipTrigger>
-            <TooltipContent>Tick two to four lifts below, then compare their lines</TooltipContent>
-          </Tooltip>
-        )}
-      </PanelToolbar>
-      <PanelBody padded={false}>
-        <div className="grid grid-cols-2 gap-2 border-b p-3 @container">
-          <Tile label="This week" value={`${weeklyGoal.thisWeek} of ${weeklyGoal.goal}`} note="Workouts against your goal" />
-          <Tile
-            label="Weeks in a row"
-            value={String(weeklyGoal.streak)}
-            note={weeklyGoal.streak === 0 ? "Hit the goal to start a run" : "Weeks the goal was hit"}
-          />
-          <Tile label="Lifts tracked" value={String(records.length)} note="Each with its own records" />
-          <Tile
-            label="Bodyweight"
-            value={latest ? formatWeight(latest.weightKg, unit) : "None yet"}
-            note={latest ? `7-day average ${formatWeight(latest.averageKg, unit)}` : "Add one under Bodyweight"}
-          />
+    <PanelBody>
+      <dl className="grid grid-cols-2 overflow-hidden rounded-xl border bg-muted/40 @container sm:grid-cols-4 [&>div]:grid [&>div]:content-start [&>div]:gap-1 [&>div]:p-4">
+        <div className="border-r border-b sm:border-b-0">
+          <dt className="text-[13px] text-muted-foreground">This week</dt>
+          <dd className="text-2xl font-semibold tabular-nums">
+            {weeklyGoal.thisWeek}
+            <span className="text-base font-normal text-muted-foreground"> of {weeklyGoal.goal}</span>
+          </dd>
+          <dd className="text-[13px] text-muted-foreground">Workouts against your goal</dd>
         </div>
-        <LiftChart personId={personId} records={records} exerciseIds={chartIds} unit={unit} />
+        <div className="border-b sm:border-r sm:border-b-0">
+          <dt className="text-[13px] text-muted-foreground">Weeks in a row</dt>
+          <dd className="text-2xl font-semibold tabular-nums">{weeklyGoal.streak}</dd>
+          <dd className="text-[13px] text-muted-foreground">
+            {weeklyGoal.streak === 0 ? "Hit the goal to start a run" : "Weeks the goal was hit"}
+          </dd>
+        </div>
+        <div className="border-r">
+          <dt className="text-[13px] text-muted-foreground">Lifts tracked</dt>
+          <dd className="text-2xl font-semibold tabular-nums">{records.length}</dd>
+          <dd className="text-[13px] text-muted-foreground">Each with its own records</dd>
+        </div>
+        <div>
+          <dt className="text-[13px] text-muted-foreground">Bodyweight</dt>
+          <dd className={cn("text-2xl font-semibold tabular-nums", !latest && "text-muted-foreground")}>
+            {latest ? (
+              <>
+                {formatWeightNumber(latest.weightKg, unit)}
+                <span className="text-base font-normal text-muted-foreground"> {unit}</span>
+              </>
+            ) : (
+              "None yet"
+            )}
+          </dd>
+          <dd className="text-[13px] text-muted-foreground">
+            {latest ? `7-day average ${formatWeight(latest.averageKg, unit)}` : "Add one in the side panel"}
+          </dd>
+        </div>
+      </dl>
+
+      <ProgressCard
+        label="Lift chart"
+        title={compared ? "Lifts compared" : (shown?.name ?? "Lift")}
+        meta={METRIC_LABELS[metric]}
+        actions={
+          records.length ? (
+            <div className="flex items-center gap-2">
+              <SegmentedChoice
+                label="What the line shows"
+                value={metric}
+                options={METRIC_CHOICES}
+                className="w-auto [&>button]:flex-none [&>button]:px-3"
+                onChange={setMetric}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                aria-pressed={comparing}
+                onClick={() => {
+                  if (comparing) selection.clear()
+                  setComparing(!comparing)
+                }}
+              >
+                {comparing ? "Stop comparing" : "Compare"}
+              </Button>
+            </div>
+          ) : null
+        }
+      >
+        {comparing && !compared ? (
+          <p className="pb-3 text-[13px] text-muted-foreground">
+            Tick two to four lifts in Records below to draw them together.
+          </p>
+        ) : null}
+        <LiftChart personId={personId} records={records} exerciseIds={chartIds} metric={metric} unit={unit} />
+      </ProgressCard>
+
+      <ProgressCard
+        label="Records"
+        title="Records"
+        meta={`${records.length} ${records.length === 1 ? "lift" : "lifts"}`}
+        flush
+      >
         <RecordsList
           records={records}
-          query={query}
           unit={unit}
-          shownId={compared.length > 1 ? null : (shown?.exerciseId ?? null)}
-          selection={selection}
-          onShow={(pick) => {
-            setCompared([])
-            go({ pick }, { replace: true })
-          }}
+          shownId={compared ? null : (shown?.exerciseId ?? null)}
+          selection={comparing ? selection : null}
+          onShow={(pick) => go({ pick }, { replace: true })}
         />
-        <WeeklySets weeks={weeklySets} />
-      </PanelBody>
-    </>
-  )
-}
+      </ProgressCard>
 
-function Tile({ label, value, note }: { label: string; value: string; note: string }) {
-  return (
-    <div className="grid gap-0.5 rounded-lg border p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-lg font-medium tabular-nums">{value}</p>
-      <p className="text-xs text-muted-foreground">{note}</p>
-    </div>
+      <ProgressCard label="Sets per muscle" title="Sets per muscle" meta="last 8 weeks" flush>
+        <WeeklySets weeks={weeklySets} />
+      </ProgressCard>
+    </PanelBody>
   )
 }
 
 /**
- * Progress on the right: the lift on the chart, with its best numbers in
- * words, then bodyweight with its weigh-ins.
+ * Progress on the right, as Tyler drew it on 18 Oct 2026: the lift on the
+ * chart, with its four best numbers in a grid, then bodyweight with its
+ * weigh-ins.
  */
 export function ProgressRight({ page, search }: ProgramViewProps) {
   if (page.viewData.view !== "progress") return null
@@ -137,33 +206,49 @@ export function ProgressRight({ page, search }: ProgramViewProps) {
   const lift = shownLift(records, search.pick)
   return (
     <>
-      <PanelHeader>
-        <h2 className="min-w-0 truncate text-sm font-semibold">{lift ? lift.name : "Progress"}</h2>
+      <PanelHeader plain>
+        <div className="grid min-w-0 flex-1">
+          <h2 className="truncate text-lg font-semibold tracking-tight">{lift ? lift.name : "Progress"}</h2>
+          {lift ? (
+            <span className="truncate text-[13px] text-muted-foreground">
+              {lift.sessions} {lift.sessions === 1 ? "session" : "sessions"} · last trained {formatDay(lift.lastDay)}
+            </span>
+          ) : null}
+        </div>
       </PanelHeader>
       <PanelBody>
         {lift ? (
-          <PanelCard storageId="fitness-right-lift" title="Records" meta={`${lift.sessions} ${lift.sessions === 1 ? "session" : "sessions"}`}>
-            <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 text-[13px] [&_dd]:text-right [&_dd]:tabular-nums">
-              <dt className="text-muted-foreground">Heaviest lifted</dt>
-              <dd>{formatWeight(lift.heaviestKg, unit)}</dd>
-              <dt className="text-muted-foreground">Best one-rep max</dt>
-              <dd>{formatWeight(lift.oneRepMaxKg, unit)}</dd>
-              <dt className="text-muted-foreground">Most reps</dt>
-              <dd>
-                {lift.mostReps} at {formatWeight(lift.mostRepsAtKg, unit)}
-              </dd>
-              <dt className="text-muted-foreground">Last trained</dt>
-              <dd>{formatDay(lift.lastDay)}</dd>
+          <PanelCard storageId="fitness-right-lift" title="Records" flush>
+            <dl className="grid grid-cols-2 border-b [&>div]:grid [&>div]:gap-1 [&>div]:p-4 [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(odd)]:border-r">
+              <div>
+                <dt className="text-[13px] text-muted-foreground">Heaviest lifted</dt>
+                <dd className="text-2xl font-semibold tabular-nums">{formatWeight(lift.heaviestKg, unit)}</dd>
+              </div>
+              <div>
+                <dt className="text-[13px] text-muted-foreground">Best one-rep max</dt>
+                <dd className="text-2xl font-semibold tabular-nums">{formatWeight(lift.oneRepMaxKg, unit)}</dd>
+              </div>
+              <div>
+                <dt className="text-[13px] text-muted-foreground">Most reps</dt>
+                <dd className="text-2xl font-semibold tabular-nums">
+                  {lift.mostReps}
+                  <span className="text-base font-normal text-muted-foreground">
+                    {" "}
+                    at {formatWeight(lift.mostRepsAtKg, unit)}
+                  </span>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[13px] text-muted-foreground">Last trained</dt>
+                <dd className="pt-1 text-lg font-semibold">{formatDay(lift.lastDay)}</dd>
+              </div>
             </dl>
-            <p className="text-xs text-muted-foreground">One-rep max: {ONE_REP_MAX_HINT.toLowerCase()}</p>
+            <p className="p-4 text-[13px] text-muted-foreground">One-rep max: {ONE_REP_MAX_HINT.toLowerCase()}</p>
           </PanelCard>
         ) : (
-          <div className="grid justify-items-center gap-2 p-6 text-center">
-            <SquareMousePointerIcon className="size-5 text-muted-foreground" aria-hidden />
-            <p className="max-w-56 text-sm text-muted-foreground">
-              Finish a workout, then click a lift to see its records here.
-            </p>
-          </div>
+          <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+            Finish a workout, then click a lift to see its records here.
+          </p>
         )}
         <BodyweightCard
           weighIns={weighIns}

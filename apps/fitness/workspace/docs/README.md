@@ -9,7 +9,7 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [Weight rules and training blocks](weight-rules-and-blocks.md): automatic increases, the drop after missed sessions, and lighter weeks.
 - [The workout logger](workout-logger.md): logging inside the program's dashboard, the set grid, the rest timer, plates, swaps, "This hurts" and finishing.
 - [Logging without signal](logging-without-signal.md): what the phone keeps when the signal drops, and what still needs a shell change.
-- [History and import](history-and-import.md): a program's workouts, Do this again, and reading Strong or Hevy exports.
+- [History](history.md): a program's workouts by week, Do this again, and the last four weeks.
 - [Progress and records](progress-and-records.md): records, each lift's line, sets per muscle each week.
 - [Weigh-ins](weigh-ins.md): daily bodyweight and its seven-day average.
 - [Before and after photos](before-and-after-photos.md): private photo days, comparing two, and who can see them.

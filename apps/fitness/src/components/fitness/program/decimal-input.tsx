@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { UnitSuffix } from "@/components/fitness/unit-suffix"
 import { Input } from "@/components/ui/input"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -16,6 +17,7 @@ export function DecimalInput({
   min,
   max,
   what,
+  unit,
   onValue,
   onCommit,
 }: {
@@ -25,6 +27,8 @@ export function DecimalInput({
   max: number
   /** How the toast names the field: "your waist". */
   what: string
+  /** Written inside the box at the right, such as "cm". */
+  unit?: string
   onValue: (value: number | null) => void
   onCommit: (value: number | null) => void
 }) {
@@ -42,12 +46,15 @@ export function DecimalInput({
   }
 
   return (
+    <UnitSuffix unit={unit}>
     <Input
       id={id}
       inputMode="decimal"
       autoComplete="off"
       value={draft}
       aria-invalid={invalid || undefined}
+      className={unit ? "pr-10" : undefined}
+      placeholder={unit ? "\u2013" : undefined}
       onChange={(event) => {
         setDraft(event.target.value)
         const result = read(event.target.value)
@@ -69,5 +76,6 @@ export function DecimalInput({
         if (result.ok) onCommit(result.value)
       }}
     />
+    </UnitSuffix>
   )
 }

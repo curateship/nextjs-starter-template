@@ -11,7 +11,7 @@ With "Change weights automatically" on, finishing a workout of a week day sets t
 - **Missed sessions before a drop** (3 unless changed): that many misses in a row and the weight comes down by the drop, 10 out of 100 unless changed, rounded to the plates in Settings, App settings. A 100 kg squat missed three times in a row drops to 90 kg. The count starts again after a drop or a good session.
 - **Each weekday keeps its own weights.** Squats on Monday and squats on Friday are two rows, so a good Monday raises Monday's squat only.
 - The new weight is written into the week, so the Day view always shows what the next workout starts with. Picking an exercise shows the same rule as numbers under "Next time": "Hit all 5 sets of 5 and it goes to 82.5 kg". Typing a different weight also clears the count of misses.
-- Warm-up sets never count. Workouts started empty, repeated from History or imported never move the week's weights.
+- Warm-up sets never count. Workouts started empty, repeated from History or imported in the past never move the week's weights.
 
 With it off, nothing moves the weights but the person.
 

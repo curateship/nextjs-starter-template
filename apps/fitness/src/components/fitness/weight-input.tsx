@@ -1,6 +1,8 @@
 import * as React from "react"
 
+import { UnitSuffix } from "@/components/fitness/unit-suffix"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { formatWeightNumber, fromKg, toKg, type WeightUnit } from "@/lib/fitness/weights"
 
@@ -19,6 +21,7 @@ export function WeightInput({
   onCommit,
   placeholder,
   className,
+  showUnit = false,
   "aria-label": ariaLabel,
 }: {
   id?: string
@@ -27,6 +30,8 @@ export function WeightInput({
   onCommit: (kg: number | null) => void
   placeholder?: string
   className?: string
+  /** Writes the unit inside the box, so the label can leave it out. */
+  showUnit?: boolean
   "aria-label"?: string
 }) {
   const shown = valueKg === null ? "" : formatWeightNumber(valueKg, unit)
@@ -58,6 +63,7 @@ export function WeightInput({
   }
 
   return (
+    <UnitSuffix unit={showUnit ? unit : undefined}>
     <Input
       id={id}
       inputMode="decimal"
@@ -66,7 +72,7 @@ export function WeightInput({
       placeholder={placeholder}
       aria-label={ariaLabel}
       aria-invalid={invalid || undefined}
-      className={className}
+      className={cn(showUnit && "pr-10", className)}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {
@@ -76,5 +82,6 @@ export function WeightInput({
         }
       }}
     />
+    </UnitSuffix>
   )
 }

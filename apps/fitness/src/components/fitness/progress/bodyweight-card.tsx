@@ -109,25 +109,38 @@ export function BodyweightCard({
     >
         {canEdit ? (
           <form
-            className="grid gap-4"
+            className="grid gap-3"
             onSubmit={(event) => {
               event.preventDefault()
               void save()
             }}
           >
-            <div className="grid gap-2">
-              <FieldLabel htmlFor={dayId}>Day</FieldLabel>
-              <DatePicker
-                id={dayId}
-                value={new Date(year, month - 1, date)}
-                onChange={(picked) => setDay(picked ? dayOf(picked) : today)}
-              />
+            {/* Side by side when the panel has room; the shell's date field
+                writes the date out in full, so a narrow panel stacks them. */}
+            <div className="@container">
+            <div className="grid gap-3 @xs:grid-cols-2">
+              <div className="grid min-w-0 gap-2">
+                <FieldLabel htmlFor={dayId}>Day</FieldLabel>
+                <DatePicker
+                  id={dayId}
+                  value={new Date(year, month - 1, date)}
+                  onChange={(picked) => setDay(picked ? dayOf(picked) : today)}
+                />
+              </div>
+              <div className="grid min-w-0 gap-2">
+                <FieldLabel htmlFor={weightId}>Weight</FieldLabel>
+                <WeightInput
+                  id={weightId}
+                  valueKg={weightKg}
+                  unit={unit}
+                  showUnit
+                  placeholder={"\u2013"}
+                  onCommit={setWeightKg}
+                />
+              </div>
             </div>
-            <div className="grid gap-2">
-              <FieldLabel htmlFor={weightId}>Weight ({unit})</FieldLabel>
-              <WeightInput id={weightId} valueKg={weightKg} unit={unit} onCommit={setWeightKg} />
             </div>
-            <Button type="submit" disabled={saving} className="w-fit">
+            <Button type="submit" disabled={saving} className="w-full">
               {saving ? <Loader2Icon className="animate-spin" /> : null}
               Save weigh-in
             </Button>

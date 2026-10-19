@@ -366,7 +366,22 @@ async function repeatWorkout(actorId: string, workoutId: string, database: Fitne
   return { id }
 }
 
-/** Last finished session's working sets for each of these lifts, before `beforeDay`. */
+/**
+ * For the Day view's exercise rows: the last finished session of each lift,
+ * as "3 x 5 on Oct 11". Reps are the first set's.
+ */
+export async function lastTimesFor(userId: string, exerciseIds: string[], database: FitnessDb = db) {
+  const sessions = await lastSessions(userId, exerciseIds, "", database)
+  const result: Record<string, { day: Day; sets: number; reps: number }> = {}
+  for (const [exerciseId, session] of sessions) {
+    if (session && session.sets.length) {
+      result[exerciseId] = { day: session.day, sets: session.sets.length, reps: session.sets[0].reps ?? 0 }
+    }
+  }
+  return result
+}
+
+/** Last finished session's working sets for each of these lifts, leaving out one workout. */
 async function lastSessions(
   userId: string,
   exerciseIds: string[],

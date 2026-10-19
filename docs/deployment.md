@@ -58,8 +58,26 @@ no website calls these programs.
 | App | `WORKER_PACKAGES` | Why |
 | --- | --- | --- |
 | Pomodoro | `ffmpeg yt-dlp` | Uploaded sounds and clips, and every AI background and soundscape, are re-encoded by the `pomodoro-media-uploads` and `pomodoro-generations` workers. Without FFmpeg each card says "Sound and video cannot be prepared yet." The `pomodoro-youtube-imports` worker calls `yt-dlp` to fetch 5 seconds of a YouTube video for a theme; without it the row says "yt-dlp is not installed on this server". Alpine 3.24's `yt-dlp` was 2026.08.19 on 10 Oct 2026 and fetched a clip inside the worker image. |
-| Video | not set yet | Its workers call `ffmpeg`, `ffprobe` and `yt-dlp` (`apps/video/src/server/video/media-workers.ts`, `viral/download.ts`), so its production worker cannot prepare media until this is set. Video's own task, not checked here. |
+| Video | `ffmpeg yt-dlp` | Its workers call `ffmpeg`, `ffprobe` and `yt-dlp` (`apps/video/src/server/video/media-workers.ts`, `viral/download.ts`). Alpine's `ffmpeg` package brings `ffprobe` with it. On 18 Oct 2026 the Video worker image had FFmpeg 8.1.2, ffprobe 8.1.2 and yt-dlp 2026.08.19. |
 | Custom Shell, Trade, CMS | not set | Nothing in their workers calls an outside program. |
+
+### No stylesheets in the worker
+
+The worker build (`scripts/build-worker.mjs`) bundles only the app's own code
+and leaves every package as a plain import, which Node loads at run time. Node
+can't open a stylesheet. So when server code reaches a screen file that imports
+a package's `.css`, the worker dies on its first line with
+`ERR_UNKNOWN_FILE_EXTENSION` and never passes its health check. Server code
+does reach screen files on purpose. The email sender reads the app's options,
+the options name each Settings tab's panel, and a panel reaches the image
+cropper, which imports `ReactCrop.css`.
+
+`scripts/worker-drop-css.mjs` turns every `.css`, `.scss`, `.sass` and `.less`
+import into an empty file at build time. The worker draws nothing, so nothing
+is lost. Trade's engine was down ten hours on 26 Sep 2026 from this, and
+Video's first worker image died the same way on 18 Oct 2026. The fix moved into
+the shell that day, so every app gets it on its next shell merge. Trade has had
+its own copy since 26 Sep.
 
 **No secret is ever a build argument.** Build arguments are recorded in the
 image's history and can be read by anyone who can pull the image. Everything an

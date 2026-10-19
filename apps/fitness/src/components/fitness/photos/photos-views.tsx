@@ -1,26 +1,23 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { ColumnsIcon, LockIcon, PlusIcon, SettingsIcon, SquareMousePointerIcon, Trash2Icon } from "lucide-react"
+import { LockIcon, PlusIcon, SettingsIcon, SquareMousePointerIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PanelCard } from "@/components/fitness/panel-card"
 import { CompareView } from "@/components/fitness/photos/compare-view"
-import { describeChanges, PHOTO_MEASUREMENTS, SLOT_LABELS } from "@/components/fitness/photos/measurements"
+import { PHOTO_MEASUREMENTS } from "@/components/fitness/photos/measurements"
 import { PhotoDayDialog } from "@/components/fitness/photos/photo-day-dialog"
 import { PhotoSlot } from "@/components/fitness/photos/photo-slot"
-import { PrivatePhoto } from "@/components/fitness/photos/private-photo"
-import { PanelBody, PanelHeader, PanelToolbar } from "@/components/fitness/dashboard/panel-parts"
+import { PanelBody, PanelHeader } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
-import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import { SegmentedChoice } from "@/components/fitness/segmented-choice"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { FieldLabel } from "@/components/ui/field-label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { changePhotoSession, type PhotoSession, type PhotoSlot as Slot } from "@/lib/api/fitness/photos"
 import { formatDay, todayIn } from "@/lib/fitness/dates"
 import { reportFitnessError } from "@/lib/fitness/report-error"
-import { formatWeight, type WeightUnit } from "@/lib/fitness/weights"
+import { formatWeight, formatWeightNumber, fromKg, type WeightUnit } from "@/lib/fitness/weights"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -30,20 +27,37 @@ function newestFirst(sessions: readonly PhotoSession[]) {
   return [...sessions].sort((a, b) => b.day.localeCompare(a.day))
 }
 
+const SHORT_DAY = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" })
+
+const VIEW_CHOICES = [
+  { value: "timeline", label: "Timeline" },
+  { value: "compare", label: "Compare" },
+] as const
+
+/** A day's figures that were filled in, as label and value: Waist, "84 cm". */
 function figuresOf(session: PhotoSession, unit: WeightUnit) {
   return [
-    session.bodyweightKg !== null ? `Bodyweight ${formatWeight(session.bodyweightKg, unit)}` : null,
-    ...PHOTO_MEASUREMENTS.map(({ key, label }) => (session[key] !== null ? `${label} ${session[key]} cm` : null)),
-  ].filter((entry): entry is string => entry !== null)
+    session.bodyweightKg !== null ? { label: "Bodyweight", value: formatWeight(session.bodyweightKg, unit) } : null,
+    ...PHOTO_MEASUREMENTS.map(({ key, label }) =>
+      session[key] !== null ? { label, value: `${roundCm(session[key])} cm` } : null
+    ),
+  ].filter((entry): entry is { label: string; value: string } => entry !== null)
+}
+
+function roundCm(value: number) {
+  return String(Math.round(value * 10) / 10)
 }
 
 /**
- * Before and after in the middle panel: every photo day, newest first, or
- * two of them compared while `?compare=` is set. Clicking a day opens it on
- * the right, where its photos are added. Only the owner sees any of it, and
+ * Before and after in the middle panel, as Tyler drew it on 18 Oct 2026: the
+ * privacy line, Timeline or Compare, and New photo day; then every photo day
+ * newest first as a card with its three photo boxes (click to browse, or drop
+ * a file on one) and its figures as tags, or two days compared while
+ * `?compare=` is set. Clicking a day opens it on the right. Only the owner sees any of it, and
  * a coach they switched photos on for.
  */
 export function PhotosMiddle({ page, search, go }: ProgramViewProps) {
+  const router = useRouter()
   const [creating, setCreating] = React.useState(false)
   if (page.viewData.view !== "photos") return null
   const { sessions, preferences } = page.viewData.photos
@@ -64,29 +78,32 @@ export function PhotosMiddle({ page, search, go }: ProgramViewProps) {
 
   return (
     <>
-      <PanelToolbar>
-        <DashboardToolbarButton
-          type="button"
-          variant="outline"
-          onClick={pair ? () => go({ compare: undefined }) : startCompare}
-        >
-          <ColumnsIcon />
-          {pair ? "Close compare" : "Compare"}
-        </DashboardToolbarButton>
-        {canEdit ? (
-          <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
-            <PlusIcon />
-            New photo day
-          </DashboardToolbarButton>
-        ) : null}
-      </PanelToolbar>
-      <PanelBody padded={false}>
-        <p className="flex items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
+      {/* The privacy line takes its own row when the panel is too narrow to
+          hold it beside the buttons on one line. */}
+      <div className="@container shrink-0 px-3 pb-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="flex min-w-0 basis-full items-center gap-2 text-[13px] text-muted-foreground @4xl:flex-1 @4xl:basis-0">
           <LockIcon className="size-3.5 shrink-0" aria-hidden />
           {canEdit
             ? "Only you can see these photos. A coach sees them only if you switch that on for them."
             : "Your client switched photos on for you. Nobody else can see them."}
         </p>
+        <SegmentedChoice
+          label="Show"
+          value={pair ? "compare" : "timeline"}
+          options={VIEW_CHOICES}
+          className="w-auto [&>button]:flex-none [&>button]:px-3"
+          onChange={(next) => (next === "compare" ? startCompare() : go({ compare: undefined }))}
+        />
+        {canEdit ? (
+          <Button type="button" onClick={() => setCreating(true)}>
+            <PlusIcon />
+            New photo day
+          </Button>
+        ) : null}
+      </div>
+      </div>
+      <PanelBody>
         {pair ? (
           <CompareView
             sessions={sorted}
@@ -96,54 +113,67 @@ export function PhotosMiddle({ page, search, go }: ProgramViewProps) {
             onPick={(first, second) => go({ compare: `${first},${second}` }, { replace: true })}
           />
         ) : sorted.length === 0 ? (
-          <p className="p-3 text-sm text-muted-foreground">
+          <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
             {canEdit
               ? "Take front, side and back photos every few weeks. Side by side, a month apart, they show what the mirror doesn't."
               : "No photo days yet."}
           </p>
         ) : (
-          <ul className="divide-y">
+          <ul className="grid gap-3">
             {sorted.map((session) => {
               const figures = figuresOf(session, unit)
               const picked = session.id === search.pick
               return (
-                <li key={session.id}>
-                  <button
-                    type="button"
-                    aria-current={picked ? "true" : undefined}
-                    className={cn(
-                      "grid w-full gap-2 p-3 text-left hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none",
-                      picked && "bg-muted/60"
-                    )}
-                    onClick={() => go({ pick: session.id })}
-                  >
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className="text-sm font-medium">{formatDay(session.day)}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {SLOTS.filter((slot) => session.photos[slot]).length} of 3 photos
-                      </span>
+                <li
+                  key={session.id}
+                  className={cn(
+                    "cursor-pointer rounded-xl border bg-muted/40 transition-colors hover:border-foreground/30",
+                    picked && "border-foreground hover:border-foreground"
+                  )}
+                  onClick={() => go({ pick: session.id })}
+                >
+                  <div className="flex items-baseline justify-between gap-2 px-4 pt-3 pb-3">
+                    <h3 className="text-[15px] font-semibold">
+                      <button
+                        type="button"
+                        aria-current={picked ? "true" : undefined}
+                        className="rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          go({ pick: session.id })
+                        }}
+                      >
+                        {formatDay(session.day)}
+                      </button>
+                    </h3>
+                    <span className="text-[13px] text-muted-foreground">
+                      {SLOTS.filter((slot) => session.photos[slot]).length} of 3 photos
                     </span>
-                    <span className="grid max-w-md grid-cols-3 gap-2">
-                      {SLOTS.map((slot) => (
-                        <span key={slot} className="aspect-[3/4] overflow-hidden rounded-md border bg-muted/50">
-                          {session.photos[slot] ? (
-                            <PrivatePhoto
-                              src={session.photos[slot]!}
-                              alt={`${SLOT_LABELS[slot]}, ${formatDay(session.day)}`}
-                              className="size-full object-cover"
-                            />
-                          ) : (
-                            <span className="flex size-full items-center justify-center text-[11px] text-muted-foreground">
-                              {SLOT_LABELS[slot]}
-                            </span>
-                          )}
-                        </span>
+                  </div>
+                  <div className="grid max-w-lg grid-cols-3 gap-2 px-3 pb-3">
+                    {SLOTS.map((slot) => (
+                      <PhotoSlot
+                        key={slot}
+                        session={session}
+                        slot={slot}
+                        size="large"
+                        canEdit={canEdit}
+                        onChange={() => void router.invalidate()}
+                      />
+                    ))}
+                  </div>
+                  {figures.length > 0 ? (
+                    <ul className="flex flex-wrap gap-2 border-t px-4 py-3" aria-label="Measurements">
+                      {figures.map((figure) => (
+                        <li
+                          key={figure.label}
+                          className="rounded-md border bg-background px-2 py-0.5 text-[13px] text-muted-foreground"
+                        >
+                          {figure.label} <span className="font-semibold text-foreground">{figure.value}</span>
+                        </li>
                       ))}
-                    </span>
-                    {figures.length > 0 ? (
-                      <span className="text-xs text-muted-foreground">{figures.join(" · ")}</span>
-                    ) : null}
-                  </button>
+                    </ul>
+                  ) : null}
                 </li>
               )
             })}
@@ -182,17 +212,23 @@ function PhotoDayDialogFor(props: React.ComponentProps<typeof PhotoDayDialog>) {
   )
 }
 
+/** "up 2 cm", "down 0.5 kg", "no change". */
+function changeWords(change: number, unit: string) {
+  if (Math.abs(change) < 0.05) return "No change"
+  return `${change > 0 ? "Up" : "Down"} ${roundCm(Math.abs(change))} ${unit}`
+}
+
 /**
- * The picked photo day on the right: its three photos, added one at a time,
- * its numbers and what changed since the day before, and a way to compare it
- * with another day.
+ * The picked photo day on the right, as Tyler drew it on 18 Oct 2026: the date
+ * large with "Photo day" under it, its three photos added one at a time, and
+ * its measurements as figures two by two, each with what changed since the
+ * day before, then its note.
  */
 export function PhotosRight({ page, search, go }: ProgramViewProps) {
   const router = useRouter()
   const [editing, setEditing] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
-  const compareId = React.useId()
   if (page.viewData.view !== "photos") return null
   const { sessions, preferences } = page.viewData.photos
   const unit = preferences.unit
@@ -218,9 +254,6 @@ export function PhotosRight({ page, search, go }: ProgramViewProps) {
   }
 
   const previous = sorted[index + 1] ?? null
-  const figures = figuresOf(session, unit)
-  const changes = previous ? describeChanges(previous, session, unit) : []
-  const others = sorted.filter((entry) => entry.id !== session.id)
 
   async function remove() {
     if (!session) return
@@ -238,10 +271,36 @@ export function PhotosRight({ page, search, go }: ProgramViewProps) {
     }
   }
 
+  const filled = SLOTS.filter((slot) => session.photos[slot]).length
+  const cells: { label: string; value: number | null; unit: string; change: string | null }[] = [
+    {
+      label: "Bodyweight",
+      value: session.bodyweightKg === null ? null : Number(formatWeightNumber(session.bodyweightKg, unit)),
+      unit,
+      change:
+        previous && previous.bodyweightKg !== null && session.bodyweightKg !== null
+          ? changeWords(fromKg(session.bodyweightKg - previous.bodyweightKg, unit), unit)
+          : null,
+    },
+    ...PHOTO_MEASUREMENTS.map(({ key, label }) => {
+      const before = previous?.[key] ?? null
+      const after = session[key]
+      return {
+        label,
+        value: after,
+        unit: "cm",
+        change: before !== null && after !== null ? changeWords(after - before, "cm") : null,
+      }
+    }),
+  ]
+
   return (
     <>
-      <PanelHeader>
-        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{formatDay(session.day)}</h2>
+      <PanelHeader plain>
+        <div className="grid min-w-0 flex-1">
+          <h2 className="truncate text-lg font-semibold tracking-tight">{formatDay(session.day)}</h2>
+          <span className="text-[13px] text-muted-foreground">Photo day</span>
+        </div>
         {canEdit ? (
           <>
             <Tooltip>
@@ -264,7 +323,7 @@ export function PhotosRight({ page, search, go }: ProgramViewProps) {
         ) : null}
       </PanelHeader>
       <PanelBody>
-        <PanelCard storageId="fitness-right-photos" title="Photos">
+        <PanelCard storageId="fitness-right-photos" title="Photos" meta={`${filled} of 3`}>
           <div className="grid grid-cols-3 gap-2">
             {SLOTS.map((slot) => (
               <PhotoSlot
@@ -277,47 +336,36 @@ export function PhotosRight({ page, search, go }: ProgramViewProps) {
             ))}
           </div>
         </PanelCard>
-        <PanelCard storageId="fitness-right-photo-numbers" title="Measurements">
-          {figures.length ? (
-            <ul className="grid gap-1 text-[13px]">
-              {figures.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">No bodyweight or measurements on this day.</p>
-          )}
-          {changes.length ? (
-            <div className="grid gap-1">
-              <p className="text-xs font-medium text-muted-foreground">Since {formatDay(previous!.day)}</p>
-              <ul className="grid gap-1 text-[13px]">
-                {changes.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {session.note ? <p className="text-sm whitespace-pre-line text-muted-foreground">{session.note}</p> : null}
+        <PanelCard storageId="fitness-right-photo-numbers" title="Measurements" flush>
+          <dl className="grid grid-cols-2 [&>div]:grid [&>div]:content-start [&>div]:gap-0.5 [&>div]:border-b [&>div]:p-4 [&>div:nth-child(odd)]:border-r">
+            {cells.map((cell) => (
+              <div key={cell.label}>
+                <dt className="text-[13px] text-muted-foreground">{cell.label}</dt>
+                <dd className={cn("text-2xl font-semibold tabular-nums", cell.value === null && "text-muted-foreground")}>
+                  {cell.value === null ? (
+                    "\u2013"
+                  ) : (
+                    <>
+                      {cell.value}
+                      <span className="text-base font-normal text-muted-foreground"> {cell.unit}</span>
+                    </>
+                  )}
+                </dd>
+                {cell.change ? (
+                  <dd className="text-xs text-muted-foreground">
+                    {cell.change} since {SHORT_DAY.format(new Date(`${previous!.day}T00:00:00Z`))}
+                  </dd>
+                ) : null}
+              </div>
+            ))}
+          </dl>
+          <div className="grid gap-1 p-4">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Note</p>
+            <p className={cn("text-sm whitespace-pre-line", !session.note && "text-muted-foreground")}>
+              {session.note || "No note."}
+            </p>
+          </div>
         </PanelCard>
-        {others.length ? (
-          <PanelCard storageId="fitness-right-photo-compare" title="Compare">
-            <div className="grid gap-2">
-              <FieldLabel htmlFor={compareId}>Compare with</FieldLabel>
-              <Select value="" onValueChange={(other) => go({ compare: `${other},${session.id}` })}>
-                <SelectTrigger id={compareId}>
-                  <SelectValue placeholder="Pick another day" />
-                </SelectTrigger>
-                <SelectContent>
-                  {others.map((entry) => (
-                    <SelectItem key={entry.id} value={entry.id}>
-                      {formatDay(entry.day)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </PanelCard>
-        ) : null}
       </PanelBody>
       {canEdit ? (
         <PhotoDayDialogFor

@@ -30,6 +30,7 @@ const FooterOpen = React.createContext<boolean | null>(null)
 export function PanelCard({
   storageId,
   title,
+  subtitle,
   meta,
   after,
   badge,
@@ -37,12 +38,15 @@ export function PanelCard({
   actionOpen = false,
   settings = false,
   quiet = false,
+  flush = false,
   className,
   children,
 }: {
   /** Plain characters only; it names the card's remembered open or shut state. */
   storageId: string
   title: string
+  /** A muted second line under the title, such as "66 kg · 172 cm · Build muscle". */
+  subtitle?: React.ReactNode
   /** Muted, after a dot: "0 of 2 done", "4", "Oct 12 to 13". */
   meta?: React.ReactNode
   /** After the title with a gap and no dot, such as a status: "Status   ● At risk". */
@@ -57,6 +61,12 @@ export function PanelCard({
   settings?: boolean
   /** The cog and arrow only on hover or focus. */
   quiet?: boolean
+  /**
+   * The body runs to the card's edges under a line, with no padding of its
+   * own, for figures in a grid or rows split by lines (Tyler's drawings of
+   * 18 Oct 2026). Each child brings its own padding.
+   */
+  flush?: boolean
   className?: string
   children: React.ReactNode
 }) {
@@ -88,6 +98,9 @@ export function PanelCard({
                 {title}
                 {meta ? <span className="font-normal text-muted-foreground"> · {meta}</span> : null}
                 {after ? <span className="ml-2">{after}</span> : null}
+                {subtitle ? (
+                  <span className="block truncate text-[13px] font-normal text-muted-foreground">{subtitle}</span>
+                ) : null}
               </span>
             </button>
           </CollapsibleTrigger>
@@ -138,7 +151,7 @@ export function PanelCard({
       </div>
       <CollapsibleContent data-collapse-key={noFlashKey}>
         <FooterOpen.Provider value={settings ? footerOpen : null}>
-          <div className="mt-4 grid gap-4">{children}</div>
+          <div className={flush ? "-mx-4 mt-4 -mb-4 border-t" : "mt-4 grid gap-4"}>{children}</div>
         </FooterOpen.Provider>
       </CollapsibleContent>
     </Collapsible>

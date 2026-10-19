@@ -3,7 +3,7 @@ import { useRouter } from "@tanstack/react-router"
 
 import { PanelCard } from "@/components/fitness/panel-card"
 import { calendarChanged } from "@/components/fitness/program/calendar-version"
-import { saveStateLabel, useAutoSave, type ProgramPageData } from "@/components/fitness/program/program-data"
+import { useAutoSave, type ProgramPageData } from "@/components/fitness/program/program-data"
 import { WeightInput } from "@/components/fitness/weight-input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { NumberField } from "@/components/ui/number-field"
@@ -17,8 +17,7 @@ type StrengthSettingsChange = Parameters<typeof saveStrengthRules>[0]["change"]
  * The program's own rules, as two cards in the right panel: how the weights
  * move after each session, and the training blocks with their lighter weeks.
  * Which weekdays are workouts is the week itself, on the left.
- * Everything saves as it changes; the card's heading says Saving…, Saved or
- * Not saved.
+ * Everything saves as it changes; a save that fails says so in a toast.
  */
 export function StrengthSettings({ data }: { data: ProgramPageData }) {
   const router = useRouter()
@@ -31,7 +30,6 @@ export function StrengthSettings({ data }: { data: ProgramPageData }) {
     setShownStrength(data.strength)
     setStrength(data.strength)
   }
-  const status = saveStateLabel(autoSave.state) || undefined
 
   function save(key: string, change: StrengthSettingsChange, at: "soon" | "now", relay = false) {
     setStrength((current) => ({ ...current, ...change }))
@@ -49,7 +47,7 @@ export function StrengthSettings({ data }: { data: ProgramPageData }) {
 
   return (
     <>
-      <PanelCard storageId="fitness-program-weight-rules" title="Weight rules" meta={status}>
+      <PanelCard storageId="fitness-program-weight-rules" title="Weight rules">
         <div className="flex items-center gap-3">
           <Switch
             id={`${base}-auto`}
@@ -103,7 +101,7 @@ export function StrengthSettings({ data }: { data: ProgramPageData }) {
         ) : null}
       </PanelCard>
 
-      <PanelCard storageId="fitness-program-training-blocks" title="Training blocks" meta={status}>
+      <PanelCard storageId="fitness-program-training-blocks" title="Training blocks">
         <NumberField
           id={`${base}-block`}
           label="Weeks in a block, 0 for none"

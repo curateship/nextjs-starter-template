@@ -33,11 +33,7 @@ export const FITNESS_ERRORS = {
   photoTooBig: "That photo is over 15 MB. Pick a smaller one.",
   photoType: "Pick a JPEG, PNG, WebP or HEIC photo.",
   storageOff: "Photo storage isn't set up yet. The site admin turns it on in Settings, Storage.",
-  importUnreadable:
-    "That file isn't a Strong or Hevy export. Export it again from the app and pick the .csv file.",
-  importTooManyLifts: "That file names over 300 lifts that aren't in the library. Match more of them to library lifts, or import a shorter date range.",
   pictureNotYours: "Pick a picture from your own uploads.",
-  importTooBig: "That file is over 5 MB. Export a shorter date range.",
   shareOff: "This program isn't shared any more.",
   notACoach: "Only a coach can do that.",
   notYourClient: "That person isn't one of your clients.",

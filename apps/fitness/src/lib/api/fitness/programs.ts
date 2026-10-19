@@ -28,6 +28,7 @@ import {
   renameProgram,
   setActiveProgram,
   setProgramArchived,
+  setProgramPictures,
 } from "@/server/fitness/programs"
 import { loadWeeklyGoal } from "@/server/fitness/progress"
 import { setProgramShared } from "@/server/fitness/sharing"
@@ -49,7 +50,7 @@ import {
   setWeekDay,
   updateDayExercise,
 } from "@/server/fitness/week"
-import { discardUntouchedWorkouts, openWorkout } from "@/server/fitness/workouts"
+import { discardUntouchedWorkouts, lastTimesFor, openWorkout } from "@/server/fitness/workouts"
 
 export type { ProgramSummary } from "@/server/fitness/programs"
 export type { Baseline, DayExercise, StrengthSettings, WeekDay } from "@/server/fitness/week"
@@ -140,6 +141,7 @@ const loadProgramFn = createServerFn({ method: "GET" })
     if (program.userId === context.user.id) await discardUntouchedWorkouts(program.userId)
     const today = await todayFor(program.userId)
     const pause = await currentPause(program.id, today)
+    const week = await loadWeek(program.id)
     return {
       today,
       pause: pause ? { fromDay: pause.fromDay, untilDay: pause.untilDay, reason: pause.reason } : null,
@@ -151,13 +153,19 @@ const loadProgramFn = createServerFn({ method: "GET" })
         isActive: program.isActive,
         archived: Boolean(program.archivedAt),
         mine: program.userId === context.user.id,
+        bannerUrl: program.bannerUrl,
+        avatarUrl: program.avatarUrl,
       },
       strength: await loadStrengthSettings(program.id),
-      week: await loadWeek(program.id),
+      week,
       baseline: await loadBaseline(program.id),
       exercises: await listExercises(program.userId, undefined, program.routineType),
       preferences: await preferencesFor(program.userId),
       weeklyGoal: await loadWeeklyGoal(program.userId, undefined, program.id),
+      lastTimes: await lastTimesFor(
+        program.userId,
+        week.flatMap((day) => day.exercises.map((exercise) => exercise.exerciseId))
+      ),
       openWorkout: program.userId === context.user.id ? await openProgramWorkout(program.id) : null,
       templates: PLAN_TEMPLATES.map(({ id: templateId, label, description }) => ({ id: templateId, label, description })),
     }
@@ -198,6 +206,13 @@ const programChangeFn = createServerFn({ method: "POST" })
       z.object({ action: z.literal("deleteMany"), programIds: z.array(id).min(1).max(100) }),
       z.object({ action: z.literal("share"), programId: id, shared: z.boolean() }),
       z.object({
+        action: z.literal("pictures"),
+        programId: id,
+        // An empty address clears the picture, the same as null.
+        bannerUrl: z.string().trim().max(2048).nullable().optional().transform((value) => (value === "" ? null : value)),
+        avatarUrl: z.string().trim().max(2048).nullable().optional().transform((value) => (value === "" ? null : value)),
+      }),
+      z.object({
         action: z.literal("pause"),
         programId: id,
         fromDay: day,
@@ -226,6 +241,9 @@ const programChangeFn = createServerFn({ method: "POST" })
         return {}
       case "deleteMany":
         return deletePrograms(actor, data.programIds)
+      case "pictures":
+        await setProgramPictures(actor, data.programId, { bannerUrl: data.bannerUrl, avatarUrl: data.avatarUrl })
+        return {}
       case "share":
         return setProgramShared(actor, data.programId, data.shared)
       case "pause":
