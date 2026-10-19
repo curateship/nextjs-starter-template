@@ -49,6 +49,9 @@ export function SidebarResizeHandle({
   }
 
   return (
+    // Hovering the edge only changes the pointer to the resize arrows; the
+    // thick line it used to draw over the menu's edge is gone (Tyler, 18 Oct
+    // 2026). The line still shows when the edge has keyboard focus.
     <div
       role="separator"
       aria-orientation="vertical"
@@ -57,7 +60,7 @@ export function SidebarResizeHandle({
       aria-valuemax={MAX_SIDEBAR_WIDTH}
       aria-valuenow={width}
       tabIndex={0}
-      className="absolute inset-y-0 -right-2 z-20 hidden w-4 cursor-col-resize touch-none outline-hidden after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 hover:after:bg-sidebar-border focus-visible:after:bg-sidebar-ring md:block"
+      className="absolute inset-y-0 -right-2 z-20 hidden w-4 cursor-col-resize touch-none outline-hidden after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 focus-visible:after:bg-sidebar-ring md:block"
       onPointerDown={(event) => {
         if (event.button !== 0) return
         const root = event.currentTarget.closest<HTMLElement>("[data-sidebar-root]")

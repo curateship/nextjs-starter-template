@@ -28,10 +28,14 @@ edited where it stands, with no settings screen.
   numbers. The width is saved to the menu file once the drag ends, or half a
   second after the last arrow press, so every browser gets it. Unlike Custom
   Shell, clicking the edge does not fold the menu away.
+- **Hovering the edge draws no line**, only the resize pointer. Tyler had the
+  thick hover line taken out on 18 Oct 2026. Focusing the edge with Tab still
+  draws it, so the keyboard can see where it is.
 - **The logo row goes home.** The whole row at the top of the left menu, logo
   and "Personal", is one link back to `http://localhost:3021/`, Personal's
-  start page with nothing in the middle panel. Back returns to the screen that
-  was open. The logo is the one the old Personal OS used, saved as
+  start page with nothing in the middle panel, unless a screen is chosen for
+  it (see "Change the logo row" under Editing). Back returns to the screen that
+  was open. Personal's own logo is the one the old Personal OS used, saved as
   `public/logo.png` with a white `public/logo-dark.png` for dark mode, and it is
   the browser tab's icon too.
 - **Sub-links, as in Custom Shell.** A left-menu link can hold links of its
