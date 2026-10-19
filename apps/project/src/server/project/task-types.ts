@@ -32,6 +32,7 @@ import {
   type ProjectRow,
   type TaskRow,
 } from "@/server/project/access"
+import { fieldTeam, typeTeam } from "@/server/project/record-team"
 import { requireSharedProject } from "@/server/project/personal"
 import { writeTaskNotices } from "@/server/project/notices"
 import {
@@ -244,7 +245,7 @@ export async function updateTaskType(
   database = db
 ) {
   await database.transaction(async (tx) => {
-    const membership = await requireTeamRunner(userId, tx)
+    const membership = await requireTeamRunner(userId, tx, await typeTeam(userId, input.typeId, tx))
     await requireTeamType(membership.teamId, input.typeId, tx)
     const { typeId, ...fields } = input
     if (fields.name) await requireTypeNameFree(membership.teamId, fields.name, tx, typeId)
@@ -262,7 +263,7 @@ export async function archiveTaskType(
   input: { typeId: string; archived: boolean },
   database = db
 ) {
-  const membership = await requireTeamRunner(userId, database)
+  const membership = await requireTeamRunner(userId, database, await typeTeam(userId, input.typeId, database))
   await requireTeamType(membership.teamId, input.typeId, database)
   await database
     .update(projectTaskTypes)
@@ -296,7 +297,7 @@ export async function createTypeField(
   database = db
 ): Promise<{ id: string }> {
   return database.transaction(async (tx) => {
-    const membership = await requireTeamRunner(userId, tx)
+    const membership = await requireTeamRunner(userId, tx, await typeTeam(userId, input.typeId, tx))
     await requireTeamType(membership.teamId, input.typeId, tx)
     const [{ total, last }] = await tx
       .select({ total: countDistinct(projectTaskTypeFields.id), last: max(projectTaskTypeFields.position) })
@@ -343,7 +344,7 @@ export async function updateTypeField(
   database = db
 ) {
   await database.transaction(async (tx) => {
-    const membership = await requireTeamRunner(userId, tx)
+    const membership = await requireTeamRunner(userId, tx, await fieldTeam(userId, input.fieldId, tx))
     const field = await requireTeamField(membership.teamId, input.fieldId, tx)
     const siblings = (
       await tx.select().from(projectTaskTypeFields).where(eq(projectTaskTypeFields.typeId, field.typeId))
@@ -458,7 +459,7 @@ export async function reorderTypeFields(
   database = db
 ) {
   await database.transaction(async (tx) => {
-    const membership = await requireTeamRunner(userId, tx)
+    const membership = await requireTeamRunner(userId, tx, await typeTeam(userId, input.typeId, tx))
     await requireTeamType(membership.teamId, input.typeId, tx)
     const wanted = [...new Set(input.ids)]
     const rows = await tx
@@ -487,7 +488,7 @@ export async function deleteTypeField(
   database = db,
   storage?: FileStorage
 ) {
-  const membership = await requireTeamRunner(userId, database)
+  const membership = await requireTeamRunner(userId, database, await fieldTeam(userId, fieldId, database))
   const field = await requireTeamField(membership.teamId, fieldId, database)
   await removeFieldFilesFromStorage(field.id, database, storage)
   await database.transaction(async (tx) => {

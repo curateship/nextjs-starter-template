@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, type SQL } from "drizzle-orm"
+import { and, asc, count, eq, inArray, isNull, type SQL } from "drizzle-orm"
 
 import { localNow } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
@@ -22,8 +22,6 @@ import { clearPersonValues } from "@/server/project/task-types"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
 import {
   findMembership,
-  isSiteAdmin,
-  pickTeam,
   requireSiteAdmin,
   requireTeamRunner,
   type ProjectDb,
@@ -94,7 +92,7 @@ export type TeamDashboard = {
 
 /**
  * Only the site admin makes teams, and isn't put on them: they oversee, so they
- * are in no member list, picker or count. Their picker moves to the new team.
+ * are in no member list or count.
  */
 export async function createTeam(
   userId: string,
@@ -115,28 +113,88 @@ export async function createTeam(
       updatedAt: at,
     }
     await tx.insert(projectTeams).values(team)
-    await pickTeam(userId, team.id, tx)
     return toTeamSummary(team)
   })
 }
 
-export type PickerTeam = { id: string; name: string; photoUrl: string | null }
+/** A row of the site admin's Teams dashboard. */
+export type TeamListRow = {
+  id: string
+  name: string
+  avatarUrl: string | null
+  checkinTime: string
+  timeZone: string
+  /** Employees on the team; the site admin is never counted. */
+  people: number
+  /** Shared projects not archived. "Just me" lists are each person's, and not counted. */
+  openProjects: number
+  archivedProjects: number
+}
+
+/** Every team by name with its counts, for the site admin's Teams dashboard (Tyler, 19 Oct 2026). */
+export async function listTeams(userId: string, database = db): Promise<TeamListRow[]> {
+  await requireSiteAdmin(userId, database)
+  const [teams, people, projects] = await Promise.all([
+    database.select().from(projectTeams).orderBy(asc(projectTeams.name), asc(projectTeams.id)),
+    database
+      .select({ teamId: projectTeamMembers.teamId, n: count() })
+      .from(projectTeamMembers)
+      .groupBy(projectTeamMembers.teamId),
+    database
+      .select({ teamId: projectProjects.teamId, archivedAt: projectProjects.archivedAt })
+      .from(projectProjects)
+      .where(isNull(projectProjects.personalUserId)),
+  ])
+  const peopleOf = new Map(people.map((row) => [row.teamId, Number(row.n)]))
+  return teams.map((team) => {
+    const mine = projects.filter((project) => project.teamId === team.id)
+    const archived = mine.filter((project) => project.archivedAt).length
+    return {
+      id: team.id,
+      name: team.name,
+      avatarUrl: team.avatarUrl,
+      checkinTime: team.checkinTime,
+      timeZone: team.timeZone,
+      people: peopleOf.get(team.id) ?? 0,
+      openProjects: mine.length - archived,
+      archivedProjects: archived,
+    }
+  })
+}
 
 /**
- * Every team by name, and which one the site admin is looking at, for the
- * picker in the header. Anyone else gets null: the picker is the site admin's.
+ * Deletes a team for good, the site admin's alone (Tyler, 19 Oct 2026). It is
+ * refused while anyone is on the team or a shared project is still open, so a
+ * slip can't take live work with it. What is left goes with the team row: its
+ * archived projects and their tasks, "Just me" lists, check-ins, meetings,
+ * labels, task types, templates, step lists, days off and saved views, every
+ * one of the 16 tables holding a team's rows deleting with it (`onDelete:
+ * "cascade"` in `src/server/project/schema.ts`).
  */
-export async function listTeamsForPicker(
-  userId: string,
-  database = db
-): Promise<{ teams: PickerTeam[]; currentId: string | null } | null> {
-  const membership = await findMembership(userId, database)
-  if (membership ? !membership.siteAdmin : !(await isSiteAdmin(userId, database))) return null
-  const teams = await database
-    .select({ id: projectTeams.id, name: projectTeams.name, photoUrl: projectTeams.photoUrl })
-    .from(projectTeams)
-    .orderBy(asc(projectTeams.name), asc(projectTeams.id))
-  return { teams, currentId: membership?.teamId ?? null }
+export async function deleteTeam(userId: string, teamId: string, database = db) {
+  await database.transaction(async (tx) => {
+    await requireSiteAdmin(userId, tx)
+    // Locked, so a person joining or a project opening can't slip in under the check.
+    const [team] = await tx
+      .select({ id: projectTeams.id })
+      .from(projectTeams)
+      .where(eq(projectTeams.id, teamId))
+      .for("update")
+      .limit(1)
+    if (!team) throw new Error(PROJECT_ERRORS.teamNotFound)
+    const [[people], projects] = await Promise.all([
+      tx.select({ n: count() }).from(projectTeamMembers).where(eq(projectTeamMembers.teamId, teamId)),
+      // Locked too, so a project brought back from the archive meanwhile waits and is counted.
+      tx
+        .select({ archivedAt: projectProjects.archivedAt })
+        .from(projectProjects)
+        .where(and(eq(projectProjects.teamId, teamId), isNull(projectProjects.personalUserId)))
+        .for("update"),
+    ])
+    const open = projects.filter((project) => !project.archivedAt).length
+    if (Number(people.n) || open) throw new Error(PROJECT_ERRORS.teamNotEmpty)
+    await tx.delete(projectTeams).where(eq(projectTeams.id, teamId))
+  })
 }
 
 export async function loadTeamDashboard(

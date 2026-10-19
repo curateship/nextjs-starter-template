@@ -15,8 +15,8 @@ const subscribeNever = () => () => {}
 
 /**
  * Starts a team: its name and time zone, shared by the "Start a team" card
- * and the picker's New team window. The site admin runs it without being on
- * it, and the team picker moves to it.
+ * and the Teams dashboard's New team window. The site admin runs it without
+ * being on it.
  */
 export function useCreateTeam(onDone?: () => void) {
   const router = useRouter()

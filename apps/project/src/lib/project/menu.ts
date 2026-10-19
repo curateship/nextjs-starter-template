@@ -10,6 +10,7 @@ import type { ShellSection } from "@/lib/custom-shell"
 export const PROJECT_NAV_SECTION_ID = "section-project"
 export const TASK_TYPES_ITEM_ID = "item-project-task-types"
 export const MY_DASHBOARD_ITEM_ID = "item-project-dashboard"
+export const TEAM_ITEM_ID = "item-project-team"
 
 export function taskTypesItem(): ShellSection["entries"][number] {
   return {
@@ -45,7 +46,7 @@ export function projectNavSection(): ShellSection {
       },
       {
         type: "item",
-        id: "item-project-team",
+        id: TEAM_ITEM_ID,
         label: "Team",
         href: "/team",
         icon: "users",

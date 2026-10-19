@@ -58,6 +58,7 @@ import { pageGutter } from "@/lib/layout/shell-gutter"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { runsTheTeam } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * The Members page (`/team/members`), opened from Manage on the Team
@@ -95,6 +96,7 @@ function useBulkReport(one: string, many: string, verb: string) {
 type MemberColumn = "name" | "title" | "status" | "joined"
 
 function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boolean }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const { config } = useShellRuntime()
   const [query, setQuery] = React.useState("")
@@ -149,7 +151,7 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
   async function resend(member: TeamMemberRow) {
     let sent: SentInvite | null = null
     const ok = await run(async () => {
-      sent = await resendTeamInvite(member.userId)
+      sent = await resendTeamInvite(member.userId, teamId)
     })
     if (ok && sent) setResent({ sent, email: member.email })
   }
@@ -157,7 +159,7 @@ function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boole
   async function remove(people: TeamMemberRow[]) {
     let result: BulkResult = { done: [], kept: [] }
     const ok = await run(async () => {
-      result = await removeManyFromTeam(people.map((p) => p.userId))
+      result = await removeManyFromTeam(people.map((p) => p.userId), teamId)
     })
     if (!ok) return
     report(result)

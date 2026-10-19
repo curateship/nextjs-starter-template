@@ -1,13 +1,13 @@
-import { and, asc, eq, inArray, isNull, or } from "drizzle-orm"
+import { AsyncLocalStorage } from "node:async_hooks"
+
+import { and, eq, inArray, isNull, or } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { runsTheTeam, type TeamRole } from "@/lib/project/rules"
-import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   projectProjectMembers,
   projectProjects,
-  projectSiteAdminTeams,
   projectTasks,
   projectTeamMembers,
   projectTeams,
@@ -22,10 +22,11 @@ import { customShellUsers } from "@/server/schema"
  * - An employee belongs to at most one team.
  * - The site admin, an account with the shell's `admin` role, runs every
  *   team without being on any of them. Tyler, 16 Oct 2026: "Im admin, I
- *   should be able to see everything." The team picker in the header says
- *   which team they are looking at, and `findMembership` answers for them
- *   with that team and the owner's rights, so its callers need nothing of
- *   their own.
+ *   should be able to see everything." The page they are on names its team
+ *   (Tyler, 19 Oct 2026: no team dropdown): a project's own team, or the
+ *   team in a `/teams/<id>` address sent with each request through
+ *   `inTeam`. `findMembership` answers for them with that team and the
+ *   owner's rights, so its callers need nothing of their own.
  * - Team roles give no powers: "Only me, the site admin." A stored `owner` or
  *   `admin` row reads as a member.
  * - Only a project's members see it. The site admin sees every project, "Just
@@ -54,9 +55,21 @@ export type Membership = {
   siteAdmin: boolean
 }
 
+/**
+ * The team a request is about, for the site admin. An endpoint that works on
+ * one team takes its `teamId` from the page and runs inside `inTeam`, so every
+ * check below it answers for that team. Employees ignore it: they have one.
+ */
+const requestTeam = new AsyncLocalStorage<string | null>()
+
+export function inTeam<T>(teamId: string | null | undefined, run: () => Promise<T>): Promise<T> {
+  return requestTeam.run(teamId ?? null, run)
+}
+
 export async function findMembership(
   userId: string,
-  database: ProjectDb = db
+  database: ProjectDb = db,
+  teamId: string | null = requestTeam.getStore() ?? null
 ): Promise<Membership | null> {
   const [row] = await database
     .select({ accountRole: customShellUsers.role, teamId: projectTeamMembers.teamId })
@@ -66,26 +79,15 @@ export async function findMembership(
     .limit(1)
   if (!row) return null
   if (row.accountRole === "admin") {
-    const teamId = await pickedTeam(userId, database)
-    return teamId ? { teamId, userId, role: "owner", siteAdmin: true } : null
+    if (!teamId) return null
+    const [team] = await database
+      .select({ id: projectTeams.id })
+      .from(projectTeams)
+      .where(eq(projectTeams.id, teamId))
+      .limit(1)
+    return team ? { teamId: team.id, userId, role: "owner", siteAdmin: true } : null
   }
   return row.teamId ? { teamId: row.teamId, userId, role: "member", siteAdmin: false } : null
-}
-
-/** The site admin's picked team, or the first team by name when none is picked. */
-async function pickedTeam(userId: string, database: ProjectDb): Promise<string | null> {
-  const [picked] = await database
-    .select({ teamId: projectSiteAdminTeams.teamId })
-    .from(projectSiteAdminTeams)
-    .where(eq(projectSiteAdminTeams.userId, userId))
-    .limit(1)
-  if (picked) return picked.teamId
-  const [first] = await database
-    .select({ id: projectTeams.id })
-    .from(projectTeams)
-    .orderBy(asc(projectTeams.name), asc(projectTeams.id))
-    .limit(1)
-  return first?.id ?? null
 }
 
 /** Whether this account is a site admin: the shell's `admin` role. */
@@ -115,38 +117,25 @@ export async function siteAdminIds(database: ProjectDb = db): Promise<string[]> 
   return rows.map((row) => row.id)
 }
 
-/** Points the site admin's team picker at a team. Refuses a team that doesn't exist. */
-export async function pickTeam(userId: string, teamId: string, database: ProjectDb = db) {
-  await requireSiteAdmin(userId, database)
-  const [team] = await database
-    .select({ id: projectTeams.id })
-    .from(projectTeams)
-    .where(eq(projectTeams.id, teamId))
-    .limit(1)
-  if (!team) throw new Error(PROJECT_ERRORS.teamNotFound)
-  await database
-    .insert(projectSiteAdminTeams)
-    .values({ userId, teamId, updatedAt: now() })
-    .onConflictDoUpdate({
-      target: projectSiteAdminTeams.userId,
-      set: { teamId, updatedAt: now() },
-    })
-}
-
 export async function requireMembership(
   userId: string,
-  database: ProjectDb = db
+  database: ProjectDb = db,
+  teamId?: string | null
 ): Promise<Membership> {
-  const membership = await findMembership(userId, database)
-  if (!membership) throw new Error(PROJECT_ERRORS.noTeam)
+  const membership = await findMembership(userId, database, teamId ?? undefined)
+  if (!membership) {
+    // The site admin is on no team, so the request didn't say which one.
+    throw new Error((await isSiteAdmin(userId, database)) ? PROJECT_ERRORS.noTeamNamed : PROJECT_ERRORS.noTeam)
+  }
   return membership
 }
 
 export async function requireTeamRunner(
   userId: string,
-  database: ProjectDb = db
+  database: ProjectDb = db,
+  teamId?: string | null
 ): Promise<Membership> {
-  const membership = await requireMembership(userId, database)
+  const membership = await requireMembership(userId, database, teamId)
   if (!runsTheTeam(membership.role)) {
     throw new Error(PROJECT_ERRORS.notRunningTeam)
   }
@@ -213,18 +202,17 @@ export async function requireProjectAccess(
   projectId: string,
   database: ProjectDb = db
 ): Promise<{ membership: Membership; project: ProjectRow }> {
-  const membership = await requireMembership(userId, database)
   const [project] = await database
     .select()
     .from(projectProjects)
-    .where(
-      and(
-        eq(projectProjects.id, projectId),
-        eq(projectProjects.teamId, membership.teamId)
-      )
-    )
+    .where(eq(projectProjects.id, projectId))
     .limit(1)
   if (!project) throw new Error(PROJECT_ERRORS.projectNotFound)
+  // The site admin answers for the project's own team; anyone else must be on it.
+  const membership = await findMembership(userId, database, project.teamId)
+  if (!membership || membership.teamId !== project.teamId) {
+    throw new Error(PROJECT_ERRORS.projectNotFound)
+  }
   if (project.personalUserId) {
     if (project.personalUserId !== userId && !membership.siteAdmin) {
       throw new Error(PROJECT_ERRORS.projectNotFound)

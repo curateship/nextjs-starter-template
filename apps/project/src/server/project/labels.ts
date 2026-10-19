@@ -10,6 +10,7 @@ import {
   requireTeamRunner,
   type ProjectDb,
 } from "@/server/project/access"
+import { labelTeam } from "@/server/project/record-team"
 import { projectLabels, projectTaskLabels } from "@/server/project/schema"
 
 /**
@@ -112,7 +113,7 @@ export async function updateLabel(
   database = db
 ) {
   await database.transaction(async (tx) => {
-    const membership = await requireTeamRunner(userId, tx)
+    const membership = await requireTeamRunner(userId, tx, await labelTeam(userId, input.labelId, tx))
     await requireTeamLabel(membership.teamId, input.labelId, tx)
     if (input.name) await requireNameFree(membership.teamId, input.name, tx, input.labelId)
     const fields: { name?: string; color?: ProjectColor } = {}
@@ -125,7 +126,7 @@ export async function updateLabel(
 
 /** Takes the label off every task too, through the table's cascade. */
 export async function deleteLabel(userId: string, labelId: string, database = db) {
-  const membership = await requireTeamRunner(userId, database)
+  const membership = await requireTeamRunner(userId, database, await labelTeam(userId, labelId, database))
   await requireTeamLabel(membership.teamId, labelId, database)
   await database.delete(projectLabels).where(eq(projectLabels.id, labelId))
 }

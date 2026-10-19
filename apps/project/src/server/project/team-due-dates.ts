@@ -150,7 +150,8 @@ async function loadDeadlines(visible: string[], first: string, last: string, dat
 export async function setCalendarDueDates(userId: string, on: boolean, database = db) {
   const membership = await requireMembership(userId, database)
   if (membership.siteAdmin) {
-    // The picker row exists once a team has been picked; make it if it hasn't.
+    // The site admin's own row holds the switch. Its team_id is written but
+    // no longer read: the page names its team (Tyler, 19 Oct 2026).
     await database
       .insert(projectSiteAdminTeams)
       .values({ userId, teamId: membership.teamId, calendarDueDates: on, updatedAt: now() })

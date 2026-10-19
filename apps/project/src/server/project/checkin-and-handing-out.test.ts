@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { overDoingLimit } from "@/lib/project/doing-limit"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { CustomShellDb } from "@/server/db"
+import { inTeam } from "@/server/project/access"
 import { addBlockerReply } from "@/server/project/blocker-replies"
 import { saveFinishedDays, sendCheckinReminders } from "@/server/project/checkin-jobs"
 import {
@@ -280,20 +281,22 @@ describe("tags in check-in notes", () => {
 
 describe("the team's own check-in words", () => {
   it("shows the new words, and past days under the words of their day", async () => {
-    await submitCheckin(ben.id, { answers: [], picks: [], notes: { ...NO_NOTES, today: "Members table" } }, database, at(`${MONDAY}T09:00:00Z`))
-    await updateTeam(admin.id, { questionYesterday: "Wins", questionToday: "Focus" }, database)
-    await submitCheckin(ben.id, { answers: [], picks: [] }, database, at(`${TUESDAY}T09:00:00Z`))
+    await inTeam(team.id, async () => {
+      await submitCheckin(ben.id, { answers: [], picks: [], notes: { ...NO_NOTES, today: "Members table" } }, database, at(`${MONDAY}T09:00:00Z`))
+      await updateTeam(admin.id, { questionYesterday: "Wins", questionToday: "Focus" }, database)
+      await submitCheckin(ben.id, { answers: [], picks: [] }, database, at(`${TUESDAY}T09:00:00Z`))
 
-    expect((await loadCheckinPage(ben.id, database, at(`${TUESDAY}T10:00:00Z`))).questions).toEqual({
-      yesterday: "Wins",
-      today: "Focus",
-      blocker: "Blocker",
+      expect((await loadCheckinPage(ben.id, database, at(`${TUESDAY}T10:00:00Z`))).questions).toEqual({
+        yesterday: "Wins",
+        today: "Focus",
+        blocker: "Blocker",
+      })
+      const monday = await loadTeamDay(anna.id, MONDAY, database, at(`${TUESDAY}T10:00:00Z`))
+      const tuesday = await loadTeamDay(anna.id, TUESDAY, database, at(`${TUESDAY}T10:00:00Z`))
+      const benOn = (day: typeof monday) => day.people.find((p) => p.person.id === ben.id)!.questions
+      expect(benOn(monday).today).toBe("Today")
+      expect(benOn(tuesday).today).toBe("Focus")
     })
-    const monday = await loadTeamDay(anna.id, MONDAY, database, at(`${TUESDAY}T10:00:00Z`))
-    const tuesday = await loadTeamDay(anna.id, TUESDAY, database, at(`${TUESDAY}T10:00:00Z`))
-    const benOn = (day: typeof monday) => day.people.find((p) => p.person.id === ben.id)!.questions
-    expect(benOn(monday).today).toBe("Today")
-    expect(benOn(tuesday).today).toBe("Focus")
   })
 })
 
@@ -358,29 +361,31 @@ describe("my week", () => {
 
 describe("team holidays", () => {
   it("sends no reminders, saves the day off, and names it on the calendar", async () => {
-    await addHoliday(admin.id, { day: MONDAY, name: "Founders' Day" }, database)
-    await expect(addHoliday(ben.id, { day: TUESDAY, name: "Mine" }, database)).rejects.toThrow(
-      PROJECT_ERRORS.notRunningTeam
-    )
-    await expect(addHoliday(admin.id, { day: MONDAY, name: "Again" }, database)).rejects.toThrow(
-      PROJECT_ERRORS.holidayTaken
-    )
+    await inTeam(team.id, async () => {
+      await addHoliday(admin.id, { day: MONDAY, name: "Founders' Day" }, database)
+      await expect(addHoliday(ben.id, { day: TUESDAY, name: "Mine" }, database)).rejects.toThrow(
+        PROJECT_ERRORS.notRunningTeam
+      )
+      await expect(addHoliday(admin.id, { day: MONDAY, name: "Again" }, database)).rejects.toThrow(
+        PROJECT_ERRORS.holidayTaken
+      )
 
-    await sendCheckinReminders(database, at(`${MONDAY}T10:00:00Z`))
-    expect(await noticesOf(ben.id, "checkin_reminder")).toEqual([])
-    const today = await loadTeamDay(anna.id, MONDAY, database, at(`${MONDAY}T10:00:00Z`))
-    expect(today).toMatchObject({ holiday: "Founders' Day", expected: 0 })
-    expect(today.people.every((p) => p.state === "day_off")).toBe(true)
+      await sendCheckinReminders(database, at(`${MONDAY}T10:00:00Z`))
+      expect(await noticesOf(ben.id, "checkin_reminder")).toEqual([])
+      const today = await loadTeamDay(anna.id, MONDAY, database, at(`${MONDAY}T10:00:00Z`))
+      expect(today).toMatchObject({ holiday: "Founders' Day", expected: 0 })
+      expect(today.people.every((p) => p.state === "day_off")).toBe(true)
 
-    await saveFinishedDays(database, at(`${TUESDAY}T00:00:30Z`))
-    expect((await checkinOf(ben.id, MONDAY)).workDay).toBe(false)
-    const month = await loadTeamMonth(anna.id, "2099-03", database, at(`${TUESDAY}T10:00:00Z`))
-    expect(month.holidays.map((h) => h.name)).toEqual(["Founders' Day"])
-    expect(month.days.find((d) => d.day === MONDAY)).toMatchObject({ expected: 0 })
+      await saveFinishedDays(database, at(`${TUESDAY}T00:00:30Z`))
+      expect((await checkinOf(ben.id, MONDAY)).workDay).toBe(false)
+      const month = await loadTeamMonth(anna.id, "2099-03", database, at(`${TUESDAY}T10:00:00Z`))
+      expect(month.holidays.map((h) => h.name)).toEqual(["Founders' Day"])
+      expect(month.days.find((d) => d.day === MONDAY)).toMatchObject({ expected: 0 })
 
-    // A check-in on the holiday is never late.
-    await submitCheckin(carla.id, { answers: [], picks: [] }, database, at(`${MONDAY}T15:00:00Z`))
-    expect((await loadCheckinPage(carla.id, database, at(`${MONDAY}T15:01:00Z`))).checkin?.late).toBe(false)
+      // A check-in on the holiday is never late.
+      await submitCheckin(carla.id, { answers: [], picks: [] }, database, at(`${MONDAY}T15:00:00Z`))
+      expect((await loadCheckinPage(carla.id, database, at(`${MONDAY}T15:01:00Z`))).checkin?.late).toBe(false)
+    })
   })
 })
 
@@ -503,30 +508,32 @@ describe("handing out work", () => {
   })
 
   it("gives a new member the starter tasks as their own, from the site admin, and nobody already on the team", async () => {
-    await updateTeam(admin.id, { starterTasks: ["Read the handbook", "Set up email"] }, database)
-    const dan = await insertUser(database, { name: "Dan", email: "dan@example.test" })
-    await joinTeam(database, team.id, dan)
+    await inTeam(team.id, async () => {
+      await updateTeam(admin.id, { starterTasks: ["Read the handbook", "Set up email"] }, database)
+      const dan = await insertUser(database, { name: "Dan", email: "dan@example.test" })
+      await joinTeam(database, team.id, dan)
 
-    const tasks = await database
-      .select({ title: projectTasks.title, assignee: projectTasks.assigneeUserId, by: projectTasks.assignedByUserId, personal: projectProjects.personalUserId })
-      .from(projectTasks)
-      .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
-      .where(eq(projectTasks.assigneeUserId, dan.id))
-    expect(tasks).toEqual([
-      { title: "Read the handbook", assignee: dan.id, by: admin.id, personal: dan.id },
-      { title: "Set up email", assignee: dan.id, by: admin.id, personal: dan.id },
-    ])
-    expect(await noticesOf(dan.id, "tasks_handed")).toEqual([
-      expect.objectContaining({ message: "Tyler gave you 2 tasks", href: "/dashboard" }),
-    ])
-    const page = await loadCheckinPage(dan.id, database, at(`${MONDAY}T08:00:00Z`))
-    expect(page.groups.flatMap((group) => group.tasks).map((t) => t.title)).toEqual([
-      "Read the handbook",
-      "Set up email",
-    ])
-    // Nobody already on the team got them.
-    const bens = await database.select().from(projectTasks).where(eq(projectTasks.assigneeUserId, ben.id))
-    expect(bens).toEqual([])
+      const tasks = await database
+        .select({ title: projectTasks.title, assignee: projectTasks.assigneeUserId, by: projectTasks.assignedByUserId, personal: projectProjects.personalUserId })
+        .from(projectTasks)
+        .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
+        .where(eq(projectTasks.assigneeUserId, dan.id))
+      expect(tasks).toEqual([
+        { title: "Read the handbook", assignee: dan.id, by: admin.id, personal: dan.id },
+        { title: "Set up email", assignee: dan.id, by: admin.id, personal: dan.id },
+      ])
+      expect(await noticesOf(dan.id, "tasks_handed")).toEqual([
+        expect.objectContaining({ message: "Tyler gave you 2 tasks", href: "/dashboard" }),
+      ])
+      const page = await loadCheckinPage(dan.id, database, at(`${MONDAY}T08:00:00Z`))
+      expect(page.groups.flatMap((group) => group.tasks).map((t) => t.title)).toEqual([
+        "Read the handbook",
+        "Set up email",
+      ])
+      // Nobody already on the team got them.
+      const bens = await database.select().from(projectTasks).where(eq(projectTasks.assigneeUserId, ben.id))
+      expect(bens).toEqual([])
+    })
   })
 
   it("warns about Doing over the limit, and says nothing without one", () => {

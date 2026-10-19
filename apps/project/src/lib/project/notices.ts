@@ -404,12 +404,14 @@ export const MY_DASHBOARD_HREF = "/dashboard"
 export const MEMBERS_HREF = "/team/members"
 
 /**
- * A notice for the site admin, who looks at one team at a time: opening it
- * moves their team picker to the notice's team first, then goes to `href`
- * (`routes/_authenticated/projects/team.$teamId.tsx`).
+ * A notice for the site admin, who is on no team: a team page in `href`
+ * ("/team?day=…", "/team/members") becomes that team's own page under Teams,
+ * "/teams/<id>?day=…". Anything else, such as a project, names its team itself.
  */
 export function onTeamHref(teamId: string, href: string) {
-  return `/projects/team/${encodeURIComponent(teamId)}?to=${encodeURIComponent(href)}`
+  const rest = href.slice(TEAM_HREF.length)
+  const onTeamPage = href.startsWith(TEAM_HREF) && (rest === "" || rest.startsWith("?") || rest.startsWith("/"))
+  return onTeamPage ? `/teams/${encodeURIComponent(teamId)}${rest}` : href
 }
 
 /** A project's page. */

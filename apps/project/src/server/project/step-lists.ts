@@ -5,6 +5,7 @@ import { LIMITS } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { requireTaskAccess, requireTeamRunner, type ProjectDb } from "@/server/project/access"
+import { stepListTeam } from "@/server/project/record-team"
 import { projectStepLists, projectTaskSteps, projectTasks } from "@/server/project/schema"
 import type { Actor } from "@/server/project/tasks"
 
@@ -110,7 +111,7 @@ export async function renameStepList(
   database = db
 ) {
   await database.transaction(async (tx) => {
-    const membership = await requireTeamRunner(userId, tx)
+    const membership = await requireTeamRunner(userId, tx, await stepListTeam(userId, input.listId, tx))
     await requireTeamList(membership.teamId, input.listId, tx)
     await requireNameFree(membership.teamId, input.name, tx, input.listId)
     await tx.update(projectStepLists).set({ name: input.name }).where(eq(projectStepLists.id, input.listId))
@@ -118,7 +119,7 @@ export async function renameStepList(
 }
 
 export async function deleteStepList(userId: string, listId: string, database = db) {
-  const membership = await requireTeamRunner(userId, database)
+  const membership = await requireTeamRunner(userId, database, await stepListTeam(userId, listId, database))
   await requireTeamList(membership.teamId, listId, database)
   await database.delete(projectStepLists).where(eq(projectStepLists.id, listId))
 }

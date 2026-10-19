@@ -18,6 +18,7 @@ import { db } from "@/server/db"
 import {
   findMembership,
   isProjectMember,
+  isSiteAdmin,
   requireTeamRunner,
   requireOpenProject,
   requireProjectAccess,
@@ -51,6 +52,7 @@ import {
   projectTeamMembers,
   projectTeams,
 } from "@/server/project/schema"
+import { listTeamNames } from "@/server/project/record-team"
 import { customShellNotifications, customShellUsers } from "@/server/schema"
 
 export type ProjectListRow = {
@@ -68,6 +70,8 @@ export type ProjectListRow = {
   health: ProjectHealthView | null
   lead: { id: string; name: string; avatarUrl: string } | null
   client: string | null
+  /** The project's team, shown in the site admin's Team column. */
+  team: { id: string; name: string }
 }
 
 /** "At risk: Client hasn't sent the photos", set by Priya at that moment. */
@@ -79,23 +83,40 @@ export type ProjectHealthView = {
 }
 
 export type ProjectsPage = {
-  /** Null until the person creates a team or accepts an invite. */
+  /** An employee's team; null until they are put on one, and always null for the site admin. */
   team: { id: string; name: string; myRole: TeamRole } | null
+  /** The site admin sees every team's projects (Tyler, 19 Oct 2026). */
+  siteAdmin: boolean
+  /** Every team by name, for the site admin's team filter and New project; empty for anyone else. */
+  teams: { id: string; name: string }[]
+  /** The team the site admin's filter shows, or null for every team. */
+  teamFilter: string | null
   projects: ProjectListRow[]
 }
 
+/**
+ * The Projects dashboard. An employee sees their team's projects they are on;
+ * the site admin sees every team's, "Just me" lists included, narrowed to one
+ * team by `teamFilter` (a team that doesn't exist shows every team).
+ */
 export async function loadProjectsPage(
   userId: string,
-  database = db
+  database = db,
+  teamFilter: string | null = null
 ): Promise<ProjectsPage> {
-  const membership = await findMembership(userId, database)
-  if (!membership) return { team: null, projects: [] }
+  const siteAdmin = await isSiteAdmin(userId, database)
+  const teams = siteAdmin ? await listTeamNames(database) : []
+  const filter = teams.find((team) => team.id === teamFilter)?.id ?? null
+  const membership = siteAdmin ? null : await findMembership(userId, database)
+  if (!siteAdmin && !membership) return { team: null, siteAdmin, teams, teamFilter: null, projects: [] }
 
-  const [team] = await database
-    .select({ id: projectTeams.id, name: projectTeams.name })
-    .from(projectTeams)
-    .where(eq(projectTeams.id, membership.teamId))
-    .limit(1)
+  const [team] = membership
+    ? await database
+        .select({ id: projectTeams.id, name: projectTeams.name })
+        .from(projectTeams)
+        .where(eq(projectTeams.id, membership.teamId))
+        .limit(1)
+    : []
 
   // A "Just me" list is reached from My dashboard, never listed as a project,
   // except to the site admin, who sees every one by its person's name.
@@ -110,15 +131,19 @@ export async function loadProjectsPage(
         leadAvatar: lead.avatarUrl,
         setterName: setter.name,
         ownerName: owner.name,
+        teamName: projectTeams.name,
       })
       .from(projectProjects)
+      .innerJoin(projectTeams, eq(projectTeams.id, projectProjects.teamId))
       .leftJoin(lead, eq(lead.id, projectProjects.leadUserId))
       .leftJoin(setter, eq(setter.id, projectProjects.healthByUserId))
       .leftJoin(owner, eq(owner.id, projectProjects.personalUserId))
       .where(
-        membership.siteAdmin
-          ? visibleProjectsWhere(membership)
-          : and(visibleProjectsWhere(membership), isNull(projectProjects.personalUserId))
+        membership
+          ? and(visibleProjectsWhere(membership), isNull(projectProjects.personalUserId))
+          : filter
+            ? eq(projectProjects.teamId, filter)
+            : undefined
       )
       .orderBy(asc(projectProjects.name))
   ).map((row) => ({
@@ -127,6 +152,7 @@ export async function loadProjectsPage(
     leadName: row.leadName,
     leadAvatar: row.leadAvatar,
     setterName: row.setterName,
+    teamName: row.teamName,
   }))
   const ids = visible.map((project) => project.id)
 
@@ -151,7 +177,10 @@ export async function loadProjectsPage(
   const starred = await starredProjectIds(userId, ids, database)
 
   return {
-    team: team ? { ...team, myRole: membership.role } : null,
+    team: team && membership ? { ...team, myRole: membership.role } : null,
+    siteAdmin,
+    teams,
+    teamFilter: filter,
     projects: visible.map((project) => {
       const counts: Record<TaskStatus, number> = { todo: 0, doing: 0, done: 0, stuck: 0 }
       for (const row of statusRows) {
@@ -173,6 +202,7 @@ export async function loadProjectsPage(
             ? { id: project.leadUserId, name: project.leadName, avatarUrl: project.leadAvatar ?? "" }
             : null,
         client: project.client,
+        team: { id: project.teamId, name: project.teamName },
       }
     }),
   }
@@ -256,6 +286,8 @@ export type ProjectMemberRow = {
 export type ProjectPage = {
   project: {
     id: string
+    /** The project's team, which the page sends with its team-wide requests. */
+    teamId: string
     name: string
     color: ProjectColor
     description: string
@@ -340,6 +372,7 @@ export async function loadProjectPage(
   return {
     project: {
       id: project.id,
+      teamId: project.teamId,
       // The site admin opening someone's "Just me" list sees whose it is.
       name:
         project.personalUserId && project.personalUserId !== userId

@@ -2,8 +2,8 @@ import { PGlite } from "@electric-sql/pglite"
 import { and, asc, eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { onTeamHref } from "@/lib/project/notices"
 import type { CustomShellDb } from "@/server/db"
+import { inTeam } from "@/server/project/access"
 
 import { setMyCheckinTime, submitCheckin } from "@/server/project/checkins"
 import {
@@ -259,35 +259,37 @@ describe("finished and unblocked", () => {
 
 describe("the team's morning", () => {
   it("tells the site admin once, after the latest check-in time, with the calendar's numbers", async () => {
-    await setMyCheckinTime(ben.id, { checkinTime: "10:00" }, database)
-    await submitCheckin(anna.id, { answers: [], picks: [] }, database, at(`${MONDAY}T09:05:00Z`))
-    const stuck = await taskFor(carla, "Blocked thing", null, carla)
-    await submitCheckin(carla.id, { answers: [], picks: [stuck.id] }, database, at(`${MONDAY}T09:10:00Z`))
-    await setTaskStatus(actor(carla), { taskId: stuck.id, status: "stuck", stuckReason: "Waiting" }, database)
+    await inTeam(team.id, async () => {
+      await setMyCheckinTime(ben.id, { checkinTime: "10:00" }, database)
+      await submitCheckin(anna.id, { answers: [], picks: [] }, database, at(`${MONDAY}T09:05:00Z`))
+      const stuck = await taskFor(carla, "Blocked thing", null, carla)
+      await submitCheckin(carla.id, { answers: [], picks: [stuck.id] }, database, at(`${MONDAY}T09:10:00Z`))
+      await setTaskStatus(actor(carla), { taskId: stuck.id, status: "stuck", stuckReason: "Waiting" }, database)
 
-    // The latest time is Ben's 10:00, so nothing goes until 10:30.
-    await sendTeamMorningNotices(database, at(`${MONDAY}T10:29:00Z`))
-    expect(await noticesFor(admin.id, "team_morning")).toHaveLength(0)
+      // The latest time is Ben's 10:00, so nothing goes until 10:30.
+      await sendTeamMorningNotices(database, at(`${MONDAY}T10:29:00Z`))
+      expect(await noticesFor(admin.id, "team_morning")).toHaveLength(0)
 
-    await sendTeamMorningNotices(database, at(`${MONDAY}T10:30:00Z`))
-    await sendTeamMorningNotices(database, at(`${MONDAY}T11:30:00Z`))
-    const square = (await loadTeamMonth(admin.id, undefined, database, at(`${MONDAY}T10:30:00Z`))).days.find(
-      (day) => day.day === MONDAY
-    )
-    // The site admin isn't on the team, so isn't one of the three expected.
-    expect(square).toEqual({ day: MONDAY, checkedIn: 2, expected: 3, blocked: 1 })
-    // The site admin may be looking at another team, so the link picks this one first.
-    expect(await noticesFor(admin.id, "team_morning")).toEqual([
-      {
-        message: "2 of 3 checked in, 1 blocked",
-        detail: "Not yet: Ben.",
-        kind: "team_morning",
-        href: onTeamHref(team.id, `/team?day=${MONDAY}`),
-      },
-    ])
-    for (const person of [anna, ben, carla]) {
-      expect(await noticesFor(person.id, "team_morning")).toHaveLength(0)
-    }
+      await sendTeamMorningNotices(database, at(`${MONDAY}T10:30:00Z`))
+      await sendTeamMorningNotices(database, at(`${MONDAY}T11:30:00Z`))
+      const square = (await loadTeamMonth(admin.id, undefined, database, at(`${MONDAY}T10:30:00Z`))).days.find(
+        (day) => day.day === MONDAY
+      )
+      // The site admin isn't on the team, so isn't one of the three expected.
+      expect(square).toEqual({ day: MONDAY, checkedIn: 2, expected: 3, blocked: 1 })
+      // The site admin may be looking at another team, so the link picks this one first.
+      expect(await noticesFor(admin.id, "team_morning")).toEqual([
+        {
+          message: "2 of 3 checked in, 1 blocked",
+          detail: "Not yet: Ben.",
+          kind: "team_morning",
+          href: `/teams/${team.id}?day=${MONDAY}`,
+        },
+      ])
+      for (const person of [anna, ben, carla]) {
+        expect(await noticesFor(person.id, "team_morning")).toHaveLength(0)
+      }
+    })
   })
 
   it("sends nothing on a day off", async () => {

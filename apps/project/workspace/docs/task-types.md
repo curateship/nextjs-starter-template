@@ -17,6 +17,11 @@ card that sat in Team settings.
 - **Three panels**, like the project page: the team's types on the left, the
   picked type's fields in the middle, and the steps and notes a new task of
   that type starts with on the right.
+- **Which team's types.** A type belongs to one team. The site admin is on no
+  team, so the left panel's header has a team filter, starting on the first
+  team by name and kept in the address (`?team=<id>`); new types and the order
+  are saved for that team (Tyler, 19 Oct 2026, with the team dropdown gone).
+  Employees see their own team's types and no filter.
 - **The left panel's header** has a "+" that opens a New task type window
   (name, icon, colour, then Create task type, and the new type opens), and a
   cog that opens Task type settings for the picked type: its name, icon and

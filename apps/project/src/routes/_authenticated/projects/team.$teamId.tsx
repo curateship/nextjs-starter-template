@@ -1,9 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
 import { routeErrorComponent } from "@/components/shell/route-error"
-import { pickProjectTeam } from "@/lib/api/project/teams"
 import { safeRedirectPath } from "@/lib/nav/redirect-path"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { onTeamHref } from "@/lib/project/notices"
 
 /**
  * Only an address on this site, so the link can't send anyone elsewhere. A
@@ -17,21 +17,17 @@ function readTo(value: unknown) {
 }
 
 /**
- * Where the site admin's notices open. The site admin looks at one team at a
- * time, so a notice about another team moves the team picker there first,
- * then goes on to the page the notice is about (`onTeamHref` in
+ * Where the site admin's notices made before 19 Oct 2026 open. They switched a
+ * team picker that is gone, so the page they name opens straight away, a team
+ * page as that team's own page under Teams (`onTeamHref` in
  * `src/lib/project/notices.ts`). Nothing is drawn: it always redirects.
  */
 export const Route = createFileRoute("/_authenticated/projects/team/$teamId")({
-  // The switch is a write, which the server only takes from the browser
-  // itself, so a notice opened in a new tab runs this in the browser too.
-  ssr: false,
   validateSearch: (search: Record<string, unknown>) => ({ to: readTo(search.to) }),
   loaderDeps: ({ search }) => ({ to: search.to }),
-  loader: async ({ params, deps }) => {
-    await pickProjectTeam(params.teamId)
+  loader: ({ params, deps }) => {
     // Checked again here, at the redirect itself, not only in validateSearch.
-    throw redirect({ href: readTo(deps.to), replace: true })
+    throw redirect({ href: onTeamHref(params.teamId, readTo(deps.to)), replace: true })
   },
   errorComponent: routeErrorComponent(getProjectErrorMessage),
 })

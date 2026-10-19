@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/project/team-running"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { cn } from "@/lib/utils"
+import { useTeamId } from "@/lib/project/team-scope"
 
 type Loaded<T> = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; value: T }
 
@@ -45,7 +46,9 @@ function useLoaded<T>(load: () => Promise<T>, reload: unknown) {
  * and admins load it; for anyone else it is an empty list.
  */
 export function useAttention(enabled: boolean, reload: unknown) {
-  return useLoaded(enabled ? loadAttention : loadNothing, reload)
+  const teamId = useTeamId()
+  const load = React.useCallback(() => (enabled ? loadAttention(teamId) : loadNothing()), [enabled, teamId])
+  return useLoaded(load, reload)
 }
 const loadNothing = async (): Promise<AttentionRow[]> => []
 
@@ -228,7 +231,8 @@ export function WorkloadPanel({
   client: string | undefined
   onClient: (client: string | undefined) => void
 }) {
-  const load = React.useCallback(() => loadTeamWorkload(client), [client])
+  const teamId = useTeamId()
+  const load = React.useCallback(() => loadTeamWorkload(client, teamId), [client, teamId])
   const { loaded, retry } = useLoaded(load, reload)
   const [open, setOpen] = React.useState<{ person: string; bucket: WorkloadBucket } | null>(null)
   if (loaded.state === "loading") return <LoadingRow label="Loading the workload…" />

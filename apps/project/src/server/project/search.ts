@@ -3,14 +3,15 @@ import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm"
 import { taskNotesText } from "@/lib/project/notes"
 import { LIMITS, type ProjectColor, type TaskStatus } from "@/lib/project/rules"
 import { db } from "@/server/db"
-import { requireMembership, visibleProjectsWhere } from "@/server/project/access"
+import { isSiteAdmin, requireMembership, visibleProjectsWhere } from "@/server/project/access"
 import { projectProjects, projectTasks } from "@/server/project/schema"
 
 /**
  * The search in the header: every word typed, in a task's title or notes,
  * across every project the person can see and their own "Just me" list.
  * Archived projects count, since their tasks can still be read; the bin
- * doesn't. One query for the whole team, never one per project.
+ * doesn't. One query for the whole team, never one per project. The site
+ * admin's search is on every page and covers every team.
  */
 
 export type SearchHit = {
@@ -29,7 +30,9 @@ export type SearchHit = {
 const CANDIDATES = 200
 
 export async function searchTasks(userId: string, q: string, database = db): Promise<SearchHit[]> {
-  const membership = await requireMembership(userId, database)
+  const visible = (await isSiteAdmin(userId, database))
+    ? undefined
+    : visibleProjectsWhere(await requireMembership(userId, database))
   const words = wordsOf(q)
   if (words.length === 0) return []
 
@@ -51,7 +54,7 @@ export async function searchTasks(userId: string, q: string, database = db): Pro
     .innerJoin(projectProjects, eq(projectProjects.id, projectTasks.projectId))
     .where(
       and(
-        visibleProjectsWhere(membership),
+        visible,
         isNull(projectTasks.deletedAt),
         ...words.map((word) =>
           or(inTitle(word), ilike(projectTasks.notes, `%${escapeLike(word)}%`))

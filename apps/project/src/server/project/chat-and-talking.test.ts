@@ -11,7 +11,7 @@ import {
   postAnnouncement,
   takeDownAnnouncement,
 } from "@/server/project/announcements"
-import { findMembership } from "@/server/project/access"
+import { findMembership, inTeam } from "@/server/project/access"
 import { addProjectMember, removeProjectMember } from "@/server/project/projects"
 import { projectNoticeLinks, projectTaskNoteVersions } from "@/server/project/schema"
 import {
@@ -35,6 +35,7 @@ let ben: CustomShellUser
 let leo: CustomShellUser
 let carla: CustomShellUser
 let admin: CustomShellUser
+let teamId: string
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
@@ -56,7 +57,9 @@ afterEach(async () => {
  * Anna. Anna hands Ben a task in Site, and makes one in Secret.
  */
 async function setUp() {
-  admin = (await startTeam(database, [anna, ben, leo, carla])).admin
+  const started = await startTeam(database, [anna, ben, leo, carla])
+  admin = started.admin
+  teamId = started.team.id
   const { id: projectId } = await projectFor(admin, anna.id, { name: "Site", color: "blue", description: "" }, database)
   // A project's members are the site admin's to change.
   await addProjectMember(admin.id, projectId, ben.id, database)
@@ -416,36 +419,40 @@ describe("a project's own chat", () => {
 describe("the team's announcement", () => {
   it("is posted by the site admin, tells the whole team, and shows to everyone on it", async () => {
     await setUp()
-    await expect(postAnnouncement(ben, "Party", database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-    await postAnnouncement(admin, "Office closed Friday", database)
+    await inTeam(teamId, async () => {
+      await expect(postAnnouncement(ben, "Party", database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+      await postAnnouncement(admin, "Office closed Friday", database)
 
-    for (const person of [anna, ben, leo, carla]) {
-      expect(await noticesFor(person.id)).toEqual([
-        { message: "Tyler posted an announcement", detail: "Office closed Friday", kind: "team_announcement", href: "/team" },
-      ])
-    }
-    expect(await noticesFor(admin.id)).toEqual([])
-    const membership = (await findMembership(carla.id, database))!
-    expect(await loadAnnouncement(membership, database)).toMatchObject({ text: "Office closed Friday", by: { name: "Tyler" } })
+      for (const person of [anna, ben, leo, carla]) {
+        expect(await noticesFor(person.id)).toEqual([
+          { message: "Tyler posted an announcement", detail: "Office closed Friday", kind: "team_announcement", href: "/team" },
+        ])
+      }
+      expect(await noticesFor(admin.id)).toEqual([])
+      const membership = (await findMembership(carla.id, database))!
+      expect(await loadAnnouncement(membership, database)).toMatchObject({ text: "Office closed Friday", by: { name: "Tyler" } })
+    })
   })
 
   it("keeps one at a time, hides for one person until the next, and comes down for everyone", async () => {
     await setUp()
-    await postAnnouncement(admin, "First", database)
-    const benMembership = (await findMembership(ben.id, database))!
-    const leoMembership = (await findMembership(leo.id, database))!
-    const first = (await loadAnnouncement(benMembership, database))!
-    await hideAnnouncement(ben.id, first.id, database)
-    expect(await loadAnnouncement(benMembership, database)).toBeNull()
-    expect(await loadAnnouncement(leoMembership, database)).toMatchObject({ text: "First" })
+    await inTeam(teamId, async () => {
+      await postAnnouncement(admin, "First", database)
+      const benMembership = (await findMembership(ben.id, database))!
+      const leoMembership = (await findMembership(leo.id, database))!
+      const first = (await loadAnnouncement(benMembership, database))!
+      await hideAnnouncement(ben.id, first.id, database)
+      expect(await loadAnnouncement(benMembership, database)).toBeNull()
+      expect(await loadAnnouncement(leoMembership, database)).toMatchObject({ text: "First" })
 
-    await postAnnouncement(admin, "Second", database)
-    expect(await loadAnnouncement(benMembership, database)).toMatchObject({ text: "Second" })
+      await postAnnouncement(admin, "Second", database)
+      expect(await loadAnnouncement(benMembership, database)).toMatchObject({ text: "Second" })
 
-    await expect(takeDownAnnouncement(ben, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-    await takeDownAnnouncement(admin, database)
-    expect(await loadAnnouncement(leoMembership, database)).toBeNull()
-    await expect(takeDownAnnouncement(admin, database)).rejects.toThrow(PROJECT_ERRORS.noAnnouncement)
+      await expect(takeDownAnnouncement(ben, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+      await takeDownAnnouncement(admin, database)
+      expect(await loadAnnouncement(leoMembership, database)).toBeNull()
+      await expect(takeDownAnnouncement(admin, database)).rejects.toThrow(PROJECT_ERRORS.noAnnouncement)
+    })
   })
 })
 

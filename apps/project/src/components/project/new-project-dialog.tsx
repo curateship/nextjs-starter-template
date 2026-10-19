@@ -36,18 +36,22 @@ type TemplatesState =
   | { state: "error"; error: string; retry: () => void }
   | { state: "ready"; rows: TemplateRow[] }
 
-/** The team's templates, read each time the window opens so a new one shows at once. */
-function useTemplates(open: boolean): TemplatesState {
-  const [rows, setRows] = React.useState<TemplateRow[] | null>(null)
+/**
+ * The team's templates, read each time the window opens so a new one shows at
+ * once. The site admin's are the picked team's, so nothing loads until one is.
+ */
+function useTemplates(open: boolean, needsTeam: boolean, teamId: string): TemplatesState {
+  // Kept with the team they belong to, so another team's never show while its own load.
+  const [loaded, setLoaded] = React.useState<{ teamId: string; rows: TemplateRow[] } | null>(null)
   const [error, setError] = React.useState("")
   const [tries, setTries] = React.useState(0)
   React.useEffect(() => {
-    if (!open) return
+    if (!open || (needsTeam && !teamId)) return
     let live = true
-    loadTemplates().then(
+    loadTemplates(teamId || undefined).then(
       (next) => {
         if (!live) return
-        setRows(next)
+        setLoaded({ teamId, rows: next })
         setError("")
       },
       (failure: unknown) => {
@@ -57,7 +61,7 @@ function useTemplates(open: boolean): TemplatesState {
     return () => {
       live = false
     }
-  }, [open, tries])
+  }, [open, tries, needsTeam, teamId])
   if (error) {
     const retry = () => {
       setError("")
@@ -65,25 +69,45 @@ function useTemplates(open: boolean): TemplatesState {
     }
     return { state: "error", error, retry }
   }
-  if (!rows) return { state: "loading" }
-  return { state: "ready", rows }
+  if (needsTeam && !teamId) return { state: "ready", rows: [] }
+  if (!loaded || loaded.teamId !== teamId) return { state: "loading" }
+  return { state: "ready", rows: loaded.rows }
 }
 
+/**
+ * `teams` is every team, for the site admin, who picks which one the project
+ * is in (Tyler, 19 Oct 2026); it starts on `startTeamId`, or on the only team.
+ * Anyone else has one team and no choice, so they get an empty list.
+ */
 export function NewProjectDialog({
   open,
   onClose,
+  teams = [],
+  startTeamId = null,
 }: {
   open: boolean
   onClose: () => void
+  teams?: { id: string; name: string }[]
+  startTeamId?: string | null
 }) {
   const navigate = useNavigate()
   const [name, setName] = React.useState("")
   const [color, setColor] = React.useState<ProjectColor>("blue")
   const [description, setDescription] = React.useState("")
   const [templateId, setTemplateId] = React.useState(EMPTY)
+  const firstTeam = startTeamId ?? (teams.length === 1 ? teams[0].id : "")
+  const [teamId, setTeamId] = React.useState(firstTeam)
+  // Each opening starts on the filter's team, which may have changed since.
+  const [openedOn, setOpenedOn] = React.useState(firstTeam)
+  if (open && openedOn !== firstTeam) {
+    setOpenedOn(firstTeam)
+    setTeamId(firstTeam)
+  }
   const [invalid, setInvalid] = React.useState(false)
+  const [teamInvalid, setTeamInvalid] = React.useState(false)
   const [run, saving] = useAsyncAction(getProjectErrorMessage)
-  const templates = useTemplates(open)
+  const needsTeam = teams.length > 0
+  const templates = useTemplates(open, needsTeam, teamId)
   const template = templates.state === "ready" ? templates.rows.find((row) => row.id === templateId) : undefined
   const dirty = Boolean(name.trim() || description.trim() || templateId !== EMPTY)
 
@@ -92,11 +116,18 @@ export function NewProjectDialog({
     setColor("blue")
     setDescription("")
     setTemplateId(EMPTY)
+    setTeamId(firstTeam)
     setInvalid(false)
+    setTeamInvalid(false)
     onClose()
   }
 
   async function create() {
+    if (needsTeam && !teamId) {
+      setTeamInvalid(true)
+      showErrorToast("Pick the team the project is in.")
+      return
+    }
     if (!name.trim()) {
       setInvalid(true)
       showErrorToast("Give the project a name.")
@@ -105,7 +136,10 @@ export function NewProjectDialog({
     let projectId = ""
     const ok = await run(async () => {
       projectId = (
-        await createNewProject({ name, color, description, templateId: template ? template.id : null })
+        await createNewProject(
+          { name, color, description, templateId: template ? template.id : null },
+          teamId || undefined
+        )
       ).id
     }, "Project created.")
     if (!ok) return
@@ -136,6 +170,35 @@ export function NewProjectDialog({
                   <CardTitle>Project</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4">
+                  {needsTeam ? (
+                    <div className="grid gap-2">
+                      <Label htmlFor="new-project-team">Team</Label>
+                      <Select
+                        value={teamId}
+                        onValueChange={(next) => {
+                          setTeamId(next)
+                          setTeamInvalid(false)
+                          // Templates are a team's own, so a pick from another team goes.
+                          setTemplateId(EMPTY)
+                        }}
+                      >
+                        <SelectTrigger
+                          id="new-project-team"
+                          className="w-full sm:w-fit"
+                          aria-invalid={teamInvalid || undefined}
+                        >
+                          <SelectValue placeholder="Pick a team" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {teams.map((team) => (
+                            <SelectItem key={team.id} value={team.id}>
+                              {team.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
                   <div className="grid gap-2">
                     <FieldLabel
                       htmlFor="new-project-template"
@@ -165,7 +228,9 @@ export function NewProjectDialog({
                     )}
                     {templates.state === "ready" && templates.rows.length === 0 ? (
                       <p className="text-xs text-muted-foreground">
-                        No templates yet. Save one from any project's settings.
+                        {needsTeam && !teamId
+                          ? "Pick a team to see its templates."
+                          : "No templates yet. Save one from any project's settings."}
                       </p>
                     ) : null}
                   </div>

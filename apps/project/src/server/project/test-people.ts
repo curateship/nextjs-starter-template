@@ -1,6 +1,8 @@
 import { eq } from "drizzle-orm"
 
 import { now, uuid } from "@/server/auth/security"
+import { findMembership, inTeam } from "@/server/project/access"
+import { listTeamNames } from "@/server/project/record-team"
 import type { CustomShellDb } from "@/server/db"
 import { EMPLOYEE_ROLE } from "@/server/project/invites"
 import { projectTeamMembers } from "@/server/project/schema"
@@ -53,8 +55,8 @@ export async function joinTeam(database: CustomShellDb, teamId: string, person: 
 
 /**
  * A team made by a site admin, with these people on it as employees. A site
- * admin is made for it unless one is given; the admin's team picker ends on
- * this team.
+ * admin is made for it unless one is given. The admin is on no team, so a
+ * test acting as them runs inside `inTeam(team.id, …)`.
  */
 export async function startTeam(
   database: CustomShellDb,
@@ -78,7 +80,10 @@ export async function projectFor(
   input: Parameters<typeof createProject>[1],
   database: CustomShellDb
 ): Promise<{ id: string }> {
-  const made = await createProject(admin.id, input, database)
+  // The project goes in the person's team, the one the site admin would be
+  // looking at; made for the admin themselves, in the first team.
+  const teamId = (await findMembership(personId, database))?.teamId ?? (await listTeamNames(database))[0]?.id
+  const made = await inTeam(teamId, () => createProject(admin.id, input, database))
   if (personId !== admin.id) await addProjectMember(admin.id, made.id, personId, database)
   return made
 }

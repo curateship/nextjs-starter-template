@@ -353,6 +353,10 @@ export function ProjectTasksPanel({
     await router.invalidate()
   }
 
+  const [selectedSlot, setSelectedSlot] = React.useState<HTMLDivElement | null>(null)
+  // A task is deleted by whoever made it, or by the site admin.
+  const canDelete = (task: TaskCard) => task.createdByUserId === page.myUserId || runsTheTeam(page.myRole)
+
   // Open tasks for the members dropdown, counted before any filter.
   const openTasks = tasks.filter((task) => task.status !== "done")
 
@@ -389,6 +393,8 @@ export function ProjectTasksPanel({
         <div className="flex shrink-0 items-center gap-1">
           {taskTab ? (
             <>
+              {/* The List's "3 selected" button lands here, left of All time. */}
+              {view === "list" ? <div ref={setSelectedSlot} className="contents" /> : null}
               <DueFilterMenu value={filters.due} onChange={(due) => onFilters({ due })} />
               <SearchToggle value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
               <TaskFilterPopover
@@ -503,7 +509,7 @@ export function ProjectTasksPanel({
               : {
                   onDuplicate: (task) => void duplicate(task),
                   onDelete: (task) => setDeleting(task),
-                  canDelete: (task) => task.createdByUserId === page.myUserId || runsTheTeam(page.myRole),
+                  canDelete,
                 }
           }
           onHandOver={(task, personId, status, order) => {
@@ -523,7 +529,8 @@ export function ProjectTasksPanel({
       ) : (
         <TaskList
           tasks={filtered}
-          readOnly={readOnly || busy}
+          readOnly={readOnly}
+          busy={busy}
           onOpenTask={(task) => onOpenTask(task.id)}
           groups={page.sections.length ? sectionGroups : undefined}
           groupOf={(task) => task.section?.id ?? NO_SECTION}
@@ -531,6 +538,9 @@ export function ProjectTasksPanel({
           onReorder={readOnly ? undefined : (taskIds) => void reorder(taskIds)}
           bulk={{ people, projects: page.otherProjects }}
           fieldColumns={fieldColumns}
+          selectedSlot={selectedSlot}
+          onDelete={(task) => setDeleting(task)}
+          canDelete={canDelete}
         />
       )}
       <NewTaskDialog

@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { ArchiveIcon, ArchiveRestoreIcon, CopyIcon, PlusIcon } from "lucide-react"
+import { ArchiveIcon, ArchiveRestoreIcon, ChevronDownIcon, CopyIcon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CopyProjectDialog } from "@/components/project/copy-project-dialog"
@@ -24,9 +24,14 @@ import {
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -45,11 +50,18 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { runsTheTeam } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-type Column = "name" | "progress" | "status" | "lead" | "open" | "stuck" | "members"
+type Column = "name" | "team" | "progress" | "status" | "lead" | "open" | "stuck" | "members"
 type Group = "active" | "archived"
 
-const COLUMNS: SortableColumn<Column>[] = [
-  { key: "name", label: "Project", column: "main", className: "min-w-0 md:min-w-72" },
+const NAME_COLUMN: SortableColumn<Column> = {
+  key: "name",
+  label: "Project",
+  column: "main",
+  className: "min-w-0 md:min-w-72",
+}
+/** The site admin sees every team's projects, so each row names its team. */
+const TEAM_COLUMN: SortableColumn<Column> = { key: "team", label: "Team", column: "preview" }
+const OTHER_COLUMNS: SortableColumn<Column>[] = [
   { key: "progress", label: "Progress", column: "preview" },
   { key: "status", label: "Status", column: "preview" },
   { key: "lead", label: "Lead", column: "preview" },
@@ -63,6 +75,7 @@ const openTasks = (row: ProjectListRow) => row.counts.todo + row.counts.doing + 
 /** Sorting by status puts the projects in most trouble first, and no status last. */
 const HEALTH_RANK = { off_track: 3, at_risk: 2, on_track: 1 } as const
 
+const ALL_TEAMS = "all"
 const ALL_CLIENTS = "all"
 const NO_CLIENT = "none"
 const NO_CLIENT_LABEL = "No client"
@@ -77,13 +90,22 @@ function compareClients(a: string | null, b: string | null) {
 
 export function ProjectsDashboard({
   page,
+  onTeamFilter,
 }: {
   page: ProjectsPage
+  /** The site admin's team filter, kept in the address; null is every team. */
+  onTeamFilter: (teamId: string | null) => void
 }) {
-  if (!page.team) return <TeamStart />
+  if (page.siteAdmin ? page.teams.length === 0 : !page.team) return <TeamStart />
   return (
     <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
-      <ProjectsTable projects={page.projects} siteAdmin={runsTheTeam(page.team.myRole)} />
+      <ProjectsTable
+        projects={page.projects}
+        siteAdmin={page.siteAdmin || (page.team ? runsTheTeam(page.team.myRole) : false)}
+        teams={page.siteAdmin ? page.teams : []}
+        teamFilter={page.teamFilter}
+        onTeamFilter={onTeamFilter}
+      />
     </div>
   )
 }
@@ -93,7 +115,21 @@ export function ProjectsDashboard({
  * 16 Oct 2026: "only I create projects"), so employees get the list to read
  * and open, with stars.
  */
-function ProjectsTable({ projects, siteAdmin }: { projects: ProjectListRow[]; siteAdmin: boolean }) {
+function ProjectsTable({
+  projects,
+  siteAdmin,
+  teams,
+  teamFilter,
+  onTeamFilter,
+}: {
+  projects: ProjectListRow[]
+  siteAdmin: boolean
+  /** Every team, for the site admin; empty for an employee, who has one. */
+  teams: { id: string; name: string }[]
+  teamFilter: string | null
+  onTeamFilter: (teamId: string | null) => void
+}) {
+  const columns = teams.length ? [NAME_COLUMN, TEAM_COLUMN, ...OTHER_COLUMNS] : [NAME_COLUMN, ...OTHER_COLUMNS]
   const navigate = useNavigate()
   const router = useRouter()
   const { config } = useShellRuntime()
@@ -102,6 +138,7 @@ function ProjectsTable({ projects, siteAdmin }: { projects: ProjectListRow[]; si
   const [creating, setCreating] = React.useState(false)
   const [copyingRow, setCopyingRow] = React.useState<ProjectListRow | null>(null)
   const [client, setClient] = React.useState<string>(ALL_CLIENTS)
+  const clientLabel = client === ALL_CLIENTS ? "All clients" : client === NO_CLIENT ? NO_CLIENT_LABEL : client
   const [byClient, setByClient] = React.useState(false)
   const { sort, direction, toggleSort } = useTableSort<Column>("name")
   const selection = useSelection()
@@ -148,6 +185,7 @@ function ProjectsTable({ projects, siteAdmin }: { projects: ProjectListRow[]; si
         // Starred projects come first whatever the sort, as each person's own shortcut.
         if (a.starred !== b.starred) return a.starred ? -1 : 1
         if (sort === "name") return a.name.localeCompare(b.name) * sign
+        if (sort === "team") return a.team.name.localeCompare(b.team.name) * sign || a.name.localeCompare(b.name)
         if (sort === "lead") {
           return (a.lead?.name ?? "").localeCompare(b.lead?.name ?? "") * sign || a.name.localeCompare(b.name)
         }
@@ -162,7 +200,8 @@ function ProjectsTable({ projects, siteAdmin }: { projects: ProjectListRow[]; si
   )
   // A "Just me" list can't be archived, so it can't be ticked either.
   const visibleIds = siteAdmin ? visible.filter((row) => !row.personal).map((row) => row.id) : []
-  useClearSelectionOnListChange(selection.setSelected, `${group}|${query}|${client}`)
+  // The team filter too: ticks on another team's rows would be archived unseen.
+  useClearSelectionOnListChange(selection.setSelected, `${group}|${query}|${client}|${teamFilter}`)
 
   async function setArchived(ids: string[], archived: boolean) {
     let result = { done: [] as string[], kept: [] as string[] }
@@ -206,6 +245,14 @@ function ProjectsTable({ projects, siteAdmin }: { projects: ProjectListRow[]; si
         onClearSelection={selection.clear}
         controls={
           <>
+            {/* Search first, then the rest (Tyler, 19 Oct 2026). */}
+            <DashboardToolbarSearch
+              name="project-search"
+              aria-label="Search projects by name"
+              placeholder="Search projects…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
             {selectedIds.length ? (
               <DashboardToolbarButton
                 type="button"
@@ -221,35 +268,56 @@ function ProjectsTable({ projects, siteAdmin }: { projects: ProjectListRow[]; si
                 {group === "active" ? "Archive" : "Bring back"} ({selectedIds.length})
               </DashboardToolbarButton>
             ) : null}
-            <DashboardToolbarSearch
-              name="project-search"
-              aria-label="Search projects by name"
-              placeholder="Search projects…"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            {clients.length ? (
-              <Select value={client} onValueChange={setClient}>
-                <DashboardToolbarSelectTrigger aria-label="Client">
+            {teams.length ? (
+              <Select
+                value={teamFilter ?? ALL_TEAMS}
+                onValueChange={(value) => onTeamFilter(value === ALL_TEAMS ? null : value)}
+              >
+                <DashboardToolbarSelectTrigger aria-label="Team">
                   <SelectValue />
                 </DashboardToolbarSelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL_CLIENTS}>All clients</SelectItem>
-                  {clients.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
+                  <SelectItem value={ALL_TEAMS}>All teams</SelectItem>
+                  {teams.map((team) => (
+                    <SelectItem key={team.id} value={team.id}>
+                      {team.name}
                     </SelectItem>
                   ))}
-                  <SelectItem value={NO_CLIENT}>{NO_CLIENT_LABEL}</SelectItem>
                 </SelectContent>
               </Select>
             ) : null}
-            <div className="flex h-8 items-center gap-2">
-              <Switch id="projects-group-by-client" checked={byClient} onCheckedChange={setByClient} />
-              <Label htmlFor="projects-group-by-client" className="font-normal whitespace-nowrap">
-                Group by client
-              </Label>
-            </div>
+            {/* Group by client sits in the client dropdown, under the clients (Tyler, 19 Oct 2026). */}
+            {/* Kept while a client or grouping is on, so either can still be turned off. */}
+            {clients.length || client !== ALL_CLIENTS || byClient ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <DashboardToolbarButton type="button" variant="outline" aria-label={`Client: ${clientLabel}`}>
+                    {clientLabel}
+                    <ChevronDownIcon className="size-4 text-muted-foreground" />
+                  </DashboardToolbarButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  {[ALL_CLIENTS, ...clients, NO_CLIENT].map((value) => (
+                    <DropdownMenuCheckboxItem
+                      key={value}
+                      checked={client === value}
+                      onCheckedChange={() => setClient(value)}
+                    >
+                      {value === ALL_CLIENTS ? "All clients" : value === NO_CLIENT ? NO_CLIENT_LABEL : value}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                    checked={byClient}
+                    // A setting, not a choice, so the menu stays open to show it changed.
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={(checked) => setByClient(checked === true)}
+                  >
+                    Group by client
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
             {siteAdmin ? (
               <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
                 <PlusIcon className="size-4" />
@@ -260,7 +328,7 @@ function ProjectsTable({ projects, siteAdmin }: { projects: ProjectListRow[]; si
         }
         header={
           <SortableTableHeader
-            columns={COLUMNS}
+            columns={columns}
             sort={sort}
             direction={direction}
             onSort={toggleSort}
@@ -285,7 +353,7 @@ function ProjectsTable({ projects, siteAdmin }: { projects: ProjectListRow[]; si
                 ? "No projects yet. Make one with New project."
                 : "You aren't on any projects yet. The site admin adds you to them."
         }
-        emptyColSpan={COLUMNS.length + 2}
+        emptyColSpan={columns.length + 2}
         footer={footer}
       >
         {visible.map((row, index) => {
@@ -297,7 +365,7 @@ function ProjectsTable({ projects, siteAdmin }: { projects: ProjectListRow[]; si
             <React.Fragment key={row.id}>
             {groupStarts ? (
               <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableCell colSpan={COLUMNS.length + 2} className="py-1.5 text-xs font-medium text-muted-foreground">
+                <TableCell colSpan={columns.length + 2} className="py-1.5 text-xs font-medium text-muted-foreground">
                   {row.client ?? NO_CLIENT_LABEL}
                 </TableCell>
               </TableRow>
@@ -322,6 +390,11 @@ function ProjectsTable({ projects, siteAdmin }: { projects: ProjectListRow[]; si
                   </span>
                 </span>
               </TableCell>
+              {teams.length ? (
+                <TableCell column="preview" className="truncate">
+                  {row.team.name}
+                </TableCell>
+              ) : null}
               <TableCell column="preview">
                 <ProjectProgress counts={row.counts} dueDate={row.dueDate} />
               </TableCell>
@@ -374,7 +447,12 @@ function ProjectsTable({ projects, siteAdmin }: { projects: ProjectListRow[]; si
           )
         })}
       </DashboardTable>
-      <NewProjectDialog open={creating} onClose={() => setCreating(false)} />
+      <NewProjectDialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        teams={teams}
+        startTeamId={teamFilter}
+      />
       {copyingRow ? (
         <CopyProjectDialog project={copyingRow} open onClose={() => setCopyingRow(null)} />
       ) : null}

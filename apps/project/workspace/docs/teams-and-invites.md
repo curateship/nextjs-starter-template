@@ -20,26 +20,48 @@ two kinds of people, both ordinary shell accounts signing in on the one
 - **The site admin** runs every team without being on any. It is the shell's
   `admin` role. Tyler: "Im admin, I should be able to see everything" and
   "What tasks? if i only overseeas the team, why would I get tasks?" The site
-  admin is in no member list, picker or count, has no tasks, no "Just me" list
+  admin is in no member list or count, has no tasks, no "Just me" list
   and no check-in, and My dashboard sends them to the Team dashboard.
 
 ## Teams
 
 - **An employee belongs to one team.**
-- **Only the site admin makes teams**, from "New team" in the team picker, or
-  the "Start a team" card while there are none. The server refuses anyone
+- **Only the site admin makes teams**, from New team on the Teams dashboard,
+  or the "Start a team" card while there are none. The server refuses anyone
   else. An employee who isn't on a team sees "Not on a team yet. The site
   admin puts you on a team."
-- **The team picker** sits at the left of the header for the site admin only
-  (`header.leftContent` with `roles: ["admin"]`,
-  `src/components/project/team-picker-header.tsx`): every team by name, a tick
-  on the one shown, then New team. The pick is saved on the server
-  (`project_site_admin_teams`), so it holds on every device, and every Project
-  page shows that team. With nothing picked it starts on the first team by
-  name.
-- **A notice meant for the site admin opens on the right team.** Its link goes
-  through `/projects/team/<team>?to=<page>`, which moves the picker first
-  (`onTeamHref` in `src/lib/project/notices.ts`).
+- **There is no team dropdown.** Tyler, 19 Oct 2026: "There should be a team
+  dashboard to create, edit and delete teams and there should be no team
+  dropdown in the navigation. Admin sees all project." A saved pick decided
+  which team every page showed, and an agent's browser check once left it on
+  an empty team, so every project seemed gone.
+- **The Teams dashboard** (`/teams`, "Teams" in the site admin's left menu;
+  an employee's link stays "Team", their own team at `/team`) lists every
+  team by name: People, Projects (open, then archived), Check-in time and
+  zone, and Actions with a cog and a bin. New team sits in its header. A row
+  opens that team's own dashboard at `/teams/<id>`, with Members at
+  `/teams/<id>/members`. The cog opens the team's settings window, the same
+  one its dashboard opens, kept in the address (`/teams?settings=<id>`) so
+  each change made in it shows straight away. The site admin landing on `/team` or My dashboard
+  goes to `/teams`.
+- **Each page names its team.** A project's page uses the project's team, and
+  a team's page the team in its address, sent with every request it makes
+  (`inTeam` in `src/server/project/access.ts`, `TeamScope` in
+  `src/lib/project/team-scope.tsx`). Two tabs on two teams never mix.
+  Employees have one team and send nothing.
+- **Deleting a team.** The bin asks "Delete Beta?" and the team goes for good
+  with everything left in it: archived projects and their tasks, "Just me"
+  lists, check-ins, meetings, labels, task types, templates, step lists, days
+  off and saved views. It is refused while anyone is on the team or a shared
+  project is still open: the window says "Sample team can't be deleted yet",
+  names what is left, and links to Members and to Projects filtered to that
+  team (Tyler chose this over a delete that takes live work, 19 Oct 2026).
+  Uploaded files such as the team photo stay in storage.
+- **A notice meant for the site admin opens the right team.** A link to a
+  team page goes to that team's own page, `/teams/<id>?day=…`
+  (`onTeamHref` in `src/lib/project/notices.ts`). Notices made before 19 Oct
+  2026 point at `/projects/team/<id>?to=<page>`, which now opens the page
+  straight away.
 - **What a team holds.** A name, a daily check-in time (9:00 to begin with), a
   time zone, and its work days (Monday to Friday to begin with). Each person
   can shift the time and time zone to their own hours on My dashboard
@@ -475,10 +497,9 @@ week?" in one click.
 - **Starter tasks:** `src/server/project/starter-tasks.ts`, given out when an
   invite or the join link puts someone on the team (`addEmployee` in
   `invites.ts`).
-- **The site admin's picker:** `project_site_admin_teams` in
-  `drizzle/0119_project_employees_and_site_admin.sql`, which also made the
-  people already on a team employees and took the site admin off the teams
-  they were on.
+- **`project_site_admin_teams`** (`drizzle/0119_project_employees_and_site_admin.sql`)
+  held the dropdown's pick. Its `team_id` is no longer read; the row still
+  holds the site admin's calendar setting, `calendar_due_dates`.
 - **The four figures:** `src/server/project/team-figures.ts`, drawn by
   `src/components/project/team-figures.tsx` with the team photo.
 - **Who may do what:** `src/server/project/access.ts` (`findMembership`,
@@ -488,9 +509,10 @@ week?" in one click.
   in `team-checkin-settings.tsx`,
   `src/components/project/team-members.tsx`,
   `src/components/project/team-start.tsx`,
-  `src/components/project/team-picker-header.tsx` and the join page
+  `src/components/project/teams-dashboard.tsx` and the join page
   `src/routes/join.$token.tsx`.
 - **Tests:** `src/server/project/employees-and-site-admin.test.ts`,
+  `src/server/project/teams-dashboard.test.ts` (the list, delete and notice links),
   `src/server/project/project.test.ts`, the figures and photo
   in `src/server/project/team-dashboard.test.ts`, and the announcement in
   `src/server/project/chat-and-talking.test.ts`.

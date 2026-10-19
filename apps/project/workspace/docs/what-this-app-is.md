@@ -114,12 +114,16 @@ in [Teams and invites](teams-and-invites.md#who-is-who).
   covers New project and Copy project.
 - **A project's settings are the site admin's alone:** "Employees dont even
   see the settings cog or page. Only admin see it".
-- **The site admin moves between teams with a team picker**, and sees each
-  one as its owner would.
+- **The site admin runs teams from a Teams dashboard, with no team
+  dropdown:** "There should be a team dashboard to create, edit and delete
+  teams and there should be no team dropdown in the navigation. Admin sees all
+  project. The project dashboard can have a filter by team dropdown." (19 Oct
+  2026). Each team keeps its own dashboard, and a team is deleted only once
+  it has no people and no open projects.
 - **The site admin sees everything, private things included**: each
   person's My week, check-out notes, check-in record and "Just me" tasks.
 - **The site admin stays invisible** in a team they look at: not a member,
-  not in any picker or count. The notices meant for whoever runs the team
+  not in any list or count. The notices meant for whoever runs the team
   (the morning count, joins, a milestone with no lead) go to him; task
   notices don't, since he is on no task.
 

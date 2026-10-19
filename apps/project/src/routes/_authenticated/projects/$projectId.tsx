@@ -5,6 +5,7 @@ import { ProjectWorkspace } from "@/components/project/project-workspace"
 import { loadProject } from "@/lib/api/project/projects"
 import { readTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
 import { pageTitleHead } from "@/lib/project/page-title"
+import { TeamScope } from "@/lib/project/team-scope"
 
 type ProjectSearch = TaskFilters & {
   /** The task open in the middle panel, so a bell notice can open it. */
@@ -36,13 +37,16 @@ export const Route = createFileRoute("/_authenticated/projects/$projectId")({
 function ProjectRoute() {
   const page = Route.useLoaderData()
   const { task, chat, ...filters } = Route.useSearch()
+  // The site admin is on no team, so the page names the project's own.
   return (
-    <ProjectWorkspace
-      key={page.project.id}
-      page={page}
-      openTaskId={task}
-      filters={filters}
-      openChat={chat === 1}
-    />
+    <TeamScope teamId={page.project.teamId}>
+      <ProjectWorkspace
+        key={page.project.id}
+        page={page}
+        openTaskId={task}
+        filters={filters}
+        openChat={chat === 1}
+      />
+    </TeamScope>
   )
 }

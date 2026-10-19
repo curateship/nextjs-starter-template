@@ -11,6 +11,15 @@
 - **The site admin sees every project**, "Just me" lists included, without
   being listed as a member, and isn't made a member of the projects they
   create. That way no project can be left with nobody able to open it.
+- **Every team's projects on one page.** Tyler, 19 Oct 2026: "Admin sees all
+  project. The project dashboard can have a filter by team dropdown." The
+  site admin's Projects table has a Team column and a team filter, "All
+  teams" then each team by name, kept in the address (`?team=<id>`) so a
+  reload or a pasted link keeps it. Employees are on one team and see
+  neither. New project asks which team, starting on the filter's team, and
+  offers that team's templates.
+- **The toolbar's order:** the search first (Tyler, 19 Oct 2026), then
+  Archive for ticked rows, the team filter, the client menu and New project.
 - **A project's settings are the site admin's alone** (Tyler, 16 Oct 2026:
   "Employees dont even see the settings cog or page. Only admin see it"):
   the name, colour, description, due date, Doing limit, client, members,
@@ -186,9 +195,11 @@ So an agency with many projects for a few clients finds things fast.
   used on projects I can see, or typed new ("Use "Hart Dental""). A name
   differing only in capitals picks the one already used, so a client never
   splits into two groups. It is a name, not a client record with contacts.
-- **The Projects table** shows the client under each project's name, has a
-  Client filter (All clients, each client, No client) once any project has
-  one, and a "Group by client" switch. Grouped, clients run A to Z with "No
+- **The Projects table** shows the client under each project's name, and has
+  a client menu once any project has one: All clients, each client, No
+  client, then "Group by client" under a line, ticked while it is on (Tyler
+  moved the switch into the menu on 19 Oct 2026). The menu stays open when
+  grouping is switched, so the tick shows the change. Grouped, clients run A to Z with "No
   client" last, each under its own heading row, and starred projects still
   come first inside each group.
 - **Narrowing to one client** (Features 16 Oct). A Client choice in My
@@ -268,7 +279,15 @@ show out of the left panel and into that header.
   exception, by his choice. The Board has one column per status, each
   headed by the status's dot (To do yellow, Doing blue, Done green, Stuck
   red), as tall as its cards. The List has the same tasks in rows, grouped
-  under the project's sections when it has any; the Calendar shows due dates
+  under the project's sections when it has any. Its tick boxes and drag
+  handles stay hidden until a small "Mass select" chip is pressed. The chip
+  appears beside the Task heading's sort arrow when the pointer is over that
+  heading, and always on a phone, which has no pointer to hover. While it is on it stays shown and reads "Hide select", which
+  hides the tick boxes and handles again and clears the ticks (Tyler, 19 Oct 2026). Each visit starts with them hidden, and someone who
+  can only read the project never sees the chip. Each row's Actions holds the cog,
+  which opens the task, and a bin that deletes it after asking, the same as
+  the Board card's Delete. The bin shows only on tasks I made, or on every
+  task for whoever runs the team. The Calendar shows due dates
   and the Timeline start days and due dates (all below). A task with
   messages I haven't read says "3 new" on its card and row, and More and
   Chat say the same for the project's chat (see
@@ -757,9 +776,15 @@ Neither puts a window over the page.
 
 ### Changing tasks
 
-- **Many at once.** Ticking rows on a project's List tab offers Status, Hand
-  to (with one optional note for all of them), Due date and Move to project
-  beside Mark Done. Mark Done reports the same way as the rest, naming each
+- **Many at once.** With Mass select on, ticking rows on a project's List tab
+  puts a "3 selected" button in the header, left of All time, with a rainbow
+  running round its edge so the eye finds it (Tyler, 19 Oct 2026; it holds
+  still when the device asks for less motion). Its dropdown holds Mark Done,
+  Status, Hand to (with one optional note for all of them), Due date and Move
+  to project, each of the last four stepping into its own list with a back
+  arrow, then Clear selection. Due date offers No due date, the quick days and
+  the month. Escape on a list goes back to the first one; Escape there
+  closes the menu. My tasks keeps these as a row of pickers beside Mark Done. Mark Done reports the same way as the rest, naming each
   refused task with its reason, such as "Fill in Final cut first." My tasks has the same bar without Move to project. Stuck asks for one reason
   for all of them ("Why is it stuck?" for one task, "Why are they stuck?" for
   more). Each task is changed on its own, as if alone, so each still writes

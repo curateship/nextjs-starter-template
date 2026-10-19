@@ -30,6 +30,7 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS, type ProjectColor } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 const NO_SECTION = "none"
 
@@ -142,6 +143,7 @@ function NewLabelDialog({
   onClose: () => void
   onMade: (label: TaskLabel) => Promise<boolean>
 }) {
+  const teamId = useTeamId()
   const [name, setName] = React.useState("")
   const [color, setColor] = React.useState<ProjectColor>("blue")
   const [invalid, setInvalid] = React.useState(false)
@@ -163,7 +165,7 @@ function NewLabelDialog({
     }
     let made: TaskLabel | null = null
     const ok = await run(async () => {
-      made = await makeLabel({ name: next, color })
+      made = await makeLabel({ name: next, color }, teamId)
     })
     if (!ok || !made) return
     await onMade(made)

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { PERSONAL_PROJECT_ID } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
+import { inTeam } from "@/server/project/access"
 import { setRepeat } from "@/server/project/planning"
 import { makeRepeatCopies } from "@/server/project/planning-jobs"
 import {
@@ -79,7 +80,9 @@ afterEach(async () => {
  * file needed before Done.
  */
 async function videoEditing() {
-  const { id: typeId } = await createTaskType(admin.id, { name: "Video editing", icon: "video", color: "red" }, database)
+  const { id: typeId } = await inTeam(teamId, () =>
+    createTaskType(admin.id, { name: "Video editing", icon: "video", color: "red" }, database)
+  )
   const field = async (name: string, kind: Parameters<typeof createTypeField>[1]["kind"]) =>
     (await createTypeField(admin.id, { typeId, name, kind }, database)).id
   const footage = await field("Footage link", "link")
@@ -158,8 +161,14 @@ describe("task types for the team", () => {
         createTaskType(person.id, { name: "Research", icon: "search", color: "blue" }, database)
       ).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
     }
-    await createTaskType(admin.id, { name: "Research", icon: "search", color: "blue" }, database)
-    await expect(createTaskType(admin.id, { name: "research", icon: "book", color: "teal" }, database)).rejects.toThrow(
+    // The site admin is on no team, so the Task types page names the one it shows.
+    await expect(createTaskType(admin.id, { name: "Research", icon: "search", color: "blue" }, database)).rejects.toThrow(
+      PROJECT_ERRORS.noTeamNamed
+    )
+    await inTeam(teamId, () => createTaskType(admin.id, { name: "Research", icon: "search", color: "blue" }, database))
+    await expect(
+      inTeam(teamId, () => createTaskType(admin.id, { name: "research", icon: "book", color: "teal" }, database))
+    ).rejects.toThrow(
       PROJECT_ERRORS.typeNameTaken
     )
   })

@@ -28,16 +28,18 @@ export type MyLiveWatch = {
 export async function watchForPerson(
   userId: string,
   send: (change: MyLiveChange) => void,
-  database = db
+  database = db,
+  /** The team the page shows, for the site admin, who is on none. */
+  teamId?: string
 ): Promise<MyLiveWatch | null> {
-  const membership = await findMembership(userId, database)
+  const membership = await findMembership(userId, database, teamId)
   if (!membership) return null
   const stopTeam = subscribeToTeam(membership.teamId, () => send("team"))
   const watching = new Map<string, () => void>()
   let mine = new Set<string>()
 
   async function refresh() {
-    const now = await findMembership(userId, database)
+    const now = await findMembership(userId, database, teamId)
     if (!now || now.teamId !== membership!.teamId) return false
     const visible = await visibleProjectIds(now, database)
     const memberOf = await database

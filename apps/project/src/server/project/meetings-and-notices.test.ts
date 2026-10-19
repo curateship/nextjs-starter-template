@@ -8,6 +8,7 @@ import { readTaskNotes } from "@/lib/project/notes"
 import { taskHref } from "@/lib/project/notices"
 import { meetingNotesSchema } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
+import { inTeam } from "@/server/project/access"
 import {
   answerMeeting,
   createMeeting,
@@ -42,6 +43,7 @@ let ben: CustomShellUser
 let carla: CustomShellUser
 let olga: CustomShellUser
 let admin: CustomShellUser
+let teamId: string
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
@@ -51,7 +53,9 @@ beforeEach(async () => {
   ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
   carla = await insertEmployee(database, { name: "Carla", email: "carla@example.test" })
   olga = await insertEmployee(database, { name: "Olga", email: "olga@example.test" })
-  admin = (await startTeam(database, [anna, ben, carla])).admin
+  const started = await startTeam(database, [anna, ben, carla])
+  admin = started.admin
+  teamId = started.team.id
   await startTeam(database, [olga], { name: "Other" })
 })
 
@@ -143,27 +147,29 @@ describe("meeting answers", () => {
 
 describe("meeting notes", () => {
   it("keeps notes per date, readable by the team and written only by those who may change the meeting", async () => {
-    const { id } = await createMeeting(ben, meeting(), database)
-    await saveMeetingNotes(ben, { meetingId: id, day: MONDAY, notes: doc("Prices go up in May") }, database)
+    await inTeam(teamId, async () => {
+      const { id } = await createMeeting(ben, meeting(), database)
+      await saveMeetingNotes(ben, { meetingId: id, day: MONDAY, notes: doc("Prices go up in May") }, database)
 
-    const carlaReads = await loadMeetingNotes(carla.id, { meetingId: id, day: MONDAY }, database)
-    expect(carlaReads).toMatchObject({ canEdit: false, updatedBy: "Ben" })
-    expect(carlaReads.notes).toContain("Prices go up in May")
-    // The next Monday has notes of its own.
-    expect((await loadMeetingNotes(carla.id, { meetingId: id, day: "2099-03-09" }, database)).notes).toBe("")
+      const carlaReads = await loadMeetingNotes(carla.id, { meetingId: id, day: MONDAY }, database)
+      expect(carlaReads).toMatchObject({ canEdit: false, updatedBy: "Ben" })
+      expect(carlaReads.notes).toContain("Prices go up in May")
+      // The next Monday has notes of its own.
+      expect((await loadMeetingNotes(carla.id, { meetingId: id, day: "2099-03-09" }, database)).notes).toBe("")
 
-    await expect(
-      saveMeetingNotes(carla, { meetingId: id, day: MONDAY, notes: doc("Mine") }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.cantChangeMeetingNotes)
-    // The site admin may.
-    await saveMeetingNotes(admin, { meetingId: id, day: MONDAY, notes: doc("The admin's notes") }, database)
-    expect((await loadMeetingNotes(ben.id, { meetingId: id, day: MONDAY }, database)).updatedBy).toBe("Tyler")
+      await expect(
+        saveMeetingNotes(carla, { meetingId: id, day: MONDAY, notes: doc("Mine") }, database)
+      ).rejects.toThrow(PROJECT_ERRORS.cantChangeMeetingNotes)
+      // The site admin may.
+      await saveMeetingNotes(admin, { meetingId: id, day: MONDAY, notes: doc("The admin's notes") }, database)
+      expect((await loadMeetingNotes(ben.id, { meetingId: id, day: MONDAY }, database)).updatedBy).toBe("Tyler")
 
-    // Clearing the notes deletes them.
-    await saveMeetingNotes(admin, { meetingId: id, day: MONDAY, notes: "" }, database)
-    expect(await loadMeetingNotes(ben.id, { meetingId: id, day: MONDAY }, database)).toMatchObject({
-      notes: "",
-      updatedAt: null,
+      // Clearing the notes deletes them.
+      await saveMeetingNotes(admin, { meetingId: id, day: MONDAY, notes: "" }, database)
+      expect(await loadMeetingNotes(ben.id, { meetingId: id, day: MONDAY }, database)).toMatchObject({
+        notes: "",
+        updatedAt: null,
+      })
     })
   })
 

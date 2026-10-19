@@ -9,7 +9,6 @@ import { db } from "@/server/db"
 import {
   requireOpenProject,
   requireTaskAccess,
-  requireTeamRunner,
   visibleProjectsWhere,
   whoCanStillSee,
   type ProjectDb,
@@ -328,8 +327,8 @@ export async function emptyProjectBin(
   database = db,
   storage?: FileStorage
 ) {
-  await requireTeamRunner(userId, database)
-  await requireOpenProject(userId, projectId, database)
+  const { membership } = await requireOpenProject(userId, projectId, database)
+  if (!runsTheTeam(membership.role)) throw new Error(PROJECT_ERRORS.notRunningTeam)
   const binned = await database
     .select({ id: projectTasks.id })
     .from(projectTasks)

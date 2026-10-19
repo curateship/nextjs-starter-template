@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { CustomShellDb } from "@/server/db"
+import { inTeam } from "@/server/project/access"
 import { saveFinishedDays, sendCheckinReminders } from "@/server/project/checkin-jobs"
 import {
   addPick,
@@ -48,6 +49,7 @@ let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
 let admin: CustomShellUser
+let teamId: string
 
 const actor = (user: CustomShellUser) => ({
   id: user.id,
@@ -64,7 +66,9 @@ beforeEach(async () => {
   carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
   // Tyler, the site admin, runs the team without being on it, so he is never
   // reminded, counted or expected to check in.
-  admin = (await startTeam(database, [anna, ben, carla])).admin
+  const started = await startTeam(database, [anna, ben, carla])
+  admin = started.admin
+  teamId = started.team.id
 })
 
 afterEach(async () => {
@@ -382,54 +386,56 @@ describe("history", () => {
   }
 
   it("shows every day a task was picked with its end-of-day status, and its hand-overs", async () => {
-    const project = await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)
-    await addProjectMember(admin.id, project.id, ben.id, database)
-    const task = await createTask(
-      actor(anna),
-      { projectId: project.id, title: "Photos", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
-      database
-    )
-    await acceptTask(actor(ben), task.id, database)
-    await pickOn(MONDAY, task.id, "stuck")
-    await pickOn(TUESDAY, task.id)
-    await pickOn(WEDNESDAY, task.id)
+    await inTeam(teamId, async () => {
+      const project = await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)
+      await addProjectMember(admin.id, project.id, ben.id, database)
+      const task = await createTask(
+        actor(anna),
+        { projectId: project.id, title: "Photos", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+        database
+      )
+      await acceptTask(actor(ben), task.id, database)
+      await pickOn(MONDAY, task.id, "stuck")
+      await pickOn(TUESDAY, task.id)
+      await pickOn(WEDNESDAY, task.id)
 
-    const detail = await loadTaskDetail(anna.id, task.id, database)
-    const kinds = detail.history.map((entry) => entry.kind)
-    // Making it and marking it Stuck are history lines too, since 11 Oct 2026.
-    expect(kinds).toEqual(expect.arrayContaining(["created", "status_changed"]))
-    expect(kinds.filter((kind) => kind !== "created" && kind !== "status_changed")).toEqual([
-      "handed_over",
-      "accepted",
-      "picked",
-      "picked",
-      "picked",
-    ])
-    const picks = detail.history.filter((entry) => entry.kind === "picked")
-    expect(picks.map((p) => ("day" in p ? [p.day, p.endStatus] : null))).toEqual([
-      [MONDAY, "stuck"],
-      [TUESDAY, "stuck"],
-      [WEDNESDAY, "stuck"],
-    ])
-    expect(detail.task.pickedDays).toBe(3)
-    expect((await loadMyWork(ben.id, database))[0].pickedDays).toBe(3)
+      const detail = await loadTaskDetail(anna.id, task.id, database)
+      const kinds = detail.history.map((entry) => entry.kind)
+      // Making it and marking it Stuck are history lines too, since 11 Oct 2026.
+      expect(kinds).toEqual(expect.arrayContaining(["created", "status_changed"]))
+      expect(kinds.filter((kind) => kind !== "created" && kind !== "status_changed")).toEqual([
+        "handed_over",
+        "accepted",
+        "picked",
+        "picked",
+        "picked",
+      ])
+      const picks = detail.history.filter((entry) => entry.kind === "picked")
+      expect(picks.map((p) => ("day" in p ? [p.day, p.endStatus] : null))).toEqual([
+        [MONDAY, "stuck"],
+        [TUESDAY, "stuck"],
+        [WEDNESDAY, "stuck"],
+      ])
+      expect(detail.task.pickedDays).toBe(3)
+      expect((await loadMyWork(ben.id, database))[0].pickedDays).toBe(3)
 
-    await handBackTask(actor(ben), { taskId: task.id, reason: "Need a photographer" }, database)
-    const after = await loadTaskDetail(anna.id, task.id, database)
-    expect(after.history.find((entry) => entry.kind === "handed_back")).toMatchObject({
-      kind: "handed_back",
-      actorName: "Ben",
-      targetName: "Anna",
-      reason: "Need a photographer",
+      await handBackTask(actor(ben), { taskId: task.id, reason: "Need a photographer" }, database)
+      const after = await loadTaskDetail(anna.id, task.id, database)
+      expect(after.history.find((entry) => entry.kind === "handed_back")).toMatchObject({
+        kind: "handed_back",
+        actorName: "Ben",
+        targetName: "Anna",
+        reason: "Need a photographer",
+      })
+
+      // Ben leaves the team; his days stay on the task.
+      await removeTeamMember(admin.id, ben.id, database)
+      const kept = await loadTaskDetail(anna.id, task.id, database)
+      expect(kept.history.filter((e) => e.kind === "picked")).toHaveLength(3)
+      expect(kept.history.find((e) => e.kind === "picked")).toMatchObject({ personName: "Ben" })
+      const wednesday = await loadTeamDay(anna.id, WEDNESDAY, database, at(`${WEDNESDAY}T23:00:00Z`))
+      expect(wednesday.people.map((p) => p.person.name)).not.toContain("Ben")
     })
-
-    // Ben leaves the team; his days stay on the task.
-    await removeTeamMember(admin.id, ben.id, database)
-    const kept = await loadTaskDetail(anna.id, task.id, database)
-    expect(kept.history.filter((e) => e.kind === "picked")).toHaveLength(3)
-    expect(kept.history.find((e) => e.kind === "picked")).toMatchObject({ personName: "Ben" })
-    const wednesday = await loadTeamDay(anna.id, WEDNESDAY, database, at(`${WEDNESDAY}T23:00:00Z`))
-    expect(wednesday.people.map((p) => p.person.name)).not.toContain("Ben")
   })
 })
 
@@ -465,15 +471,17 @@ describe("time off", () => {
   })
 
   it("lets each person mark their own, and only the site admin mark someone else's", async () => {
-    await expect(addTimeOff(ben.id, { userId: carla.id, firstDay: MONDAY, lastDay: MONDAY }, database)).rejects.toThrow(
-      PROJECT_ERRORS.notRunningTeam
-    )
-    const entry = await addTimeOff(admin.id, { userId: carla.id, firstDay: MONDAY, lastDay: TUESDAY }, database)
-    await expect(removeTimeOff(ben.id, entry.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-    await expect(addTimeOff(ben.id, { firstDay: TUESDAY, lastDay: MONDAY }, database)).rejects.toThrow(
-      PROJECT_ERRORS.timeOffBackwards
-    )
-    await removeTimeOff(carla.id, entry.id, database)
+    await inTeam(teamId, async () => {
+      await expect(addTimeOff(ben.id, { userId: carla.id, firstDay: MONDAY, lastDay: MONDAY }, database)).rejects.toThrow(
+        PROJECT_ERRORS.notRunningTeam
+      )
+      const entry = await addTimeOff(admin.id, { userId: carla.id, firstDay: MONDAY, lastDay: TUESDAY }, database)
+      await expect(removeTimeOff(ben.id, entry.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
+      await expect(addTimeOff(ben.id, { firstDay: TUESDAY, lastDay: MONDAY }, database)).rejects.toThrow(
+        PROJECT_ERRORS.timeOffBackwards
+      )
+      await removeTimeOff(carla.id, entry.id, database)
+    })
   })
 })
 

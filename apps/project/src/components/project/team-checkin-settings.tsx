@@ -17,6 +17,7 @@ import { dayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { CHECKIN_NOTE_FIELDS, DEFAULT_CHECKIN_QUESTIONS, LIMITS, type CheckinNoteField } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /** Runs a save and shows Saving…, Saved or Not saved at the top of Team settings. */
 type Track = (work: () => Promise<unknown>) => Promise<boolean>
@@ -77,6 +78,7 @@ function QuestionField({
   canEdit: boolean
   track: Track
 }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [draft, setDraft] = useSyncedDraft(saved ?? "")
   const [invalid, setInvalid] = React.useState(false)
@@ -85,7 +87,7 @@ function QuestionField({
   async function commit() {
     const next = draft.trim()
     if (next === (saved ?? "")) return
-    const ok = await track(() => updateProjectTeam({ [QUESTION_KEY[field]]: next || null }))
+    const ok = await track(() => updateProjectTeam({ [QUESTION_KEY[field]]: next || null }, teamId))
     setInvalid(!ok)
     if (ok) await router.invalidate()
   }
@@ -119,6 +121,7 @@ function QuestionField({
  * the holiday's name. Days already saved don't change.
  */
 export function HolidaysCard({ holidays, canEdit }: { holidays: Holiday[]; canEdit: boolean }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [day, setDay] = React.useState<Date | undefined>()
@@ -137,7 +140,7 @@ export function HolidaysCard({ holidays, canEdit }: { holidays: Holiday[]; canEd
       showErrorToast("Give the holiday a name.")
       return
     }
-    const ok = await run(() => addTeamHoliday({ day: dayKey, name: name.trim() }), "Holiday added.")
+    const ok = await run(() => addTeamHoliday({ day: dayKey, name: name.trim() }, teamId), "Holiday added.")
     if (!ok) return
     setDay(undefined)
     setName("")
@@ -223,7 +226,7 @@ export function HolidaysCard({ holidays, canEdit }: { holidays: Holiday[]; canEd
           loading={busy}
           onConfirm={async () => {
             if (!removing) return
-            const ok = await run(() => removeTeamHoliday(removing.id), "Holiday removed.")
+            const ok = await run(() => removeTeamHoliday(removing.id, teamId), "Holiday removed.")
             if (!ok) return
             setRemoving(null)
             await router.invalidate()
@@ -241,13 +244,14 @@ export function HolidaysCard({ holidays, canEdit }: { holidays: Holiday[]; canEd
  * done. People already on the team get nothing.
  */
 export function StarterTasksCard({ team, track }: { team: TeamSummary; track: Track }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [title, setTitle] = React.useState("")
   const titles = team.starterTasks
   const full = titles.length >= LIMITS.starterTasks
 
   async function save(next: string[]) {
-    const ok = await track(() => updateProjectTeam({ starterTasks: next }))
+    const ok = await track(() => updateProjectTeam({ starterTasks: next }, teamId))
     if (ok) await router.invalidate()
     return ok
   }

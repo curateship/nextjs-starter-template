@@ -48,11 +48,6 @@ export const appOptions: AppOptions = {
     },
   ],
   header: {
-    /** The site admin's team picker: they are on no team, so it says which one every page shows. */
-    leftContent: {
-      roles: ["admin"],
-      component: () => import("@/components/project/team-picker-header"),
-    },
     rightActions: [
       {
         /**

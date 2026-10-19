@@ -3,6 +3,8 @@ import { z } from "zod"
 
 import { saveViewSchema } from "@/lib/project/saved-views"
 import { userGet, userPost } from "@/server/guards"
+import { inTeam } from "@/server/project/access"
+import { teamScope } from "@/lib/api/project/scope"
 import { loadTeamActivity } from "@/server/project/project-activity"
 import { deleteView, saveView } from "@/server/project/saved-views"
 import { searchTasks } from "@/server/project/search"
@@ -37,13 +39,14 @@ const deleteViewFn = createServerFn({ method: "POST" })
 const teamActivityFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(
-    z.object({ before: z.object({ at: z.string().datetime(), id }).optional() })
+    z.object({ before: z.object({ at: z.string().datetime(), id }).optional(), ...teamScope })
   )
-  .handler(async ({ data, context }) => loadTeamActivity(context.user.id, data))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => loadTeamActivity(context.user.id, data)))
 
 const trendsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => loadTeamTrends(context.user.id))
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => loadTeamTrends(context.user.id)))
 
 export function searchProjectTasks(q: string) {
   return searchFn({ data: { q } })
@@ -54,9 +57,9 @@ export function saveProjectView(data: z.input<typeof saveViewSchema>) {
 export function deleteProjectView(viewId: string) {
   return deleteViewFn({ data: { viewId } })
 }
-export function loadTeamActivityPage(before?: { at: string; id: string }) {
-  return teamActivityFn({ data: { before } })
+export function loadTeamActivityPage(before?: { at: string; id: string }, teamId?: string) {
+  return teamActivityFn({ data: { before, teamId } })
 }
-export function loadTrends() {
-  return trendsFn()
+export function loadTrends(teamId?: string) {
+  return trendsFn({ data: { teamId } })
 }
