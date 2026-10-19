@@ -33,6 +33,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedNotesRouteImport } from './routes/_authenticated/notes'
+import { Route as AuthenticatedPostsRouteImport } from './routes/_authenticated/posts'
 import { Route as AuthenticatedVideosRouteImport } from './routes/_authenticated/videos'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -194,6 +195,11 @@ const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
 const AuthenticatedNotesRoute = AuthenticatedNotesRouteImport.update({
   id: '/notes',
   path: '/notes',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPostsRoute = AuthenticatedPostsRouteImport.update({
+  id: '/posts',
+  path: '/posts',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedVideosRoute = AuthenticatedVideosRouteImport.update({
@@ -462,6 +468,7 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/notes': typeof AuthenticatedNotesRoute
+  '/posts': typeof AuthenticatedPostsRoute
   '/videos': typeof AuthenticatedVideosRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -528,6 +535,7 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/notes': typeof AuthenticatedNotesRoute
+  '/posts': typeof AuthenticatedPostsRoute
   '/videos': typeof AuthenticatedVideosRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -598,6 +606,7 @@ export interface FileRoutesById {
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/notes': typeof AuthenticatedNotesRoute
+  '/_authenticated/posts': typeof AuthenticatedPostsRoute
   '/_authenticated/videos': typeof AuthenticatedVideosRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -668,6 +677,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/home'
     | '/notes'
+    | '/posts'
     | '/videos'
     | '/workspaces'
     | '/api/health'
@@ -734,6 +744,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/home'
     | '/notes'
+    | '/posts'
     | '/videos'
     | '/workspaces'
     | '/api/health'
@@ -803,6 +814,7 @@ export interface FileRouteTypes {
     | '/_authenticated/changelog'
     | '/_authenticated/home'
     | '/_authenticated/notes'
+    | '/_authenticated/posts'
     | '/_authenticated/videos'
     | '/_authenticated/workspaces'
     | '/api/health'
@@ -1047,6 +1059,13 @@ declare module '@tanstack/react-router' {
       path: '/notes'
       fullPath: '/notes'
       preLoaderRoute: typeof AuthenticatedNotesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/posts': {
+      id: '/_authenticated/posts'
+      path: '/posts'
+      fullPath: '/posts'
+      preLoaderRoute: typeof AuthenticatedPostsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/videos': {
@@ -1471,6 +1490,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedNotesRoute: typeof AuthenticatedNotesRoute
+  AuthenticatedPostsRoute: typeof AuthenticatedPostsRoute
   AuthenticatedVideosRoute: typeof AuthenticatedVideosRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
 }
@@ -1481,6 +1501,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedNotesRoute: AuthenticatedNotesRoute,
+  AuthenticatedPostsRoute: AuthenticatedPostsRoute,
   AuthenticatedVideosRoute: AuthenticatedVideosRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
 }

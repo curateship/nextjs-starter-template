@@ -30,7 +30,6 @@ import {
 import { useFavicon } from "@/lib/use-favicon"
 import { useMenu } from "@/lib/use-menu"
 import { useOpenScreen } from "@/lib/use-open-screen"
-import { useRecentLinks } from "@/lib/use-recent-links"
 import { usePanelView } from "@/lib/use-panel-view"
 import { useSession } from "@/lib/use-session"
 import { cn } from "@/lib/utils"
@@ -145,7 +144,6 @@ function Personal({
   const sidebarWidth = menu.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH
   const sidebarShade = sidebarShadeColor(menu.sidebarShade ?? 0)
   const activeId = activeLinkId(menu, screen?.url ?? null)
-  const recent = useRecentLinks(menu, activeId)
   useFavicon(menu.brand?.logo)
   const places = placesOf(menu)
   const openAt = (url: string, linkId?: string, title?: string) => {
@@ -159,6 +157,7 @@ function Personal({
     activeId,
     startLinkId: menu.startLinkId ?? null,
     stayLoaded: stayLoadedLink(menu),
+    pinnedIds: menu.pinnedLinkIds ?? [],
     open: openAt,
     update,
   }
@@ -234,8 +233,6 @@ function Personal({
               <div className="relative h-full">
                 <Sidebar
                   menu={shown}
-                  recentLinks={recent.links}
-                  onRemoveRecent={recent.remove}
                   update={update}
                   editing={editing}
                   onHome={() => {

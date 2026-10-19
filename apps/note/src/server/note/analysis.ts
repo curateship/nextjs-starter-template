@@ -105,16 +105,17 @@ ${transcript}`
 
 /**
  * Writes down every word in the sound, with times, in the language spoken.
- * `sound` is the small mp3 the worker cut out of the file.
+ * `sound` is the small mp3 the worker cut out of the file. `about` names the
+ * saved video, or the saved post whose video it is, on the AI meter's row.
  */
 export async function transcribe(options: {
   ownerId: string
-  videoId: string
+  about: { noteVideoId: string } | { notePostId: string }
   apiKey: string
   sound: Uint8Array
   durationMs: number | null
 }): Promise<Transcript> {
-  const { ownerId, videoId, apiKey, sound, durationMs } = options
+  const { ownerId, about, apiKey, sound, durationMs } = options
   const label = "Writing the words down"
   const answer = await runAiCall(
     {
@@ -122,7 +123,7 @@ export async function transcribe(options: {
       provider: "gemini",
       model: MODEL,
       feature: "note_transcribe",
-      metadata: { noteVideoId: videoId },
+      metadata: about,
     },
     async () => {
       const result = await withGeminiFile(sound, "audio/mpeg", apiKey, label, (part) =>

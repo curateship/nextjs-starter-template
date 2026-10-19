@@ -34,6 +34,7 @@ import {
   personalPath,
   placeKey,
   removeLink,
+  setPinned,
   setStartLink,
   setStayLoadedLink,
   updateLink,
@@ -55,6 +56,8 @@ type MenuActions = {
   startLinkId: string | null
   /** The link whose screen stays loaded once opened, if there is one. */
   stayLoaded: MenuLink | null
+  /** The ids of the links in "Pinned". */
+  pinnedIds: string[]
   /** Opens a screen; `linkId` is the menu link clicked, if one was. */
   open: (url: string, linkId?: string) => void
   update: (change: (menu: Menu) => Menu) => void
@@ -111,12 +114,13 @@ function withDraft(link: Pick<MenuLink, "id"> & Partial<MenuLink>, draft: LinkDr
 }
 
 /**
- * Saves the form's "Personal opens here" and "Stay loaded" switches for a
- * link. A tab link never fills the panel, so it can be neither.
+ * Saves the form's "Pinned", "Personal opens here" and "Stay loaded" switches
+ * for a link. A tab link never fills the panel, so it can't be the last two.
  */
 function withSwitches(menu: Menu, linkId: string, draft: LinkDraft) {
   const panel = draft.opens !== "tab"
-  const started = setStartLink(menu, linkId, draft.start && panel)
+  const pinned = setPinned(menu, linkId, draft.pinned)
+  const started = setStartLink(pinned, linkId, draft.start && panel)
   return setStayLoadedLink(started, linkId, draft.stayLoaded && panel)
 }
 
@@ -177,6 +181,7 @@ function MenuLinkItem({
     activeId,
     startLinkId,
     stayLoaded,
+    pinnedIds,
     open,
     update,
   } = useMenuActions()
@@ -321,6 +326,7 @@ function MenuLinkItem({
                   opens: link.opens ?? "panel",
                   start: startLinkId === link.id,
                   stayLoaded: stayLoaded?.id === link.id,
+                  pinned: pinnedIds.includes(link.id),
                 }}
                 stayLoadedElsewhere={
                   stayLoaded && stayLoaded.id !== link.id ? stayLoaded.label : null
@@ -511,6 +517,7 @@ export function AddLinkButton({
             opens: "panel",
             start: false,
             stayLoaded: false,
+            pinned: false,
           }}
           stayLoadedElsewhere={stayLoaded?.label ?? null}
           place={place}

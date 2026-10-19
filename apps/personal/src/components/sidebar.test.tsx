@@ -2,47 +2,53 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { MenuActionsContext } from "@/components/menu-links"
-import { RecentLinks } from "@/components/sidebar"
-import { allLinks, defaultMenu } from "@/lib/menu"
-import { recentLinksIn } from "@/lib/recent-links"
+import { PinnedLinks } from "@/components/sidebar"
+import { defaultMenu, pinnedLinks } from "@/lib/menu"
 
-function render(ids: string[], activeId: string | null = null) {
+function render(
+  ids: string[],
+  { activeId = null, editing = false }: { activeId?: string | null; editing?: boolean } = {}
+) {
   const actions = {
-    editing: false,
+    editing,
     places: [],
     openUrl: null,
     activeId,
     startLinkId: null,
     stayLoaded: null,
+    pinnedIds: ids,
     open: () => {},
     update: () => {},
   }
+  const menu = { ...defaultMenu(), pinnedLinkIds: ids }
   return renderToStaticMarkup(
     <MenuActionsContext.Provider value={actions}>
-      <RecentLinks links={recentLinksIn(allLinks(defaultMenu()), ids)} onRemove={() => {}} />
+      <PinnedLinks links={pinnedLinks(menu)} onUnpin={() => {}} />
     </MenuActionsContext.Provider>
   )
 }
 
-describe("Recent in the left menu", () => {
-  it("shows its links in order, the open one marked", () => {
+describe("Pinned in the left menu", () => {
+  it("shows its links in the order they were pinned, the open one marked", () => {
     const html = render(
       ["link-cms-listings", "link-cms-dashboard", "link-project-dashboard"],
-      "link-cms-listings"
+      { activeId: "link-cms-listings" }
     )
-    expect(html).toContain('aria-label="Recent"')
+    expect(html).toContain('aria-label="Pinned"')
     const labels = [...html.matchAll(/<span class="truncate">([^<]*)<\/span>/g)].map((m) => m[1])
-    expect(labels).toEqual(["Recent", "Listings", "Dashboard", "My dashboard"])
+    expect(labels).toEqual(["Pinned", "Listings", "Dashboard", "My dashboard"])
     expect(html).toMatch(/href="\/localhost:3015\/admin\/listings"[^>]*data-active=""/)
   })
 
-  it("gives each link an × that takes it out of Recent", () => {
-    const html = render(["link-cms-listings", "link-project-dashboard"])
-    expect(html).toContain('aria-label="Remove Listings from Recent"')
-    expect(html).toContain('aria-label="Remove My dashboard from Recent"')
+  it("gives each link an × that unpins it only while editing", () => {
+    const ids = ["link-cms-listings", "link-project-dashboard"]
+    expect(render(ids)).not.toContain("Unpin")
+    const html = render(ids, { editing: true })
+    expect(html).toContain('aria-label="Unpin Listings"')
+    expect(html).toContain('aria-label="Unpin My dashboard"')
   })
 
-  it("draws nothing before any link is opened", () => {
+  it("draws nothing while no link is pinned", () => {
     expect(render([])).toBe("")
     expect(render(["gone"])).toBe("")
   })

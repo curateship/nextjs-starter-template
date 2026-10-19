@@ -12,6 +12,7 @@ import {
   type CarouselFormat,
   type CarouselSlide,
 } from "@/lib/video/carousel-schema"
+import { relayoutSlides } from "@/lib/video/carousel-layout"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { serializeMedia } from "@/server/media/library"
@@ -283,21 +284,33 @@ function cloneSlides(value: unknown): CarouselSlide[] {
   }))
 }
 
+/**
+ * A copy of a carousel. Given another shape, the copy is in that shape with
+ * its layers moved by relayoutSlides and is named after the shape; the
+ * original is never changed (workspace/docs/carousel-shapes.md).
+ */
 export async function duplicateOwnedCarousel(
   userId: string,
   carouselId: string,
+  format?: CarouselFormat,
   database: CustomShellDb = db
 ): Promise<CarouselItem> {
   const source = await getOwnedCarousel(userId, carouselId, database)
+  const sourceFormat = requireCarouselFormat(source.format)
+  const targetFormat = format ? requireCarouselFormat(format) : sourceFormat
   const timestamp = now()
   const [row] = await database
     .insert(videoCarousels)
     .values({
       id: uuid(),
       userId,
-      name: cleanCarouselName(`${source.name} copy`),
-      format: source.format,
-      slides: cloneSlides(source.slides),
+      name: cleanCarouselName(
+        format ? `${source.name} ${targetFormat}` : `${source.name} copy`
+      ),
+      format: targetFormat,
+      slides: requireCanonicalCarouselSlides(
+        relayoutSlides(cloneSlides(source.slides), sourceFormat, targetFormat)
+      ),
       caption: source.caption,
       version: 1,
       createdAt: timestamp,
