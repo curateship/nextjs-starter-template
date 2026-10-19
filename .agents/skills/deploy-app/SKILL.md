@@ -233,13 +233,10 @@ Ask for the answers up front:
 - **Anything off at launch:** payments and Google sign-in were off for
   Pomoder.
 
-**Sitting 1, when I say the resources are ready** (about 5 minutes):
-
-1. At the registrar, change the domain's nameservers to the two Cloudflare
-   ones I give him.
-2. In Coolify → project `<App>` → `<App> Web` → Configuration → Build, set
-   **Docker Build Stage Target** to `web` and press Save.
-3. Same on `<App> Worker`, with `worker`.
+**Sitting 1, when I say the resources are ready** (about 5 minutes): at the
+registrar, change the domain's nameservers to the two Cloudflare ones I give
+him. A subdomain of a domain already on Cloudflare, such as
+`<app>.barelycompany.com`, needs no sitting at all.
 
 **After it is live** (2 minutes): sign in with the admin account I made. The
 AI keys are already there, written by me straight after the first deploy.
@@ -296,9 +293,11 @@ AI keys are already there, written by me straight after the first deploy.
      `redirect` `non-www` and `is_force_https_enabled` true.
    - **The worker** gets no domains. Coolify gives it an `sslip.io` address
      anyway, so `PATCH` its `domains` to `""`.
-   - **The build stage:** the API refuses `dockerfile_target_build` and
-     `inject_build_args_to_dockerfile`, which is why it is in Tyler's sitting
-     1. Without it, Docker builds the last stage in the file, the worker.
+   - **The build stage:** `PATCH /applications/{uuid}` with
+     `dockerfile_target_build` `web` on the website and `worker` on the
+     worker, then read it back. Coolify accepted it on 19 Oct 2026 for
+     Fitness. Without it, Docker builds the last stage in the file, the
+     worker, on both.
 10. **Variables.** `POST /applications/{uuid}/envs`, one per value, with
     `is_preview: false` and `is_literal: true`.
     - **Build-time** (`is_buildtime: true`): only `APP`, plus `WORKER_PACKAGES`
