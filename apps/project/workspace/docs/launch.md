@@ -105,6 +105,7 @@ On Tyler's Mac on 19 Oct 2026, both images were built from the root
 | Date | Commit | Deployments | Notes |
 | --- | --- | --- | --- |
 | 19 Oct 2026 | `8ad74f158` | web `shm976ahh9dcwkbnaaulazwh` (554 s), worker `vdtqnviwcj9ixbo4khrynglo` (535 s) | First launch. Both containers healthy; health `{"status":"ok"}`. Admin account made, four AI keys copied, left menu copied after the first sign-in. Playwright signed in as Tyler and opened all 20 left-menu links with no console errors, except React error 418 on Projects, Team and Task types while no team exists ("The server runs in UTC" above). Site name still reads "Custom Shell" in the browser tab. |
+| 19 Oct 2026 | `c6555f247` | web `swchng9mnlumyvrcmtxfchab` (679 s), worker `2elftnwmcvdagfdbby7v4qpm` (384 s) | Fixed both UTC mismatches (386fa630d). Health `{"status":"ok"}`, menu and AI keys already the same. Playwright with a Toronto browser opened Projects, Team, Task types and My dashboard on live with no console errors; the team card read "Created Oct 19, 2026 · Toronto". |
 
 ## The server runs in UTC
 
