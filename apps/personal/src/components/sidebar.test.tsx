@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest"
 
 import { MenuActionsContext } from "@/components/menu-links"
 import { RecentLinks } from "@/components/sidebar"
-import { defaultMenu } from "@/lib/menu"
-import type { RecentScreen } from "@/lib/recent-screens"
+import { allLinks, defaultMenu } from "@/lib/menu"
+import { recentLinksIn } from "@/lib/recent-links"
 
-function render(recent: RecentScreen[], activeId: string | null = null) {
+function render(ids: string[], activeId: string | null = null) {
   const actions = {
     editing: false,
     places: [],
@@ -18,22 +18,15 @@ function render(recent: RecentScreen[], activeId: string | null = null) {
   }
   return renderToStaticMarkup(
     <MenuActionsContext.Provider value={actions}>
-      <RecentLinks menu={defaultMenu()} recent={recent} />
+      <RecentLinks links={recentLinksIn(allLinks(defaultMenu()), ids)} />
     </MenuActionsContext.Provider>
   )
 }
 
-const screen = (url: string): RecentScreen => ({ url, title: "" })
-
 describe("Recent in the left menu", () => {
-  it("shows the last three links opened, newest first, each marked when open", () => {
+  it("shows its links in order, the open one marked", () => {
     const html = render(
-      [
-        screen("http://localhost:3015/admin/listings/abc"),
-        screen("http://localhost:3015/admin/dashboard"),
-        screen("http://localhost:3015/admin/listings"),
-        screen("http://localhost:3020/dashboard"),
-      ],
+      ["link-cms-listings", "link-cms-dashboard", "link-project-dashboard"],
       "link-cms-listings"
     )
     expect(html).toContain('aria-label="Recent"')
@@ -44,6 +37,6 @@ describe("Recent in the left menu", () => {
 
   it("draws nothing before any link is opened", () => {
     expect(render([])).toBe("")
-    expect(render([screen("http://localhost:3015/not-in-the-menu")])).toBe("")
+    expect(render(["gone"])).toBe("")
   })
 })

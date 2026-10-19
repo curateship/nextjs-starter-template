@@ -16,19 +16,22 @@ edited where it stands, with no settings screen.
   2026: "I dont want to see all those 'add links' or draggable until its
   enabled." It starts off on every visit.
 - **Recent sits at the top of the menu**, under the logo row. It shows the last
-  three menu links opened, newest first, each once, with the open one marked.
-  Tyler asked for it on 18 Oct 2026. A deep page counts for the link that
-  holds it, the same link the menu marks, so a listing opened under Listings
-  puts Listings in Recent. A screen no link holds is skipped, and so is a link
-  since deleted.
-  - **Where it comes from:** the recent screens list the cog already keeps
-    (`app-panels.md`), so this browser alone remembers it, under
-    `personal-recent-screens` in localStorage. Nothing new is saved to the
-    menu file.
+  three menu links opened, newest first, with the open one marked. Tyler asked
+  for it on 18 Oct 2026. A deep page counts for the link that holds it, the
+  same link the menu marks, so a listing opened under Listings puts Listings
+  in Recent.
+  - **A link in Recent keeps its place.** Opening it again, from Recent or from
+    its own section, moves nothing. Only a link not yet in Recent goes to the
+    top, and the oldest of the three drops off. Tyler, 18 Oct 2026: "dont make
+    it move to the top every time i visit it".
+  - **Where it is kept:** this browser alone, under `personal-recent-links` in
+    localStorage, as the links' ids. Nothing is saved to the menu file. A link
+    deleted from the menu drops out of Recent.
   - **Hidden until a link is opened.** It folds like a section, remembered
     under `personal-sidebar-recent`, and can't be renamed, edited or dragged.
-  - **Code:** `recentMenuLinks` in `src/lib/recent-screens.ts` picks the
-    links, `RecentLinks` in `src/components/sidebar.tsx` draws them.
+  - **Code:** `src/lib/recent-links.ts` keeps the order,
+    `src/lib/use-recent-links.ts` adds the open link, and `RecentLinks` in
+    `src/components/sidebar.tsx` draws it.
 - **Fold a section** by clicking its name, as in Custom Shell. A small arrow
   shows on hover and points down while the section is open. This browser
   remembers which sections are folded, under
@@ -42,6 +45,23 @@ edited where it stands, with no settings screen.
   numbers. The width is saved to the menu file once the drag ends, or half a
   second after the last arrow press, so every browser gets it. Unlike Custom
   Shell, clicking the edge does not fold the menu away.
+- **Make the menu lighter or darker** with the cog at the bottom, "Menu
+  shade", which opens a slider. It changes the menu as it moves. It goes 10
+  steps each way, and the cog's row says where it stands, such as "3 lighter".
+  "Back to the default shade" shows under the slider once the shade has moved.
+  Tyler asked for this on 18 Oct 2026.
+  - **Each step moves the lightness by 0.015** on a scale where 0 is black and
+    1 is white. Light mode's menu starts at 0.985, so it reaches white after
+    one step lighter, and 10 darker is 0.835. Dark mode's starts at 0.18, so 10
+    lighter is 0.33 and 10 darker is 0.03.
+  - **Only the menu changes.** The middle panel keeps its own colour, and the
+    highlight behind the open link stays as it is.
+  - **Saved in the menu file** as `sidebarShade`, from -10 to 10, half a second
+    after the slider stops. 0 leaves it out of the file. The colour is worked
+    out by `sidebarShadeColor` in `src/lib/menu.ts` and set on the page in
+    `src/app.tsx`. `src/theme.css` is Custom Shell's and is not changed, and
+    the slider is Custom Shell's `src/components/ui/slider.tsx`, copied over
+    unchanged.
 - **Hovering the edge draws no line**, only the resize pointer. Tyler had the
   thick hover line taken out on 18 Oct 2026. Focusing the edge with Tab still
   draws it, so the keyboard can see where it is.
@@ -89,7 +109,11 @@ Everything here needs editing switched on.
     Personal's own name, logo and start page together save as no `brand` at
     all. The form is `src/components/brand-editor.tsx`, the rules are
     `brandSchema` in `src/lib/menu.ts`.
-  - The browser tab's little icon is still Personal's logo.
+  - **The browser tab's icon follows the logo.** An uploaded logo becomes the
+    tab's icon as soon as it is saved, and "Personal logo" puts Personal's
+    own back. Tyler asked for this on 18 Oct 2026 (`src/lib/use-favicon.ts`).
+    The sign-in screen and the first moment of a reload still show Personal's
+    own icon, because the menu file hasn't loaded yet.
 
 - **Add a link:** press "Add link" under a section, or under the links at the
   bottom. Give it a name, the screen's full address (such as

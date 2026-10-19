@@ -21,11 +21,15 @@ import {
   parseAppUrl,
   screenName,
   setAppMenuWidth,
+  setSidebarShade,
+  sidebarShadeColor,
   startLink,
   type Menu,
 } from "@/lib/menu"
+import { useFavicon } from "@/lib/use-favicon"
 import { useMenu } from "@/lib/use-menu"
 import { useOpenScreen } from "@/lib/use-open-screen"
+import { useRecentLinks } from "@/lib/use-recent-links"
 import { usePanelView } from "@/lib/use-panel-view"
 import { useSession } from "@/lib/use-session"
 import { cn } from "@/lib/utils"
@@ -137,7 +141,10 @@ function Personal({
   const [editing, setEditing] = React.useState(false)
 
   const sidebarWidth = menu.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH
+  const sidebarShade = sidebarShadeColor(menu.sidebarShade ?? 0)
   const activeId = activeLinkId(menu, screen?.url ?? null)
+  const recentLinks = useRecentLinks(menu, activeId)
+  useFavicon(menu.brand?.logo)
   const places = placesOf(menu)
   const openAt = (url: string, linkId?: string, title?: string) => {
     setMenuOpen(false)
@@ -176,6 +183,8 @@ function Personal({
     setZoom: view.setZoom,
     phone: view.phone,
     setPhone: view.setPhone,
+    shade: menu.sidebarShade ?? 0,
+    setShade: (shade) => update((m) => setSidebarShade(m, shade)),
   }
 
   const appMenu: AppMenuControls = {
@@ -191,7 +200,14 @@ function Personal({
           <div
             data-sidebar-root=""
             className="flex h-svh bg-sidebar text-sidebar-foreground"
-            style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+            style={
+              {
+                "--sidebar-width": `${sidebarWidth}px`,
+                // The theme's file is Custom Shell's, so the chosen shade
+                // replaces the menu's colour here instead.
+                ...(sidebarShade ? { "--sidebar": sidebarShade } : {}),
+              } as React.CSSProperties
+            }
           >
             {menuOpen ? (
               <button
@@ -215,7 +231,7 @@ function Personal({
               <div className="relative h-full">
                 <Sidebar
                   menu={shown}
-                  recent={screens.recent}
+                  recentLinks={recentLinks}
                   update={update}
                   editing={editing}
                   onHome={() => {

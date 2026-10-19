@@ -138,8 +138,10 @@ The code is `src/components/sidebar-footer.tsx`.
   - **Phone view** makes the frame 390 pixels wide, centred, full height. The
     app picks its phone layout because its window is that wide. Zoom is off
     while it is on. Kept under `personal-panel-phone`.
+  - **Menu shade**, a slider that makes the left menu lighter or darker, saved
+    in the menu file. `menu.md` has the rest.
   - **Edit the menu** and **Sign out**.
-  - Recent screens, Pin and Zoom are lists the dropdown steps into, with a row
+  - Recent screens, Pin, Zoom and Menu shade are views the dropdown steps into, with a row
     at the top that steps back out, because the shell's dropdown has no
     sub-menus.
 - **On a phone** the menu is hidden, and a menu button in the bottom-left

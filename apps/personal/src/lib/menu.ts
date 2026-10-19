@@ -26,6 +26,15 @@ export const MAX_SIDEBAR_WIDTH = 420
 /** The widest app menu Personal will hide, in the app's own pixels. */
 export const MAX_APP_MENU_WIDTH = 600
 
+/**
+ * How much lighter (above 0) or darker (below 0) the left menu's background
+ * is than the theme's, in steps of `SHADE_STEP` on the colour's lightness
+ * (0 is black, 1 is white).
+ */
+export const MIN_SIDEBAR_SHADE = -10
+export const MAX_SIDEBAR_SHADE = 10
+const SHADE_STEP = 0.015
+
 export function clampSidebarWidth(value: number) {
   return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(value)))
 }
@@ -106,6 +115,8 @@ export const menuSchema = z.object({
   sections: z.array(sectionSchema).max(30),
   /** Missing until the menu is first dragged wider or narrower. */
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH).optional(),
+  /** Missing, or 0, is the theme's own shade. */
+  sidebarShade: z.number().int().min(MIN_SIDEBAR_SHADE).max(MAX_SIDEBAR_SHADE).optional(),
   /** The link Personal opens on a visit to its bare address. Missing means the empty start page. */
   startLinkId: z.string().min(1).max(64).optional(),
   /** The logo row's name, picture and link. Missing means Personal's own. */
@@ -294,6 +305,30 @@ export function setAppMenuWidth(menu: Menu, host: string, width: number): Menu {
   if ((menu.appMenuWidths?.[host] ?? 0) === clamped) return menu
   const { appMenuWidths: _all, ...plain } = menu
   return Object.keys(widths).length ? { ...plain, appMenuWidths: widths } : plain
+}
+
+/** Saves the left menu's shade. 0 goes back to the theme's and leaves the file without it. */
+export function setSidebarShade(menu: Menu, shade: number): Menu {
+  const clamped = Math.round(Math.min(Math.max(shade, MIN_SIDEBAR_SHADE), MAX_SIDEBAR_SHADE))
+  if ((menu.sidebarShade ?? 0) === clamped) return menu
+  const { sidebarShade: _old, ...rest } = menu
+  return clamped ? { ...rest, sidebarShade: clamped } : rest
+}
+
+/**
+ * The left menu's background for a shade: the theme's menu colour with its
+ * lightness moved by the same amount each step, so the steps are even in light
+ * and dark mode alike. Null for 0, which leaves the theme's colour alone.
+ */
+export function sidebarShadeColor(shade: number) {
+  if (!shade) return null
+  return `oklch(from var(--shell-rail) calc(l + ${Number((shade * SHADE_STEP).toFixed(3))}) c h)`
+}
+
+/** What the cog calls a shade. */
+export function sidebarShadeLabel(shade: number) {
+  if (!shade) return "Default"
+  return `${Math.abs(shade)} ${shade > 0 ? "lighter" : "darker"}`
 }
 
 /** The link Personal opens on its bare address, if it still exists and fills the panel. */

@@ -8,6 +8,7 @@ import {
   HistoryIcon,
   Loader2Icon,
   LogOutIcon,
+  PaletteIcon,
   PinIcon,
   RotateCwIcon,
   SettingsIcon,
@@ -23,8 +24,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Slider } from "@/components/ui/slider"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { parseAppUrl, personalPath, placeKey, type Place } from "@/lib/menu"
+import {
+  MAX_SIDEBAR_SHADE,
+  MIN_SIDEBAR_SHADE,
+  parseAppUrl,
+  personalPath,
+  placeKey,
+  sidebarShadeLabel,
+  type Place,
+} from "@/lib/menu"
 import { recentScreenLabel, type RecentScreen } from "@/lib/recent-screens"
 import type { SaveStatus } from "@/lib/use-menu"
 import { PANEL_ZOOMS, zoomLabel, type PanelZoom } from "@/lib/use-panel-view"
@@ -48,6 +58,9 @@ export type PanelControls = {
   setZoom: (zoom: PanelZoom) => void
   phone: boolean
   setPhone: (phone: boolean) => void
+  /** The left menu's shade, saved to the menu file. */
+  shade: number
+  setShade: (shade: number) => void
 }
 
 /** A plain click opens the screen in the panel; a modified click is left to the browser. */
@@ -128,7 +141,7 @@ function SaveState({ status, onRetry }: { status: SaveStatus; onRetry: () => voi
   )
 }
 
-type CogView = "main" | "recent" | "pin" | "zoom"
+type CogView = "main" | "recent" | "pin" | "zoom" | "shade"
 
 /** A row that steps into one of the cog's lists. */
 function StepInItem({ label, onStep }: { label: React.ReactNode; onStep: () => void }) {
@@ -165,10 +178,50 @@ function StepOutItem({ label, onStep }: { label: string; onStep: () => void }) {
 }
 
 /**
+ * The slider that makes the left menu lighter or darker, changing it as it
+ * moves. Tyler asked for it on 18 Oct 2026.
+ */
+function ShadeControl({ panel }: { panel: PanelControls }) {
+  return (
+    <>
+      <div className="flex flex-col gap-2 px-2 py-2">
+        <Slider
+          aria-label="Menu shade"
+          aria-valuetext={sidebarShadeLabel(panel.shade)}
+          min={MIN_SIDEBAR_SHADE}
+          max={MAX_SIDEBAR_SHADE}
+          step={1}
+          value={[panel.shade]}
+          onValueChange={([shade]) => panel.setShade(shade)}
+        />
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>Darker</span>
+          <span>{sidebarShadeLabel(panel.shade)}</span>
+          <span>Lighter</span>
+        </div>
+      </div>
+      {panel.shade ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault()
+              panel.setShade(0)
+            }}
+          >
+            Back to the default shade
+          </DropdownMenuItem>
+        </>
+      ) : null}
+    </>
+  )
+}
+
+/**
  * The cog: opening the screen in its own tab, recent screens, pinning, zoom,
- * phone view, "Edit the menu" and Sign out. The recent screens, the pin places
- * and the zoom are lists the dropdown steps into, since the shell's dropdown
- * has no sub-menus.
+ * phone view, the menu's shade, "Edit the menu" and Sign out. The recent
+ * screens, the pin places, the zoom and the shade are lists the dropdown steps
+ * into, since the shell's dropdown has no sub-menus.
  */
 function CogMenu({
   panel,
@@ -224,6 +277,11 @@ function CogMenu({
               </DropdownMenuCheckboxItem>
             ))}
           </>
+        ) : view === "shade" ? (
+          <>
+            <StepOutItem label="Menu shade" onStep={() => setView("main")} />
+            <ShadeControl panel={panel} />
+          </>
         ) : (
           <>
             {screen ? (
@@ -269,6 +327,16 @@ function CogMenu({
             <DropdownMenuCheckboxItem checked={panel.phone} onCheckedChange={panel.setPhone}>
               Phone view
             </DropdownMenuCheckboxItem>
+            <StepInItem
+              label={
+                <>
+                  <PaletteIcon />
+                  Menu shade
+                  <span className="text-muted-foreground">{sidebarShadeLabel(panel.shade)}</span>
+                </>
+              }
+              onStep={() => setView("shade")}
+            />
             <DropdownMenuSeparator />
             <DropdownMenuCheckboxItem checked={editing} onCheckedChange={onEditingChange}>
               Edit the menu

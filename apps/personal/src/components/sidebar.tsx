@@ -37,10 +37,10 @@ import {
   removeSection,
   renameSection,
   type Menu,
+  type MenuLink,
   type MenuSection,
 } from "@/lib/menu"
 import { plural } from "@/lib/plural"
-import { recentMenuLinks, type RecentScreen } from "@/lib/recent-screens"
 import { useRememberedOpen } from "@/lib/use-remembered-open"
 import { cn } from "@/lib/utils"
 
@@ -182,15 +182,13 @@ function SidebarSection({
 }
 
 /**
- * "Recent" at the top of the left menu: the last three menu links opened,
- * newest first, folded like a section. It is worked out from the recent
- * screens list, so it has nothing to save and can't be edited or dragged.
- * Tyler asked for it on 18 Oct 2026.
+ * "Recent" at the top of the left menu, folded like a section. Its links
+ * come from `useRecentLinks` and can't be edited or dragged here. Tyler asked
+ * for it on 18 Oct 2026.
  */
-export function RecentLinks({ menu, recent }: { menu: Menu; recent: RecentScreen[] }) {
+export function RecentLinks({ links }: { links: MenuLink[] }) {
   const [open, setOpen] = useRememberedOpen("personal-sidebar-recent")
   const { activeId, open: openLink } = useMenuActions()
-  const links = recentMenuLinks(menu, recent)
   if (links.length === 0) return null
 
   return (
@@ -235,15 +233,15 @@ export function RecentLinks({ menu, recent }: { menu: Menu; recent: RecentScreen
  */
 export function Sidebar({
   menu,
-  recent,
+  recentLinks,
   update,
   editing,
   onHome,
   footer,
 }: {
   menu: Menu
-  /** The last screens opened, newest first, for "Recent". */
-  recent: RecentScreen[]
+  /** The links "Recent" shows, newest first. */
+  recentLinks: MenuLink[]
   update: (change: (menu: Menu) => Menu) => void
   editing: boolean
   /** The logo and name go back to Personal's start page, when no screen is chosen for them. */
@@ -316,7 +314,7 @@ export function Sidebar({
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <nav aria-label="Screens" className="flex flex-col p-2">
-          <RecentLinks menu={menu} recent={recent} />
+          <RecentLinks links={recentLinks} />
           <SortableContext
             id={SECTIONS_LIST_ID}
             items={menu.sections.map((section) => sectionDragId(section.id))}

@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest"
 
-import { defaultMenu } from "@/lib/menu"
 import {
   addRecentScreen,
   MAX_RECENT_SCREENS,
-  recentMenuLinks,
   recentScreenLabel,
   type RecentScreen,
 } from "@/lib/recent-screens"
@@ -38,21 +36,4 @@ describe("recent screens", () => {
     )
   })
 
-  it("lists the last three menu links opened, each once, skipping screens no link holds", () => {
-    const menu = defaultMenu()
-    const recent = [
-      screen("/admin/listings/abc"),
-      screen("/somewhere-else"),
-      screen("/admin/dashboard"),
-      screen("/admin/listings"),
-      { url: "http://localhost:3020/dashboard", title: "" },
-      { url: "http://localhost:3020/dashboard/other", title: "" },
-    ]
-    expect(recentMenuLinks(menu, recent).map((link) => link.id)).toEqual([
-      "link-cms-listings",
-      "link-cms-dashboard",
-      "link-project-dashboard",
-    ])
-    expect(recentMenuLinks(menu, [])).toEqual([])
-  })
 })
