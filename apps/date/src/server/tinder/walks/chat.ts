@@ -46,18 +46,25 @@ export async function readMatches(ctx: WalkContext, kit: WalkKit): Promise<Recor
     return added
   }
   await take(seen)
+  // A scroll that shows nobody new is the bottom of the list, so the read is
+  // complete and a chat not in it has gone from Tinder.
+  let complete = false
   for (let scrolls = 0; scrolls < MAX_LIST_SCROLLS; scrolls += 1) {
     seen = await kit.scroll(seen, "up", 600)
-    if (!(await take(seen))) break
+    if (!(await take(seen))) {
+      complete = true
+      break
+    }
   }
   const listed = Array.from(chats.values())
   const saved = await saveChatList(
     { userId: ctx.phone.userId, workspaceId: ctx.phone.workspaceId, phoneId: ctx.phone.id },
     listed,
     ctx.db,
-    ctx.now()
+    ctx.now(),
+    complete
   )
-  return { listed: listed.length, added: saved.added, toRead: saved.toRead }
+  return { listed: listed.length, added: saved.added, toRead: saved.toRead, complete, theyUnmatched: saved.theyUnmatched }
 }
 
 async function matchFor(ctx: WalkContext, input: Record<string, unknown>) {
@@ -217,7 +224,7 @@ export async function unmatch(ctx: WalkContext, kit: WalkKit, input: Record<stri
   const now = ctx.now()
   await ctx.db
     .update(dateMatches)
-    .set({ unmatchedAt: now, draft: "", draftSendAt: null, draftForMessageId: null, updatedAt: now })
+    .set({ unmatchedAt: now, unmatchedBy: "member", draft: "", draftSendAt: null, draftForMessageId: null, draftChoices: [], updatedAt: now })
     .where(eq(dateMatches.id, match.id))
   return { matchId: match.id, unmatched: true }
 }

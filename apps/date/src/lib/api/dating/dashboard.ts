@@ -174,7 +174,14 @@ const sendFn = createServerFn({ method: "POST" })
       await checkWalkAllowed({ userId: context.user.id, phoneId: match.phoneId, kind: "send-message" })
       // The AI's own words, sent as they are, carry its "suggests a date" mark.
       const proposesDate = match.draftProposesDate && text === match.draft.trim()
-      const messageId = await createOutgoingMessage(match.id, text, "member", proposesDate)
+      // The draft it started from, so "sent unchanged" can be counted: the
+      // draft, or the one of the three choices it matches.
+      const fromDraft = match.draftChoices.find((choice) => choice.trim() === text) ?? (match.draft || null)
+      const messageId = await createOutgoingMessage(match.id, text, "member", {
+        proposesDate,
+        draftText: fromDraft,
+        openerStyle: match.draftKind === "opener" && match.draft && match.messagesFromThem + match.messagesFromUs === 0 ? match.draftOpenerStyle : null,
+      })
       try {
         await queueWalk({ userId: context.user.id, phoneId: match.phoneId, kind: "send-message", input: { matchId: match.id, messageId }, askedBy: "member" })
       } catch (error) {
@@ -197,7 +204,9 @@ const regenerateFn = createServerFn({ method: "POST" })
     inWords(async () => {
       const match = await ownMatch(context.user.id, data.matchId)
       if (match.sample) throw new Error("This is a sample conversation, so the AI does not write for it.")
-      const outcome = await draftReply(match.id, db, new Date(), {}, { notThis: match.draft, anyTurn: true })
+      // A first message or a follow-up is written again as one.
+      const mode = match.draft && match.draftKind !== "reply" ? match.draftKind : undefined
+      const outcome = await draftReply(match.id, db, new Date(), {}, { notThis: match.draft, anyTurn: true, mode })
       if (outcome.status !== "done") throw new Error(outcome.words)
     })
   )

@@ -2,7 +2,13 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { describeAuthError } from "@/lib/api/error-message"
-import { SHOT_LENGTHS, type ShotLengthSeconds } from "@/lib/video/asset-factories"
+import {
+  isShotAllowanceShortMessage,
+  PERSON_SHOTS_FULL_MESSAGE,
+  PROJECT_SHOTS_FULL_MESSAGE,
+  SHOT_LENGTHS,
+  type ShotLengthSeconds,
+} from "@/lib/video/asset-factories"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
 import { userGet, userPost } from "@/server/guards"
@@ -18,6 +24,7 @@ export function getGenerationErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ""
   if (message.startsWith("Google ")) return message
   if (isProjectSpendLimitMessage(message)) return message
+  if (isShotAllowanceShortMessage(message)) return message
   if (
     [
       PROJECT_NOT_FOUND_MESSAGE,
@@ -25,7 +32,8 @@ export function getGenerationErrorMessage(error: unknown) {
       "Only failed generations can be retried",
       "First frame not found",
       "First frame is not an image",
-      "This project already has a video generating",
+      PROJECT_SHOTS_FULL_MESSAGE,
+      PERSON_SHOTS_FULL_MESSAGE,
       "Write one direction for each piece of the shot",
       "A video that is still generating cannot be deleted",
       "Add a Google Gemini key in Settings first",

@@ -5,7 +5,25 @@ import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  askDate,
+  clearDeadMatchesNow,
+  deleteMatchFact,
+  listDeadMatches,
+  markMovedToText,
+  markNotOver,
+  redraftWithTone,
+  saveDatePlan,
+  saveMatchFact,
+  saveMatchNote,
+  setAiDraftsHere,
+  showThreeDrafts,
+  tidyMyReply,
+  type DeadMatch,
+} from "@/lib/api/dating/chats"
 import {
   answerAiQuestion,
   letAiDraftAgain,
@@ -37,11 +55,13 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 import { DatingColumns } from "./columns"
 import { ConversationView } from "./conversation-view"
+import { DatePlanDialog, type DatePlanTarget } from "./date-plan-dialog"
 import { DatingList } from "./dating-list"
 import { DatingRail } from "./dating-rail"
 import { PictureDialog } from "./picture-dialog"
 import { ProfileView } from "./profile-view"
 import { ScreenWindow } from "./screen-window"
+import { whenWords } from "./words"
 
 export type DatingSearch = {
   tab?: ListTab
@@ -77,6 +97,8 @@ export function DatingWorkspace({ initial, search }: { initial: DatingDashboard;
   const [busy, setBusy] = React.useState<string | null>(null)
   const [picture, setPicture] = React.useState<{ id: string; title: string; description?: string } | null>(null)
   const [screenOpen, setScreenOpen] = React.useState(false)
+  const [planning, setPlanning] = React.useState<DatePlanTarget | null>(null)
+  const [dead, setDead] = React.useState<DeadMatch[] | null>(null)
   const failing = React.useRef(false)
   const seen = React.useRef<string | null>(null)
 
@@ -160,6 +182,20 @@ export function DatingWorkspace({ initial, search }: { initial: DatingDashboard;
     }
   }
 
+  /** A call whose answer the caller needs, with the same busy mark and error toast as `act`. */
+  async function fetchIt<T>(key: string, work: () => Promise<T>): Promise<T | null> {
+    setBusy(key)
+    dismissErrorToast()
+    try {
+      return await work()
+    } catch (error) {
+      showErrorToast(datingErrorMessage(error))
+      return null
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const go = (next: Partial<DatingSearch>) => void navigate({ search: (previous: DatingSearch) => ({ ...previous, ...next }) })
   const back = desktop ? null : () => go({ profile: undefined, match: undefined })
 
@@ -187,6 +223,10 @@ export function DatingWorkspace({ initial, search }: { initial: DatingDashboard;
         busy={busy}
         onRefresh={() => void act("refresh", () => refreshConversation(matchValue.id), "The phone will read this chat again.")}
         onUnmatch={() => act("unmatch", () => unmatchOnPhone(matchValue.id), `Unmatching ${matchValue.theirName} on the phone.`)}
+        onMovedToText={(moved) =>
+          void act("moved", () => markMovedToText(matchValue.id, moved), moved ? "Moved to text. The AI writes nothing more here." : "Back on Tinder. The AI drafts here again.")
+        }
+        onNotOver={() => void act("not-over", () => markNotOver(matchValue.id), "Not over. The AI drafts here again on its next pass.")}
       />
     ) : (
       <Missing what="conversation" error={matchNow && "error" in matchNow ? matchNow.error : null} onBack={() => go({ match: undefined })} />
@@ -211,9 +251,17 @@ export function DatingWorkspace({ initial, search }: { initial: DatingDashboard;
           onTab={(next) => go({ tab: next })}
           onFilter={(next) => go({ filter: next === "all" ? undefined : next })}
           onOpenProfile={(id) => go({ profile: id, match: undefined, tab: "profiles" })}
-          onOpenMatch={(id) => go({ match: id, profile: undefined, tab: "matches" })}
+          onOpenMatch={(id) => go({ match: id, profile: undefined, tab: tab === "dates" ? "dates" : "matches" })}
           onReadCard={() => void act("read-card", readCardInFront, "The phone will read the profile on screen.")}
           onReadMatches={() => void act("read-matches", readMatchesNow, "The phone will read the chats.")}
+          onAsk={(question) => fetchIt("ask", () => askDate(question))}
+          onClearDead={() =>
+            void fetchIt("dead", listDeadMatches).then((list) => {
+              if (!list) return
+              if (!list.length) toast.success("No dead matches: every match has had a message in the last 30 days.")
+              else setDead(list)
+            })
+          }
         />
       }
       middle={middle}
@@ -226,6 +274,25 @@ export function DatingWorkspace({ initial, search }: { initial: DatingDashboard;
           actions={{
             send: (text) => act("send", () => sendFromPhone(matchValue?.id ?? "", text), "Sent to the phone. It types and sends it now."),
             regenerate: () => void act("regenerate", () => regenerateDraft(matchValue?.id ?? ""), "The AI wrote a new draft."),
+            showThree: () => void act("three", () => showThreeDrafts(matchValue?.id ?? ""), "Three drafts. Pick one, change it, then Send."),
+            tone: (tone) => void act(`tone:${tone}`, () => redraftWithTone(matchValue?.id ?? "", tone), "The AI wrote it again."),
+            tidy: async (text) => (await fetchIt("tidy", () => tidyMyReply(matchValue?.id ?? "", text)))?.text ?? null,
+            saveFact: (factId, text) => act("fact", () => saveMatchFact(matchValue?.id ?? "", factId, text)),
+            deleteFact: (factId) => act("fact", () => deleteMatchFact(matchValue?.id ?? "", factId)),
+            setAiDrafts: (on) =>
+              void act("ai-drafts", () => setAiDraftsHere(matchValue?.id ?? "", on), on ? "The AI drafts here again." : "You have this chat. The AI writes nothing here."),
+            saveNote: async (note) => {
+              try {
+                await saveMatchNote(matchValue?.id ?? "", note)
+                return true
+              } catch (error) {
+                showErrorToast(datingErrorMessage(error))
+                return false
+              }
+            },
+            planDate: () =>
+              matchValue &&
+              setPlanning({ matchId: matchValue.id, theirName: matchValue.theirName, dateAt: matchValue.dateAt, datePlace: matchValue.datePlace, sample: matchValue.sample }),
             answer: (answer) => act("answer", () => answerAiQuestion(matchValue?.id ?? "", answer), "Added to About me. The AI drafted again."),
             letDraft: () => void act("let-draft", () => letAiDraftAgain(matchValue?.id ?? ""), "The AI drafts here again on its next pass."),
             readCardAgain: () => void act("read-again", () => readCardAgain(profileValue?.id ?? ""), "The AI read the card again."),
@@ -241,6 +308,52 @@ export function DatingWorkspace({ initial, search }: { initial: DatingDashboard;
       }
     >
       <PictureDialog picture={picture} onClose={() => setPicture(null)} />
+      <DatePlanDialog
+        target={planning}
+        busy={busy === "plan"}
+        onClose={() => setPlanning(null)}
+        onSave={async (plan) => {
+          if (!planning) return false
+          if (planning.sample) {
+            toast.success("This is a sample, so nothing was saved.")
+            return true
+          }
+          const saved = await fetchIt("plan", () => saveDatePlan(planning.matchId, plan.dateAt, plan.place))
+          if (!saved) return false
+          if (saved.googleWords.startsWith("Saved in Date, but")) showErrorToast(saved.googleWords)
+          else toast.success([plan.dateAt ? "Date saved." : "Time cleared.", saved.googleWords].filter(Boolean).join(" "))
+          await reload().catch(() => {})
+          return true
+        }}
+      />
+      <ConfirmDialog
+        open={dead !== null}
+        onOpenChange={(open) => !open && setDead(null)}
+        title={`Unmatch ${dead?.length ?? 0} dead ${dead?.length === 1 ? "match" : "matches"}?`}
+        description="Nobody has written in these chats for 30 days. The phone unmatches each one through Tinder's own menu, one at a time. Tinder cannot undo an unmatch."
+        confirmLabel="Unmatch them all"
+        loading={busy === "clear-dead"}
+        onConfirm={() => {
+          const ids = (dead ?? []).map((match) => match.id)
+          void fetchIt("clear-dead", () => clearDeadMatchesNow(ids)).then(async (result) => {
+            if (!result) return
+            setDead(null)
+            toast.success(result.words)
+            await reload().catch(() => {})
+          })
+        }}
+      >
+        <ScrollArea className="max-h-60">
+          <ul className="grid gap-1 pr-3 text-sm">
+            {(dead ?? []).map((match) => (
+              <li key={match.id} className="flex justify-between gap-3">
+                <span className="truncate font-medium">{match.theirName}</span>
+                <span className="shrink-0 text-muted-foreground">last {whenWords(match.lastAt)}</span>
+              </li>
+            ))}
+          </ul>
+        </ScrollArea>
+      </ConfirmDialog>
       {screenOpen && data.phone ? <ScreenWindow phone={data.phone} onClose={() => setScreenOpen(false)} /> : null}
     </DatingColumns>
   )

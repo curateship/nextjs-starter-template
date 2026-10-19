@@ -25,6 +25,14 @@ export function addRecentLink(ids: string[], id: string, inMenu: Set<string>) {
   return [id, ...kept].slice(0, MAX_RECENT_LINKS)
 }
 
+/**
+ * Takes a link out of Recent. The link stays in the menu, and comes back the
+ * next time it is opened after another one.
+ */
+export function removeRecentLink(ids: string[], id: string) {
+  return ids.filter((entry) => entry !== id)
+}
+
 /** The links behind the saved ids, in order, skipping any since deleted. */
 export function recentLinksIn(links: MenuLink[], ids: string[]) {
   return ids.flatMap((id) => links.find((link) => link.id === id) ?? [])

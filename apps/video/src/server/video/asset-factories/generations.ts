@@ -7,8 +7,13 @@ import { alias } from "drizzle-orm/pg-core"
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import {
   assetPrompt,
+  PERSON_SHOTS_FULL_MESSAGE,
+  PROJECT_SHOTS_FULL_MESSAGE,
   providerMessage,
+  shotAllowanceShortMessage,
   shotPieces,
+  SHOTS_AT_ONCE_PER_PERSON,
+  SHOTS_AT_ONCE_PER_PROJECT,
   VEO_MODEL,
   type AssetAspectRatio,
   type ShotLengthSeconds,
@@ -16,7 +21,10 @@ import {
 } from "@/lib/video/asset-factories"
 import { styledPrompt } from "@/lib/video/visual-style"
 import {
+  aiMonthSpendCents,
+  aiUsageMonthStart,
   checkAiAllowance,
+  getAiAllowanceCents,
   isAiLimitError,
   recordAiUsage,
   recordDeferredAiSuccess,
@@ -49,6 +57,12 @@ const MAX_VIDEO_BYTES = 100 * 1024 * 1024
 const JOB_TIMEOUT_MS = 15 * 60 * 1000
 const JOB_LEASE_MS = 5 * 60 * 1000
 const PROVIDER_REQUEST_TIMEOUT_MS = 90_000
+/**
+ * How many running pieces one worker pass asks Google about, side by side.
+ * A finished clip is held in memory while it is saved, up to 100 MB each, so
+ * this is one person's six rather than everyone's.
+ */
+const CHECKS_PER_PASS = 6
 const VIDEO_DOWNLOAD_TIMEOUT_MS = 4 * 60 * 1000
 
 type ClaimedGeneration = VideoAiGenerationRow & { leaseToken: string }
@@ -83,6 +97,8 @@ export type GenerationPiece = {
 export type GenerationItem = {
   id: string
   first_frame_id: string
+  /** When Make the shot was pressed, so a row can say how long it has taken. */
+  created_at: string
   aspect_ratio: AssetAspectRatio
   duration_seconds: number
   status: GenerationStatus
@@ -138,6 +154,7 @@ async function serializeShot(rows: GenerationJoin[]): Promise<GenerationItem> {
   return {
     id: first.generation.shotId,
     first_frame_id: first.generation.firstFrameId,
+    created_at: first.generation.createdAt.toISOString(),
     aspect_ratio: first.generation.aspectRatio as AssetAspectRatio,
     duration_seconds: pieces.reduce((sum, piece) => sum + piece.duration_seconds, 0),
     status,
@@ -199,6 +216,92 @@ async function getShot(userId: string, shotId: string) {
   return rows
 }
 
+/**
+ * What this person has being made right now. A shot counts while one of its
+ * pieces is queued or processing, and the pieces waiting behind it will be
+ * paid for too as they arrive. A shot stopped by a failed piece counts for
+ * nothing until Try again.
+ */
+async function shotsBeingMade(userId: string, projectId: string) {
+  const rows = await db
+    .select({
+      projectId: videoAiGenerations.projectId,
+      shotId: videoAiGenerations.shotId,
+      model: videoAiGenerations.model,
+      durationSeconds: videoAiGenerations.durationSeconds,
+      status: videoAiGenerations.status,
+    })
+    .from(videoAiGenerations)
+    .where(
+      and(
+        eq(videoAiGenerations.userId, userId),
+        inArray(videoAiGenerations.status, ["waiting", "queued", "processing"])
+      )
+    )
+  const running = rows.filter((row) => row.status !== "waiting")
+  const runningShots = new Set(running.map((row) => row.shotId))
+  const owed = rows.filter((row) => runningShots.has(row.shotId))
+  const cents = (list: typeof rows) =>
+    list.reduce((sum, row) => sum + aiUnitCostCents(row.model, row.durationSeconds), 0)
+  return {
+    projectShots: running.filter((row) => row.projectId === projectId).length,
+    personShots: running.length,
+    projectCents: cents(owed.filter((row) => row.projectId === projectId)),
+    personCents: cents(owed),
+  }
+}
+
+/**
+ * Refuses a shot that would pass the caps on shots at once, the monthly
+ * allowance or the project's spend limit. Shots already being made are not
+ * on the meter until they arrive, so the money checks add them in; otherwise
+ * three presses in a row would each see the same untouched balance.
+ */
+async function requireRoomForShot(userId: string, projectId: string, nextCents: number) {
+  const making = await shotsBeingMade(userId, projectId)
+  if (making.projectShots >= SHOTS_AT_ONCE_PER_PROJECT) {
+    throw new Error(PROJECT_SHOTS_FULL_MESSAGE)
+  }
+  if (making.personShots >= SHOTS_AT_ONCE_PER_PERSON) {
+    throw new Error(PERSON_SHOTS_FULL_MESSAGE)
+  }
+  await checkAiAllowance(userId)
+  const allowanceCents = await getAiAllowanceCents(userId)
+  if (allowanceCents !== null) {
+    const leftCents =
+      allowanceCents - (await aiMonthSpendCents(userId, aiUsageMonthStart(now())))
+    if (making.personCents + nextCents > leftCents) {
+      throw new Error(
+        shotAllowanceShortMessage({
+          leftCents,
+          generatingCents: making.personCents,
+          nextCents,
+        })
+      )
+    }
+  }
+  await requireProjectBudget(userId, projectId, nextCents, db, making.projectCents)
+}
+
+/**
+ * The database refuses a shot past the caps too (migration 0117), for two
+ * presses that land together and both pass the check above. Its refusal
+ * carries the same sentence, which drizzle wraps in a "Failed query" error.
+ */
+function rethrowShotsFull(error: unknown): never {
+  let current: unknown = error
+  for (let depth = 0; depth < 5 && current instanceof Error; depth += 1) {
+    if (
+      current.message === PROJECT_SHOTS_FULL_MESSAGE ||
+      current.message === PERSON_SHOTS_FULL_MESSAGE
+    ) {
+      throw new Error(current.message)
+    }
+    current = current.cause
+  }
+  throw error
+}
+
 export async function createGeneration(
   userId: string,
   payload: {
@@ -239,27 +342,11 @@ export async function createGeneration(
   if (!(await getAiKey("gemini"))) {
     throw new Error("Add a Google Gemini key in Settings first")
   }
-  await checkAiAllowance(userId)
-  await requireProjectBudget(
+  await requireRoomForShot(
     userId,
     project.id,
     aiUnitCostCents(VEO_MODEL, payload.lengthSeconds)
   )
-
-  const active = await db
-    .select({ id: videoAiGenerations.id })
-    .from(videoAiGenerations)
-    .where(
-      and(
-        eq(videoAiGenerations.projectId, payload.projectId),
-        // A shot stopped by a failed piece still has pieces waiting behind
-        // it, and a second shot would take the project's one running slot
-        // that its Retry needs.
-        inArray(videoAiGenerations.status, ["waiting", "queued", "processing"])
-      )
-    )
-    .limit(1)
-  if (active.length) throw new Error("This project already has a video generating")
 
   const at = now()
   const shotId = uuid()
@@ -289,6 +376,7 @@ export async function createGeneration(
       }))
     )
     .returning()
+    .catch(rethrowShotsFull)
   return await serializeShot(
     created.map((generation) => ({ generation, output: null }))
   )
@@ -307,20 +395,25 @@ export async function retryGeneration(userId: string, shotId: string) {
     .where(failed)
     .limit(1)
   if (!piece) throw new Error("Only failed generations can be retried")
-  // A shot whose last piece failed has nothing waiting behind it, so another
-  // video may have started on the project since. The project runs one at a
-  // time.
-  const [active] = await db
-    .select({ id: videoAiGenerations.id })
+  // The failed piece and every piece waiting behind it will be paid for.
+  const left = await db
+    .select({
+      model: videoAiGenerations.model,
+      durationSeconds: videoAiGenerations.durationSeconds,
+    })
     .from(videoAiGenerations)
     .where(
       and(
-        eq(videoAiGenerations.projectId, piece.projectId),
-        inArray(videoAiGenerations.status, ["queued", "processing"])
+        eq(videoAiGenerations.shotId, shotId),
+        eq(videoAiGenerations.userId, userId),
+        inArray(videoAiGenerations.status, ["error", "waiting"])
       )
     )
-    .limit(1)
-  if (active) throw new Error("This project already has a video generating")
+  await requireRoomForShot(
+    userId,
+    piece.projectId,
+    left.reduce((sum, row) => sum + aiUnitCostCents(row.model, row.durationSeconds), 0)
+  )
   const [updated] = await db
     .update(videoAiGenerations)
     .set({
@@ -336,6 +429,7 @@ export async function retryGeneration(userId: string, shotId: string) {
     })
     .where(failed)
     .returning({ id: videoAiGenerations.id })
+    .catch(rethrowShotsFull)
   if (!updated) throw new Error("Only failed generations can be retried")
   return await serializeShot(await getShot(userId, shotId))
 }
@@ -458,6 +552,16 @@ async function startJob(job: ClaimedGeneration) {
         }),
       }
     )
+    if (
+      response.status === 429 &&
+      now().getTime() - (job.startedAt ?? job.updatedAt).getTime() < JOB_TIMEOUT_MS
+    ) {
+      // Google limits how many videos start a minute. Several shots asked
+      // for together can meet that limit, so the piece waits its turn and
+      // starts on a later pass rather than failing.
+      await requeueJob(job)
+      return
+    }
     if (!response.ok) {
       const detail = providerMessage(await response.text())
       throw new Error(`Google could not start the video${detail ? `: ${detail}` : "."}`)
@@ -470,6 +574,8 @@ async function startJob(job: ClaimedGeneration) {
         operationName: operation.name,
         leaseToken: null,
         leaseExpiresAt: null,
+        // Google's 15 minutes count from here, not from a wait in the queue.
+        startedAt: now(),
         updatedAt: now(),
       })
       .where(
@@ -542,6 +648,20 @@ async function lastFrame(video: Uint8Array) {
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
+}
+
+/** Puts a piece Google was too busy to start back in the queue. */
+async function requeueJob(job: ClaimedGeneration) {
+  await db
+    .update(videoAiGenerations)
+    .set({ status: "queued", leaseToken: null, leaseExpiresAt: null, updatedAt: now() })
+    .where(
+      and(
+        eq(videoAiGenerations.id, job.id),
+        eq(videoAiGenerations.status, "processing"),
+        eq(videoAiGenerations.leaseToken, job.leaseToken)
+      )
+    )
 }
 
 async function releaseJob(job: ClaimedGeneration) {
@@ -659,7 +779,8 @@ async function pollJob(job: ClaimedGeneration) {
         .returning({ id: videoAiGenerations.id })
       // In the same step as the piece before turning ready, so a shot is
       // never left with a ready piece and nothing queued after it. This
-      // runs second because a project holds one queued or running row.
+      // runs second so the shot's place is free again, and a project
+      // already making its most shots at once does not refuse it.
       if (done && nextFrameId) {
         await tx
           .update(videoAiGenerations)
@@ -766,14 +887,25 @@ async function claimProcessingJob(): Promise<ClaimedGeneration | null> {
   return claimed ? { ...claimed, leaseToken } : null
 }
 
-/** One durable generation step per shell tick. */
+/**
+ * One worker pass. It starts at most one queued piece, so shots asked for
+ * together reach Google a pass apart (Google limits starts a minute), and
+ * asks after every running piece side by side. Each piece is still one
+ * durable step under its own lease; running them together means a piece
+ * whose download takes minutes holds up no other piece's check.
+ */
 export async function videoGenerationTick() {
   const queued = await claimQueuedJob()
-  if (queued) {
-    await startJob(queued)
-    return
+  // Every piece is claimed before any step runs. A check that finished first
+  // would hand its lease back and be claimed again in the same pass.
+  const processing: ClaimedGeneration[] = []
+  for (let checks = 0; checks < CHECKS_PER_PASS; checks += 1) {
+    const job = await claimProcessingJob()
+    if (!job) break
+    processing.push(job)
   }
-
-  const processing = await claimProcessingJob()
-  if (processing) await pollJob(processing)
+  await Promise.all([
+    ...(queued ? [startJob(queued)] : []),
+    ...processing.map(pollJob),
+  ])
 }

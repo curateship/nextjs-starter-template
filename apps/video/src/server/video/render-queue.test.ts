@@ -17,6 +17,7 @@ import { type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import { createOwnedProject, writeProjectTimeline } from "@/server/video/projects"
 import {
+  cancelRenderJob,
   cancelRenderJobs,
   enqueueRenderJobs,
   getLatestRenderJobs,
@@ -215,6 +216,28 @@ describe("asking for an export", () => {
 })
 
 describe("stopping", () => {
+  it("stops one export and leaves the project's other shape going", async () => {
+    const project = await projectWithContent()
+    const [tall, wide] = await ask(project.id, { aspects: ["9:16", "16:9"] })
+    const stopped = await cancelRenderJob(user.id, tall.id, database)
+    expect(stopped.status).toBe("cancelled")
+    const after = await getLatestRenderJobs(user.id, project.id, database)
+    expect(after.find((job) => job.id === wide.id)?.status).toBe("queued")
+  })
+
+  it("will not stop a finished export or somebody else's", async () => {
+    const project = await projectWithContent()
+    const [job] = await ask(project.id)
+    const stranger = await insertUser(database)
+    await expect(cancelRenderJob(stranger.id, job.id, database)).rejects.toThrowError(
+      NO_ACTIVE_EXPORT_MESSAGE
+    )
+    await finish(job.id)
+    await expect(cancelRenderJob(user.id, job.id, database)).rejects.toThrowError(
+      NO_ACTIVE_EXPORT_MESSAGE
+    )
+  })
+
   it("stops a waiting export", async () => {
     const project = await projectWithContent()
     await ask(project.id)

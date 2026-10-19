@@ -14,7 +14,7 @@ import {
   createOwnedExportShare,
   revokeOwnedExportShare,
 } from "@/server/video/export-shares"
-import { deleteOwnedExports, loadExportStorage } from "@/server/video/exports"
+import { deleteOwnedExports } from "@/server/video/exports"
 import { createOwnedProject, deleteOwnedProjects } from "@/server/video/projects"
 import {
   videoExportShares,
@@ -103,29 +103,6 @@ function share(exportId: string, expiresInDays: number | null = null) {
 }
 
 const sixMonthsAgo = () => new Date(now().getTime() - 182 * DAY_MS)
-
-describe("the storage total", () => {
-  it("adds up every finished export of theirs and nothing else", async () => {
-    const stranger = await insertUser(database)
-    await exportRow({ bytes: 3 * MB })
-    await exportRow({ bytes: 5 * MB })
-    await exportRow({ bytes: 7 * MB, daysOld: 400 })
-    await exportRow({ status: "error", storagePath: null, fileSize: null })
-    await exportRow({ ownerId: stranger.id, bytes: 900 * MB })
-
-    expect(await loadExportStorage(user.id, database)).toEqual({
-      exports: 3,
-      bytes: 15 * MB,
-    })
-  })
-
-  it("is zero for somebody who has made nothing", async () => {
-    expect(await loadExportStorage(user.id, database)).toEqual({
-      exports: 0,
-      bytes: 0,
-    })
-  })
-})
 
 describe("deleting an export", () => {
   it("removes the file and the cover from storage, then the row", async () => {

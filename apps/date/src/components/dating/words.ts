@@ -26,3 +26,9 @@ export function swipeWords(swipe: "none" | "like" | "pass", by: "member" | "ai" 
 export function dollars(value: number): string {
   return value < 10 ? `$${value.toFixed(2)}` : `$${Math.round(value)}`
 }
+
+/** A date's day and time, such as "Sat 3 Jan, 19:00", in the reader's own time zone. */
+export function dateTimeWords(value: Date | string): string {
+  const at = typeof value === "string" ? new Date(value) : value
+  return `${at.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}, ${formatClockTime(at)}`
+}

@@ -19,7 +19,7 @@ function render(ids: string[], activeId: string | null = null) {
   }
   return renderToStaticMarkup(
     <MenuActionsContext.Provider value={actions}>
-      <RecentLinks links={recentLinksIn(allLinks(defaultMenu()), ids)} />
+      <RecentLinks links={recentLinksIn(allLinks(defaultMenu()), ids)} onRemove={() => {}} />
     </MenuActionsContext.Provider>
   )
 }
@@ -34,6 +34,12 @@ describe("Recent in the left menu", () => {
     const labels = [...html.matchAll(/<span class="truncate">([^<]*)<\/span>/g)].map((m) => m[1])
     expect(labels).toEqual(["Recent", "Listings", "Dashboard", "My dashboard"])
     expect(html).toMatch(/href="\/localhost:3015\/admin\/listings"[^>]*data-active=""/)
+  })
+
+  it("gives each link an × that takes it out of Recent", () => {
+    const html = render(["link-cms-listings", "link-project-dashboard"])
+    expect(html).toContain('aria-label="Remove Listings from Recent"')
+    expect(html).toContain('aria-label="Remove My dashboard from Recent"')
   })
 
   it("draws nothing before any link is opened", () => {
