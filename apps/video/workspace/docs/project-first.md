@@ -23,7 +23,8 @@ never deletes an actor.
 - **AI tools** holds Captions, Tighten, Voice, Hook and Another language.
 - **AI clip** sits under it (see `ai-clip.md`).
 - **Copy** and **Exports** are pinned to the foot of the rail (Tyler, 17 Oct
-  2026). The rail scrolls when the window is too short for every icon.
+  2026), with **History** under them (`project-history.md`). The rail scrolls
+  when the window is too short for every icon.
 
 ## Copy
 
