@@ -16,7 +16,7 @@ The app has three main panels:
 
 - Left navigator: Tasks, Files, Skills, Docs, and Changes.
 - Center editor: tabbed CodeMirror editor with save, diff preview, image paste, and dirty state.
-- Right sidebar: workspace list and workspace actions.
+- Right sidebar: workspace list and workspace actions, then a collapsible Notes box pinned to the bottom of the sidebar, just above the server address. The workspace list scrolls above it; the Notes box never scrolls away. The note is one free-text box for the whole app, not one per workspace. Its text and open/closed state save to localStorage on every keystroke (`personal-ide:workspace-notes`).
 
 The bottom bar is for pinned skill shortcuts and terminal input clearing. Hardcoded custom commands were removed.
 
