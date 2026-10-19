@@ -151,6 +151,11 @@ export function dayLabel(day: string, thisYear = new Date().getFullYear()) {
   return Number(day.slice(0, 4)) === thisYear ? SHORT_DATE.format(date) : SHORT_DATE_YEAR.format(date)
 }
 
+/** "Oct 16, 2026", with the year always. */
+export function fullDayLabel(day: string) {
+  return SHORT_DATE_YEAR.format(utcNoonOf(day))
+}
+
 /** "Oct 14", or "Oct 14 to Oct 16": a stretch of days such as time off. */
 export function dayRangeLabel(first: string, last: string) {
   return first === last ? dayLabel(first) : `${dayLabel(first)} to ${dayLabel(last)}`

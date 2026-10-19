@@ -368,6 +368,13 @@ AI keys are already there, written by me straight after the first deploy.
 - **Querying Cloudflare's nameservers directly from this laptop returned
   nothing** even while the records were live. Trust Resend's verify call or
   `1.1.1.1`.
+- **The deploy's health check can fail on a brand-new address while the site
+  is up.** Project, 19 Oct 2026: every try said "fetch failed" because this
+  Mac had looked the name up before the A record existed and kept the "no such
+  address" answer. `curl --resolve <host>:443:<ip from dig @1.1.1.1>` answered
+  `{"status":"ok"}`. Playwright gets past it with
+  `--host-resolver-rules=MAP <host> <ip>`. Run the steps the script skipped
+  after the failed check (admin, AI keys, menu) by hand.
 - **Trade's variables are all build-time.** Do not copy that setup.
 - **Cloudflare imports the registrar's parking and email-forwarding records.**
   Replace A and www at deploy time, and ask Tyler whether the forwarding still
