@@ -1,5 +1,5 @@
 import { Link, type ErrorComponentProps } from "@tanstack/react-router"
-import { FolderXIcon } from "lucide-react"
+import { FolderXIcon, UsersIcon } from "lucide-react"
 
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,27 @@ export function ProjectRouteError(props: ErrorComponentProps) {
         <p className="text-sm text-muted-foreground">That project doesn't exist or you can't see it.</p>
         <Button asChild variant="outline">
           <Link to="/projects">Back to Projects</Link>
+        </Button>
+      </div>
+    </Card>
+  )
+}
+
+/**
+ * A team page's error screen, the same way: a deleted team, or an old link to
+ * one, offers Back to Teams rather than Try again.
+ */
+export function TeamRouteError(props: ErrorComponentProps) {
+  if (getProjectErrorMessage(props.error) !== PROJECT_ERRORS.teamNotFound) {
+    return <RetryableError {...props} />
+  }
+  return (
+    <Card size="sm">
+      <div className="grid min-h-32 justify-items-center gap-3 px-4 py-8 text-center">
+        <UsersIcon className="size-5 text-muted-foreground" aria-hidden />
+        <p className="text-sm text-muted-foreground">That team no longer exists.</p>
+        <Button asChild variant="outline">
+          <Link to="/teams">Back to Teams</Link>
         </Button>
       </div>
     </Card>

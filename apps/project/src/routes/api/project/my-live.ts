@@ -54,7 +54,10 @@ export const Route = createFileRoute("/api/project/my-live")({
           }
         }
 
-        watch = await watchForPerson(user.id, (change) => send(`data: ${change}\n\n`))
+        // The site admin's page names its team; an employee's is their own.
+        const team = new URL(request.url).searchParams.get("team")
+        const teamId = team && team.length <= 36 ? team : undefined
+        watch = await watchForPerson(user.id, (change) => send(`data: ${change}\n\n`), undefined, teamId)
         if (!watch) return Response.json({ detail: "You're not on a team." }, { status: 404 })
 
         const stream = new ReadableStream<Uint8Array>({

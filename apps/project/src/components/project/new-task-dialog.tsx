@@ -2,7 +2,8 @@ import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
-import { PersonAvatar, ProjectDot, RoomNote } from "@/components/project/task-bits"
+import { PersonAvatar, ProjectDot, RoomNote, StatusDot } from "@/components/project/task-bits"
+import { TagsBox, tagIdsFor, type TagPill } from "@/components/project/task-tags-field"
 import { FieldControl } from "@/components/project/task-fields-card"
 import { TypeIconGlyph } from "@/components/project/task-type-icon"
 import { DueDayPicker } from "@/components/project/due-day-picker"
@@ -41,7 +42,17 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { notesForEditor, readTaskNotes } from "@/lib/project/notes"
 import { moveNewTasks } from "@/lib/project/new-task-status"
-import { LIMITS, TASK_STATUS_LABEL, type TaskStatus } from "@/lib/project/rules"
+import type { Label as TaskTag } from "@/lib/api/project/sorting"
+import {
+  LIMITS,
+  TASK_PRIORITIES,
+  TASK_PRIORITY_LABEL,
+  TASK_STATUSES,
+  TASK_STATUS_LABEL,
+  type TaskPriority,
+  type TaskStatus,
+} from "@/lib/project/rules"
+import { useTeamId } from "@/lib/project/team-scope"
 import {
   fillInFirst,
   firstMissingField,
@@ -55,6 +66,7 @@ import { linesToTitles } from "@/lib/project/paste-lines"
 import { usePeopleRoom } from "@/lib/project/use-people-room"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
+const NO_MILESTONE = "none"
 const authenticatedRoute = getRouteApi("/_authenticated")
 export const NOBODY = "nobody"
 const NO_TYPE = "none"
@@ -94,6 +106,10 @@ export type NewTaskStart = {
   due: string | null
   status: TaskStatus
   stuckReason: string
+  priority: TaskPriority
+  /** Picked tags, and typed ones not made yet (no id). */
+  tags: TagPill[]
+  milestoneId: string | null
 }
 
 /**
@@ -108,8 +124,8 @@ export type NewTaskStart = {
  *
  * Picking a task type fills the Steps card and the notes from the type, and
  * asks for the type's fields that are needed when it is made. A pasted list
- * is made without a type. Opened from a Board column's "+", the task goes
- * into that column once it is made, and Stuck asks for its reason here.
+ * is made without a type. Its Status, Priority and Tags are set here as in
+ * the New task dropdown (Tyler, 19 Oct 2026); Stuck asks for its reason.
  */
 export function NewTaskDialog({
   projects,
@@ -117,6 +133,8 @@ export function NewTaskDialog({
   initialProjectId,
   initialTitle = "",
   start,
+  tags,
+  milestones,
   open,
   onClose,
   onCreated,
@@ -129,6 +147,10 @@ export function NewTaskDialog({
   initialTitle?: string
   /** What the New task dropdown held, for "More options". */
   start?: NewTaskStart
+  /** The team's tags; left out, there is no Tags field. */
+  tags?: TaskTag[]
+  /** The project's milestones; left out or none, there is no Milestone field. */
+  milestones?: { id: string; name: string }[]
   open: boolean
   onClose: () => void
   /**
@@ -155,6 +177,10 @@ export function NewTaskDialog({
   const [stepText, setStepText] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
   const [status, setStatusChoice] = React.useState<TaskStatus>("todo")
+  const [priority, setPriority] = React.useState<TaskPriority>("normal")
+  const [pills, setPills] = React.useState<TagPill[]>([])
+  const [milestoneId, setMilestoneId] = React.useState<string | null>(null)
+  const teamId = useTeamId()
   const [stuckReason, setStuckReason] = React.useState("")
   const [stuckInvalid, setStuckInvalid] = React.useState(false)
   const offered = (target: NewTaskProject | undefined) =>
@@ -227,6 +253,9 @@ export function NewTaskDialog({
         setDue(start.due)
         setStatusChoice(start.status)
         setStuckReason(start.stuckReason)
+        setPriority(start.priority)
+        setPills(start.tags)
+        setMilestoneId(start.milestoneId)
       }
     }
   }
@@ -253,6 +282,9 @@ export function NewTaskDialog({
     setStepText("")
     setInvalid(false)
     setStatusChoice("todo")
+    setPriority("normal")
+    setPills([])
+    setMilestoneId(null)
     setStuckReason("")
     setStuckInvalid(false)
     setTypeId(startingType(project))
@@ -357,6 +389,7 @@ export function NewTaskDialog({
       }
       const ok = await run(
         async () => {
+          const labelIds = await tagIdsFor(pills, teamId)
           const made = await createProjectTask({
             projectId: project.id,
             title,
@@ -367,6 +400,9 @@ export function NewTaskDialog({
             handoverNote: note,
             typeId: type ? type.id : null,
             fieldValues,
+            priority,
+            labelIds,
+            milestoneId,
           })
           madeId = made.id
           madeIds = [made.id]
@@ -477,7 +513,10 @@ export function NewTaskDialog({
                     <div className="grid gap-2">
                       <Label htmlFor="new-task-assignee">Assigned to</Label>
                       <Select value={assignee} onValueChange={setAssignee}>
-                        <SelectTrigger id="new-task-assignee" className="w-full sm:w-fit">
+                        <SelectTrigger
+                          id="new-task-assignee"
+                          className="w-full min-w-0 sm:w-fit sm:max-w-full *:data-[slot=select-value]:min-w-0"
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -485,7 +524,7 @@ export function NewTaskDialog({
                           {(project?.members ?? []).map((member) => (
                             <SelectItem key={member.userId} value={member.userId}>
                               <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} />
-                              {member.userId === me.id ? `${member.name} (you)` : member.name}
+                              <span className="truncate">{member.userId === me.id ? `${member.name} (you)` : member.name}</span>
                               <RoomNote room={room[member.userId]} />
                             </SelectItem>
                           ))}
@@ -512,6 +551,73 @@ export function NewTaskDialog({
                             : "Client wants it by Thursday"
                         }
                         onChange={(event) => setHandoverNote(event.target.value)}
+                      />
+                    </div>
+                  ) : null}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <Label htmlFor="new-task-status">Status</Label>
+                      <Select value={status} onValueChange={(value) => setStatusChoice(value as TaskStatus)}>
+                        <SelectTrigger id="new-task-status" className="w-full sm:w-fit">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TASK_STATUSES.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              <StatusDot status={option} />
+                              {TASK_STATUS_LABEL[option]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="new-task-priority">Priority</Label>
+                      <Select value={priority} onValueChange={(value) => setPriority(value as TaskPriority)}>
+                        <SelectTrigger id="new-task-priority" className="w-full sm:w-fit">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TASK_PRIORITIES.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {TASK_PRIORITY_LABEL[option]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+{milestones?.length && !pasted ? (
+            <div className="grid gap-2">
+              <Label htmlFor="new-task-milestone">Milestone</Label>
+              <Select value={milestoneId ?? NO_MILESTONE} onValueChange={(value) => setMilestoneId(value === NO_MILESTONE ? null : value)}>
+                <SelectTrigger id="new-task-milestone" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_MILESTONE}>No milestone</SelectItem>
+                  {milestones.map((milestone) => (
+                    <SelectItem key={milestone.id} value={milestone.id}>
+                      {milestone.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          {tags && !pasted ? (
+                    <div className="grid gap-2">
+                      <Label htmlFor="new-task-tags">Tags</Label>
+                      <TagsBox
+                        id="new-task-tags"
+                        tags={pills}
+                        teamTags={tags}
+                        disabled={saving}
+                        onRemove={(tag) => setPills((current) => current.filter((pill) => pill.name !== tag.name))}
+                        onAdd={async ({ name, known }) => {
+                          setPills((current) => [...current, known ?? { id: null, name, color: "slate" }])
+                          return true
+                        }}
                       />
                     </div>
                   ) : null}

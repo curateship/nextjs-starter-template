@@ -4,11 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { TaskTypesDashboard } from "@/components/project/task-types-dashboard"
 import type { TaskType } from "@/lib/project/task-types"
+import { ProjectDetailsPanel } from "@/components/project/project-details-panel"
 import { ProjectMembersCard } from "@/components/project/project-members-card"
 import { ProjectWorkspace } from "@/components/project/project-workspace"
 import { ProjectsDashboard } from "@/components/project/projects-dashboard"
 import { TaskBoard } from "@/components/project/task-board"
 import type { FieldRule } from "@/lib/project/task-fields"
+import { TaskBulkMenu } from "@/components/project/task-bulk-bar"
 import { TaskList } from "@/components/project/task-list"
 import { TeamStart } from "@/components/project/team-start"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -60,7 +62,6 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     unread: 0,
     pickedDays: 0,
     labels: [],
-    section: null,
     milestoneId: null,
     position: 0,
     completedAt: new Date().toISOString(),
@@ -83,7 +84,7 @@ const tasks = [
   card({ id: "d", title: "Fonts", status: "done", steps: { done: 3, total: 3 } }),
   card({ id: "e", title: "Late thing", status: "doing", dueDate: "2020-01-02", steps: { done: 1, total: 4 } }),
   card({ id: "f", title: "Ancient", status: "done", completedAt: "2020-01-01T00:00:00Z" }),
-  card({ id: "g", title: "Tagged", labels: [{ id: "l1", name: "Client", color: "pink" }], section: { id: "s1", name: "Design" } }),
+  card({ id: "g", title: "Tagged", labels: [{ id: "l1", name: "Client", color: "pink" }] }),
   card({ id: "h", title: "Cut the trailer", type: { id: "ty1", name: "Video editing", icon: "video", color: "red" } }),
 ]
 
@@ -145,9 +146,8 @@ describe("the board", () => {
     expect(html).not.toContain(`aria-current="true"`)
   })
 
-  it("shows labels and the section on a card, and keeps old Done tasks behind Show older", () => {
+  it("shows tags on a card, and keeps old Done tasks behind Show older", () => {
     expect(html).toContain("Client")
-    expect(html).toContain("Design")
     expect(html).toContain("Show 1 older")
     expect(html).not.toContain("Ancient")
   })
@@ -216,6 +216,33 @@ describe("the board's field lines (Features 16 Oct, part 8)", () => {
 })
 
 describe("the list", () => {
+  it("hides the tick boxes and drag handles until Mass select turns them on", () => {
+    const html = renderToStaticMarkup(
+      <TaskList tasks={tasks} readOnly={false} onOpenTask={() => {}} onReorder={() => {}} />
+    )
+    expect(html).toContain(">Mass select<")
+    expect(html).toContain(`aria-pressed="false"`)
+    expect(html).not.toContain("Select the tasks on this page")
+    expect(html).not.toContain(`aria-label="Select Pick the photos"`)
+    expect(html).not.toContain("to change the order")
+
+    const readOnly = renderToStaticMarkup(<TaskList tasks={tasks} readOnly onOpenTask={() => {}} />)
+    expect(readOnly).not.toContain("Mass select")
+  })
+
+  it("gathers the ticked rows' changes behind one button", () => {
+    const html = renderToStaticMarkup(
+      <TaskBulkMenu
+        taskIds={["a", "b"]}
+        targets={{ people: [], projects: [] }}
+        onDone={() => {}}
+      />
+    )
+    expect(html).toMatch(/2(<!-- -->)? selected/)
+    // The choices wait in the closed dropdown.
+    expect(html).not.toContain("Mark Done")
+  })
+
   it("lists tasks with their status and says so when there are none", () => {
     const full = renderToStaticMarkup(<TaskList tasks={tasks} readOnly={false} onOpenTask={() => {}} />)
     expect(full).toContain("Pick the photos")
@@ -280,7 +307,12 @@ describe("before there is a team", () => {
 
   it("puts the start card on the Projects dashboard when there is no team", () => {
     const html = renderToStaticMarkup(
-      <ProjectsDashboard page={{ team: null, projects: [] }} />
+      <ProjectsDashboard
+        page={{ team: null, siteAdmin: false, teams: [], teamFilter: null, projects: [] }}
+        onTeamFilter={() => {}}
+        settings={null}
+        onSettings={async () => {}}
+      />
     )
     expect(html).toContain("Start a team")
     expect(html).not.toContain("New project")
@@ -292,8 +324,18 @@ describe("the Projects dashboard", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
       <ProjectsDashboard
+        onTeamFilter={() => {}}
+        settings={null}
+        onSettings={async () => {}}
         page={{
-          team: { id: "team", name: "Acme", myRole: "owner" },
+          // The site admin sees every team's projects, with a Team column and filter.
+          team: null,
+          siteAdmin: true,
+          teams: [
+            { id: "team", name: "Acme" },
+            { id: "team2", name: "Beta" },
+          ],
+          teamFilter: null,
           projects: [
             {
               id: "p1",
@@ -302,12 +344,17 @@ describe("the Projects dashboard", () => {
               archived: false,
               personal: false,
               starred: false,
-              dueDate: "2020-01-01",
-              memberCount: 3,
               counts: { todo: 2, doing: 1, done: 4, stuck: 1 },
-              health: { value: "at_risk", note: "Client hasn't sent the photos", byName: "Priya", at: new Date().toISOString() },
+              dated: ["2020-01-02", "2020-01-03", "2020-01-04", "2099-01-01"].map((dueDate) => ({
+                dueDate,
+                dueAt: null,
+                status: "todo" as const,
+              })),
+              slowingAt: 1,
+              behindAt: 3,
               lead: { id: "u2", name: "Priya", avatarUrl: "" },
               client: "Hart Dental",
+              team: { id: "team", name: "Acme" },
             },
             {
               id: "p2",
@@ -316,12 +363,13 @@ describe("the Projects dashboard", () => {
               archived: true,
               personal: false,
               starred: false,
-              dueDate: null,
-              memberCount: 1,
               counts: { todo: 0, doing: 0, done: 2, stuck: 0 },
-              health: null,
+              dated: [],
+              slowingAt: 1,
+              behindAt: 3,
               lead: null,
               client: null,
+              team: { id: "team2", name: "Beta" },
             },
           ],
         }}
@@ -329,11 +377,22 @@ describe("the Projects dashboard", () => {
       </TooltipProvider>
     )
     expect(html).toContain("Website")
-    expect(html).toContain("At risk")
+    // Three of its four dated tasks are past due, which the default rule calls Behind.
+    expect(html).toContain(">Behind<")
+    expect(html).toContain("· 3 late")
     expect(html).toContain("Priya")
     expect(html).not.toContain("Old launch")
     expect(html).toContain("New project")
     expect(html).toMatch(/Archived.*1/)
+    expect(html).toContain(">Team<")
+    expect(html).toContain(">Acme<")
+    // No Stuck or Members column and no due date under Progress (Tyler, 19 Oct 2026).
+    expect(html).not.toContain(">Stuck<")
+    expect(html).not.toContain(">Members<")
+    expect(html).not.toContain("Due ")
+    expect(html).toContain(`aria-label="Pin Website"`)
+    // Each row's actions end with a cog that opens the project's settings.
+    expect(html).toContain(`aria-label="Website settings"`)
   })
 })
 
@@ -342,6 +401,7 @@ describe("the project page", () => {
   const page: ProjectPage = {
     project: {
       id: "p1",
+      teamId: "team",
       name: "Website",
       color: "blue",
       description: "New site",
@@ -353,19 +413,21 @@ describe("the project page", () => {
       hiddenTypeIds: [],
       defaultTypeId: null,
       statusOrder: ["todo", "doing", "done", "stuck"],
-      health: null,
+      slowingAt: 1,
+      behindAt: 3,
       leadUserId: null,
       client: null,
       wholeTeam: false,
-      canSetHealth: true,
+      bannerUrl: null,
+      avatarUrl: null,
     },
-    sections: [{ id: "s1", name: "Design" }],
     milestones: [{ id: "m1", name: "Design signed off", dueDate: "2020-01-01", done: 3, total: 5 }],
     teamClients: ["Hart Dental"],
     taskTypes: [],
     labels: [{ id: "l1", name: "Client", color: "pink" }],
     myUserId: "me",
     myRole: "owner",
+    siteAdminMe: { userId: "me", name: "Tyler", email: "", avatarUrl: "", title: null, openTasks: 0 },
     chatUnread: 0,
     members: [
       { userId: "anna", name: "Anna Weiss", email: "a@example.test", avatarUrl: "", title: null, openTasks: 1 },
@@ -384,19 +446,55 @@ describe("the project page", () => {
       </TooltipProvider>
     )
     expect(html).toContain(`aria-label="Project settings"`)
-    expect(html).toContain(`aria-label="Unstar Website"`)
+    expect(html).toContain(`aria-label="Unpin Website"`)
     expect(html).toContain(">Filter</span>")
     expect(html).toContain("Click a task to see its steps and chat here.")
     expect(html).toContain("New site")
+    // One late task ("Late thing"), and the rule starts Slowing down at 1.
+    expect(html).toContain(">Slowing down<")
+    expect(html).toContain("· 1 late")
+    expect(html).not.toContain("Set by")
     expect(html).toContain("Board")
     expect(html).toContain("New task")
-    // Whose tasks show, when they're due and the search are the header's, not the left panel's.
+    // Whose tasks show and the search are the header's, not the left panel's.
     expect(html).toContain(`aria-label="Showing: All members"`)
-    expect(html).toContain("All time")
     expect(html).toContain(`aria-label="Search tasks"`)
     expect(html).not.toContain("Tyler (you)")
-    // Each column has its own "+".
-    expect(html).toContain(`aria-label="Add a task to Doing"`)
+    // When it is due moved into Filter (Tyler, 19 Oct 2026).
+    expect(html).not.toContain("All time")
+    // A new browser opens on the List, the first tab, where each cell changes its task.
+    expect(html.indexOf(">List<")).toBeLessThan(html.indexOf(">Board<"))
+    expect(html).toContain(">Mass select<")
+    expect(html).toContain(`aria-label="Status: To do. Change it"`)
+    expect(html).toContain(`aria-label="Priority: Normal. Change it"`)
+  })
+
+  it("draws the project's banner faintly behind the left panel's top, and its round avatar beside the name", () => {
+    const plain = renderToStaticMarkup(
+      <TooltipProvider>
+        <ProjectDetailsPanel page={page} />
+      </TooltipProvider>
+    )
+    expect(plain).not.toContain("<img")
+    expect(plain).not.toContain("border-b-transparent")
+
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <ProjectDetailsPanel
+          page={{
+            ...page,
+            project: { ...page.project, client: "Hart Dental", bannerUrl: "/b.jpg", avatarUrl: "/a.jpg" },
+          }}
+        />
+      </TooltipProvider>
+    )
+    expect(html).toMatch(/src="\/b\.jpg" alt="" class="[^"]*opacity-30/)
+    // No line under the header across the banner (Tyler, 20 Oct 2026).
+    expect(html).toContain("border-b-transparent")
+    expect(html).toMatch(/rounded-full[^>]*><img src="\/a\.jpg"/)
+    // The client is listed once, beside the lead, not under the name (Tyler, 19 Oct 2026).
+    expect(html.match(/Hart Dental/g)).toHaveLength(1)
+    expect(html).toMatch(/>Client<\/h3><span[^>]*>Hart Dental</)
   })
 
   it("gives an employee no settings cog", () => {

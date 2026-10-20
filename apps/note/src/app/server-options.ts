@@ -24,12 +24,14 @@ export const appServerOptions: AppServerOptions = {
   background: {
     workers: [
       {
-        // Downloads a pasted link, looks at an upload, and analyses a video
-        // somebody pressed Analyse on, one job at a time, started without
-        // holding up the rest of the pass. Imported on the tick, not up here,
-        // so loading this file never drags yt-dlp, ffmpeg and Gemini into boot.
-        name: "note-videos",
-        tick: () => import("@/server/note/jobs").then((jobs) => jobs.tick()),
+        // Imports a pasted link (downloads a video or reads an X post),
+        // downloads an X post's video, analyses a note somebody pressed
+        // Analyse on, and merges plans, one job at a time, started without
+        // holding up the rest of the pass; then clears Trash over 30 days
+        // old. Imported on the tick, not up here, so loading this file never
+        // drags yt-dlp, ffmpeg and Gemini into boot.
+        name: "note-imports",
+        tick: () => import("@/server/note/library/jobs").then((jobs) => jobs.tick()),
       },
     ],
   },

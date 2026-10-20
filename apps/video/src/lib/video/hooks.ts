@@ -22,6 +22,9 @@ type HookTrack = { muted?: boolean; clips: HookClip[] }
 /** How far into a video a line can start and still be the opening line. */
 export const HOOK_WINDOW_MS = 4_000
 
+/** How much of the opening is listened to when looking for the spoken line. */
+export const HOOK_SPOKEN_WINDOW_MS = 12_000
+
 /** The most a rewrite may be — an opening line is short by definition. */
 export const HOOK_TEXT_MAX = 200
 

@@ -14,7 +14,8 @@ import { StepListActions } from "@/components/project/step-list-actions"
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { TaskPlanCard } from "@/components/project/task-plan-card"
 import { StepMenu } from "@/components/project/step-menu"
-import { TaskLabelsField, TaskSectionField } from "@/components/project/task-sorting-fields"
+import { TaskTagList, TaskTagsField } from "@/components/project/task-tags-field"
+import { TaskLinkButton, TaskLinkField } from "@/components/project/task-link"
 import {
   DueDate,
   DueMovesMark,
@@ -69,6 +70,8 @@ import { plural } from "@/lib/format/plural"
 import { localTimeOf, momentOnDay } from "@/lib/project/dates"
 import { clockLabel, dayLabel } from "@/lib/project/days"
 import { OptionCard } from "@/components/project/option-card"
+import { setProjectTaskLink } from "@/lib/api/project/linked-records"
+import { LINKED_APP_INFO } from "@/lib/project/linked-records"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import {
   BIN_DAYS,
@@ -139,6 +142,12 @@ export type TaskSide = {
   /** The title at the top of the panel, edited where it is written. */
   title: React.ReactNode
   status: React.ReactNode
+  /** The tags under the title, to read; nothing while there are none. */
+  tagList: React.ReactNode
+  /** The tags box, in the three-dot button's Add tags (Tyler, 20 Oct 2026). */
+  tags: React.ReactNode
+  /** The button that opens the task's Video or Promo record, or who may open it. */
+  link: React.ReactNode
   /** A hand-over to accept, a review, the Stuck reason row, and the Move and Remind me cards. */
   notices: React.ReactNode
   notes: {
@@ -779,8 +788,7 @@ function TaskForm({
   )
 
   const typeField = <TaskTypeField detail={detail} readOnly={readOnly} busy={busy} change={change} />
-  const sectionField = <TaskSectionField detail={detail} readOnly={readOnly} busy={busy} change={change} />
-  const labelsField = <TaskLabelsField detail={detail} readOnly={readOnly} busy={busy} change={change} />
+  const tagsField = <TaskTagsField detail={detail} readOnly={readOnly} busy={busy} change={change} />
   const reviewField = detail.canAskForReview ? (
     <div className="flex items-center justify-between gap-4">
       <FieldLabel
@@ -810,9 +818,9 @@ function TaskForm({
   const sortingFields = (
     <>
       {typeField}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {sectionField}
-        {labelsField}
+      <div className="grid gap-2">
+        <Label htmlFor="task-tags">Tags</Label>
+        <TaskTagsField id="task-tags" detail={detail} readOnly={readOnly} busy={busy} change={change} />
       </div>
       {reviewField}
     </>
@@ -833,6 +841,18 @@ function TaskForm({
     ) : null
 
   const fieldsCard = <TaskFieldsCard detail={detail} readOnly={readOnly} change={change} refresh={refresh} />
+  const linkButton = <TaskLinkButton detail={detail} />
+  const linkField = detail.canSetLink ? (
+    <TaskLinkField
+      detail={detail}
+      onSave={(address) =>
+        change(
+          () => setProjectTaskLink(task.id, address),
+          address ? "The task now opens that record." : "The task no longer points at a record."
+        )
+      }
+    />
+  ) : null
   const planCard = <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} />
   const historyCard = <TaskHistoryCard detail={detail} />
   const stepsTitle = `Steps${detail.steps.length ? ` · ${detail.steps.filter((step) => step.done).length} of ${detail.steps.length} done` : ""}`
@@ -841,6 +861,7 @@ function TaskForm({
   const body = (
     <>
       {notices}
+      {linkButton}
       <Card size="sm">
         <CardHeader>
           <CardTitle>Task</CardTitle>
@@ -855,6 +876,7 @@ function TaskForm({
           {stuckRow}
           {datesAndPriority}
           {sortingFields}
+          {linkField}
           <TaskNotesField key={task.id} notes={task.notes} readOnly={readOnly} onSave={saveNotes} task={noteLinks} />
           {handBackButton}
         </CardContent>
@@ -897,6 +919,9 @@ function TaskForm({
       />
     ),
     status: statusPill,
+    tagList: <TaskTagList tags={task.labels} />,
+    tags: tagsField,
+    link: linkButton,
     notices: (
       <>
         {stuckRow}
@@ -982,20 +1007,13 @@ function TaskForm({
         <OptionCard
           id="task-settings-sorting"
           title="Priority and type"
-          description="How it's sorted and found: its priority, the kind of task, its section and labels."
-          summary={[
-            TASK_PRIORITY_LABEL[task.priority],
-            task.type?.name,
-            task.section?.name,
-            task.labels.length ? `${task.labels.length} ${plural(task.labels.length, "label")}` : null,
-          ]
+          description="How it's sorted and found: its priority and the kind of task. Its tags are under its title."
+          summary={[TASK_PRIORITY_LABEL[task.priority], task.type?.name]
             .filter(Boolean)
             .join(" · ")}
         >
           {priorityField}
           {typeField}
-          {sectionField}
-          {labelsField}
         </OptionCard>
         {detail.canAskForReview ? (
           <OptionCard
@@ -1023,6 +1041,16 @@ function TaskForm({
             summary={`${detail.fields.type.fields.length} ${plural(detail.fields.type.fields.length, "field")}`}
           >
             <div className={INNER_CARD}>{fieldsCard}</div>
+          </OptionCard>
+        ) : null}
+        {linkField ? (
+          <OptionCard
+            id="task-settings-link"
+            title="Video or Promo"
+            description="The one record in Video or Promo this task opens, for the person assigned."
+            summary={detail.link ? LINKED_APP_INFO[detail.link.app].record : "None"}
+          >
+            {linkField}
           </OptionCard>
         ) : null}
         <OptionCard

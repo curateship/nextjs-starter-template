@@ -16,6 +16,7 @@ import { dayLabel } from "@/lib/project/days"
 import { readDueMove } from "@/lib/project/due-moves"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { isTaskStatus, PROJECT_HEALTH_LABEL, TASK_STATUS_LABEL } from "@/lib/project/rules"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * The project's Activity tab: who changed what, newest first, 50 at a time.
@@ -42,7 +43,12 @@ export function ProjectActivity({
  * show. A line opens its task as a window over the dashboard.
  */
 export function TeamActivity({ onOpenTask }: { onOpenTask: (taskId: string) => void }) {
-  return <ActivityFeed load={loadTeamActivityPage} onOpenTask={onOpenTask} showProject />
+  const teamId = useTeamId()
+  const load = React.useCallback(
+    (before?: { at: string; id: string }) => loadTeamActivityPage(before, teamId),
+    [teamId]
+  )
+  return <ActivityFeed load={load} onOpenTask={onOpenTask} showProject />
 }
 
 function ActivityFeed({

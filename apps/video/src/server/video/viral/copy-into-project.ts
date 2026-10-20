@@ -48,6 +48,12 @@ export type ProjectSourceDetail = {
   project: { id: string; name: string }
   video: SavedVideoDetail | null
   /**
+   * The copied video's title when that saved video was deleted, so the panel
+   * says "The original video, <title>, was deleted" instead of claiming the
+   * project never copied one. Null while the video is still there.
+   */
+  deletedVideoTitle: string | null
+  /**
    * The Viral project it was copied from and the video's own id there, so
    * "Open Viral" opens that project with the video playing. Null when it was
    * copied from anywhere else, or that project was deleted.
@@ -91,6 +97,9 @@ export async function loadProjectSource(
   return {
     project: { id: project.id, name: project.name },
     video: owned ? await loadSavedVideo(userId, owned.id) : null,
+    deletedVideoTitle: project.sourceViralVideoId
+      ? null
+      : project.sourceViralVideoTitle,
     viral: viralProject
       ? {
           projectId: viralProject.id,

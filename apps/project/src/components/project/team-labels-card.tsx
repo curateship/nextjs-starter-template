@@ -24,15 +24,15 @@ export function TeamLabelsCard({ labels, canEdit }: { labels: Label[]; canEdit: 
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>Labels</CardTitle>
+        <CardTitle>Tags</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
         <p className="text-sm text-muted-foreground">
           {labels.length === 0
-            ? "No labels yet. Anyone on the team can make one from a task's Labels field."
+            ? "No tags yet. Anyone on the team makes one by typing it in a task's Tags box."
             : canEdit
-              ? "Labels work across every project. Make new ones from a task's Labels field."
-              : "Labels work across every project. Only the owner and admins can rename or delete them."}
+              ? "Tags work across every project. Make new ones by typing them in a task's Tags box."
+              : "Tags work across every project. Only the site admin can rename, recolour or delete them."}
         </p>
         {labels.length ? (
           canEdit ? (
@@ -72,7 +72,7 @@ function LabelRow({ label }: { label: Label }) {
     if (next === label.name) return
     if (!next) {
       setInvalid(true)
-      showErrorToast("A label needs a name.")
+      showErrorToast("A tag needs a name.")
       return
     }
     void save({ name: next })
@@ -81,7 +81,7 @@ function LabelRow({ label }: { label: Label }) {
   return (
     <li className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
       <Input
-        aria-label={`Label name: ${label.name}`}
+        aria-label={`Tag name: ${label.name}`}
         className="min-w-0 flex-1"
         value={name}
         maxLength={LIMITS.labelName}
@@ -105,7 +105,7 @@ function LabelRow({ label }: { label: Label }) {
         type="button"
         variant="ghost"
         size="icon"
-        aria-label={`Delete the label "${label.name}"`}
+        aria-label={`Delete the tag "${label.name}"`}
         onClick={() => setConfirming(true)}
       >
         <Trash2Icon className="size-4" />
@@ -115,7 +115,7 @@ function LabelRow({ label }: { label: Label }) {
         onOpenChange={setConfirming}
         title={`Delete "${label.name}"?`}
         description="It comes off every task that has it, in every project."
-        confirmLabel="Delete label"
+        confirmLabel="Delete tag"
         destructive
         loading={busy}
         onConfirm={async () => {

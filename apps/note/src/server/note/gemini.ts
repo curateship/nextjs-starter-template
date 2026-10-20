@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import { getAiKey } from "@/server/ai/keys"
 import { SayableError } from "@/server/note/sayable"
-import { NOTE_SAYS } from "@/lib/note/videos"
+import { LIBRARY_SAYS } from "@/lib/note/library/notes"
 
 /**
  * Talking to Gemini, copied from the Video app's `src/server/video/gemini.ts`.
@@ -44,7 +44,7 @@ const FILE_POLL_INTERVAL_MS = 1_000
 
 export async function requireGeminiKey(): Promise<string> {
   const key = await getAiKey("gemini")
-  if (!key) throw new SayableError(NOTE_SAYS.noGeminiKey)
+  if (!key) throw new SayableError(LIBRARY_SAYS.noGeminiKey)
   return key
 }
 

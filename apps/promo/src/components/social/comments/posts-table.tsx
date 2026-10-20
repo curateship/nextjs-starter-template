@@ -3,7 +3,7 @@ import { ExternalLinkIcon, MessagesSquareIcon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { SortableTableHeader, type TableHeaderColumn } from "@/components/shared/sortable-table-header"
-import { useShellRuntime } from "@/components/shell/shell-layout"
+import { usePromoShell } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import type { OwnPostRow } from "@/lib/api/social/reddit/own-posts"
@@ -48,10 +48,10 @@ function openOnReddit(url: string) {
  * so the table has no ticks.
  */
 export function PostsTable({ tabs, rows }: { tabs: React.ReactNode; rows: OwnPostRow[] }) {
-  const { config } = useShellRuntime()
+  const { rowsPerPage } = usePromoShell()
   const { sort, direction, toggleSort } = useTableSort<SortColumn>("sent", "desc")
   const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
+  const [pageSize, setPageSize] = React.useState(rowsPerPage)
   const sorted = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
     return [...rows].sort((a, b) => factor * compare(a, b, sort))
@@ -112,11 +112,13 @@ export function PostsTable({ tabs, rows }: { tabs: React.ReactNode; rows: OwnPos
             </Hint>
             <span className="block truncate text-xs text-muted-foreground @4xl:hidden">
               {row.account.handle ? `u/${row.account.handle}` : "An account not signed in"}
+              {row.sentBy ? ` · ${row.sentBy}` : ""}
               {` · sent ${postedDateText(new Date(row.postedAt)).toLowerCase()}`}
             </span>
           </TableCell>
           <TableCell column="meta" className="hidden max-w-32 @4xl:table-cell">
             <span className="block truncate">{row.account.handle ? `u/${row.account.handle}` : "Not signed in"}</span>
+            {row.sentBy ? <span className="block truncate text-xs text-muted-foreground">{row.sentBy}</span> : null}
           </TableCell>
           <TableCell column="meta" className="max-w-32">
             <span className="block truncate text-muted-foreground">r/{row.subreddit}</span>

@@ -48,8 +48,8 @@ function spanOf(task: TaskCard) {
 
 /**
  * A project's Timeline tab: each task with both a start day and a due date as
- * a bar from one to the other, six weeks at a time, under the project's
- * sections. Dragging a bar's left end moves its start day, its right end its
+ * a bar from one to the other, six weeks at a time, under the groups picked
+ * in Filter's Group row. Dragging a bar's left end moves its start day, its right end its
  * due date, and its middle both, the same saves as picking the dates on the
  * task. Clicking a bar opens the task. Tasks waiting on others carry the same
  * Waiting mark as on the List; there are no arrows (Tyler, 13 Oct 2026). The
@@ -59,15 +59,16 @@ function spanOf(task: TaskCard) {
 export function TaskTimeline({
   tasks,
   groups,
-  groupOf,
+  groupsOf,
   readOnly,
   onOpenTask,
   onDates,
 }: {
   tasks: TaskCard[]
-  /** The project's sections, in order, with "No section" last; left out, one plain list. */
+  /** The groups from Filter's Group row, or My dashboard's projects; left out, one plain list. */
   groups?: TimelineGroup[]
-  groupOf: (task: TaskCard) => string
+  /** Which groups a task is under; a task with several tags is under each. */
+  groupsOf: (task: TaskCard) => string[]
   readOnly: boolean
   onOpenTask: (taskId: string) => void
   /** Saves the dates that changed. */
@@ -82,7 +83,7 @@ export function TaskTimeline({
   const dated = React.useMemo(() => [...tasks].sort(byPosition).filter((task) => spanOf(task)), [tasks])
   const undated = tasks.length - dated.length
   const sections = (groups ?? [{ key: "", label: "" }])
-    .map((group) => ({ ...group, tasks: groups ? dated.filter((task) => groupOf(task) === group.key) : dated }))
+    .map((group) => ({ ...group, tasks: groups ? dated.filter((task) => groupsOf(task).includes(group.key)) : dated }))
     .filter((group) => group.tasks.length > 0)
 
   /** The span a drag would leave, shown while dragging and saved on release. */

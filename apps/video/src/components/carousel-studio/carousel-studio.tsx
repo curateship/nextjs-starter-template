@@ -1,6 +1,22 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import {
   AlignCenterIcon,
   AlignLeftIcon,
@@ -14,6 +30,7 @@ import {
   CopyIcon,
   DownloadIcon,
   EyeIcon,
+  GripVerticalIcon,
   ImageIcon,
   LayersIcon,
   LayoutGridIcon,
@@ -28,10 +45,12 @@ import {
   SlidersHorizontalIcon,
   SparklesIcon,
   Trash2Icon,
+  TriangleAlertIcon,
   TypeIcon,
   Undo2Icon,
   UploadIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
@@ -61,12 +80,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  duplicateCarousel,
+  exportCarousel,
   getCarouselErrorMessage,
   polishCarouselText,
   saveCarousel,
@@ -88,7 +115,14 @@ import {
 import { attachEditorMedia, listVideoMedia } from "@/lib/api/video/media"
 import type { CarouselShadowDirection } from "@/lib/video/carousel-schema"
 import {
+  findTextOverflow,
+  matchSlideLayers,
+  pushSlideLayout,
+  relayoutSlides,
+} from "@/lib/video/carousel-layout"
+import {
   CAROUSEL_CONFLICT_MESSAGE,
+  CAROUSEL_FORMATS,
   CAROUSEL_ITEM_LIMIT_MESSAGE,
   CAROUSEL_ITEM_MAX,
 } from "@/lib/video/carousel-schema"
@@ -99,13 +133,16 @@ import {
   type TextFontId,
 } from "@/lib/video/text-fonts"
 import { cn } from "@/lib/utils"
-import { showErrorToast, useErrorToast } from "@/lib/toast/error-toast"
+import {
+  dismissErrorToast,
+  showErrorToast,
+  useErrorToast,
+} from "@/lib/toast/error-toast"
 import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
-import { exportCarouselZip } from "@/components/carousel-studio/carousel-export"
 import "@/components/video-editor/studio.css"
 
 export type Snapshot = {
@@ -138,10 +175,12 @@ export type BuilderAction =
   | { type: "ADD_SLIDE" }
   | { type: "DUPLICATE_SLIDE"; slideId: string }
   | { type: "DELETE_SLIDE"; slideId: string }
+  | { type: "MOVE_SLIDE"; slideId: string; toIndex: number }
   | { type: "ADD_ITEM"; slideId: string; item: CarouselSlideItem }
   | { type: "DELETE_ITEM"; slideId: string; itemId: string }
   | { type: "MOVE_LAYER"; slideId: string; itemId: string; direction: 1 | -1 }
   | { type: "RESET_DEFAULTS" }
+  | { type: "PUSH_LAYOUT"; sourceSlideId: string; targetSlideIds: string[] }
   | { type: "UNDO" }
   | { type: "REDO" }
 
@@ -243,6 +282,8 @@ const TEXT_PRESETS: {
   },
 ]
 
+const NO_ITEMS: CarouselTextItem[] = []
+
 const STICKERS = ["🔥", "✨", "👀", "💯", "➡️", "❤️", "⭐", "📈"]
 
 // Scrim presets — each adds a gradient-shadow with a fade direction + placement.
@@ -299,6 +340,9 @@ export function CarouselBuilderPage({
   const [exporting, setExporting] = React.useState(false)
   const [exportError, setExportError] = React.useState<string | null>(null)
   const [polishing, setPolishing] = React.useState(false)
+  const [copyingTo, setCopyingTo] = React.useState<CarouselFormat | null>(null)
+  const [pushOpen, setPushOpen] = React.useState(false)
+  const navigate = useNavigate()
   const horizontalLayout = useRememberedPanelLayout(LAYOUT_KEY)
   const panelRef = React.useRef<PanelImperativeHandle>(null)
   const inspectorRef = React.useRef<PanelImperativeHandle>(null)
@@ -309,6 +353,9 @@ export function CarouselBuilderPage({
   const panelDoubleClick = useBlankSpaceDoubleClick(togglePanel)
   const inspectorDoubleClick = useBlankSpaceDoubleClick(toggleInspector)
   const pendingRef = React.useRef<Snapshot | null>(null)
+  // What the server holds, or will once the save in flight lands. The opening
+  // document to start with, so merely viewing never saves.
+  const sentRef = React.useRef<Snapshot | null>(document)
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeSaveRef = React.useRef<Promise<void> | null>(null)
   const versionRef = React.useRef(document.version)
@@ -341,6 +388,10 @@ export function CarouselBuilderPage({
   const selectedItem =
     selectedSlide?.items.find((item) => item.id === state.selectedItemId) ??
     null
+  const textOverflow = React.useMemo(
+    () => findTextOverflow(state.slides, state.format),
+    [state.slides, state.format]
+  )
 
   const persist = React.useCallback(
     async (next: Snapshot) => {
@@ -374,13 +425,17 @@ export function CarouselBuilderPage({
   )
 
   React.useEffect(() => {
-    // React runs effects twice while developing. The opening document is not
-    // an edit, so it must never increase the version simply by being viewed.
+    // React runs effects twice while developing, and an undo can land back on
+    // what was last sent. Neither is an edit, so neither saves. An undo back to
+    // the opening document after a save is an edit, and does save.
+    const sent = sentRef.current
     if (
-      snapshot.slides === document.slides &&
-      snapshot.caption === document.caption &&
-      snapshot.format === document.format
+      sent &&
+      snapshot.slides === sent.slides &&
+      snapshot.caption === sent.caption &&
+      snapshot.format === sent.format
     ) {
+      pendingRef.current = null
       return
     }
     if (conflictRef.current) return
@@ -391,11 +446,14 @@ export function CarouselBuilderPage({
       pendingRef.current = null
       setSaveStatus("saving")
       setStatusError(null)
+      sentRef.current = snapshot
       const save = persist(snapshot)
       activeSaveRef.current = save
       save
         .then(() => setSaveStatus("saved"))
         .catch((error) => {
+          // The server may hold anything now, so the next change saves.
+          if (sentRef.current === snapshot) sentRef.current = null
           setSaveStatus("error")
           setStatusError(getCarouselErrorMessage(error))
           pendingRef.current ??= snapshot
@@ -410,7 +468,7 @@ export function CarouselBuilderPage({
       clearTimeout(timer)
       if (saveTimerRef.current === timer) saveTimerRef.current = null
     }
-  }, [document.caption, document.format, document.slides, persist, snapshot])
+  }, [persist, snapshot])
 
   React.useEffect(() => {
     reportSaveStatus(
@@ -446,12 +504,14 @@ export function CarouselBuilderPage({
     pendingRef.current = null
     setSaveStatus("saving")
     setStatusError(null)
+    sentRef.current = pending
     const save = persist(pending)
     activeSaveRef.current = save
     try {
       await save
       setSaveStatus("saved")
     } catch (error) {
+      if (sentRef.current === pending) sentRef.current = null
       setSaveStatus("error")
       setStatusError(getCarouselErrorMessage(error))
       pendingRef.current ??= pending
@@ -465,21 +525,85 @@ export function CarouselBuilderPage({
     setExporting(true)
     setExportError(null)
     try {
+      // The server zips what is saved, so what is on screen is saved first.
       await flushSave()
-      await exportCarouselZip({
-        carouselId: document.id,
-        name: document.name,
-        slideCount: state.slides.length,
-        caption: state.caption,
-      })
+      const kept = await exportCarousel(document.id)
+      downloadKeptExport(kept.id, kept.title ?? document.name)
       setExportOpen(false)
+      toast.success("Carousel exported. A copy is kept in Carousel exports.", {
+        action: {
+          label: "Open Carousel exports",
+          onClick: () => void navigate({ to: "/admin/video-carousel-exports" }),
+        },
+      })
     } catch (error) {
-      setExportError(
-        error instanceof Error ? error.message : "Carousel export failed."
-      )
+      setExportError(getCarouselErrorMessage(error))
     } finally {
       setExporting(false)
     }
+  }
+
+  // Saves first, so the copy is made from what is on screen.
+  async function copyToFormat(format: CarouselFormat) {
+    setCopyingTo(format)
+    try {
+      await flushSave()
+      const copy = await duplicateCarousel(document.id, format)
+      toast.success(`"${copy.name}" created.`)
+      await navigate({
+        to: "/admin/video-carousels/$carouselId",
+        params: { carouselId: copy.id },
+      })
+    } catch (error) {
+      showErrorToast(getCarouselErrorMessage(error))
+    } finally {
+      setCopyingTo(null)
+    }
+  }
+
+  function pushLayout(targetSlideIds: string[]) {
+    if (!selectedSlide) return
+    if (!targetSlideIds.length) {
+      showErrorToast("Pick at least one slide to line up with this one.")
+      return
+    }
+    // The reducer runs the same push, so this is what the slides will be.
+    const pushed = pushSlideLayout(
+      state.slides,
+      selectedSlide.id,
+      new Set(targetSlideIds)
+    )
+    const changed = pushed.filter((slide, index) => slide !== state.slides[index])
+    if (!changed.length) {
+      showErrorToast(
+        "None of those slides has a layer like the ones on this slide, so nothing changed."
+      )
+      return
+    }
+    dispatch({
+      type: "PUSH_LAYOUT",
+      sourceSlideId: selectedSlide.id,
+      targetSlideIds,
+    })
+    setPushOpen(false)
+    // An earlier "pick a slide" or "nothing matched" no longer applies. A
+    // saving failure shares the toast and must stay up.
+    if (!hasConflict && !statusError) dismissErrorToast()
+
+    const done = `${changed.length} ${changed.length === 1 ? "slide" : "slides"} aligned to this one.`
+    const overflow = findTextOverflow(changed, state.format)
+    if (!overflow.size) {
+      toast.success(done)
+      return
+    }
+    const names = pushed.flatMap((slide, index) =>
+      overflow.has(slide.id)
+        ? [`slide ${index + 1}${slide.title ? ` "${slide.title}"` : ""}`]
+        : []
+    )
+    toast.warning(done, {
+      description: `Text does not fit its box on ${new Intl.ListFormat("en").format(names)}, so the export would cut it off.`,
+    })
   }
 
   function addItem(item: CarouselSlideItem) {
@@ -535,16 +659,27 @@ export function CarouselBuilderPage({
 
   React.useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented) return
+      if (previewOpen || exportOpen || pushOpen) return
+      // While typing, the box's own undo handles the words being typed.
+      if (isTextEntryTarget(event.target)) return
+
+      // Cmd+Z undoes and Shift+Cmd+Z redoes. Control+Z is left alone:
+      // Tyler's own keyboard setup uses it (19 Oct 2026).
       if (
-        event.defaultPrevented ||
-        (event.key !== "Backspace" && event.key !== "Delete")
+        event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === "z"
       ) {
+        event.preventDefault()
+        dispatch({ type: event.shiftKey ? "REDO" : "UNDO" })
         return
       }
+
+      if (event.key !== "Backspace" && event.key !== "Delete") return
       if (event.altKey || event.ctrlKey || event.metaKey) return
-      if (previewOpen || exportOpen) return
       if (!selectedSlideId || !state.selectedItemId) return
-      if (isTextEntryTarget(event.target)) return
 
       event.preventDefault()
       dispatch({
@@ -556,7 +691,7 @@ export function CarouselBuilderPage({
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [exportOpen, previewOpen, selectedSlideId, state.selectedItemId])
+  }, [exportOpen, previewOpen, pushOpen, selectedSlideId, state.selectedItemId])
 
   const slideIndex = state.slides.findIndex((s) => s.id === selectedSlideId)
 
@@ -569,6 +704,7 @@ export function CarouselBuilderPage({
           panel={panel}
           slides={state.slides}
           format={state.format}
+          textOverflow={textOverflow}
           selectedSlideId={state.selectedSlideId}
           onSelectSlide={(slideId) =>
             dispatch({ type: "SELECT_SLIDE", slideId })
@@ -577,6 +713,9 @@ export function CarouselBuilderPage({
           onDuplicateSlide={duplicateSlide}
           onDeleteSlide={(slideId) =>
             dispatch({ type: "DELETE_SLIDE", slideId })
+          }
+          onMoveSlide={(slideId, toIndex) =>
+            dispatch({ type: "MOVE_SLIDE", slideId, toIndex })
           }
           onAddItem={addItem}
         />
@@ -631,6 +770,9 @@ export function CarouselBuilderPage({
             }
             onCommitHistory={(before) =>
               dispatch({ type: "COMMIT_HISTORY", before })
+            }
+            onUpdateFormat={(format) =>
+              dispatch({ type: "UPDATE_FORMAT", format })
             }
             getSnapshot={() => currentSnapshot(state)}
           />
@@ -702,8 +844,13 @@ export function CarouselBuilderPage({
               slide={selectedSlide}
               selectedItem={selectedItem}
               format={state.format}
-              onUpdateFormat={(format) =>
-                dispatch({ type: "UPDATE_FORMAT", format })
+              copyingTo={copyingTo}
+              onCopyToFormat={(format) => void copyToFormat(format)}
+              canPushLayout={state.slides.length > 1}
+              onPushLayout={() => setPushOpen(true)}
+              overflowItems={textOverflow.get(selectedSlide.id) ?? NO_ITEMS}
+              onSelectItem={(itemId) =>
+                dispatch({ type: "SELECT_ITEM", itemId })
               }
               onUpdateSlide={(patch) =>
                 dispatch({
@@ -765,6 +912,16 @@ export function CarouselBuilderPage({
         }
         onExport={() => void handleExport()}
       />
+      {selectedSlide ? (
+        <PushLayoutDialog
+          open={pushOpen}
+          onOpenChange={setPushOpen}
+          source={selectedSlide}
+          slides={state.slides}
+          format={state.format}
+          onPush={pushLayout}
+        />
+      ) : null}
     </div>
   )
 }
@@ -940,22 +1097,26 @@ function CarouselContextPanel({
   panel,
   slides,
   format,
+  textOverflow,
   selectedSlideId,
   onSelectSlide,
   onAddSlide,
   onDuplicateSlide,
   onDeleteSlide,
+  onMoveSlide,
   onAddItem,
 }: {
   carouselId: string
   panel: StudioPanel
   slides: CarouselSlide[]
   format: CarouselFormat
+  textOverflow: ReadonlyMap<string, CarouselTextItem[]>
   selectedSlideId: string
   onSelectSlide: (slideId: string) => void
   onAddSlide: () => void
   onDuplicateSlide: (slideId: string) => void
   onDeleteSlide: (slideId: string) => void
+  onMoveSlide: (slideId: string, toIndex: number) => void
   onAddItem: (item: CarouselSlideItem) => void
 }) {
   const [slidesView, setSlidesView] = React.useState<"list" | "grid">("list")
@@ -982,11 +1143,13 @@ function CarouselContextPanel({
               view={slidesView}
               slides={slides}
               format={format}
+              textOverflow={textOverflow}
               selectedSlideId={selectedSlideId}
               onSelectSlide={onSelectSlide}
               onAddSlide={onAddSlide}
               onDuplicateSlide={onDuplicateSlide}
               onDeleteSlide={onDeleteSlide}
+              onMoveSlide={onMoveSlide}
             />
           ) : panel === "text" ? (
             <TextPanelBody onAddItem={onAddItem} />
@@ -1061,22 +1224,39 @@ function SlidesPanelBody({
   view,
   slides,
   format,
+  textOverflow,
   selectedSlideId,
   onSelectSlide,
   onAddSlide,
   onDuplicateSlide,
   onDeleteSlide,
+  onMoveSlide,
 }: {
   view: "list" | "grid"
   slides: CarouselSlide[]
   format: CarouselFormat
+  textOverflow: ReadonlyMap<string, CarouselTextItem[]>
   selectedSlideId: string
   onSelectSlide: (slideId: string) => void
   onAddSlide: () => void
   onDuplicateSlide: (slideId: string) => void
   onDeleteSlide: (slideId: string) => void
+  onMoveSlide: (slideId: string, toIndex: number) => void
 }) {
   const canDelete = slides.length > 1
+  // A press has to travel 8px before it is a drag, so a click still picks the
+  // slide. The grip on each slide moves it from the keyboard.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+  const slideIds = slides.map((slide) => slide.id)
+
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return
+    const toIndex = slideIds.indexOf(String(over.id))
+    if (toIndex !== -1) onMoveSlide(String(active.id), toIndex)
+  }
 
   const addButton = (
     <Button
@@ -1092,7 +1272,12 @@ function SlidesPanelBody({
   )
 
   return (
-    <div>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={slideIds} strategy={verticalListSortingStrategy}>
       {view === "list" ? (
         <div
           style={{
@@ -1107,6 +1292,7 @@ function SlidesPanelBody({
               slide={slide}
               index={index}
               format={format}
+              overflowing={textOverflow.has(slide.id)}
               selected={slide.id === selectedSlideId}
               canDelete={canDelete}
               onSelect={() => onSelectSlide(slide.id)}
@@ -1129,6 +1315,7 @@ function SlidesPanelBody({
               slide={slide}
               index={index}
               format={format}
+              overflowing={textOverflow.has(slide.id)}
               selected={slide.id === selectedSlideId}
               canDelete={canDelete}
               onSelect={() => onSelectSlide(slide.id)}
@@ -1138,9 +1325,60 @@ function SlidesPanelBody({
           ))}
         </div>
       )}
+      </SortableContext>
 
       {addButton}
-    </div>
+    </DndContext>
+  )
+}
+
+/**
+ * One slide in the Slides list or grid, draggable to a new place. The whole
+ * slide drags with a mouse or a finger; the grip is the keyboard's way in,
+ * because Space and Enter on the slide itself still pick it.
+ */
+function useSortableSlide(slideId: string) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: slideId })
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    position: "relative",
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.85 : undefined,
+  }
+  return {
+    nodeProps: { ref: setNodeRef, style, ...listeners },
+    gripProps: { ref: setActivatorNodeRef, ...attributes },
+  }
+}
+
+const TEXT_OVERFLOW_LABEL = "text on it does not fit its box"
+
+// A hover hint only: the slide's select button carries the same words for
+// keyboards and screen readers.
+function TextOverflowMark() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          aria-hidden
+          className="inline-grid size-4 flex-none place-items-center text-destructive"
+        >
+          <TriangleAlertIcon className="size-3.5" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        Text on this slide does not fit its box, so the export cuts it off.
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -1148,6 +1386,7 @@ function SlideListRow({
   slide,
   index,
   format,
+  overflowing,
   selected,
   canDelete,
   onSelect,
@@ -1157,6 +1396,7 @@ function SlideListRow({
   slide: CarouselSlide
   index: number
   format: CarouselFormat
+  overflowing: boolean
   selected: boolean
   canDelete: boolean
   onSelect: () => void
@@ -1165,14 +1405,18 @@ function SlideListRow({
 }) {
   const thumbWidth = 46
   const thumbHeight = Math.round(thumbWidth / FORMAT_RATIOS[format])
+  const { nodeProps, gripProps } = useSortableSlide(slide.id)
 
   return (
     <div
+      {...nodeProps}
       style={{
+        ...nodeProps.style,
         display: "flex",
         alignItems: "center",
-        gap: 10,
+        gap: 6,
         padding: 8,
+        paddingLeft: 2,
         minWidth: 0,
         background: "var(--panel2)",
         border: `1px solid ${selected ? "var(--acc)" : "var(--line)"}`,
@@ -1182,8 +1426,21 @@ function SlideListRow({
     >
       <button
         type="button"
+        {...gripProps}
+        aria-label={`Move slide ${index + 1}`}
+        className="st-hovbg"
+        style={{ ...slideRowIconBtn, ...gripStyle, width: 18 }}
+      >
+        <GripVerticalIcon size={14} />
+      </button>
+      <button
+        type="button"
         onClick={onSelect}
-        aria-label={`Select slide ${index + 1}`}
+        aria-label={
+          overflowing
+            ? `Select slide ${index + 1}, ${TEXT_OVERFLOW_LABEL}`
+            : `Select slide ${index + 1}`
+        }
         style={{
           display: "flex",
           alignItems: "center",
@@ -1210,8 +1467,18 @@ function SlideListRow({
           <StaticSlidePreview slide={slide} format={format} />
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--mut)" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 11,
+              fontWeight: 700,
+              color: "var(--mut)",
+            }}
+          >
             {String(index + 1).padStart(2, "0")}
+            {overflowing ? <TextOverflowMark /> : null}
           </div>
           <div style={rowTitle}>{slide.title || "Untitled"}</div>
         </div>
@@ -1251,6 +1518,7 @@ function SlideGridCard({
   slide,
   index,
   format,
+  overflowing,
   selected,
   canDelete,
   onSelect,
@@ -1260,18 +1528,28 @@ function SlideGridCard({
   slide: CarouselSlide
   index: number
   format: CarouselFormat
+  overflowing: boolean
   selected: boolean
   canDelete: boolean
   onSelect: () => void
   onDuplicate: () => void
   onDelete: () => void
 }) {
+  const { nodeProps, gripProps } = useSortableSlide(slide.id)
+
   return (
-    <div className="group relative">
+    <div
+      {...nodeProps}
+      className="group"
+    >
       <button
         type="button"
         onClick={onSelect}
-        aria-label={`Select slide ${index + 1}`}
+        aria-label={
+          overflowing
+            ? `Select slide ${index + 1}, ${TEXT_OVERFLOW_LABEL}`
+            : `Select slide ${index + 1}`
+        }
         style={{
           display: "block",
           width: "100%",
@@ -1302,7 +1580,21 @@ function SlideGridCard({
       >
         {String(index + 1).padStart(2, "0")}
       </span>
+      {overflowing ? (
+        <span className="absolute bottom-1.5 left-1.5 grid size-6 place-items-center rounded-md bg-background">
+          <TextOverflowMark />
+        </span>
+      ) : null}
       <div className="absolute top-[5px] right-[5px] flex gap-[3px] opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+        <button
+          type="button"
+          {...gripProps}
+          className="st-hovbright"
+          aria-label={`Move slide ${index + 1}`}
+          style={{ ...gridCardIconBtn, ...gripStyle }}
+        >
+          <GripVerticalIcon size={12} />
+        </button>
         <button
           type="button"
           className="st-hovbright"
@@ -1332,6 +1624,10 @@ function SlideGridCard({
     </div>
   )
 }
+
+// A finger on the grip drags at once instead of scrolling the list. Anywhere
+// else on a slide, a finger still scrolls.
+const gripStyle: React.CSSProperties = { cursor: "grab", touchAction: "none" }
 
 const slideRowIconBtn: React.CSSProperties = {
   height: 30,
@@ -1830,6 +2126,7 @@ function CanvasStage({
   onSelectSlide,
   onUpdateItem,
   onCommitHistory,
+  onUpdateFormat,
   getSnapshot,
 }: {
   slide: CarouselSlide
@@ -1845,6 +2142,7 @@ function CanvasStage({
     transient?: boolean
   ) => void
   onCommitHistory: (before: Snapshot) => void
+  onUpdateFormat: (format: CarouselFormat) => void
   getSnapshot: () => Snapshot
 }) {
   const containerRef = React.useRef<HTMLDivElement>(null)
@@ -2022,7 +2320,7 @@ function CanvasStage({
           gap: 9,
           zIndex: 6,
           pointerEvents: "none",
-          maxWidth: "calc(100% - 200px)",
+          maxWidth: "calc(100% - 380px)",
         }}
       >
         <span
@@ -2059,15 +2357,28 @@ function CanvasStage({
         </span>
       </div>
 
-      <ZoomControl
-        pct={zoomPct}
-        isFit={zoom === null}
-        canZoomOut={scale > ZOOM_MIN}
-        canZoomIn={scale < ZOOM_MAX}
-        onZoomOut={() => zoomBy(1 / ZOOM_FACTOR)}
-        onZoomIn={() => zoomBy(ZOOM_FACTOR)}
-        onFit={() => setZoom(null)}
-      />
+      <div
+        style={{
+          position: "absolute",
+          top: 16,
+          right: 20,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          zIndex: 10,
+        }}
+      >
+        <FormatControl format={format} onChange={onUpdateFormat} />
+        <ZoomControl
+          pct={zoomPct}
+          isFit={zoom === null}
+          canZoomOut={scale > ZOOM_MIN}
+          canZoomIn={scale < ZOOM_MAX}
+          onZoomOut={() => zoomBy(1 / ZOOM_FACTOR)}
+          onZoomIn={() => zoomBy(ZOOM_FACTOR)}
+          onFit={() => setZoom(null)}
+        />
+      </div>
 
       <SlidePager
         slides={slides}
@@ -2096,22 +2407,7 @@ function ZoomControl({
   onFit: () => void
 }) {
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: 16,
-        right: 20,
-        display: "flex",
-        alignItems: "center",
-        gap: 2,
-        padding: "4px 6px",
-        background: "var(--panel)",
-        border: "1px solid var(--line)",
-        borderRadius: 13,
-        boxShadow: "var(--sh)",
-        zIndex: 10,
-      }}
-    >
+    <div style={canvasPill}>
       <button
         type="button"
         className={canZoomOut ? "st-hovbg" : undefined}
@@ -2185,6 +2481,58 @@ function ZoomControl({
       </button>
     </div>
   )
+}
+
+// The carousel's shape. Layers move to suit by relayoutSlides, as one undo
+// step (workspace/docs/carousel-shapes.md).
+function FormatControl({
+  format,
+  onChange,
+}: {
+  format: CarouselFormat
+  onChange: (format: CarouselFormat) => void
+}) {
+  return (
+    <div role="group" aria-label="Format" style={canvasPill}>
+      {CAROUSEL_FORMATS.map((option) => {
+        const on = option === format
+        return (
+          <button
+            key={option}
+            type="button"
+            className="st-hovbg"
+            aria-pressed={on}
+            onClick={() => onChange(option)}
+            style={{
+              height: 28,
+              padding: "0 10px",
+              border: "none",
+              background: on ? "var(--elev2)" : "transparent",
+              borderRadius: 8,
+              color: on ? "var(--ink)" : "var(--ink2)",
+              fontSize: 12,
+              fontWeight: 600,
+              fontVariantNumeric: "tabular-nums",
+              cursor: "pointer",
+            }}
+          >
+            {option}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+const canvasPill: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 2,
+  padding: "4px 6px",
+  background: "var(--panel)",
+  border: "1px solid var(--line)",
+  borderRadius: 13,
+  boxShadow: "var(--sh)",
 }
 
 const zoomIconBtn: React.CSSProperties = {
@@ -2438,7 +2786,12 @@ function CarouselInspector({
   slide,
   selectedItem,
   format,
-  onUpdateFormat,
+  copyingTo,
+  onCopyToFormat,
+  canPushLayout,
+  onPushLayout,
+  overflowItems,
+  onSelectItem,
   onUpdateSlide,
   onUpdateItem,
   onDeleteItem,
@@ -2447,7 +2800,12 @@ function CarouselInspector({
   slide: CarouselSlide
   selectedItem: CarouselSlideItem | null
   format: CarouselFormat
-  onUpdateFormat: (format: CarouselFormat) => void
+  copyingTo: CarouselFormat | null
+  onCopyToFormat: (format: CarouselFormat) => void
+  canPushLayout: boolean
+  onPushLayout: () => void
+  overflowItems: CarouselTextItem[]
+  onSelectItem: (itemId: string) => void
   onUpdateSlide: (patch: Partial<CarouselSlide>) => void
   onUpdateItem: (itemId: string, patch: Partial<CarouselSlideItem>) => void
   onDeleteItem: (itemId: string) => void
@@ -2472,6 +2830,9 @@ function CarouselInspector({
             selectedItem.type === "text" ? (
               <TextInspector
                 item={selectedItem}
+                overflowing={overflowItems.some(
+                  (item) => item.id === selectedItem.id
+                )}
                 onUpdate={(patch) => onUpdateItem(selectedItem.id, patch)}
               />
             ) : selectedItem.type === "gradient-shadow" ? (
@@ -2489,7 +2850,12 @@ function CarouselInspector({
             <SlideInspector
               slide={slide}
               format={format}
-              onUpdateFormat={onUpdateFormat}
+              copyingTo={copyingTo}
+              onCopyToFormat={onCopyToFormat}
+              canPushLayout={canPushLayout}
+              onPushLayout={onPushLayout}
+              overflowItems={overflowItems}
+              onSelectItem={onSelectItem}
               onUpdateSlide={onUpdateSlide}
             />
           )}
@@ -2518,60 +2884,128 @@ function getInspectorTitle(selectedItem: CarouselSlideItem | null) {
 function SlideInspector({
   slide,
   format,
-  onUpdateFormat,
+  copyingTo,
+  onCopyToFormat,
+  canPushLayout,
+  onPushLayout,
+  overflowItems,
+  onSelectItem,
   onUpdateSlide,
 }: {
   slide: CarouselSlide
   format: CarouselFormat
-  onUpdateFormat: (format: CarouselFormat) => void
+  copyingTo: CarouselFormat | null
+  onCopyToFormat: (format: CarouselFormat) => void
+  canPushLayout: boolean
+  onPushLayout: () => void
+  overflowItems: CarouselTextItem[]
+  onSelectItem: (itemId: string) => void
   onUpdateSlide: (patch: Partial<CarouselSlide>) => void
 }) {
   return (
-    <InspectorCard
-      title="Slide"
-      description="The name, shape and background for this slide."
-    >
-      <div className="grid gap-2">
-        <FieldLabel htmlFor="carousel-slide-name">Slide name</FieldLabel>
-        <Input
-          id="carousel-slide-name"
-          value={slide.title}
-          maxLength={120}
-          onChange={(event) => onUpdateSlide({ title: event.target.value })}
-        />
-      </div>
+    <>
+      {overflowItems.length ? (
+        <InspectorCard
+          title="Text that does not fit"
+          description="The export cuts these off. Make the box taller or the words smaller."
+        >
+          <ul className="grid gap-2">
+            {overflowItems.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className="flex items-start gap-2 rounded-sm text-left text-sm text-destructive hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  onClick={() => onSelectItem(item.id)}
+                >
+                  <TriangleAlertIcon className="mt-0.5 size-4 flex-none" />
+                  <span className="min-w-0 break-words">
+                    {textLayerName(item)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </InspectorCard>
+      ) : null}
+      <InspectorCard
+        title="Slide"
+        description="This slide's name and background, its layout on other slides, and copies of the carousel in other shapes."
+      >
+        <div className="grid gap-2">
+          <FieldLabel htmlFor="carousel-slide-name">Slide name</FieldLabel>
+          <Input
+            id="carousel-slide-name"
+            value={slide.title}
+            maxLength={120}
+            onChange={(event) => onUpdateSlide({ title: event.target.value })}
+          />
+        </div>
 
-      <div className="grid gap-2">
-        <FieldLabel>Format</FieldLabel>
-        <SegRow
-          columns={3}
-          value={format}
-          onChange={(value) => onUpdateFormat(value)}
-          options={[
-            { value: "4:5", label: "4:5" },
-            { value: "1:1", label: "1:1" },
-            { value: "9:16", label: "9:16" },
-          ]}
-        />
-      </div>
+        {canPushLayout ? (
+          <div className="grid gap-2">
+            <FieldLabel hint="Moves the layers on the slides you pick to where they sit here, with the same sizes, fonts and colours. Their words and pictures stay.">
+              This slide's layout
+            </FieldLabel>
+            <Button type="button" variant="outline" onClick={onPushLayout}>
+              <LayersIcon />
+              Align all slides
+            </Button>
+          </div>
+        ) : null}
 
-      <div className="grid gap-2">
-        <FieldLabel>Background</FieldLabel>
-        <ColorField
-          value={slide.backgroundColor}
-          onChange={(backgroundColor) => onUpdateSlide({ backgroundColor })}
-          swatches={BACKGROUND_SWATCHES}
-        />
-      </div>
-    </InspectorCard>
+        <div className="grid gap-2">
+          <FieldLabel hint="Makes a new carousel in that shape with the layers moved to suit, and opens it. This one is not changed.">
+            Make a copy in
+          </FieldLabel>
+          <div className="grid grid-cols-2 gap-2">
+            {CAROUSEL_FORMATS.filter((option) => option !== format).map(
+              (option) => (
+                <Button
+                  key={option}
+                  type="button"
+                  variant="outline"
+                  aria-label={`Make a copy in ${option}`}
+                  disabled={copyingTo !== null}
+                  onClick={() => onCopyToFormat(option)}
+                >
+                  {copyingTo === option ? (
+                    <Loader2Icon className="animate-spin" />
+                  ) : (
+                    <CopyIcon />
+                  )}
+                  {option}
+                </Button>
+              )
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-2">
+          <FieldLabel>Background</FieldLabel>
+          <ColorField
+            value={slide.backgroundColor}
+            onChange={(backgroundColor) => onUpdateSlide({ backgroundColor })}
+            swatches={BACKGROUND_SWATCHES}
+          />
+        </div>
+      </InspectorCard>
+    </>
   )
+}
+
+// A text layer is named by its first words, since layers have no names.
+function textLayerName(item: CarouselTextItem) {
+  const words = item.text.trim().replace(/\s+/g, " ")
+  return `Text "${words.length > 40 ? `${words.slice(0, 40)}...` : words}"`
 }
 
 function TextInspector({
   item,
+  overflowing,
   onUpdate,
 }: {
   item: CarouselTextItem
+  overflowing: boolean
   onUpdate: (patch: Partial<CarouselTextItem>) => void
 }) {
   return (
@@ -2580,6 +3014,16 @@ function TextInspector({
         title="Text"
         description="The words and how they look on this slide."
       >
+        {overflowing ? (
+          <p
+            role="status"
+            className="flex items-start gap-2 text-sm text-destructive"
+          >
+            <TriangleAlertIcon className="mt-0.5 size-4 flex-none" />
+            These words run past the box, so the export cuts off the end. Make
+            the box taller or the words smaller.
+          </p>
+        ) : null}
         <div className="grid gap-2">
           <FieldLabel htmlFor={`carousel-text-${item.id}`}>Content</FieldLabel>
           <Textarea
@@ -3111,7 +3555,8 @@ function ExportDialog({
         <DialogHeader>
           <DialogTitle>Export Carousel</DialogTitle>
           <DialogDescription>
-            Download every slide as a full-size PNG in one ZIP file.
+            Download every slide as a full-size PNG in one ZIP file. A copy is
+            kept in Carousel exports, to download again or share by link.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -3174,6 +3619,163 @@ function ExportDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// Picks the slides that take the source slide's layout. Every other slide
+// starts ticked, and each row says how many of its layers will change.
+function PushLayoutDialog({
+  open,
+  onOpenChange,
+  source,
+  slides,
+  format,
+  onPush,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  source: CarouselSlide
+  slides: CarouselSlide[]
+  format: CarouselFormat
+  onPush: (targetSlideIds: string[]) => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Align all slides</DialogTitle>
+          <DialogDescription>
+            Layers on the slides you pick move to where they sit on this slide
+            and take its sizes, fonts and colours. Their words and pictures stay
+            as they are.
+          </DialogDescription>
+        </DialogHeader>
+        {open ? (
+          <PushLayoutForm
+            source={source}
+            slides={slides}
+            format={format}
+            onCancel={() => onOpenChange(false)}
+            onPush={onPush}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function PushLayoutForm({
+  source,
+  slides,
+  format,
+  onCancel,
+  onPush,
+}: {
+  source: CarouselSlide
+  slides: CarouselSlide[]
+  format: CarouselFormat
+  onCancel: () => void
+  onPush: (targetSlideIds: string[]) => void
+}) {
+  const others = slides.flatMap((slide, index) =>
+    slide.id === source.id ? [] : [{ slide, index }]
+  )
+  const [picked, setPicked] = React.useState(
+    () => new Set(others.map(({ slide }) => slide.id))
+  )
+  const allPicked = picked.size === others.length
+  const thumbWidth = 32
+  const thumbHeight = Math.round(thumbWidth / FORMAT_RATIOS[format])
+
+  function toggle(slideId: string, checked: boolean) {
+    setPicked((current) => {
+      const next = new Set(current)
+      if (checked) next.add(slideId)
+      else next.delete(slideId)
+      return next
+    })
+  }
+
+  return (
+    <>
+      <DialogBody>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Slides</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <label
+              htmlFor="push-layout-all"
+              className="flex items-center gap-3 text-sm font-medium"
+            >
+              <Checkbox
+                id="push-layout-all"
+                checked={
+                  allPicked ? true : picked.size ? "indeterminate" : false
+                }
+                onCheckedChange={(checked) =>
+                  setPicked(
+                    checked === true
+                      ? new Set(others.map(({ slide }) => slide.id))
+                      : new Set()
+                  )
+                }
+              />
+              All other slides
+            </label>
+            <ul className="-mx-3 grid gap-3 border-t px-3 pt-4">
+              {others.map(({ slide, index }) => {
+                const matched = matchSlideLayers(source, slide).size
+                const id = `push-layout-${slide.id}`
+                return (
+                  <li key={slide.id}>
+                    <label
+                      htmlFor={id}
+                      className="flex min-w-0 items-center gap-3 text-sm"
+                    >
+                      <Checkbox
+                        id={id}
+                        checked={picked.has(slide.id)}
+                        onCheckedChange={(checked) =>
+                          toggle(slide.id, checked === true)
+                        }
+                      />
+                      <span
+                        aria-hidden
+                        className="flex-none overflow-hidden rounded-sm border"
+                        style={{ width: thumbWidth, height: thumbHeight }}
+                      >
+                        <StaticSlidePreview slide={slide} format={format} />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="text-muted-foreground tabular-nums">
+                          {String(index + 1).padStart(2, "0")}
+                        </span>{" "}
+                        {slide.title || "Untitled"}
+                      </span>
+                      <span className="flex-none text-xs text-muted-foreground">
+                        {matched
+                          ? `${matched} of ${slide.items.length} ${slide.items.length === 1 ? "layer" : "layers"} change`
+                          : "No layers like this slide's"}
+                      </span>
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
+          </CardContent>
+        </Card>
+      </DialogBody>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="button" onClick={() => onPush([...picked])}>
+          <LayersIcon />
+          {`Align ${picked.size} ${picked.size === 1 ? "slide" : "slides"}`}
+        </Button>
+      </DialogFooter>
+    </>
   )
 }
 
@@ -3280,7 +3882,12 @@ export function builderReducer(
     case "UPDATE_CAPTION":
       return withHistory(state, { ...state, caption: action.caption })
     case "UPDATE_FORMAT":
-      return withHistory(state, { ...state, format: action.format })
+      if (action.format === state.format) return state
+      return withHistory(state, {
+        ...state,
+        format: action.format,
+        slides: relayoutSlides(state.slides, state.format, action.format),
+      })
     case "UPDATE_SLIDE":
       return withHistory(state, {
         ...state,
@@ -3357,6 +3964,22 @@ export function builderReducer(
         selectedItemId: selectedSlide.items[0]?.id ?? null,
       })
     }
+    case "MOVE_SLIDE": {
+      // A drag in the Slides list. The picked slide and layer stay picked,
+      // wherever they end up, and one Undo puts the order back.
+      const from = state.slides.findIndex(
+        (slide) => slide.id === action.slideId
+      )
+      const to = Math.min(
+        state.slides.length - 1,
+        Math.max(0, Math.round(action.toIndex))
+      )
+      if (from === -1 || from === to) return state
+      const slides = [...state.slides]
+      const [moved] = slides.splice(from, 1)
+      slides.splice(to, 0, moved)
+      return withHistory(state, { ...state, slides })
+    }
     case "ADD_ITEM": {
       const slide = state.slides.find((item) => item.id === action.slideId)
       if (!slide || slide.items.length >= CAROUSEL_ITEM_MAX) return state
@@ -3398,6 +4021,18 @@ export function builderReducer(
         ...state,
         slides: resetSlidesToDefaults(state.slides, state.selectedSlideId),
       })
+    case "PUSH_LAYOUT": {
+      const slides = pushSlideLayout(
+        state.slides,
+        action.sourceSlideId,
+        new Set(action.targetSlideIds)
+      )
+      // Nothing matched, so there is nothing to undo either.
+      if (slides.every((slide, index) => slide === state.slides[index])) {
+        return state
+      }
+      return withHistory(state, { ...state, slides })
+    }
     case "UNDO": {
       const previous = state.past[state.past.length - 1]
       if (!previous) return state
@@ -3842,6 +4477,16 @@ function positionPatch(
   if (key === "y") return { y: clamp01(normalized, 1 - item.height) }
   if (key === "width") return { width: clampSize(normalized, 1 - item.x) }
   return { height: clampSize(normalized, 1 - item.y) }
+}
+
+/** Hands the kept ZIP over as a download, the way the Exports page does. */
+function downloadKeptExport(exportId: string, name: string) {
+  const link = window.document.createElement("a")
+  link.href = `/api/v1/video/exports/${encodeURIComponent(exportId)}/file?filename=${encodeURIComponent(name)}`
+  link.download = ""
+  window.document.body.append(link)
+  link.click()
+  link.remove()
 }
 
 function builderId() {

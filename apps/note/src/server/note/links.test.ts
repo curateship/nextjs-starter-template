@@ -7,6 +7,7 @@ import {
   readVideoLink,
   type ResolveHost,
 } from "@/server/note/links"
+import { LIBRARY_SAYS } from "@/lib/note/library/notes"
 
 /**
  * Which pasted links reach yt-dlp. The three known sites are read for their
@@ -53,7 +54,7 @@ describe("YouTube, TikTok and Instagram links", () => {
     "https://www.tiktok.com/@creator",
     "https://www.instagram.com/someone/",
   ])("refuses a page on a known site that is not one video: %s", (url) => {
-    expect(() => parseVideoLink(url)).toThrow("That is not a link to a video")
+    expect(() => parseVideoLink(url)).toThrow(LIBRARY_SAYS.notALink)
   })
 })
 
@@ -77,7 +78,7 @@ describe("links from anywhere else", () => {
     ["something that is not a link", "my favourite video"],
     ["an ftp address", "ftp://example.com/video.mp4"],
   ])("refuses %s", async (_label, url) => {
-    await expect(readVideoLink(url, publicHost)).rejects.toThrow("That is not a link to a video")
+    await expect(readVideoLink(url, publicHost)).rejects.toThrow(LIBRARY_SAYS.notALink)
   })
 
   it.each([
@@ -92,7 +93,7 @@ describe("links from anywhere else", () => {
   ])("refuses a name that answers with %s", async (_label, address) => {
     const resolve: ResolveHost = async () => ["93.184.215.14", address]
     await expect(readVideoLink("https://videos.example.com/1", resolve)).rejects.toThrow(
-      "That is not a link to a video"
+      LIBRARY_SAYS.notALink
     )
   })
 
@@ -101,7 +102,7 @@ describe("links from anywhere else", () => {
       throw new Error("ENOTFOUND")
     }
     await expect(readVideoLink("https://no-such-site.example/1", nowhere)).rejects.toThrow(
-      "That is not a link to a video"
+      LIBRARY_SAYS.notALink
     )
   })
 

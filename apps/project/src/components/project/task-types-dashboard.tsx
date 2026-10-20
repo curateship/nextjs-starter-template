@@ -53,6 +53,8 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { DashboardToolbarSelectTrigger } from "@/components/shared/dashboard-toolbar"
 import { archiveType, makeTaskType, orderTaskTypes, saveTaskType } from "@/lib/api/project/task-types"
 import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -67,11 +69,19 @@ import {
   type FieldRule,
 } from "@/lib/project/task-fields"
 import type { TaskType, TypeIcon } from "@/lib/project/task-types"
+import { useTeamId } from "@/lib/project/team-scope"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-type TaskTypesPage = { myRole: TeamRole; types: TaskType[] }
+type TaskTypesPage = {
+  myRole: TeamRole
+  types: TaskType[]
+  /** Every team, for the site admin's team filter; empty for an employee, who has one. */
+  teams?: { id: string; name: string }[]
+  /** The team shown, for the site admin. */
+  teamId?: string | null
+}
 
 /**
  * The Task types dashboard at `/task-types`, in the left menu after Team
@@ -87,10 +97,13 @@ export function TaskTypesDashboard({
   page,
   selectedId,
   onSelect,
+  onTeam,
 }: {
   page: TaskTypesPage
   selectedId: string | undefined
   onSelect: (typeId: string) => void
+  /** The site admin's team filter, kept in the address (Tyler, 19 Oct 2026). */
+  onTeam?: (teamId: string) => void
 }) {
   const router = useRouter()
   const canEdit = runsTheTeam(page.myRole)
@@ -116,6 +129,9 @@ export function TaskTypesDashboard({
         showLabel: "Show the task types",
         content: (
           <TypesListPanel
+            teams={page.teams ?? []}
+            teamId={page.teamId ?? null}
+            onTeam={onTeam}
             types={page.types}
             selected={selected}
             canEdit={canEdit}
@@ -145,12 +161,18 @@ export function TaskTypesDashboard({
  * nothing can be dragged while it saves.
  */
 function TypesListPanel({
+  teams,
+  teamId,
+  onTeam,
   types,
   selected,
   canEdit,
   save,
   onSelect,
 }: {
+  teams: { id: string; name: string }[]
+  teamId: string | null
+  onTeam?: (teamId: string) => void
   types: TaskType[]
   selected: TaskType | null
   canEdit: boolean
@@ -169,6 +191,7 @@ function TypesListPanel({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   const dndId = React.useId()
   const full = types.length >= LIMITS.typesPerTeam
+  const pageTeamId = useTeamId()
 
   async function handleDragEnd(event: DragEndEvent) {
     const overId = event.over?.id
@@ -178,7 +201,7 @@ function TypesListPanel({
     const before = orderKey
     setOrderKey(next.join(","))
     setOrdering(true)
-    const ok = await save(() => orderTaskTypes(next))
+    const ok = await save(() => orderTaskTypes(next, pageTeamId))
     setOrdering(false)
     if (!ok) setOrderKey(before)
   }
@@ -191,6 +214,21 @@ function TypesListPanel({
         action={
           canEdit ? (
             <div className="flex items-center gap-1">
+              {/* A type belongs to one team, so the site admin picks whose they see. */}
+              {teams.length && teamId && onTeam ? (
+                <Select value={teamId} onValueChange={onTeam}>
+                  <DashboardToolbarSelectTrigger aria-label="Team" className="max-w-40">
+                    <SelectValue />
+                  </DashboardToolbarSelectTrigger>
+                  <SelectContent>
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
@@ -358,6 +396,7 @@ function NewTypeDialog({
   onCreated: (typeId: string) => void
 }) {
   const router = useRouter()
+  const teamId = useTeamId()
   const [name, setName] = React.useState("")
   const [icon, setIcon] = React.useState<TypeIcon>("file")
   const [color, setColor] = React.useState<ProjectColor>("blue")
@@ -381,7 +420,7 @@ function NewTypeDialog({
     }
     let made: { id: string } | null = null
     const ok = await run(async () => {
-      made = await makeTaskType({ name: next, icon, color })
+      made = await makeTaskType({ name: next, icon, color }, teamId)
     }, "Task type created.")
     if (!ok || !made) {
       setInvalid(true)

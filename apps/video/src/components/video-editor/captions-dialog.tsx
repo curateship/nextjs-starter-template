@@ -34,9 +34,17 @@ import {
   type CaptionLook,
 } from "@/lib/video/caption-look"
 import { captionClipWordTimes } from "@/lib/video/caption-words"
-import { captionClipName } from "@/lib/video/captions"
+import { captionClipName, findCaptionSource } from "@/lib/video/captions"
 import { editorId } from "@/lib/video/timeline-utils"
-import { useEditorRuntime } from "@/components/video-editor/editor-store"
+import {
+  useEditorRuntime,
+  useEditorSelector,
+} from "@/components/video-editor/editor-store"
+import { useSavedTranscripts } from "@/components/video-editor/use-saved-transcripts"
+import { sourceSpanMs } from "@/lib/video/clip-playback"
+import type { TranscriberId } from "@/lib/video/ai-choices"
+import { captionsCostCents, withEstimate } from "@/lib/video/ai-estimates"
+import { hasSavedWords } from "@/lib/video/transcripts"
 
 /**
  * Writing the captions, and how they should look when they land.
@@ -55,15 +63,42 @@ export function CaptionsDialog({
   available: AiToolsAvailability | null
 }) {
   const { projectId, dispatch, saveNow } = useEditorRuntime()
+  const tracks = useEditorSelector((state) => state.tracks)
   const [look, setLook] = React.useState<CaptionLook>(DEFAULT_CAPTION_LOOK)
   const [writing, setWriting] = React.useState(false)
+  const [pickedTranscriber, setPickedTranscriber] = React.useState<
+    TranscriberId | undefined
+  >()
 
   // Every opening starts from the standard look again.
   const [wasOpen, setWasOpen] = React.useState(open)
   if (wasOpen !== open) {
     setWasOpen(open)
-    if (open) setLook(DEFAULT_CAPTION_LOOK)
+    if (open) {
+      setLook(DEFAULT_CAPTION_LOOK)
+      setPickedTranscriber(undefined)
+    }
   }
+
+  // The price before the press: the same clip the server will pick, the
+  // whole file's sound the first time, and nothing once its words are saved.
+  const source = findCaptionSource(tracks)
+  const mediaId = source?.clip.mediaId
+  const { saved } = useSavedTranscripts(mediaId ? [mediaId] : [], open)
+  const transcriber =
+    pickedTranscriber ?? (available?.transcriber as TranscriberId | null)
+  const savedRow = saved.find((row) => row.mediaId === mediaId)
+  const priceCents =
+    source && mediaId && transcriber
+      ? captionsCostCents({
+          transcriber,
+          fileSoundMs:
+            savedRow?.durationMs ??
+            source.clip.sourceDurationMs ??
+            sourceSpanMs(source.clip),
+          saved: hasSavedWords(saved, mediaId, transcriber),
+        })
+      : null
 
   async function write() {
     setWriting(true)
@@ -112,9 +147,17 @@ export function CaptionsDialog({
           <Card size="sm">
             <CardHeader>
               <CardTitle>Who does it</CardTitle>
+              <CardDescription>
+                The first time, the whole recording is written down and kept,
+                so captioning it again costs nothing.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <AiChoiceField kind="transcriber" available={available} />
+              <AiChoiceField
+                kind="transcriber"
+                available={available}
+                onChanged={(id) => setPickedTranscriber(id as TranscriberId)}
+              />
             </CardContent>
           </Card>
 
@@ -153,7 +196,7 @@ export function CaptionsDialog({
             ) : (
               <CaptionsIcon />
             )}
-            {writing ? "Listening…" : "Write them"}
+            {writing ? "Listening…" : withEstimate("Write them", priceCents)}
           </Button>
         </DialogFooter>
       </DialogContent>

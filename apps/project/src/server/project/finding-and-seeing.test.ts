@@ -5,11 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { overDoingLimit } from "@/lib/project/doing-limit"
 import type { DayMeeting } from "@/lib/project/meetings"
-import { openView } from "@/lib/project/saved-views"
+import { openView, viewHasFilters } from "@/lib/project/saved-views"
 import { NOBODY_FILTER } from "@/lib/project/task-filters"
 import { dayBlocks, weekDays, weekHours } from "@/lib/project/week-view"
 import type { CustomShellDb } from "@/server/db"
-import { requireMembership } from "@/server/project/access"
+import { requireMembership, inTeam } from "@/server/project/access"
 import { saveFinishedDays } from "@/server/project/checkin-jobs"
 import { submitCheckin } from "@/server/project/checkins"
 import { loadTeamActivity } from "@/server/project/project-activity"
@@ -18,7 +18,7 @@ import {
   loadProjectPage,
   removeProjectMember,
 } from "@/server/project/projects"
-import { deleteView, listSavedViews, saveView } from "@/server/project/saved-views"
+import { deleteView, listSavedViews, saveView, updateView } from "@/server/project/saved-views"
 import { projectTasks } from "@/server/project/schema"
 import { searchTasks } from "@/server/project/search"
 import { assignTask, createTask, deleteTask, setTaskStatus, updateTask } from "@/server/project/tasks"
@@ -45,6 +45,7 @@ let anna: CustomShellUser
 let ben: CustomShellUser
 let carla: CustomShellUser
 let admin: CustomShellUser
+let adminTeamId: string
 let website: string
 let secret: string
 
@@ -57,7 +58,9 @@ beforeEach(async () => {
   anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
   ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
   carla = await insertEmployee(database, { name: "Carla", email: "carla@example.test" })
-  admin = (await startTeam(database, [anna, ben, carla])).admin
+  const started = await startTeam(database, [anna, ben, carla])
+  admin = started.admin
+  adminTeamId = started.team.id
   website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
   await addProjectMember(admin.id, website, ben.id, database)
   secret = (await projectFor(admin, anna.id, { name: "Secret", color: "red", description: "" }, database)).id
@@ -169,15 +172,72 @@ describe("saved views", () => {
     ).rejects.toThrow(PROJECT_ERRORS.projectNotFound)
   })
 
+  it("keep a group, and a group alone is a view (Tyler: \"sorting is also a filter\")", async () => {
+    expect(viewHasFilters({ group: "priority" })).toBe(true)
+    expect(viewHasFilters({ group: "none" })).toBe(false)
+
+    const view = await saveView(anna.id, { projectId: website, name: "By priority", filters: { group: "priority" } }, database)
+    expect(view.filters).toEqual({ group: "priority" })
+    const [listed] = (await loadProjectPage(anna.id, website, database)).views
+    expect(listed.filters).toEqual({ group: "priority" })
+    expect(openView(listed, { labels: [], types: [] }, NOBODY_FILTER).filters).toEqual({ group: "priority" })
+
+    // "None" isn't kept, so it alone is an empty view.
+    await expect(
+      saveView(anna.id, { projectId: website, name: "Nothing", filters: { group: "none" } }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.viewNeedsFilters)
+    // My tasks has no Group row, so a group alone is nothing there.
+    await expect(
+      saveView(anna.id, { projectId: null, name: "By priority", filters: { group: "priority" } }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.viewNeedsFilters)
+    const mine = await saveView(anna.id, { projectId: null, name: "Doing", filters: { status: "doing", group: "priority" } }, database)
+    expect(mine.filters).toEqual({ status: "doing" })
+  })
+
+  it("are renamed and refiltered by their person only, where they were saved", async () => {
+    const view = await saveView(anna.id, { projectId: website, name: "Stuck", filters: { status: "stuck" } }, database)
+    const edited = await updateView(
+      anna.id,
+      { viewId: view.id, name: "Ben's by priority", filters: { person: ben.id, group: "priority" } },
+      database
+    )
+    expect(edited).toEqual({
+      id: view.id,
+      name: "Ben's by priority",
+      filters: { person: ben.id, group: "priority" },
+      names: { person: "Ben" },
+    })
+    expect((await loadProjectPage(anna.id, website, database)).views).toEqual([edited])
+
+    // Nothing left to show is refused, and the view is as it was.
+    await expect(
+      updateView(anna.id, { viewId: view.id, name: "Empty", filters: { group: "none" } }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.viewNeedsFilters)
+    // Someone else's view isn't there for them.
+    await expect(
+      updateView(ben.id, { viewId: view.id, name: "Mine now", filters: { status: "todo" } }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.viewNotFound)
+    expect((await loadProjectPage(anna.id, website, database)).views).toEqual([edited])
+
+    // On My tasks a view keeps no person or group.
+    const mine = await saveView(anna.id, { projectId: null, name: "Doing", filters: { status: "doing" } }, database)
+    expect(
+      (await updateView(anna.id, { viewId: mine.id, name: "Done", filters: { status: "done", person: ben.id, group: "tags" } }, database))
+        .filters
+    ).toEqual({ status: "done" })
+  })
+
   it("go when their person leaves the project or the team", async () => {
-    await saveView(ben.id, { projectId: website, name: "Mine", filters: { person: ben.id } }, database)
-    await saveView(ben.id, { projectId: null, name: "Doing", filters: { status: "doing" } }, database)
-    await removeProjectMember(admin.id, website, ben.id, database)
-    const team = await teamId()
-    expect(await listSavedViews(ben.id, team, website, database)).toEqual([])
-    expect(await listSavedViews(ben.id, team, null, database)).toHaveLength(1)
-    await removeTeamMember(admin.id, ben.id, database)
-    expect(await listSavedViews(ben.id, team, null, database)).toEqual([])
+    await inTeam(adminTeamId, async () => {
+      await saveView(ben.id, { projectId: website, name: "Mine", filters: { person: ben.id } }, database)
+      await saveView(ben.id, { projectId: null, name: "Doing", filters: { status: "doing" } }, database)
+      await removeProjectMember(admin.id, website, ben.id, database)
+      const team = await teamId()
+      expect(await listSavedViews(ben.id, team, website, database)).toEqual([])
+      expect(await listSavedViews(ben.id, team, null, database)).toHaveLength(1)
+      await removeTeamMember(admin.id, ben.id, database)
+      expect(await listSavedViews(ben.id, team, null, database)).toEqual([])
+    })
   })
 
   it("open without a person no longer on the project or a deleted label, and say so", () => {
@@ -188,7 +248,7 @@ describe("saved views", () => {
     const here = { people: [{ id: "ben" }], labels: [{ id: "l1" }], types: [] }
     expect(openView(view, here, NOBODY_FILTER)).toEqual({
       filters: { status: "stuck" },
-      missing: ["Leo isn't on this project any more", 'The label "Bug" was deleted'],
+      missing: ["Leo isn't on this project any more", 'The tag "Bug" was deleted'],
     })
     // "Nobody assigned" is always there.
     expect(openView({ filters: { person: NOBODY_FILTER }, names: {} }, here, NOBODY_FILTER).missing).toEqual([])

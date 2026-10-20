@@ -12,8 +12,9 @@ import {
   submitCheckinSchema,
   timeOffSchema,
 } from "@/lib/project/rules"
+import { teamScope } from "@/lib/api/project/scope"
 import { userGet, userPost } from "@/server/guards"
-import { findMembership } from "@/server/project/access"
+import { findMembership, inTeam } from "@/server/project/access"
 import { addBlockerReply } from "@/server/project/blocker-replies"
 import {
   addPick,
@@ -85,14 +86,16 @@ const setMyCheckinTimeFn = createServerFn({ method: "POST" })
 /** The Team dashboard's calendar month and the check-ins of one day. */
 const loadTeamCheckinsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ month: month.optional(), day: day.optional() }))
-  .handler(async ({ data, context }) => {
-    if (!(await findMembership(context.user.id))) return null
-    return {
-      month: await loadTeamMonth(context.user.id, data.month),
-      day: await loadTeamDay(context.user.id, data.day),
-    }
-  })
+  .inputValidator(z.object({ month: month.optional(), day: day.optional(), ...teamScope }))
+  .handler(async ({ data, context }) =>
+    inTeam(data.teamId, async () => {
+      if (!(await findMembership(context.user.id))) return null
+      return {
+        month: await loadTeamMonth(context.user.id, data.month),
+        day: await loadTeamDay(context.user.id, data.day),
+      }
+    })
+  )
 
 export function loadMyDashboardPage() {
   return loadMyDashboardFn()
@@ -112,39 +115,39 @@ export function saveNotes(data: z.input<typeof saveCheckinNotesSchema>) {
 export function saveMyCheckinTime(data: z.input<typeof myCheckinTimeSchema>) {
   return setMyCheckinTimeFn({ data })
 }
-export function loadTeamCheckins(data: { month?: string; day?: string }) {
-  return loadTeamCheckinsFn({ data })
+export function loadTeamCheckins(data: { month?: string; day?: string }, teamId?: string) {
+  return loadTeamCheckinsFn({ data: { ...data, teamId } })
 }
 
 const addTimeOffFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(timeOffSchema)
-  .handler(async ({ data, context }) => addTimeOff(context.user.id, data))
+  .inputValidator(timeOffSchema.extend(teamScope))
+  .handler(async ({ data: { teamId, ...data }, context }) => inTeam(teamId, () => addTimeOff(context.user.id, data)))
 
 const removeTimeOffFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ timeOffId: id }))
-  .handler(async ({ data, context }) => removeTimeOff(context.user.id, data.timeOffId))
+  .inputValidator(z.object({ timeOffId: id, ...teamScope }))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => removeTimeOff(context.user.id, data.timeOffId)))
 
 const listTimeOffFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ userId: id.optional() }))
-  .handler(async ({ data, context }) => listTimeOffFor(context.user.id, data.userId))
+  .inputValidator(z.object({ userId: id.optional(), ...teamScope }))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => listTimeOffFor(context.user.id, data.userId)))
 
-export function addDaysOff(data: z.input<typeof timeOffSchema>) {
-  return addTimeOffFn({ data })
+export function addDaysOff(data: z.input<typeof timeOffSchema>, teamId?: string) {
+  return addTimeOffFn({ data: { ...data, teamId } })
 }
-export function removeDaysOff(timeOffId: string) {
-  return removeTimeOffFn({ data: { timeOffId } })
+export function removeDaysOff(timeOffId: string, teamId?: string) {
+  return removeTimeOffFn({ data: { timeOffId, teamId } })
 }
-export function loadDaysOff(userId?: string) {
-  return listTimeOffFn({ data: { userId } })
+export function loadDaysOff(userId?: string, teamId?: string) {
+  return listTimeOffFn({ data: { userId, teamId } })
 }
 
 const replyFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(blockerReplySchema)
-  .handler(async ({ data, context }) => addBlockerReply(context.user, data))
+  .inputValidator(blockerReplySchema.extend(teamScope))
+  .handler(async ({ data: { teamId, ...data }, context }) => inTeam(teamId, () => addBlockerReply(context.user, data)))
 
 const checkOutFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -162,8 +165,8 @@ const loadMyWeekFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ monday: day.optional() }))
   .handler(async ({ data, context }) => loadMyWeek(context.user.id, data.monday))
 
-export function replyToBlocker(data: z.input<typeof blockerReplySchema>) {
-  return replyFn({ data })
+export function replyToBlocker(data: z.input<typeof blockerReplySchema>, teamId?: string) {
+  return replyFn({ data: { ...data, teamId } })
 }
 export function checkOutForTheDay(data: z.input<typeof checkOutSchema>) {
   return checkOutFn({ data })
@@ -177,12 +180,12 @@ export function loadWeek(monday?: string) {
 
 const setCalendarDueDatesFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ on: z.boolean() }))
-  .handler(async ({ data, context }) => setCalendarDueDates(context.user.id, data.on))
+  .inputValidator(z.object({ on: z.boolean(), ...teamScope }))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => setCalendarDueDates(context.user.id, data.on)))
 
 /** My own "Due dates" switch on the Team calendar. */
-export function showDueDatesOnCalendar(on: boolean) {
-  return setCalendarDueDatesFn({ data: { on } })
+export function showDueDatesOnCalendar(on: boolean, teamId?: string) {
+  return setCalendarDueDatesFn({ data: { on, teamId } })
 }
 
 const setMyStatusOrderFn = createServerFn({ method: "POST" })

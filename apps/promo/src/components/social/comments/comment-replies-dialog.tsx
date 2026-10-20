@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -74,6 +75,8 @@ export function CommentRepliesDialog({
   onCheck: (commentId: string) => Promise<void>
   onClose: () => void
 }) {
+  // Write with AI spends the owner's credits, so a guest sent from Project writes their own.
+  const guest = usePromoGuest()
   const [state, setState] = React.useState<{
     commentId: string | null
     data: CommentReplies | null
@@ -143,7 +146,7 @@ export function CommentRepliesDialog({
     const text = (texts[reply.id] ?? "").trim()
     if (!text) {
       setInvalid(reply.id)
-      showErrorToast(`Write the answer to u/${reply.author} first, or press Write with AI.`)
+      showErrorToast(`Write the answer to u/${reply.author} first${guest ? "" : ", or press Write with AI"}.`)
       return
     }
     setBusy({ replyId: reply.id, what: "send" })
@@ -273,7 +276,7 @@ export function CommentRepliesDialog({
                         setFromDraft((current) => ({ ...current, [reply.id]: draftId }))
                         if (invalid === reply.id) setInvalid(null)
                       }}
-                      onDraft={() => void draft(reply)}
+                      onDraft={guest ? null : () => void draft(reply)}
                       onSend={() => void send(reply)}
                       onCancel={() => void cancel(reply)}
                     />
@@ -316,7 +319,8 @@ function ReplyCard({
   /** Something is on its way for one of the replies, so the buttons wait. */
   locked: boolean
   onText: (text: string, draftId: string | null) => void
-  onDraft: () => void
+  /** Null for a guest sent from Project, who has no Write with AI. */
+  onDraft: (() => void) | null
   onSend: () => void
   onCancel: () => void
 }) {
@@ -435,7 +439,8 @@ function Composer({
   busy: "draft" | "send" | "cancel" | null
   locked: boolean
   onText: (text: string, draftId: string | null) => void
-  onDraft: () => void
+  /** Null for a guest sent from Project, who has no Write with AI. */
+  onDraft: (() => void) | null
   onSend: () => void
 }) {
   const over = text.trim().length > MAX_COMMENT_CHARS
@@ -484,7 +489,9 @@ function Composer({
         placeholder={
           reply.drafts.length
             ? "Pick a draft above, or write it yourself."
-            : "Write it yourself, or press Write with AI."
+            : onDraft
+              ? "Write it yourself, or press Write with AI."
+              : "Write your answer."
         }
         onChange={(event) => {
           const next = event.target.value
@@ -499,10 +506,12 @@ function Composer({
           {text.trim().length} of {MAX_COMMENT_CHARS}
         </span>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" disabled={locked} onClick={onDraft}>
-            {busy === "draft" ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-            Write with AI
-          </Button>
+          {onDraft ? (
+            <Button type="button" variant="outline" disabled={locked} onClick={onDraft}>
+              {busy === "draft" ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+              Write with AI
+            </Button>
+          ) : null}
           <Button type="button" disabled={locked} onClick={onSend}>
             {busy === "send" ? <Loader2Icon className="animate-spin" /> : null}
             Reply

@@ -26,6 +26,8 @@ export type PostCommentRequest = {
   text: string
   /** Null when the words were typed rather than taken from a draft. */
   draftId?: string | null
+  /** "Sam via Project" when a guest sent from Project pressed Post; null for the owner. */
+  sentBy?: string | null
 }
 
 export type PostCommentResult = {
@@ -91,6 +93,7 @@ export async function postComment(
       status: "posted",
       commentUrl,
       visit,
+      sentBy: request.sentBy ?? null,
     })
 
     await db
@@ -143,6 +146,7 @@ export async function postComment(
       text,
       status: "failed",
       lastError: message,
+      sentBy: request.sentBy ?? null,
     })
 
     // The find keeps its old status on purpose. Marking it commented would

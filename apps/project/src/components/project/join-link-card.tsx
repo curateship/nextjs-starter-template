@@ -14,6 +14,7 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { JOINS_PER_LINK_PER_DAY } from "@/lib/project/rules"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * The team's join link, in Team settings for the owner and admins. Anyone
@@ -25,6 +26,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * window on top of it is the thing not to do.
  */
 export function JoinLinkCard({ state }: { state: JoinLinkState }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [link, setLink] = React.useState<string | null>(null)
   const [asking, setAsking] = React.useState<"new" | "off" | null>(null)
@@ -33,7 +35,7 @@ export function JoinLinkCard({ state }: { state: JoinLinkState }) {
   useEscapeCancels(question, () => setAsking(null))
 
   async function turnOff() {
-    if (!(await run(() => stopJoinLink(), "The join link is off."))) return
+    if (!(await run(() => stopJoinLink(teamId), "The join link is off."))) return
     setAsking(null)
     setLink(null)
     await router.invalidate()
@@ -42,7 +44,7 @@ export function JoinLinkCard({ state }: { state: JoinLinkState }) {
   async function make() {
     let made = ""
     const ok = await run(async () => {
-      made = (await newJoinLink()).link
+      made = (await newJoinLink(teamId)).link
     }, state.on ? "A new link is ready. The old one no longer works." : "The join link is on.")
     if (!ok) return
     setAsking(null)

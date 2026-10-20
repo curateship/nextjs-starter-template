@@ -103,8 +103,11 @@ in [Teams and invites](teams-and-invites.md#who-is-who).
   emailed link.
 - **The site admin oversees and does no work in a team.** Tyler: "What
   tasks? if i only overseeas the team, why would I get tasks?" He isn't a
-  member of the teams he creates, never checks in and gets no tasks. Only he
-  sees every project in a team, and only he gets the morning "5 of 6
+  member of the teams he creates, never checks in, and gets no tasks unless he
+  takes one himself. Since 19 Oct 2026 he can take a task on any project
+  without joining it (Tyler: "I should be able to assign myself (admin)").
+  Nobody else can hand him one, and he still has no My dashboard ("I dont
+  need my own dashboard"). Only he sees every project in a team, and only he gets the morning "5 of 6
   checked in" notice.
 - **The site admin runs every team.** Tyler: "Im admin, I should be able to
   see everything." Only the site admin creates teams, changes their
@@ -114,12 +117,16 @@ in [Teams and invites](teams-and-invites.md#who-is-who).
   covers New project and Copy project.
 - **A project's settings are the site admin's alone:** "Employees dont even
   see the settings cog or page. Only admin see it".
-- **The site admin moves between teams with a team picker**, and sees each
-  one as its owner would.
+- **The site admin runs teams from a Teams dashboard, with no team
+  dropdown:** "There should be a team dashboard to create, edit and delete
+  teams and there should be no team dropdown in the navigation. Admin sees all
+  project. The project dashboard can have a filter by team dropdown." (19 Oct
+  2026). Each team keeps its own dashboard, and a team is deleted only once
+  it has no people and no open projects.
 - **The site admin sees everything, private things included**: each
   person's My week, check-out notes, check-in record and "Just me" tasks.
 - **The site admin stays invisible** in a team they look at: not a member,
-  not in any picker or count. The notices meant for whoever runs the team
+  not in any list or count. The notices meant for whoever runs the team
   (the morning count, joins, a milestone with no lead) go to him; task
   notices don't, since he is on no task.
 
@@ -309,12 +316,13 @@ built. Each was the recommended option.
 
 - **A project's status** was set by its lead, the owner and admins. Since
   16 Oct 2026 it is one of the project's settings, so the site admin alone
-  sets it.
+  sets it. Since 19 Oct 2026 nobody sets it: it is worked out from late tasks
+  (see "Choices for the 19 Oct status" below).
 - **The lead hears Stuck, unblocked and Done** on every task in the
   project, not its chat.
 - **A saved template keeps what Copy project keeps**: description, colour,
-  sections, milestones without dates, tasks with steps, labels, type, field
-  values and priority.
+  milestones without dates, tasks with steps, tags, type, field values and
+  priority. (Sections went on 19 Oct 2026 and became tags.)
 - **A project with "Everyone on the team" on** can't be left, and nobody
   can be taken off it, until the switch is off. Tyler didn't know the
   feature and asked me to decide, so this is my call, open to change.
@@ -324,8 +332,9 @@ built. Each was the recommended option.
 Tyler answered these on 16 Oct 2026, before Features 16 Oct task 01 was
 built. Each was the recommended option.
 
-- **A project's status reaches the bell** when it goes At risk or Off track,
-  and again when it goes back to On track or the status is taken off.
+- **A project's status reached the bell** when it went At risk or Off track,
+  and again when it went back to On track or the status was taken off. That
+  ended with the manual status on 19 Oct 2026.
 - **"Milestone due tomorrow" goes to the project's lead**, or to the site
   admin when it has no lead.
 - **A task waiting for review shows in Needs attention after one work day**
@@ -341,6 +350,17 @@ built. Each was the recommended option.
 - **Board cards show the fields picked for the List**, with no separate
   choice.
 - **A saved view on My dashboard keeps its client.**
+- **A saved view keeps its group, and a group alone is a view** (20 Oct
+  2026): "sorting is also a filter".
+- **Each saved view has a cog in the Views menu** to rename it or change its
+  filters (20 Oct 2026).
+- **The task panel's top is the status, then three dots and the cog at the
+  right**, with Add tags, Add note, Add comment and Add files in the three
+  dots and no cross on the project page (20 Oct 2026).
+- **The Notes card has a Delete button**, and a card footer's buttons fill
+  the row (20 Oct 2026).
+- **Over a project's banner, the left panel's header has no line under it**
+  (20 Oct 2026).
 
 ## The first version
 
@@ -357,3 +377,39 @@ order they get built.
 - Guests who see only some projects.
 - Online status, screenshots and activity timers. The check-in is the only thing
   the app tracks about a person.
+
+## Choices for the 19 Oct status
+
+Tyler asked on 19 Oct 2026 for the manual project status to go and for one
+worked out from late tasks, with the numbers set in Project settings. He
+picked the recommended option on all three questions.
+
+- **What decides it:** the count of late tasks, not their share of the open
+  ones. 0 late is On track, 1 or 2 Slowing down, 3 or more Behind, until the
+  site admin changes the numbers for a project.
+- **Who hears about a change:** nobody. The old status notices and their
+  switch went.
+- **The Projects table** keeps its Status column, showing the new status with
+  the late count. The old manual statuses stay saved but show nowhere, and the
+  Activity tab keeps their old lines.
+
+## Choices for opening a task's record in Video or Promo
+
+Tyler answered these on 19 Oct 2026, before Connected apps task 01 was built.
+How it works is in [Opening a record in another app](connected-apps.md).
+
+- **Who may press the button:** the person the task is assigned to, and the
+  site admin. Anyone else who can see the task gets a refusal. (The task's
+  draft said the project's owner and admins, but those roles stopped giving
+  powers on 16 Oct 2026.)
+- **What a guest may do in Video:** edit the timeline, upload media into that
+  one project and export. AI generation is off for guests until Tyler says
+  otherwise. Deleting the project is never allowed.
+- **What "one record" is in Promo:** a Promo project. The guest works it:
+  searches posts, edits keywords and the description, and writes and sends
+  comments and posts with the project's own accounts. The guest never
+  deletes or pauses the project, adds a network or moves an account. The AI
+  that writes comments and posts is off for guests.
+- **CMS is left out for now.** Tyler, 19 Oct 2026: "skip cms for now".
+- **One record per task.** A task holds one Video project or one Promo
+  project, and shows one button.

@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { PERSONAL_PROJECT_ID, PERSONAL_PROJECT_NAME } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
-import { requireMembership, type ProjectDb } from "@/server/project/access"
+import { isSiteAdmin, requireMembership, type ProjectDb } from "@/server/project/access"
 import { projectProjectMembers, projectProjects } from "@/server/project/schema"
 
 /**
@@ -16,9 +16,9 @@ import { projectProjectMembers, projectProjects } from "@/server/project/schema"
 
 /** The person's own project, made now if they have none. */
 async function ensurePersonalProject(userId: string, database: ProjectDb): Promise<string> {
+  // The site admin oversees, so they have no tasks of their own, whichever team a page names.
+  if (await isSiteAdmin(userId, database)) throw new Error(PROJECT_ERRORS.siteAdminNoTasks)
   const membership = await requireMembership(userId, database)
-  // The site admin oversees, so they have no tasks of their own.
-  if (membership.siteAdmin) throw new Error(PROJECT_ERRORS.siteAdminNoTasks)
   const [found] = await database
     .select({ id: projectProjects.id })
     .from(projectProjects)

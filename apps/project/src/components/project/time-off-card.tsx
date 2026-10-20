@@ -14,6 +14,7 @@ import { keyFromDate } from "@/lib/project/dates"
 import { dayLabel, dayRangeLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /** "Oct 14", or "Oct 14 to Oct 16", with the year only when it isn't this one. */
 const spanLabel = (entry: TimeOff) => dayRangeLabel(entry.firstDay, entry.lastDay)
@@ -44,6 +45,7 @@ export function TimeOffSection({
    */
   initial?: TimeOff[]
 }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [entries, setEntries] = React.useState<TimeOff[] | null>(initial ?? null)
   const [loadError, setLoadError] = React.useState<string | null>(null)
@@ -62,7 +64,7 @@ export function TimeOffSection({
       return
     }
     let live = true
-    loadDaysOff(userId).then(
+    loadDaysOff(userId, teamId).then(
       (found) => {
         if (!live) return
         setEntries(found)
@@ -73,7 +75,7 @@ export function TimeOffSection({
     return () => {
       live = false
     }
-  }, [userId, reloads])
+  }, [userId, reloads, teamId])
 
   async function add() {
     const firstDay = keyFromDate(first)
@@ -82,7 +84,7 @@ export function TimeOffSection({
       showErrorToast("Pick the first day off.")
       return
     }
-    const ok = await run(() => addDaysOff({ userId, firstDay, lastDay }), "Time off saved.")
+    const ok = await run(() => addDaysOff({ userId, firstDay, lastDay }, teamId), "Time off saved.")
     if (!ok) return
     setAdding(false)
     setFirst(undefined)
@@ -92,7 +94,7 @@ export function TimeOffSection({
   }
 
   async function remove(entry: TimeOff) {
-    if (await run(() => removeDaysOff(entry.id), "Time off removed.")) {
+    if (await run(() => removeDaysOff(entry.id, teamId), "Time off removed.")) {
       setRemoving(null)
       setReloads((n) => n + 1)
       await router.invalidate()

@@ -115,6 +115,10 @@ const edits: { name: string; action: BuilderAction }[] = [
     },
   },
   { name: "resetting a slide", action: { type: "RESET_DEFAULTS" } },
+  {
+    name: "moving a slide",
+    action: { type: "MOVE_SLIDE", slideId: "slide-2", toIndex: 0 },
+  },
 ]
 
 describe("carousel studio history", () => {
@@ -147,6 +151,118 @@ describe("carousel studio history", () => {
     })
     const undone = builderReducer(committed, { type: "UNDO" })
     expect(documentOf(undone)).toEqual(documentOf(before))
+  })
+
+  it("moves every layer to a new shape and one undo puts the deck back", () => {
+    const before = initial()
+    const story = builderReducer(before, {
+      type: "UPDATE_FORMAT",
+      format: "9:16",
+    })
+    expect(story.format).toBe("9:16")
+    expect(story.past).toHaveLength(1)
+    // 270 pixels tall in a 1350 slide stays 270 in a 1920 one.
+    expect(story.slides[0].items[0].height * 1920).toBeCloseTo(270)
+
+    const undone = builderReducer(story, { type: "UNDO" })
+    expect(documentOf(undone)).toEqual(documentOf(before))
+    expect(
+      builderReducer(before, { type: "UPDATE_FORMAT", format: "4:5" })
+    ).toBe(before)
+  })
+
+  it("pushes a layout onto several slides as one undo step", () => {
+    const deck: CarouselSlide[] = [
+      slides[0],
+      ...["a", "b", "c"].map((id) => ({
+        id,
+        title: id,
+        backgroundColor: "#ffffff",
+        items: [{ ...text, id: `${id}-text`, text: `Words on ${id}`, x: 0.5 }],
+      })),
+    ]
+    const before = { ...initial(), slides: deck }
+    const pushed = builderReducer(before, {
+      type: "PUSH_LAYOUT",
+      sourceSlideId: "slide-1",
+      targetSlideIds: ["a", "c"],
+    })
+    expect(pushed.past).toHaveLength(1)
+    expect(pushed.slides.map((slide) => slide.items[0]?.x)).toEqual([
+      0.1, 0.1, 0.5, 0.1,
+    ])
+    expect(pushed.slides[1].items[0]).toMatchObject({ text: "Words on a" })
+
+    const undone = builderReducer(pushed, { type: "UNDO" })
+    expect(documentOf(undone)).toEqual(documentOf(before))
+  })
+
+  it("adds no undo step when a push matches nothing", () => {
+    const state = initial()
+    expect(
+      builderReducer(state, {
+        type: "PUSH_LAYOUT",
+        sourceSlideId: "slide-1",
+        targetSlideIds: ["slide-2"],
+      })
+    ).toBe(state)
+  })
+
+  it("moves slide 5 to first, keeps it picked, and one undo puts it back", () => {
+    const deck: CarouselSlide[] = Array.from({ length: 6 }, (_, index) => ({
+      id: `s${index + 1}`,
+      title: `Slide ${index + 1}`,
+      backgroundColor: "#ffffff",
+      items: [{ ...text, id: `t${index + 1}` }],
+    }))
+    const before: BuilderState = {
+      ...initial(),
+      slides: deck,
+      selectedSlideId: "s5",
+      selectedItemId: "t5",
+    }
+    const moved = builderReducer(before, {
+      type: "MOVE_SLIDE",
+      slideId: "s5",
+      toIndex: 0,
+    })
+    // The saved order is the export's file order: slide-01.png is now s5.
+    expect(moved.slides.map((slide) => slide.id)).toEqual([
+      "s5",
+      "s1",
+      "s2",
+      "s3",
+      "s4",
+      "s6",
+    ])
+    expect(moved.selectedSlideId).toBe("s5")
+    expect(moved.selectedItemId).toBe("t5")
+    expect(moved.past).toHaveLength(1)
+
+    const undone = builderReducer(moved, { type: "UNDO" })
+    expect(undone.slides.map((slide) => slide.id)).toEqual(
+      deck.map((slide) => slide.id)
+    )
+    const redone = builderReducer(undone, { type: "REDO" })
+    expect(redone.slides.map((slide) => slide.id)[0]).toBe("s5")
+  })
+
+  it("adds no undo step for a slide dropped where it started", () => {
+    const state = initial()
+    expect(
+      builderReducer(state, {
+        type: "MOVE_SLIDE",
+        slideId: "slide-1",
+        toIndex: 0,
+      })
+    ).toBe(state)
+    expect(
+      builderReducer(state, {
+        type: "MOVE_SLIDE",
+        slideId: "missing",
+        toIndex: 1,
+      })
+    ).toBe(state)
   })
 
   it("keeps only the latest 50 undo steps", () => {

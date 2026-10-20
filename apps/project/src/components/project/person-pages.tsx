@@ -7,6 +7,7 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { OpenPersonContext } from "@/lib/project/person-pages"
 import type { TeamRole } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 type Shown = { member: TeamMemberRow; myRole: TeamRole; myUserId: string }
 
@@ -16,18 +17,19 @@ type Shown = { member: TeamMemberRow; myRole: TeamRole; myUserId: string }
  * be opened, and says so.
  */
 export function PersonPages({ children }: { children: React.ReactNode }) {
+  const teamId = useTeamId()
   const [shown, setShown] = React.useState<Shown | null>(null)
   const [open, setOpen] = React.useState(false)
 
   const openPerson = React.useCallback((userId: string) => {
-    loadTeamMemberRow(userId).then(
+    loadTeamMemberRow(userId, teamId).then(
       (found) => {
         setShown(found)
         setOpen(true)
       },
       (error: unknown) => showErrorToast(getProjectErrorMessage(error))
     )
-  }, [])
+  }, [teamId])
 
   return (
     <OpenPersonContext.Provider value={openPerson}>

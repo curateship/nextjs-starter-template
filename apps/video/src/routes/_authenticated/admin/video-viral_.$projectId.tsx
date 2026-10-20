@@ -15,7 +15,7 @@ import {
 
 type ViralProjectSearch = {
   /** Videos is the default and stays out of the address. */
-  view?: "broken" | "creators"
+  view?: "downloaded" | "broken" | "creators"
   /** The playing video, `platform:id`. */
   video?: string
   /** The picked creator, `platform:channel`. */
@@ -50,7 +50,9 @@ function readFit(value: unknown): ViralFit | undefined {
 export const Route = createFileRoute("/_authenticated/admin/video-viral_/$projectId")({
   validateSearch: (search: Record<string, unknown>): ViralProjectSearch => ({
     view:
-      search.view === "creators" || search.view === "broken"
+      search.view === "creators" ||
+      search.view === "broken" ||
+      search.view === "downloaded"
         ? search.view
         : undefined,
     video: readKey(search.video),

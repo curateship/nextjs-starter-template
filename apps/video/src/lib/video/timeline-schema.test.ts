@@ -50,6 +50,35 @@ describe("requireCanonicalTimeline", () => {
     expect(parsed.tracks[0].clips[0].speed).toBeUndefined()
   })
 
+  it("opens a clip saved before clips remembered how the AI made them", () => {
+    const parsed = requireCanonicalTimeline(timeline([VIDEO_CLIP]))
+    expect(parsed.tracks[0].clips[0].origin).toBeUndefined()
+  })
+
+  it("keeps how the AI made a clip, and refuses a recipe it cannot read", () => {
+    const origin = {
+      tool: "shot",
+      model: "gemini-omni-1.1-flash",
+      prompt: "Waves crashing",
+      firstFrameMediaId: "frame-1",
+      referenceMediaIds: ["board-1"],
+      actorId: "actor-1",
+      extras: [{ kind: "prop", extra_id: "extra-1", media_id: "board-1" }],
+      aspectRatio: "9:16",
+      quality: "720p",
+    }
+    const parsed = requireCanonicalTimeline(timeline([{ ...VIDEO_CLIP, origin }]))
+    expect(parsed.tracks[0].clips[0].origin).toEqual(origin)
+    expect(() =>
+      requireCanonicalTimeline(timeline([{ ...VIDEO_CLIP, origin: { ...origin, tool: "stock" } }]))
+    ).toThrow(SAVED_TIMELINE_INVALID_MESSAGE)
+    // A moving clip's recipe always names the picture it started on.
+    const { firstFrameMediaId: _dropped, ...noFrame } = origin
+    expect(() =>
+      requireCanonicalTimeline(timeline([{ ...VIDEO_CLIP, origin: noFrame }]))
+    ).toThrow(SAVED_TIMELINE_INVALID_MESSAGE)
+  })
+
   it("still accepts a timeline saved before the frame choice existed", () => {
     const parsed = requireCanonicalTimeline(timeline([VIDEO_CLIP]))
     expect(parsed.tracks[0].clips[0].fit).toBeUndefined()

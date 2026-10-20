@@ -399,6 +399,8 @@ function listCreators(
       hits: results?.scores.length ?? 0,
       typicalScore: typical(theirScores),
       followedId: creator.id,
+      watch: creator.watch,
+      lastCheckedAt: creator.lastCheckedAt?.toISOString() ?? null,
       avatarUrl: creator.avatarStoragePath
         ? `/api/v1/video/creators/${creator.id}/avatar`
         : null,
@@ -421,6 +423,8 @@ function listCreators(
       hits: entry.scores.length,
       typicalScore: typical(entry.scores),
       followedId: null,
+      watch: null,
+      lastCheckedAt: null,
       avatarUrl: null,
       // A sample channel is made up, so there is nowhere to send anyone.
       profileUrl:

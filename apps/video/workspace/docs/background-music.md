@@ -67,18 +67,11 @@ The music always covers the video from its first moment to its last. How long
 
 ## The fade
 
-The fade is a setting on the clip, `fadeOutMs` in the saved timeline, and it
-shows in the clip's Sound settings as "Fade out at the end". Any sound or video
-clip can have it switched on or off there.
-
-- **Preview and export agree.** The preview lowers the clip's volume evenly to
-  nothing over the last two seconds (`clipFadeOutGain` in
-  `src/lib/video/background-music.ts`). The export does the same with ffmpeg's
-  `afade` on that clip before it is moved into place.
-- **Trimming** the end of a faded clip moves the fade with it, because the fade
-  is always the clip's own last two seconds.
-- **Splitting** a faded clip keeps the fade on the right-hand piece only. The
-  left piece now ends in the middle of the music, where a fade would be a dip.
+The last piece of music arrives with a 2 second sound fade out. It is the same
+Sound fade out every clip has in the inspector's Fades card, so it can be made
+longer, shorter or switched off there, and a fade in can be added.
+`clip-fades.md` covers how fades play, how they split and how the preview
+matches the export.
 
 ## What was measured
 

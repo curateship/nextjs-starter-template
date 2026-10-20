@@ -38,8 +38,12 @@ afterEach(() => {
 function job(aspect: AspectRatio): RenderJobSummary {
   return {
     id: `job-${aspect}`,
+    kind: "video",
     project_id: "project",
     project_name: "Project",
+    carousel_id: null,
+    carousel_name: null,
+    slide_count: null,
     status: "ready",
     quality: "high",
     aspect,

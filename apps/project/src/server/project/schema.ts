@@ -152,8 +152,10 @@ export const projectProjects = pgTable("project_projects", {
   /** The Board's column order (`drizzle/0115_project_status_order.sql`); empty is the usual one. */
   statusOrder: text("status_order").array().$type<TaskStatus[]>().notNull().default([]),
   /**
-   * The project's status, its line of why, and who set it when
-   * (`drizzle/0117_project_more_for_projects.sql`). Null is no status.
+   * The old manual status, its line of why, and who set it when
+   * (`drizzle/0117_project_more_for_projects.sql`). Kept as history since
+   * 19 Oct 2026, when the status became the late-task one below; nothing
+   * writes it any more.
    */
   health: varchar("health", { length: 16 }).$type<ProjectHealth>(),
   healthNote: varchar("health_note", { length: 200 }),
@@ -167,6 +169,19 @@ export const projectProjects = pgTable("project_projects", {
   client: varchar("client", { length: 60 }),
   /** Everyone on the team is a member, people who join later included. */
   wholeTeam: boolean("whole_team").notNull().default(false),
+  /**
+   * The banner behind the top of the project page's left panel and the round
+   * avatar at its foot (`drizzle/0121_project_pictures.sql`). Media library
+   * addresses, or null for none.
+   */
+  bannerUrl: text("banner_url"),
+  avatarUrl: text("avatar_url"),
+  /**
+   * The status from late tasks: Slowing down from this many, Behind from
+   * `behindAt` (`drizzle/0122_project_pace_rule.sql`, `lib/project/project-pace.ts`).
+   */
+  slowingAt: smallint("slowing_at").notNull().default(1),
+  behindAt: smallint("behind_at").notNull().default(3),
 })
 
 /** A project's milestones: when a set of its tasks must be finished. */
@@ -309,6 +324,15 @@ export const projectTasks = pgTable("project_tasks", {
   milestoneId: varchar("milestone_id", { length: 36 }).references((): AnyPgColumn => projectMilestones.id, {
     onDelete: "set null",
   }),
+  /**
+   * The one Video or Promo record the task points at: the app, the record's
+   * id there, and the address the site admin pasted
+   * (`drizzle/0124_project_task_linked_record.sql`). How the button works is
+   * in `workspace/docs/connected-apps.md`.
+   */
+  linkedApp: varchar("linked_app", { length: 16 }),
+  linkedRecordId: varchar("linked_record_id", { length: 64 }),
+  linkedAddress: text("linked_address"),
 })
 
 /**
@@ -1032,9 +1056,10 @@ export const projectAnnouncementViews = pgTable(
 )
 
 /**
- * The team each site admin is looking at, changed with the header's team
- * picker (`drizzle/0119_project_employees_and_site_admin.sql`). The site admin
- * is on no team, so this row is what puts them in one.
+ * The site admin's own row (`drizzle/0119_project_employees_and_site_admin.sql`).
+ * `team_id` held the header's team picker, removed on 19 Oct 2026 when each
+ * page began naming its team, and is no longer read; the row still holds
+ * `calendar_due_dates`. Never renamed or dropped: the column stays as stored.
  */
 export const projectSiteAdminTeams = pgTable("project_site_admin_teams", {
   userId: varchar("user_id", { length: 36 })

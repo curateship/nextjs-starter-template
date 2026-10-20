@@ -23,6 +23,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [clip-colour.md](clip-colour.md) — what the brightness, contrast and
   saturation sliders do, and how the preview matches the export's `eq` filter
   to within a few levels.
+- [clip-fades.md](clip-fades.md) — the four fade sliders for sound and
+  picture, what happens when two fades are longer than the clip, why a
+  transition wins over a picture fade at its seam, and how a split shares the
+  fades out.
 - [clip-motion.md](clip-motion.md) — the four slow moves a still picture can
   make across its time on screen, and why the export draws them with
   `perspective` rather than `zoompan`.
@@ -34,8 +38,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   for every video, how long it takes, what a failure looks like, what Try
   again does, and how often the editor asks.
 - [waveforms.md](waveforms.md) — the shape of the sound drawn along a sound
-  clip, how the background worker builds it, and why trimming slides the shape
-  instead of squashing it.
+  clip and in a strip along the bottom of a video clip, how the background
+  worker builds it, and why trimming slides the shape instead of squashing it.
 - [background-music.md](background-music.md) — the Music panel: where the
   tracks come from, why a track arrives ducked and at a quarter volume, and
   what happens when the music and the video are different lengths.
@@ -55,6 +59,14 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   up each word as it is said: where it is switched on, where the word times
   come from, what happens when the words are edited, and what it costs to
   export.
+- [saved-transcripts.md](saved-transcripts.md) — a recording written down
+  once and kept: which tools read the kept words, why Whisper's and Gemini's
+  are kept apart, Transcribe again, the pieces a long recording is sent in,
+  and what deleting removes.
+- [price-before-you-press.md](price-before-you-press.md) — the price on the
+  Captions, Hook, Another language and Transcript buttons: what each one
+  counts, how it is worked out from the shell's price list, and how it
+  compared with the meter.
 - [another-language.md](another-language.md) — translating what is said into
   another language, which AI does which half, why nothing lands until it is
   read and corrected, how the original is turned down under a new voice, and
@@ -109,12 +121,22 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [project-folders.md](project-folders.md) — folders on the projects list:
   whose they are, why a project sits in one folder at most, where the buttons
   are, and why deleting a folder never deletes a project.
+- [project-history.md](project-history.md) — the History panel: which
+  earlier versions of a project are kept and when, the twenty-per-project
+  limit, looking at one without changing anything, why a restore can be
+  undone, and the measured storage cost.
+- [project-guests.md](project-guests.md) — somebody sent from a Project task
+  editing one video project with no Video account: the one-minute,
+  one-use link, the 12-hour sign-in, what a guest can and can't do, and the
+  `PROJECT_HANDOFF_KEY` setting.
 - [two-windows.md](two-windows.md) — one project open in two windows: the
   warning the second window shows, what read-only stops, and the
   "(unsaved edits)" project that keeps the work of whichever window saves
   second.
-- [longer-ai-clips.md](longer-ai-clips.md) — why one AI clip stops at eight
-  seconds, what Google's Veo 3.1 offers for a longer shot, and what it costs.
+- [longer-ai-clips.md](longer-ai-clips.md) — the video model (Gemini Omni
+  Flash, since Google switches Veo off on 22 Oct 2026), the Draft, Normal and
+  Sharp sizes and their prices, and how a shot longer than eight seconds is
+  made.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 - [viral-projects.md](viral-projects.md) — Viral as projects, one niche
@@ -136,15 +158,44 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   in a project and six per person: why the caps exist, how shots still being
   made count against the allowance and the spend limit, and how the worker
   keeps every shot moving.
+- [actors.md](actors.md) — an actor's character sheet: several pictures of
+  one person with one main picture, which ones a first frame sends on the
+  person board, and what removing or deleting keeps.
+- [extras.md](extras.md) — clothing, backdrops, props and hair looks: the tabs
+  on the Actors dashboard, the Extras button, the 4-picture person board, and
+  what the first frame and the shot are sent.
+- [animate-a-still.md](animate-a-still.md) — Make it move on a timeline
+  picture: the right-click window, what is sent, how the moving shot takes
+  the picture's place as one Undo step, who lands it when the tab is closed,
+  and what happens when the picture is gone.
+- [regenerate-a-scene.md](regenerate-a-scene.md) — Make it again on a clip
+  the AI made: what a picture, a moving clip and a voice line remember, which
+  tools write it, the window and its price, what the swap keeps, the length
+  rule for a voice line and what happens to its captions.
 - [ai-clip.md](ai-clip.md) — the editor's AI clip panel: an actor, a first
   frame, a shot, then dragging it onto the timeline; what each step costs,
   where frames and shots are kept, and a carousel from first frames.
+- [carousel-shapes.md](carousel-shapes.md) — changing a carousel between
+  4:5, square and story: the Format buttons, making a copy in another shape,
+  the rule that moves each layer, what it will not fix, and the flag on text
+  that no longer fits its box.
+- [carousel-push-layout.md](carousel-push-layout.md) — Align all slides, copying one slide's
+  layout onto other slides: what travels (place, size, font, colour, Fit),
+  what never does (words, pictures, background), how layers are matched, and
+  the one Undo that puts it all back.
+- [carousel-slide-order.md](carousel-slide-order.md) — dragging slides into a
+  new order in the list or grid, by mouse, finger or keyboard, and Cmd+Z and
+  Shift+Cmd+Z in the carousel editor.
+- [carousel-exports.md](carousel-exports.md) — a carousel export kept on its
+  own Carousel exports dashboard: the ZIP, its cover, the menu link under
+  Carousels, downloading, sharing and clearing out, why it is a row of the
+  video exports table, and why deleting the carousel keeps it.
 - [visual-style.md](visual-style.md) — a project's look: the style line and
   look picture set in a project's Settings window, which AI tools send them, and
   why a bad style line spoils every scene at once.
 - [creator-research.md](creator-research.md) — following a creator, the
-  six-hourly watch timer and what it costs, and what Save & break down
-  downloads, spends and writes down.
+  six-hourly watch timer, pausing one creator, what Download and AI analyse
+  download, spend and write down, and what deleting a saved video removes.
 
 The AI tools, the credit ledger and the rest of the export and render path were
 built before this folder existed, and none of them is written up.

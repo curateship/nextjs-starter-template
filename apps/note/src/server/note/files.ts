@@ -24,7 +24,7 @@ import { customShellMedia } from "@/server/schema"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 import { readDurationSeconds, runFfmpeg } from "@/server/note/ffmpeg"
 import { SayableError } from "@/server/note/sayable"
-import type { NoteVideoKind } from "@/lib/note/videos"
+import type { MediaKind } from "@/lib/note/library/notes"
 
 /**
  * Moving a saved video's file between this machine and the bucket.
@@ -61,7 +61,7 @@ export async function storeFile(options: {
   ownerId: string
   filePath: string
   mimeType: string
-  kind: NoteVideoKind
+  kind: MediaKind
   name: string
 }): Promise<StoredFile> {
   const { ownerId, filePath, mimeType, kind } = options
@@ -218,11 +218,11 @@ export type FileLook = {
  */
 export async function lookAtFile(options: {
   ownerId: string
-  videoId: string
+  noteId: string
   filePath: string
-  kind: NoteVideoKind
+  kind: MediaKind
 }): Promise<FileLook> {
-  const { ownerId, videoId, filePath, kind } = options
+  const { ownerId, noteId, filePath, kind } = options
   if (kind === "audio") {
     const said = await runFfmpeg(
       ["-i", filePath, "-t", "0", "-f", "null", "-"],
@@ -231,7 +231,7 @@ export async function lookAtFile(options: {
     return { coverStoragePath: null, durationSeconds: readDurationSeconds(said) }
   }
 
-  const coverPath = path.join(path.dirname(filePath), `cover-${videoId}.jpg`)
+  const coverPath = path.join(path.dirname(filePath), `cover-${noteId}.jpg`)
   let said = ""
   for (const at of ["1", "0"]) {
     try {
@@ -251,12 +251,12 @@ export async function lookAtFile(options: {
       )
       const cover = await readFile(coverPath)
       if (!cover.byteLength) continue
-      const storagePath = `note-covers/${ownerId}/${videoId}.jpg`
+      const storagePath = `note-covers/${ownerId}/${noteId}.jpg`
       await uploadToR2(storagePath, new Uint8Array(cover), "image/jpeg")
       return { coverStoragePath: storagePath, durationSeconds: readDurationSeconds(said) }
     } catch (error) {
       // A video shorter than a second has no frame at 1, so 0 is tried next.
-      console.error("A saved video's cover was not made", videoId, at, error)
+      console.error("A saved video's cover was not made", noteId, at, error)
     }
   }
   return { coverStoragePath: null, durationSeconds: readDurationSeconds(said) }

@@ -1,22 +1,24 @@
 import * as React from "react"
 import { FolderKanbanIcon, SettingsIcon } from "lucide-react"
 
-import { PanelCard } from "@/components/project/panel-card"
-import { CardDropdown } from "@/components/project/card-dropdown"
-import { HealthForm, HealthMark, HealthSetBy } from "@/components/project/project-health"
 import { ProjectMilestones } from "@/components/project/project-milestones"
+import { ProjectPaceMark } from "@/components/project/project-pace"
 import { ProjectSettingsDialog } from "@/components/project/project-settings-dialog"
-import { StarButton } from "@/components/project/star-button"
+import { PinButton } from "@/components/project/pin-button"
 import { PersonAvatar, ProjectDot } from "@/components/project/task-bits"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ProjectPage } from "@/lib/api/project/projects"
+import { countLate, projectPace } from "@/lib/project/project-pace"
 import { runsTheTeam } from "@/lib/project/rules"
+import { cn } from "@/lib/utils"
 
 /**
- * The project's description, lead and client, then its status and milestones
- * as folding cards at the bottom (Tyler, 15 Oct 2026). The cog in
+ * The project's description, lead, client and status, then its milestones
+ * as a folding card at the bottom (Tyler, 15 Oct 2026). The status is worked
+ * out from the late tasks by the rule in Project settings (Tyler, 19 Oct
+ * 2026); it sits under the name beside the avatar, or with the lead without one. The cog in
  * the header opens Project settings, which holds the name, colour,
  * description, due date, client, members and Archive (Tyler, 10 Oct 2026: "add
  * a cog icon here and put all the project settings there"). The members list
@@ -26,6 +28,13 @@ import { runsTheTeam } from "@/lib/project/rules"
  *
  * Only the site admin sees the cog and Project settings (Tyler, 16 Oct 2026:
  * "Employees dont even see the settings cog or page. Only admin see it").
+ *
+ * The project's banner, set in Project settings, lies faintly behind the
+ * header and the top of the panel, so the header still reads over it, and its
+ * round avatar sits at the banner's foot with the name and status beside it
+ * (Tyler, 19 Oct 2026). Over a banner the header has no line under it, so the
+ * picture runs on unbroken (Tyler, 20 Oct 2026). With neither, the panel is
+ * as it was.
  */
 export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
   const { project } = page
@@ -33,10 +42,26 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
   const lead = page.members.find((member) => member.userId === project.leadUserId) ?? null
   const shared = !project.personal
   const siteAdmin = runsTheTeam(page.myRole)
+  // A picture whose address no longer loads is left out rather than drawn broken.
+  const [broken, setBroken] = React.useState<string[]>([])
+  const lose = (url: string) => setBroken((was) => [...was, url])
+  const banner = shared && project.bannerUrl && !broken.includes(project.bannerUrl) ? project.bannerUrl : null
+  const avatar = shared && project.avatarUrl && !broken.includes(project.avatarUrl) ? project.avatarUrl : null
+  const late = countLate(page.tasks)
+  const pace = <ProjectPaceMark pace={projectPace(late, project)} late={late} className="text-sm" />
 
   return (
-    <>
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {banner ? (
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-36 overflow-hidden">
+          <img src={banner} alt="" className="size-full object-cover opacity-30" onError={() => lose(banner)} />
+          {/* Fading into the panel at the foot, as on the Team dashboard. */}
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-card/40 to-card" />
+        </div>
+      ) : null}
       <DashboardCardTitleHeader
+        // The line goes see-through rather than away, so the header keeps its height.
+        className={cn("relative", banner && "border-b-transparent")}
         icon={<FolderKanbanIcon className="size-4" />}
         back={{ label: "Back to projects", to: "/projects" }}
         title={
@@ -48,7 +73,7 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
         action={
           shared ? (
             <div className="flex items-center gap-1">
-              <StarButton project={project} />
+              <PinButton project={project} />
               {siteAdmin ? (
                 <Button
                   type="button"
@@ -64,8 +89,20 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
           ) : null
         }
       />
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
+      <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
         <div className="grid gap-5 p-4">
+          {avatar ? (
+            // Its middle level with the banner's foot.
+            <div className={cn("flex min-w-0 items-center gap-3", banner && "mt-6")}>
+              <span className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-card bg-muted text-2xl font-medium text-muted-foreground shadow-sm">
+                <img src={avatar} alt="" className="size-full object-cover" onError={() => lose(avatar)} />
+              </span>
+              <div className="grid min-w-0 gap-0.5">
+                <p className="text-lg leading-tight font-semibold break-words">{project.name}</p>
+                {pace}
+              </div>
+            </div>
+          ) : null}
           {project.archived ? (
             <p className="text-sm text-muted-foreground">
               {siteAdmin
@@ -85,6 +122,12 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
           </div>
           {shared ? (
             <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
+              {avatar ? null : (
+                <div className="grid content-start gap-2">
+                  <Heading>Status</Heading>
+                  {pace}
+                </div>
+              )}
               <div className="grid content-start gap-2">
                 <Heading>Lead</Heading>
                 {lead ? (
@@ -96,6 +139,7 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
                   <span className="text-sm text-muted-foreground">Nobody yet</span>
                 )}
               </div>
+              {/* Beside the lead, avatar or not (Tyler, 19 Oct 2026). */}
               {project.client ? (
                 <div className="grid content-start gap-2">
                   <Heading>Client</Heading>
@@ -104,7 +148,6 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
               ) : null}
             </div>
           ) : null}
-          {shared ? <HealthCard page={page} /> : null}
           {shared ? (
             <ProjectMilestones
               projectId={project.id}
@@ -118,54 +161,10 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
       {siteAdmin ? (
         <ProjectSettingsDialog page={page} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       ) : null}
-    </>
+    </div>
   )
 }
 
 function Heading({ children }: { children: React.ReactNode }) {
   return <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{children}</h3>
-}
-
-/**
- * The status as a folding card at the bottom of the panel, with Milestones
- * (Tyler, 15 Oct 2026). Its cog shows on hover and opens a dropdown. It shows
- * nothing to someone who can't set a status while there is none, and "No
- * status yet" to someone who can.
- */
-function HealthCard({ page }: { page: ProjectPage }) {
-  const { project } = page
-  const [open, setOpen] = React.useState(false)
-  const canChange = project.canSetHealth && !project.archived
-  if (!project.health && !canChange) return null
-  return (
-    <PanelCard
-      storageId="project-details-status"
-      title="Status"
-      // The status in the heading, so a folded card still says it (Tyler, 15 Oct 2026).
-      after={project.health ? <HealthMark health={project.health.value} /> : null}
-      quiet
-      actionOpen={open}
-      action={
-        canChange ? (
-          <CardDropdown
-            label="Change the status"
-            icon={<SettingsIcon className="size-4" />}
-            open={open}
-            onOpenChange={setOpen}
-          >
-            <HealthForm projectId={project.id} health={project.health} onDone={() => setOpen(false)} />
-          </CardDropdown>
-        ) : null
-      }
-    >
-      {project.health ? (
-        <div className="grid gap-1">
-          {project.health.note ? <p className="text-sm break-words">{project.health.note}</p> : null}
-          <HealthSetBy health={project.health} />
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">No status yet. Use the cog to set one.</p>
-      )}
-    </PanelCard>
-  )
 }

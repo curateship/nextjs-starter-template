@@ -15,6 +15,9 @@ one in turn.
   meter. With no cap, a run of presses could promise far more than anyone
   added up. At six shots the most that can be promised at once is six 32
   second shots, 6 × $12.80 = $76.80.
+- **Pictures made to move count too.** Make it move on a timeline picture
+  (`animate-a-still.md`) makes an ordinary shot, so it takes a place and is
+  checked against the money the same way.
 - **What counts:** a shot counts while one of its pieces is waiting for its
   turn or being made. A long shot's pieces run one after another, so it only
   ever takes one place. A shot stopped by a failed piece takes no place until
@@ -35,14 +38,16 @@ Before a shot is queued, and before Try again, the app adds up what the shots
 already being made will cost when they arrive and checks that plus the new
 shot against two things.
 
-- **The monthly AI allowance.** With $8.00 left and two 8 second shots being
-  made, a third is refused: "Your monthly AI allowance has $8.00 left. Shots
-  still being made will take $6.40 of it, and this one costs $3.20, so it is
-  $1.60 short." A person with no allowance set has no ceiling, so this check
+- **The monthly AI allowance.** With $2.00 left and two 8 second shots being
+  made, a third is refused: "Your monthly AI allowance has $2.00 left. Shots
+  still being made will take $1.62 of it, and this one costs $0.81, so it is
+  $0.43 short." A person with no allowance set has no ceiling, so this check
   does nothing for them.
-- **The project's spend limit** (see `project-first.md`). With a $5.00 limit
-  and one $3.20 shot being made, a second $3.20 shot is refused, and the
-  message says the limit is $1.40 short and has a Raise limit button.
+- **The project's spend limit** (see `project-first.md`). With a $1.00 limit
+  and one $0.81 shot being made, a second $0.81 shot is refused, and the
+  message says the limit is $0.62 short and has a Raise limit button.
+- **What a shot counts as:** the Normal 720p price for its seconds, whatever
+  size was picked, because Google prices only 720p (`longer-ai-clips.md`).
 - **What a stopped shot counts for:** nothing, until Try again. Try again is
   checked for the failed piece and every piece still waiting behind it.
 

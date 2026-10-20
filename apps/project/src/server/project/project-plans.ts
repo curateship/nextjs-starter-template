@@ -6,7 +6,6 @@ import type { ProjectDb, ProjectRow } from "@/server/project/access"
 import {
   projectLabels,
   projectMilestones,
-  projectSections,
   projectTaskFieldValues,
   projectTaskLabels,
   projectTaskSteps,
@@ -27,11 +26,6 @@ import {
  */
 
 export async function readProjectPlan(tx: ProjectDb, source: ProjectRow): Promise<TemplateContent> {
-  const sections = await tx
-    .select({ id: projectSections.id, name: projectSections.name })
-    .from(projectSections)
-    .where(eq(projectSections.projectId, source.id))
-    .orderBy(asc(projectSections.position))
   const milestones = await tx
     .select({ id: projectMilestones.id, name: projectMilestones.name })
     .from(projectMilestones)
@@ -75,20 +69,17 @@ export async function readProjectPlan(tx: ProjectDb, source: ProjectRow): Promis
         )
     : []
 
-  const sectionPlace = new Map(sections.map((section, index) => [section.id, index]))
   const milestonePlace = new Map(milestones.map((milestone, index) => [milestone.id, index]))
   return {
     color: source.color,
     description: source.description,
     hiddenTypeIds: source.hiddenTypeIds,
     defaultTypeId: source.defaultTypeId,
-    sections: sections.map((section) => section.name),
     milestones: milestones.map((milestone) => milestone.name),
     tasks: tasks.map(
       (task): TemplateTask => ({
         title: task.title,
         notes: task.notes,
-        section: task.sectionId ? (sectionPlace.get(task.sectionId) ?? null) : null,
         milestone: task.milestoneId ? (milestonePlace.get(task.milestoneId) ?? null) : null,
         typeId: task.typeId,
         priority: task.priority,
@@ -115,18 +106,6 @@ export async function writeProjectPlan(
   actorId: string
 ) {
   const at = now()
-  const sectionIds = plan.sections.map(() => uuid())
-  if (plan.sections.length) {
-    await tx.insert(projectSections).values(
-      plan.sections.map((name, index) => ({
-        id: sectionIds[index],
-        projectId: project.id,
-        name,
-        position: index,
-        createdAt: at,
-      }))
-    )
-  }
   const milestoneIds = plan.milestones.map(() => uuid())
   if (plan.milestones.length) {
     await tx.insert(projectMilestones).values(
@@ -182,7 +161,6 @@ export async function writeProjectPlan(
       title: task.title,
       notes: task.notes,
       status: "todo" as const,
-      sectionId: task.section === null ? null : (sectionIds[task.section] ?? null),
       milestoneId: task.milestone === null ? null : (milestoneIds[task.milestone] ?? null),
       position,
       createdByUserId: actorId,

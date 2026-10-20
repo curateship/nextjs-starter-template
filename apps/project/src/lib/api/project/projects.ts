@@ -6,7 +6,6 @@ import {
   createMilestoneSchema,
   createProjectSchema,
   projectClientSchema,
-  projectHealthSchema,
   projectLeadSchema,
   renameTemplateSchema,
   saveTemplateSchema,
@@ -16,7 +15,9 @@ import {
   updateProjectSchema,
   wholeTeamSchema,
 } from "@/lib/project/rules"
+import { teamScope } from "@/lib/api/project/scope"
 import { userGet, userPost } from "@/server/guards"
+import { inTeam } from "@/server/project/access"
 import {
   createMilestone,
   deleteMilestone,
@@ -34,7 +35,6 @@ import {
   removeProjectMember,
   setProjectArchived,
   setProjectClient,
-  setProjectHealth,
   setProjectLead,
   setStatusOrder,
   setWholeTeam,
@@ -56,7 +56,7 @@ export type {
 export type { Milestone } from "@/server/project/milestones"
 export type { TemplateRow } from "@/lib/project/templates"
 export type {
-  ProjectHealthView,
+  LateCandidate,
   ProjectListRow,
   ProjectMemberRow,
   ProjectPage,
@@ -65,10 +65,11 @@ export type {
 
 const id = z.string().min(1).max(36)
 
-/** The Projects dashboard. */
+/** The Projects dashboard; `team` is the site admin's team filter. */
 const loadProjectsPageFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => loadProjectsPage(context.user.id))
+  .inputValidator(z.object({ team: id.optional() }))
+  .handler(async ({ data, context }) => loadProjectsPage(context.user.id, undefined, data.team ?? null))
 
 const loadProjectPageFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -77,8 +78,8 @@ const loadProjectPageFn = createServerFn({ method: "GET" })
 
 const createProjectFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(createProjectSchema)
-  .handler(async ({ data, context }) => createProject(context.user.id, data))
+  .inputValidator(createProjectSchema.extend(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => createProject(context.user.id, data)))
 
 const updateProjectFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -137,11 +138,6 @@ const removeMemberFn = createServerFn({ method: "POST" })
     removeProjectMember(context.user.id, data.projectId, data.userId)
   )
 
-const healthFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(projectHealthSchema)
-  .handler(async ({ data, context }) => setProjectHealth(context.user.id, data))
-
 const leadFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(projectLeadSchema)
@@ -179,7 +175,8 @@ const taskMilestoneFn = createServerFn({ method: "POST" })
 
 const listTemplatesFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => listMyTeamTemplates(context.user.id))
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => listMyTeamTemplates(context.user.id)))
 
 const saveTemplateFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -196,14 +193,14 @@ const deleteTemplateFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ templateId: id }))
   .handler(async ({ data, context }) => deleteTemplate(context.user.id, data.templateId))
 
-export function loadProjectsDashboard() {
-  return loadProjectsPageFn()
+export function loadProjectsDashboard(team?: string) {
+  return loadProjectsPageFn({ data: { team } })
 }
 export function loadProject(projectId: string) {
   return loadProjectPageFn({ data: { projectId } })
 }
-export function createNewProject(data: z.input<typeof createProjectSchema>) {
-  return createProjectFn({ data })
+export function createNewProject(data: z.input<typeof createProjectSchema>, teamId?: string) {
+  return createProjectFn({ data: { ...data, teamId } })
 }
 export function saveProject(data: z.input<typeof updateProjectSchema>) {
   return updateProjectFn({ data })
@@ -229,9 +226,6 @@ export function loadActivity(projectId: string, before?: { at: string; id: strin
 export function removeMemberFromProject(projectId: string, userId: string) {
   return removeMemberFn({ data: { projectId, userId } })
 }
-export function saveProjectHealth(data: z.input<typeof projectHealthSchema>) {
-  return healthFn({ data })
-}
 export function saveProjectLead(projectId: string, userId: string | null) {
   return leadFn({ data: { projectId, userId } })
 }
@@ -253,8 +247,8 @@ export function removeMilestone(milestoneId: string) {
 export function saveTaskMilestone(taskId: string, milestoneId: string | null) {
   return taskMilestoneFn({ data: { taskId, milestoneId } })
 }
-export function loadTemplates() {
-  return listTemplatesFn()
+export function loadTemplates(teamId?: string) {
+  return listTemplatesFn({ data: { teamId } })
 }
 export function saveAsTemplate(projectId: string, name: string) {
   return saveTemplateFn({ data: { projectId, name } })

@@ -1,30 +1,27 @@
-import { and, asc, count, eq, gt, inArray, isNull, ne } from "drizzle-orm"
+import { and, asc, count, eq, inArray, isNull, lte, ne } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
-import { projectHealthHeading, projectHref } from "@/lib/project/notices"
 import {
   PERSONAL_PROJECT_NAME,
-  PROJECT_HEALTH_LABEL,
   boardStatusOrder,
-  runsTheTeam,
   type ProjectColor,
-  type ProjectHealth,
   type TaskStatus,
   type TeamRole,
 } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
+import { isOwnedImageUrl } from "@/server/media/library"
 import {
   findMembership,
   isProjectMember,
+  isSiteAdmin,
   requireTeamRunner,
   requireOpenProject,
   requireProjectAccess,
   requireProjectSettings,
   visibleProjectsWhere,
   type ProjectDb,
-  type ProjectRow,
 } from "@/server/project/access"
 import { unreadInProjectChat } from "@/server/project/chat-reads"
 import { visibleClients } from "@/server/project/clients"
@@ -36,13 +33,9 @@ import { loadTemplatePlan } from "@/server/project/templates"
 import type { TaskType } from "@/lib/project/task-types"
 import { requireSharedProject } from "@/server/project/personal"
 import { listSavedViews, type SavedView } from "@/server/project/saved-views"
-import { writeAppNotices } from "@/server/project/notices"
-import { listSections, type Section } from "@/server/project/sections"
-import { listTaskCards, withUnread, type TaskCard } from "@/server/project/tasks"
+import { listTaskCards, siteAdminPerson, withUnread, type TaskCard } from "@/server/project/tasks"
 import { clearAssignee, listTeamMembers } from "@/server/project/teams"
 import {
-  projectNoticeLinks,
-  projectProjectEvents,
   projectProjectMembers,
   projectProjectStars,
   projectSavedViews,
@@ -51,7 +44,8 @@ import {
   projectTeamMembers,
   projectTeams,
 } from "@/server/project/schema"
-import { customShellNotifications, customShellUsers } from "@/server/schema"
+import { listTeamNames } from "@/server/project/record-team"
+import { customShellUsers } from "@/server/schema"
 
 export type ProjectListRow = {
   id: string
@@ -60,47 +54,65 @@ export type ProjectListRow = {
   archived: boolean
   /** Someone's "Just me" list, which only the site admin sees listed. */
   personal: boolean
-  dueDate: string | null
-  /** Starred by me. Stars are each person's own. */
+  /** Pinned by me (called a star in the code). Pins are each person's own. */
   starred: boolean
-  memberCount: number
   counts: Record<TaskStatus, number>
-  health: ProjectHealthView | null
+  /** The open tasks with a due date that could be late, for the status worked out in the browser. */
+  dated: LateCandidate[]
+  /** The project's status rule (`lib/project/project-pace.ts`). */
+  slowingAt: number
+  behindAt: number
   lead: { id: string; name: string; avatarUrl: string } | null
   client: string | null
+  /** The project's team, shown in the site admin's Team column. */
+  team: { id: string; name: string }
 }
 
-/** "At risk: Client hasn't sent the photos", set by Priya at that moment. */
-export type ProjectHealthView = {
-  value: ProjectHealth
-  note: string
-  byName: string
-  at: string
-}
+/**
+ * An open task's due date and time. Whether it is late depends on the
+ * reader's own clock, as the red due date does, so the browser counts them.
+ */
+export type LateCandidate = { dueDate: string; dueAt: string | null; status: TaskStatus }
 
 export type ProjectsPage = {
-  /** Null until the person creates a team or accepts an invite. */
+  /** An employee's team; null until they are put on one, and always null for the site admin. */
   team: { id: string; name: string; myRole: TeamRole } | null
+  /** The site admin sees every team's projects (Tyler, 19 Oct 2026). */
+  siteAdmin: boolean
+  /** Every team by name, for the site admin's team filter and New project; empty for anyone else. */
+  teams: { id: string; name: string }[]
+  /** The team the site admin's filter shows, or null for every team. */
+  teamFilter: string | null
   projects: ProjectListRow[]
 }
 
+/**
+ * The Projects dashboard. An employee sees their team's projects they are on;
+ * the site admin sees every team's, "Just me" lists included, narrowed to one
+ * team by `teamFilter` (a team that doesn't exist shows every team).
+ */
 export async function loadProjectsPage(
   userId: string,
-  database = db
+  database = db,
+  teamFilter: string | null = null
 ): Promise<ProjectsPage> {
-  const membership = await findMembership(userId, database)
-  if (!membership) return { team: null, projects: [] }
+  const siteAdmin = await isSiteAdmin(userId, database)
+  const teams = siteAdmin ? await listTeamNames(database) : []
+  const filter = teams.find((team) => team.id === teamFilter)?.id ?? null
+  const membership = siteAdmin ? null : await findMembership(userId, database)
+  if (!siteAdmin && !membership) return { team: null, siteAdmin, teams, teamFilter: null, projects: [] }
 
-  const [team] = await database
-    .select({ id: projectTeams.id, name: projectTeams.name })
-    .from(projectTeams)
-    .where(eq(projectTeams.id, membership.teamId))
-    .limit(1)
+  const [team] = membership
+    ? await database
+        .select({ id: projectTeams.id, name: projectTeams.name })
+        .from(projectTeams)
+        .where(eq(projectTeams.id, membership.teamId))
+        .limit(1)
+    : []
 
   // A "Just me" list is reached from My dashboard, never listed as a project,
   // except to the site admin, who sees every one by its person's name.
   const lead = alias(customShellUsers, "lead")
-  const setter = alias(customShellUsers, "setter")
   const owner = alias(customShellUsers, "owner")
   const visible = (
     await database
@@ -108,17 +120,19 @@ export async function loadProjectsPage(
         project: projectProjects,
         leadName: lead.name,
         leadAvatar: lead.avatarUrl,
-        setterName: setter.name,
         ownerName: owner.name,
+        teamName: projectTeams.name,
       })
       .from(projectProjects)
+      .innerJoin(projectTeams, eq(projectTeams.id, projectProjects.teamId))
       .leftJoin(lead, eq(lead.id, projectProjects.leadUserId))
-      .leftJoin(setter, eq(setter.id, projectProjects.healthByUserId))
       .leftJoin(owner, eq(owner.id, projectProjects.personalUserId))
       .where(
-        membership.siteAdmin
-          ? visibleProjectsWhere(membership)
-          : and(visibleProjectsWhere(membership), isNull(projectProjects.personalUserId))
+        membership
+          ? and(visibleProjectsWhere(membership), isNull(projectProjects.personalUserId))
+          : filter
+            ? eq(projectProjects.teamId, filter)
+            : undefined
       )
       .orderBy(asc(projectProjects.name))
   ).map((row) => ({
@@ -126,7 +140,7 @@ export async function loadProjectsPage(
     name: row.project.personalUserId ? justMeName(row.ownerName) : row.project.name,
     leadName: row.leadName,
     leadAvatar: row.leadAvatar,
-    setterName: row.setterName,
+    teamName: row.teamName,
   }))
   const ids = visible.map((project) => project.id)
 
@@ -141,17 +155,33 @@ export async function loadProjectsPage(
         .where(and(inArray(projectTasks.projectId, ids), isNull(projectTasks.deletedAt)))
         .groupBy(projectTasks.projectId, projectTasks.status)
     : []
-  const memberRows = ids.length
+  // Open tasks due by tomorrow in UTC: no reader anywhere can count a later one late yet.
+  const tomorrowUtc = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const datedRows = ids.length
     ? await database
-        .select({ projectId: projectProjectMembers.projectId, total: count() })
-        .from(projectProjectMembers)
-        .where(inArray(projectProjectMembers.projectId, ids))
-        .groupBy(projectProjectMembers.projectId)
+        .select({
+          projectId: projectTasks.projectId,
+          dueDate: projectTasks.dueDate,
+          dueAt: projectTasks.dueAt,
+          status: projectTasks.status,
+        })
+        .from(projectTasks)
+        .where(
+          and(
+            inArray(projectTasks.projectId, ids),
+            isNull(projectTasks.deletedAt),
+            ne(projectTasks.status, "done"),
+            lte(projectTasks.dueDate, tomorrowUtc)
+          )
+        )
     : []
   const starred = await starredProjectIds(userId, ids, database)
 
   return {
-    team: team ? { ...team, myRole: membership.role } : null,
+    team: team && membership ? { ...team, myRole: membership.role } : null,
+    siteAdmin,
+    teams,
+    teamFilter: filter,
     projects: visible.map((project) => {
       const counts: Record<TaskStatus, number> = { todo: 0, doing: 0, done: 0, stuck: 0 }
       for (const row of statusRows) {
@@ -163,16 +193,19 @@ export async function loadProjectsPage(
         color: project.color,
         archived: Boolean(project.archivedAt),
         personal: Boolean(project.personalUserId),
-        dueDate: project.dueDate,
         starred: starred.has(project.id),
-        memberCount: memberRows.find((row) => row.projectId === project.id)?.total ?? 0,
         counts,
-        health: healthView(project, project.setterName),
+        dated: datedRows
+          .filter((row) => row.projectId === project.id && row.dueDate)
+          .map((row) => ({ dueDate: row.dueDate!, dueAt: row.dueAt?.toISOString() ?? null, status: row.status })),
+        slowingAt: project.slowingAt,
+        behindAt: project.behindAt,
         lead:
           project.leadUserId && project.leadName !== null
             ? { id: project.leadUserId, name: project.leadName, avatarUrl: project.leadAvatar ?? "" }
             : null,
         client: project.client,
+        team: { id: project.teamId, name: project.teamName },
       }
     }),
   }
@@ -185,18 +218,6 @@ function justMeName(personName: string | null) {
   return `${PERSONAL_PROJECT_NAME} · ${personName ?? FORMER_MEMBER}`
 }
 
-function healthView(
-  project: Pick<ProjectRow, "health" | "healthNote" | "healthAt">,
-  setterName: string | null
-): ProjectHealthView | null {
-  if (!project.health || !project.healthAt) return null
-  return {
-    value: project.health,
-    note: project.healthNote ?? "",
-    byName: setterName ?? FORMER_MEMBER,
-    at: project.healthAt.toISOString(),
-  }
-}
 
 /**
  * A new project, empty or started from one of the team's saved templates.
@@ -256,6 +277,8 @@ export type ProjectMemberRow = {
 export type ProjectPage = {
   project: {
     id: string
+    /** The project's team, which the page sends with its team-wide requests. */
+    teamId: string
     name: string
     color: ProjectColor
     description: string
@@ -271,15 +294,17 @@ export type ProjectPage = {
     defaultTypeId: string | null
     /** The Board's columns, in the order the project's people dragged them into. */
     statusOrder: TaskStatus[]
-    health: ProjectHealthView | null
+    /** The status rule: Slowing down from this many late tasks, Behind from `behindAt`. */
+    slowingAt: number
+    behindAt: number
     leadUserId: string | null
     client: string | null
     /** Everyone on the team is a member, people who join later included. */
     wholeTeam: boolean
-    /** I may change the status: the site admin alone, as it is one of the project's settings. */
-    canSetHealth: boolean
+    /** The faint banner behind the top of the left panel, and the round avatar at its foot. */
+    bannerUrl: string | null
+    avatarUrl: string | null
   }
-  sections: Section[]
   /** The project's milestones, soonest first, each with its task counts. */
   milestones: Milestone[]
   /** Client names already used on projects I can see, for the Client field. */
@@ -291,6 +316,12 @@ export type ProjectPage = {
   myUserId: string
   myRole: TeamRole
   members: ProjectMemberRow[]
+  /**
+   * The site admin viewing the page, who is on no project but can take its
+   * tasks (Tyler, 19 Oct 2026); null for everyone else. Offered beside the
+   * members wherever a task is handed out or filtered by person.
+   */
+  siteAdminMe: ProjectMemberRow | null
   /** Team members who aren't on the project yet, for Add member. */
   addable: { userId: string; name: string; email: string; avatarUrl: string }[]
   tasks: TaskCard[]
@@ -335,11 +366,13 @@ export async function loadProjectPage(
     database
   )
   const memberIds = new Set(memberRows.map((row) => row.userId))
+  const siteAdminMe = membership.siteAdmin ? await siteAdminPerson(userId, database) : null
   const teamMembers = await listTeamMembers(membership.teamId, database)
 
   return {
     project: {
       id: project.id,
+      teamId: project.teamId,
       // The site admin opening someone's "Just me" list sees whose it is.
       name:
         project.personalUserId && project.personalUserId !== userId
@@ -355,13 +388,14 @@ export async function loadProjectPage(
       hiddenTypeIds: project.hiddenTypeIds,
       defaultTypeId: project.defaultTypeId,
       statusOrder: boardStatusOrder(project.statusOrder),
-      health: healthView(project, await nameOf(project.healthByUserId, database)),
+      slowingAt: project.slowingAt,
+      behindAt: project.behindAt,
       leadUserId: project.leadUserId,
       client: project.client,
       wholeTeam: project.wholeTeam,
-      canSetHealth: canSetHealth(project, membership.role),
+      bannerUrl: project.bannerUrl,
+      avatarUrl: project.avatarUrl,
     },
-    sections: await listSections(project.id, database),
     milestones: await listMilestones(project.id, database),
     teamClients: await visibleClients(membership, database),
     taskTypes: await listTeamTypes(membership.teamId, database),
@@ -369,6 +403,14 @@ export async function loadProjectPage(
     views: await listSavedViews(userId, membership.teamId, project.id, database),
     myUserId: userId,
     myRole: membership.role,
+    siteAdminMe: siteAdminMe && {
+      userId,
+      name: siteAdminMe.name,
+      email: "",
+      avatarUrl: siteAdminMe.avatarUrl,
+      title: null,
+      openTasks: tasks.filter((task) => task.assignee?.id === userId && task.status !== "done").length,
+    },
     members: memberRows.map((row) => ({
       ...row,
       avatarUrl: row.avatarUrl ?? "",
@@ -413,15 +455,39 @@ export async function updateProject(
     description?: string
     dueDate?: string | null
     doingLimit?: number | null
+    bannerUrl?: string
+    avatarUrl?: string
+    slowingAt?: number
+    behindAt?: number
   },
   database = db
 ) {
-  const { projectId, ...fields } = patch
+  const { projectId, bannerUrl, avatarUrl, ...fields } = patch
   const { project } = await requireProjectSettings(userId, projectId, database)
   requireSharedProject(project)
+  // Behind can't start before Slowing down; the two may match, and then Slowing down never shows.
+  if ((fields.behindAt ?? project.behindAt) < (fields.slowingAt ?? project.slowingAt)) {
+    throw new Error(PROJECT_ERRORS.behindBeforeSlowing)
+  }
+  // A new picture must be one the site admin uploaded to the media library,
+  // as with the team's, so nobody can point a project at an outside address.
+  // "" takes it away.
+  for (const [url, was] of [
+    [bannerUrl, project.bannerUrl],
+    [avatarUrl, project.avatarUrl],
+  ] as const) {
+    if (url && url !== was && !(await isOwnedImageUrl(userId, url, database))) {
+      throw new Error(PROJECT_ERRORS.photoNotYours)
+    }
+  }
   await database
     .update(projectProjects)
-    .set({ ...fields, updatedAt: now() })
+    .set({
+      ...fields,
+      ...(bannerUrl === undefined ? null : { bannerUrl: bannerUrl || null }),
+      ...(avatarUrl === undefined ? null : { avatarUrl: avatarUrl || null }),
+      updatedAt: now(),
+    })
     .where(eq(projectProjects.id, projectId))
 }
 
@@ -439,123 +505,6 @@ export async function setStatusOrder(
     .update(projectProjects)
     .set({ statusOrder: input.statusOrder, updatedAt: now() })
     .where(eq(projectProjects.id, input.projectId))
-}
-
-/** A project's status is one of its settings, so the site admin alone sets it. */
-export function canSetHealth(project: Pick<ProjectRow, "personalUserId">, role: TeamRole) {
-  return !project.personalUserId && runsTheTeam(role)
-}
-
-/**
- * On track, At risk or Off track, with one line of why, or null to take the
- * status off. At risk and Off track need the line. Each change is a line on
- * the project's Activity tab.
- */
-export async function setProjectHealth(
-  userId: string,
-  input: { projectId: string; health: ProjectHealth | null; note: string },
-  database = db
-) {
-  if ((input.health === "at_risk" || input.health === "off_track") && !input.note) {
-    throw new Error(PROJECT_ERRORS.healthNeedsNote)
-  }
-  await database.transaction(async (tx) => {
-    const { membership, project } = await requireOpenProject(userId, input.projectId, tx)
-    requireSharedProject(project)
-    if (!canSetHealth(project, membership.role)) throw new Error(PROJECT_ERRORS.onlySiteAdminSettings)
-    const at = now()
-    const note = input.health ? input.note || null : null
-    const from = project.health
-    await tx
-      .update(projectProjects)
-      .set({
-        health: input.health,
-        healthNote: note,
-        healthByUserId: input.health ? userId : null,
-        healthAt: input.health ? at : null,
-        updatedAt: at,
-      })
-      .where(eq(projectProjects.id, project.id))
-    await tx.insert(projectProjectEvents).values({
-      id: uuid(),
-      projectId: project.id,
-      kind: "health_set",
-      actorUserId: userId,
-      health: input.health,
-      note,
-      createdAt: at,
-    })
-    if (healthNeedsTelling(from, input.health)) {
-      await tellProjectAboutHealth(tx, project, userId, { from, to: input.health, note })
-    }
-  })
-}
-
-const TROUBLE: readonly (ProjectHealth | null)[] = ["at_risk", "off_track"]
-
-/**
- * Going into trouble is news, and so is coming out of it (Tyler, 16 Oct
- * 2026). Saying the same status again, or On track from no status, is not.
- */
-function healthNeedsTelling(from: ProjectHealth | null, to: ProjectHealth | null) {
-  if (from === to) return false
-  return TROUBLE.includes(to) || TROUBLE.includes(from)
-}
-
-/** One bell row per project per hour for each person, holding the latest status. */
-const HEALTH_NOTICE_WINDOW_MS = 60 * 60 * 1000
-
-/**
- * Tells everyone on the project except whoever changed it. A project's
- * status changed again within the hour replaces the earlier row rather than
- * adding one, so a status set and unset by mistake never stacks up in the
- * bell.
- */
-async function tellProjectAboutHealth(
-  tx: ProjectDb,
-  project: ProjectRow,
-  actorId: string,
-  change: { from: ProjectHealth | null; to: ProjectHealth | null; note: string | null }
-) {
-  const members = await tx
-    .select({ userId: projectProjectMembers.userId })
-    .from(projectProjectMembers)
-    .where(and(eq(projectProjectMembers.projectId, project.id), ne(projectProjectMembers.userId, actorId)))
-  if (members.length === 0) return
-  const recipients = members.map((row) => row.userId)
-  const href = projectHref(project.id)
-  const earlier = await tx
-    .select({ id: projectNoticeLinks.noticeId })
-    .from(projectNoticeLinks)
-    .innerJoin(customShellNotifications, eq(customShellNotifications.id, projectNoticeLinks.noticeId))
-    .where(
-      and(
-        eq(projectNoticeLinks.kind, "project_health"),
-        eq(projectNoticeLinks.href, href),
-        inArray(customShellNotifications.recipientUserId, recipients),
-        gt(customShellNotifications.createdAt, new Date(Date.now() - HEALTH_NOTICE_WINDOW_MS))
-      )
-    )
-  if (earlier.length) {
-    await tx.delete(customShellNotifications).where(inArray(customShellNotifications.id, earlier.map((row) => row.id)))
-  }
-  const [actor] = await tx
-    .select({ name: customShellUsers.name })
-    .from(customShellUsers)
-    .where(eq(customShellUsers.id, actorId))
-  const label = change.to ? PROJECT_HEALTH_LABEL[change.to] : null
-  const was = change.from ? `Was ${PROJECT_HEALTH_LABEL[change.from]}.` : null
-  await writeAppNotices(
-    tx,
-    recipients.map((recipientUserId) => ({
-      kind: "project_health" as const,
-      recipientUserId,
-      actorUserId: actorId,
-      message: projectHealthHeading(actor?.name ?? "Someone", label),
-      detail: [project.name, change.note ?? was].filter(Boolean).join(": "),
-      href,
-    }))
-  )
 }
 
 /**
@@ -755,7 +704,7 @@ export async function removeProjectMember(
 
 /**
  * A new project made from an old one, for teams that do the same kind of job
- * again and again: its description, colour, sections, milestones (without
+ * again and again: its description, colour, milestones (without
  * their dates) and every task not in the bin, in the same order, with their
  * labels, steps (unticked), types, field values and priority, and the
  * project's own pick of types. The rules are in `project-plans.ts`. The

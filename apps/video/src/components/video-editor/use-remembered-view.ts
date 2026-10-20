@@ -1,5 +1,4 @@
 import * as React from "react"
-import { getRouteApi } from "@tanstack/react-router"
 
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import {
@@ -11,14 +10,12 @@ import {
   findClip,
   useEditorRuntime,
 } from "@/components/video-editor/editor-store"
-
-const authenticatedRoute = getRouteApi("/_authenticated")
+import { useEditorPersonKey } from "@/components/video-editor/project-guest"
 
 /** Where this person's view of the open project is kept. */
 function useEditorViewKey() {
   const { projectId } = useEditorRuntime()
-  const { user } = authenticatedRoute.useLoaderData()
-  return editorViewStorageKey(user.id, projectId)
+  return editorViewStorageKey(useEditorPersonKey(), projectId)
 }
 
 // How long the timeline has to sit still before where it is gets written down.
@@ -39,17 +36,22 @@ const SAVE_DEBOUNCE_MS = 300
  * `pps` is the zoom the timeline just drew at. The scroll is put back only
  * once that matches the remembered zoom, because until then the lanes are the
  * wrong width and the browser would cut the scroll short.
+ *
+ * `enabled: false` neither reads nor writes anything, for a timeline that is
+ * not the project's own, such as a History preview.
  */
 export function useRememberedTimelineView({
   scrollRef,
   fittedRef,
   pps,
   clampZoom,
+  enabled,
 }: {
   scrollRef: React.RefObject<HTMLDivElement | null>
   fittedRef: React.RefObject<boolean>
   pps: number
   clampZoom: (pxPerSecond: number) => number
+  enabled: boolean
 }) {
   const { store, dispatch, clock } = useEditorRuntime()
   const key = useEditorViewKey()
@@ -64,6 +66,7 @@ export function useRememberedTimelineView({
   } | null>(null)
 
   useEffectBeforePaint(() => {
+    if (!enabled) return
     const view = readEditorView(key).timeline
     if (view) {
       fittedRef.current = true
@@ -83,7 +86,7 @@ export function useRememberedTimelineView({
         top: view.scrollTop,
       }
     }
-  }, [clampZoom, clock, dispatch, fittedRef, key, store])
+  }, [clampZoom, clock, dispatch, enabled, fittedRef, key, store])
 
   useEffectBeforePaint(() => {
     const pending = pendingScrollRef.current
@@ -97,7 +100,7 @@ export function useRememberedTimelineView({
   // first, so nothing here can save over the view before it is read.
   React.useEffect(() => {
     const scroll = scrollRef.current
-    if (!scroll) return
+    if (!enabled || !scroll) return
 
     // Kept as it happens rather than read at save time: the last save runs
     // after the timeline has left the page, when the box reads as unscrolled.
@@ -156,7 +159,7 @@ export function useRememberedTimelineView({
       window.removeEventListener("pagehide", save)
       save()
     }
-  }, [clock, key, scrollRef, store])
+  }, [clock, enabled, key, scrollRef, store])
 }
 
 /**

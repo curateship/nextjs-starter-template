@@ -3,15 +3,12 @@ import { and, asc, eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { NO_CLIENT_FILTER, clientChoices, matchesClient } from "@/lib/project/clients"
-import { PROJECT_ERRORS } from "@/lib/project/errors"
-import { onTeamHref } from "@/lib/project/notices"
 import { savedViewFiltersSchema, viewFilters } from "@/lib/project/saved-views"
 import { filterTasks, readTaskFilters } from "@/lib/project/task-filters"
 import type { CustomShellDb } from "@/server/db"
-import { requireMembership } from "@/server/project/access"
+import { inTeam, requireMembership } from "@/server/project/access"
 import { visibleClients } from "@/server/project/clients"
 import { createMilestone, setTaskMilestone } from "@/server/project/milestones"
-import { setNoticeSwitch } from "@/server/project/notice-switches"
 import { setRepeat } from "@/server/project/planning"
 import { makeRepeatCopies } from "@/server/project/planning-jobs"
 import {
@@ -20,7 +17,6 @@ import {
   removeProjectMember,
   setProjectArchived,
   setProjectClient,
-  setProjectHealth,
   setProjectLead,
   updateProject,
 } from "@/server/project/projects"
@@ -121,51 +117,6 @@ async function task(title: string, input: { assignee?: CustomShellUser | null; d
   return id
 }
 
-describe("part 1: telling the project when its status changes", () => {
-  it("is the site admin's to set, and tells everyone on the project, with the reason", async () => {
-    // A project's status is one of its settings, so it is the site admin's alone.
-    await expect(
-      setProjectHealth(ben.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.onlySiteAdminSettings)
-    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
-    // The site admin set it and is on no project, so they hear nothing.
-    expect(await noticesFor(admin, "project_health")).toEqual([])
-    for (const person of [anna, ben, carla]) {
-      expect(await noticesFor(person, "project_health")).toEqual([
-        { message: "Tyler marked a project At risk", detail: "Website: Photos are late", href: `/projects/${website}` },
-      ])
-    }
-  })
-
-  it("tells them it is over when it goes back to On track or is cleared, and not otherwise", async () => {
-    // On track from no status is not news.
-    await setProjectHealth(admin.id, { projectId: website, health: "on_track", note: "" }, database)
-    expect(await noticesFor(ben, "project_health")).toEqual([])
-    await setProjectHealth(admin.id, { projectId: website, health: "off_track", note: "Lost the designer" }, database)
-    // The same status again tells nobody twice.
-    await setProjectHealth(admin.id, { projectId: website, health: "off_track", note: "Still no designer" }, database)
-    expect(await noticesFor(ben, "project_health")).toHaveLength(1)
-    await setProjectHealth(admin.id, { projectId: website, health: null, note: "" }, database)
-    expect(await noticesFor(ben, "project_health")).toEqual([
-      { message: "Tyler cleared a project's status", detail: "Website: Was Off track.", href: `/projects/${website}` },
-    ])
-  })
-
-  it("keeps one row per person per project within the hour, holding the latest status", async () => {
-    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
-    await setProjectHealth(admin.id, { projectId: website, health: "on_track", note: "" }, database)
-    const rows = await noticesFor(carla, "project_health")
-    expect(rows.map((row) => row.message)).toEqual(["Tyler marked a project On track"])
-  })
-
-  it("respects the person's own switch", async () => {
-    await setNoticeSwitch(carla.id, { id: "project_health", on: false }, database)
-    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Photos are late" }, database)
-    expect(await noticesFor(carla, "project_health")).toEqual([])
-    expect(await noticesFor(ben, "project_health")).toHaveLength(1)
-  })
-})
-
 describe("part 2: milestones and project due dates", () => {
   it("puts milestones not yet reached and projects due on the calendar's due dates", async () => {
     const launch = (await createMilestone(anna.id, { projectId: website, name: "Launch", dueDate: WEDNESDAY }, database)).id
@@ -222,9 +173,9 @@ describe("part 2: milestones and project due dates", () => {
   it("tells the site admin when the project has no lead, and says Monday before a weekend", async () => {
     await createMilestone(anna.id, { projectId: website, name: "Launch", dueDate: "2099-03-09" }, database)
     await sendMilestoneReminders(database, at(`${FRIDAY}T09:00:00Z`))
-    // The link first moves the site admin's team picker to this team.
+    // The project names its own team, so the link is the project's page.
     expect(await noticesFor(admin, "milestone_due")).toEqual([
-      { message: "Milestone due Monday", detail: "Launch · Website", href: onTeamHref(teamId, `/projects/${website}`) },
+      { message: "Milestone due Monday", detail: "Launch · Website", href: `/projects/${website}` },
     ])
     for (const person of [anna, ben, carla]) expect(await noticesFor(person, "milestone_due")).toEqual([])
   })
@@ -232,31 +183,33 @@ describe("part 2: milestones and project due dates", () => {
 
 describe("part 3: waiting for review in Needs attention", () => {
   it("shows the site admin a Done task waiting for its reviewer after a work day, until it is confirmed", async () => {
-    // Anna asks for the review, so she is the reviewer; Needs attention is the site admin's.
-    const photos = await task("Pick the photos")
-    await setNeedsReview(actor(anna), { taskId: photos, on: true }, database)
-    await setTaskStatus(actor(ben), { taskId: photos, status: "done", stuckReason: null }, database)
-    await database
-      .update(projectTasks)
-      .set({ reviewWaitingSince: at(`${MONDAY}T10:00:00Z`) })
-      .where(eq(projectTasks.id, photos))
+    await inTeam(teamId, async () => {
+      // Anna asks for the review, so she is the reviewer; Needs attention is the site admin's.
+      const photos = await task("Pick the photos")
+      await setNeedsReview(actor(anna), { taskId: photos, on: true }, database)
+      await setTaskStatus(actor(ben), { taskId: photos, status: "done", stuckReason: null }, database)
+      await database
+        .update(projectTasks)
+        .set({ reviewWaitingSince: at(`${MONDAY}T10:00:00Z`) })
+        .where(eq(projectTasks.id, photos))
 
-    const sameDay = await loadNeedsAttention(admin.id, database, at(`${MONDAY}T15:00:00Z`))
-    expect(sameDay.filter((row) => row.kind === "review_waiting")).toEqual([])
+      const sameDay = await loadNeedsAttention(admin.id, database, at(`${MONDAY}T15:00:00Z`))
+      expect(sameDay.filter((row) => row.kind === "review_waiting")).toEqual([])
 
-    const later = await loadNeedsAttention(admin.id, database, at(`${WEDNESDAY}T15:00:00Z`))
-    expect(later.filter((row) => row.kind === "review_waiting")).toEqual([
-      expect.objectContaining({
-        taskId: photos,
-        personName: "Ben",
-        howLong: "Waiting for Anna's review for 2 work days",
-        days: 2,
-      }),
-    ])
+      const later = await loadNeedsAttention(admin.id, database, at(`${WEDNESDAY}T15:00:00Z`))
+      expect(later.filter((row) => row.kind === "review_waiting")).toEqual([
+        expect.objectContaining({
+          taskId: photos,
+          personName: "Ben",
+          howLong: "Waiting for Anna's review for 2 work days",
+          days: 2,
+        }),
+      ])
 
-    await reviewTask(actor(anna), { taskId: photos, action: "confirm" }, database)
-    const after = await loadNeedsAttention(admin.id, database, at(`${WEDNESDAY}T15:00:00Z`))
-    expect(after.filter((row) => row.kind === "review_waiting")).toEqual([])
+      await reviewTask(actor(anna), { taskId: photos, action: "confirm" }, database)
+      const after = await loadNeedsAttention(admin.id, database, at(`${WEDNESDAY}T15:00:00Z`))
+      expect(after.filter((row) => row.kind === "review_waiting")).toEqual([])
+    })
   })
 })
 
@@ -313,11 +266,11 @@ describe("part 4: a repeating task's next copy keeps its whole setup", () => {
 })
 
 describe("part 5: the database says when something of the team's changed", () => {
-  it("names the team on project_team_live for time off, a project's status and a milestone", async () => {
+  it("names the team on project_team_live for time off, a project's settings and a milestone", async () => {
     const heard: string[] = []
     const stop = await client.listen("project_team_live", (payload) => heard.push(payload))
     await addTimeOff(ben.id, { firstDay: FRIDAY, lastDay: FRIDAY }, database)
-    await setProjectHealth(admin.id, { projectId: website, health: "at_risk", note: "Late" }, database)
+    await updateProject(admin.id, { projectId: website, behindAt: 4 }, database)
     await createMilestone(anna.id, { projectId: website, name: "Launch", dueDate: FRIDAY }, database)
     // Notices arrive once the change is committed, on the next round trip.
     await client.query("SELECT 1")
@@ -346,57 +299,63 @@ describe("part 6: time off on the Team calendar", () => {
 
 describe("part 7: Person fields tell the person", () => {
   async function reviewType() {
-    const { id: typeId } = await createTaskType(admin.id, { name: "Video", icon: "video", color: "red" }, database)
+    const { id: typeId } = await inTeam(teamId, () =>
+      createTaskType(admin.id, { name: "Video", icon: "video", color: "red" }, database)
+    )
     const reviewer = (await createTypeField(admin.id, { typeId, name: "Reviewer", kind: "person" }, database)).id
     return { typeId, reviewer }
   }
 
   it("tells the person named and makes them follow, but never the one who named them nor the task's own person", async () => {
-    const { typeId, reviewer } = await reviewType()
-    const trailer = await task("Edit the trailer")
-    await setTaskType(actor(anna), { taskId: trailer, typeId }, database)
+    await inTeam(teamId, async () => {
+      const { typeId, reviewer } = await reviewType()
+      const trailer = await task("Edit the trailer")
+      await setTaskType(actor(anna), { taskId: trailer, typeId }, database)
 
-    await setTaskFieldValue(actor(ben), { taskId: trailer, fieldId: reviewer, value: carla.id }, database)
-    expect(await noticesFor(carla, "task_field_person")).toEqual([
-      {
-        message: "Ben named you on a task",
-        detail: "Reviewer on Edit the trailer",
-        href: `/projects/${website}?task=${trailer}`,
-      },
-    ])
-    const followers = await database
-      .select({ userId: projectTaskFollowers.userId })
-      .from(projectTaskFollowers)
-      .where(eq(projectTaskFollowers.taskId, trailer))
-    expect(followers.map((row) => row.userId)).toContain(carla.id)
+      await setTaskFieldValue(actor(ben), { taskId: trailer, fieldId: reviewer, value: carla.id }, database)
+      expect(await noticesFor(carla, "task_field_person")).toEqual([
+        {
+          message: "Ben named you on a task",
+          detail: "Reviewer on Edit the trailer",
+          href: `/projects/${website}?task=${trailer}`,
+        },
+      ])
+      const followers = await database
+        .select({ userId: projectTaskFollowers.userId })
+        .from(projectTaskFollowers)
+        .where(eq(projectTaskFollowers.taskId, trailer))
+      expect(followers.map((row) => row.userId)).toContain(carla.id)
 
-    // Saving the same person again says nothing new.
-    await setTaskFieldValue(actor(anna), { taskId: trailer, fieldId: reviewer, value: carla.id }, database)
-    expect(await noticesFor(carla, "task_field_person")).toHaveLength(1)
-    // Ben is the task's own person; Anna names herself.
-    await setTaskFieldValue(actor(anna), { taskId: trailer, fieldId: reviewer, value: ben.id }, database)
-    await setTaskFieldValue(actor(anna), { taskId: trailer, fieldId: reviewer, value: anna.id }, database)
-    expect(await noticesFor(ben, "task_field_person")).toEqual([])
-    expect(await noticesFor(anna, "task_field_person")).toEqual([])
+      // Saving the same person again says nothing new.
+      await setTaskFieldValue(actor(anna), { taskId: trailer, fieldId: reviewer, value: carla.id }, database)
+      expect(await noticesFor(carla, "task_field_person")).toHaveLength(1)
+      // Ben is the task's own person; Anna names herself.
+      await setTaskFieldValue(actor(anna), { taskId: trailer, fieldId: reviewer, value: ben.id }, database)
+      await setTaskFieldValue(actor(anna), { taskId: trailer, fieldId: reviewer, value: anna.id }, database)
+      expect(await noticesFor(ben, "task_field_person")).toEqual([])
+      expect(await noticesFor(anna, "task_field_person")).toEqual([])
+    })
   })
 
   it("tells the person named when the task is made with the field filled", async () => {
-    const { typeId, reviewer } = await reviewType()
-    await createTask(
-      actor(anna),
-      {
-        projectId: website,
-        title: "Cut the teaser",
-        notes: "",
-        assigneeUserId: ben.id,
-        dueDate: null,
-        steps: [],
-        typeId,
-        fieldValues: { [reviewer]: carla.id },
-      },
-      database
-    )
-    expect((await noticesFor(carla, "task_field_person")).map((n) => n.detail)).toEqual(["Reviewer on Cut the teaser"])
+    await inTeam(teamId, async () => {
+      const { typeId, reviewer } = await reviewType()
+      await createTask(
+        actor(anna),
+        {
+          projectId: website,
+          title: "Cut the teaser",
+          notes: "",
+          assigneeUserId: ben.id,
+          dueDate: null,
+          steps: [],
+          typeId,
+          fieldValues: { [reviewer]: carla.id },
+        },
+        database
+      )
+      expect((await noticesFor(carla, "task_field_person")).map((n) => n.detail)).toEqual(["Reviewer on Cut the teaser"])
+    })
   })
 })
 

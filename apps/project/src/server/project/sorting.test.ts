@@ -13,8 +13,8 @@ import {
   setProjectStar,
 } from "@/server/project/projects"
 import { projectTasks } from "@/server/project/schema"
-import { createSection, deleteSection, renameSection, reorderTasks } from "@/server/project/sections"
-import { createTask, setTaskStatus, updateTask } from "@/server/project/tasks"
+import { reorderTasks } from "@/server/project/task-order"
+import { createTask, setTaskStatus } from "@/server/project/tasks"
 import { projectFor, startTeam } from "@/server/project/test-people"
 import type { CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -100,43 +100,26 @@ describe("labels", () => {
       PROJECT_ERRORS.labelNotFound
     )
   })
-})
 
-describe("sections", () => {
-  it("puts a task under a section, renames it everywhere, and deleting it leaves the task with none", async () => {
-    // Sections are a project setting, so the site admin's alone.
-    await expect(createSection(ben.id, { projectId, name: "Mine" }, database)).rejects.toThrow(
-      PROJECT_ERRORS.onlySiteAdminSettings
+  it("go on a new task with its priority from New task, the team's own only", async () => {
+    // Tyler, 19 Oct 2026: New task's dropdown sets tags, priority and status.
+    const label = await createLabel(ben.id, { name: "Client", color: "pink" }, database)
+    const base = { projectId, notes: "", assigneeUserId: null, dueDate: null, steps: [] }
+    const { id } = await createTask(
+      actor(anna),
+      { ...base, title: "Call the client", priority: "high", labelIds: [label.id] },
+      database
     )
-    const section = await createSection(admin.id, { projectId, name: "Design" }, database)
-    const taskId = await newTask("Pick the fonts")
-    // Putting a task under one is not a setting: anyone on the project may.
-    await updateTask(actor(ben), { taskId, sectionId: section.id }, database)
-    await expect(renameSection(ben.id, { sectionId: section.id, name: "Nope" }, database)).rejects.toThrow(
-      PROJECT_ERRORS.onlySiteAdminSettings
-    )
-    await renameSection(admin.id, { sectionId: section.id, name: "Look and feel" }, database)
-    let page = await loadProjectPage(ben.id, projectId, database)
-    expect(page.sections).toEqual([{ id: section.id, name: "Look and feel" }])
-    expect(page.tasks[0].section).toEqual({ id: section.id, name: "Look and feel" })
+    const made = (await loadProjectPage(ben.id, projectId, database)).tasks.find((task) => task.id === id)
+    expect(made).toMatchObject({ priority: "high", labels: [{ name: "Client" }] })
 
-    await expect(deleteSection(ben.id, section.id, database)).rejects.toThrow(
-      PROJECT_ERRORS.onlySiteAdminSettings
-    )
-    await deleteSection(admin.id, section.id, database)
-    page = await loadProjectPage(ben.id, projectId, database)
-    expect(page.sections).toEqual([])
-    expect(page.tasks.map((t) => t.title)).toEqual(["Pick the fonts"])
-    expect(page.tasks[0].section).toBeNull()
-  })
-
-  it("refuses another project's section", async () => {
-    const other = await projectFor(admin, anna.id, { name: "Other", color: "red", description: "" }, database)
-    const theirs = await createSection(admin.id, { projectId: other.id, name: "Elsewhere" }, database)
-    const taskId = await newTask("Mine")
-    await expect(updateTask(actor(ben), { taskId, sectionId: theirs.id }, database)).rejects.toThrow(
-      PROJECT_ERRORS.sectionNotFound
-    )
+    const stranger = await insertUser(database, { name: "Stranger", email: "s@example.test" })
+    await startTeam(database, [stranger], { name: "Other" })
+    const theirs = await createLabel(stranger.id, { name: "Secret", color: "red" }, database)
+    await expect(
+      createTask(actor(anna), { ...base, title: "Sneaky", labelIds: [theirs.id] }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.labelNotFound)
+    expect(await titles()).not.toContain("Sneaky")
   })
 })
 

@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { findCurrentUser } from "@/server/auth/security"
 import { getOwnedExport } from "@/server/video/exports"
 import { streamPrivateR2Object } from "@/server/video/r2-response"
+import { exportViewerId } from "@/server/video/project-guests"
 
 /**
  * An export's cover picture. Session-checked like the file itself, and cached
@@ -13,8 +13,9 @@ export const Route = createFileRoute("/api/v1/video/exports/$exportId/cover")({
   server: {
     handlers: {
       GET: async ({ params }) => {
-        const user = await findCurrentUser()
-        if (!user) {
+        // A guest sent from Project is answered for their own project's files.
+        const viewerId = await exportViewerId(params.exportId)
+        if (!viewerId) {
           return Response.json(
             { detail: "Missing Custom Shell session" },
             { status: 401 }
@@ -23,7 +24,7 @@ export const Route = createFileRoute("/api/v1/video/exports/$exportId/cover")({
 
         let storagePath: string | null = null
         try {
-          storagePath = (await getOwnedExport(user.id, params.exportId))
+          storagePath = (await getOwnedExport(viewerId, params.exportId))
             .thumbnailStoragePath
         } catch {
           storagePath = null

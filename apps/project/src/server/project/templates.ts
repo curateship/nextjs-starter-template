@@ -11,6 +11,7 @@ import {
   requireTeamRunner,
   type ProjectDb,
 } from "@/server/project/access"
+import { templateTeam } from "@/server/project/record-team"
 import { requireSharedProject } from "@/server/project/personal"
 import { readProjectPlan } from "@/server/project/project-plans"
 import { projectTemplates } from "@/server/project/schema"
@@ -77,7 +78,7 @@ export async function renameTemplate(
   database = db
 ) {
   await database.transaction(async (tx) => {
-    const membership = await requireTeamRunner(userId, tx)
+    const membership = await requireTeamRunner(userId, tx, await templateTeam(userId, input.templateId, tx))
     await loadTemplatePlan(membership.teamId, input.templateId, tx)
     await requireNameFree(membership.teamId, input.name, tx, input.templateId)
     await tx.update(projectTemplates).set({ name: input.name }).where(eq(projectTemplates.id, input.templateId))
@@ -86,7 +87,7 @@ export async function renameTemplate(
 
 /** Projects already started from it keep everything; they never pointed at it. */
 export async function deleteTemplate(userId: string, templateId: string, database = db) {
-  const membership = await requireTeamRunner(userId, database)
+  const membership = await requireTeamRunner(userId, database, await templateTeam(userId, templateId, database))
   await loadTemplatePlan(membership.teamId, templateId, database)
   await database.delete(projectTemplates).where(eq(projectTemplates.id, templateId))
 }

@@ -38,9 +38,9 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
 }
 
 /**
- * A project's status, which says whether the job is in trouble and why. It is
- * called "health" in the code so it never mixes with a task's four statuses.
- * Null is no status, and shows nothing.
+ * The old manual project status, set by hand until 19 Oct 2026, when the
+ * late-task status in `project-pace.ts` replaced it. Kept so the saved values
+ * and the Activity tab's old lines still read. Called "health" in the code.
  */
 export const PROJECT_HEALTHS = ["on_track", "at_risk", "off_track"] as const
 export type ProjectHealth = (typeof PROJECT_HEALTHS)[number]
@@ -241,8 +241,6 @@ export const LIMITS = {
   teamFileBytes: 5 * 1024 * 1024 * 1024,
   labelName: 40,
   labelsPerTeam: 100,
-  sectionName: 60,
-  sectionsPerProject: 30,
   /** Tasks one pasted list can make. */
   tasksPerPaste: 50,
   memberTitle: 40,
@@ -300,7 +298,8 @@ export const LIMITS = {
   stepListName: 60,
   stepListsPerTeam: 100,
   /** A project status's one line of why. */
-  healthNote: 200,
+  /** The most late tasks a project status rule can name. */
+  lateTasks: 99,
   clientName: 60,
   milestoneName: 80,
   milestonesPerProject: 30,
@@ -495,6 +494,12 @@ export const statusOrderSchema = z.object({ projectId: id, statusOrder: statusLi
 /** My dashboard's own column order, which only I see. */
 export const myStatusOrderSchema = z.object({ statusOrder: statusListSchema })
 
+const lateTasksSchema = z
+  .number()
+  .int("Type a whole number.")
+  .min(1, "Type at least 1.")
+  .max(LIMITS.lateTasks, `Type at most ${LIMITS.lateTasks}.`)
+
 export const updateProjectSchema = z.object({
   projectId: id,
   doingLimit: z
@@ -512,6 +517,12 @@ export const updateProjectSchema = z.object({
   name: trimmed(LIMITS.projectName, "The project name").optional(),
   color: projectColorSchema.optional(),
   description: z.string().trim().max(LIMITS.projectDescription).optional(),
+  /** Late tasks from which the project shows Slowing down, and Behind. */
+  slowingAt: lateTasksSchema.optional(),
+  behindAt: lateTasksSchema.optional(),
+  /** A media library address, or "" to take the picture away. */
+  bannerUrl: z.string().trim().max(2048).optional(),
+  avatarUrl: z.string().trim().max(2048).optional(),
 })
 
 /** The client's name; empty takes it off. */
@@ -523,17 +534,6 @@ export const projectClientSchema = z.object({
     .max(LIMITS.clientName, `A client's name can be at most ${LIMITS.clientName} characters.`)
     .transform((value) => value || null)
     .nullable(),
-})
-
-/** A status with its line of why, or null to take the status off. */
-export const projectHealthSchema = z.object({
-  projectId: id,
-  health: z.enum(PROJECT_HEALTHS).nullable(),
-  note: z
-    .string()
-    .trim()
-    .max(LIMITS.healthNote, `The reason can be at most ${LIMITS.healthNote} characters.`)
-    .default(""),
 })
 
 export const projectLeadSchema = z.object({ projectId: id, userId: id.nullable() })
@@ -618,6 +618,11 @@ export const createTaskSchema = z.object({
     .max(LIMITS.stepsPerTask)
     .default([]),
   handoverNote: handoverNoteSchema,
+  /** Set from New task's dropdown (Tyler, 19 Oct 2026); tags are the team's labels by id. */
+  priority: z.enum(TASK_PRIORITIES).default("normal"),
+  labelIds: z.array(id).max(LIMITS.labelsPerTeam).default([]),
+  /** One of the project's milestones, from New task (Tyler, 19 Oct 2026). */
+  milestoneId: id.nullable().default(null),
 })
 
 export const updateTaskSchema = z.object({
@@ -634,7 +639,6 @@ export const updateTaskSchema = z.object({
   dueAt: z.string().datetime({ offset: true }).nullable().optional(),
   /** The first day, drawn with the due date on the Timeline. Never after the due date. */
   startDate: dueDateSchema.optional(),
-  sectionId: id.nullable().optional(),
   snoozedUntil: dueDateSchema.optional(),
   priority: z.enum(TASK_PRIORITIES).optional(),
 })
@@ -698,7 +702,7 @@ export const bulkChangeSchema = z.object({
 })
 
 export const labelSchema = z.object({
-  name: trimmed(LIMITS.labelName, "The label name"),
+  name: trimmed(LIMITS.labelName, "The tag name"),
   color: projectColorSchema,
 })
 
@@ -709,7 +713,6 @@ export const setTaskLabelsSchema = z.object({
   labelIds: z.array(id).max(LIMITS.labelsPerTeam),
 })
 
-export const sectionNameSchema = trimmed(LIMITS.sectionName, "The section name")
 
 export const reorderTasksSchema = z.object({
   projectId: id,

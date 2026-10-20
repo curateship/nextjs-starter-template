@@ -10,6 +10,7 @@ import { saveTeamAvatar, saveTeamPhoto, type TeamFigures, type TeamSummary } fro
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { cn } from "@/lib/utils"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * The top of the Team dashboard's left panel, as Tyler drew it on 16 Oct 2026
@@ -32,6 +33,7 @@ export function TeamCover({
   canEdit: boolean
   onSettings: (() => void) | null
 }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [picking, setPicking] = React.useState<"cover" | "avatar" | null>(null)
@@ -42,7 +44,7 @@ export function TeamCover({
 
   async function save(which: "cover" | "avatar", url: string) {
     const ok = await run(
-      () => (which === "cover" ? saveTeamPhoto(url) : saveTeamAvatar(url)),
+      () => (which === "cover" ? saveTeamPhoto(url, teamId) : saveTeamAvatar(url, teamId)),
       which === "cover" ? (url ? "Cover saved." : "Cover removed.") : url ? "Avatar saved." : "Avatar removed."
     )
     if (ok) await router.invalidate()

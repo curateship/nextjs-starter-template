@@ -17,8 +17,10 @@ import {
   MIN_CLIP_SATURATION,
 } from "./clip-colour"
 import { CLIP_MOTIONS } from "./clip-motion"
+import { MAX_FADE_MS, MIN_FADE_MS } from "./clip-fades"
 import { TRANSITION_KINDS } from "./clip-transitions"
 import { CAPTION_ANIMATION_IDS } from "./caption-animations"
+import { clipOriginSchema } from "./clip-origin"
 import { MAX_CAPTION_WORDS } from "./caption-words"
 import { TEXT_FONT_IDS } from "./text-fonts"
 
@@ -88,9 +90,16 @@ export const clipSchema = z
       .max(MAX_CLIP_SATURATION)
       .optional(),
     // How long the sound takes to fade away at the clip's end. Set on music
-    // laid under a project and cut short (see background-music.ts). Absent
-    // means it stops where the clip stops, as every clip always did.
+    // laid under a project and cut short (see background-music.ts), and by
+    // the Sound fade out slider. Absent means it stops where the clip stops,
+    // as every clip always did. Its bounds stay as wide as they always were,
+    // because projects were saved under them (see clip-fades.ts).
     fadeOutMs: z.number().nonnegative().finite().optional(),
+    // The other three fades: the sound coming up at the start, and the
+    // picture fading in from see-through and out to it. Absent means none.
+    fadeInMs: z.number().min(MIN_FADE_MS).max(MAX_FADE_MS).optional(),
+    pictureFadeInMs: z.number().min(MIN_FADE_MS).max(MAX_FADE_MS).optional(),
+    pictureFadeOutMs: z.number().min(MIN_FADE_MS).max(MAX_FADE_MS).optional(),
     // How long the whole source file runs, so a trim cannot reach past its end.
     sourceDurationMs: z.number().nonnegative().finite().optional(),
     // Text clips.
@@ -128,6 +137,13 @@ export const clipSchema = z
     // frame is placed by `x` and `y`, the same as text.
     scale: z.number().min(MIN_CLIP_SCALE).max(MAX_CLIP_SCALE).optional(),
     transition: clipTransitionSchema.optional(),
+    // How the AI made this clip, so Make it again can make it once more in
+    // the same place (clip-origin.ts). Absent on everything uploaded, from
+    // stock, or laid down before this existed.
+    origin: clipOriginSchema.optional(),
+    // On a caption or an opening line: the voice line that says it, so making
+    // that line again replaces these words too. Absent on words typed in.
+    spokenBy: z.string().min(1).max(64).optional(),
   })
   .strict()
   .superRefine((clip, context) => {
@@ -218,4 +234,17 @@ export function parseTimelineForReset(value: unknown): {
         error instanceof Error ? error.message : SAVED_TIMELINE_INVALID_MESSAGE,
     }
   }
+}
+
+/** Clip count and length, derived from the timeline rather than stored twice. */
+export function summarizeTimeline(timeline: ProjectTimeline) {
+  let clipCount = 0
+  let durationMs = 0
+  for (const track of timeline.tracks) {
+    for (const clip of track.clips) {
+      clipCount += 1
+      durationMs = Math.max(durationMs, clip.startMs + clip.durationMs)
+    }
+  }
+  return { clipCount, durationMs }
 }

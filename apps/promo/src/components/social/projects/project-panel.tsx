@@ -11,7 +11,7 @@ import {
   XIcon,
 } from "lucide-react"
 
-import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
+import { usePromoGuest, usePromoSaveStatus } from "@/components/social/guest/guest-mode"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
@@ -76,6 +76,9 @@ export function ProjectPanel({
 }) {
   const project = view.project
   const [pausing, setPausing] = React.useState(false)
+  // A guest sent from Project works the project but never runs it: no way
+  // back to the table, and nothing in the cog but the description.
+  const guest = usePromoGuest()
 
   async function togglePause() {
     setPausing(true)
@@ -90,7 +93,7 @@ export function ProjectPanel({
     <div className="flex min-h-0 flex-1 flex-col">
       <DashboardCardTitleHeader
         icon={<FolderOpenIcon className="size-4" />}
-        back={{ label: "All projects", to: "/admin/projects" }}
+        back={guest ? undefined : { label: "All projects", to: "/admin/projects" }}
         title={project.name}
         action={
           <ProjectMenu
@@ -98,6 +101,7 @@ export function ProjectPanel({
             // over into these boxes.
             key={project.id}
             project={project}
+            guest={Boolean(guest)}
             pausing={pausing}
             onSaved={onSaved}
             onNewProject={onNewProject}
@@ -115,25 +119,34 @@ export function ProjectPanel({
               <p className="flex items-start gap-1.5">
                 <PauseIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                 <span>
-                  Paused. None of its accounts posts, warms up or takes readings until you
-                  resume it. Searches still run.
+                  {guest
+                    ? "Paused. None of its accounts posts, warms up or takes readings until its owner resumes it. Searches still run."
+                    : "Paused. None of its accounts posts, warms up or takes readings until you resume it. Searches still run."}
                 </span>
               </p>
-              <Button
-                type="button"
-                variant="outline"
-                className="justify-self-start"
-                disabled={pausing}
-                onClick={() => void togglePause()}
-              >
-                {pausing ? <Loader2Icon className="animate-spin" /> : <PlayIcon />}
-                Resume
-              </Button>
+              {guest ? null : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="justify-self-start"
+                  disabled={pausing}
+                  onClick={() => void togglePause()}
+                >
+                  {pausing ? <Loader2Icon className="animate-spin" /> : <PlayIcon />}
+                  Resume
+                </Button>
+              )}
             </div>
           ) : null}
 
           <div className="grid gap-3">
-            <ProjectPicture key={project.id} project={project} onSaved={onSaved} />
+            {guest ? (
+              project.imageUrl ? (
+                <img src={project.imageUrl} alt="" className="aspect-video w-full rounded-lg border object-cover" />
+              ) : null
+            ) : (
+              <ProjectPicture key={project.id} project={project} onSaved={onSaved} />
+            )}
             <div className="grid gap-1.5">
               <h2 className="text-lg leading-snug font-semibold break-words">{project.name}</h2>
               <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
@@ -146,8 +159,8 @@ export function ProjectPanel({
             networks={project.networks}
             selected={selectedNetwork}
             onSelect={onSelectNetwork}
-            onAdd={onAddNetwork}
-            onRemove={onRemoveNetwork}
+            onAdd={guest ? null : onAddNetwork}
+            onRemove={guest ? null : onRemoveNetwork}
           />
         </div>
       </ScrollArea>
@@ -162,7 +175,7 @@ export function ProjectPanel({
  */
 function ProjectPicture({ project, onSaved }: { project: ProjectView["project"]; onSaved: () => void }) {
   const [imageUrl, setImageUrl] = React.useState(project.imageUrl)
-  const setSaveStatus = useReportedSaveStatus()
+  const setSaveStatus = usePromoSaveStatus()
 
   return (
     <ImageUpload
@@ -197,6 +210,7 @@ function ProjectPicture({ project, onSaved }: { project: ProjectView["project"];
  */
 function ProjectMenu({
   project,
+  guest,
   pausing,
   onSaved,
   onNewProject,
@@ -204,6 +218,8 @@ function ProjectMenu({
   onTogglePause,
 }: {
   project: ProjectView["project"]
+  /** A guest sent from Project sees the description alone. */
+  guest: boolean
   pausing: boolean
   onSaved: () => void
   onNewProject: () => void
@@ -214,7 +230,7 @@ function ProjectMenu({
   const [name, setName] = React.useState(project.name)
   const [description, setDescription] = React.useState(project.description)
   const [nameInvalid, setNameInvalid] = React.useState(false)
-  const setSaveStatus = useReportedSaveStatus()
+  const setSaveStatus = usePromoSaveStatus()
   const saved = React.useRef({ name: project.name, description: project.description })
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   /** What is typed and waiting for the timer, so shutting the box still saves it. */
@@ -294,26 +310,28 @@ function ProjectMenu({
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>Name, description, new project, pause and delete</TooltipContent>
+        <TooltipContent>{guest ? "Description" : "Name, description, new project, pause and delete"}</TooltipContent>
       </Tooltip>
       <PopoverContent align="start" className="w-80 gap-4 p-3">
-        <div className="grid gap-2">
-          <Label htmlFor="promo-project-name">Name</Label>
-          <Input
-            id="promo-project-name"
-            value={name}
-            maxLength={120}
-            aria-invalid={nameInvalid || undefined}
-            onChange={(event) => {
-              setName(event.target.value)
-              later({ name: event.target.value, description })
-            }}
-            onBlur={() => void save({ name, description })}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void save({ name, description })
-            }}
-          />
-        </div>
+        {guest ? null : (
+          <div className="grid gap-2">
+            <Label htmlFor="promo-project-name">Name</Label>
+            <Input
+              id="promo-project-name"
+              value={name}
+              maxLength={120}
+              aria-invalid={nameInvalid || undefined}
+              onChange={(event) => {
+                setName(event.target.value)
+                later({ name: event.target.value, description })
+              }}
+              onBlur={() => void save({ name, description })}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void save({ name, description })
+              }}
+            />
+          </div>
+        )}
         <div className="grid gap-2">
           <FieldLabel
             htmlFor="promo-project-description"
@@ -333,33 +351,35 @@ function ProjectMenu({
             onBlur={() => void save({ name, description })}
           />
         </div>
-        <div className="grid gap-0.5">
-          <Button type="button" variant="ghost" className={menuRow} onClick={then(onNewProject)}>
-            <PlusIcon />
-            New project
-          </Button>
-          <Hint label={project.pausedAt ? null : "None of its accounts posts, warms up or takes readings until you resume it"} side="right">
+        {guest ? null : (
+          <div className="grid gap-0.5">
+            <Button type="button" variant="ghost" className={menuRow} onClick={then(onNewProject)}>
+              <PlusIcon />
+              New project
+            </Button>
+            <Hint label={project.pausedAt ? null : "None of its accounts posts, warms up or takes readings until you resume it"} side="right">
+              <Button
+                type="button"
+                variant="ghost"
+                className={menuRow}
+                disabled={pausing}
+                onClick={then(onTogglePause)}
+              >
+                {pausing ? <Loader2Icon className="animate-spin" /> : project.pausedAt ? <PlayIcon /> : <PauseIcon />}
+                {project.pausedAt ? "Resume this project" : "Pause this project"}
+              </Button>
+            </Hint>
             <Button
               type="button"
               variant="ghost"
-              className={menuRow}
-              disabled={pausing}
-              onClick={then(onTogglePause)}
+              className={cn(menuRow, "text-destructive hover:text-destructive")}
+              onClick={then(onDeleteProject)}
             >
-              {pausing ? <Loader2Icon className="animate-spin" /> : project.pausedAt ? <PlayIcon /> : <PauseIcon />}
-              {project.pausedAt ? "Resume this project" : "Pause this project"}
+              <Trash2Icon />
+              Delete project
             </Button>
-          </Hint>
-          <Button
-            type="button"
-            variant="ghost"
-            className={cn(menuRow, "text-destructive hover:text-destructive")}
-            onClick={then(onDeleteProject)}
-          >
-            <Trash2Icon />
-            Delete project
-          </Button>
-        </div>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )
@@ -383,8 +403,9 @@ function ProjectNetworks({
   networks: Network[]
   selected: Network | null
   onSelect: (network: Network) => void
-  onAdd: (network: Network) => Promise<void>
-  onRemove: (network: Network) => Promise<void>
+  /** Null for a guest, who uses the networks the project has. */
+  onAdd: ((network: Network) => Promise<void>) | null
+  onRemove: ((network: Network) => Promise<void>) | null
 }) {
   const [busy, setBusy] = React.useState<Network | null>(null)
   const addable = NETWORKS.filter((network) => !networks.includes(network))
@@ -402,27 +423,29 @@ function ProjectNetworks({
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Networks</h3>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="sm" disabled={busy !== null}>
-              <PlusIcon />
-              Add network
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            {addable.length ? (
-              addable.map((network) => (
-                <DropdownMenuItem key={network} onSelect={() => void run(network, onAdd)}>
-                  {NETWORK_NAMES[network]}
-                </DropdownMenuItem>
-              ))
-            ) : (
-              <DropdownMenuLabel className="font-normal text-muted-foreground">
-                This project uses every network Promo has.
-              </DropdownMenuLabel>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {onAdd ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" disabled={busy !== null}>
+                <PlusIcon />
+                Add network
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              {addable.length ? (
+                addable.map((network) => (
+                  <DropdownMenuItem key={network} onSelect={() => void run(network, onAdd)}>
+                    {NETWORK_NAMES[network]}
+                  </DropdownMenuItem>
+                ))
+              ) : (
+                <DropdownMenuLabel className="font-normal text-muted-foreground">
+                  This project uses every network Promo has.
+                </DropdownMenuLabel>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
       </div>
 
       {networks.length ? (
@@ -447,21 +470,23 @@ function ProjectNetworks({
                   <NetworkIcon network={network} />
                   <span className="truncate">{name}</span>
                 </button>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Take ${name} off this project`}
-                      disabled={busy !== null}
-                      onClick={() => void run(network, onRemove)}
-                    >
-                      {busy === network ? <Loader2Icon className="animate-spin" /> : <XIcon />}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Take {name} off this project. Refused while it holds accounts or keywords.</TooltipContent>
-                </Tooltip>
+                {onRemove ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Take ${name} off this project`}
+                        disabled={busy !== null}
+                        onClick={() => void run(network, onRemove)}
+                      >
+                        {busy === network ? <Loader2Icon className="animate-spin" /> : <XIcon />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Take {name} off this project. Refused while it holds accounts or keywords.</TooltipContent>
+                  </Tooltip>
+                ) : null}
               </div>
             )
           })}

@@ -66,7 +66,8 @@ export function DueDayPicker({
         disabled={disabled}
         aria-invalid={ariaInvalid || undefined}
         className={cn(
-          "w-full justify-start px-2.5 font-normal",
+          // The field edge, as the Inputs and Selects beside it; the outline button's own is a divider line.
+          "w-full justify-start border-input px-2.5 font-normal",
           !value && "text-muted-foreground",
           // Room for the cross, so a long date never runs under it.
           clearable && "pr-9",

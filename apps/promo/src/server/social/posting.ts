@@ -149,7 +149,7 @@ export async function queueComment(
     | "pausedAt"
     | "projectId"
   >,
-  input: { findId: string; text: string; draftId: string | null },
+  input: { findId: string; text: string; draftId: string | null; sentBy?: string | null },
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<{ jobId: string; runAfter: Date | null; undoUntil: Date | null }> {
@@ -193,7 +193,7 @@ export async function queueComment(
   const jobId = await queueJob(
     userId,
     "comment",
-    { findId: input.findId, accountId: account.id, text: input.text, draftId: input.draftId },
+    { findId: input.findId, accountId: account.id, text: input.text, draftId: input.draftId, ...(input.sentBy ? { sentBy: input.sentBy } : {}) },
     db,
     runAfter ?? undoUntil
   )

@@ -2,7 +2,12 @@ import { createRequire } from "node:module"
 import { eq } from "drizzle-orm"
 
 import {
-  CAROUSEL_NOT_FOUND_MESSAGE,
+  CAROUSEL_FRAME_SIZES,
+  CAROUSEL_TEXT_LINE_HEIGHT,
+  wrapCarouselText,
+} from "@/lib/video/carousel-layout"
+import {
+  CAROUSEL_MEDIA_MISSING_MESSAGE,
   requireCarouselFormat,
   type CarouselFormat,
   type CarouselGradientShadowItem,
@@ -15,27 +20,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { IMAGE_TYPES } from "@/server/media/library"
 import { getFromR2 } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
-import { getOwnedCarouselDetail } from "@/server/video/carousels"
 import { requireTextFontFiles } from "@/server/video/text-font-files"
-
-export const CAROUSEL_SLIDE_NOT_FOUND_MESSAGE = "Carousel slide not found."
-export const CAROUSEL_MEDIA_MISSING_MESSAGE =
-  "A slide image is no longer in the media library."
-export const CAROUSEL_EXPORT_FAILED_MESSAGE = "The slide could not be exported."
-
-const SAFE_CAROUSEL_EXPORT_ERRORS = new Set([
-  CAROUSEL_NOT_FOUND_MESSAGE,
-  CAROUSEL_SLIDE_NOT_FOUND_MESSAGE,
-  CAROUSEL_MEDIA_MISSING_MESSAGE,
-  CAROUSEL_EXPORT_FAILED_MESSAGE,
-])
-
-const FORMAT_SIZES: Record<CarouselFormat, { width: number; height: number }> =
-  {
-    "4:5": { width: 1080, height: 1350 },
-    "1:1": { width: 1080, height: 1080 },
-    "9:16": { width: 1080, height: 1920 },
-  }
 
 const requireNative = createRequire(import.meta.url)
 
@@ -43,23 +28,21 @@ function loadResvg() {
   return requireNative("@resvg/resvg-js") as typeof import("@resvg/resvg-js")
 }
 
-export async function renderOwnedCarouselSlide(
+/**
+ * Every picture these slides show, read from storage once each and written as
+ * data the slide drawing can hold. A picture that is gone, or not this
+ * person's, fails the whole export rather than leaving a hole in a slide.
+ */
+export async function loadSlidePictures(
   userId: string,
-  carouselId: string,
-  slideIndex: number
+  slides: CarouselSlide[],
+  database: CustomShellDb = db
 ) {
-  const carousel = await getOwnedCarouselDetail(userId, carouselId)
-  if (!Number.isInteger(slideIndex) || slideIndex < 0) {
-    throw new Error(CAROUSEL_SLIDE_NOT_FOUND_MESSAGE)
-  }
-  const slide = carousel.slides[slideIndex]
-  if (!slide) throw new Error(CAROUSEL_SLIDE_NOT_FOUND_MESSAGE)
-
   const media = new Map<string, string>()
-  for (const item of slide.items) {
+  for (const item of slides.flatMap((slide) => slide.items)) {
     if (item.type !== "image" || media.has(item.mediaId)) continue
     try {
-      const row = await findSlidePicture(userId, item.mediaId)
+      const row = await findSlidePicture(userId, item.mediaId, database)
       if (!row) throw new Error(CAROUSEL_MEDIA_MISSING_MESSAGE)
       const object = await getFromR2(row.storagePath)
       const bytes = await object.Body?.transformToByteArray()
@@ -72,13 +55,7 @@ export async function renderOwnedCarouselSlide(
       throw new Error(CAROUSEL_MEDIA_MISSING_MESSAGE)
     }
   }
-
-  try {
-    return renderCarouselSlidePng(slide, carousel.format, media)
-  } catch (error) {
-    console.error("Carousel slide export failed", error)
-    throw new Error(CAROUSEL_EXPORT_FAILED_MESSAGE)
-  }
+  return media
 }
 
 /**
@@ -99,16 +76,19 @@ export async function findSlidePicture(
   return row.userId === userId ? row : null
 }
 
+/** A slide as a PNG at full size, or `width` pixels wide for a cover. */
 export function renderCarouselSlidePng(
   slide: CarouselSlide,
   format: CarouselFormat,
-  media: ReadonlyMap<string, string> = new Map()
+  media: ReadonlyMap<string, string> = new Map(),
+  width?: number
 ) {
   const { Resvg } = loadResvg()
   const svg = carouselSlideSvg(slide, format, media)
   return new Uint8Array(
     new Resvg(svg, {
       font: { fontFiles: requireTextFontFiles(), loadSystemFonts: false },
+      ...(width ? { fitTo: { mode: "width" as const, value: width } } : {}),
     })
       .render()
       .asPng()
@@ -121,7 +101,7 @@ export function carouselSlideSvg(
   media: ReadonlyMap<string, string> = new Map()
 ) {
   const canonicalFormat = requireCarouselFormat(format)
-  const size = FORMAT_SIZES[canonicalFormat]
+  const size = CAROUSEL_FRAME_SIZES[canonicalFormat]
   const definitions: string[] = []
   const layers = [...slide.items]
     .sort((left, right) => left.zIndex - right.zIndex)
@@ -163,7 +143,12 @@ function textLayer(
     `<clipPath id="${clipId}"><rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}"/></clipPath>`
   )
   const font = requireTextFont(item.fontId)
-  const lines = wrapText(item.text, box.width, item.fontSize, font.widthRatio)
+  const lines = wrapCarouselText(
+    item.text,
+    box.width,
+    item.fontSize,
+    font.widthRatio
+  )
   const anchor =
     item.align === "left" ? "start" : item.align === "right" ? "end" : "middle"
   const x =
@@ -172,7 +157,7 @@ function textLayer(
       : item.align === "right"
         ? box.x + box.width
         : box.x + box.width / 2
-  const lineHeight = item.fontSize * 1.16
+  const lineHeight = item.fontSize * CAROUSEL_TEXT_LINE_HEIGHT
   const spans = lines
     .map(
       (line, lineIndex) =>
@@ -180,43 +165,6 @@ function textLayer(
     )
     .join("")
   return `<text clip-path="url(#${clipId})" fill="${item.color}" font-family="${font.svgFamily}" font-size="${item.fontSize}" font-weight="${font.weight}" text-anchor="${anchor}">${spans}</text>`
-}
-
-function wrapText(
-  text: string,
-  width: number,
-  fontSize: number,
-  widthRatio: number
-) {
-  const maxCharacters = Math.max(1, Math.floor(width / (fontSize * widthRatio)))
-  const lines: string[] = []
-  for (const paragraph of text.split("\n")) {
-    const words = paragraph.split(/\s+/).filter(Boolean)
-    if (!words.length) {
-      lines.push("")
-      continue
-    }
-    let line = ""
-    for (const word of words) {
-      if (word.length > maxCharacters) {
-        if (line) lines.push(line)
-        for (let start = 0; start < word.length; start += maxCharacters) {
-          lines.push(word.slice(start, start + maxCharacters))
-        }
-        line = ""
-        continue
-      }
-      const candidate = line ? `${line} ${word}` : word
-      if (candidate.length <= maxCharacters) {
-        line = candidate
-      } else {
-        lines.push(line)
-        line = word
-      }
-    }
-    if (line) lines.push(line)
-  }
-  return lines
 }
 
 function mediaLayer(
@@ -277,9 +225,4 @@ function escapeXml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;")
-}
-
-export function isSafeCarouselExportError(error: unknown) {
-  if (!(error instanceof Error)) return false
-  return SAFE_CAROUSEL_EXPORT_ERRORS.has(error.message)
 }

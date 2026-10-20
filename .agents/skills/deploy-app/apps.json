@@ -67,5 +67,41 @@
     "database": {
       "uuid": "aokuqnxme28hta1io6mq3nnz"
     }
+  },
+  "course": {
+    "server": "de",
+    "project": "Course",
+    "healthUrl": "https://course.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "x8ockgtzr0tukuel2gdtf6mw"
+      },
+      {
+        "role": "worker",
+        "uuid": "ze72p6mtkabxou28ifiypert"
+      }
+    ],
+    "database": {
+      "uuid": "jee1uxx0iazkaw78y7yqtyhf"
+    }
+  },
+  "project": {
+    "server": "de",
+    "project": "Project",
+    "healthUrl": "https://project.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "jpq3inydlkjofvn3a3algugr"
+      },
+      {
+        "role": "worker",
+        "uuid": "y0zxuxzqdszjyesiauc7b78m"
+      }
+    ],
+    "database": {
+      "uuid": "qi7owchjxxin7stgfpb4fvnm"
+    }
   }
 }

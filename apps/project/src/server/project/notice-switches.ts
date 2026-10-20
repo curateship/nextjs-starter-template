@@ -3,7 +3,8 @@ import { and, eq } from "drizzle-orm"
 import { isNoticeSwitchId, type NoticeSwitchId } from "@/lib/project/notice-switches"
 import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { requireMembership, type ProjectDb } from "@/server/project/access"
+import { PROJECT_ERRORS } from "@/lib/project/errors"
+import { findMembership, isSiteAdmin, type ProjectDb } from "@/server/project/access"
 import { projectNoticesOff } from "@/server/project/schema"
 
 /**
@@ -27,7 +28,10 @@ export async function setNoticeSwitch(
   input: { id: NoticeSwitchId; on: boolean },
   database = db
 ) {
-  await requireMembership(userId, database)
+  // My own bell, so the site admin, who is on no team, switches theirs too.
+  if (!(await findMembership(userId, database)) && !(await isSiteAdmin(userId, database))) {
+    throw new Error(PROJECT_ERRORS.noTeam)
+  }
   if (input.on) {
     await database
       .delete(projectNoticesOff)

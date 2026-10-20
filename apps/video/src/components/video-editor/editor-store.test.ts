@@ -739,6 +739,103 @@ describe("laying music under the project", () => {
   })
 })
 
+describe("fades when a clip is cut", () => {
+  const faded = createInitialEditorState({
+    aspect: "9:16",
+    tracks: [
+      {
+        id: "footage",
+        muted: false,
+        clips: [
+          {
+            id: "take",
+            kind: "video",
+            name: "Talking",
+            mediaId: "media-1",
+            startMs: 0,
+            durationMs: 8_000,
+            trimStartMs: 0,
+            fadeInMs: 3_000,
+            fadeOutMs: 1_500,
+            pictureFadeInMs: 500,
+            pictureFadeOutMs: 1_000,
+          },
+        ],
+      },
+    ],
+  })
+  const fadesOf = (clip: EditorClip) => ({
+    fadeInMs: clip.fadeInMs,
+    fadeOutMs: clip.fadeOutMs,
+    pictureFadeInMs: clip.pictureFadeInMs,
+    pictureFadeOutMs: clip.pictureFadeOutMs,
+  })
+
+  it("keeps the fades in on the left half and the fades out on the right", () => {
+    const split = editorReducer(faded, {
+      type: "SPLIT_CLIP",
+      clipId: "take",
+      atMs: 4_000,
+    })
+    const [left, right] = split.tracks[0].clips
+    expect(fadesOf(left)).toEqual({
+      fadeInMs: 3_000,
+      fadeOutMs: undefined,
+      pictureFadeInMs: 500,
+      pictureFadeOutMs: undefined,
+    })
+    expect(fadesOf(right)).toEqual({
+      fadeInMs: undefined,
+      fadeOutMs: 1_500,
+      pictureFadeInMs: undefined,
+      pictureFadeOutMs: 1_000,
+    })
+  })
+
+  it("puts both fades back on one press of undo", () => {
+    const split = editorReducer(faded, {
+      type: "SPLIT_CLIP",
+      clipId: "take",
+      atMs: 4_000,
+    })
+    expect(editorReducer(split, { type: "UNDO" }).tracks).toEqual(faded.tracks)
+  })
+
+  it("fades only the two ends of a take that jump cuts cut into pieces", () => {
+    const after = editorReducer(faded, {
+      type: "APPLY_JUMP_CUTS",
+      clipId: "take",
+      removals: [
+        { clipStartMs: 2_000, clipEndMs: 2_500 },
+        { clipStartMs: 5_000, clipEndMs: 5_500 },
+      ],
+      rippleClipIds: [],
+    })
+    const pieces = after.tracks[0].clips
+    expect(pieces).toHaveLength(3)
+    expect(pieces.map(fadesOf)).toEqual([
+      {
+        fadeInMs: 3_000,
+        fadeOutMs: undefined,
+        pictureFadeInMs: 500,
+        pictureFadeOutMs: undefined,
+      },
+      {
+        fadeInMs: undefined,
+        fadeOutMs: undefined,
+        pictureFadeInMs: undefined,
+        pictureFadeOutMs: undefined,
+      },
+      {
+        fadeInMs: undefined,
+        fadeOutMs: 1_500,
+        pictureFadeInMs: undefined,
+        pictureFadeOutMs: 1_000,
+      },
+    ])
+  })
+})
+
 describe("adding words or a sticker", () => {
   const sticker = (id: string): EditorClip => ({ ...caption(id, 0), text: "🔥" })
 
@@ -898,5 +995,194 @@ describe("a locked window", () => {
     store.setLock("read-only")
     expect(store.getSnapshot().lock).toBe("conflict")
     expect(store.getSnapshot().saveStatus).toBe("error")
+  })
+})
+
+describe("restoring a version from History", () => {
+  const version = {
+    aspect: "16:9" as const,
+    tracks: [{ id: "older", muted: false, clips: [caption("then", 0)] }],
+  }
+
+  it("puts the version on screen, shape and all, with nothing selected", () => {
+    const selected = editorReducer(START, { type: "SELECT_CLIP", clipId: "clip-1" })
+    const after = editorReducer(selected, { type: "RESTORE_TIMELINE", timeline: version })
+    expect(after.tracks).toEqual(version.tracks)
+    expect(after.aspect).toBe("16:9")
+    expect(after.selectedClipId).toBeNull()
+    expect(after.selectedClipIds).toEqual([])
+  })
+
+  it("comes off in one press of undo", () => {
+    const after = editorReducer(START, { type: "RESTORE_TIMELINE", timeline: version })
+    expect(editorReducer(after, { type: "UNDO" }).tracks).toEqual(START.tracks)
+  })
+
+  it("is refused in a read-only window", () => {
+    const refused = vi.fn()
+    const store = createEditorStore(START, "Reel", refused)
+    store.setLock("read-only")
+    store.dispatch({ type: "RESTORE_TIMELINE", timeline: version })
+    expect(refused).toHaveBeenCalledOnce()
+    expect(store.getSnapshot().state.tracks).toEqual(START.tracks)
+  })
+})
+
+describe("a moving shot landing on its picture", () => {
+  const still = createInitialEditorState({
+    aspect: "9:16",
+    tracks: [
+      {
+        id: "pictures",
+        muted: false,
+        clips: [
+          {
+            id: "seven",
+            kind: "image",
+            name: "Lighthouse",
+            mediaId: "still",
+            startMs: 5_000,
+            durationMs: 4_000,
+            trimStartMs: 0,
+            motion: "push-in",
+          },
+        ],
+      },
+    ],
+  })
+  const land = {
+    type: "LAND_MOVING_SHOT" as const,
+    clipId: "seven",
+    clipMediaId: "still",
+    pieces: [
+      {
+        mediaId: "shot",
+        url: "https://example.test/shot",
+        durationMs: 4_000,
+        origin: {
+          tool: "animate" as const,
+          model: "gemini-omni-1.1-flash",
+          prompt: "The lamp turning",
+          firstFrameMediaId: "still",
+          referenceMediaIds: [],
+          extras: [],
+          aspectRatio: "9:16" as const,
+          quality: "720p" as const,
+        },
+      },
+    ],
+  }
+
+  it("swaps the picture in one step, and one Undo brings it back", () => {
+    const landed = editorReducer(still, land)
+    expect(landed.tracks[0].clips[0]).toMatchObject({ id: "seven", kind: "video", mediaId: "shot" })
+    expect(editorReducer(landed, { type: "UNDO" }).tracks).toEqual(still.tracks)
+  })
+
+  it("changes nothing when the picture has gone", () => {
+    const gone = editorReducer(still, { type: "DELETE_CLIP", clipId: "seven" })
+    expect(editorReducer(gone, land)).toBe(gone)
+  })
+})
+
+describe("making a clip again", () => {
+  const voiceOrigin = {
+    tool: "voice" as const,
+    model: "eleven_multilingual_v2",
+    prompt: "Scene four.",
+    voice: { id: "rachel", name: "Rachel", speaker: "elevenlabs" as const },
+  }
+  const spoken = createInitialEditorState({
+    aspect: "9:16",
+    tracks: [
+      { id: "words", muted: false, clips: [{ ...caption("c1", 1_000), spokenBy: "line" }] },
+      {
+        id: "voices",
+        muted: false,
+        clips: [
+          {
+            id: "line",
+            kind: "audio",
+            name: "Scene four",
+            mediaId: "old-sound",
+            startMs: 1_000,
+            durationMs: 2_000,
+            trimStartMs: 0,
+            origin: voiceOrigin,
+          },
+        ],
+      },
+    ],
+  })
+
+  it("swaps a voice line and its captions in one step, and one Undo brings both back", () => {
+    const remade = editorReducer(spoken, {
+      type: "REMAKE_VOICE_LINE",
+      clipId: "line",
+      line: {
+        mediaId: "new-sound",
+        url: "https://example.test/new.mp3",
+        name: "Scene four again",
+        durationMs: 2_500,
+        captions: [{ startMs: 0, endMs: 2_500, text: "Scene four, again." }],
+        origin: { ...voiceOrigin, prompt: "Scene four, again." },
+      },
+    })
+    expect(remade.tracks[1].clips[0]).toMatchObject({ mediaId: "new-sound", durationMs: 2_500 })
+    expect(remade.tracks[0].clips.map((clip) => clip.text)).toEqual(["Scene four, again."])
+    expect(editorReducer(remade, { type: "UNDO" }).tracks).toEqual(spoken.tracks)
+  })
+
+  it("forgets the recipe when a voice line is cut, but not when a picture is", () => {
+    const cut = editorReducer(spoken, { type: "SPLIT_CLIP", clipId: "line", atMs: 2_000 })
+    expect(cut.tracks[1].clips.map((clip) => clip.origin)).toEqual([undefined, undefined])
+
+    const pictureOrigin = {
+      tool: "first-frame" as const,
+      model: "gemini-2.5-flash-image",
+      prompt: "Mia in a kitchen",
+      referenceMediaIds: [],
+      actorId: "mia",
+      extras: [],
+      aspectRatio: "9:16" as const,
+    }
+    const picture = createInitialEditorState({
+      aspect: "9:16",
+      tracks: [
+        {
+          id: "pictures",
+          muted: false,
+          clips: [
+            {
+              id: "pic",
+              kind: "image",
+              name: "Mia",
+              mediaId: "frame",
+              startMs: 0,
+              durationMs: 4_000,
+              trimStartMs: 0,
+              origin: pictureOrigin,
+            },
+          ],
+        },
+      ],
+    })
+    const halves = editorReducer(picture, { type: "SPLIT_CLIP", clipId: "pic", atMs: 2_000 })
+    expect(halves.tracks[0].clips.map((clip) => clip.origin)).toEqual([pictureOrigin, pictureOrigin])
+  })
+
+  it("forgets the recipe when the clip is given another file", () => {
+    const replaced = editorReducer(spoken, {
+      type: "REPLACE_CLIP_MEDIA",
+      clipId: "line",
+      media: {
+        mediaId: "upload",
+        url: "https://example.test/upload.mp3",
+        name: "upload.mp3",
+        fileType: "audio",
+        sourceDurationMs: 2_000,
+      },
+    })
+    expect(replaced.tracks[1].clips[0].origin).toBeUndefined()
   })
 })

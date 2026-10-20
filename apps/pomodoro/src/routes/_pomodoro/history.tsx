@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { HistoryPage } from "@/components/pomodoro/history-page"
 import { reportRanges, type ReportRange } from "@/lib/pomodoro/focus-history"
 
-const DEFAULT_RANGE: ReportRange = "7d"
+const DEFAULT_RANGE: ReportRange = "today"
 
 /** The focus report: the range strip, by-day and hour charts, trend, top tasks, sessions, CSV. */
 export const Route = createFileRoute("/_pomodoro/history")({

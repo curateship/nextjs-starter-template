@@ -204,8 +204,6 @@ type MilestoneRow = {
   projectName: string
   userId: string
   today: string
-  teamId: string
-  siteAdmin: boolean
 }
 
 /**
@@ -229,8 +227,7 @@ export async function sendMilestoneReminders(database: CustomShellDb = db, at = 
         AND t.time_zone IN (SELECT name FROM pg_timezone_names)
     )
     SELECT m.id AS "milestoneId", m.name, m.due_date::text AS "dueDate",
-      pr.id AS "projectId", pr.name AS "projectName", p.user_id AS "userId", l.day::text AS "today",
-      p.team_id AS "teamId", p.site_admin AS "siteAdmin"
+      pr.id AS "projectId", pr.name AS "projectName", p.user_id AS "userId", l.day::text AS "today"
     FROM recipients p
     CROSS JOIN LATERAL (
       SELECT (${at.toISOString()}::timestamptz AT TIME ZONE p.zone) AS local
@@ -288,9 +285,7 @@ export async function sendMilestoneReminders(database: CustomShellDb = db, at = 
           recipientUserId: row.userId,
           message: milestoneDueHeading(row.dueDate === addDays(row.today, 1) ? 1 : 2, weekdayOf(row.dueDate)),
           detail: `${row.name} · ${row.projectName}`,
-          href: row.siteAdmin
-            ? onTeamHref(row.teamId, projectHref(row.projectId))
-            : projectHref(row.projectId),
+          href: projectHref(row.projectId),
         },
       ])
     })

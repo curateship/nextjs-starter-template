@@ -124,6 +124,11 @@ export const menuSchema = z.object({
    * are opened after it. Missing means none.
    */
   stayLoadedLinkId: z.string().min(1).max(64).optional(),
+  /**
+   * The links "Pinned" shows at the top of the left menu, in the order they
+   * were pinned. Missing means none.
+   */
+  pinnedLinkIds: z.array(z.string().min(1).max(64)).max(100).optional(),
   /** The logo row's name, picture and link. Missing means Personal's own. */
   brand: brandSchema.optional(),
   /**
@@ -371,13 +376,48 @@ export function setStayLoadedLink(menu: Menu, linkId: string, stay: boolean): Me
   return setOneLink(menu, "stayLoadedLinkId", linkId, stay)
 }
 
-/** Forgets the start link and the stay-loaded link once they are no longer in the menu. */
+/** The pinned links, in the order they were pinned, skipping any since deleted. */
+export function pinnedLinks(menu: Menu) {
+  const links = allLinks(menu)
+  return (menu.pinnedLinkIds ?? []).flatMap((id) => links.find((link) => link.id === id) ?? [])
+}
+
+/** Puts the pinned list back, leaving the file without it once it is empty. */
+function withPinnedIds(menu: Menu, ids: string[]): Menu {
+  const { pinnedLinkIds: _old, ...rest } = menu
+  return ids.length ? { ...rest, pinnedLinkIds: ids } : rest
+}
+
+/** Pins a link at the end of "Pinned", or unpins it. The link stays in its section either way. */
+export function setPinned(menu: Menu, linkId: string, pinned: boolean): Menu {
+  const ids = menu.pinnedLinkIds ?? []
+  if (ids.includes(linkId) === pinned) return menu
+  return withPinnedIds(menu, pinned ? [...ids, linkId] : ids.filter((id) => id !== linkId))
+}
+
+/** Moves a pinned link to where another pinned link is, in Pinned's order only. */
+export function movePinned(menu: Menu, fromId: string, toId: string): Menu {
+  const ids = menu.pinnedLinkIds ?? []
+  const from = ids.indexOf(fromId)
+  const to = ids.indexOf(toId)
+  if (from === -1 || to === -1 || from === to) return menu
+  const next = [...ids]
+  const [moved] = next.splice(from, 1)
+  next.splice(to, 0, moved)
+  return withPinnedIds(menu, next)
+}
+
+/** Forgets the start link, the stay-loaded link and pins once their links are no longer in the menu. */
 function withoutLostLinks(menu: Menu): Menu {
   const ids = new Set(allLinks(menu).map((link) => link.id))
   let next = menu
   for (const field of ["startLinkId", "stayLoadedLinkId"] as const) {
     const id = next[field]
     if (id && !ids.has(id)) next = setOneLink(next, field, id, false)
+  }
+  const pinned = next.pinnedLinkIds ?? []
+  if (pinned.some((id) => !ids.has(id))) {
+    next = withPinnedIds(next, pinned.filter((id) => ids.has(id)))
   }
   return next
 }

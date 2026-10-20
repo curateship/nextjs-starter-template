@@ -30,6 +30,7 @@ import {
   type ClearOutAgeChoice,
   type ClearOutPreview,
 } from "@/lib/video/export-clear-out"
+import type { ExportKind } from "@/lib/video/export-kinds"
 
 type Counted =
   | { state: "loading" }
@@ -46,9 +47,12 @@ type Counted =
  * always read as the window appears.
  */
 export function ExportClearOutDialog({
+  kind,
   onClose,
   onCleared,
 }: {
+  /** Which dashboard asked: only exports of this kind are counted or go. */
+  kind: ExportKind
   onClose: () => void
   onCleared: () => Promise<void>
 }) {
@@ -60,7 +64,7 @@ export function ExportClearOutDialog({
 
   React.useEffect(() => {
     let cancelled = false
-    previewClearOut(age).then(
+    previewClearOut(age, kind).then(
       (preview) => {
         if (!cancelled) setCounted({ state: "ready", preview })
       },
@@ -73,7 +77,7 @@ export function ExportClearOutDialog({
     return () => {
       cancelled = true
     }
-  }, [age, attempt])
+  }, [age, attempt, kind])
 
   const preview = counted.state === "ready" ? counted.preview : null
   const sharedCount = preview?.shared_exports ?? 0
@@ -99,7 +103,7 @@ export function ExportClearOutDialog({
       return
     }
     await run(async () => {
-      const result = await clearOutExports(preview.before, takeShared)
+      const result = await clearOutExports(preview.before, takeShared, kind)
       if (result.failed) {
         showErrorToast(
           `${result.failed} ${plural(result.failed, "export was", "exports were")} kept because the file could not be removed from storage. Try again in a minute.`

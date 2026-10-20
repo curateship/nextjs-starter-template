@@ -38,6 +38,7 @@ import { formatTimeAgo } from "@/lib/format/format-time"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * The team's announcement, pinned at the top of the Team dashboard's middle
@@ -55,6 +56,7 @@ export function AnnouncementCard({
   canRun: boolean
   onReplace: () => void
 }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [confirmTakeDown, setConfirmTakeDown] = React.useState(false)
@@ -62,8 +64,8 @@ export function AnnouncementCard({
 
   // Showing it here is seeing it, for the owner's "Read by" count.
   React.useEffect(() => {
-    markTeamAnnouncementSeen(announcement.id).catch(() => undefined)
-  }, [announcement.id])
+    markTeamAnnouncementSeen(announcement.id, teamId).catch(() => undefined)
+  }, [announcement.id, teamId])
 
   async function act(work: () => Promise<unknown>, successText: string) {
     const ok = await run(work, successText)
@@ -114,7 +116,7 @@ export function AnnouncementCard({
             disabled={busy}
             onClick={() =>
               void act(
-                () => hideTeamAnnouncement(announcement.id),
+                () => hideTeamAnnouncement(announcement.id, teamId),
                 "Hidden for you. A new announcement will show again."
               )
             }
@@ -133,7 +135,7 @@ export function AnnouncementCard({
         destructive
         loading={busy}
         onConfirm={() =>
-          void act(() => takeDownTeamAnnouncement(), "Announcement taken down.").then((ok) => {
+          void act(() => takeDownTeamAnnouncement(teamId), "Announcement taken down.").then((ok) => {
             if (ok) setConfirmTakeDown(false)
           })
         }
@@ -199,6 +201,7 @@ export function AnnouncementDialog({
   replacing: boolean
   onClose: () => void
 }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [text, setText] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
@@ -216,7 +219,7 @@ export function AnnouncementDialog({
       showErrorToast("Write the announcement first.")
       return
     }
-    const ok = await run(() => postTeamAnnouncement(text.trim()), "Announcement posted. Everyone on the team is told.")
+    const ok = await run(() => postTeamAnnouncement(text.trim(), teamId), "Announcement posted. Everyone on the team is told.")
     if (!ok) return
     await router.invalidate()
     close()

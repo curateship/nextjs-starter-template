@@ -81,7 +81,17 @@ import {
   TRANSITION_OPTIONS,
   type TransitionKind,
 } from "@/lib/video/clip-transitions"
-import { MUSIC_FADE_OUT_MS } from "@/lib/video/background-music"
+import {
+  FADE_SLIDER_MAX,
+  FADE_SLIDER_OFF,
+  FADE_SLIDER_STEP,
+  fadeSliderValue,
+  fitFadePair,
+  formatFade,
+  pictureFadesOverruled,
+  storedFade,
+  type FadePair,
+} from "@/lib/video/clip-fades"
 import {
   captionWordsMatchTimes,
   DEFAULT_CAPTION_WORD_COLOR,
@@ -93,6 +103,8 @@ import {
 } from "@/lib/video/text-fonts"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { cn } from "@/lib/utils"
+import { MakeItMoveCard } from "@/components/video-editor/moving-stills"
+import { RemakeCard } from "@/components/video-editor/remake-clips"
 import { ProjectSpendRow } from "@/components/video-editor/project-settings"
 import {
   ReplaceMediaDialog,
@@ -304,6 +316,8 @@ function TextInspector({ clip }: { clip: EditorClip }) {
       </InspectorCard>
 
       {clip.wordTimes?.length ? <WordByWord clip={clip} /> : null}
+
+      <FadesSection clip={clip} />
 
       <InspectorCard title="Behind it">
         <SwitchField
@@ -782,6 +796,10 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
         </Button>
       </InspectorCard>
 
+      <MakeItMoveCard clip={clip} />
+
+      <RemakeCard clip={clip} />
+
       <FrameFitSection clip={clip} />
 
       <MotionSection clip={clip} />
@@ -799,21 +817,6 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
           }
         />
         <VolumeField clip={clip} />
-        {clip.kind === "audio" || clip.kind === "video" ? (
-          <SwitchField
-            id="clip-fade-out"
-            label="Fade out at the end"
-            description="Its sound fades away over the last two seconds."
-            checked={!!clip.fadeOutMs}
-            onChange={(on) =>
-              dispatch({
-                type: "UPDATE_CLIP",
-                clipId: clip.id,
-                patch: { fadeOutMs: on ? MUSIC_FADE_OUT_MS : undefined },
-              })
-            }
-          />
-        ) : null}
         {track ? (
           <SwitchField
             id="track-duck"
@@ -826,6 +829,8 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
           />
         ) : null}
       </InspectorCard>
+
+      <FadesSection clip={clip} />
 
       <SpeedSection clip={clip} />
 
@@ -943,6 +948,147 @@ function TransitionSection({ clip }: { clip: EditorClip }) {
         />
       ) : null}
     </InspectorCard>
+  )
+}
+
+type FadeKey = "fadeInMs" | "fadeOutMs" | "pictureFadeInMs" | "pictureFadeOutMs"
+
+const TRANSITION_NAME: Record<TransitionKind, string> = {
+  crossfade: "crossfade",
+  dip: "dip to black",
+  slide: "slide",
+}
+
+/**
+ * How the clip's sound and picture fade in and out. Sound is on video and
+ * sound clips, the picture on video, picture and text clips.
+ *
+ * Each slider's first stop is off, and the rest run from 0.2 to 5 seconds in
+ * tenths. A drag is one undo step, like volume. Two fades longer than the
+ * clip between them both play shorter, and the card says by how much, so a
+ * fade that plays shorter than its slider says is never a surprise.
+ */
+function FadesSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  // The lane's clips, for the transitions either side. The array itself is
+  // what the store holds, so it only changes when the lane does.
+  const laneClips = useEditorSelector(
+    (state) => findClip(state.tracks, clip.id)?.track.clips
+  )
+  const sound = clip.kind === "video" || clip.kind === "audio"
+  const picture =
+    clip.kind === "video" || clip.kind === "image" || clip.kind === "text"
+  if (!sound && !picture) return null
+
+  const index = laneClips?.findIndex((candidate) => candidate.id === clip.id)
+  const previous =
+    laneClips && index !== undefined && index > 0 ? laneClips[index - 1] : null
+  const next =
+    laneClips && index !== undefined && index >= 0
+      ? (laneClips[index + 1] ?? null)
+      : null
+  const overruled = pictureFadesOverruled(clip, previous, next)
+
+  function set(key: FadeKey, sliderValue: number, firstOfDrag: boolean) {
+    dispatch({
+      type: "UPDATE_CLIP",
+      clipId: clip.id,
+      patch: { [key]: storedFade(sliderValue) },
+      transient: !firstOfDrag,
+    })
+  }
+
+  function slider(key: FadeKey, label: string) {
+    return (
+      <FractionSliderField
+        id={`clip-${key}`}
+        label={label}
+        value={fadeSliderValue(clip[key])}
+        min={FADE_SLIDER_OFF}
+        max={FADE_SLIDER_MAX}
+        step={FADE_SLIDER_STEP}
+        format={formatFade}
+        onChange={(value, first) => set(key, value, first)}
+      />
+    )
+  }
+
+  return (
+    <InspectorCard
+      title="Fades"
+      description="Bring it in gently and take it out gently."
+    >
+      {sound ? (
+        <>
+          {slider("fadeInMs", "Sound fade in")}
+          {slider("fadeOutMs", "Sound fade out")}
+          <ShortenedFades
+            clip={clip}
+            fades={fitFadePair(clip.fadeInMs, clip.fadeOutMs, clip.durationMs)}
+            inMs={clip.fadeInMs}
+            outMs={clip.fadeOutMs}
+            what="sound fades"
+          />
+        </>
+      ) : null}
+      {picture ? (
+        <>
+          {slider("pictureFadeInMs", "Picture fade in")}
+          {overruled.in && clip.transition ? (
+            <FadeNote>
+              The {TRANSITION_NAME[clip.transition.kind]} from the clip before
+              is used at the start instead of this fade.
+            </FadeNote>
+          ) : null}
+          {slider("pictureFadeOutMs", "Picture fade out")}
+          {overruled.out && next?.transition ? (
+            <FadeNote>
+              The {TRANSITION_NAME[next.transition.kind]} into the next clip is
+              used at the end instead of this fade.
+            </FadeNote>
+          ) : null}
+          <ShortenedFades
+            clip={clip}
+            fades={fitFadePair(
+              overruled.in ? 0 : clip.pictureFadeInMs,
+              overruled.out ? 0 : clip.pictureFadeOutMs,
+              clip.durationMs
+            )}
+            inMs={overruled.in ? undefined : clip.pictureFadeInMs}
+            outMs={overruled.out ? undefined : clip.pictureFadeOutMs}
+            what="picture fades"
+          />
+        </>
+      ) : null}
+    </InspectorCard>
+  )
+}
+
+function FadeNote({ children }: { children: React.ReactNode }) {
+  return <p className="text-sm text-muted-foreground">{children}</p>
+}
+
+/** Said only when two fades are too long for the clip between them. */
+function ShortenedFades({
+  clip,
+  fades,
+  inMs = 0,
+  outMs = 0,
+  what,
+}: {
+  clip: EditorClip
+  fades: FadePair
+  inMs?: number
+  outMs?: number
+  what: string
+}) {
+  if (!(inMs > 0 && outMs > 0) || inMs + outMs <= clip.durationMs) return null
+  const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`
+  return (
+    <FadeNote>
+      This clip runs {seconds(clip.durationMs)}, so the two {what} play as{" "}
+      {seconds(fades.inMs)} and {seconds(fades.outMs)}.
+    </FadeNote>
   )
 }
 

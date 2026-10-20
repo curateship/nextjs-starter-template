@@ -33,6 +33,8 @@ export type LinkDraft = {
   start: boolean
   /** Whether this link's screen stays loaded once opened. */
   stayLoaded: boolean
+  /** Whether this link also shows in "Pinned" at the top of the menu. */
+  pinned: boolean
 }
 
 const OPENS_LABELS: Record<LinkOpens, string> = {
@@ -44,8 +46,8 @@ export type PlaceChoice = { place: Place; label: string }
 
 /**
  * The form inside a link's pop-up: its name, the address of the screen it
- * opens, its icon, where it sits, where it opens, whether Personal opens on
- * it, and whether its screen stays loaded. The same form adds a link and edits
+ * opens, its icon, where it sits, where it opens, whether it is pinned,
+ * whether Personal opens on it, and whether its screen stays loaded. The same form adds a link and edits
  * one.
  */
 export function LinkEditor({
@@ -176,6 +178,19 @@ export function LinkEditor({
             </SelectContent>
           </Select>
         </div>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <FieldLabel
+          htmlFor={`${id}-pinned`}
+          hint="Also shows this link in Pinned at the top of the menu. It stays where it is too."
+        >
+          Pinned
+        </FieldLabel>
+        <Switch
+          id={`${id}-pinned`}
+          checked={draft.pinned}
+          onCheckedChange={(pinned) => setDraft({ ...draft, pinned })}
+        />
       </div>
       {/* A link that opens in its own tab never fills the panel, so it can't
           be the screen Personal opens on or the one that stays loaded. */}

@@ -6,7 +6,11 @@ Tyler asked for that line to go on 19 Oct 2026, and the sum behind it went
 with it. The Size column still shows each export's file size.
 
 Deleting an export, by hand or by clearing out, removes its file and its cover
-from storage, not just its line in the list.
+from storage, not just its line in the list. A kept carousel is an export like
+any other here: its ZIP is the file and its first slide is the cover. Kept
+carousels have their own dashboard, Carousel exports, with its own Clear out
+old (see [carousel-exports.md](carousel-exports.md)). Everything below holds
+on both pages, and each page only ever counts, lists or deletes its own kind.
 
 ## What a delete removes
 
@@ -17,6 +21,9 @@ from storage, not just its line in the list.
   it, then the project. The project's delete window says its exports go too.
   Before 24 Sep 2026 a project delete left its export files in storage with
   nothing pointing at them. Any file left that way is still there.
+- **Deleting a carousel:** removes nothing from the Exports page. Its kept
+  exports stay, file, cover and share link, and their rows say "Carousel
+  deleted". That is the opposite of a project, because the task asked for it.
 - **What is never removed:** pictures saved from an export with Save as a
   picture. Each one is a separate copy in your media library and stays until
   you delete it there.
@@ -38,7 +45,8 @@ from storage, not just its line in the list.
   deleted, the date they were finished before, and how much space that frees.
   "2 exports finished before Mar 24, 2026 go for good, file and cover, which
   frees 800 KB."
-- **Who counts:** the server, across all your exports. The list on the page
+- **Who counts:** the server, across all your exports of that page's kind:
+  video exports on Exports, carousel exports on Carousel exports. The list on the page
   only ever holds the first hundred, so it cannot do the sum.
 - **What is deleted:** exactly what was counted. The window sends back the date
   the count was made against, so an export that turns six months old while
@@ -65,6 +73,7 @@ from storage, not just its line in the list.
 The media library's orphan scan does not look at export files. It only reads
 files stored under a person's id, and export files are stored under
 `video/exports/` and `video/export-covers/`, so a leftover export file never
-shows up there. To check a delete, ask the bucket for the two keys the row
+shows up there. A video is `<id>.mp4` with a `.jpg` cover, and a kept carousel
+is `<id>.zip` with a `.png` cover. To check a delete, ask the bucket for the two keys the row
 held, `storage_path` and `thumbnail_storage_path`. Both should come back as
 not found.

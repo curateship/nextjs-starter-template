@@ -25,6 +25,7 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { INVITE_BATCH, inviteAddresses } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * Invites one person, or up to 20 pasted at once, by email. Each becomes an
@@ -33,6 +34,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * email went out; several show what happened to each address.
  */
 export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [text, setText] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
@@ -62,8 +64,8 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
       return
     }
     const ok = await run(async () => {
-      if (emails.length === 1) setSent({ email: emails[0], invite: await inviteToTeam({ email: emails[0] }) })
-      else setOutcomes(await inviteManyToTeam({ emails }))
+      if (emails.length === 1) setSent({ email: emails[0], invite: await inviteToTeam({ email: emails[0] }, teamId) })
+      else setOutcomes(await inviteManyToTeam({ emails }, teamId))
     })
     if (ok) await router.invalidate()
   }

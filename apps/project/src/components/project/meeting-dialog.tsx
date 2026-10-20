@@ -35,6 +35,7 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { MEETING_REPEAT_LABEL } from "@/lib/project/meetings"
 import { LIMITS, MEETING_REPEATS, type MeetingRepeat, type ProjectColor } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 type Draft = {
   title: string
@@ -114,6 +115,7 @@ export function MeetingDialog({
   teamZone: string
   onClose: () => void
 }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [draft, setDraft] = React.useState(() => draftOf(meeting, { day, color, myUserId }))
@@ -174,7 +176,7 @@ export function MeetingDialog({
       peopleIds: draft.peopleIds,
     }
     const ok = await run(
-      () => (meeting ? changeMeeting({ meetingId: meeting.id, meeting: input }) : makeMeeting(input)),
+      () => (meeting ? changeMeeting({ meetingId: meeting.id, meeting: input }, teamId) : makeMeeting(input, teamId)),
       meeting ? "Meeting saved." : "Meeting created."
     )
     if (!ok) return
@@ -378,7 +380,7 @@ export function MeetingDialog({
               destructive
               loading={busy}
               onConfirm={async () => {
-                const ok = await run(() => removeMeeting(meeting.id), "Meeting deleted.")
+                const ok = await run(() => removeMeeting(meeting.id, teamId), "Meeting deleted.")
                 if (!ok) return
                 setDeleting(false)
                 await router.invalidate()

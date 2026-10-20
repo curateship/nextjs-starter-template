@@ -1,8 +1,8 @@
-# Waveforms on sound clips
+# Waveforms on sound and video clips
 
-A sound clip on the timeline draws the real shape of its sound, so you can see
-where a sentence starts, where the pauses are and where a beat lands, and cut
-there without playing the clip again and again.
+Sound clips and video clips on the timeline draw the real shape of their sound,
+so you can see where a sentence starts, where the pauses are and where a beat
+lands, and cut there without playing the clip again and again.
 
 ## What you see
 
@@ -21,6 +21,23 @@ there without playing the clip again and again.
   as readable as a loud song. The drawing shows where the sound is, not how loud
   the file is, and the clip's volume slider does not change it.
 
+## On a video clip
+
+A video clip keeps its picture frames and draws the shape in a thin strip along
+its bottom third, over the frames. Tyler chose that on 18 Oct 2026, so the
+frames still say which shot it is and the strip says where the talking is.
+
+- **The strip:** a dark band a third of the clip's height, with the shape in a
+  lighter green on it, so it reads over a bright or a dark picture.
+- **Sound switched off:** a clip whose sound is muted, whose volume is at 0, or
+  whose lane is muted draws the strip faded, at 40 out of 100 strength. The
+  shape stays visible, because a muted clip is often one where you still want
+  to cut on the words.
+- **Before the shape is ready:** a video clip draws no strip at all, rather
+  than the made-up pattern sound clips show. A made-up pattern over real
+  frames would look like real sound.
+- **A video with no sound:** no strip.
+
 ## Trimming and speed
 
 The whole file's shape is drawn at its full length, then slid left by the part
@@ -30,7 +47,8 @@ The shape is never squashed to fit the clip.
 
 A clip playing at 2x packs its shape into half the width, the same way the clip
 itself gets half as long. `waveformPlacement` in `src/lib/video/waveforms.ts`
-holds the sum.
+holds the sum. Video clips use the same sum, so splitting, trimming and
+changing speed keep a video's strip lined up with its sound the same way.
 
 ## How the shape is made
 
@@ -79,13 +97,11 @@ owner of the file.
 - **Failed:** it answers 404, and the clip keeps the made-up pattern.
 
 The browser turns the points into one SVG outline per file and keeps the last
-50 in memory. Every clip cut from the same file shares that outline.
+50 in memory. Every clip cut from the same file shares that outline, whether it
+is a sound clip or a video clip.
 
 ## Limits worth knowing
 
-- **Video clips do not draw it yet.** Videos get a waveform built, but a video
-  clip still shows its frame strip. The points are there for a video clip's
-  sound whenever it is wanted.
 - **Very long files:** the worker decodes the sound to a temporary file of
   about 1MB a minute before counting the points. A two-hour video is about
   115MB of temporary file, deleted when the job ends.

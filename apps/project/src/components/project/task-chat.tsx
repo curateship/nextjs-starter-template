@@ -61,6 +61,7 @@ import { useOpenPerson } from "@/lib/project/person-pages"
 import { LIMITS, REACTIONS, REACTION_LOOK, type ChatPlace, type Reaction } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
+import { useTeamId } from "@/lib/project/team-scope"
 
 export type ChatPerson = { id: string; name: string; avatarUrl: string }
 
@@ -274,10 +275,14 @@ export function ChatThread({
 /** The # list's lookups, the same for every box. */
 function useTaskLinking(onPick: (task: LinkChoice) => void): TaskLinking {
   const latest = React.useRef(onPick)
+  const teamId = useTeamId()
   React.useEffect(() => {
     latest.current = onPick
   })
-  return React.useMemo(() => ({ find: findLinkableTasks, onPick: (task) => latest.current(task) }), [])
+  return React.useMemo(
+    () => ({ find: (q: string) => findLinkableTasks(q, teamId), onPick: (task) => latest.current(task) }),
+    [teamId]
+  )
 }
 
 function Composer({

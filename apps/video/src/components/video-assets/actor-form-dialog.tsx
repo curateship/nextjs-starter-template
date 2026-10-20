@@ -2,6 +2,8 @@ import * as React from "react"
 import { Loader2Icon, SparklesIcon } from "lucide-react"
 
 import { ImageUpload } from "@/components/shared/image-upload"
+import { ActorSheetCard } from "@/components/video-assets/actor-sheet-card"
+import { TagInput } from "@/components/video-assets/tag-input"
 import { ProjectLookSelect } from "@/components/video-assets/project-look-select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,7 +36,10 @@ import {
 } from "@/lib/api/video/actors"
 import type { ProjectItem } from "@/lib/api/video/projects"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import type { ImageModelId } from "@/lib/video/asset-factories"
+import {
+  normalizeAssetTags,
+  type ImageModelId,
+} from "@/lib/video/asset-factories"
 
 type FormState = {
   name: string
@@ -47,15 +52,7 @@ type FormState = {
   lookProjectId: string
 }
 
-/**
- * Whose look a new picture is made in. The Actors dashboard offers every
- * project; the editor's AI clip panel makes the actor for the project that is
- * open, so it is not asked.
- */
-export type ActorLook = { projects: ProjectItem[] } | { projectId: string }
-
-function startingForm(actor: ActorItem | null, look: ActorLook): FormState {
-  const lookProjectId = "projectId" in look ? look.projectId : ""
+function startingForm(actor: ActorItem | null): FormState {
   if (!actor) {
     return {
       name: "",
@@ -64,7 +61,7 @@ function startingForm(actor: ActorItem | null, look: ActorLook): FormState {
       status: "active",
       tags: "",
       referenceMediaUrl: "",
-      lookProjectId,
+      lookProjectId: "",
     }
   }
   return {
@@ -74,31 +71,38 @@ function startingForm(actor: ActorItem | null, look: ActorLook): FormState {
     status: actor.status,
     tags: actor.tags.join(", "),
     referenceMediaUrl: actor.reference_media_url ?? "",
-    lookProjectId,
+    lookProjectId: "",
   }
 }
 
 /**
- * Making or editing an actor. Shared by the Actors dashboard and the AI clip
- * panel, so an actor made in either place is made the same way.
+ * Making or editing an actor on the Actors dashboard. The editor's AI clip
+ * panel makes one from its own smaller box (`ai-clip-new-actor.tsx`).
  */
 export function ActorFormDialog({
   open,
   actor,
-  look,
+  projects,
   onClose,
   onSaved,
+  onSheetChanged,
 }: {
   open: boolean
   /** Null makes a new actor. */
   actor: ActorItem | null
-  look: ActorLook
+  /** The projects whose look a new picture can be made in. */
+  projects: ProjectItem[]
   onClose: () => void
   /** Handed the saved actor and whether its picture was made again. */
   onSaved: (actor: ActorItem, reposed: boolean) => void
+  /**
+   * Handed the actor after a change to its character sheet, which saves on
+   * its own. Only an actor being edited has a sheet to change.
+   */
+  onSheetChanged?: (actor: ActorItem) => void
 }) {
   const [form, setForm] = React.useState<FormState>(() =>
-    startingForm(actor, look)
+    startingForm(actor)
   )
   const [busy, setBusy] = React.useState(false)
   const [regenerate, setRegenerate] = React.useState(false)
@@ -108,13 +112,13 @@ export function ActorFormDialog({
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
-      setForm(startingForm(actor, look))
+      setForm(startingForm(actor))
       setRegenerate(false)
     }
   }
 
   const dirty =
-    JSON.stringify(form) !== JSON.stringify(startingForm(actor, look))
+    JSON.stringify(form) !== JSON.stringify(startingForm(actor))
 
   async function submit(shouldRegenerate: boolean) {
     if (!form.name.trim() || !form.prompt.trim()) {
@@ -171,36 +175,45 @@ export function ActorFormDialog({
                 />
               </CardContent>
             </Card>
+            {actor && onSheetChanged ? (
+              <ActorSheetCard actor={actor} onChange={onSheetChanged} />
+            ) : null}
             <Card size="sm">
               <CardHeader><CardTitle>Generation</CardTitle></CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="actor-model">Model</Label>
-                  <Select value={form.model} onValueChange={(model) => setForm({ ...form, model: model as ImageModelId })}>
-                    <SelectTrigger id="actor-model"><SelectValue /></SelectTrigger>
-                    <SelectContent>{IMAGE_MODELS.map((model) => <SelectItem key={model.id} value={model.id}>{model.label}</SelectItem>)}</SelectContent>
-                  </Select>
+              <CardContent className="grid gap-4">
+                <div className="flex flex-wrap gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="actor-model">Model</Label>
+                    <Select value={form.model} onValueChange={(model) => setForm({ ...form, model: model as ImageModelId })}>
+                      <SelectTrigger id="actor-model"><SelectValue /></SelectTrigger>
+                      <SelectContent>{IMAGE_MODELS.map((model) => <SelectItem key={model.id} value={model.id}>{model.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="actor-status">Status</Label>
+                    <Select value={form.status} onValueChange={(status) => setForm({ ...form, status: status as FormState["status"] })}>
+                      <SelectTrigger id="actor-status"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="actor-status">Status</Label>
-                  <Select value={form.status} onValueChange={(status) => setForm({ ...form, status: status as FormState["status"] })}>
-                    <SelectTrigger id="actor-status"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2 sm:col-span-2">
                   <Label htmlFor="actor-tags">Tags</Label>
-                  <Input id="actor-tags" value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="host, product, casual" />
-                </div>
-                {"projects" in look ? (
-                  <ProjectLookSelect
-                    id="actor-look"
-                    projects={look.projects}
-                    value={form.lookProjectId}
-                    onChange={(lookProjectId) => setForm({ ...form, lookProjectId })}
+                  <TagInput
+                    id="actor-tags"
+                    value={normalizeAssetTags(form.tags)}
+                    onChange={(tags) => setForm({ ...form, tags: tags.join(", ") })}
+                    placeholder="Type a tag and press Enter"
                     disabled={busy}
                   />
-                ) : null}
+                </div>
+                <ProjectLookSelect
+                  id="actor-look"
+                  projects={projects}
+                  value={form.lookProjectId}
+                  onChange={(lookProjectId) => setForm({ ...form, lookProjectId })}
+                  disabled={busy}
+                />
               </CardContent>
             </Card>
           </DialogBody>

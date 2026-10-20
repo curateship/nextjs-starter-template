@@ -1,0 +1,216 @@
+import { AI_MODEL_PRICES, AI_UNIT_PRICES } from "@/lib/ai/ai-models"
+import {
+  TRANSCRIBERS,
+  WRITERS,
+  type TranscriberId,
+  type WriterId,
+} from "@/lib/video/ai-choices"
+import { formatCheckCost } from "@/lib/video/script-check"
+import { planTranscriptPieces } from "@/lib/video/transcripts"
+
+/**
+ * What an AI tool will cost before it is pressed, in cents to a fraction of a
+ * cent, worked out from the shell's price list (`src/lib/ai/ai-models.ts`).
+ *
+ * Every figure is what the meter will record for the same run, not a quote
+ * from the provider's bill: the meter is what the AI usage page and a
+ * project's spend limit read. The pattern is `scriptCheckCostCents` in
+ * `script-check.ts`.
+ *
+ * The counts below that are not prices are estimates of how much text a tool
+ * sends and gets back. Each one says where it came from.
+ */
+
+/** Gemini counts a second of sound as 32 tokens (Google's own figure). */
+const GEMINI_AUDIO_TOKENS_PER_SECOND = 32
+
+/** The written instructions sent with each piece of sound, in tokens. */
+const TRANSCRIBE_PROMPT_TOKENS = 250
+
+/**
+ * What Gemini answers per minute of talking. A minute is about 160 words, and
+ * each comes back as `{ "text": "...", "startMs": ..., "endMs": ... }`, about
+ * 12 tokens.
+ */
+const GEMINI_WORDS_TOKENS_PER_MINUTE = 160 * 12
+
+/** About this many characters are said in a minute of talking. */
+const CHARACTERS_PER_MINUTE_OF_TALK = 900
+
+/** A token is about four characters of English. */
+const CHARACTERS_PER_TOKEN = 4
+
+function tokenCostCents(model: string, inputTokens: number, outputTokens: number) {
+  const price = AI_MODEL_PRICES[model]
+  if (!price) return 0
+  return (
+    ((inputTokens * price.inputPerMillion +
+      outputTokens * price.outputPerMillion) /
+      1_000_000) *
+    100
+  )
+}
+
+function unitCostCents(model: string, units: number) {
+  const price = AI_UNIT_PRICES[model]
+  if (!price || !Number.isFinite(units) || units <= 0) return 0
+  return units * price.dollarsPerUnit * 100
+}
+
+/**
+ * Writing down this much of a file's sound.
+ *
+ * Whisper is the price list's rate per minute, overlap included, since that is
+ * what it listens to. Gemini is the sound's tokens in plus the words out.
+ */
+export function transcribeCostCents(id: TranscriberId, soundMs: number) {
+  if (!Number.isFinite(soundMs) || soundMs <= 0) return 0
+  const pieces = planTranscriptPieces(soundMs)
+  const heardMs = pieces.reduce((sum, piece) => sum + piece.durationMs, 0)
+  const transcriber = TRANSCRIBERS.find((one) => one.id === id)
+  if (!transcriber) return 0
+  if (transcriber.id === "openai") {
+    return unitCostCents(transcriber.model, heardMs / 60_000)
+  }
+  const inputTokens =
+    (heardMs / 1000) * GEMINI_AUDIO_TOKENS_PER_SECOND +
+    pieces.length * TRANSCRIBE_PROMPT_TOKENS
+  const outputTokens = (heardMs / 60_000) * GEMINI_WORDS_TOKENS_PER_MINUTE
+  return tokenCostCents(transcriber.model, inputTokens, outputTokens)
+}
+
+/** Nothing to write down when the file's words are already saved. */
+export function captionsCostCents({
+  transcriber,
+  fileSoundMs,
+  saved,
+}: {
+  transcriber: TranscriberId
+  /** The whole file's sound, which is what the first run writes down. */
+  fileSoundMs: number
+  saved: boolean
+}) {
+  return saved ? 0 : transcribeCostCents(transcriber, fileSoundMs)
+}
+
+/**
+ * The Hook prompt's own wording is about this long, before the line itself
+ * goes in (`hookPrompt` in `src/server/video/hooks.ts`).
+ */
+const HOOK_PROMPT_CHARACTERS = 800
+
+/**
+ * What each writer answers a hook with, thinking included. Three lines are
+ * about 60 tokens; the rest is the thinking GPT and Claude are billed for.
+ *
+ * GPT's figure is measured: a hook on 19 Oct 2026 came back at 863 tokens
+ * out. Gemini's and Claude's are estimates until one is run.
+ */
+const HOOK_ANSWER_TOKENS: Record<WriterId, number> = {
+  gemini: 150,
+  openai: 900,
+  anthropic: 700,
+}
+
+/**
+ * Three other opening lines. When nothing is written on screen, the opening
+ * seconds are written down first, unless the file's words are saved.
+ */
+export function hookCostCents({
+  writer,
+  lineCharacters,
+  listen,
+}: {
+  writer: WriterId
+  lineCharacters: number
+  /** The spoken opening to write down first, when there is no text on screen. */
+  listen?: { transcriber: TranscriberId; soundMs: number; saved: boolean }
+}) {
+  const model = WRITERS.find((one) => one.id === writer)?.model
+  if (!model) return 0
+  const writing = tokenCostCents(
+    model,
+    (HOOK_PROMPT_CHARACTERS + lineCharacters) / CHARACTERS_PER_TOKEN,
+    HOOK_ANSWER_TOKENS[writer]
+  )
+  const listening =
+    listen && !listen.saved
+      ? transcribeCostCents(listen.transcriber, listen.soundMs)
+      : 0
+  return writing + listening
+}
+
+/** Reading these many characters aloud with this voice model. */
+export function voiceCostCents(model: string, characters: number) {
+  return unitCostCents(model, characters)
+}
+
+/** The translation prompt's own wording, before the lines go in. */
+const TRANSLATE_PROMPT_CHARACTERS = 850
+
+/**
+ * Thinking each writer is billed for on top of the translated lines.
+ *
+ * GPT's figure is measured twice: 13 seconds of talking came back at about
+ * 1,000 tokens out, and eight one-word lines on 19 Oct 2026 at 615. Gemini's
+ * and Claude's are estimates until one is run.
+ */
+const TRANSLATE_THINKING_TOKENS: Record<WriterId, number> = {
+  gemini: 0,
+  openai: 800,
+  anthropic: 600,
+}
+
+/**
+ * Another language: writing the talking down, unless its words are saved or
+ * already in the window, then translating every line. The voice is its own
+ * press with its own price (`voiceCostCents`).
+ */
+export function translateCostCents({
+  writer,
+  linesCharacters,
+  talkMs,
+  listen,
+}: {
+  writer: WriterId
+  /** The caption lines' characters, once they are known. */
+  linesCharacters?: number
+  /** How long the talking runs, for guessing the lines before they exist. */
+  talkMs: number
+  /** Writing the file down first, when it is not in the window yet. */
+  listen?: { transcriber: TranscriberId; fileSoundMs: number; saved: boolean }
+}) {
+  const model = WRITERS.find((one) => one.id === writer)?.model
+  if (!model) return 0
+  const characters =
+    linesCharacters ??
+    (Math.max(0, talkMs) / 60_000) * CHARACTERS_PER_MINUTE_OF_TALK
+  // Sent as a JSON list, so each line gains its quotes and comma. Another
+  // language usually takes a few more tokens to say the same thing.
+  const inputTokens =
+    (TRANSLATE_PROMPT_CHARACTERS + characters * 1.15) / CHARACTERS_PER_TOKEN
+  const outputTokens =
+    (characters * 1.15 * 1.2) / CHARACTERS_PER_TOKEN +
+    TRANSLATE_THINKING_TOKENS[writer]
+  const translating = tokenCostCents(model, inputTokens, outputTokens)
+  const listening =
+    listen && !listen.saved
+      ? transcribeCostCents(listen.transcriber, listen.fileSoundMs)
+      : 0
+  return translating + listening
+}
+
+/**
+ * What a button says after its label: "no charge" for nothing at all,
+ * otherwise `formatCheckCost`'s "about 4¢", and dollars from a dollar up.
+ */
+export function formatAiEstimate(cents: number) {
+  if (!Number.isFinite(cents) || cents <= 0) return "no charge"
+  if (cents >= 100) return `about $${(cents / 100).toFixed(2)}`
+  return formatCheckCost(cents)
+}
+
+/** "Write them · about 4¢", or the label alone when there is no estimate. */
+export function withEstimate(label: string, cents: number | null) {
+  return cents === null ? label : `${label} · ${formatAiEstimate(cents)}`
+}

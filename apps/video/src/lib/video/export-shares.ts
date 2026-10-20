@@ -40,6 +40,11 @@ export function sharedFileUrl(token: string) {
   return `/api/v1/video/share/${token}/file`
 }
 
+/** One slide of a shared carousel, counted from 0. */
+export function sharedSlideUrl(token: string, index: number) {
+  return `${sharedFileUrl(token)}?slide=${index}`
+}
+
 /** What the owner sees about an export's link. */
 export type ExportShareSummary = {
   token: string
@@ -51,7 +56,12 @@ export type ExportShareSummary = {
 
 /** Everything the public page is told about a shared export. */
 export type SharedExportView = {
+  kind: "video" | "carousel"
   title: string | null
   width: number | null
   height: number | null
+  /** A carousel's slides; 0 for a video. */
+  slide_count: number
+  /** A carousel's caption as exported. Always null for a video. */
+  caption: string | null
 }

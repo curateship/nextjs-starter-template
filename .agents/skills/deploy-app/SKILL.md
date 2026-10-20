@@ -238,6 +238,11 @@ registrar, change the domain's nameservers to the two Cloudflare ones I give
 him. A subdomain of a domain already on Cloudflare, such as
 `<app>.barelycompany.com`, needs no sitting at all.
 
+Only if the API refused the build stage (my step 9), add to that sitting: in
+Coolify → project `<App>` → `<App> Web` → Configuration → Build, set **Docker
+Build Stage Target** to `web` and press Save, then the same on `<App> Worker`
+with `worker`. For Course and Fitness on 19 Oct 2026 the API took it.
+
 **After it is live** (2 minutes): sign in with the admin account I made. The
 AI keys are already there, written by me straight after the first deploy.
 
@@ -295,9 +300,10 @@ AI keys are already there, written by me straight after the first deploy.
      anyway, so `PATCH` its `domains` to `""`.
    - **The build stage:** `PATCH /applications/{uuid}` with
      `dockerfile_target_build` `web` on the website and `worker` on the
-     worker, then read it back. Coolify accepted it on 19 Oct 2026 for
-     Fitness. Without it, Docker builds the last stage in the file, the
-     worker, on both.
+     worker, then read it back. That worked for Course and Fitness on 19 Oct
+     2026. Earlier launches saw the API refuse it, and only then does it go
+     in Tyler's sitting 1. Without it, Docker builds the last stage in the
+     file, the worker, on both.
 10. **Variables.** `POST /applications/{uuid}/envs`, one per value, with
     `is_preview: false` and `is_literal: true`.
     - **Build-time** (`is_buildtime: true`): only `APP`, plus `WORKER_PACKAGES`
@@ -362,6 +368,13 @@ AI keys are already there, written by me straight after the first deploy.
 - **Querying Cloudflare's nameservers directly from this laptop returned
   nothing** even while the records were live. Trust Resend's verify call or
   `1.1.1.1`.
+- **The deploy's health check can fail on a brand-new address while the site
+  is up.** Project, 19 Oct 2026: every try said "fetch failed" because this
+  Mac had looked the name up before the A record existed and kept the "no such
+  address" answer. `curl --resolve <host>:443:<ip from dig @1.1.1.1>` answered
+  `{"status":"ok"}`. Playwright gets past it with
+  `--host-resolver-rules=MAP <host> <ip>`. Run the steps the script skipped
+  after the failed check (admin, AI keys, menu) by hand.
 - **Trade's variables are all build-time.** Do not copy that setup.
 - **Cloudflare imports the registrar's parking and email-forwarding records.**
   Replace A and www at deploy time, and ask Tyler whether the forwarding still

@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { sql } from "drizzle-orm"
 
-import { findCurrentUser } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { getOwnedMedia } from "@/server/media/library"
 import { kickVideoMediaWorker } from "@/server/video/media-workers"
 import { streamPrivateR2Object } from "@/server/video/r2-response"
+import { mediaViewerId } from "@/server/video/project-guests"
 
 /**
  * The tiled frame sprite for one video. While the strip is still being built
@@ -20,15 +20,16 @@ export const Route = createFileRoute("/api/v1/video/media/$mediaId/filmstrip")({
   server: {
     handlers: {
       GET: async ({ params }) => {
-        const user = await findCurrentUser()
-        if (!user) {
+        // A guest sent from Project is answered for their own project's files.
+        const viewerId = await mediaViewerId(params.mediaId)
+        if (!viewerId) {
           return Response.json(
             { detail: "Missing Custom Shell session" },
             { status: 401 }
           )
         }
 
-        const media = await getOwnedMedia(user.id, params.mediaId).catch(
+        const media = await getOwnedMedia(viewerId, params.mediaId).catch(
           () => null
         )
         if (!media) {

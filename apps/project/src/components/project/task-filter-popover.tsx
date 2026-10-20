@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Switch } from "@/components/ui/switch"
 import type { Label as TaskLabel } from "@/lib/api/project/sorting"
 import {
   TASK_PRIORITIES,
@@ -20,7 +19,8 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/project/rules"
-import type { TaskFilters } from "@/lib/project/task-filters"
+import { DUE_FILTERS, type DueFilter, type TaskFilters } from "@/lib/project/task-filters"
+import { TASK_GROUPING_LABEL, type TaskGrouping } from "@/lib/project/task-groups"
 import type { TaskType } from "@/lib/project/task-types"
 
 const ALL = "all"
@@ -30,6 +30,7 @@ const NO_TASK_FILTERS: Partial<TaskFilters> = {
   q: undefined,
   status: undefined,
   priority: undefined,
+  due: undefined,
   label: undefined,
   type: undefined,
   client: undefined,
@@ -37,12 +38,16 @@ const NO_TASK_FILTERS: Partial<TaskFilters> = {
 
 /**
  * The project page's filters behind one Filter button, as Tyler drew them on
- * 13 Oct 2026: a row each for Status, Priority, Label and Type, the
- * Board's "Group by person" switch, then Clear and Save as view. The button
+ * 13 Oct 2026: a row each for Status, Priority, Due, Tags and Type, then
+ * Group (Tyler, 19 Oct 2026: "add a new row called 'Group' like notion"),
+ * which took the Board's "Group by person" switch in, then Clear and Save as
+ * view. Clear leaves Group alone, since it arranges the tasks rather than
+ * hiding any. The button
  * counts the filters set. Where the panel is too narrow for the header's
- * search box, the search is the popover's first row instead. Who the task
- * is for and when it is due are dropdowns of their own in the project page's
- * header (Tyler, 14 Oct 2026), so Clear leaves them alone. My dashboard adds
+ * search box, the search is the popover's first row instead. Due was a
+ * dropdown of its own in the header until Tyler moved it in here on 19 Oct
+ * 2026. Who the task is for is still a dropdown of its own in the project
+ * page's header (Tyler, 14 Oct 2026), so Clear leaves it alone. My dashboard adds
  * a Client row (Features 16 Oct, part 9), since its tasks come from many
  * projects.
  */
@@ -52,7 +57,7 @@ export function TaskFilterPopover({
   labels,
   types,
   search,
-  groupByPerson,
+  group,
   extra,
   onSaveView,
   clients,
@@ -65,8 +70,12 @@ export function TaskFilterPopover({
   types: TaskType[]
   /** Draw the search box inside, where the header has no room for its own. */
   search?: boolean
-  /** The Board's switch. Left out on the other tabs. */
-  groupByPerson?: { on: boolean; onChange: (on: boolean) => void }
+  /** What the tab groups by and its choices; left out where a tab has no groups. */
+  group?: {
+    value: TaskGrouping
+    options: readonly TaskGrouping[]
+    onChange: (next: TaskGrouping) => void
+  }
   /** More controls under the switch, such as the List's Columns menu. */
   extra?: React.ReactNode
   onSaveView: () => void
@@ -75,7 +84,7 @@ export function TaskFilterPopover({
   /** Ghost in the project page's header, where every control is. */
   buttonVariant?: "outline" | "ghost"
 }) {
-  const count = [filters.status, filters.priority, filters.label, filters.type, clients && filters.client].filter(
+  const count = [filters.status, filters.priority, filters.due, filters.label, filters.type, clients && filters.client].filter(
     Boolean
   ).length
 
@@ -101,108 +110,33 @@ export function TaskFilterPopover({
             onChange={(event) => onChange({ q: event.target.value || undefined })}
           />
         ) : null}
-        <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
-          <FilterRow id="filter-status" label="Status">
-            <Select
-              value={filters.status ?? ALL}
-              onValueChange={(value) => onChange({ status: value === ALL ? undefined : (value as TaskStatus) })}
-            >
-              <SelectTrigger id="filter-status" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Any status</SelectItem>
-                {TASK_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {TASK_STATUS_LABEL[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterRow>
-          <FilterRow id="filter-priority" label="Priority">
-            <Select
-              value={filters.priority ?? ALL}
-              onValueChange={(value) =>
-                onChange({ priority: value === ALL ? undefined : (value as TaskPriority) })
-              }
-            >
-              <SelectTrigger id="filter-priority" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Any priority</SelectItem>
-                {TASK_PRIORITIES.map((priority) => (
-                  <SelectItem key={priority} value={priority}>
-                    {TASK_PRIORITY_LABEL[priority]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterRow>
-          <FilterRow id="filter-label" label="Label">
-            <Select
-              value={filters.label ?? ALL}
-              onValueChange={(value) => onChange({ label: value === ALL ? undefined : value })}
-            >
-              <SelectTrigger id="filter-label" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Any label</SelectItem>
-                {labels.map((label) => (
-                  <SelectItem key={label.id} value={label.id}>
-                    <ProjectDot color={label.color} />
-                    {label.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterRow>
-          <FilterRow id="filter-type" label="Type">
-            <Select
-              value={filters.type ?? ALL}
-              onValueChange={(value) => onChange({ type: value === ALL ? undefined : value })}
-            >
-              <SelectTrigger id="filter-type" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Any type</SelectItem>
-                {types.map((type) => (
-                  <SelectItem key={type.id} value={type.id}>
-                    <TypeIconGlyph icon={type.icon} color={type.color} />
-                    {type.name}
-                    {type.archived ? <span className="text-muted-foreground"> (archived)</span> : null}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterRow>
-          {clients ? (
-            <FilterRow id="filter-client" label="Client">
-              <ClientFilterSelect
-                id="filter-client"
-                value={filters.client}
-                clients={clients}
-                onChange={(client) => onChange({ client })}
-              />
-            </FilterRow>
-          ) : null}
-        </div>
-        {groupByPerson || extra ? (
+        <TaskFilterFields
+          idPrefix="filter"
+          filters={filters}
+          onChange={onChange}
+          labels={labels}
+          types={types}
+          clients={clients}
+        />
+        {group || extra ? (
           <>
             <Separator className="-mx-3 w-auto" />
-            {groupByPerson ? (
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="board-group-by-person" className="font-normal">
-                  Group by person
-                </Label>
-                <Switch
-                  id="board-group-by-person"
-                  checked={groupByPerson.on}
-                  onCheckedChange={groupByPerson.onChange}
-                />
+            {group ? (
+              <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3">
+                <FilterRow id="filter-group" label="Group">
+                  <Select value={group.value} onValueChange={(value) => group.onChange(value as TaskGrouping)}>
+                    <SelectTrigger id="filter-group" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {group.options.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {TASK_GROUPING_LABEL[option]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FilterRow>
               </div>
             ) : null}
             {extra}
@@ -222,7 +156,144 @@ export function TaskFilterPopover({
   )
 }
 
-function FilterRow({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+/**
+ * The filter rows, label beside choice: Status, Priority, Due, Tags and Type,
+ * and Client where `clients` is given. The Filter popover and the Edit view
+ * window both draw these, so a view is edited with the same choices it was
+ * made with.
+ */
+export function TaskFilterFields({
+  idPrefix,
+  filters,
+  onChange,
+  labels,
+  types,
+  clients,
+  children,
+}: {
+  /** Starts each row's id, so two sets on one page never share one. */
+  idPrefix: string
+  filters: TaskFilters
+  onChange: (patch: Partial<TaskFilters>) => void
+  labels: TaskLabel[]
+  types: TaskType[]
+  clients?: readonly string[]
+  /** More rows after Type and Client, such as the Edit view window's Assigned to. */
+  children?: React.ReactNode
+}) {
+  return (
+    <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
+      <FilterRow id={`${idPrefix}-status`} label="Status">
+        <Select
+          value={filters.status ?? ALL}
+          onValueChange={(value) => onChange({ status: value === ALL ? undefined : (value as TaskStatus) })}
+        >
+          <SelectTrigger id={`${idPrefix}-status`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any status</SelectItem>
+            {TASK_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {TASK_STATUS_LABEL[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-priority`} label="Priority">
+        <Select
+          value={filters.priority ?? ALL}
+          onValueChange={(value) =>
+            onChange({ priority: value === ALL ? undefined : (value as TaskPriority) })
+          }
+        >
+          <SelectTrigger id={`${idPrefix}-priority`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any priority</SelectItem>
+            {TASK_PRIORITIES.map((priority) => (
+              <SelectItem key={priority} value={priority}>
+                {TASK_PRIORITY_LABEL[priority]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-due`} label="Due">
+        <Select
+          value={filters.due ?? ALL}
+          onValueChange={(value) => onChange({ due: value === ALL ? undefined : (value as DueFilter) })}
+        >
+          <SelectTrigger id={`${idPrefix}-due`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any time</SelectItem>
+            {DUE_FILTERS.map((option) => (
+              <SelectItem key={option.key} value={option.key}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-label`} label="Tags">
+        <Select
+          value={filters.label ?? ALL}
+          onValueChange={(value) => onChange({ label: value === ALL ? undefined : value })}
+        >
+          <SelectTrigger id={`${idPrefix}-label`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any tag</SelectItem>
+            {labels.map((label) => (
+              <SelectItem key={label.id} value={label.id}>
+                <ProjectDot color={label.color} />
+                {label.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-type`} label="Type">
+        <Select
+          value={filters.type ?? ALL}
+          onValueChange={(value) => onChange({ type: value === ALL ? undefined : value })}
+        >
+          <SelectTrigger id={`${idPrefix}-type`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any type</SelectItem>
+            {types.map((type) => (
+              <SelectItem key={type.id} value={type.id}>
+                <TypeIconGlyph icon={type.icon} color={type.color} />
+                {type.name}
+                {type.archived ? <span className="text-muted-foreground"> (archived)</span> : null}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      {clients ? (
+        <FilterRow id={`${idPrefix}-client`} label="Client">
+          <ClientFilterSelect
+            id={`${idPrefix}-client`}
+            value={filters.client}
+            clients={clients}
+            onChange={(client) => onChange({ client })}
+          />
+        </FilterRow>
+      ) : null}
+      {children}
+    </div>
+  )
+}
+
+export function FilterRow({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
   return (
     <>
       <Label htmlFor={id} className="font-normal text-muted-foreground">

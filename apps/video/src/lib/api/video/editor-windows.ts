@@ -5,7 +5,8 @@ import {
   EDITOR_WINDOW_MODES,
   type EditorWindowMode,
 } from "@/lib/video/editor-windows"
-import { userPost } from "@/server/guards"
+import { editorPost } from "@/server/video/editor-guards"
+import { actorFor } from "@/server/video/project-guests"
 import {
   checkInEditorWindow,
   leaveEditorWindow,
@@ -21,12 +22,15 @@ const windowSchema = z.object({
   windowId: z.string().uuid(),
 })
 
+// A guest sent from Project's editor window counts like any other
+// (`workspace/docs/project-guests.md`).
 const checkInFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(windowSchema.extend({ mode: z.enum(EDITOR_WINDOW_MODES) }))
   .handler(async ({ data, context }) => {
+    const { userId } = await actorFor(context.caller, data.projectId)
     return checkInEditorWindow(
-      context.user.id,
+      userId,
       data.projectId,
       data.windowId,
       data.mode
@@ -34,10 +38,11 @@ const checkInFn = createServerFn({ method: "POST" })
   })
 
 const leaveFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(windowSchema)
   .handler(async ({ data, context }) => {
-    await leaveEditorWindow(context.user.id, data.projectId, data.windowId)
+    const { userId } = await actorFor(context.caller, data.projectId)
+    await leaveEditorWindow(userId, data.projectId, data.windowId)
   })
 
 export function reportEditorWindowOpen(

@@ -35,6 +35,7 @@ import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { LIMITS, WEEK_DAYS } from "@/lib/project/rules"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 /**
  * The team's name, check-in time, time zone, work days, check-in boxes,
@@ -116,6 +117,7 @@ function TeamSettingsFields({
   track: (work: () => Promise<unknown>) => Promise<boolean>
   busy: boolean
 }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [name, setName] = useSyncedDraft(team.name)
   const [checkinTime, setCheckinTime] = useSyncedDraft(team.checkinTime)
@@ -123,7 +125,7 @@ function TeamSettingsFields({
   const [timeInvalid, setTimeInvalid] = React.useState(false)
 
   async function save(patch: Parameters<typeof updateProjectTeam>[0]) {
-    const ok = await track(() => updateProjectTeam(patch))
+    const ok = await track(() => updateProjectTeam(patch, teamId))
     if (ok) await router.invalidate()
   }
 

@@ -11,16 +11,23 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { LIMITS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
+const subscribeNever = () => () => {}
+
 /**
  * Starts a team: its name and time zone, shared by the "Start a team" card
- * and the picker's New team window. The site admin runs it without being on
- * it, and the team picker moves to it.
+ * and the Teams dashboard's New team window. The site admin runs it without
+ * being on it.
  */
 export function useCreateTeam(onDone?: () => void) {
   const router = useRouter()
   const [name, setName] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
-  const [timeZone, setTimeZone] = React.useState(browserTimeZone)
+  // The server has no visitor's zone, so the box reads UTC there and while the
+  // page wakes up, then the browser's own zone. Reading the browser's zone
+  // straight away made the server's HTML and the browser's differ (React 418).
+  const ownZone = React.useSyncExternalStore(subscribeNever, browserTimeZone, () => "UTC")
+  const [pickedZone, setTimeZone] = React.useState<string | null>(null)
+  const timeZone = pickedZone ?? ownZone
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
 
   async function create(event?: React.FormEvent) {

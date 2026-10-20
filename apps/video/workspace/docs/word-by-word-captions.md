@@ -7,7 +7,9 @@ someone picks another. It is off unless someone switches it on.
 ## Where it is switched on
 
 - **The Captions window** in the AI tools panel has "Light up each word as it is
-  said" and "Spoken word colour". The switch starts off every time the window
+  said" and "Spoken word colour". Its button says what the run costs, for
+  example "Write them · about 2¢", or "no charge" when the recording is
+  already written down ([price-before-you-press.md](price-before-you-press.md)). The switch starts off every time the window
   opens and is for that one run. The small sample colours its middle word to
   show the look.
 - **The Voice window** has no switch of its own. Its captions start unlit.
@@ -36,15 +38,20 @@ now it threw that away after cutting the words into lines.
 | Who wrote the captions | How good the times are |
 | --- | --- |
 | Whisper (OpenAI key) | Measured against the sound, word by word |
-| Gemini | Gemini's estimates, asked for in the same call as the lines |
+| Gemini | Gemini's estimates, one for every word it writes down |
 | ElevenLabs voice | Measured, from where every letter falls in the sound it made |
 | OpenAI voice | None come back, so each line's time is shared out evenly |
 
 - **Punctuation sent as a word of its own** is joined onto the word before it,
   the same way the line's text already joins it. "well" and "," become "well,".
 - **When the times do not match the line word for word,** the line's time is
-  shared out evenly across its words instead. That happens when Gemini's word
-  list and its line disagree. It is a guess, but a guess on the right words.
+  shared out evenly across its words instead. It is a guess, but a guess on
+  the right words.
+- **Captions are cut from the recording's kept words.** Whisper or Gemini
+  writes the whole recording down once, and the words of the stretch the clip
+  plays are cut into lines of up to four words
+  ([saved-transcripts.md](saved-transcripts.md)). So a second run on the same
+  recording lights the same words at the same times, and costs nothing.
 - **The rules are in `src/lib/video/caption-words.ts`**, with their tests
   beside it.
 

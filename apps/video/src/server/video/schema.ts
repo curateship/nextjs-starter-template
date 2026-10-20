@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   check,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -14,6 +15,8 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
+import type { ExtraPicks, SentExtra } from "@/lib/video/extras"
+import type { ClipOutcome } from "@/lib/video/moving-still"
 import { customShellMedia, customShellUsers } from "@/server/schema"
 
 /**
@@ -160,6 +163,40 @@ export const videoMediaWaveforms = pgTable(
     index("ix_video_media_waveforms_status_created").on(
       table.status,
       table.createdAt
+    ),
+  ]
+)
+
+/**
+ * The words said in one audio or video file, written down once and read by
+ * Captions, Tighten and the Words panel (see `src/server/video/transcripts.ts`
+ * and migration 0120). One row per file and transcriber, because Whisper
+ * measures each word's time and Gemini estimates it. `words` is a list of
+ * `{ text, startMs, endMs }` timed from the start of the file, never from a
+ * clip or the timeline, so trimming or moving a clip never makes it wrong.
+ * Deleting the file removes it.
+ */
+export const videoMediaTranscripts = pgTable(
+  "video_media_transcripts",
+  {
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    transcriber: varchar("transcriber", { length: 20 }).notNull(),
+    model: varchar("model", { length: 60 }).notNull(),
+    words: jsonb("words").notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.mediaId, table.transcriber] }),
+    check(
+      "video_media_transcripts_transcriber_check",
+      sql`${table.transcriber} in ('openai', 'gemini')`
+    ),
+    check(
+      "video_media_transcripts_duration_check",
+      sql`${table.durationMs} >= 0`
     ),
   ]
 )
@@ -317,6 +354,10 @@ export const videoProjects = pgTable(
     sourceViralVideoId: varchar("source_viral_video_id", {
       length: 36,
     }).references(() => videoViralVideos.id, { onDelete: "set null" }),
+    // The copied video's title, written just before that saved video is
+    // deleted, so the Copy panel can still name what it copied. Empty while
+    // the video is still there.
+    sourceViralVideoTitle: text("source_viral_video_title"),
     // The Viral project Copy this was pressed in. Deleting that project blanks
     // it and this one stays.
     sourceViralProjectId: varchar("source_viral_project_id", {
@@ -328,6 +369,12 @@ export const videoProjects = pgTable(
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     // The most AI spending the project may reach, in cents. Null is no limit.
     spendLimitCents: integer("spend_limit_cents"),
+    // "Sam via Project" when a guest sent from Project made the last save,
+    // null when the owner did (`drizzle/0125_video_project_guests.sql`).
+    lastEditedBy: text("last_edited_by"),
+    // The extras picked in the AI clip panel, one extra id per kind, so a
+    // series keeps the same outfit and place (drizzle/0124).
+    extraPicks: jsonb("extra_picks").$type<ExtraPicks>().notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -342,6 +389,46 @@ export const videoProjects = pgTable(
     ),
     check("video_projects_version_check", sql`${table.version} >= 1`),
     index("ix_video_projects_user_updated").on(table.userId, table.updatedAt),
+  ]
+)
+
+/**
+ * Earlier timelines of a project, kept by the save itself (see
+ * `workspace/docs/project-history.md`). A row is the timeline as it was just
+ * before a save replaced it. `saved_at` is when that timeline was last saved;
+ * `created_at` is when the row was made, which the hourly rule measures from.
+ */
+export const videoProjectVersions = pgTable(
+  "video_project_versions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    // Who made the save that kept it.
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    reason: varchar("reason", { length: 16 }).notNull(),
+    timeline: jsonb("timeline").notNull(),
+    aspect: varchar("aspect", { length: 8 }).notNull(),
+    clipCount: integer("clip_count").notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    // "Sam via Project" when a guest sent from Project made the save that
+    // kept it, null when the owner did (`drizzle/0125_video_project_guests.sql`).
+    editedBy: text("edited_by"),
+  },
+  (table) => [
+    check(
+      "ck_video_project_versions_reason",
+      sql`${table.reason} in ('break', 'hourly', 'restore')`
+    ),
+    index("ix_video_project_versions_project_created").on(
+      table.projectId,
+      table.createdAt
+    ),
   ]
 )
 
@@ -591,6 +678,76 @@ export const videoActors = pgTable(
 )
 
 /**
+ * One picture on an actor's character sheet, pointing at a Media file. The
+ * main picture is the one `video_actors.image_media_id` names, and the app
+ * keeps it on the sheet as well. Removing a row never deletes the file; a
+ * file deleted from Media leaves the sheet with it. drizzle/0119 explains.
+ */
+export const videoActorSheetPictures = pgTable(
+  "video_actor_sheet_pictures",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    actorId: varchar("actor_id", { length: 36 })
+      .notNull()
+      .references(() => videoActors.id, { onDelete: "cascade" }),
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    label: varchar("label", { length: 60 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_video_actor_sheet_pictures_actor_media").on(
+      table.actorId,
+      table.mediaId
+    ),
+    index("ix_video_actor_sheet_pictures_actor_created").on(
+      table.actorId,
+      table.createdAt
+    ),
+    index("ix_video_actor_sheet_pictures_media_id").on(table.mediaId),
+  ]
+)
+
+/**
+ * A clothing item, backdrop, prop or hair look: a name, one Media picture and
+ * a description, picked for a first frame beside the actor. Deleting it keeps
+ * the file; the file cannot be deleted while an extra uses it. drizzle/0124.
+ */
+export const videoExtras = pgTable(
+  "video_extras",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 16 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    prompt: text("prompt").notNull(),
+    imageMediaId: varchar("image_media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_extras_kind_check",
+      sql`${table.kind} in ('clothing', 'backdrop', 'prop', 'hair')`
+    ),
+    index("ix_video_extras_user_kind_created").on(
+      table.userId,
+      table.kind,
+      table.createdAt
+    ),
+    index("ix_video_extras_image_media_id").on(table.imageMediaId),
+  ]
+)
+
+/**
  * An opening image of an actor, made inside one project and belonging to it
  * alone. Deleting the project deletes it. `projectId` is null only on frames
  * made before 0112 that no timeline used; nothing shows those.
@@ -621,6 +778,10 @@ export const videoFirstFrames = pgTable(
     referenceMediaId: varchar("reference_media_id", {
       length: 36,
     }).references(() => customShellMedia.id, { onDelete: "set null" }),
+    /** The actor's pictures this frame was drawn from, in the order sent. */
+    actorMediaIds: jsonb("actor_media_ids").$type<string[]>().notNull().default([]),
+    /** The extras it was made with, in the order sent (drizzle/0124). */
+    extras: jsonb("extras").$type<SentExtra[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -646,7 +807,7 @@ export const videoFirstFrames = pgTable(
 )
 
 /**
- * A durable Veo request. The background worker owns queued/processing rows, so
+ * A durable AI shot request. The background worker owns queued/processing rows, so
  * leaving or reloading the dashboard does not cancel the provider operation.
  *
  * One row is one piece of a shot. A shot longer than 8 seconds is several
@@ -664,9 +825,12 @@ export const videoAiGenerations = pgTable(
     projectId: varchar("project_id", { length: 36 })
       .notNull()
       .references(() => videoProjects.id, { onDelete: "cascade" }),
-    firstFrameId: varchar("first_frame_id", { length: 36 })
-      .notNull()
-      .references(() => videoFirstFrames.id, { onDelete: "cascade" }),
+    // Null on a shot made from a picture already on the timeline, which
+    // names that clip below instead (drizzle/0126).
+    firstFrameId: varchar("first_frame_id", { length: 36 }).references(
+      () => videoFirstFrames.id,
+      { onDelete: "cascade" }
+    ),
     firstFrameMediaId: varchar("first_frame_media_id", {
       length: 36,
     }).references(() => customShellMedia.id, { onDelete: "set null" }),
@@ -674,6 +838,8 @@ export const videoAiGenerations = pgTable(
     model: varchar("model", { length: 100 }).notNull(),
     aspectRatio: varchar("aspect_ratio", { length: 8 }).notNull(),
     durationSeconds: integer("duration_seconds").notNull(),
+    // The picture size asked for (drizzle/0125). Every Veo piece was 720p.
+    resolution: varchar("resolution", { length: 8 }).notNull().default("720p"),
     shotId: varchar("shot_id", { length: 36 }).notNull(),
     shotIndex: integer("shot_index").notNull(),
     shotPieces: integer("shot_pieces").notNull(),
@@ -687,6 +853,29 @@ export const videoAiGenerations = pgTable(
     ),
     errorMessage: text("error_message"),
     attempts: integer("attempts").notNull().default(0),
+    // What the piece is sent beyond its first frame, copied from the frame
+    // when the shot is asked for. A null actor is a piece asked for before
+    // drizzle/0124, sent exactly what it always was.
+    actorId: varchar("actor_id", { length: 36 }).references(
+      () => videoActors.id,
+      { onDelete: "set null" }
+    ),
+    referenceMediaIds: jsonb("reference_media_ids")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    extras: jsonb("extras").$type<SentExtra[]>().notNull().default([]),
+    // A shot made from a picture on the timeline (drizzle/0126): the clip it
+    // replaces, where it sat and how long it ran when asked for, and whether
+    // it has landed. Null on every shot made in the AI clip panel.
+    clipId: varchar("clip_id", { length: 64 }),
+    // The file that clip showed when the shot was asked for (drizzle/0128):
+    // the picture for Make it move, the moving shot for Make it again. The
+    // shot lands only while the clip still shows it.
+    clipMediaId: varchar("clip_media_id", { length: 36 }),
+    clipStartMs: doublePrecision("clip_start_ms"),
+    clipDurationMs: doublePrecision("clip_duration_ms"),
+    clipOutcome: varchar("clip_outcome", { length: 8 }).$type<ClipOutcome>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -711,6 +900,18 @@ export const videoAiGenerations = pgTable(
     ),
     check("video_ai_generations_attempts_check", sql`${table.attempts} >= 0`),
     check(
+      "video_ai_generations_clip_check",
+      sql`(${table.clipId} is null and ${table.clipStartMs} is null and ${table.clipDurationMs} is null and ${table.clipOutcome} is null) or (${table.clipId} is not null and ${table.clipStartMs} is not null and ${table.clipDurationMs} is not null)`
+    ),
+    check(
+      "video_ai_generations_source_check",
+      sql`${table.firstFrameId} is not null or ${table.clipId} is not null`
+    ),
+    check(
+      "video_ai_generations_clip_outcome_check",
+      sql`${table.clipOutcome} is null or ${table.clipOutcome} in ('replaced', 'gone')`
+    ),
+    check(
       "video_ai_generations_ready_check",
       sql`${table.status} <> 'ready' or ${table.outputMediaId} is not null`
     ),
@@ -729,6 +930,9 @@ export const videoAiGenerations = pgTable(
     ),
     index("ix_video_ai_generations_first_frame_id").on(table.firstFrameId),
     index("ix_video_ai_generations_shot").on(table.shotId, table.shotIndex),
+    index("ix_video_ai_generations_unlanded")
+      .on(table.projectId)
+      .where(sql`${table.clipId} is not null and ${table.clipOutcome} is null`),
     index("ix_video_ai_generations_output_media_id").on(table.outputMediaId),
     index("ix_video_ai_generations_processing_lease").on(
       table.status,
@@ -744,6 +948,11 @@ export const videoAiGenerations = pgTable(
  * holds a lease it renews while ffmpeg runs, and anything whose lease runs out
  * is picked up again — which is what makes a render survive a restart without
  * ever running twice. The gallery is simply the rows that reached "ready".
+ *
+ * A kept carousel is a row here too, of kind `carousel` (see
+ * `src/server/video/carousel-exports.ts`): a ZIP of its slides, written ready
+ * in one step and never queued. It has no project. Its carousel is remembered
+ * until that carousel is deleted, which leaves the export where it is.
  */
 export const videoRenderJobs = pgTable(
   "video_render_jobs",
@@ -752,9 +961,22 @@ export const videoRenderJobs = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    projectId: varchar("project_id", { length: 36 })
-      .notNull()
-      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    // `video` (a project rendered by the queue) or `carousel`.
+    kind: varchar("kind", { length: 10 }).notNull().default("video"),
+    // Every video export has one; a carousel export never does.
+    projectId: varchar("project_id", { length: 36 }).references(
+      () => videoProjects.id,
+      { onDelete: "cascade" }
+    ),
+    carouselId: varchar("carousel_id", { length: 36 }).references(
+      () => videoCarousels.id,
+      { onDelete: "set null" }
+    ),
+    // A carousel's caption as it was exported, the words in its caption.txt.
+    caption: text("caption"),
+    // Where each slide's PNG sits inside a carousel's ZIP, in slide order, so
+    // the share page can read one slide without fetching the whole file.
+    slideRanges: jsonb("slide_ranges").$type<CarouselSlideRange[]>(),
     status: varchar("status", { length: 20 }).notNull(),
     quality: varchar("quality", { length: 10 }).notNull(),
     // The shape this export is made in. It belongs to the export, not the
@@ -796,7 +1018,11 @@ export const videoRenderJobs = pgTable(
     ),
     check(
       "video_render_jobs_aspect_check",
-      sql`${table.aspect} in ('16:9', '9:16', '1:1', '4:3')`
+      sql`${table.aspect} in ('16:9', '9:16', '1:1', '4:3', '4:5')`
+    ),
+    check(
+      "video_render_jobs_kind_check",
+      sql`(${table.kind} = 'video' and ${table.projectId} is not null) or (${table.kind} = 'carousel' and ${table.projectId} is null and ${table.slideRanges} is not null)`
     ),
     check(
       "video_render_jobs_frame_rate_check",
@@ -814,8 +1040,14 @@ export const videoRenderJobs = pgTable(
       table.createdAt
     ),
     index("ix_video_render_jobs_user_created").on(table.userId, table.createdAt),
+    index("ix_video_render_jobs_carousel_id")
+      .on(table.carouselId)
+      .where(sql`${table.carouselId} is not null`),
   ]
 )
+
+/** One slide's PNG inside a kept carousel ZIP: its first byte and its size. */
+export type CarouselSlideRange = { start: number; size: number }
 
 /**
  * A link to one finished export that anybody holding it can watch without an
@@ -846,14 +1078,52 @@ export const videoExportShares = pgTable(
   ]
 )
 
+/**
+ * The one-time id of every note Project has sent here that was used, so a
+ * copied handoff address fails (`drizzle/0125_video_project_guests.sql`).
+ */
+export const videoHandoffNotes = pgTable("video_handoff_notes", {
+  noteId: varchar("note_id", { length: 64 }).primaryKey(),
+  usedAt: timestamp("used_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * A guest sent from Project: signed in to one video project for 12 hours,
+ * with no account here. Only the cookie token's SHA-256 is kept. How it works
+ * is in `workspace/docs/project-guests.md`.
+ */
+export const videoProjectGuests = pgTable(
+  "video_project_guests",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    /** Who they are in Project: their id there, name and email. */
+    personId: varchar("person_id", { length: 36 }).notNull(),
+    personName: text("person_name").notNull(),
+    personEmail: text("person_email").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_video_project_guests_project").on(table.projectId)]
+)
+
+export type VideoProjectGuestRow = typeof videoProjectGuests.$inferSelect
+
 export type VideoMediaProxy = typeof videoMediaProxies.$inferSelect
 export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect
 export type VideoMediaCollection = typeof videoMediaCollections.$inferSelect
 export type VideoProjectRow = typeof videoProjects.$inferSelect
+export type VideoProjectVersionRow = typeof videoProjectVersions.$inferSelect
 export type VideoProjectThumbnailRow = typeof videoProjectThumbnails.$inferSelect
 export type VideoCarouselRow = typeof videoCarousels.$inferSelect
 export type VideoRenderJobRow = typeof videoRenderJobs.$inferSelect
 export type VideoActorRow = typeof videoActors.$inferSelect
+export type VideoActorSheetPictureRow = typeof videoActorSheetPictures.$inferSelect
+export type VideoExtraRow = typeof videoExtras.$inferSelect
 export type VideoFirstFrameRow = typeof videoFirstFrames.$inferSelect
 export type VideoAiGenerationRow = typeof videoAiGenerations.$inferSelect
 
@@ -958,11 +1228,12 @@ export const videoCreatorPosts = pgTable(
 )
 
 /**
- * A video somebody pressed Save & break down on: the downloaded file, and what
- * Gemini made of it.
+ * A video somebody pressed Download or AI analyse on: the downloaded file, and
+ * what Gemini made of it.
  *
  * The status is the job. A worker claims a `waiting` row, downloads it, then
- * has Gemini watch it, and a restart puts an interrupted row back to `waiting`
+ * has Gemini watch it unless it was saved with Download alone, which stops at
+ * `downloaded`. A restart puts an interrupted row back to `waiting`
  * — so closing the browser never strands a half-done job. A failure keeps its
  * reason in `error` and can be tried again.
  *
@@ -981,6 +1252,11 @@ export const videoViralVideos = pgTable(
     platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
     sourceUrl: text("source_url").notNull(),
     status: varchar("status", { length: 20 }).notNull(),
+    /**
+     * False when it was saved with Download alone: the worker stops at
+     * `downloaded` and no AI runs. AI analyse sets it true.
+     */
+    wantsAnalysis: boolean("wants_analysis").notNull().default(true),
     error: text("error"),
     /** The downloaded file, once it is in the shell's library. */
     mediaId: varchar("media_id", { length: 36 }).references(
@@ -1023,7 +1299,7 @@ export const videoViralVideos = pgTable(
     index("ix_video_viral_videos_status").on(table.status, table.updatedAt),
     check(
       "ck_video_viral_videos_status",
-      sql`${table.status} in ('waiting', 'downloading', 'analysing', 'ready', 'failed')`
+      sql`${table.status} in ('waiting', 'downloading', 'downloaded', 'analysing', 'ready', 'failed')`
     ),
   ]
 )

@@ -13,7 +13,10 @@ import {
   updateFieldSchema,
   updateTypeSchema,
 } from "@/lib/project/task-types"
+import { teamScope } from "@/lib/api/project/scope"
 import { userGet, userPost } from "@/server/guards"
+import { inTeam, isSiteAdmin } from "@/server/project/access"
+import { listTeamNames } from "@/server/project/record-team"
 import {
   archiveTaskType,
   createTaskType,
@@ -39,18 +42,29 @@ export type { TaskFields, TaskFieldView } from "@/server/project/task-types"
 
 const id = z.string().min(1).max(36)
 
+/**
+ * A team's types. The site admin picks the team in the page's filter, starting
+ * on the first by name; `teams` lists every one for it, and is empty for an
+ * employee, who sees their own team.
+ */
 const loadTaskTypesFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }) => loadTaskTypesPage(context.user.id))
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) => {
+    const teams = (await isSiteAdmin(context.user.id)) ? await listTeamNames() : []
+    const teamId = teams.length ? (teams.find((team) => team.id === data.teamId) ?? teams[0]).id : undefined
+    const page = await inTeam(teamId, () => loadTaskTypesPage(context.user.id))
+    return page ? { ...page, teams, teamId: teamId ?? null } : null
+  })
 
-export function loadTaskTypes() {
-  return loadTaskTypesFn()
+export function loadTaskTypes(teamId?: string) {
+  return loadTaskTypesFn({ data: { teamId } })
 }
 
 const createTypeFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(createTypeSchema)
-  .handler(async ({ data, context }) => createTaskType(context.user.id, data))
+  .inputValidator(createTypeSchema.extend(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => createTaskType(context.user.id, data)))
 
 const updateTypeFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -64,8 +78,8 @@ const archiveTypeFn = createServerFn({ method: "POST" })
 
 const reorderTypesFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(reorderSchema)
-  .handler(async ({ data, context }) => reorderTaskTypes(context.user.id, data.ids))
+  .inputValidator(reorderSchema.extend(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => reorderTaskTypes(context.user.id, data.ids)))
 
 const createFieldFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -102,8 +116,8 @@ const setProjectTypesFn = createServerFn({ method: "POST" })
   .inputValidator(projectTypesSchema)
   .handler(async ({ data, context }) => setProjectTypes(context.user.id, data))
 
-export function makeTaskType(data: z.input<typeof createTypeSchema>) {
-  return createTypeFn({ data })
+export function makeTaskType(data: z.input<typeof createTypeSchema>, teamId?: string) {
+  return createTypeFn({ data: { ...data, teamId } })
 }
 export function saveTaskType(data: z.input<typeof updateTypeSchema>) {
   return updateTypeFn({ data })
@@ -111,8 +125,8 @@ export function saveTaskType(data: z.input<typeof updateTypeSchema>) {
 export function archiveType(typeId: string, archived: boolean) {
   return archiveTypeFn({ data: { typeId, archived } })
 }
-export function orderTaskTypes(ids: string[]) {
-  return reorderTypesFn({ data: { ids } })
+export function orderTaskTypes(ids: string[], teamId?: string) {
+  return reorderTypesFn({ data: { ids, teamId } })
 }
 export function makeTypeField(data: z.input<typeof createFieldSchema>) {
   return createFieldFn({ data })

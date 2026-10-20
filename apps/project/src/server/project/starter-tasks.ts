@@ -6,7 +6,7 @@ import type { ProjectDb } from "@/server/project/access"
 import { writeTaskNotices } from "@/server/project/notices"
 import { resolveProjectId } from "@/server/project/personal"
 import { projectTasks, projectTeams } from "@/server/project/schema"
-import { nextTaskPosition } from "@/server/project/sections"
+import { nextTaskPosition } from "@/server/project/task-order"
 import { recordTaskEvent } from "@/server/project/task-history"
 import { customShellUsers } from "@/server/schema"
 

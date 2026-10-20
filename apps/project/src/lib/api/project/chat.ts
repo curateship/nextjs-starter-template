@@ -14,6 +14,8 @@ import {
 } from "@/lib/project/rules"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { userGet, userPost } from "@/server/guards"
+import { inTeam } from "@/server/project/access"
+import { teamScope } from "@/lib/api/project/scope"
 import {
   deleteComment,
   editComment,
@@ -131,8 +133,8 @@ const loadChatUnreadFn = createServerFn({ method: "GET" })
 
 const findTasksToLinkFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ q: z.string().max(200) }))
-  .handler(async ({ data, context }) => findTasksToLink(context.user.id, data.q))
+  .inputValidator(z.object({ q: z.string().max(200), ...teamScope }))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => findTasksToLink(context.user.id, data.q)))
 
 export function sendChatMessage(input: {
   chat: ChatPlace
@@ -174,6 +176,6 @@ export function loadProjectChatPage(
 export function loadProjectChatUnread(projectId: string) {
   return loadChatUnreadFn({ data: { projectId } })
 }
-export function findLinkableTasks(q: string) {
-  return findTasksToLinkFn({ data: { q } })
+export function findLinkableTasks(q: string, teamId?: string) {
+  return findTasksToLinkFn({ data: { q, teamId } })
 }

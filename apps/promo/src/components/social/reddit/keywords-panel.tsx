@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
@@ -127,6 +128,8 @@ export function KeywordsBar({
   onAddIdea: (idea: { term: string } | { subreddit: string }) => Promise<void>
 }) {
   const [ideasOpen, setIdeasOpen] = React.useState(false)
+  // Ideas are written by the AI, which is off for a guest sent from Project.
+  const guest = usePromoGuest()
   // Open to begin with only when nothing is saved, worked out once so the box
   // never shuts itself while somebody is still typing in it.
   const [addOpen, setAddOpen] = React.useState(() => keywords.length === 0 && !loading)
@@ -191,13 +194,15 @@ export function KeywordsBar({
                 </Button>
               </DropdownMenuTrigger>
             </TooltipTrigger>
-            <TooltipContent>Ideas and self-promotion threads</TooltipContent>
+            <TooltipContent>{guest ? "Self-promotion threads" : "Ideas and self-promotion threads"}</TooltipContent>
           </Tooltip>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onSelect={() => setIdeasOpen(true)}>
-              <SparklesIcon />
-              Ideas
-            </DropdownMenuItem>
+            {guest ? null : (
+              <DropdownMenuItem onSelect={() => setIdeasOpen(true)}>
+                <SparklesIcon />
+                Ideas
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={onThreads}>
               <MegaphoneIcon />
               Self-promotion threads
@@ -208,7 +213,7 @@ export function KeywordsBar({
 
       <KeywordIdeasDialog
         projectId={projectId}
-        open={ideasOpen}
+        open={ideasOpen && !guest}
         onClose={() => setIdeasOpen(false)}
         onAdd={onAddIdea}
       />

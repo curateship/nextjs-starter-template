@@ -25,6 +25,7 @@ import {
   parseTimelineForReset,
   PROJECT_CONFLICT_MESSAGE,
   requireCanonicalTimeline,
+  summarizeTimeline,
   type AspectRatio,
   type ProjectTimeline,
 } from "@/lib/video/timeline-schema"
@@ -46,6 +47,14 @@ import {
   requireOwnedFolder,
 } from "@/server/video/project-folders"
 import {
+  keepVersionBeforeRestore,
+  keepVersionBeforeSave,
+  readOwnedProjectVersion,
+  serializeVersion,
+  versionDue,
+  type ProjectVersionItem,
+} from "@/server/video/project-versions"
+import {
   videoActors,
   videoAiGenerations,
   videoFirstFrames,
@@ -53,6 +62,7 @@ import {
   videoProjectFolderItems,
   videoProjects,
   videoProjectThumbnails,
+  videoProjectVersions,
   videoRenderJobs,
   videoViralVideos,
   type VideoProjectRow,
@@ -127,19 +137,6 @@ export function cleanProjectName(value: string) {
     throw new Error(PROJECT_NAME_REQUIRED_MESSAGE)
   }
   return name.slice(0, PROJECT_NAME_MAX)
-}
-
-/** Clip count and length, derived from the timeline rather than stored twice. */
-export function summarizeTimeline(timeline: ProjectTimeline) {
-  let clipCount = 0
-  let durationMs = 0
-  for (const track of timeline.tracks) {
-    for (const clip of track.clips) {
-      clipCount += 1
-      durationMs = Math.max(durationMs, clip.startMs + clip.durationMs)
-    }
-  }
-  return { clipCount, durationMs }
 }
 
 export async function getOwnedProject(
@@ -682,11 +679,14 @@ async function insertProjectCopy(
         // series starts from the same one.
         style: source.style,
         styleMediaId: source.styleMediaId,
-        // So do the viral video it copies, the Viral project it came from,
-        // and its spend limit.
+        // So do the viral video it copies (or that video's title, once it
+        // was deleted), the Viral project it came from, and its spend limit.
         sourceViralVideoId: source.sourceViralVideoId,
+        sourceViralVideoTitle: source.sourceViralVideoTitle,
         sourceViralProjectId: source.sourceViralProjectId,
         spendLimitCents: source.spendLimitCents,
+        // And the extras picked in its AI clip panel, for the same reason.
+        extraPicks: source.extraPicks,
         // The copy is its own project from version 1; it shares nothing with
         // the original after this moment, and the background worker makes its
         // picture on the next pass, the same as any new project.
@@ -840,34 +840,60 @@ export async function writeProjectTimeline(
   projectId: string,
   timeline: ProjectTimeline,
   expectedVersion: number,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  /** "Sam via Project" for a guest sent from Project; null for the owner. */
+  editedBy: string | null = null
 ): Promise<ProjectItem> {
   const canonical = requireCanonicalTimeline(timeline)
+  const owned = and(
+    eq(videoProjects.id, projectId),
+    eq(videoProjects.userId, userId),
+    eq(videoProjects.version, expectedVersion)
+  )
 
-  const [saved] = await database
-    .update(videoProjects)
-    .set({
-      timeline: canonical,
-      // Kept in step with the timeline by this one statement, so the column
-      // and the document can never disagree.
-      aspect: canonical.aspect,
-      version: expectedVersion + 1,
-      updatedAt: now(),
-    })
-    .where(
-      and(
-        eq(videoProjects.id, projectId),
-        eq(videoProjects.userId, userId),
-        eq(videoProjects.version, expectedVersion)
-      )
-    )
-    .returning({
-      ...getTableColumns(videoProjects),
-      // The picture is read by this same statement, so a save still costs
-      // one trip to the database. Written out in full because Drizzle leaves
-      // columns unqualified inside an UPDATE.
-      thumbnailPath: sql<string | null>`(select t.storage_path from video_project_thumbnails t where t.project_id = video_projects.id)`,
-    })
+  const saved = await database.transaction(async (tx) => {
+    // The row stays locked until the save lands, so two saves cannot both
+    // decide a version is due (see workspace/docs/project-history.md).
+    const [current] = await tx
+      .select({
+        id: videoProjects.id,
+        userId: videoProjects.userId,
+        createdAt: videoProjects.createdAt,
+        updatedAt: videoProjects.updatedAt,
+        lastEditedBy: videoProjects.lastEditedBy,
+        // Written out in full for the same reason as the picture below.
+        lastKeptAt: sql`(select max(v.created_at) from video_project_versions v where v.project_id = video_projects.id)`.mapWith(
+          videoProjectVersions.createdAt
+        ),
+      })
+      .from(videoProjects)
+      .where(owned)
+      .for("update")
+    if (!current) return undefined
+    const at = now()
+    const reason = versionDue(current, current.lastKeptAt, at)
+    if (reason) await keepVersionBeforeSave(tx, current, reason, at)
+
+    const [row] = await tx
+      .update(videoProjects)
+      .set({
+        timeline: canonical,
+        // Kept in step with the timeline by this one statement, so the column
+        // and the document can never disagree.
+        aspect: canonical.aspect,
+        version: expectedVersion + 1,
+        updatedAt: at,
+        lastEditedBy: editedBy,
+      })
+      .where(owned)
+      .returning({
+        ...getTableColumns(videoProjects),
+        // The picture is read by this same statement. Written out in full
+        // because Drizzle leaves columns unqualified inside an UPDATE.
+        thumbnailPath: sql<string | null>`(select t.storage_path from video_project_thumbnails t where t.project_id = video_projects.id)`,
+      })
+    return row
+  })
 
   if (saved) {
     const { thumbnailPath, ...row } = saved
@@ -890,6 +916,53 @@ export async function writeProjectTimeline(
     .limit(1)
 
   throw new Error(existing ? PROJECT_CONFLICT_MESSAGE : PROJECT_NOT_FOUND_MESSAGE)
+}
+
+/** One version, with its timeline pointed at today's addresses for its media. */
+export async function getOwnedProjectVersion(
+  userId: string,
+  projectId: string,
+  versionId: string,
+  database: CustomShellDb = db
+): Promise<ProjectVersionItem & { timeline: ProjectTimeline }> {
+  const { row, timeline } = await readOwnedProjectVersion(
+    userId,
+    projectId,
+    versionId,
+    database
+  )
+  return {
+    ...serializeVersion(row),
+    timeline: await resolveTimelineMediaUrls(userId, timeline, database),
+  }
+}
+
+/**
+ * The first half of a restore. Keeps what the project holds now as a
+ * "Before restoring" version and hands back the chosen version's timeline.
+ * The editor then puts it on screen as one edit, and its own save writes it,
+ * so `writeProjectTimeline` stays the one place a timeline is written.
+ */
+export async function restoreOwnedProjectVersion(
+  userId: string,
+  projectId: string,
+  versionId: string,
+  database: CustomShellDb = db
+): Promise<ProjectTimeline> {
+  const timeline = await database.transaction(async (tx) => {
+    const project = await getOwnedProject(userId, projectId, tx)
+    // Read before anything is kept, because keeping one can push the oldest
+    // out, and the oldest may be the one being restored.
+    const { timeline } = await readOwnedProjectVersion(
+      userId,
+      projectId,
+      versionId,
+      tx
+    )
+    await keepVersionBeforeRestore(tx, project, now())
+    return timeline
+  })
+  return resolveTimelineMediaUrls(userId, timeline, database)
 }
 
 /** What deleting these projects takes with it, counted for the delete window. */
@@ -995,7 +1068,9 @@ export async function deleteOwnedProjects(
   const exportRows = await database
     .select({
       id: videoRenderJobs.id,
-      projectId: videoRenderJobs.projectId,
+      // From the joined project, so it is never empty: a carousel export
+      // has no project and never matches the join.
+      projectId: videoProjects.id,
       storagePath: videoRenderJobs.storagePath,
       thumbnailStoragePath: videoRenderJobs.thumbnailStoragePath,
     })

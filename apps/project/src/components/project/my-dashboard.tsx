@@ -22,7 +22,7 @@ import { TaskCalendar } from "@/components/project/task-calendar"
 import { TaskTimeline } from "@/components/project/task-timeline"
 import { PersonAvatar, TintChip } from "@/components/project/task-bits"
 import { TaskFilterPopover } from "@/components/project/task-filter-popover"
-import { DueFilterMenu, SearchToggle, UnderlineTabs } from "@/components/project/task-header-controls"
+import { SearchToggle, UnderlineTabs } from "@/components/project/task-header-controls"
 import { TaskSidePanel } from "@/components/project/task-side-panel"
 import { TeamStart } from "@/components/project/team-start"
 import { ThreePanels } from "@/components/project/three-panels"
@@ -71,6 +71,7 @@ import { viewHasFilters } from "@/lib/project/saved-views"
 import { useMyLive } from "@/lib/project/use-my-live"
 import { cn } from "@/lib/utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { useTeamId } from "@/lib/project/team-scope"
 
 export type MyDashboardSearch = Omit<TaskFilters, "person"> & {
   /** The task open in the right panel, in the inbox's place. */
@@ -81,7 +82,7 @@ export type MyDashboardSearch = Omit<TaskFilters, "person"> & {
   checkout?: true
 }
 
-const MY_VIEWS = ["board", "list", "calendar", "timeline"] as const
+const MY_VIEWS = ["list", "board", "calendar", "timeline"] as const
 type MyView = (typeof MY_VIEWS)[number]
 
 /**
@@ -190,7 +191,7 @@ function Dashboard({
           content: (
             <>
               {search.task ? (
-                <TaskSidePanel taskId={search.task} onClose={taskAddress.back} onLoaded={taskLoaded} />
+                <TaskSidePanel taskId={search.task} onClose={taskAddress.back} closeButton onLoaded={taskLoaded} />
               ) : null}
               {/* The inbox stays loaded under an open task, so closing the task
                   finds it on the same tab and scrolled to the same spot. */}
@@ -450,7 +451,8 @@ function MyTasksPanel({
   const [catchingUp, setCatchingUp] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
   const bulk = { people: checkin.people, projects: [] }
-  const here = { projectId: null, labels: dashboard.labels, types: dashboard.taskTypes }
+  const clients = clientChoices([...open, ...done].map((task) => task.projectClient))
+  const here = { projectId: null, labels: dashboard.labels, types: dashboard.taskTypes, clients }
 
   async function reorder(next: string[]) {
     setOrder({ from: savedOrder, ids: next })
@@ -532,21 +534,20 @@ function MyTasksPanel({
   return (
     <>
       {/* The project page's header, copied here (Tyler, 14 Oct 2026): underlined tabs,
-          then when it is due, search, Filter, Views and New task. No members
+          then search, Filter, Views and New task. No members
           dropdown, since every task here is mine. */}
       <DashboardCardHeader className="@container">
         <UnderlineTabs
           value={view}
           onValueChange={(value) => setView(value as MyView)}
           tabs={[
-            { value: "board", label: "Board" },
             { value: "list", label: "List" },
+            { value: "board", label: "Board" },
             { value: "calendar", label: "Calendar" },
             { value: "timeline", label: "Timeline" },
           ]}
         />
         <div className="flex shrink-0 items-center gap-1">
-          <DueFilterMenu value={filters.due} onChange={(due) => onFilters({ due })} />
           <SearchToggle value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
           <TaskFilterPopover
             filters={filters}
@@ -555,7 +556,7 @@ function MyTasksPanel({
             types={dashboard.taskTypes}
             buttonVariant="ghost"
             onSaveView={saveView}
-            clients={clientChoices([...open, ...done].map((task) => task.projectClient))}
+            clients={clients}
           />
           <SavedViewsControls
             views={dashboard.views}
@@ -649,7 +650,7 @@ function MyTasksPanel({
         <TaskTimeline
           tasks={shown}
           groups={projects.length > 1 ? projects : undefined}
-          groupOf={(task) => task.projectId}
+          groupsOf={(task) => [task.projectId]}
           readOnly={busy}
           onOpenTask={onOpenTask}
           onDates={(task, dates) => void changeDates(task, dates)}
@@ -838,6 +839,7 @@ function InboxPanel({ notifications }: { notifications: NotificationItem[] }) {
 
 /** My job title, which shows beside my name wherever the team sees it. */
 function MyJobTitle({ title }: { title: string | null }) {
+  const teamId = useTeamId()
   const router = useRouter()
   const [draft, setDraft] = useSyncedDraft(title ?? "")
   const [saveState, track] = useSaveLine()
@@ -845,7 +847,7 @@ function MyJobTitle({ title }: { title: string | null }) {
   async function save() {
     const next = draft.trim()
     if (next === (title ?? "")) return
-    if (await track(() => saveMemberTitle({ title: next || null }))) {
+    if (await track(() => saveMemberTitle({ title: next || null }, teamId))) {
       await router.invalidate()
     }
   }

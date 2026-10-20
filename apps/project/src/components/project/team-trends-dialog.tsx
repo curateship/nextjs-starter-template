@@ -24,6 +24,7 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import { loadTrends, type TrendWeek } from "@/lib/api/project/finding"
 import { addDays, dayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { useTeamId } from "@/lib/project/team-scope"
 
 const rateConfig: ChartConfig = { rate: { label: "Check-in rate", color: "var(--primary)" } }
 const finishedConfig: ChartConfig = { finished: { label: "Tasks finished", color: "var(--primary)" } }
@@ -40,11 +41,12 @@ export function TeamTrendsDialog({ open, onClose }: { open: boolean; onClose: ()
   const [weeks, setWeeks] = React.useState<TrendWeek[] | null>(null)
   const [error, setError] = React.useState("")
   const [tries, setTries] = React.useState(0)
+  const teamId = useTeamId()
 
   React.useEffect(() => {
     if (!open) return
     let live = true
-    loadTrends().then(
+    loadTrends(teamId).then(
       (loaded) => {
         if (!live) return
         setWeeks(loaded)
@@ -57,7 +59,7 @@ export function TeamTrendsDialog({ open, onClose }: { open: boolean; onClose: ()
     return () => {
       live = false
     }
-  }, [open, tries])
+  }, [open, teamId, tries])
 
   const rows = (weeks ?? []).map((week, index, all) => ({
     label: dayLabel(week.monday),

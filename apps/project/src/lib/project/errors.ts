@@ -9,6 +9,9 @@ export const PROJECT_ERRORS = {
   noTeam: "You aren't on a team yet. The site admin adds you to one.",
   notRunningTeam: "Only the site admin can do that.",
   teamNotFound: "That team no longer exists.",
+  teamNotEmpty:
+    "The team still has people or open projects. Remove the people and archive the projects first.",
+  noTeamNamed: "Open the team from Teams, then try again.",
   emailOnATeam: "That email is already on a team.",
   emailNotAnEmployee:
     "That email belongs to an account that isn't an employee, so it can't join a team.",
@@ -58,11 +61,9 @@ export const PROJECT_ERRORS = {
   fileNotSaved: "The file couldn't be saved. Try again.",
   tooManyUploads: "That's a lot of files in a short while. Wait a few minutes, then add the rest.",
   fileNotRemoved: "The file couldn't be removed from storage, so nothing was deleted. Try again.",
-  labelNotFound: "That label no longer exists.",
-  labelNameTaken: "Your team already has a label with that name.",
-  tooManyLabels: "A team can have at most 100 labels. Delete one to make another.",
-  sectionNotFound: "That section no longer exists.",
-  tooManySections: "A project can have at most 30 sections.",
+  labelNotFound: "That tag no longer exists.",
+  labelNameTaken: "Your team already has a tag with that name.",
+  tooManyLabels: "A team can have at most 100 tags. Delete one in Team settings to make another.",
   personalProject: "That's a Just me list, which only its person and the site admin see, so it can't be shared or changed.",
   cantWaitOnItself: "A task can't wait on itself.",
   waitingLoop: "That task is already waiting on this one, so this one can't wait on it.",
@@ -72,7 +73,7 @@ export const PROJECT_ERRORS = {
   stepListNameTaken: "Your team already has a step list with that name.",
   tooManyStepLists: "A team can have at most 100 step lists. Delete one to save another.",
   noStepsToSave: "Add some steps first, then save them as a list.",
-  healthNeedsNote: "Say in a line why the project is at risk or off track.",
+  behindBeforeSlowing: "Behind has to start at the same number of late tasks as Slowing down, or more.",
   leadNotMember: "Only someone on the project can lead it.",
   milestoneNotFound: "That milestone no longer exists.",
   tooManyMilestones: "A project can have at most 30 milestones.",
@@ -157,6 +158,13 @@ export const PROJECT_ERRORS = {
   planNotYours: "You can only plan your own open tasks. Close the window and open it again to see them.",
   pollInTask: "A poll goes in a project's chat, not a task's.",
   pollChoiceGone: "That choice isn't on the poll.",
+  linkedAddressUnknown:
+    "That address isn't a Video project or a Promo project. Copy it from the address bar while the video is open in Video's editor, or while the project is open in Promo.",
+  linkedAppNotSetUp:
+    "That app isn't connected to Project on this server yet. Its address and key go in Project's server settings.",
+  linkedOpenNotAllowed: "Only the person the task is assigned to, or the site admin, can open its record.",
+  noLinkedRecord: "This task doesn't point at a record any more. Close it and open it again.",
+  linkedWhileViewingAs: "Stop viewing the app as someone else first, so the record opens as you.",
 } as const
 
 /**

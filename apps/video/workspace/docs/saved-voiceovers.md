@@ -51,6 +51,10 @@ OpenAI characters.
   its word times.
 - **The captions take the standard caption look**, not the look from when the
   voiceover was first made. The look is not part of what is kept.
+- **No Make it again.** The shelf keeps the words and the voice but not the
+  model or the settings, so a voiceover laid from here has no recipe to make
+  it again from. One read fresh in the Voice window has one
+  (`regenerate-a-scene.md`).
 - **A full project says no.** A project holds 50 tracks at most, and a save
   refuses more. A voiceover needs two new tracks (one if it has no captions),
   so at 49 tracks the press shows "This project already has 50 tracks, the

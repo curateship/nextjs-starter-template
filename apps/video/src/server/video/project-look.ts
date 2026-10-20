@@ -52,7 +52,7 @@ export function chosenProjectLook(
   return projectId ? readProjectLook(userId, projectId) : Promise.resolve(NO_LOOK)
 }
 
-/** Only the style line, for a Veo clip, which is sent no look picture. */
+/** Only the style line, for an AI shot, which is sent no look picture. */
 export async function readProjectStyle(
   userId: string,
   projectId: string,

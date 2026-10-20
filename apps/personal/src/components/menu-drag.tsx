@@ -24,6 +24,7 @@ import {
   linksAt,
   moveLink,
   moveLinkTo,
+  movePinned,
   moveSection,
   placeKey,
   placeOf,
@@ -36,17 +37,21 @@ import {
  * The menu's one drag area, around the whole left menu, so a link
  * can be dragged into another section, under another link or into the list
  * at the bottom, and sections into a new order. Each list of links and the list of
- * sections is a `SortableContext` inside it. `workspace/docs/menu.md` says how
+ * sections and Pinned are each a `SortableContext` inside it. `workspace/docs/menu.md` says how
  * it behaves.
  */
 
 export type LinkDragData = { kind: "link"; link: MenuLink; place: Place }
 export type ListDropData = { kind: "list"; place: Place }
 export type SectionDragData = { kind: "section"; sectionId: string }
-type DragData = LinkDragData | ListDropData | SectionDragData
+export type PinnedDragData = { kind: "pinned"; linkId: string }
+type DragData = LinkDragData | ListDropData | SectionDragData | PinnedDragData
 
 /** The list of sections is a list of its own, apart from every list of links. */
 export const SECTIONS_LIST_ID = "sections"
+
+/** Pinned's rows are a list of their own too: they only reorder Pinned. */
+export const PINNED_LIST_ID = "pinned"
 
 export function linkDragId(linkId: string) {
   return `link:${linkId}`
@@ -54,6 +59,11 @@ export function linkDragId(linkId: string) {
 
 export function sectionDragId(sectionId: string) {
   return `section:${sectionId}`
+}
+
+/** A pinned link has its own id, since the same link sits in its section too. */
+export function pinnedDragId(linkId: string) {
+  return `pinned:${linkId}`
 }
 
 export function listDropId(place: Place) {
@@ -65,19 +75,18 @@ function dataOf(entry: Active | Over | { data: { current?: unknown } } | null) {
 }
 
 /**
- * What a drag is over. A section only ever meets sections. A link dragged by
+ * What a drag is over. A section only ever meets sections, and a pinned row
+ * only other pinned rows. A link dragged by
  * the pointer meets links and lists, and of everything under the pointer the
  * smallest wins, so a sub-link beats the link it sits under. A link dragged by
  * the keyboard stays in its own list; "Shows in" moves it further.
  */
 const collision: CollisionDetection = (args) => {
   const kind = dataOf(args.active)?.kind
-  if (kind === "section") {
+  if (kind === "section" || kind === "pinned") {
     return closestCenter({
       ...args,
-      droppableContainers: args.droppableContainers.filter(
-        (entry) => dataOf(entry)?.kind === "section"
-      ),
+      droppableContainers: args.droppableContainers.filter((entry) => dataOf(entry)?.kind === kind),
     })
   }
   if (!args.pointerCoordinates) {
@@ -124,7 +133,7 @@ const sameListCoordinates: KeyboardCoordinateGetter = (event, args) => {
 /** The place a drag is over, and the link it would land before there. */
 function dropSpot(menu: Menu, event: DragOverEvent | DragEndEvent) {
   const over = dataOf(event.over)
-  if (!event.over || !over || over.kind === "section") return null
+  if (!event.over || !over || over.kind === "section" || over.kind === "pinned") return null
   if (over.kind === "list") return { place: over.place, beforeId: null }
   const place = placeOf(menu, over.link.id)
   if (!place) return null
@@ -199,6 +208,12 @@ export function MenuDrag({
       }
       return
     }
+    if (data?.kind === "pinned") {
+      if (over?.kind === "pinned" && over.linkId !== data.linkId) {
+        update((m) => movePinned(m, data.linkId, over.linkId))
+      }
+      return
+    }
     if (!draft || data?.kind !== "link") return reset()
     // A drop away from every list, or on a list the link may not go in,
     // leaves the menu as it was.
@@ -229,8 +244,8 @@ export function MenuDrag({
     >
       {children(draft ?? menu)}
       {/* A link is drawn following the pointer above everything, since the
-          left menu clips what leaves it. A section has no copy and moves
-          itself, within the left menu. */}
+          left menu clips what leaves it. A section or a pinned row has no
+          copy and moves itself, within the left menu. */}
       <DragOverlay dropAnimation={null}>
         {dragged ? (
           <div className="flex h-8 max-w-56 items-center gap-2 rounded-md border bg-sidebar px-2 text-sm text-sidebar-foreground shadow-md [&_svg]:shrink-0">

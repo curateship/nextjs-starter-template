@@ -35,6 +35,13 @@ import {
   type TranslateLanguage,
 } from "@/lib/video/translate"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import { isVoiceOrigin } from "@/lib/video/clip-origin"
+import {
+  REMAKE_NOT_FOUND_MESSAGE,
+  voiceOrigin,
+  type SpokenLine,
+} from "@/lib/video/remake-clip"
+import { parseTimelineForReset } from "@/lib/video/timeline-schema"
 import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
 import {
   SAFE_VOICE_ERRORS,
@@ -47,14 +54,15 @@ import {
   voiceSettingsSchema,
   type VoiceDefaults,
   type Voice,
-  type VoiceoverResult,
 } from "@/lib/video/voice"
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
+import type { SavedTranscriptSummary } from "@/lib/video/transcripts"
 import { getAiKey } from "@/server/ai/keys"
 import { adminPost, userGet, userPost } from "@/server/guards"
 import { getAiKeysSaved } from "@/server/video/ai-keys-saved"
 import { writeProjectCaptions } from "@/server/video/captions"
 import { requireProjectBudget } from "@/server/video/project-spend"
+import { getOwnedProject } from "@/server/video/projects"
 import {
   getAiDefaults,
   getVoiceDefaults,
@@ -64,6 +72,7 @@ import {
 import { rewriteHook, type HookVariants } from "@/server/video/hooks"
 import { checkScript } from "@/server/video/script-check"
 import { translateLines } from "@/server/video/translate"
+import { listSavedTranscripts } from "@/server/video/transcripts"
 import { listVoices, speak } from "@/server/video/voice"
 import {
   analyseJumpCuts,
@@ -111,6 +120,7 @@ export function getAiToolErrorMessage(error: unknown) {
   if (SAFE_TRANSLATE_ERRORS.has(message)) return message
   if (AI_KEY_MISSING_MESSAGES.has(message)) return message
   if (message === PROJECT_NOT_FOUND_MESSAGE) return message
+  if (message === REMAKE_NOT_FOUND_MESSAGE) return message
   if (isProjectSpendLimitMessage(message)) return message
   if (isShowableProviderProblem(message)) return message
   const authProblem = describeAuthError(message)
@@ -228,6 +238,7 @@ const transcriptFn = createServerFn({ method: "POST" })
     z.object({
       projectId: z.string().min(1).max(36),
       clipId: z.string().min(1).max(64),
+      fresh: z.boolean().optional(),
     })
   )
   .handler(async ({ data, context }): Promise<ClipTranscript> => {
@@ -236,15 +247,39 @@ const transcriptFn = createServerFn({ method: "POST" })
       userId: context.user.id,
       projectId: data.projectId,
       clipId: data.clipId,
+      fresh: data.fresh,
     })
   })
 
 /**
- * Writing down what a clip says. A POST rather than a GET because it is real
- * work that costs money, not a page's worth of reading.
+ * Writing down what a clip says. A POST rather than a GET because it can be
+ * real work that costs money, not a page's worth of reading. The file's saved
+ * words answer for nothing; `fresh` pays to write the file down again.
  */
-export function loadClipTranscript(projectId: string, clipId: string) {
-  return transcriptFn({ data: { projectId, clipId } })
+export function loadClipTranscript(
+  projectId: string,
+  clipId: string,
+  options: { fresh?: boolean } = {}
+) {
+  return transcriptFn({ data: { projectId, clipId, fresh: options.fresh } })
+}
+
+const savedTranscriptsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(
+    z.object({ mediaIds: z.array(z.string().min(1).max(36)).max(200) })
+  )
+  .handler(
+    async ({ data, context }): Promise<SavedTranscriptSummary[]> =>
+      listSavedTranscripts(context.user.id, data.mediaIds)
+  )
+
+/**
+ * Which of these files of the caller's own already have their words saved,
+ * so a window can say "no charge" before anything is pressed.
+ */
+export function loadSavedTranscripts(mediaIds: string[]) {
+  return savedTranscriptsFn({ data: { mediaIds } })
 }
 
 const saveAiDefaultsFn = createServerFn({ method: "POST" })
@@ -306,21 +341,23 @@ const speakHookFn = createServerFn({ method: "POST" })
       projectId: optionalProjectId,
     })
   )
-  .handler(async ({ data, context }): Promise<VoiceoverResult> => {
+  .handler(async ({ data, context }): Promise<SpokenLine> => {
     const remembered = await getVoiceDefaults()
     // Only meaningful for a voice that has models to choose between; the
     // other provider works it out from the voice itself.
     const modelId = remembered?.modelId ?? "eleven_multilingual_v2"
+    const settings = rememberedVoiceSettings(remembered)
     await budget(context.user.id, data.projectId, aiUnitCostCents(modelId, data.text.length))
-    return speak({
+    const said = await speak({
       userId: context.user.id,
       voiceId: data.voiceId,
       voiceName: data.voiceName,
       modelId,
       text: data.text,
-      settings: rememberedVoiceSettings(remembered),
+      settings,
       projectId: data.projectId,
     })
+    return { ...said, origin: voiceOrigin("hook", { ...data, modelId, settings }) }
   })
 
 /** Say a rewritten opening line out loud, so the sound can replace the old one. */
@@ -374,27 +411,42 @@ const speakTranslationFn = createServerFn({ method: "POST" })
       projectId: optionalProjectId,
     })
   )
-  .handler(async ({ data, context }): Promise<VoiceoverResult> => {
-    const remembered = await getVoiceDefaults()
-    await budget(
-      context.user.id,
-      data.projectId,
-      aiUnitCostCents(TRANSLATE_VOICE_MODEL, data.text.length)
-    )
-    return speak({
-      userId: context.user.id,
-      voiceId: data.voiceId,
-      voiceName: data.voiceName,
-      // Always ElevenLabs, always the multilingual model: it is the one that
-      // speaks every language on the list.
-      speaker: "elevenlabs",
-      modelId: TRANSLATE_VOICE_MODEL,
-      text: data.text,
-      settings: rememberedVoiceSettings(remembered),
-      feature: "translation_voice",
-      projectId: data.projectId,
-    })
+  .handler(async ({ data, context }): Promise<SpokenLine> => {
+    const settings = rememberedVoiceSettings(await getVoiceDefaults())
+    return speakTranslated(context.user.id, { ...data, settings })
   })
+
+/**
+ * Reads a translation aloud. Always ElevenLabs, always the multilingual
+ * model: it is the one that speaks every language on the list.
+ */
+async function speakTranslated(
+  userId: string,
+  read: {
+    voiceId: string
+    voiceName: string
+    text: string
+    settings?: z.infer<typeof voiceSettingsSchema>
+    projectId?: string
+  }
+): Promise<SpokenLine> {
+  await budget(userId, read.projectId, aiUnitCostCents(TRANSLATE_VOICE_MODEL, read.text.length))
+  const said = await speak({
+    userId,
+    voiceId: read.voiceId,
+    voiceName: read.voiceName,
+    speaker: "elevenlabs",
+    modelId: TRANSLATE_VOICE_MODEL,
+    text: read.text,
+    settings: read.settings,
+    feature: "translation_voice",
+    projectId: read.projectId,
+  })
+  return {
+    ...said,
+    origin: voiceOrigin("translate", { ...read, modelId: TRANSLATE_VOICE_MODEL }),
+  }
+}
 
 /** Read a translation aloud, so it can be laid over the original. */
 export function speakTranslation(text: string, voice: Voice, projectId?: string) {
@@ -443,13 +495,13 @@ const speakFn = createServerFn({ method: "POST" })
       projectId: optionalProjectId,
     })
   )
-  .handler(async ({ data, context }): Promise<VoiceoverResult> => {
+  .handler(async ({ data, context }): Promise<SpokenLine> => {
     await budget(
       context.user.id,
       data.projectId,
       aiUnitCostCents(data.modelId, data.text.length)
     )
-    return speak({
+    const said = await speak({
       userId: context.user.id,
       voiceId: data.voiceId,
       voiceName: data.voiceName,
@@ -458,6 +510,7 @@ const speakFn = createServerFn({ method: "POST" })
       settings: data.settings,
       projectId: data.projectId,
     })
+    return { ...said, origin: voiceOrigin("voice", data) }
   })
 
 export function readAloud(options: {
@@ -472,13 +525,69 @@ export function readAloud(options: {
   return speakFn({ data: options })
 }
 
+const remakeVoiceFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      projectId: z.string().min(1).max(36),
+      clipId: z.string().min(1).max(64),
+      voiceId: z.string().min(1).max(64),
+      voiceName: z.string().min(1).max(255),
+      modelId: z.enum(VOICE_MODEL_IDS),
+      text: z.string().min(1).max(VOICE_TEXT_MAX),
+    })
+  )
+  .handler(async ({ data, context }): Promise<SpokenLine> => {
+    // The line is read off the saved timeline, so the editor saves first.
+    // It keeps the settings it was read with; the window changes the words,
+    // the voice and, where there is a choice, the model.
+    const project = await getOwnedProject(context.user.id, data.projectId)
+    const clip = parseTimelineForReset(project.timeline)
+      .timeline.tracks.flatMap((track) => track.clips)
+      .find((candidate) => candidate.id === data.clipId)
+    const origin = clip?.kind === "audio" ? clip.origin : undefined
+    if (!origin || !isVoiceOrigin(origin)) throw new Error(REMAKE_NOT_FOUND_MESSAGE)
+    const read = {
+      voiceId: data.voiceId,
+      voiceName: data.voiceName,
+      modelId: data.modelId,
+      text: data.text,
+      settings: origin.settings,
+      projectId: data.projectId,
+    }
+    if (origin.tool === "translate") return speakTranslated(context.user.id, read)
+    await budget(
+      context.user.id,
+      data.projectId,
+      aiUnitCostCents(data.modelId, data.text.length)
+    )
+    const said = await speak({ userId: context.user.id, ...read })
+    return { ...said, origin: voiceOrigin(origin.tool, read) }
+  })
+
+/**
+ * Reads a voice line on the timeline again: new words, another voice or
+ * another model, with the settings it was first read with.
+ */
+export function remakeVoiceLine(data: {
+  projectId: string
+  clipId: string
+  voiceId: string
+  voiceName: string
+  modelId: (typeof VOICE_MODEL_IDS)[number]
+  text: string
+}) {
+  return remakeVoiceFn({ data })
+}
+
 export type {
   AiDefaults,
+  SavedTranscriptSummary,
   ClipTranscript,
   HookVariants,
   JumpCutAnalysis,
   ScriptCheck,
+  SpokenLine,
   Voice,
   VoiceDefaults,
-  VoiceoverResult,
 }

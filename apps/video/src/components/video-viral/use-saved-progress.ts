@@ -9,6 +9,9 @@ const POLL_MS = 3_000
 
 type Saved = { id: string; status: string }
 
+/** A saved copy that was deleted here, until the screen reads itself again. */
+type Known = Saved | null
+
 /**
  * Keeps every card's "being saved" state true while somebody looks at other
  * videos.
@@ -16,14 +19,17 @@ type Saved = { id: string; status: string }
  * The player only follows the video it is showing, so without this a card
  * would say "Downloading" until the page was reloaded. The screen asks, in
  * one request every 3 seconds, about each video still downloading or being
- * watched, and stops asking once none is. When one finishes, `onSettled` lets
- * the screen read itself again, so the finished breakdown's score shows.
+ * watched, and stops asking once none is. A video saved with Download alone
+ * finishes at `downloaded`, which is not working, so the asking stops there
+ * too. When one finishes, `onSettled` lets the screen read itself again, so
+ * the finished breakdown's score shows and a downloaded video moves to the
+ * Downloaded tab.
  */
 export function useSavedProgress(
   videos: ViralVideo[],
   onSettled: () => void
 ) {
-  const [saved, setSaved] = React.useState<Record<string, Saved>>({})
+  const [saved, setSaved] = React.useState<Record<string, Known>>({})
 
   const settled = React.useRef(onSettled)
   React.useEffect(() => {
@@ -32,10 +38,11 @@ export function useSavedProgress(
 
   const apply = React.useCallback(
     (video: ViralVideo): ViralVideo => {
+      if (!(video.key in saved)) return video
       const known = saved[video.key]
       return known
         ? { ...video, savedVideoId: known.id, savedStatus: known.status }
-        : video
+        : { ...video, savedVideoId: null, savedStatus: null }
     },
     [saved]
   )
@@ -60,6 +67,15 @@ export function useSavedProgress(
     },
     []
   )
+
+  /** Deleted saved copies: their cards drop the saved state at once. */
+  const forget = React.useCallback((keys: string[]) => {
+    setSaved((was) => {
+      const next = { ...was }
+      for (const key of keys) next[key] = null
+      return next
+    })
+  }, [])
 
   // One string naming every video still working, so the timer below starts
   // and stops only when that list really changes.
@@ -99,5 +115,5 @@ export function useSavedProgress(
     return () => clearInterval(timer)
   }, [workingKey])
 
-  return { apply, report }
+  return { apply, report, forget }
 }

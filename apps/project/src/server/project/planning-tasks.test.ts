@@ -9,6 +9,7 @@ import { addDays, localNow } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { quickDays } from "@/lib/project/quick-days"
 import type { CustomShellDb } from "@/server/db"
+import { inTeam } from "@/server/project/access"
 import { loadCheckinPage, setMyCheckinTime } from "@/server/project/checkins"
 import { addHoliday } from "@/server/project/holidays"
 import { addWait, findTasksToWaitOn, removeWait, setRepeat } from "@/server/project/planning"
@@ -53,6 +54,7 @@ const at = (iso: string) => new Date(iso)
 let client: PGlite
 let database: CustomShellDb
 let admin: CustomShellUser
+let adminTeamId: string
 let anna: CustomShellUser
 let ben: CustomShellUser
 let website: string
@@ -65,7 +67,9 @@ beforeEach(async () => {
   database = testDb.db
   anna = await insertEmployee(database, { name: "Anna", email: "anna@example.test" })
   ben = await insertEmployee(database, { name: "Ben", email: "ben@example.test" })
-  admin = (await startTeam(database, [anna, ben])).admin
+  const started = await startTeam(database, [anna, ben])
+  admin = started.admin
+  adminTeamId = started.team.id
   website = (await projectFor(admin, anna.id, { name: "Website", color: "blue", description: "" }, database)).id
   await addProjectMember(admin.id, website, ben.id, database)
 })
@@ -154,13 +158,15 @@ describe("quick due dates", () => {
   })
 
   it("reads my zone, the team's work days and its coming holidays for the buttons", async () => {
-    await setMyCheckinTime(ben.id, { timeZone: "Asia/Tokyo" }, database)
-    const soon = addDays(localNow(new Date(), "UTC").day, 5)
-    await addHoliday(admin.id, { day: soon, name: "Founders' day" }, database)
-    expect(await loadMyDays(ben.id, database)).toEqual({
-      zone: "Asia/Tokyo",
-      workDays: [1, 2, 3, 4, 5],
-      holidays: [soon],
+    await inTeam(adminTeamId, async () => {
+      await setMyCheckinTime(ben.id, { timeZone: "Asia/Tokyo" }, database)
+      const soon = addDays(localNow(new Date(), "UTC").day, 5)
+      await addHoliday(admin.id, { day: soon, name: "Founders' day" }, database)
+      expect(await loadMyDays(ben.id, database)).toEqual({
+        zone: "Asia/Tokyo",
+        workDays: [1, 2, 3, 4, 5],
+        holidays: [soon],
+      })
     })
   })
 
@@ -381,10 +387,12 @@ describe("remind me", () => {
   })
 
   it("are taken off when the person is taken off the team", async () => {
-    const id = await task("Write the About page")
-    await setTaskReminder(actor(ben), { taskId: id, day: "2099-03-05" }, database)
-    await removeTeamMember(admin.id, ben.id, database)
-    expect(await database.select().from(projectTaskReminders)).toEqual([])
+    await inTeam(adminTeamId, async () => {
+      const id = await task("Write the About page")
+      await setTaskReminder(actor(ben), { taskId: id, day: "2099-03-05" }, database)
+      await removeTeamMember(admin.id, ben.id, database)
+      expect(await database.select().from(projectTaskReminders)).toEqual([])
+    })
   })
 
   it("refuses a day already gone", async () => {

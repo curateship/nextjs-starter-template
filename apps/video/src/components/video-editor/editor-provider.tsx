@@ -8,6 +8,7 @@ import {
 } from "@/lib/api/video/projects"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { PlaybackClock } from "@/lib/video/playback-clock"
+import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import {
   PROJECT_CONFLICT_MESSAGE,
   type ProjectTimeline,
@@ -19,6 +20,7 @@ import {
   useEditorStoreSelector,
   type EditorStore,
 } from "@/components/video-editor/editor-store"
+import { GUEST_ENDED_MESSAGE, useProjectGuest } from "@/components/video-editor/project-guest"
 
 // How long after the last edit the timeline is saved.
 const AUTOSAVE_DEBOUNCE_MS = 1500
@@ -71,6 +73,7 @@ export function EditorProvider({
   children: React.ReactNode
 }) {
   const navigate = useNavigate()
+  const guest = useProjectGuest() !== null
   // What a refused edit repeats back. Set once the window locks, and replaced
   // as keeping the copy moves on, so it always says where the work is now.
   const lockNoticeRef = React.useRef<(() => void) | null>(null)
@@ -91,6 +94,17 @@ export function EditorProvider({
     const say = (notice: () => void) => {
       lockNoticeRef.current = notice
       notice()
+    }
+    // A guest sent from Project couldn't open a copy, so none is made: the
+    // reload brings in the newer version.
+    if (guest) {
+      say(() =>
+        showErrorToast(`${CONFLICT_NOTICE} Reload to carry on from the newer version.`, {
+          label: "Reload",
+          onClick: () => window.location.reload(),
+        })
+      )
+      return
     }
     say(() => showErrorToast(`${CONFLICT_NOTICE} Keeping your work here as a new project.`))
     try {
@@ -119,7 +133,7 @@ export function EditorProvider({
         )
       )
     }
-  }, [document.id, navigate, store])
+  }, [document.id, guest, navigate, store])
   const tracks = useEditorStoreSelector(
     store,
     (snapshot) => snapshot.state.tracks
@@ -155,6 +169,14 @@ export function EditorProvider({
                 store.setLock("conflict")
                 void keepRefusedWork()
               }
+            } else if (
+              guest &&
+              error instanceof Error &&
+              (error.message === PROJECT_NOT_FOUND_MESSAGE || error.message.includes("AUTH_REQUIRED"))
+            ) {
+              // The guest's 12 hours are up, or their sign-in is gone.
+              store.setLock("read-only")
+              showErrorToast(GUEST_ENDED_MESSAGE)
             } else {
               showErrorToast(getProjectErrorMessage(error))
             }
@@ -164,7 +186,7 @@ export function EditorProvider({
       saveQueueRef.current = run
       return run
     },
-    [document.id, keepRefusedWork, store]
+    [document.id, guest, keepRefusedWork, store]
   )
 
   // One clock per editor. It lives outside React so a frame tick never

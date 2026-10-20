@@ -35,6 +35,8 @@ import { Route as AuthenticatedChangelogRouteImport } from './routes/_authentica
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as GuestEndedRouteImport } from './routes/guest.ended'
+import { Route as HandoffProjectRouteImport } from './routes/handoff.project'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
@@ -57,6 +59,7 @@ import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
+import { Route as AuthenticatedAdminVideoCarouselExportsRouteImport } from './routes/_authenticated/admin/video-carousel-exports'
 import { Route as AuthenticatedAdminVideoCarouselsRouteImport } from './routes/_authenticated/admin/video-carousels'
 import { Route as AuthenticatedAdminVideoCreatorsRouteImport } from './routes/_authenticated/admin/video-creators'
 import { Route as AuthenticatedAdminVideoEditorRouteImport } from './routes/_authenticated/admin/video-editor'
@@ -68,6 +71,7 @@ import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_au
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
+import { Route as GuestVideoEditorProjectIdRouteImport } from './routes/guest.video-editor.$projectId'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
@@ -97,7 +101,6 @@ import { Route as ApiV1VideoExportsExportIdFileRouteImport } from './routes/api/
 import { Route as ApiV1VideoMediaMediaIdFilmstripRouteImport } from './routes/api/v1/video/media/$mediaId/filmstrip'
 import { Route as ApiV1VideoMediaMediaIdWaveformRouteImport } from './routes/api/v1/video/media/$mediaId/waveform'
 import { Route as ApiV1VideoShareTokenFileRouteImport } from './routes/api/v1/video/share/$token/file'
-import { Route as ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRouteImport } from './routes/api/v1/video/carousels/$carouselId/slides/$slideIndex'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -228,6 +231,16 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuestEndedRoute = GuestEndedRouteImport.update({
+  id: '/guest/ended',
+  path: '/guest/ended',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HandoffProjectRoute = HandoffProjectRouteImport.update({
+  id: '/handoff/project',
+  path: '/handoff/project',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -353,6 +366,12 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminVideoCarouselExportsRoute =
+  AuthenticatedAdminVideoCarouselExportsRouteImport.update({
+    id: '/video-carousel-exports',
+    path: '/video-carousel-exports',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminVideoCarouselsRoute =
   AuthenticatedAdminVideoCarouselsRouteImport.update({
     id: '/video-carousels',
@@ -416,6 +435,12 @@ const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
   path: '/api/webhooks/stripe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuestVideoEditorProjectIdRoute =
+  GuestVideoEditorProjectIdRouteImport.update({
+    id: '/guest/video-editor/$projectId',
+    path: '/guest/video-editor/$projectId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAccountBillingSuccessRoute =
   AuthenticatedAccountBillingSuccessRouteImport.update({
     id: '/billing_/success',
@@ -586,12 +611,6 @@ const ApiV1VideoShareTokenFileRoute =
     path: '/api/v1/video/share/$token/file',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute =
-  ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRouteImport.update({
-    id: '/api/v1/video/carousels/$carouselId/slides/$slideIndex',
-    path: '/api/v1/video/carousels/$carouselId/slides/$slideIndex',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -619,6 +638,8 @@ export interface FileRoutesByFullPath {
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/guest/ended': typeof GuestEndedRoute
+  '/handoff/project': typeof HandoffProjectRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -640,6 +661,7 @@ export interface FileRoutesByFullPath {
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/admin/video-carousel-exports': typeof AuthenticatedAdminVideoCarouselExportsRoute
   '/admin/video-carousels': typeof AuthenticatedAdminVideoCarouselsRouteWithChildren
   '/admin/video-creators': typeof AuthenticatedAdminVideoCreatorsRoute
   '/admin/video-editor': typeof AuthenticatedAdminVideoEditorRouteWithChildren
@@ -650,6 +672,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/guest/video-editor/$projectId': typeof GuestVideoEditorProjectIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -681,7 +704,6 @@ export interface FileRoutesByFullPath {
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
   '/api/v1/video/media/$mediaId/waveform': typeof ApiV1VideoMediaMediaIdWaveformRoute
   '/api/v1/video/share/$token/file': typeof ApiV1VideoShareTokenFileRoute
-  '/api/v1/video/carousels/$carouselId/slides/$slideIndex': typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -707,6 +729,8 @@ export interface FileRoutesByTo {
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/guest/ended': typeof GuestEndedRoute
+  '/handoff/project': typeof HandoffProjectRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -728,12 +752,14 @@ export interface FileRoutesByTo {
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/admin/video-carousel-exports': typeof AuthenticatedAdminVideoCarouselExportsRoute
   '/admin/video-creators': typeof AuthenticatedAdminVideoCreatorsRoute
   '/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/guest/video-editor/$projectId': typeof GuestVideoEditorProjectIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -765,7 +791,6 @@ export interface FileRoutesByTo {
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
   '/api/v1/video/media/$mediaId/waveform': typeof ApiV1VideoMediaMediaIdWaveformRoute
   '/api/v1/video/share/$token/file': typeof ApiV1VideoShareTokenFileRoute
-  '/api/v1/video/carousels/$carouselId/slides/$slideIndex': typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -795,6 +820,8 @@ export interface FileRoutesById {
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/guest/ended': typeof GuestEndedRoute
+  '/handoff/project': typeof HandoffProjectRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -816,6 +843,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/admin/video-carousel-exports': typeof AuthenticatedAdminVideoCarouselExportsRoute
   '/_authenticated/admin/video-carousels': typeof AuthenticatedAdminVideoCarouselsRouteWithChildren
   '/_authenticated/admin/video-creators': typeof AuthenticatedAdminVideoCreatorsRoute
   '/_authenticated/admin/video-editor': typeof AuthenticatedAdminVideoEditorRouteWithChildren
@@ -826,6 +854,7 @@ export interface FileRoutesById {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/guest/video-editor/$projectId': typeof GuestVideoEditorProjectIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -857,7 +886,6 @@ export interface FileRoutesById {
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
   '/api/v1/video/media/$mediaId/waveform': typeof ApiV1VideoMediaMediaIdWaveformRoute
   '/api/v1/video/share/$token/file': typeof ApiV1VideoShareTokenFileRoute
-  '/api/v1/video/carousels/$carouselId/slides/$slideIndex': typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -887,6 +915,8 @@ export interface FileRouteTypes {
     | '/home'
     | '/workspaces'
     | '/api/health'
+    | '/guest/ended'
+    | '/handoff/project'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -908,6 +938,7 @@ export interface FileRouteTypes {
     | '/admin/system-emails'
     | '/admin/traffic'
     | '/admin/users'
+    | '/admin/video-carousel-exports'
     | '/admin/video-carousels'
     | '/admin/video-creators'
     | '/admin/video-editor'
@@ -918,6 +949,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/guest/video-editor/$projectId'
     | '/admin/'
     | '/changelog/'
     | '/account/billing/success'
@@ -949,7 +981,6 @@ export interface FileRouteTypes {
     | '/api/v1/video/media/$mediaId/filmstrip'
     | '/api/v1/video/media/$mediaId/waveform'
     | '/api/v1/video/share/$token/file'
-    | '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -975,6 +1006,8 @@ export interface FileRouteTypes {
     | '/home'
     | '/workspaces'
     | '/api/health'
+    | '/guest/ended'
+    | '/handoff/project'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -996,12 +1029,14 @@ export interface FileRouteTypes {
     | '/admin/system-emails'
     | '/admin/traffic'
     | '/admin/users'
+    | '/admin/video-carousel-exports'
     | '/admin/video-creators'
     | '/admin/video-exports'
     | '/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/guest/video-editor/$projectId'
     | '/admin'
     | '/changelog'
     | '/account/billing/success'
@@ -1033,7 +1068,6 @@ export interface FileRouteTypes {
     | '/api/v1/video/media/$mediaId/filmstrip'
     | '/api/v1/video/media/$mediaId/waveform'
     | '/api/v1/video/share/$token/file'
-    | '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
   id:
     | '__root__'
     | '/'
@@ -1062,6 +1096,8 @@ export interface FileRouteTypes {
     | '/_authenticated/home'
     | '/_authenticated/workspaces'
     | '/api/health'
+    | '/guest/ended'
+    | '/handoff/project'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
@@ -1083,6 +1119,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/system-emails'
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
+    | '/_authenticated/admin/video-carousel-exports'
     | '/_authenticated/admin/video-carousels'
     | '/_authenticated/admin/video-creators'
     | '/_authenticated/admin/video-editor'
@@ -1093,6 +1130,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/guest/video-editor/$projectId'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
@@ -1124,7 +1162,6 @@ export interface FileRouteTypes {
     | '/api/v1/video/media/$mediaId/filmstrip'
     | '/api/v1/video/media/$mediaId/waveform'
     | '/api/v1/video/share/$token/file'
-    | '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1149,9 +1186,12 @@ export interface RootRouteChildren {
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  GuestEndedRoute: typeof GuestEndedRoute
+  HandoffProjectRoute: typeof HandoffProjectRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  GuestVideoEditorProjectIdRoute: typeof GuestVideoEditorProjectIdRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
@@ -1164,7 +1204,6 @@ export interface RootRouteChildren {
   ApiV1VideoMediaMediaIdFilmstripRoute: typeof ApiV1VideoMediaMediaIdFilmstripRoute
   ApiV1VideoMediaMediaIdWaveformRoute: typeof ApiV1VideoMediaMediaIdWaveformRoute
   ApiV1VideoShareTokenFileRoute: typeof ApiV1VideoShareTokenFileRoute
-  ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute: typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1351,6 +1390,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guest/ended': {
+      id: '/guest/ended'
+      path: '/guest/ended'
+      fullPath: '/guest/ended'
+      preLoaderRoute: typeof GuestEndedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/handoff/project': {
+      id: '/handoff/project'
+      path: '/handoff/project'
+      fullPath: '/handoff/project'
+      preLoaderRoute: typeof HandoffProjectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
       path: '/'
@@ -1505,6 +1558,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/video-carousel-exports': {
+      id: '/_authenticated/admin/video-carousel-exports'
+      path: '/video-carousel-exports'
+      fullPath: '/admin/video-carousel-exports'
+      preLoaderRoute: typeof AuthenticatedAdminVideoCarouselExportsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/video-carousels': {
       id: '/_authenticated/admin/video-carousels'
       path: '/video-carousels'
@@ -1580,6 +1640,13 @@ declare module '@tanstack/react-router' {
       path: '/api/webhooks/stripe'
       fullPath: '/api/webhooks/stripe'
       preLoaderRoute: typeof ApiWebhooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guest/video-editor/$projectId': {
+      id: '/guest/video-editor/$projectId'
+      path: '/guest/video-editor/$projectId'
+      fullPath: '/guest/video-editor/$projectId'
+      preLoaderRoute: typeof GuestVideoEditorProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/account/billing_/success': {
@@ -1785,13 +1852,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1VideoShareTokenFileRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/v1/video/carousels/$carouselId/slides/$slideIndex': {
-      id: '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
-      path: '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
-      fullPath: '/api/v1/video/carousels/$carouselId/slides/$slideIndex'
-      preLoaderRoute: typeof ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -1909,6 +1969,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSystemEmailsRoute: typeof AuthenticatedAdminSystemEmailsRoute
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
+  AuthenticatedAdminVideoCarouselExportsRoute: typeof AuthenticatedAdminVideoCarouselExportsRoute
   AuthenticatedAdminVideoCarouselsRoute: typeof AuthenticatedAdminVideoCarouselsRouteWithChildren
   AuthenticatedAdminVideoCreatorsRoute: typeof AuthenticatedAdminVideoCreatorsRoute
   AuthenticatedAdminVideoEditorRoute: typeof AuthenticatedAdminVideoEditorRouteWithChildren
@@ -1949,6 +2010,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminSystemEmailsRoute: AuthenticatedAdminSystemEmailsRoute,
   AuthenticatedAdminTrafficRoute: AuthenticatedAdminTrafficRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
+  AuthenticatedAdminVideoCarouselExportsRoute:
+    AuthenticatedAdminVideoCarouselExportsRoute,
   AuthenticatedAdminVideoCarouselsRoute:
     AuthenticatedAdminVideoCarouselsRouteWithChildren,
   AuthenticatedAdminVideoCreatorsRoute: AuthenticatedAdminVideoCreatorsRoute,
@@ -2040,9 +2103,12 @@ const rootRouteChildren: RootRouteChildren = {
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
+  GuestEndedRoute: GuestEndedRoute,
+  HandoffProjectRoute: HandoffProjectRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  GuestVideoEditorProjectIdRoute: GuestVideoEditorProjectIdRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
@@ -2056,8 +2122,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1VideoMediaMediaIdFilmstripRoute: ApiV1VideoMediaMediaIdFilmstripRoute,
   ApiV1VideoMediaMediaIdWaveformRoute: ApiV1VideoMediaMediaIdWaveformRoute,
   ApiV1VideoShareTokenFileRoute: ApiV1VideoShareTokenFileRoute,
-  ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute:
-    ApiV1VideoCarouselsCarouselIdSlidesSlideIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

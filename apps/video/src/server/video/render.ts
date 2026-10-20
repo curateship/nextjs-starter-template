@@ -33,6 +33,13 @@ import {
 import { clipMotion, motionFilter } from "@/lib/video/clip-motion"
 import { clipColour, colourEqFilter } from "@/lib/video/clip-colour"
 import {
+  NO_FADES,
+  pictureFadeFilters,
+  pictureFades,
+  soundFadeFilters,
+  type FadePair,
+} from "@/lib/video/clip-fades"
+import {
   captionExportWindows,
   captionWordAnimation,
   isAnimatedCaption,
@@ -210,6 +217,8 @@ type RenderClip = {
   muted: boolean
   duck: boolean
   transition?: ClipTransition | null
+  /** The picture fades as they play, after the lane's transitions. */
+  fades?: FadePair
 }
 
 function flattenForRender(tracks: EditorTrack[]) {
@@ -223,20 +232,25 @@ function flattenForRender(tracks: EditorTrack[]) {
       if (!clip.durationMs || clip.durationMs <= 0) return
       if (clip.kind === "audio") {
         audio.push({ clip, muted: track.muted || !!clip.muted, duck })
-      } else if (clip.kind === "text") {
-        if (clip.text?.trim()) visuals.push({ clip, muted: true, duck: false })
+        return
+      }
+      // The clips either side on the same lane decide whether a seam blends,
+      // and a blend at a seam overrules a picture fade there. They are
+      // stored in order.
+      const previous = clipIndex > 0 ? clips[clipIndex - 1] : null
+      const next = clips[clipIndex + 1] ?? null
+      const fades = pictureFades(clip, previous, next)
+      if (clip.kind === "text") {
+        if (clip.text?.trim()) {
+          visuals.push({ clip, muted: true, duck: false, fades })
+        }
       } else if (clip.mediaId) {
-        // The clip before this one on the same lane decides whether the seam
-        // blends. They are stored in order.
-        const transition = resolveIncomingTransition(
-          clip,
-          clipIndex > 0 ? clips[clipIndex - 1] : null
-        )
         visuals.push({
           clip,
           muted: track.muted || !!clip.muted,
           duck,
-          transition,
+          transition: resolveIncomingTransition(clip, previous),
+          fades,
         })
       }
     })
@@ -558,6 +572,14 @@ export async function extractCoverFrameFromStorage(
   }
 }
 
+function hasFades({ fades = NO_FADES }: RenderClip) {
+  return fades.inMs > 0 || fades.outMs > 0
+}
+
+function pictureFadeStages({ clip, fades = NO_FADES }: RenderClip) {
+  return pictureFadeFilters(fades, clip.startMs, clip.durationMs)
+}
+
 /**
  * Builds the input list and the filter graph. Nothing is padded: a clip that
  * does not fill the frame lets whatever is under it show through, exactly as
@@ -652,12 +674,7 @@ async function buildFfmpegCommand(options: {
     }
     // Clip time, before the delay moves it into place. The input was cut to
     // the clip with -ss and -t, so it starts at zero and ends at durationMs.
-    const fadeMs = Math.min(clip.fadeOutMs ?? 0, clip.durationMs)
-    if (fadeMs > 0) {
-      stages.push(
-        `afade=t=out:st=${((clip.durationMs - fadeMs) / 1000).toFixed(3)}:d=${(fadeMs / 1000).toFixed(3)}`
-      )
-    }
+    stages.push(...soundFadeFilters(clip))
     stages.push(`adelay=${Math.round(clip.startMs)}:all=1`)
     if (duck && duckExpr) stages.push(`volume=eval=frame:volume='${duckExpr}'`)
     filters.push(`[${inputIdx}:a]${stages.join(",")}${label}`)
@@ -670,11 +687,18 @@ async function buildFfmpegCommand(options: {
 
   // Captions with nothing else between them in the stack are drawn as one
   // layer, keyed by the first of them (see caption-layer.ts). A layer per
-  // caption ran a long captioned export past its time limit.
+  // caption ran a long captioned export past its time limit. A text clip
+  // that fades is a layer of its own, because the fade is applied to the
+  // whole layer and must not reach the captions around it.
   const captionRuns = new Map<RenderClip, RenderClip[]>()
   let run: RenderClip[] | null = null
   for (const entry of visuals) {
     if (entry.clip.kind !== "text") {
+      run = null
+      continue
+    }
+    if (hasFades(entry)) {
+      captionRuns.set(entry, [entry])
       run = null
       continue
     }
@@ -775,8 +799,15 @@ async function buildFfmpegCommand(options: {
       const endFrame = segments.at(-1)!.toFrame
       // On from its first frame, off before the frame after its last: the
       // half frames keep either edge from landing on a rounding error.
+      // A layer of words holds one frame per picture, which the overlay
+      // repeats until the next. A fade has to change every frame, so a
+      // fading layer is first given one frame per frame of the film.
+      const textFades =
+        run.length === 1 && hasFades(run[0])
+          ? [`fps=${fps}`, ...pictureFadeStages(run[0])]
+          : []
       filters.push(
-        `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${firstFrame / fps}/TB[l${visualStep}]`,
+        `[${inputIndex}:v]${["format=rgba", `setpts=PTS-STARTPTS+${firstFrame / fps}/TB`, ...textFades].join(",")}[l${visualStep}]`,
         `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${(firstFrame - 0.5) / fps},${(endFrame - 0.5) / fps})'[v${visualStep + 1}]`
       )
     } else {
@@ -859,7 +890,11 @@ async function buildFfmpegCommand(options: {
             `fade=t=in:st=0:d=${blend.toFixed(3)}:alpha=1`
           )
         }
-        chain.push(`setpts=PTS-STARTPTS+${drawStartS.toFixed(3)}/TB`)
+        chain.push(
+          `setpts=PTS-STARTPTS+${drawStartS.toFixed(3)}/TB`,
+          // Only the fade out can be left: the blend took the fade in.
+          ...pictureFadeStages(entry)
+        )
         const xExpr =
           reach.kind === "slide"
             ? `'if(gte(t,${startS.toFixed(3)}),${place.x},${place.x}+(W-(${place.x}))*((${startS.toFixed(3)}-t)/${blend.toFixed(3)}))'`
@@ -869,8 +904,10 @@ async function buildFfmpegCommand(options: {
           `[v${visualStep}][l${visualStep}]overlay=x=${xExpr}:y=${place.y}:enable='between(t,${drawStartS.toFixed(3)},${endS.toFixed(3)})'[v${visualStep + 1}]`
         )
       } else {
+        // The fades go on once the frames carry timeline time, so they start
+        // where the clip does on the timeline.
         filters.push(
-          `[${inputIndex}:v]${pictureFilter},setpts=(PTS-STARTPTS)/${speed}+${startS + skipS}/TB[l${visualStep}]`,
+          `[${inputIndex}:v]${[pictureFilter, `setpts=(PTS-STARTPTS)/${speed}+${startS + skipS}/TB`, ...pictureFadeStages(entry)].join(",")}[l${visualStep}]`,
           `[v${visualStep}][l${visualStep}]overlay=x=${place.x}:y=${place.y}:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
         )
       }

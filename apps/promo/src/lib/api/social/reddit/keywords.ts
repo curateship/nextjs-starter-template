@@ -1,7 +1,15 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { adminGet, adminPost } from "@/server/guards"
+import { adminPost } from "@/server/guards"
+import {
+  actorFor,
+  actorForFind,
+  actorForFinds,
+  actorForKeyword,
+  editorGet,
+  editorPost,
+} from "@/server/social/project-guests"
 import {
   addKeyword,
   deleteKeyword,
@@ -66,10 +74,10 @@ const keywordInput = z.object({
 })
 
 const loadKeywordsFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
+  .middleware([editorGet])
   .inputValidator(z.object({ projectId: z.string().min(1) }))
   .handler(async ({ context, data }): Promise<KeywordRow[]> =>
-    listKeywords(context.user.id, data.projectId)
+    listKeywords((await actorFor(context.caller, data.projectId)).userId, data.projectId)
   )
 
 export function loadKeywords(projectId: string) {
@@ -80,10 +88,10 @@ const newKeywordInput = keywordInput.extend({ projectId: z.string().min(1) })
 
 /** Makes a keyword in a project. */
 const addKeywordFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(newKeywordInput)
   .handler(async ({ context, data: { projectId, ...input } }): Promise<{ id: string }> => ({
-    id: await addKeyword(context.user.id, projectId, input),
+    id: await addKeyword((await actorFor(context.caller, projectId)).userId, projectId, input),
   }))
 
 export function saveNewKeyword(data: z.input<typeof newKeywordInput>) {
@@ -91,10 +99,10 @@ export function saveNewKeyword(data: z.input<typeof newKeywordInput>) {
 }
 
 const deleteKeywordFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(z.object({ id: z.string().min(1) }))
   .handler(async ({ context, data }): Promise<void> => {
-    await deleteKeyword(context.user.id, data.id)
+    await deleteKeyword((await actorForKeyword(context.caller, data.id)).userId, data.id)
   })
 
 export function removeKeyword(id: string) {
@@ -115,10 +123,10 @@ export function suggestKeywords(projectId: string) {
 
 /** Switches a keyword's timed searches on or off. Pressing it by hand still works when off. */
 const enableKeywordFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(z.object({ id: z.string().min(1), enabled: z.boolean() }))
   .handler(async ({ context, data }): Promise<void> => {
-    await setKeywordEnabled(context.user.id, data.id, data.enabled)
+    await setKeywordEnabled((await actorForKeyword(context.caller, data.id)).userId, data.id, data.enabled)
   })
 
 export function switchKeyword(id: string, enabled: boolean) {
@@ -130,10 +138,10 @@ export function switchKeyword(id: string, enabled: boolean) {
  * because the browser takes tens of seconds and the screen polls instead.
  */
 const runKeywordFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(z.object({ keywordId: z.string().min(1) }))
   .handler(async ({ context, data }): Promise<{ jobId: string }> => ({
-    jobId: await queueJob(context.user.id, "search", {
+    jobId: await queueJob((await actorForKeyword(context.caller, data.keywordId)).userId, "search", {
       keywordId: data.keywordId,
     }),
   }))
@@ -143,7 +151,7 @@ export function runKeyword(keywordId: string) {
 }
 
 const loadFindsFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
+  .middleware([editorGet])
   .inputValidator(
     z.object({
       projectId: z.string().min(1),
@@ -153,7 +161,7 @@ const loadFindsFn = createServerFn({ method: "GET" })
     })
   )
   .handler(async ({ context, data }): Promise<FindRow[]> =>
-    listFinds(context.user.id, data)
+    listFinds((await actorFor(context.caller, data.projectId)).userId, data)
   )
 
 /** A project's posts: one keyword's, or with none every keyword's in one order. */
@@ -167,9 +175,14 @@ export function loadFinds(query: {
 }
 
 const loadFindFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
+  .middleware([editorGet])
   .inputValidator(z.object({ findId: z.string().min(1) }))
-  .handler(async ({ context, data }) => loadFindDetail(context.user.id, data.findId))
+  .handler(async ({ context, data }) => {
+    const actor = await actorForFind(context.caller, data.findId)
+    const find = await loadFindDetail(actor.userId, data.findId)
+    // The owner's past comments may be from other projects, so a guest sees none.
+    return find && actor.guest ? { ...find, pastAnswers: [] } : find
+  })
 
 export function loadFind(findId: string) {
   return loadFindFn({ data: { findId } })
@@ -177,10 +190,10 @@ export function loadFind(findId: string) {
 
 /** Reads the post's replies through the browser, so it goes on the queue. */
 const readThreadFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(z.object({ findId: z.string().min(1) }))
   .handler(async ({ context, data }): Promise<void> => {
-    await queueThreadRead(context.user.id, data.findId)
+    await queueThreadRead((await actorForFind(context.caller, data.findId)).userId, data.findId)
   })
 
 export function readThread(findId: string) {
@@ -193,12 +206,13 @@ export function readThread(findId: string) {
  * subreddit the app already found is ever asked about.
  */
 const readRulesFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(z.object({ findId: z.string().min(1) }))
   .handler(async ({ context, data }): Promise<void> => {
-    const find = await loadFindDetail(context.user.id, data.findId)
+    const { userId } = await actorForFind(context.caller, data.findId)
+    const find = await loadFindDetail(userId, data.findId)
     if (!find) throw new Error("That post is no longer saved.")
-    await queueRulesRead(context.user.id, find.subreddit)
+    await queueRulesRead(userId, find.subreddit)
   })
 
 export function readSubredditRules(findId: string) {
@@ -211,7 +225,7 @@ export function readSubredditRules(findId: string) {
  * does.
  */
 const setStatusFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(
     z.object({
       findIds: z.array(z.string().min(1)).min(1).max(200),
@@ -223,7 +237,7 @@ const setStatusFn = createServerFn({ method: "POST" })
       context,
       data,
     }): Promise<{ completed: string[]; skipped: string[] }> =>
-      setFindStatus(context.user.id, data.findIds, data.status)
+      setFindStatus((await actorForFinds(context.caller, data.findIds)).userId, data.findIds, data.status)
   )
 
 export function setFindsStatus(

@@ -162,6 +162,28 @@ export async function deleteCreator(
   }
 }
 
+/**
+ * Switches the watch timer on or off for one creator. A creator is stored once
+ * per person and linked to every project they are in, so this pauses or
+ * resumes them in all of those projects at once. Posts already saved stay.
+ * Somebody else's creator finds nothing and is refused as not found.
+ */
+export async function setCreatorWatch(
+  ownerId: string,
+  creatorId: string,
+  watch: boolean
+): Promise<{ id: string; watch: boolean }> {
+  const [row] = await db
+    .update(videoCreators)
+    .set({ watch, updatedAt: now() })
+    .where(
+      and(eq(videoCreators.id, creatorId), eq(videoCreators.ownerId, ownerId))
+    )
+    .returning({ id: videoCreators.id, watch: videoCreators.watch })
+  if (!row) throw new Error(CREATOR_ERRORS.notFound)
+  return row
+}
+
 /** Where one creator's avatar is stored, for the session-checked route. */
 export async function creatorAvatarPath(
   ownerId: string,

@@ -13,7 +13,8 @@ import {
   FRAME_FAILED_MESSAGE,
 } from "@/lib/video/saved-frames"
 import { SAVED_TIMELINE_INVALID_MESSAGE } from "@/lib/video/timeline-schema"
-import { userPost } from "@/server/guards"
+import { editorPost } from "@/server/video/editor-guards"
+import { actorFor, actorForExport } from "@/server/video/project-guests"
 import {
   saveOwnedExportFrame,
   saveOwnedProjectFrame,
@@ -46,27 +47,31 @@ export function getSavedFrameErrorMessage(error: unknown) {
 
 const atMsSchema = z.number().nonnegative().finite()
 
+// A guest sent from Project may keep frames of their own project
+// (`workspace/docs/project-guests.md`).
 const saveExportFrameFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(
     z.object({ exportId: z.string().min(1).max(36), atMs: atMsSchema })
   )
   .handler(async ({ data, context }) => {
+    const { userId } = await actorForExport(context.caller, data.exportId)
     return saveOwnedExportFrame({
-      userId: context.user.id,
+      userId,
       exportId: data.exportId,
       atMs: data.atMs,
     })
   })
 
 const saveProjectFrameFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(
     z.object({ projectId: z.string().min(1).max(36), atMs: atMsSchema })
   )
   .handler(async ({ data, context }) => {
+    const { userId } = await actorFor(context.caller, data.projectId)
     return saveOwnedProjectFrame({
-      userId: context.user.id,
+      userId,
       projectId: data.projectId,
       atMs: data.atMs,
     })

@@ -5,14 +5,14 @@ import {
   FilmIcon,
   GalleryHorizontalIcon,
   Loader2Icon,
-  PlusIcon,
   RotateCwIcon,
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { ActorFormDialog } from "@/components/video-assets/actor-form-dialog"
+import { AiClipExtras } from "@/components/video-editor/ai-clip-extras"
+import { AiClipNewActor } from "@/components/video-editor/ai-clip-new-actor"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -50,6 +50,13 @@ import { useDragToTimeline } from "@/components/video-editor/use-drag-to-timelin
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import { listActors, type ActorItem } from "@/lib/api/video/actors"
 import {
+  getExtraErrorMessage,
+  listExtras,
+  readProjectExtraPicks,
+  saveProjectExtraPicks,
+  type ExtraItem,
+} from "@/lib/api/video/extras"
+import {
   createCarouselFromFirstFrames,
   getCarouselErrorMessage,
   type CarouselFormat,
@@ -76,14 +83,28 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   ASSET_ASPECT_RATIOS,
   DEFAULT_IMAGE_MODEL,
+  DEFAULT_VIDEO_QUALITY,
+  pieceCostCents,
   PROJECT_SHOTS_FULL_MESSAGE,
   projectClipAspect,
+  qualityPrice,
+  shotCostCents,
   shotPieces,
+  shotPriceLine,
   SHOTS_AT_ONCE_PER_PROJECT,
-  VEO_MODEL,
+  VIDEO_MODEL,
+  VIDEO_QUALITIES,
+  videoQualityName,
   type AssetAspectRatio,
   type ShotLengthSeconds,
+  type VideoQuality,
 } from "@/lib/video/asset-factories"
+import {
+  BOARD_FULL_MESSAGE,
+  BOARD_TILES,
+  boardExtraCount,
+  type ExtraPicks,
+} from "@/lib/video/extras"
 import {
   formatCents,
   isProjectSpendLimitMessage,
@@ -122,20 +143,29 @@ export function AiClipPanel() {
   const editorAspect = useEditorSelector((state) => state.aspect)
 
   const [actors, setActors] = React.useState<ActorItem[] | null>(null)
+  const [extras, setExtras] = React.useState<ExtraItem[] | null>(null)
+  // The extras picked, kept on the project so a series keeps its outfit.
+  const [extraPicks, setExtraPicks] = React.useState<ExtraPicks>({})
   const [frames, setFrames] = React.useState<FirstFrameItem[] | null>(null)
   const [shots, setShots] = React.useState<GenerationItem[] | null>(null)
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [reloads, setReloads] = React.useState(0)
 
   const [pickedActorId, setPickedActorId] = React.useState<string | null>(null)
-  const [makingActor, setMakingActor] = React.useState(false)
   const [scene, setScene] = React.useState("")
   const [sceneInvalid, setSceneInvalid] = React.useState(false)
   const [variants, setVariants] = React.useState(2)
+  // The sheet pictures picked for the actor they were picked on.
+  const [pickedPictures, setPickedPictures] = React.useState<{
+    actorId: string
+    ids: string[]
+  } | null>(null)
   const [chosenShape, setChosenShape] = React.useState<AssetAspectRatio>("9:16")
   const [framesBusy, setFramesBusy] = React.useState(false)
   const [pickedFrameId, setPickedFrameId] = React.useState<string | null>(null)
   const [lengthSeconds, setLengthSeconds] = React.useState<ShotLengthSeconds>(8)
+  // The size the last shot was made at, until another is picked.
+  const [quality, setQuality] = React.useState<VideoQuality>(DEFAULT_VIDEO_QUALITY)
   const [directions, setDirections] = React.useState<string[]>([""])
   const [directionsInvalid, setDirectionsInvalid] = React.useState(false)
   const [shotBusy, setShotBusy] = React.useState(false)
@@ -149,12 +179,17 @@ export function AiClipPanel() {
       listActors(),
       listFirstFrames(projectId),
       listGenerations(projectId),
+      listExtras(),
+      readProjectExtraPicks(projectId),
     ])
-      .then(([actorList, frameList, shotList]) => {
+      .then(([actorList, frameList, shotList, extraList, picked]) => {
         if (!active) return
         setActors(actorList.actors.filter((actor) => actor.status === "active"))
+        setExtras(extraList.extras)
+        setExtraPicks(picked.picks)
         setFrames(frameList.firstFrames)
         setShots(shotList.generations)
+        setQuality(shotList.quality)
         setLoadFailed(false)
       })
       .catch((error) => {
@@ -168,7 +203,7 @@ export function AiClipPanel() {
   }, [projectId, reloads])
 
   // While a shot is being made, ask again. The spend line moves when one
-  // finishes, because Veo is paid for once the clip is made.
+  // finishes, because a shot is paid for once the clip is made.
   const makingCount = shots?.filter(shotWorking).length ?? 0
   const working = makingCount > 0
   React.useEffect(() => {
@@ -202,10 +237,27 @@ export function AiClipPanel() {
     frames?.find((candidate) => candidate.id === (pickedFrameId ?? "")) ??
     frames?.[0] ??
     null
+  // Which of the actor's sheet pictures a first frame is drawn from: the
+  // main picture until others are picked. They share the person board with
+  // the clothing, hair and prop picked, which holds 4.
+  const boardExtras = boardExtraCount(extraPicks)
+  const pictureIds = (() => {
+    if (!actor) return []
+    const picked =
+      pickedPictures?.actorId === actor.id
+        ? pickedPictures.ids.filter((id) =>
+            actor.sheet.some((picture) => picture.id === id)
+          )
+        : []
+    if (picked.length) return picked
+    const main = actor.sheet.find((picture) => picture.main)
+    return main ? [main.id] : []
+  })()
   const projectShape = projectClipAspect(editorAspect)
   const pieces = shotPieces(lengthSeconds).count
   const frameCostCents = aiUnitCostCents(DEFAULT_IMAGE_MODEL, variants)
-  const shotCostCents = aiUnitCostCents(VEO_MODEL, lengthSeconds)
+  const shotCents = shotCostCents(lengthSeconds)
+  const secondCents = pieceCostCents(VIDEO_MODEL, 1)
   // The picked frame's newest shots, as many as can be made at once, so
   // directions tried side by side show side by side.
   const frameShots = frame
@@ -221,6 +273,39 @@ export function AiClipPanel() {
         ? { label: "Raise limit", onClick: openSettings }
         : undefined
     )
+  }
+
+  function togglePicture(pictureId: string) {
+    if (!actor) return
+    if (pictureIds.includes(pictureId)) {
+      if (pictureIds.length === 1) {
+        reportError(`Send at least one picture of ${actor.name}.`)
+        return
+      }
+      setPickedPictures({
+        actorId: actor.id,
+        ids: pictureIds.filter((id) => id !== pictureId),
+      })
+      return
+    }
+    if (pictureIds.length + boardExtras >= BOARD_TILES) {
+      reportError(BOARD_FULL_MESSAGE)
+      return
+    }
+    setPickedPictures({ actorId: actor.id, ids: [...pictureIds, pictureId] })
+  }
+
+  // The pick shows at once and saves behind it. A refused save puts back what
+  // was there, unless another pick has been made since.
+  async function changeExtras(next: ExtraPicks) {
+    const before = extraPicks
+    setExtraPicks(next)
+    try {
+      await saveProjectExtraPicks(projectId, next)
+    } catch (error) {
+      setExtraPicks((current) => (current === next ? before : current))
+      reportError(getExtraErrorMessage(error))
+    }
   }
 
   async function makeFrames() {
@@ -239,6 +324,8 @@ export function AiClipPanel() {
         actorId: actor.id,
         prompt: scene,
         variants,
+        sheetPictureIds: pictureIds,
+        extras: extraPicks,
         aspectRatio: projectShape ? null : chosenShape,
       })
       setFrames((current) => [...result.firstFrames, ...(current ?? [])])
@@ -280,6 +367,7 @@ export function AiClipPanel() {
         firstFrameId: frame.id,
         prompts: sent,
         lengthSeconds,
+        quality,
       })
       setShots((current) => [shot, ...(current ?? [])])
       toast.success(
@@ -337,19 +425,29 @@ export function AiClipPanel() {
 
   async function drop(item: Draggable, atMs: number, trackId?: string) {
     try {
+      // Each clip keeps how it was made, so it can be made again where it
+      // lands (regenerate-a-scene.md).
       if (item.kind === "frame") {
         const clip = await buildMediaClip(item.frame.image)
-        dispatch({ type: "ADD_CLIP", clip, atMs, trackId })
+        dispatch({
+          type: "ADD_CLIP",
+          clip: { ...clip, origin: item.frame.origin },
+          atMs,
+          trackId,
+        })
         return
       }
       // A long shot is several pieces that play back to back, laid down as
       // one paste so they stay together and one Undo takes them all back.
-      const outputs = item.shot.pieces.flatMap((piece) => piece.output ?? [])
       let offset = 0
       const clips = []
-      for (const output of outputs) {
-        const clip = await buildMediaClip(output)
-        clips.push({ clip: { ...clip, startMs: offset }, lane: 0 })
+      for (const piece of item.shot.pieces) {
+        if (!piece.output) continue
+        const clip = await buildMediaClip(piece.output)
+        clips.push({
+          clip: { ...clip, startMs: offset, origin: piece.origin ?? undefined },
+          lane: 0,
+        })
         offset += clip.durationMs
       }
       dispatch({ type: "PASTE_CLIPS", clips, atMs, trackId })
@@ -376,7 +474,9 @@ export function AiClipPanel() {
     )
   }
 
-  const loading = (actors === null || frames === null || shots === null) && !loadFailed
+  const loading =
+    (actors === null || frames === null || shots === null || extras === null) &&
+    !loadFailed
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -433,14 +533,25 @@ export function AiClipPanel() {
                   photo if you have one.
                 </p>
               )}
-              <Button
-                type="button"
-                variant={actors?.length ? "outline" : "default"}
-                onClick={() => setMakingActor(true)}
+              <AiClipExtras
+                extras={extras ?? []}
+                picks={extraPicks}
+                angles={pictureIds.length}
+                disabled={framesBusy}
+                onChange={(next) => void changeExtras(next)}
+                onRefuse={reportError}
               >
-                <PlusIcon />
-                New actor
-              </Button>
+                <AiClipNewActor
+                  projectId={projectId}
+                  primary={!actors?.length}
+                  onMade={(made) => {
+                    setActors((current) => [made, ...(current ?? [])])
+                    setPickedActorId(made.id)
+                    refreshSpend()
+                    toast.success(`${made.name} is ready. Now make a first frame.`)
+                  }}
+                />
+              </AiClipExtras>
             </Step>
 
             <Step number={2} title="Make a first frame" waiting={!actor}>
@@ -465,6 +576,48 @@ export function AiClipPanel() {
                   }}
                 />
               </div>
+              {actor && actor.sheet.length > 1 ? (
+                <div className="grid min-w-0 gap-2">
+                  <span className="text-sm font-medium" id="ai-clip-pictures">
+                    Pictures of {actor.name} to send
+                  </span>
+                  <div
+                    role="group"
+                    aria-labelledby="ai-clip-pictures"
+                    className="grid grid-cols-4 gap-2"
+                  >
+                    {actor.sheet.map((picture) => (
+                      <button
+                        key={picture.id}
+                        type="button"
+                        aria-pressed={pictureIds.includes(picture.id)}
+                        disabled={framesBusy}
+                        onClick={() => togglePicture(picture.id)}
+                        className={cn(
+                          "grid min-w-0 gap-1 rounded-lg border bg-background p-1 text-left text-[0.625rem]",
+                          pictureIds.includes(picture.id) &&
+                            "border-primary ring-2 ring-primary/30"
+                        )}
+                      >
+                        <img
+                          src={picture.url}
+                          alt=""
+                          draggable={false}
+                          className="aspect-[3/4] w-full rounded-md bg-muted object-cover"
+                        />
+                        <span className="truncate">
+                          {picture.label || (picture.main ? "Main" : "No label")}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    These and the clothing, hair and prop picked in Extras go
+                    on one board of up to {BOARD_TILES} pictures. The main
+                    picture goes first.
+                  </p>
+                </div>
+              ) : null}
               <div className="flex flex-wrap items-end gap-2">
                 <div className="grid gap-2">
                   <Label htmlFor="ai-clip-variants">How many</Label>
@@ -565,6 +718,28 @@ export function AiClipPanel() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="ai-clip-quality">Quality</Label>
+                <Select
+                  value={quality}
+                  onValueChange={(value) => setQuality(value as VideoQuality)}
+                  disabled={!frame || shotBusy}
+                >
+                  {/* The closed list shows the size alone; the prices are in
+                      the open list and the line below, which have the room. */}
+                  <SelectTrigger id="ai-clip-quality">
+                    <SelectValue>{videoQualityName(quality)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VIDEO_QUALITIES.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.label} {item.id} ·{" "}
+                        {qualityPrice(item.id, secondCents, shotCents)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {directions.slice(0, pieces).map((line, index) => (
                 <div key={index} className="grid min-w-0 gap-2">
                   <Label htmlFor={`ai-clip-direction-${index}`}>
@@ -591,8 +766,7 @@ export function AiClipPanel() {
                 </div>
               ))}
               <p className="text-xs text-muted-foreground">
-                Costs about {formatCents(shotCostCents)}: {lengthSeconds} seconds
-                at {formatCents(aiUnitCostCents(VEO_MODEL, 1))} a second.
+                {shotPriceLine(quality, lengthSeconds, secondCents, shotCents)}
               </p>
               <Button
                 type="button"
@@ -681,20 +855,6 @@ export function AiClipPanel() {
           </div>
         )}
       </ScrollArea>
-
-      <ActorFormDialog
-        open={makingActor}
-        actor={null}
-        look={{ projectId }}
-        onClose={() => setMakingActor(false)}
-        onSaved={(made) => {
-          setActors((current) => [made, ...(current ?? [])])
-          setPickedActorId(made.id)
-          setMakingActor(false)
-          refreshSpend()
-          toast.success(`${made.name} is ready. Now make a first frame.`)
-        }}
-      />
 
       <ConfirmDialog
         open={deleting !== null}
@@ -830,6 +990,16 @@ function FrameRow({
           <span className="truncate text-[0.625rem] text-muted-foreground">
             {frame.actor.name} · {frame.aspect_ratio}
           </span>
+          {frame.made_from.length ? (
+            <span className="line-clamp-2 text-[0.625rem] text-muted-foreground">
+              From {frame.made_from.join(", ")}
+            </span>
+          ) : null}
+          {frame.made_with.length ? (
+            <span className="line-clamp-2 text-[0.625rem] text-muted-foreground">
+              With {frame.made_with.join(", ")}
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="flex items-center justify-between gap-2">
@@ -884,6 +1054,37 @@ function shotProgress(shot: GenerationItem) {
 }
 
 /**
+ * What a shot was made with and what it cost, such as "Omni Flash, Normal
+ * 720p, $0.81". One still being made says what it is expected to cost.
+ */
+function shotMadeWith(shot: GenerationItem) {
+  const cost =
+    shot.status === "ready"
+      ? formatCents(shot.charged_cents || shot.expected_cents)
+      : shot.charged_cents
+        ? `${formatCents(shot.charged_cents)} so far`
+        : shot.status === "error"
+          ? "nothing charged"
+          : `about ${formatCents(shot.expected_cents)}`
+  return `${shot.model_name}, ${shot.quality}, ${cost}`
+}
+
+/**
+ * What the shot was sent beyond the first frame, such as "Mia, 3 pictures on
+ * one board, with Green wool jacket, Bright kitchen".
+ */
+function shotSent(shot: GenerationItem) {
+  const pictures =
+    shot.board_pictures > 1
+      ? `${shot.board_pictures} pictures on one board`
+      : shot.board_pictures === 1
+        ? "1 picture"
+        : "words only"
+  const extras = shot.extras.length ? `, with ${shot.extras.join(", ")}` : ""
+  return `${shot.actor_name}, ${pictures}${extras}`
+}
+
+/**
  * One shot: being made, failed with a reason, or ready to drag. Its direction
  * sits on top, so shots tried side by side can be told apart.
  */
@@ -906,6 +1107,14 @@ function ShotRow({
       <p className="col-span-2 line-clamp-2 text-xs [overflow-wrap:anywhere]">
         {shot.pieces.map((piece) => piece.prompt).join(" / ")}
       </p>
+      <p className="col-span-2 line-clamp-2 text-[0.625rem] text-muted-foreground">
+        {shotMadeWith(shot)}
+      </p>
+      {shot.actor_name ? (
+        <p className="col-span-2 line-clamp-2 text-[0.625rem] text-muted-foreground">
+          {shotSent(shot)}
+        </p>
+      ) : null}
       {shot.status === "ready" && first ? (
         <button
           type="button"

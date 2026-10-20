@@ -65,6 +65,7 @@ import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedProjectsProjectIdRouteImport } from './routes/_authenticated/projects/$projectId'
 import { Route as AuthenticatedTeamIndexRouteImport } from './routes/_authenticated/team/index'
 import { Route as AuthenticatedTeamMembersRouteImport } from './routes/_authenticated/team/members'
+import { Route as AuthenticatedTeamsIndexRouteImport } from './routes/_authenticated/teams/index'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiProjectMyLiveRouteImport } from './routes/api/project/my-live'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
@@ -77,6 +78,8 @@ import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
 import { Route as AuthenticatedProjectsTeamTeamIdRouteImport } from './routes/_authenticated/projects/team.$teamId'
+import { Route as AuthenticatedTeamsTeamIdIndexRouteImport } from './routes/_authenticated/teams/$teamId/index'
+import { Route as AuthenticatedTeamsTeamIdMembersRouteImport } from './routes/_authenticated/teams/$teamId/members'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
 import { Route as ApiProjectLiveProjectIdRouteImport } from './routes/api/project/live.$projectId'
 import { Route as ApiProjectTaskFilesFileIdRouteImport } from './routes/api/project/task-files.$fileId'
@@ -385,6 +388,11 @@ const AuthenticatedTeamMembersRoute =
     path: '/team/members',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedTeamsIndexRoute = AuthenticatedTeamsIndexRouteImport.update({
+  id: '/teams/',
+  path: '/teams/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   id: '/api/auth/google',
   path: '/api/auth/google',
@@ -451,6 +459,18 @@ const AuthenticatedProjectsTeamTeamIdRoute =
   AuthenticatedProjectsTeamTeamIdRouteImport.update({
     id: '/projects/team/$teamId',
     path: '/projects/team/$teamId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedTeamsTeamIdIndexRoute =
+  AuthenticatedTeamsTeamIdIndexRouteImport.update({
+    id: '/teams/$teamId/',
+    path: '/teams/$teamId/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedTeamsTeamIdMembersRoute =
+  AuthenticatedTeamsTeamIdMembersRouteImport.update({
+    id: '/teams/$teamId/members',
+    path: '/teams/$teamId/members',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
@@ -557,6 +577,7 @@ export interface FileRoutesByFullPath {
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/team/': typeof AuthenticatedTeamIndexRoute
+  '/teams/': typeof AuthenticatedTeamsIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
@@ -565,12 +586,14 @@ export interface FileRoutesByFullPath {
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/projects/team/$teamId': typeof AuthenticatedProjectsTeamTeamIdRoute
+  '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/project/live/$projectId': typeof ApiProjectLiveProjectIdRoute
   '/api/project/task-files/$fileId': typeof ApiProjectTaskFilesFileIdRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
+  '/teams/$teamId/': typeof AuthenticatedTeamsTeamIdIndexRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -632,6 +655,7 @@ export interface FileRoutesByTo {
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
   '/team': typeof AuthenticatedTeamIndexRoute
+  '/teams': typeof AuthenticatedTeamsIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
@@ -640,12 +664,14 @@ export interface FileRoutesByTo {
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/projects/team/$teamId': typeof AuthenticatedProjectsTeamTeamIdRoute
+  '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/project/live/$projectId': typeof ApiProjectLiveProjectIdRoute
   '/api/project/task-files/$fileId': typeof ApiProjectTaskFilesFileIdRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
+  '/teams/$teamId': typeof AuthenticatedTeamsTeamIdIndexRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -711,6 +737,7 @@ export interface FileRoutesById {
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/_authenticated/team/': typeof AuthenticatedTeamIndexRoute
+  '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
@@ -719,12 +746,14 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/_authenticated/projects/team/$teamId': typeof AuthenticatedProjectsTeamTeamIdRoute
+  '/_authenticated/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/project/live/$projectId': typeof ApiProjectLiveProjectIdRoute
   '/api/project/task-files/$fileId': typeof ApiProjectTaskFilesFileIdRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
+  '/_authenticated/teams/$teamId/': typeof AuthenticatedTeamsTeamIdIndexRoute
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -790,6 +819,7 @@ export interface FileRouteTypes {
     | '/changelog/'
     | '/projects/'
     | '/team/'
+    | '/teams/'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
     | '/admin/automations/templates'
@@ -798,12 +828,14 @@ export interface FileRouteTypes {
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
     | '/projects/team/$teamId'
+    | '/teams/$teamId/members'
     | '/api/auth/google/callback'
     | '/api/project/live/$projectId'
     | '/api/project/task-files/$fileId'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
+    | '/teams/$teamId/'
     | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
@@ -865,6 +897,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/projects'
     | '/team'
+    | '/teams'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
     | '/admin/automations/templates'
@@ -873,12 +906,14 @@ export interface FileRouteTypes {
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
     | '/projects/team/$teamId'
+    | '/teams/$teamId/members'
     | '/api/auth/google/callback'
     | '/api/project/live/$projectId'
     | '/api/project/task-files/$fileId'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
+    | '/teams/$teamId'
     | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
   id:
@@ -943,6 +978,7 @@ export interface FileRouteTypes {
     | '/_authenticated/changelog/'
     | '/_authenticated/projects/'
     | '/_authenticated/team/'
+    | '/_authenticated/teams/'
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/automations_/$automationId'
     | '/_authenticated/admin/automations_/templates'
@@ -951,12 +987,14 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
     | '/_authenticated/projects/team/$teamId'
+    | '/_authenticated/teams/$teamId/members'
     | '/api/auth/google_/callback'
     | '/api/project/live/$projectId'
     | '/api/project/task-files/$fileId'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
+    | '/_authenticated/teams/$teamId/'
     | '/_authenticated/admin/automations_/templates_/$templateKey'
     | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
@@ -1390,6 +1428,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeamMembersRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/teams/': {
+      id: '/_authenticated/teams/'
+      path: '/teams'
+      fullPath: '/teams/'
+      preLoaderRoute: typeof AuthenticatedTeamsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/auth/google': {
       id: '/api/auth/google'
       path: '/api/auth/google'
@@ -1472,6 +1517,20 @@ declare module '@tanstack/react-router' {
       path: '/projects/team/$teamId'
       fullPath: '/projects/team/$teamId'
       preLoaderRoute: typeof AuthenticatedProjectsTeamTeamIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/teams/$teamId/': {
+      id: '/_authenticated/teams/$teamId/'
+      path: '/teams/$teamId'
+      fullPath: '/teams/$teamId/'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/teams/$teamId/members': {
+      id: '/_authenticated/teams/$teamId/members'
+      path: '/teams/$teamId/members'
+      fullPath: '/teams/$teamId/members'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdMembersRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/auth/google_/callback': {
@@ -1657,7 +1716,10 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTeamMembersRoute: typeof AuthenticatedTeamMembersRoute
   AuthenticatedProjectsIndexRoute: typeof AuthenticatedProjectsIndexRoute
   AuthenticatedTeamIndexRoute: typeof AuthenticatedTeamIndexRoute
+  AuthenticatedTeamsIndexRoute: typeof AuthenticatedTeamsIndexRoute
   AuthenticatedProjectsTeamTeamIdRoute: typeof AuthenticatedProjectsTeamTeamIdRoute
+  AuthenticatedTeamsTeamIdMembersRoute: typeof AuthenticatedTeamsTeamIdMembersRoute
+  AuthenticatedTeamsTeamIdIndexRoute: typeof AuthenticatedTeamsTeamIdIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -1672,7 +1734,10 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTeamMembersRoute: AuthenticatedTeamMembersRoute,
   AuthenticatedProjectsIndexRoute: AuthenticatedProjectsIndexRoute,
   AuthenticatedTeamIndexRoute: AuthenticatedTeamIndexRoute,
+  AuthenticatedTeamsIndexRoute: AuthenticatedTeamsIndexRoute,
   AuthenticatedProjectsTeamTeamIdRoute: AuthenticatedProjectsTeamTeamIdRoute,
+  AuthenticatedTeamsTeamIdMembersRoute: AuthenticatedTeamsTeamIdMembersRoute,
+  AuthenticatedTeamsTeamIdIndexRoute: AuthenticatedTeamsTeamIdIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

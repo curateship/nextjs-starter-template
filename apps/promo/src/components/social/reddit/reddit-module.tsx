@@ -3,6 +3,7 @@ import { AlertTriangleIcon, ListChecksIcon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CommentsDashboard, type CommentsTab } from "@/components/social/comments/comments-dashboard"
+import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { NewPostDialog, type NewPostStart } from "@/components/social/projects/new-post-dialog"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
 import { PromoThreadsDialog } from "@/components/social/projects/promo-threads"
@@ -141,6 +142,9 @@ export function RedditModule({
   const desktop = useWideScreen()
   const projectId = view.project.id
   const tab: RedditView = search.view ?? "new"
+  // A guest sent from Project works this project only: no Jobs window, which
+  // lists every project's work, and no AI, which spends the owner's credits.
+  const guest = usePromoGuest()
 
   const [keywords, setKeywords] = React.useState(initialKeywords)
   const [keywordsLoading, setKeywordsLoading] = React.useState(false)
@@ -410,17 +414,19 @@ export function RedditModule({
       search={<FindsSearch value={findSearch} onChange={setFindSearch} />}
       actions={
         <>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onSearch({ window: "jobs" })}
-            aria-label={jobsWaiting ? `Jobs, ${jobsWaiting} running or waiting` : "Jobs"}
-          >
-            <ListChecksIcon />
-            {/* Its icon alone on a phone, so the search box keeps its room. */}
-            <span className="hidden sm:inline">Jobs</span>
-            {jobsWaiting ? <span className="text-muted-foreground tabular-nums">{jobsWaiting}</span> : null}
-          </Button>
+          {guest ? null : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onSearch({ window: "jobs" })}
+              aria-label={jobsWaiting ? `Jobs, ${jobsWaiting} running or waiting` : "Jobs"}
+            >
+              <ListChecksIcon />
+              {/* Its icon alone on a phone, so the search box keeps its room. */}
+              <span className="hidden sm:inline">Jobs</span>
+              {jobsWaiting ? <span className="text-muted-foreground tabular-nums">{jobsWaiting}</span> : null}
+            </Button>
+          )}
           <Button type="button" onClick={() => setNewPost({ start: null })}>
             <PlusIcon />
             Create post
@@ -559,13 +565,15 @@ export function RedditModule({
         <span>
           The browser program is not running, so {view.jobs.queued}{" "}
           {view.jobs.queued === 1 ? "job is" : "jobs are"} waiting and nothing is searched.{" "}
-          <button
-            type="button"
-            className="font-medium underline underline-offset-2"
-            onClick={() => onSearch({ window: "jobs" })}
-          >
-            See the jobs
-          </button>
+          {guest ? null : (
+            <button
+              type="button"
+              className="font-medium underline underline-offset-2"
+              onClick={() => onSearch({ window: "jobs" })}
+            >
+              See the jobs
+            </button>
+          )}
         </span>
       </p>
     ) : null
@@ -701,7 +709,7 @@ export function RedditModule({
           showErrorToast(getRedditErrorMessage(error))
         }
       }}
-      onDraft={async (findId: string) => {
+      onDraft={guest ? undefined : async (findId: string) => {
         try {
           const written = await writeDrafts({ findId, accountId: account?.id ?? null })
           // A draft is born unsent. The endpoint does not say so because there
@@ -717,7 +725,7 @@ export function RedditModule({
           showErrorToast(getDraftErrorMessage(error))
         }
       }}
-      onCheckRules={async (findId, text) => {
+      onCheckRules={guest ? undefined : async (findId, text) => {
         try {
           return await checkRules({ findId, accountId: account?.id ?? null, text })
         } catch (error) {
@@ -725,7 +733,7 @@ export function RedditModule({
           return null
         }
       }}
-      onRewrite={async (findId, text, how) => {
+      onRewrite={guest ? undefined : async (findId, text, how) => {
         try {
           return await rewriteWords({ findId, accountId: account?.id ?? null, text, how })
         } catch (error) {
@@ -830,7 +838,7 @@ export function RedditModule({
         }}
       />
       <JobsWindow
-        open={search.window === "jobs"}
+        open={search.window === "jobs" && !guest}
         onClose={() => {
           onSearch({ window: undefined })
           // A job may have been cancelled or tried again in there, so the

@@ -139,11 +139,11 @@ import {
   addNewsletterLink,
   addOverviewLink,
   addPagesLink,
-  addSegmentsLink,
   addSystemEmailsLink,
   addTrafficLink,
   removeMediaChildLinks,
   removeRevenueLink,
+  removeSegmentsLink,
   foldFeedsIntoOverview,
   foldMembershipIntoOverview,
   createUserWorkspace,
@@ -1320,7 +1320,6 @@ describe("custom shell workspaces", () => {
         children: [
           { label: "Newsletters", href: "/admin/newsletter" },
           { label: "Contacts", href: "/admin/contacts" },
-          { label: "Segments", href: "/admin/segments" },
           { label: "System emails", href: "/admin/system-emails" },
         ],
       },
@@ -1413,7 +1412,6 @@ describe("custom shell workspaces", () => {
         children: [
           { label: "Newsletters", href: "/admin/newsletter" },
           { label: "Contacts", href: "/admin/contacts" },
-          { label: "Segments", href: "/admin/segments" },
           { label: "System emails", href: "/admin/system-emails" },
         ],
       },
@@ -2939,7 +2937,6 @@ describe("newsletter link", () => {
       children: [
         { label: "Newsletters", href: "/admin/newsletter" },
         { label: "Contacts", href: "/admin/contacts" },
-        { label: "Segments", href: "/admin/segments" },
         { label: "System emails", href: "/admin/system-emails" },
       ],
     })
@@ -3089,7 +3086,7 @@ describe("segments link", () => {
     return [{ id: "section-platform-settings", title: "Platform", entries }]
   }
 
-  /** A navVersion-15 sidebar: Newsletter with the three children it had then. */
+  /** A navVersion-20 sidebar: Newsletter with Segments after Contacts. */
   const newsletter = {
     type: "item" as const,
     id: "item-newsletter",
@@ -3100,6 +3097,7 @@ describe("segments link", () => {
     children: [
       { id: "item-newsletter-all", label: "Newsletters", href: "/admin/newsletter" },
       { id: "item-newsletter-contacts", label: "Contacts", href: "/admin/contacts" },
+      { id: "item-newsletter-segments", label: "Segments", href: "/admin/segments" },
       {
         id: "item-newsletter-system-emails",
         label: "System emails",
@@ -3108,75 +3106,35 @@ describe("segments link", () => {
     ],
   }
 
-  it("puts it directly after Contacts, where somebody would look for it", () => {
-    const [section] = addSegmentsLink(sectionWith([newsletter]))
+  it("takes it off, now that segments live on the Contacts dashboard", () => {
+    const [section] = removeSegmentsLink(sectionWith([newsletter]))
     const entry = section.entries[0]
 
     expect(
       isShellItem(entry) && entry.children?.map((child) => child.href)
-    ).toEqual([
-      "/admin/newsletter",
-      "/admin/contacts",
-      "/admin/segments",
-      "/admin/system-emails",
-    ])
+    ).toEqual(["/admin/newsletter", "/admin/contacts", "/admin/system-emails"])
   })
 
-  /** Their link, their name, their place — only the way in is added. */
-  it("hangs it under a newsletter link somebody added by hand", () => {
-    const byHand = {
-      type: "item" as const,
-      id: "item-8576ee16",
-      label: "Broadcast",
-      href: "/admin/newsletter",
-      icon: "mails" as const,
-      visible: true,
-    }
-    const [section] = addSegmentsLink(sectionWith([byHand]))
-    const entry = section.entries[0]
-
-    expect(isShellItem(entry) && entry.label).toBe("Broadcast")
-    // A parent with no children has no row of chips, so its own page goes in
-    // beside the new link rather than disappearing from that row.
-    expect(
-      isShellItem(entry) && entry.children?.map((child) => child.href)
-    ).toEqual(["/admin/newsletter", "/admin/segments"])
-  })
-
-  it("hands it out once, however many times it runs", () => {
-    const once = addSegmentsLink(sectionWith([newsletter]))
-    expect(addSegmentsLink(once)).toBe(once)
-  })
-
-  it("leaves a sidebar that already reaches Segments alone", () => {
-    const sections = sectionWith([
-      {
-        ...newsletter,
-        children: [
-          ...newsletter.children,
-          { id: "child-mine", label: "Groups", href: "/admin/segments" },
-        ],
-      },
-    ])
-    expect(addSegmentsLink(sections)).toBe(sections)
-  })
-
-  it("leaves a sidebar with no newsletter link alone", () => {
+  it("takes off a Segments link somebody renamed or moved to the top level", () => {
     const sections = sectionWith([
       {
         type: "item" as const,
-        id: "item-media",
-        label: "Media",
-        href: "/admin/media",
-        icon: "image" as const,
+        id: "item-mine",
+        label: "Groups",
+        href: "/admin/segments",
+        icon: "users" as const,
         visible: true,
       },
+      newsletter,
     ])
-    expect(addSegmentsLink(sections)).toEqual(sections)
+    const [section] = removeSegmentsLink(sections)
+    expect(section.entries.map((entry) => entry.id)).toEqual(["item-newsletter"])
   })
 
-  it("leaves an emptied sidebar empty", () => {
-    expect(addSegmentsLink([])).toEqual([])
+  it("leaves a sidebar without it alone", () => {
+    const once = removeSegmentsLink(sectionWith([newsletter]))
+    expect(removeSegmentsLink(once)).toBe(once)
+    expect(removeSegmentsLink([])).toEqual([])
   })
 })
 
