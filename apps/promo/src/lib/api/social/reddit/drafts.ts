@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { AI_TEXT_PROVIDERS } from "@/lib/ai/ai-models"
 import { adminPost } from "@/server/guards"
+import { actorForFind, editorPost, guestSenderName } from "@/server/social/project-guests"
 import { accountForFind } from "@/server/social/projects"
 import { DRAFT_REWRITES, MAX_COMMENT_CHARS, PICK_AN_ACCOUNT, type DraftRewrite } from "@/lib/social/options"
 import { checkCommentRules, rewriteComment, type RulesCheck } from "@/server/social/ai-tasks"
@@ -104,7 +105,7 @@ export function writeDrafts(data: {
  * comment waits for its morning and the answer says when.
  */
 const postFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(
     z.object({
       findId: z.string().min(1),
@@ -115,11 +116,13 @@ const postFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }): Promise<{ jobId: string; runAfter: Date | null; undoUntil: Date | null }> => {
     if (!data.accountId) throw new Error(PICK_AN_ACCOUNT)
-    const account = await accountForFind(context.user.id, data.accountId, data.findId)
-    return queueComment(context.user.id, account, {
+    const actor = await actorForFind(context.caller, data.findId)
+    const account = await accountForFind(actor.userId, data.accountId, data.findId)
+    return queueComment(actor.userId, account, {
       findId: data.findId,
       text: data.text,
       draftId: data.draftId ?? null,
+      sentBy: guestSenderName(actor),
     })
   })
 
@@ -178,10 +181,10 @@ export function rewriteWords(data: { findId: string; accountId: string | null; t
 
 /** Cancels a comment still waiting for the account's waking hours. */
 const cancelFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(z.object({ findId: z.string().min(1) }))
   .handler(async ({ context, data }): Promise<void> => {
-    await cancelWaitingComment(context.user.id, data.findId)
+    await cancelWaitingComment((await actorForFind(context.caller, data.findId)).userId, data.findId)
   })
 
 export function cancelComment(findId: string) {

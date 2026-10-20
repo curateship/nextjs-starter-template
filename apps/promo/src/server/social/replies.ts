@@ -144,7 +144,7 @@ async function latestReplyJobs(
  */
 export async function queueReply(
   userId: string,
-  input: { commentId: string; replyId: string; text: string; draftId: string | null },
+  input: { commentId: string; replyId: string; text: string; draftId: string | null; sentBy?: string | null },
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<{ jobId: string; runAfter: Date | null; handle: string }> {
@@ -195,6 +195,8 @@ export async function queueReply(
       accountId: account.id,
       text,
       draftId: input.draftId,
+      // Only a guest's answer carries who sent it; the owner's payload is as it always was.
+      ...(input.sentBy ? { sentBy: input.sentBy } : {}),
     },
     db,
     runAfter

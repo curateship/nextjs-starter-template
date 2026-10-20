@@ -20,6 +20,7 @@ import { isFindsTab, type FindsTab, type RedditView } from "@/lib/social/reddit/
 import { emptyFindsWords, postedDateText } from "@/lib/social/wording"
 import { cn } from "@/lib/utils"
 import { Hint } from "@/components/social/hint"
+import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import type { FindRow } from "@/server/social/keywords"
 import { FIT_BAND_LABELS, FIT_BANDS, type FitBand } from "@/server/social/reddit/rank"
 
@@ -417,6 +418,8 @@ function FindLine({
   onSelect: () => void
   onBlock: () => Promise<void>
 }) {
+  // Blocking hides a subreddit from every project, so it is the owner's alone.
+  const guest = usePromoGuest()
   const where = [`r/${find.subreddit}`, find.postedAt ? postedDateText(find.postedAt) : null, find.place, keywordName]
     .filter(Boolean)
     .join(" · ")
@@ -470,7 +473,7 @@ function FindLine({
       {/* A post already replied to is never hidden, so blocking from its row
           would do nothing to it. Not offered, and the space is kept so the
           figures stay in line. */}
-      {find.status === "commented" ? (
+      {find.status === "commented" || guest ? (
         <span className="size-8 shrink-0" aria-hidden="true" />
       ) : (
         <Hint label={`Block r/${find.subreddit}: its posts leave every list`}>

@@ -10,6 +10,8 @@ import {
 import { CAROUSEL_NOT_FOUND_MESSAGE } from "@/lib/video/carousel-schema"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { userGet, userPost } from "@/server/guards"
+import { editorGet, editorPost } from "@/server/video/editor-guards"
+import { actorFor, actorForMedia, projectMediaIds, signedInActor } from "@/server/video/project-guests"
 import {
   addMediaToOwnedCollection,
   createOwnedCollection,
@@ -109,12 +111,19 @@ const pastedMediaSchema = z.object({
   mediaIds: z.array(z.string().min(1).max(36)).max(500),
 })
 
+// A guest sent from Project lists their own project's media and retries its
+// preparation (`workspace/docs/project-guests.md`). The library, collections,
+// adding from the library and deleting stay the signed-in person's.
 const listVideoMediaFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([editorGet])
   .inputValidator(listVideoMediaSchema)
   .handler(async ({ data, context }) => {
+    const { userId } =
+      data.scope.type === "project"
+        ? await actorFor(context.caller, data.scope.id)
+        : signedInActor(context.caller)
     return listVideoMediaQuery({
-      userId: context.user.id,
+      userId,
       page: data.page ?? 1,
       pageSize: data.pageSize ?? 24,
       search: data.search,
@@ -131,15 +140,18 @@ const attachMediaFn = createServerFn({ method: "POST" })
     await attachMediaToScope(context.user.id, data.scope, data.mediaId)
   })
 
+// A guest's copy comes from this same project, so nothing is added to it: a
+// file it doesn't already hold is reported missing, as a deleted one is.
 const attachPastedMediaFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(pastedMediaSchema)
   .handler(async ({ data, context }) => {
-    return attachPastedMediaToProject(
-      context.user.id,
-      data.projectId,
-      data.mediaIds
-    )
+    const { userId, guest } = await actorFor(context.caller, data.projectId)
+    if (guest) {
+      const held = await projectMediaIds(data.projectId)
+      return { missingMediaIds: [...new Set(data.mediaIds)].filter((mediaId) => !held.has(mediaId)) }
+    }
+    return attachPastedMediaToProject(userId, data.projectId, data.mediaIds)
   })
 
 const deleteMediaFn = createServerFn({ method: "POST" })
@@ -150,10 +162,11 @@ const deleteMediaFn = createServerFn({ method: "POST" })
   })
 
 const retryPreparationFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(z.object({ mediaId: z.string().min(1).max(36) }))
   .handler(async ({ data, context }) => {
-    await retryOwnedMediaPreparation(context.user.id, data.mediaId)
+    const { userId } = await actorForMedia(context.caller, data.mediaId)
+    await retryOwnedMediaPreparation(userId, data.mediaId)
     kickVideoMediaWorker()
   })
 

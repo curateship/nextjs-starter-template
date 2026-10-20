@@ -1,7 +1,15 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { adminGet, adminPost } from "@/server/guards"
+import { adminPost } from "@/server/guards"
+import {
+  actorFor,
+  actorForJobs,
+  editorGet,
+  editorPost,
+  guestSenderName,
+  onlyGuestProject,
+} from "@/server/social/project-guests"
 import { draftOwnPost } from "@/server/social/ai-tasks"
 import { cleanSubreddit } from "@/server/social/keywords"
 import {
@@ -68,10 +76,11 @@ const postInput = z.object({
 })
 
 const sendFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(postInput)
   .handler(async ({ context, data }): Promise<{ runAfter: Date | null }> => {
-    const { runAfter } = await queueOwnPost(context.user.id, data.projectId, data)
+    const actor = await actorFor(context.caller, data.projectId)
+    const { runAfter } = await queueOwnPost(actor.userId, data.projectId, { ...data, sentBy: guestSenderName(actor) })
     return { runAfter }
   })
 
@@ -97,46 +106,59 @@ export function writeOwnPost(data: { projectId: string; accountId: string | null
   return draftFn({ data })
 }
 
+// The project the New post window is open in, so a guest's rules are read
+// as that project's owner. Rules are a subreddit's own public words.
+const rulesInput = z.object({ subreddit: z.string().max(120), projectId: z.string().min(1).nullable().default(null) })
+
 const rulesFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .inputValidator(z.object({ subreddit: z.string().max(120) }))
+  .middleware([editorGet])
+  .inputValidator(rulesInput)
   .handler(async ({ context, data }): Promise<{ subreddit: string; rules: RulesView } | null> => {
+    const { userId } = await actorFor(context.caller, data.projectId)
     const subreddit = cleanSubreddit(data.subreddit)
-    return subreddit ? { subreddit, rules: await rulesForSubreddit(context.user.id, subreddit) } : null
+    return subreddit ? { subreddit, rules: await rulesForSubreddit(userId, subreddit) } : null
   })
 
 /** A typed subreddit's rules as last read, in all four of their states. */
-export function loadRulesFor(subreddit: string) {
-  return rulesFn({ data: { subreddit } })
+export function loadRulesFor(subreddit: string, projectId: string | null = null) {
+  return rulesFn({ data: { subreddit, projectId } })
 }
 
 const readRulesFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
-  .inputValidator(z.object({ subreddit: z.string().trim().min(1).max(120) }))
+  .middleware([editorPost])
+  .inputValidator(rulesInput.extend({ subreddit: z.string().trim().min(1).max(120) }))
   .handler(async ({ context, data }): Promise<void> => {
+    const { userId } = await actorFor(context.caller, data.projectId)
     const subreddit = cleanSubreddit(data.subreddit)
     if (!subreddit) throw new Error("Name the subreddit it goes to.")
-    await queueRulesRead(context.user.id, subreddit)
+    await queueRulesRead(userId, subreddit)
   })
 
 /** Reads a typed subreddit's rules in the reader browser, so it goes on the queue. */
-export function readRulesFor(subreddit: string) {
-  return readRulesFn({ data: { subreddit } })
+export function readRulesFor(subreddit: string, projectId: string | null = null) {
+  return readRulesFn({ data: { subreddit, projectId } })
 }
 
 const listFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .handler(async ({ context }): Promise<OwnPostRow[]> => listOwnPosts(context.user.id))
+  .middleware([editorGet])
+  .inputValidator(z.object({ projectId: z.string().min(1).nullable().default(null) }))
+  .handler(async ({ context, data }): Promise<OwnPostRow[]> => {
+    const actor = await actorFor(context.caller, data.projectId)
+    const rows = await listOwnPosts(actor.userId)
+    return onlyGuestProject(actor, rows, (row) => row.project?.id ?? null)
+  })
 
-/** Every post of your own that landed, newest first. */
-export function loadOwnPosts() {
-  return listFn()
+/** Every post of your own that landed, newest first. A guest names the project. */
+export function loadOwnPosts(projectId: string | null = null) {
+  return listFn({ data: { projectId } })
 }
 
 const failedFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
+  .middleware([editorGet])
   .inputValidator(z.object({ jobId: z.string().min(1) }))
-  .handler(async ({ context, data }) => failedPost(context.user.id, data.jobId))
+  .handler(async ({ context, data }) =>
+    failedPost((await actorForJobs(context.caller, [data.jobId])).userId, data.jobId)
+  )
 
 /** A failed post's subreddit, title, words and account, for Try again. */
 export function loadFailedPost(jobId: string) {

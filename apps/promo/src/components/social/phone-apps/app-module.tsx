@@ -1,6 +1,7 @@
 import * as React from "react"
 import { ArrowLeftIcon, ListChecksIcon, PlusIcon } from "lucide-react"
 
+import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { JobsWindow } from "@/components/social/reddit/jobs-window"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
@@ -70,6 +71,10 @@ export function AppModule({
   onSearch: (patch: AppSearch) => void
 }) {
   const desktop = useWideScreen()
+  // A guest sent from Project answers the inbox only: posting a picture or a
+  // video needs the owner's media library, and the Jobs window lists every
+  // project's work.
+  const guest = usePromoGuest()
   const tab = search.view === "comments" ? "comments" : "posts"
   const openComment = tab === "comments" ? (search.comment ?? null) : null
   const [view, setView] = React.useState<AppModuleView | null>(null)
@@ -123,7 +128,7 @@ export function AppModule({
     </Tabs>
   )
 
-  const controls = (
+  const controls = guest ? null : (
     <>
       <DashboardToolbarButton
         type="button"
@@ -238,7 +243,11 @@ export function AppModule({
         <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">New {NETWORK_NAMES[network]} post</span>
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1">
-        {view ? (
+        {guest ? (
+          <p className="p-4 text-sm text-muted-foreground">
+            Posting a picture or a video is for the project&apos;s owner. Open a comment to answer it.
+          </p>
+        ) : view ? (
           <PostComposer
             network={network}
             account={account}
@@ -266,7 +275,7 @@ export function AppModule({
     >
       {dialogs}
       <JobsWindow
-        open={search.window === "jobs"}
+        open={search.window === "jobs" && !guest}
         onClose={() => {
           onSearch({ window: undefined })
           void refresh()

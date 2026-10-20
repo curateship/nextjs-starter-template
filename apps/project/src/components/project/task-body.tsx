@@ -15,6 +15,7 @@ import { DueDayPicker } from "@/components/project/due-day-picker"
 import { TaskPlanCard } from "@/components/project/task-plan-card"
 import { StepMenu } from "@/components/project/step-menu"
 import { TaskTagsField } from "@/components/project/task-tags-field"
+import { TaskLinkButton, TaskLinkField } from "@/components/project/task-link"
 import {
   DueDate,
   DueMovesMark,
@@ -69,6 +70,8 @@ import { plural } from "@/lib/format/plural"
 import { localTimeOf, momentOnDay } from "@/lib/project/dates"
 import { clockLabel, dayLabel } from "@/lib/project/days"
 import { OptionCard } from "@/components/project/option-card"
+import { setProjectTaskLink } from "@/lib/api/project/linked-records"
+import { LINKED_APP_INFO } from "@/lib/project/linked-records"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import {
   BIN_DAYS,
@@ -141,6 +144,8 @@ export type TaskSide = {
   status: React.ReactNode
   /** The tags box, right under the title so it is easy to find (Tyler, 19 Oct 2026). */
   tags: React.ReactNode
+  /** The button that opens the task's Video or Promo record, or who may open it. */
+  link: React.ReactNode
   /** A hand-over to accept, a review, the Stuck reason row, and the Move and Remind me cards. */
   notices: React.ReactNode
   notes: {
@@ -834,6 +839,18 @@ function TaskForm({
     ) : null
 
   const fieldsCard = <TaskFieldsCard detail={detail} readOnly={readOnly} change={change} refresh={refresh} />
+  const linkButton = <TaskLinkButton detail={detail} />
+  const linkField = detail.canSetLink ? (
+    <TaskLinkField
+      detail={detail}
+      onSave={(address) =>
+        change(
+          () => setProjectTaskLink(task.id, address),
+          address ? "The task now opens that record." : "The task no longer points at a record."
+        )
+      }
+    />
+  ) : null
   const planCard = <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} />
   const historyCard = <TaskHistoryCard detail={detail} />
   const stepsTitle = `Steps${detail.steps.length ? ` · ${detail.steps.filter((step) => step.done).length} of ${detail.steps.length} done` : ""}`
@@ -842,6 +859,7 @@ function TaskForm({
   const body = (
     <>
       {notices}
+      {linkButton}
       <Card size="sm">
         <CardHeader>
           <CardTitle>Task</CardTitle>
@@ -856,6 +874,7 @@ function TaskForm({
           {stuckRow}
           {datesAndPriority}
           {sortingFields}
+          {linkField}
           <TaskNotesField key={task.id} notes={task.notes} readOnly={readOnly} onSave={saveNotes} task={noteLinks} />
           {handBackButton}
         </CardContent>
@@ -899,6 +918,7 @@ function TaskForm({
     ),
     status: statusPill,
     tags: tagsField,
+    link: linkButton,
     notices: (
       <>
         {stuckRow}
@@ -1018,6 +1038,16 @@ function TaskForm({
             summary={`${detail.fields.type.fields.length} ${plural(detail.fields.type.fields.length, "field")}`}
           >
             <div className={INNER_CARD}>{fieldsCard}</div>
+          </OptionCard>
+        ) : null}
+        {linkField ? (
+          <OptionCard
+            id="task-settings-link"
+            title="Video or Promo"
+            description="The one record in Video or Promo this task opens, for the person assigned."
+            summary={detail.link ? LINKED_APP_INFO[detail.link.app].record : "None"}
+          >
+            {linkField}
           </OptionCard>
         ) : null}
         <OptionCard

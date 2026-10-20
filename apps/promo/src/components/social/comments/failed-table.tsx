@@ -10,7 +10,7 @@ import {
   SortableTableHeader,
   type TableHeaderColumn,
 } from "@/components/shared/sortable-table-header"
-import { useShellRuntime } from "@/components/shell/shell-layout"
+import { usePromoGuest, usePromoShell } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
@@ -94,10 +94,10 @@ export function FailedTable({
   /** Opens the Replies window of the sent comment an answer sits under. */
   onOpenReplies: (commentId: string) => void
 }) {
-  const { config } = useShellRuntime()
+  const { rowsPerPage } = usePromoShell()
   const selection = useSelection()
   const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
+  const [pageSize, setPageSize] = React.useState(rowsPerPage)
   const [busy, setBusy] = React.useState(false)
   const { sort, direction, toggleSort } = useTableSort<SortColumn>("when", "desc")
   const sorted = React.useMemo(() => {
@@ -279,6 +279,8 @@ export function FailedTable({
  * your own to its project's New post window. None of them sends anything.
  */
 function TryAgain({ row, onOpenReplies }: { row: FailureRow; onOpenReplies: (commentId: string) => void }) {
+  // Try again opens the project's page, which for a guest sent from Project is their own one.
+  const guest = usePromoGuest()
   const label = "Try again: put the words back where they were written. Nothing is sent until you press Post."
   if (row.kind === "reply" && row.commentId) {
     const commentId = row.commentId
@@ -295,7 +297,7 @@ function TryAgain({ row, onOpenReplies }: { row: FailureRow; onOpenReplies: (com
     <Hint label={label}>
       <Button type="button" variant="ghost" size="icon" asChild>
         <Link
-          to="/admin/projects/$projectId"
+          to={guest ? "/guest/promo/$projectId" : "/admin/projects/$projectId"}
           params={{ projectId: row.projectId }}
           search={row.kind === "comment" ? { post: row.post?.findId, retry: row.id } : { newPost: row.id }}
           aria-label="Try again"

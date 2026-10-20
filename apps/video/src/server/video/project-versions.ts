@@ -41,12 +41,14 @@ export type ProjectVersionItem = {
   duration_ms: number
   /** When the kept timeline was last saved, which is the time it shows. */
   saved_at: string
+  /** "Sam via Project" when a guest sent from Project saved it, null for the owner. */
+  edited_by: string | null
 }
 
 export function serializeVersion(
   row: Pick<
     VideoProjectVersionRow,
-    "id" | "reason" | "aspect" | "clipCount" | "durationMs" | "savedAt"
+    "id" | "reason" | "aspect" | "clipCount" | "durationMs" | "savedAt" | "editedBy"
   >
 ): ProjectVersionItem {
   return {
@@ -56,12 +58,13 @@ export function serializeVersion(
     clip_count: row.clipCount,
     duration_ms: row.durationMs,
     saved_at: row.savedAt.toISOString(),
+    edited_by: row.editedBy,
   }
 }
 
 type ProjectBeingSaved = Pick<
   VideoProjectRow,
-  "id" | "userId" | "createdAt" | "updatedAt"
+  "id" | "userId" | "createdAt" | "updatedAt" | "lastEditedBy"
 >
 
 /**
@@ -93,6 +96,7 @@ async function keepVersion(
     reason,
     timeline,
     savedAt,
+    editedBy,
     at,
   }: {
     projectId: string
@@ -100,6 +104,8 @@ async function keepVersion(
     reason: VersionReason
     timeline: ProjectTimeline
     savedAt: Date
+    /** Whoever made the save that left this timeline: `lastEditedBy` at the time. */
+    editedBy: string | null
     at: Date
   }
 ) {
@@ -126,6 +132,7 @@ async function keepVersion(
     // A clip at a speed other than 1x can run a fraction of a millisecond.
     durationMs: Math.round(stats.durationMs),
     savedAt,
+    editedBy,
     createdAt: at,
   })
   const newest = database
@@ -199,6 +206,7 @@ export async function keepVersionBeforeSave(
         reason,
         timeline,
         savedAt: project.updatedAt,
+        editedBy: project.lastEditedBy,
         at,
       })
     })
@@ -225,6 +233,7 @@ export async function keepVersionBeforeRestore(
     reason: "restore",
     timeline,
     savedAt: project.updatedAt,
+    editedBy: project.lastEditedBy,
     at,
   })
 }
@@ -243,6 +252,7 @@ export async function listOwnedProjectVersions(
       clipCount: videoProjectVersions.clipCount,
       durationMs: videoProjectVersions.durationMs,
       savedAt: videoProjectVersions.savedAt,
+      editedBy: videoProjectVersions.editedBy,
     })
     .from(videoProjectVersions)
     .innerJoin(videoProjects, eq(videoProjects.id, videoProjectVersions.projectId))

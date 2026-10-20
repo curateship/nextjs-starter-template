@@ -9,7 +9,7 @@ import {
   SortableTableHeader,
   type TableHeaderColumn,
 } from "@/components/shared/sortable-table-header"
-import { useShellRuntime } from "@/components/shell/shell-layout"
+import { usePromoShell } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -190,10 +190,10 @@ function JobsTable({
   error: string | null
   onRefresh: () => Promise<void>
 }) {
-  const { config } = useShellRuntime()
+  const { rowsPerPage } = usePromoShell()
   const selection = useSelection()
   const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
+  const [pageSize, setPageSize] = React.useState(rowsPerPage)
   const [busy, setBusy] = React.useState(false)
   // The queue reads oldest first, the order it runs in; finished jobs newest first.
   const initial: TableSortDirection = tab === "active" ? "asc" : "desc"

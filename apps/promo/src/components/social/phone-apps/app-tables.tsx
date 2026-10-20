@@ -2,6 +2,7 @@ import * as React from "react"
 import { ExternalLinkIcon, ImageIcon, Loader2Icon, PlayIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import {
@@ -89,6 +90,8 @@ export function AppPostsTable({
   const { sort, direction, toggleSort } = useTableSort<PostColumn>("posted", "desc")
   const selection = useSelection()
   const [busy, setBusy] = React.useState(false)
+  // Calling a post off is the owner's, like posting one.
+  const guest = usePromoGuest()
   const sorted = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
     return [...rows].sort((a, b) => factor * comparePosts(a, b, sort))
@@ -133,7 +136,7 @@ export function AppPostsTable({
       onClearSelection={selection.clear}
       controls={
         <>
-          {selection.selected.size ? (
+          {selection.selected.size && !guest ? (
             <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => void callOff([...selection.selected])}>
               {busy ? <Loader2Icon className="size-4 animate-spin" /> : <XIcon className="size-4" />}
               Call off ({selection.selected.size})
@@ -229,7 +232,7 @@ export function AppPostsTable({
                   </Button>
                 </Hint>
               ) : null}
-              {row.cancellable ? (
+              {row.cancellable && !guest ? (
                 <Hint label="Call off: the phone has not started on it">
                   <Button
                     type="button"

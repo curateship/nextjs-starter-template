@@ -840,7 +840,9 @@ export async function writeProjectTimeline(
   projectId: string,
   timeline: ProjectTimeline,
   expectedVersion: number,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  /** "Sam via Project" for a guest sent from Project; null for the owner. */
+  editedBy: string | null = null
 ): Promise<ProjectItem> {
   const canonical = requireCanonicalTimeline(timeline)
   const owned = and(
@@ -858,6 +860,7 @@ export async function writeProjectTimeline(
         userId: videoProjects.userId,
         createdAt: videoProjects.createdAt,
         updatedAt: videoProjects.updatedAt,
+        lastEditedBy: videoProjects.lastEditedBy,
         // Written out in full for the same reason as the picture below.
         lastKeptAt: sql`(select max(v.created_at) from video_project_versions v where v.project_id = video_projects.id)`.mapWith(
           videoProjectVersions.createdAt
@@ -880,6 +883,7 @@ export async function writeProjectTimeline(
         aspect: canonical.aspect,
         version: expectedVersion + 1,
         updatedAt: at,
+        lastEditedBy: editedBy,
       })
       .where(owned)
       .returning({

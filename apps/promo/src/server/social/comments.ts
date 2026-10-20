@@ -65,6 +65,8 @@ export type CommentRow = {
   /** When the app last edited it, and the words it first went out with. */
   editedAt: Date | null
   originalText: string | null
+  /** "Sam via Project" when a guest sent from Project sent it; null for the owner. */
+  sentBy: string | null
   /** A delete or an edit is waiting or running. */
   changing: "delete" | "edit" | null
   /** Why the newest delete or edit failed, when it did and nothing has changed it since. */
@@ -100,6 +102,7 @@ export async function listSentComments(
       deletedAt: promoComments.deletedAt,
       editedAt: promoComments.editedAt,
       originalText: promoComments.originalText,
+      sentBy: promoComments.sentBy,
     })
     .from(promoComments)
     .innerJoin(promoFinds, eq(promoFinds.id, promoComments.findId))
@@ -155,6 +158,7 @@ export async function listSentComments(
       deletedAt: row.deletedAt,
       editedAt: row.editedAt,
       originalText: row.originalText,
+      sentBy: row.sentBy,
       ...changeState(changes.get(row.id), row),
     }
   })

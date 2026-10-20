@@ -761,6 +761,11 @@ export const promoComments = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     editedAt: timestamp("edited_at", { withTimezone: true }),
     originalText: text("original_text"),
+    /**
+     * "Sam via Project" when a guest sent from Project pressed Post; null
+     * when the owner did (`drizzle/0123_promo_project_guests.sql`).
+     */
+    sentBy: text("sent_by"),
     postedAt: timestamp("posted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -876,6 +881,8 @@ export const promoPosts = pgTable(
     postUrl: varchar("post_url", { length: 600 }).notNull().default(""),
     lastError: text("last_error").notNull().default(""),
     visit: jsonb("visit").$type<VisitRecord | null>(),
+    /** "Sam via Project" when a guest sent from Project posted it; null for the owner. */
+    sentBy: text("sent_by"),
     postedAt: timestamp("posted_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("ix_promo_posts_user").on(table.userId, table.postedAt.desc())]
@@ -1048,3 +1055,38 @@ export const promoInboxSeen = pgTable(
   },
   (table) => [uniqueIndex("ux_promo_inbox_seen").on(table.accountId, table.key)]
 )
+
+/**
+ * The one-time id of every note Project has sent here that was used, so a
+ * copied handoff address fails (`drizzle/0123_promo_project_guests.sql`).
+ */
+export const promoHandoffNotes = pgTable("promo_handoff_notes", {
+  noteId: varchar("note_id", { length: 64 }).primaryKey(),
+  usedAt: timestamp("used_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * A guest sent from Project: signed in to one Promo project for 12 hours,
+ * with no account here. Only the cookie token's SHA-256 is kept. How it works
+ * is in `workspace/docs/project-guests.md`.
+ */
+export const promoProjectGuests = pgTable(
+  "promo_project_guests",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => promoProjects.id, { onDelete: "cascade" }),
+    /** Who they are in Project: their id there, name and email. */
+    personId: varchar("person_id", { length: 36 }).notNull(),
+    personName: text("person_name").notNull(),
+    personEmail: text("person_email").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_promo_project_guests_project").on(table.projectId)]
+)
+
+export type PromoProjectGuestRow = typeof promoProjectGuests.$inferSelect

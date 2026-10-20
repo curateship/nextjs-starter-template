@@ -39,6 +39,7 @@ import {
   useMovingStills,
   type MovingStillsValue,
 } from "@/components/video-editor/moving-stills-context"
+import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { useProjectSettings } from "@/components/video-editor/project-settings-context"
 import {
   createStillShot,
@@ -102,7 +103,16 @@ function readyPieces(shot: GenerationItem): MovingPiece[] {
   )
 }
 
+/**
+ * A guest sent from Project uses no AI (`project-guests.md`), so for a guest
+ * there is no menu item, marker or inspector card, and nothing is asked.
+ */
 export function MovingStillsProvider({ children }: { children: React.ReactNode }) {
+  if (useProjectGuest()) return children
+  return <OwnerMovingStills>{children}</OwnerMovingStills>
+}
+
+function OwnerMovingStills({ children }: { children: React.ReactNode }) {
   const { store, dispatch, projectId, saveNow } = useEditorRuntime()
   const { openSettings, refreshSpend } = useProjectSettings()
   const lock = useEditorLock()

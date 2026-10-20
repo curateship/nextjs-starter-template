@@ -381,3 +381,24 @@ picked the recommended option on all three questions.
 - **The Projects table** keeps its Status column, showing the new status with
   the late count. The old manual statuses stay saved but show nowhere, and the
   Activity tab keeps their old lines.
+
+## Choices for opening a task's record in Video or Promo
+
+Tyler answered these on 19 Oct 2026, before Connected apps task 01 was built.
+How it works is in [Opening a record in another app](connected-apps.md).
+
+- **Who may press the button:** the person the task is assigned to, and the
+  site admin. Anyone else who can see the task gets a refusal. (The task's
+  draft said the project's owner and admins, but those roles stopped giving
+  powers on 16 Oct 2026.)
+- **What a guest may do in Video:** edit the timeline, upload media into that
+  one project and export. AI generation is off for guests until Tyler says
+  otherwise. Deleting the project is never allowed.
+- **What "one record" is in Promo:** a Promo project. The guest works it:
+  searches posts, edits keywords and the description, and writes and sends
+  comments and posts with the project's own accounts. The guest never
+  deletes or pauses the project, adds a network or moves an account. The AI
+  that writes comments and posts is off for guests.
+- **CMS is left out for now.** Tyler, 19 Oct 2026: "skip cms for now".
+- **One record per task.** A task holds one Video project or one Promo
+  project, and shows one button.

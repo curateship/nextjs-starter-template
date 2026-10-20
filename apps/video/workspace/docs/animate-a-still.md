@@ -20,7 +20,10 @@ cents a second, so it is paid for once, only on the stills that need it.
   that cannot move gets the reason in place of the button. The code is
   `MakeItMoveCard` in `src/components/video-editor/moving-stills.tsx`.
 
-Only pictures have either, not video, sound or words.
+Only pictures have either, not video, sound or words. A guest sent from
+Project has neither, and no marker either, because a guest uses no AI
+(`project-guests.md`). A shot an owner started still lands once the guest
+closes the editor, since the worker waits while any window is editing.
 
 ## The window
 

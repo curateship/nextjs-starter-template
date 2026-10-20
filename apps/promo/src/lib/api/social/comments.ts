@@ -2,7 +2,18 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { AI_TEXT_PROVIDERS } from "@/lib/ai/ai-models"
-import { adminGet, adminPost } from "@/server/guards"
+import { adminPost } from "@/server/guards"
+import {
+  actorFor,
+  actorForComment,
+  actorForComments,
+  actorForJobs,
+  editorGet,
+  editorPost,
+  guestSenderName,
+  onlyGuestProject,
+  refuseGuestDelete,
+} from "@/server/social/project-guests"
 import {
   MAX_CHECKS_PER_PRESS,
   MAX_COMMENT_CHARS,
@@ -46,16 +57,25 @@ export const getCommentsErrorMessage = passReaderWritten(createErrorMessage(
     "no longer saved": "That comment is not there any more. Reload the page.",
     "There is no reader browser": NO_READER_MESSAGE,
     "now holds an account": "The reader browser now holds an account, so nothing is read in it. Pick another reader in Settings → Behaviour.",
+    "guest cannot delete": "Deleting a comment is for the project's owner.",
   },
   "That did not work. Please try again."
 ))
 
-const listFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .handler(async ({ context }): Promise<CommentRow[]> => listSentComments(context.user.id))
+/** A guest names their project, and lists are cut to it; the owner's span every project. */
+const projectInput = z.object({ projectId: z.string().min(1).nullable().default(null) })
 
-export function loadComments() {
-  return listFn()
+const listFn = createServerFn({ method: "GET" })
+  .middleware([editorGet])
+  .inputValidator(projectInput)
+  .handler(async ({ context, data }): Promise<CommentRow[]> => {
+    const actor = await actorFor(context.caller, data.projectId)
+    const rows = await listSentComments(actor.userId)
+    return onlyGuestProject(actor, rows, (row) => row.project?.id ?? null)
+  })
+
+export function loadComments(projectId: string | null = null) {
+  return listFn({ data: { projectId } })
 }
 
 /**
@@ -63,13 +83,13 @@ export function loadComments() {
  * Returns once the jobs are written; the screen asks again until they finish.
  */
 const checkFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(
     z.object({ commentIds: z.array(z.string().min(1)).min(1).max(MAX_CHECKS_PER_PRESS) })
   )
   .handler(
     async ({ context, data }): Promise<{ completed: string[]; skipped: string[] }> =>
-      queueCommentChecks(context.user.id, data.commentIds)
+      queueCommentChecks((await actorForComments(context.caller, data.commentIds)).userId, data.commentIds)
   )
 
 export function checkComments(commentIds: string[]) {
@@ -77,19 +97,24 @@ export function checkComments(commentIds: string[]) {
 }
 
 const failuresFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .handler(async ({ context }): Promise<FailureRow[]> => listFailures(context.user.id))
+  .middleware([editorGet])
+  .inputValidator(projectInput)
+  .handler(async ({ context, data }): Promise<FailureRow[]> => {
+    const actor = await actorFor(context.caller, data.projectId)
+    const rows = await listFailures(actor.userId)
+    return onlyGuestProject(actor, rows, (row) => row.projectId)
+  })
 
 /** Comments, answers and posts that did not reach Reddit, not yet dismissed. */
-export function loadFailures() {
-  return failuresFn()
+export function loadFailures(projectId: string | null = null) {
+  return failuresFn({ data: { projectId } })
 }
 
 const dismissFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(z.object({ ids: z.array(z.string().min(1)).min(1).max(200) }))
   .handler(async ({ context, data }): Promise<{ completed: string[]; skipped: string[] }> =>
-    dismissFailures(context.user.id, data.ids)
+    dismissFailures((await actorForJobs(context.caller, data.ids)).userId, data.ids)
   )
 
 /** Takes failures off the Failed tab. They stay on record. */
@@ -98,9 +123,11 @@ export function dismissFailed(ids: string[]) {
 }
 
 const wordsFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
+  .middleware([editorGet])
   .inputValidator(z.object({ jobId: z.string().min(1) }))
-  .handler(async ({ context, data }) => failedWords(context.user.id, data.jobId))
+  .handler(async ({ context, data }) =>
+    failedWords((await actorForJobs(context.caller, [data.jobId])).userId, data.jobId)
+  )
 
 /** A failed comment's post, words and account, for Try again. Null when it is not one. */
 export function loadFailedWords(jobId: string) {
@@ -108,7 +135,7 @@ export function loadFailedWords(jobId: string) {
 }
 
 const changeFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(
     z.discriminatedUnion("kind", [
       z.object({ commentId: z.string().min(1), kind: z.literal("delete") }),
@@ -119,13 +146,15 @@ const changeFn = createServerFn({ method: "POST" })
       }),
     ])
   )
-  .handler(async ({ context, data }): Promise<void> =>
-    queueCommentChange(
-      context.user.id,
+  .handler(async ({ context, data }): Promise<void> => {
+    const actor = await actorForComment(context.caller, data.commentId)
+    refuseGuestDelete(actor, data.kind)
+    await queueCommentChange(
+      actor.userId,
       data.commentId,
       data.kind === "delete" ? { kind: "delete" } : { kind: "edit", text: data.text }
     )
-  )
+  })
 
 /**
  * Deletes a sent comment from Reddit, from the account that sent it. A person
@@ -187,10 +216,10 @@ export function getReplyErrorMessage(error: unknown): string {
 const replyIds = z.object({ commentId: z.string().min(1), replyId: z.string().min(1).max(20) })
 
 const repliesFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
+  .middleware([editorGet])
   .inputValidator(z.object({ commentId: z.string().min(1) }))
   .handler(async ({ context, data }): Promise<CommentReplies> =>
-    loadCommentReplies(context.user.id, data.commentId)
+    loadCommentReplies((await actorForComment(context.caller, data.commentId)).userId, data.commentId)
   )
 
 /** A sent comment and the replies directly under it, each with its answer. */
@@ -222,7 +251,7 @@ export function writeReplyDrafts(commentId: string, replyId: string) {
  * limit, and outside its waking hours it waits for its morning.
  */
 const sendFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(
     replyIds.extend({
       text: z.string().trim().min(1, "There is nothing to post.").max(MAX_COMMENT_CHARS),
@@ -231,7 +260,8 @@ const sendFn = createServerFn({ method: "POST" })
   )
   .handler(
     async ({ context, data }): Promise<{ runAfter: Date | null; handle: string }> => {
-      const { runAfter, handle } = await queueReply(context.user.id, data)
+      const actor = await actorForComment(context.caller, data.commentId)
+      const { runAfter, handle } = await queueReply(actor.userId, { ...data, sentBy: guestSenderName(actor) })
       return { runAfter, handle }
     }
   )
@@ -241,10 +271,10 @@ export function sendReply(data: { commentId: string; replyId: string; text: stri
 }
 
 const cancelFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(replyIds)
   .handler(async ({ context, data }): Promise<void> =>
-    cancelWaitingReply(context.user.id, data.commentId, data.replyId)
+    cancelWaitingReply((await actorForComment(context.caller, data.commentId)).userId, data.commentId, data.replyId)
   )
 
 /** Cancels an answer still waiting for the account's waking hours. */

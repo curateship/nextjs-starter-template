@@ -171,7 +171,7 @@ export async function serializeVideoMedia(
  * in its saved timeline/slides. Reading the saved document keeps older work
  * visible without a one-off data backfill.
  */
-async function mediaIdsForScope(
+export async function mediaIdsForScope(
   userId: string,
   scope: MediaScope,
   database: CustomShellDb

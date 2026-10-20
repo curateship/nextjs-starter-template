@@ -322,6 +322,11 @@ function refuseWrongNetwork(kind: JobKind, account: Account): void {
   }
 }
 
+/** "Sam via Project" from a guest's job, so the row it writes says who sent it. Nothing for the owner's. */
+function sentByOf(payload: Record<string, unknown>): { sentBy?: string } {
+  return typeof payload.sentBy === "string" && payload.sentBy ? { sentBy: payload.sentBy } : {}
+}
+
 /**
  * The account's own work, the same steps whether `target` is its browser or
  * its phone. Afterwards, whether it worked or not, what the
@@ -346,6 +351,7 @@ async function runAccountJob(
           accountId: account.id,
           text,
           draftId: job.payload.draftId ? String(job.payload.draftId) : null,
+          ...sentByOf(job.payload),
         },
         target,
         db
@@ -364,6 +370,7 @@ async function runAccountJob(
           replyId,
           text,
           draftId: job.payload.draftId ? String(job.payload.draftId) : null,
+          ...sentByOf(job.payload),
         },
         target,
         db

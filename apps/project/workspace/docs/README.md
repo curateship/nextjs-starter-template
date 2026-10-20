@@ -16,3 +16,4 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [Needs attention and workload](needs-attention.md): the Team dashboard's tabs listing tasks that need help and each person's open work.
 - [Going live](launch.md): where the live site at project.barelycompany.com runs, Tyler's launch choices, every live setting by name, how to deploy, and the release record.
 - [Fields that save themselves](fields-that-save-themselves.md): the one Saving…, Saved or Not saved sign on job titles, check-in times, Team settings and check-in notes.
+- [Opening a record in another app](connected-apps.md): a task that points at one Video or Promo project, the Edit video button, who may press it, the stamped 60-second note and the server settings each app needs.

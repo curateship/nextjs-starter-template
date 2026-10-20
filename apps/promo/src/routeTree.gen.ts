@@ -33,6 +33,8 @@ import { Route as AuthenticatedChangelogRouteImport } from './routes/_authentica
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as GuestRefusedRouteImport } from './routes/guest/refused'
+import { Route as HandoffProjectRouteImport } from './routes/handoff/project'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAccountsRouteImport } from './routes/_authenticated/admin/accounts'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
@@ -84,6 +86,7 @@ import { Route as ApiRackResultRouteImport } from './routes/api/rack/result'
 import { Route as ApiRackScreenRouteImport } from './routes/api/rack/screen'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
+import { Route as GuestPromoProjectIdRouteImport } from './routes/guest/promo.$projectId'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
@@ -216,6 +219,16 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuestRefusedRoute = GuestRefusedRouteImport.update({
+  id: '/guest/refused',
+  path: '/guest/refused',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HandoffProjectRoute = HandoffProjectRouteImport.update({
+  id: '/handoff/project',
+  path: '/handoff/project',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -500,6 +513,11 @@ const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
   path: '/api/webhooks/stripe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuestPromoProjectIdRoute = GuestPromoProjectIdRouteImport.update({
+  id: '/guest/promo/$projectId',
+  path: '/guest/promo/$projectId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAccountBillingSuccessRoute =
   AuthenticatedAccountBillingSuccessRouteImport.update({
     id: '/billing_/success',
@@ -605,6 +623,8 @@ export interface FileRoutesByFullPath {
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/guest/refused': typeof GuestRefusedRoute
+  '/handoff/project': typeof HandoffProjectRoute
   '/admin/accounts': typeof AuthenticatedAdminAccountsRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -654,6 +674,7 @@ export interface FileRoutesByFullPath {
   '/api/rack/screen': typeof ApiRackScreenRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/guest/promo/$projectId': typeof GuestPromoProjectIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -693,6 +714,8 @@ export interface FileRoutesByTo {
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/guest/refused': typeof GuestRefusedRoute
+  '/handoff/project': typeof HandoffProjectRoute
   '/admin/accounts': typeof AuthenticatedAdminAccountsRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -742,6 +765,7 @@ export interface FileRoutesByTo {
   '/api/rack/screen': typeof ApiRackScreenRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/guest/promo/$projectId': typeof GuestPromoProjectIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -785,6 +809,8 @@ export interface FileRoutesById {
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/guest/refused': typeof GuestRefusedRoute
+  '/handoff/project': typeof HandoffProjectRoute
   '/_authenticated/admin/accounts': typeof AuthenticatedAdminAccountsRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -834,6 +860,7 @@ export interface FileRoutesById {
   '/api/rack/screen': typeof ApiRackScreenRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/guest/promo/$projectId': typeof GuestPromoProjectIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -877,6 +904,8 @@ export interface FileRouteTypes {
     | '/home'
     | '/workspaces'
     | '/api/health'
+    | '/guest/refused'
+    | '/handoff/project'
     | '/admin/accounts'
     | '/admin/ai'
     | '/admin/ai-usage'
@@ -926,6 +955,7 @@ export interface FileRouteTypes {
     | '/api/rack/screen'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/guest/promo/$projectId'
     | '/admin/'
     | '/changelog/'
     | '/account/billing/success'
@@ -965,6 +995,8 @@ export interface FileRouteTypes {
     | '/home'
     | '/workspaces'
     | '/api/health'
+    | '/guest/refused'
+    | '/handoff/project'
     | '/admin/accounts'
     | '/admin/ai'
     | '/admin/ai-usage'
@@ -1014,6 +1046,7 @@ export interface FileRouteTypes {
     | '/api/rack/screen'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/guest/promo/$projectId'
     | '/admin'
     | '/changelog'
     | '/account/billing/success'
@@ -1056,6 +1089,8 @@ export interface FileRouteTypes {
     | '/_authenticated/home'
     | '/_authenticated/workspaces'
     | '/api/health'
+    | '/guest/refused'
+    | '/handoff/project'
     | '/_authenticated/admin/accounts'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
@@ -1105,6 +1140,7 @@ export interface FileRouteTypes {
     | '/api/rack/screen'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/guest/promo/$projectId'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
@@ -1143,6 +1179,8 @@ export interface RootRouteChildren {
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  GuestRefusedRoute: typeof GuestRefusedRoute
+  HandoffProjectRoute: typeof HandoffProjectRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiMediaLinkTokenRoute: typeof ApiMediaLinkTokenRoute
   ApiRackCheckInRoute: typeof ApiRackCheckInRoute
@@ -1158,6 +1196,7 @@ export interface RootRouteChildren {
   ApiRackScreenRoute: typeof ApiRackScreenRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  GuestPromoProjectIdRoute: typeof GuestPromoProjectIdRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
@@ -1333,6 +1372,20 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guest/refused': {
+      id: '/guest/refused'
+      path: '/guest/refused'
+      fullPath: '/guest/refused'
+      preLoaderRoute: typeof GuestRefusedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/handoff/project': {
+      id: '/handoff/project'
+      path: '/handoff/project'
+      fullPath: '/handoff/project'
+      preLoaderRoute: typeof HandoffProjectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -1692,6 +1745,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksStripeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guest/promo/$projectId': {
+      id: '/guest/promo/$projectId'
+      path: '/guest/promo/$projectId'
+      fullPath: '/guest/promo/$projectId'
+      preLoaderRoute: typeof GuestPromoProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/account/billing_/success': {
       id: '/_authenticated/account/billing_/success'
       path: '/billing/success'
@@ -1972,6 +2032,8 @@ const rootRouteChildren: RootRouteChildren = {
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
+  GuestRefusedRoute: GuestRefusedRoute,
+  HandoffProjectRoute: HandoffProjectRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiMediaLinkTokenRoute: ApiMediaLinkTokenRoute,
   ApiRackCheckInRoute: ApiRackCheckInRoute,
@@ -1987,6 +2049,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRackScreenRoute: ApiRackScreenRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  GuestPromoProjectIdRoute: GuestPromoProjectIdRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,

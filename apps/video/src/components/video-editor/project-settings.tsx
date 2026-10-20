@@ -9,6 +9,7 @@ import {
   useEditorRuntime,
 } from "@/components/video-editor/editor-store"
 import { ProjectFormDialog } from "@/components/video-editor/project-form-dialog"
+import { useProjectGuest } from "@/components/video-editor/project-guest"
 import {
   ProjectSettingsContext,
   useProjectSettings,
@@ -44,7 +45,10 @@ export function ProjectSettingsProvider({
   const [spend, setSpend] = React.useState<ProjectSpend | null>(null)
   const [reads, setReads] = React.useState(0)
 
+  // A guest sent from Project has no AI, so there is no spending to show them.
+  const guest = useProjectGuest() !== null
   React.useEffect(() => {
+    if (guest) return
     let active = true
     loadProjectSpend(project.id)
       .then((loaded) => {
@@ -54,7 +58,7 @@ export function ProjectSettingsProvider({
     return () => {
       active = false
     }
-  }, [project.id, reads])
+  }, [guest, project.id, reads])
 
   const openSettings = React.useCallback(() => setOpen(true), [])
   const refreshSpend = React.useCallback(
