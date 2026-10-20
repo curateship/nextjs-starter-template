@@ -8,10 +8,17 @@ import {
 } from "@/lib/contacts/contact-filter"
 import {
   CONTACT_SEGMENT_STATUSES,
+  rulesShowingSegment,
   type ContactSegmentStatus,
   type SegmentKind,
   type SegmentRuleOptions,
+  type SegmentRules,
 } from "@/lib/contacts/contact-segments"
+import {
+  CONTACT_SHORTCUTS,
+  type ContactShortcutKey,
+} from "@/lib/contacts/contact-shortcuts"
+import type { SegmentItem } from "@/lib/api/people/contact-segments"
 
 import {
   deleteWorkspaceContacts,
@@ -20,13 +27,16 @@ import {
   listWorkspaceContacts,
   listWorkspaceTags,
   setContactStatus,
+  setContactStatusMatching,
+  setWorkspaceContactTags,
   syncContactsFromUsers,
   upsertWorkspaceContact,
 } from "@/server/people/contacts"
 import {
-  listSegmentNames,
+  countContactsMatchingEach,
   listSegmentsForContact,
   listWorkspaceContactSources,
+  listWorkspaceSegments,
 } from "@/server/people/contact-segments"
 import { listContactDeliveries } from "@/server/email/deliveries"
 import { adminGet, adminPost } from "@/server/guards"
@@ -56,14 +66,14 @@ export type ContactItem = {
   source: string | null
   /**
    * The account this contact is, or null for a typed-in address that belongs to
-   * nobody. The id rather than a yes-or-no, because the detail window links
+   * nobody. The id rather than a yes-or-no, because the open contact links
    * straight to that account and a boolean cannot say which one.
    */
   userId: string | null
   /**
    * When anything was last sent to them, or null for somebody who has never
    * been emailed. The newest row in `deliveries` for them — the same date their
-   * details window shows at the top of its history.
+   * panel shows at the top of its history.
    */
   lastEmailedAt: string | null
   created_at: string
@@ -83,11 +93,15 @@ export type ContactsPage = {
   sources: string[]
   plans: { slug: string; name: string }[]
   /**
-   * Every segment, with its kind. Any of them can be left out of a filter rule;
-   * only a hand-picked one can have people added to it, and the toolbar offers
-   * exactly those.
+   * Every segment with its rules and how many people are in it now: the left
+   * panel's Segments card. Any of them can be named in a filter rule; only a
+   * hand-picked one can have people added to it or taken out.
    */
-  segments: { id: string; name: string; kind: SegmentKind }[]
+  segments: SegmentItem[]
+  /** How many people each row of the People card holds, counted by its rules. */
+  shortcuts: Record<ContactShortcutKey, number>
+  /** The address named a segment that is not there any more. */
+  segmentMissing: boolean
   /**
    * How many rows this page holds. Settled on the server so the loader can ask
    * for the first page at the size the table will actually show, rather than
@@ -123,6 +137,7 @@ export type ContactDelivery = {
  * the list, which would be one of these per row.
  */
 export type ContactDetail = {
+  contact: ContactItem
   segments: { id: string; name: string; kind: SegmentKind }[]
   history: ContactDelivery[]
   /** There is another page of history below this one. */
@@ -166,6 +181,8 @@ const listSchema = contactFilterSchema.extend({
   limit: z.number().int().min(1).max(200).optional(),
   /** 1-based. The offset is worked out from it, so there is one way to page. */
   page: z.number().int().min(1).max(10_000).optional(),
+  /** A segment to show when there are no rules of its own: see `ContactsPage.rules`. */
+  segmentId: z.string().min(1).max(36).optional(),
 })
 
 const idsSchema = z.object({
@@ -187,20 +204,39 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
   .handler(async ({ data, context }): Promise<ContactsPage> => {
     const workspaceId = await currentWorkspaceId(context.user.id)
     // Opening the list is what brings it up to date with who has signed up.
-    // Before the read, so somebody who joined a minute ago is on the page.
+    // Before the reads, so somebody who joined a minute ago is on the page and
+    // in the counts beside it.
     await syncContactsFromUsers(workspaceId)
     const pageSize = data.limit ?? (await readDashboardRowsPerPage())
-    const [{ contacts, total }, tags, sources, segments, plans] =
+    // Started here and collected below with nothing else awaited in between,
+    // so a failure is always caught by the request that started it.
+    const segmentsRead = listWorkspaceSegments(workspaceId).then((rows) =>
+      rows.map(toSegmentItem)
+    )
+    // `?segment=<id>` with no rules of its own shows that segment's saved
+    // rules, so the list waits for the segments only then.
+    const named =
+      data.segmentId && !data.rules
+        ? (await segmentsRead).find((segment) => segment.id === data.segmentId)
+        : undefined
+    const rules: SegmentRules | undefined =
+      data.rules ?? (named ? rulesShowingSegment(named) : undefined)
+    const [{ contacts, total }, tags, sources, plans, shortcutTotals, segments] =
       await Promise.all([
         listWorkspaceContacts(workspaceId, {
           ...data,
+          rules,
           limit: pageSize,
           offset: ((data.page ?? 1) - 1) * pageSize,
         }),
         listWorkspaceTags(workspaceId),
         listWorkspaceContactSources(workspaceId),
-        listSegmentNames(workspaceId),
         listPlans(),
+        countContactsMatchingEach(
+          workspaceId,
+          CONTACT_SHORTCUTS.map((shortcut) => shortcut.rules)
+        ),
+        segmentsRead,
       ])
     return {
       total,
@@ -208,21 +244,62 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
       tags,
       sources,
       segments,
+      segmentMissing: Boolean(
+        data.segmentId && !segments.some((segment) => segment.id === data.segmentId)
+      ),
+      shortcuts: Object.fromEntries(
+        CONTACT_SHORTCUTS.map((shortcut, index) => [
+          shortcut.key,
+          shortcutTotals[index] ?? 0,
+        ])
+      ) as Record<ContactShortcutKey, number>,
       plans: plans.map((plan) => ({ slug: plan.slug, name: plan.name })),
-      contacts: contacts.map((row) => ({
-        id: row.id,
-        email: row.email,
-        firstName: row.firstName,
-        lastName: row.lastName,
-        tags: row.tags,
-        status: row.status as ContactStatus,
-        source: row.source,
-        userId: row.userId,
-        lastEmailedAt: row.lastEmailedAt?.toISOString() ?? null,
-        created_at: row.createdAt.toISOString(),
-      })),
+      contacts: contacts.map(toContactItem),
     }
   })
+
+function toSegmentItem({
+  segment,
+  rules,
+  total,
+}: Awaited<ReturnType<typeof listWorkspaceSegments>>[number]): SegmentItem {
+  return {
+    id: segment.id,
+    name: segment.name,
+    description: segment.description,
+    kind: segment.kind === "static" ? "static" : "rules",
+    rules,
+    total,
+    created_at: segment.createdAt.toISOString(),
+    updated_at: segment.updatedAt.toISOString(),
+  }
+}
+
+function toContactItem(row: {
+  id: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  tags: string[]
+  status: string
+  source: string | null
+  userId: string | null
+  lastEmailedAt: Date | null
+  createdAt: Date
+}): ContactItem {
+  return {
+    id: row.id,
+    email: row.email,
+    firstName: row.firstName,
+    lastName: row.lastName,
+    tags: row.tags,
+    status: row.status as ContactStatus,
+    source: row.source,
+    userId: row.userId,
+    lastEmailedAt: row.lastEmailedAt?.toISOString() ?? null,
+    created_at: row.createdAt.toISOString(),
+  }
+}
 
 /** How many sends one page of the history holds. */
 export const CONTACT_HISTORY_PAGE_SIZE = 10
@@ -244,15 +321,26 @@ const loadContactDetailFn = createServerFn({ method: "GET" })
     const contact = await getWorkspaceContact(workspaceId, data.contactId)
     if (!contact) throw new Error("CONTACT_NOT_FOUND")
 
-    const [segments, { deliveries, hasMore }] = await Promise.all([
+    const page = data.page ?? 1
+    const [segments, { deliveries, hasMore }, newest] = await Promise.all([
       listSegmentsForContact(workspaceId, contact.id),
       listContactDeliveries(workspaceId, contact.id, {
         limit: CONTACT_HISTORY_PAGE_SIZE,
-        offset: ((data.page ?? 1) - 1) * CONTACT_HISTORY_PAGE_SIZE,
+        offset: (page - 1) * CONTACT_HISTORY_PAGE_SIZE,
       }),
+      // The newest send, for "Last emailed". The first page already starts
+      // with it; a later page has to ask.
+      page > 1
+        ? listContactDeliveries(workspaceId, contact.id, { limit: 1, offset: 0 })
+        : null,
     ])
+    const lastSent = (newest?.deliveries ?? deliveries)[0]
 
     return {
+      contact: toContactItem({
+        ...contact,
+        lastEmailedAt: lastSent?.createdAt ?? null,
+      }),
       segments,
       hasMore,
       history: deliveries.map((row) => ({
@@ -290,6 +378,36 @@ const setStatusFn = createServerFn({ method: "POST" })
       changed: await setContactStatus(
         workspaceId,
         data.contactIds,
+        data.status
+      ),
+    }
+  })
+
+const saveTagsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      contactId: z.string().min(1).max(36),
+      tags: upsertSchema.shape.tags.unwrap(),
+    })
+  )
+  .handler(async ({ data, context }): Promise<void> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await setWorkspaceContactTags(workspaceId, data.contactId, data.tags)
+  })
+
+/** The status of everybody the filters match: see `deleteMatchingContactsFn`. */
+const setStatusMatchingFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    contactFilterSchema.extend({ status: z.enum(CONTACT_SEGMENT_STATUSES) })
+  )
+  .handler(async ({ data, context }): Promise<{ changed: number }> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    return {
+      changed: await setContactStatusMatching(
+        workspaceId,
+        { search: data.search, rules: data.rules },
         data.status
       ),
     }
@@ -344,6 +462,17 @@ export function setContactsStatus(
   status: ContactSegmentStatus
 ) {
   return setStatusFn({ data: { contactIds, status } })
+}
+
+export function saveContactTags(contactId: string, tags: string[]) {
+  return saveTagsFn({ data: { contactId, tags } })
+}
+
+export function setMatchingContactsStatus(
+  filter: ContactFilterInput,
+  status: ContactSegmentStatus
+) {
+  return setStatusMatchingFn({ data: { ...filter, status } })
 }
 
 export function deleteContacts(contactIds: string[]) {
