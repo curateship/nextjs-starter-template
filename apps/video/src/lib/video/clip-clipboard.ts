@@ -132,6 +132,10 @@ export function clipboardMediaIds(clips: ClipboardClip[]) {
  * nothing there. "(file deleted)" is added to its name so the gap still says
  * what it was once the message about it has gone. Replace media on it puts
  * footage back.
+ *
+ * A caption keeps saying which voice line speaks it only when that line was
+ * copied with it, and then it names the pasted line, so making the pasted
+ * line again never touches the original's words.
  */
 export function prepareClipsForPaste(
   clips: ClipboardClip[],
@@ -139,8 +143,13 @@ export function prepareClipsForPaste(
 ): { clips: ClipboardClip[]; missingNames: string[] } {
   const missing = new Set(missingMediaIds)
   const missingNames = new Set<string>()
+  const freshIds = new Map(clips.map(({ clip }) => [clip.id, editorId()]))
   const prepared = clips.map(({ clip, lane }) => {
-    const fresh = { ...clip, id: editorId() }
+    const fresh = {
+      ...clip,
+      id: freshIds.get(clip.id) ?? editorId(),
+      spokenBy: clip.spokenBy ? freshIds.get(clip.spokenBy) : undefined,
+    }
     if (!clip.mediaId || !missing.has(clip.mediaId)) {
       return { clip: fresh, lane }
     }

@@ -75,6 +75,8 @@ import {
   type EditorClip,
   type EditorTrack,
 } from "@/components/video-editor/editor-store"
+import { StillMarker } from "@/components/video-editor/moving-stills"
+import { ClipContextMenu } from "@/components/video-editor/remake-clips"
 import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
 import { useRememberedTimelineView } from "@/components/video-editor/use-remembered-view"
 
@@ -315,6 +317,9 @@ export function StudioTimeline({ readOnly = false }: { readOnly?: boolean }) {
 
       <div
         ref={scrollRef}
+        // A file dragged from a panel lands on the nearest lane wherever it is
+        // let go in here (use-drag-to-timeline.tsx).
+        data-timeline-drop
         style={{ flex: 1, minHeight: 0, overflow: "auto", position: "relative" }}
       >
         <div
@@ -1214,7 +1219,7 @@ const ClipChip = React.memo(function ClipChip({
         : "rgba(0,0,0,.28)",
   }
 
-  return (
+  const chip = (
     <div
       ref={ref}
       data-clip
@@ -1429,8 +1434,18 @@ const ClipChip = React.memo(function ClipChip({
       >
         <span style={gripBar} />
       </div>
+      {clip.kind === "image" || clip.kind === "video" ? (
+        <StillMarker
+          clipId={clip.id}
+          roomy={width > 110}
+          again={clip.kind === "video"}
+        />
+      ) : null}
     </div>
   )
+  // A picture can be made to move, and anything the AI made can be made
+  // again, from the right-click menu (remake-clips.tsx).
+  return <ClipContextMenu clip={clip}>{chip}</ClipContextMenu>
 })
 
 // A small diamond straddling the seam between two clips, marking a blend.

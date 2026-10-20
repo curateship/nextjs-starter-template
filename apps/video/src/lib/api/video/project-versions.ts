@@ -7,7 +7,8 @@ import {
   VERSION_NOT_FOUND_MESSAGE,
   VERSION_UNREADABLE_MESSAGE,
 } from "@/lib/video/project-versions"
-import { actorFor, editorGet, editorPost } from "@/server/video/project-guests"
+import { editorGet, editorPost } from "@/server/video/editor-guards"
+import { actorFor } from "@/server/video/project-guests"
 import {
   listOwnedProjectVersions,
   type ProjectVersionItem,

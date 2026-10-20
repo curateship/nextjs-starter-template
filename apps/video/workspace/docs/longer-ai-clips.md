@@ -21,6 +21,15 @@ Veo 3.1 was the only model the app used, at $0.40 a second. Tyler's answer on
 - **Omni Flash on a free key:** Google gives a free Gemini key 0 Omni Flash
   shots a day ("limit: 0 requests per day on Free Tier"). The key in Settings
   must belong to a paid Google account.
+- **What a free key looks like:** on 19 Oct 2026 Google accepted a free
+  key's piece, then refused every check on it with "Rate limit exceeded ...
+  (limit: 0 input tokens per minute on Free Tier)". The app used to treat
+  that as Google being busy, so the piece sat for 15 minutes and failed as
+  "took longer". Now any refusal with a limit of 0 on the free tier fails the
+  piece at once: "Google refused because the Gemini key in Settings is a free
+  key, and Google makes no AI videos on a free key. Add a key from a paid
+  Google account, then press Try again." Nothing is charged
+  (`isFreeTierRefusal` in `src/lib/video/asset-factories.ts`).
 
 ## The three sizes
 

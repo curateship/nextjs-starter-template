@@ -7,6 +7,7 @@ import {
   EXTRA_NOT_FOUND_MESSAGE,
   EXTRA_PICTURE_MISSING_MESSAGE,
 } from "@/lib/video/extras"
+import { REMAKE_NOT_FOUND_MESSAGE } from "@/lib/video/remake-clip"
 import { now, uuid } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { customShellMedia, type CustomShellUser } from "@/server/schema"
@@ -27,9 +28,14 @@ import {
 import {
   createFirstFrames,
   listFirstFrames,
+  remakeFirstFrame,
 } from "@/server/video/asset-factories/first-frames"
 import { mediaStillInUse } from "@/server/video/media-in-use"
-import { createOwnedProject, duplicateOwnedProject } from "@/server/video/projects"
+import {
+  createOwnedProject,
+  duplicateOwnedProject,
+  writeProjectTimeline,
+} from "@/server/video/projects"
 import { videoExtras, videoFirstFrames, videoProjects } from "@/server/video/schema"
 
 vi.mock("@/server/media/storage", async (importOriginal) => ({
@@ -389,5 +395,126 @@ describe("a first frame with extras", () => {
     ).rejects.toThrow(EXTRA_NOT_FOUND_MESSAGE)
     expect(requests).toEqual([])
     expect(await database.select().from(videoFirstFrames)).toEqual([])
+  })
+})
+
+describe("making a first frame on the timeline again", () => {
+  it("sends the same actor, pictures and extras with the new words and model", async () => {
+    const actor = await createActor(user.id, {
+      name: "Mia",
+      prompt: "Short grey hair",
+      model: "gemini-2.5-flash-image",
+      status: "active",
+      tags: "",
+    })
+    const project = await createOwnedProject(user.id, "Reel", database)
+    const jacket = await uploadedExtra("clothing", "Green jacket", "green wool jacket")
+    const kitchen = await uploadedExtra("backdrop", "Kitchen", "bright kitchen")
+    const { firstFrames } = await createFirstFrames(user.id, {
+      projectId: project.id,
+      actorId: actor.id,
+      prompt: "Holding a coffee",
+      variants: 1,
+      extras: { clothing: jacket.id, backdrop: kitchen.id },
+    })
+    const [frame] = firstFrames
+    expect(frame.origin).toEqual({
+      tool: "first-frame",
+      model: "gemini-2.5-flash-image",
+      prompt: "Holding a coffee",
+      referenceMediaIds: [actor.image_media_id],
+      actorId: actor.id,
+      extras: [
+        { kind: "clothing", extra_id: jacket.id, media_id: jacket.image_media_id },
+        { kind: "backdrop", extra_id: kitchen.id, media_id: kitchen.image_media_id },
+      ],
+      aspectRatio: "9:16",
+    })
+    await writeProjectTimeline(
+      user.id,
+      project.id,
+      {
+        aspect: "9:16",
+        tracks: [
+          {
+            id: "pictures",
+            muted: false,
+            clips: [
+              {
+                id: "scene-4",
+                kind: "image",
+                name: frame.name,
+                mediaId: frame.image.id,
+                startMs: 12_000,
+                durationMs: 4000,
+                trimStartMs: 0,
+                origin: frame.origin,
+              },
+              {
+                id: "upload",
+                kind: "image",
+                name: "upload.png",
+                mediaId: frame.image.id,
+                startMs: 16_000,
+                durationMs: 4000,
+                trimStartMs: 0,
+              },
+            ],
+          },
+        ],
+      },
+      project.version,
+      database
+    )
+    requests.length = 0
+
+    const again = await remakeFirstFrame(user.id, {
+      projectId: project.id,
+      clipId: "scene-4",
+      prompt: "Holding a coffee, hands out of frame",
+      model: "gemini-3.1-flash-image",
+    })
+
+    expect(requests[0].references.map((reference) => reference.id)).toEqual([
+      undefined,
+      kitchen.image_media_id,
+    ])
+    expect(requests[0].references[0].tileMediaIds).toEqual([
+      actor.image_media_id,
+      jacket.image_media_id,
+    ])
+    expect(requests[0].prompt).toContain("Direction: Holding a coffee, hands out of frame.")
+    expect(again.image.id).not.toBe(frame.image.id)
+    expect(again.origin).toMatchObject({
+      model: "gemini-3.1-flash-image",
+      prompt: "Holding a coffee, hands out of frame",
+      extras: frame.origin.extras,
+    })
+    const rows = await database.select().from(videoFirstFrames)
+    expect(rows.map((row) => row.model).sort()).toEqual([
+      "gemini-2.5-flash-image",
+      "gemini-3.1-flash-image",
+    ])
+
+    // An uploaded picture has nothing to make it again from, and nobody
+    // else can make one on someone's project.
+    await expect(
+      remakeFirstFrame(user.id, {
+        projectId: project.id,
+        clipId: "upload",
+        prompt: "Anything",
+        model: "gemini-2.5-flash-image",
+      })
+    ).rejects.toThrow(REMAKE_NOT_FOUND_MESSAGE)
+    const stranger = await insertUser(database)
+    await expect(
+      remakeFirstFrame(stranger.id, {
+        projectId: project.id,
+        clipId: "scene-4",
+        prompt: "Anything",
+        model: "gemini-2.5-flash-image",
+      })
+    ).rejects.toThrow()
+    expect(requests).toHaveLength(1)
   })
 })

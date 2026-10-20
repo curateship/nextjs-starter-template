@@ -3,6 +3,7 @@ import { z } from "zod"
 import { captionClipStyle, type CaptionLook } from "@/lib/video/caption-look"
 import { captionClipWordTimes } from "@/lib/video/caption-words"
 import { captionClipName, type CaptionLine } from "@/lib/video/captions"
+import type { VoiceOrigin } from "@/lib/video/clip-origin"
 import {
   MAX_TIMELINE_TRACKS,
   type ProjectTimeline,
@@ -65,7 +66,10 @@ export function readSavedCaptions(value: unknown): CaptionLine[] {
 
 /**
  * A voiceover as timeline clips: the sound starting at `atMs` and each
- * caption line moved along with it, styled from the look it is handed.
+ * caption line moved along with it, styled from the look it is handed. The
+ * captions name the sound as the line that speaks them. A voiceover read
+ * just now carries its recipe, which the sound keeps for Make it again; one
+ * laid again from the shelf has none.
  */
 export function voiceoverClips(
   voiceover: {
@@ -74,14 +78,16 @@ export function voiceoverClips(
     name: string
     durationMs: number
     captions: CaptionLine[]
+    origin?: VoiceOrigin
   },
   atMs: number,
   look: CaptionLook
 ): { audio: TimelineClip; captions: TimelineClip[] } {
   const startMs = Math.max(0, Math.round(atMs))
+  const audioId = editorId()
   return {
     audio: {
-      id: editorId(),
+      id: audioId,
       kind: "audio",
       name: voiceover.name,
       mediaId: voiceover.mediaId,
@@ -90,6 +96,7 @@ export function voiceoverClips(
       durationMs: voiceover.durationMs,
       trimStartMs: 0,
       sourceDurationMs: voiceover.durationMs,
+      ...(voiceover.origin ? { origin: voiceover.origin } : {}),
     },
     captions: voiceover.captions.map((line) => ({
       id: editorId(),
@@ -101,6 +108,7 @@ export function voiceoverClips(
       trimStartMs: 0,
       wordTimes: captionClipWordTimes(line),
       ...captionClipStyle(look),
+      spokenBy: audioId,
     })),
   }
 }

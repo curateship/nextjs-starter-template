@@ -50,6 +50,15 @@ export const appServerOptions: AppServerOptions = {
           ),
       },
       {
+        // Puts a finished shot made from a timeline picture in that
+        // picture's place, when no editor has the project open to do it.
+        name: "video-moving-stills",
+        tick: () =>
+          import("@/server/video/asset-factories/moving-stills").then(
+            (stills) => stills.movingStillTick()
+          ),
+      },
+      {
         // Downloads a saved video and has Gemini break it down. Closing the
         // browser never stops one, and a restart puts an interrupted job back.
         name: "video-viral-breakdown",

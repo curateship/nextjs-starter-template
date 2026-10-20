@@ -32,6 +32,12 @@ All of them are in `src/components/shared/`.
   of a side panel, which remembers being open or shut, with a muted note after
   its title, a badge, a button of its own and a footer of buttons.
   `PanelHeading` is the one small-caps heading over a group inside a panel.
+  `PanelBox` is the same grey box with no heading and no fold, for a record's
+  opening card whose first line is the record's own name, as the open
+  contact's is.
+- **`DashboardCardTitleHeader` may leave out its icon**, so the title starts
+  the row, as the Contacts list's middle header does in Tyler's mock of
+  20 Oct 2026.
 - **`search-toggle.tsx`, `SearchToggle`.** The magnifying glass in the middle
   header that opens into the search box. Escape empties and closes it.
 - **`filter-popover.tsx`, `FilterPopover`.** The ghost Filter button that

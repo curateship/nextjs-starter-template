@@ -20,6 +20,7 @@ import { CLIP_MOTIONS } from "./clip-motion"
 import { MAX_FADE_MS, MIN_FADE_MS } from "./clip-fades"
 import { TRANSITION_KINDS } from "./clip-transitions"
 import { CAPTION_ANIMATION_IDS } from "./caption-animations"
+import { clipOriginSchema } from "./clip-origin"
 import { MAX_CAPTION_WORDS } from "./caption-words"
 import { TEXT_FONT_IDS } from "./text-fonts"
 
@@ -136,6 +137,13 @@ export const clipSchema = z
     // frame is placed by `x` and `y`, the same as text.
     scale: z.number().min(MIN_CLIP_SCALE).max(MAX_CLIP_SCALE).optional(),
     transition: clipTransitionSchema.optional(),
+    // How the AI made this clip, so Make it again can make it once more in
+    // the same place (clip-origin.ts). Absent on everything uploaded, from
+    // stock, or laid down before this existed.
+    origin: clipOriginSchema.optional(),
+    // On a caption or an opening line: the voice line that says it, so making
+    // that line again replaces these words too. Absent on words typed in.
+    spokenBy: z.string().min(1).max(64).optional(),
   })
   .strict()
   .superRefine((clip, context) => {

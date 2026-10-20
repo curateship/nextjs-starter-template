@@ -1874,6 +1874,8 @@ export const customShellContacts = pgTable(
       .default(sql`'{}'::text[]`),
     status: varchar("status", { length: 20 }).notNull().default("subscribed"),
     unsubscribedAt: timestamp("unsubscribed_at", { withTimezone: true }),
+    /** What the admin wrote about them in the open contact's Notes box. */
+    notes: text("notes").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

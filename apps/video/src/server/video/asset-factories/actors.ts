@@ -584,6 +584,25 @@ export async function sheetPicturesToSend(
   return mainFirst(actor, picked).map((row) => row.media)
 }
 
+/**
+ * The sheet pictures showing these Media ids, for making a frame again from
+ * the pictures it was drawn from. Null means the main picture alone, which
+ * is what a frame made from no sheet pictures was sent.
+ */
+export async function sheetPictureIdsFor(
+  userId: string,
+  actor: VideoActorRow,
+  mediaIds: string[]
+) {
+  if (!mediaIds.length || (mediaIds.length === 1 && mediaIds[0] === actor.imageMediaId)) {
+    return null
+  }
+  const sheet = (await sheetRows(userId, [actor.id])).get(actor.id) ?? []
+  const picked = sheet.filter((row) => mediaIds.includes(row.media.id))
+  if (picked.length !== mediaIds.length) throw new Error(SHEET_PICTURE_NOT_FOUND_MESSAGE)
+  return picked.map((row) => row.picture.id)
+}
+
 /** Each actor's sheet as label and Media id, for naming what a frame used. */
 export async function sheetLabels(userId: string, actorIds: string[]) {
   const sheets = await sheetRows(userId, actorIds)

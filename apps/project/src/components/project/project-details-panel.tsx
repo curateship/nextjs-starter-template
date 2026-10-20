@@ -32,7 +32,9 @@ import { cn } from "@/lib/utils"
  * The project's banner, set in Project settings, lies faintly behind the
  * header and the top of the panel, so the header still reads over it, and its
  * round avatar sits at the banner's foot with the name and status beside it
- * (Tyler, 19 Oct 2026). With neither, the panel is as it was.
+ * (Tyler, 19 Oct 2026). Over a banner the header has no line under it, so the
+ * picture runs on unbroken (Tyler, 20 Oct 2026). With neither, the panel is
+ * as it was.
  */
 export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
   const { project } = page
@@ -58,7 +60,8 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
         </div>
       ) : null}
       <DashboardCardTitleHeader
-        className="relative"
+        // The line goes see-through rather than away, so the header keeps its height.
+        className={cn("relative", banner && "border-b-transparent")}
         icon={<FolderKanbanIcon className="size-4" />}
         back={{ label: "Back to projects", to: "/projects" }}
         title={

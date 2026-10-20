@@ -8,6 +8,14 @@ import { focusRingInset } from "@/lib/layout/focus-ring"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
+/** The grey box itself, shared by the folding card and the plain one. */
+const panelBoxClassName = cn(
+  "min-w-0 rounded-lg border bg-muted/40 p-4",
+  // Fields sit on the page background, so a box to type in never looks
+  // like part of the grey card.
+  "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
+)
+
 /** Whether the card's footer is open, read by `PanelCardFooter` inside it. */
 const FooterOpen = React.createContext<boolean | null>(null)
 
@@ -69,13 +77,7 @@ export function PanelCard({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className={cn(
-        "group/card min-w-0 rounded-lg border bg-muted/40 p-4",
-        // Fields sit on the page background, so a box to type in never looks
-        // like part of the grey card.
-        "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background",
-        className
-      )}
+      className={cn("group/card", panelBoxClassName, className)}
     >
       <div className="flex items-center gap-2">
         <h2 className="min-w-0 flex-1 text-[15px] font-semibold">
@@ -143,6 +145,14 @@ export function PanelCard({
       </CollapsibleContent>
     </Collapsible>
   )
+}
+
+/**
+ * The same grey box with no heading and no fold, for a record's opening card
+ * whose first line is the record's own name, as the open contact's is.
+ */
+export function PanelBox({ className, children }: { className?: string; children: React.ReactNode }) {
+  return <div className={cn(panelBoxClassName, className)}>{children}</div>
 }
 
 /**

@@ -234,6 +234,7 @@ export function HookDialog({
                   durationMs: spokenLength,
                   trimStartMs: 0,
                   sourceDurationMs: spokenLength,
+                  origin: said.origin,
                 },
               }
             : {
@@ -253,6 +254,7 @@ export function HookDialog({
                   durationMs: spokenLength,
                   trimStartMs: 0,
                   sourceDurationMs: spokenLength,
+                  origin: said.origin,
                 },
               },
       })

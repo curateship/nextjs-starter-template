@@ -336,10 +336,11 @@ export function TranslateDialog({
       // The new voice starts where the original talking starts, and its
       // captions follow it rather than the original's times.
       const startsAtMs = lines[0].startMs
+      const audioId = editorId()
       dispatch({
         type: "INSERT_VOICEOVER",
         audio: {
-          id: editorId(),
+          id: audioId,
           kind: "audio",
           name: said.name,
           mediaId: said.mediaId,
@@ -348,6 +349,7 @@ export function TranslateDialog({
           durationMs: said.durationMs,
           trimStartMs: 0,
           sourceDurationMs: said.durationMs,
+          origin: said.origin,
         },
         captions: said.captions.map((line) => ({
           ...captionClip({
@@ -357,6 +359,7 @@ export function TranslateDialog({
           }),
           wordTimes: captionClipWordTimes(line),
           activeWordColor: captionClipStyle(DEFAULT_CAPTION_LOOK).activeWordColor,
+          spokenBy: audioId,
         })),
         quieten: {
           clipId: transcript.source.clipId,

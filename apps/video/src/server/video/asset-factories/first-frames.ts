@@ -20,6 +20,9 @@ import {
   firstFramePictureLines,
   type ExtraPicks,
 } from "@/lib/video/extras"
+import { isPictureOrigin, type PictureOrigin } from "@/lib/video/clip-origin"
+import { REMAKE_NOT_FOUND_MESSAGE } from "@/lib/video/remake-clip"
+import { parseTimelineForReset } from "@/lib/video/timeline-schema"
 import { withLook } from "@/lib/video/visual-style"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
@@ -37,7 +40,12 @@ import {
   videoAiGenerations,
   videoFirstFrames,
 } from "@/server/video/schema"
-import { requireOwnedActor, sheetLabels, sheetPicturesToSend } from "./actors"
+import {
+  requireOwnedActor,
+  sheetLabels,
+  sheetPictureIdsFor,
+  sheetPicturesToSend,
+} from "./actors"
 import { extrasByIds, extrasToSend, sentExtras } from "./extras"
 import { generateImage, type ImageReference } from "./images"
 import { buildPersonBoard } from "./person-board"
@@ -65,6 +73,8 @@ export type FirstFrameItem = {
   made_from: string[]
   /** The extras it was made with, by their names today. */
   made_with: string[]
+  /** How it was made, which the clip it is laid down as keeps for Make it again. */
+  origin: PictureOrigin
   created_at: string
 }
 
@@ -83,6 +93,8 @@ export type FirstFramePayload = {
    * Any other project's frames take the project's own shape.
    */
   aspectRatio?: AssetAspectRatio | null
+  /** Left out, the standard picture model. Only Make it again offers another. */
+  model?: GeminiImageModelId
 }
 
 function frameRows(userId: string, projectId: string, frameIds?: string[]) {
@@ -156,6 +168,15 @@ async function serializeFrames(
         row.actor.imageMediaId
       ),
       made_with: describeExtras(row.frame.extras, extras),
+      origin: {
+        tool: "first-frame" as const,
+        model: row.frame.model,
+        prompt: row.frame.prompt,
+        referenceMediaIds: row.frame.actorMediaIds,
+        actorId: row.actor.id,
+        extras: row.frame.extras,
+        aspectRatio: row.frame.aspectRatio as AssetAspectRatio,
+      },
       created_at: row.frame.createdAt.toISOString(),
     }))
   )
@@ -197,7 +218,7 @@ export async function createFirstFrames(
   if (tiles.length > BOARD_TILES) throw new Error(BOARD_FULL_MESSAGE)
   const prompt = assetPrompt(payload.prompt)
   const name = assetName(sceneName(prompt), "First frame")
-  const model: GeminiImageModelId = DEFAULT_IMAGE_MODEL
+  const model: GeminiImageModelId = payload.model ?? DEFAULT_IMAGE_MODEL
   await requireProjectBudget(
     userId,
     project.id,
@@ -287,6 +308,45 @@ export async function createFirstFrames(
     ),
     warning,
   }
+}
+
+/**
+ * Makes a picture on the timeline again from what it was made from: the same
+ * actor, sheet pictures and extras, with the direction and model the Make it
+ * again window sends. It is read off the saved timeline, so the editor saves
+ * first. The new picture is a first frame of its own, in the AI clip panel;
+ * the editor swaps it into the clip (`workspace/docs/regenerate-a-scene.md`).
+ */
+export async function remakeFirstFrame(
+  userId: string,
+  payload: {
+    projectId: string
+    clipId: string
+    prompt: string
+    model: GeminiImageModelId
+  }
+): Promise<FirstFrameItem> {
+  const project = await getOwnedProject(userId, payload.projectId)
+  const { timeline } = parseTimelineForReset(project.timeline)
+  const clip = timeline.tracks
+    .flatMap((track) => track.clips)
+    .find((candidate) => candidate.id === payload.clipId)
+  if (clip?.kind !== "image" || !clip.origin || !isPictureOrigin(clip.origin)) {
+    throw new Error(REMAKE_NOT_FOUND_MESSAGE)
+  }
+  const { origin } = clip
+  const actor = await requireOwnedActor(userId, origin.actorId)
+  const made = await createFirstFrames(userId, {
+    projectId: project.id,
+    actorId: actor.id,
+    prompt: payload.prompt,
+    variants: 1,
+    sheetPictureIds: await sheetPictureIdsFor(userId, actor, origin.referenceMediaIds),
+    extras: Object.fromEntries(origin.extras.map((extra) => [extra.kind, extra.extra_id])),
+    aspectRatio: origin.aspectRatio,
+    model: payload.model,
+  })
+  return made.firstFrames[0]
 }
 
 export async function deleteFirstFrames(userId: string, firstFrameIds: string[]) {

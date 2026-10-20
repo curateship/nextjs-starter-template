@@ -124,6 +124,33 @@ describe("getting a copy ready to paste", () => {
     expect(clips[0].clip.mediaId).toBe("media-a")
   })
 
+  it("points pasted captions at the pasted voice line, and only when it came along", () => {
+    const voice = footage("voice", 0, { kind: "audio" })
+    const words: Clip = {
+      id: "words",
+      kind: "text",
+      name: "Hello",
+      text: "Hello",
+      fontId: "inter",
+      startMs: 0,
+      durationMs: 1_000,
+      trimStartMs: 0,
+      spokenBy: "voice",
+    }
+    const lanes = [
+      { id: "w", muted: false, clips: [words] },
+      { id: "v", muted: false, clips: [voice] },
+    ]
+    const both = prepareClipsForPaste(copyClips(lanes, ["words", "voice"])!, []).clips
+    const pastedVoice = both.find(({ clip }) => clip.kind === "audio")!.clip
+    const pastedWords = both.find(({ clip }) => clip.kind === "text")!.clip
+    expect(pastedWords.spokenBy).toBe(pastedVoice.id)
+    expect(pastedVoice.id).not.toBe("voice")
+
+    const alone = prepareClipsForPaste(copyClips(lanes, ["words"])!, []).clips
+    expect(alone[0].clip.spokenBy).toBeUndefined()
+  })
+
   it("turns a clip whose file is gone into a named gap", () => {
     const { clips, missingNames } = prepareClipsForPaste(copied, ["media-b"])
     const gap = clips[1].clip

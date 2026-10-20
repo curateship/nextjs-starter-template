@@ -7,6 +7,7 @@ import { asc, eq } from "drizzle-orm"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  FREE_KEY_MESSAGE,
   PERSON_SHOTS_FULL_MESSAGE,
   PROJECT_SHOTS_FULL_MESSAGE,
   VIDEO_MODEL,
@@ -460,7 +461,27 @@ describe("several shots at once", () => {
     expect(row.errorMessage).toBeNull()
     expect(row.leaseToken).toBeNull()
   })
+
+  it("fails at once, saying why, when the key is a free key", async () => {
+    const project = await seedFirstFrame()
+    await makeShot(project.id, "One")
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json(FREE_TIER_ANSWER, { status: 429 })))
+
+    await videoGenerationTick()
+
+    const [row] = await pieces()
+    expect(row.status).toBe("error")
+    expect(row.errorMessage).toBe(FREE_KEY_MESSAGE)
+  })
 })
+
+const FREE_TIER_ANSWER = {
+  error: {
+    message:
+      "Rate limit exceeded for model gemini-omni-1.1-flash (limit: 0 input tokens per minute on Free Tier). Please upgrade your tier at https://ai.dev/rate-limit.",
+    code: "too_many_requests",
+  },
+}
 
 describe("shots longer than one clip", () => {
   it("writes every piece at once, with only the first one queued", async () => {
@@ -797,6 +818,22 @@ describe("what a finished piece costs", () => {
     const [row] = await pieces()
     expect(row.status).toBe("processing")
     expect(row.errorMessage).toBeNull()
+  })
+
+  it("fails a running piece at once when every check is refused to a free key", async () => {
+    // Seen 19 Oct 2026: Google accepted a free key's piece, then answered
+    // every check this way, and the piece sat for 15 minutes.
+    await seedProcessingGeneration()
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json(FREE_TIER_ANSWER, { status: 429 })))
+
+    await videoGenerationTick()
+
+    const [row] = await pieces()
+    expect(row.status).toBe("error")
+    expect(row.errorMessage).toBe(FREE_KEY_MESSAGE)
+    const [event] = await database.select().from(customShellAiUsageEvents)
+    expect(event.status).toBe("failed")
+    expect(event.costCents).toBe(0)
   })
 
   it("fails the piece with Google's reason when the job fails, and charges nothing", async () => {

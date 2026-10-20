@@ -20,7 +20,8 @@ import {
   type ProjectTimeline,
 } from "@/lib/video/timeline-schema"
 import { userGet, userPost } from "@/server/guards"
-import { actorFor, editorGet, editorPost, guestEditorName } from "@/server/video/project-guests"
+import { editorGet, editorPost } from "@/server/video/editor-guards"
+import { actorFor, guestEditorName } from "@/server/video/project-guests"
 import { readProjectSpend } from "@/server/video/project-spend"
 import {
   createOwnedProject,

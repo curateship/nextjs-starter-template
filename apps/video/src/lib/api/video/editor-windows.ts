@@ -5,7 +5,8 @@ import {
   EDITOR_WINDOW_MODES,
   type EditorWindowMode,
 } from "@/lib/video/editor-windows"
-import { actorFor, editorPost } from "@/server/video/project-guests"
+import { editorPost } from "@/server/video/editor-guards"
+import { actorFor } from "@/server/video/project-guests"
 import {
   checkInEditorWindow,
   leaveEditorWindow,
