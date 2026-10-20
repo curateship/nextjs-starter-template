@@ -6,7 +6,8 @@ import { eq, inArray } from "drizzle-orm"
 import {
   alignmentToWords,
   OPENAI_VOICES,
-  spreadCaptionsEvenly,
+  timeScriptWords,
+  type SpokenWord,
   type VoiceSpeakerId,
   VOICE_FAILED_MESSAGE,
   VOICE_NO_TEXT_MESSAGE,
@@ -14,6 +15,7 @@ import {
   VOICE_NO_VOICES_MESSAGE,
   VOICE_NOT_YOURS_MESSAGE,
   VOICE_TOO_MANY_PAUSES_MESSAGE,
+  VOICE_UNTIMED_NOTICE,
   voiceoverRequestBody,
   wordsToCaptions,
   type Voice,
@@ -21,6 +23,7 @@ import {
   type VoiceSettings,
   type VoiceoverResult,
 } from "@/lib/video/voice"
+import { OPENAI_VOICE_MODEL } from "@/lib/video/remake-clip"
 import { voiceoverName } from "@/lib/video/saved-voiceovers"
 import {
   readerFor,
@@ -38,7 +41,7 @@ import { deleteFromR2, getPublicMediaUrl, uploadToR2 } from "@/server/media/stor
 import { runFfmpeg } from "@/server/video/ffmpeg"
 import { videoClonedVoices } from "@/server/video/schema"
 import { storeVoiceover } from "@/server/video/voiceovers"
-import { requireOpenAiKey } from "@/server/video/whisper"
+import { requireOpenAiKey, transcribeWithWhisper } from "@/server/video/whisper"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 /**
@@ -326,9 +329,10 @@ async function keepInLibrary(
 /**
  * The same job, asked of OpenAI.
  *
- * It hands back the sound and nothing else — no word timings — so the caption
- * lines are spread evenly across however long the sound turned out to be.
- * That is said out loud in the window rather than hidden.
+ * It hands back the sound and nothing else, with no word timings, so the
+ * sound is played straight to Whisper to hear when each word was said
+ * (`listenForWordTimes`). Should that fail, the sound is kept anyway and the
+ * captions share out its length evenly, and the person is told.
  */
 async function speakWithOpenAi({
   userId,
@@ -352,7 +356,7 @@ async function speakWithOpenAi({
   projectId?: string | null
 }): Promise<VoiceoverResult> {
   const apiKey = await requireOpenAiKey()
-  const model = "gpt-4o-mini-tts"
+  const model = OPENAI_VOICE_MODEL
 
   const bytes = await runAiCall(
     {
@@ -392,7 +396,15 @@ async function speakWithOpenAi({
   if (!bytes.byteLength) throw new Error(VOICE_FAILED_MESSAGE)
 
   const durationMs = await soundDurationMs(bytes)
-  const captions = spreadCaptionsEvenly(script, durationMs)
+  const heard = await listenForWordTimes({
+    userId,
+    apiKey,
+    bytes,
+    durationMs,
+    feature,
+    projectId,
+  })
+  const captions = wordsToCaptions(timeScriptWords(script, heard ?? [], durationMs))
   const stored = await keepInLibrary(userId, bytes, {
     script,
     voiceId,
@@ -400,7 +412,71 @@ async function speakWithOpenAi({
     durationMs,
     captions,
   })
-  return { ...stored, durationMs, captions }
+  return {
+    ...stored,
+    durationMs,
+    captions,
+    ...(heard ? {} : { notice: VOICE_UNTIMED_NOTICE }),
+  }
+}
+
+/**
+ * When each word of an OpenAI reading was said, as Whisper heard it, or null
+ * when Whisper could not say.
+ *
+ * It is metered as its own call under the reading's feature and project, so
+ * the AI usage page shows the reading and, beside it, the minutes Whisper
+ * listened to. A failure is logged. Neither a failure nor hearing no words
+ * at all costs the sound: the caller falls back to an even share.
+ */
+async function listenForWordTimes({
+  userId,
+  apiKey,
+  bytes,
+  durationMs,
+  feature,
+  projectId,
+}: {
+  userId: string
+  apiKey: string
+  bytes: Uint8Array
+  durationMs: number
+  feature: string
+  projectId?: string | null
+}): Promise<SpokenWord[] | null> {
+  if (durationMs <= 0) return null
+  try {
+    const words = await runAiCall(
+      {
+        userId,
+        provider: "openai",
+        model: "whisper-1",
+        feature,
+        metadata: {
+          ...(projectId ? projectSpendMetadata(projectId) : {}),
+          timing: OPENAI_VOICE_MODEL,
+        },
+      },
+      async () => {
+        const answer = await transcribeWithWhisper({
+          apiKey,
+          audio: bytes,
+          label: "Timing the voiceover's words",
+          format: "mp3",
+        })
+        return {
+          result: answer.words,
+          // Whisper bills the minutes it listens to.
+          usage: { inputTokens: 0, outputTokens: 0, units: durationMs / 60_000 },
+        }
+      }
+    )
+    // Heard nothing at all is no better than not asking.
+    return words.length ? words : null
+  } catch (error) {
+    console.error("Voiceover word timing failed; captions shared out evenly", error)
+    return null
+  }
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   createDefaultVoiceSettings,
   readVoiceDefaults,
   rememberedVoiceSettings,
+  timeScriptWords,
   voiceoverRequestBody,
   wordsToCaptions,
 } from "./voice"
@@ -132,6 +133,110 @@ describe("words becoming captions", () => {
 
   it("has nothing to show for nothing said", () => {
     expect(wordsToCaptions([])).toEqual([])
+  })
+})
+
+describe("timing a script's words by what was heard", () => {
+  // Twenty words said unevenly: quick short words, slow long ones, and a
+  // pause after "morning" and after "stairs".
+  const SCRIPT =
+    "Good morning. Every day at seven, the baker walks down three flights of stairs and opens the shop before sunrise."
+  const SAID = [
+    ["good", 120, 300],
+    ["morning", 300, 820],
+    ["every", 1_450, 1_700],
+    ["day", 1_700, 1_900],
+    ["at", 1_900, 1_980],
+    ["seven", 1_980, 2_500],
+    ["the", 2_700, 2_780],
+    ["baker", 2_780, 3_200],
+    ["walks", 3_200, 3_550],
+    ["down", 3_550, 3_800],
+    ["three", 3_800, 4_050],
+    ["flights", 4_050, 4_500],
+    ["of", 4_500, 4_580],
+    ["stairs", 4_580, 5_100],
+    ["and", 5_900, 6_050],
+    ["opens", 6_050, 6_400],
+    ["the", 6_400, 6_480],
+    ["shop", 6_480, 6_800],
+    ["before", 6_800, 7_150],
+    ["sunrise", 7_150, 7_900],
+  ].map(([text, startMs, endMs]) => ({ text: text as string, startMs: startMs as number, endMs: endMs as number }))
+  const DURATION = 8_200
+
+  it("starts every word of a 20-word line within 150 ms of when it was said", () => {
+    const timed = timeScriptWords(SCRIPT, SAID, DURATION)
+    expect(timed.map((word) => word.text)).toEqual(SCRIPT.split(" "))
+    for (const [index, word] of timed.entries()) {
+      expect(Math.abs(word.startMs - SAID[index].startMs)).toBeLessThanOrEqual(150)
+    }
+  })
+
+  it("misses by far more when the time is shared out evenly instead", () => {
+    const even = timeScriptWords(SCRIPT, [], DURATION)
+    const worst = Math.max(
+      ...even.map((word, index) => Math.abs(word.startMs - SAID[index].startMs))
+    )
+    expect(worst).toBeGreaterThan(500)
+  })
+
+  it("keeps the script's words and fills only the gap where the two disagree", () => {
+    // Whisper heard "7" for "seven" and "3" for "three", and split "sunrise".
+    const heard = SAID.flatMap((word) =>
+      word.text === "seven"
+        ? [{ ...word, text: "7" }]
+        : word.text === "three"
+          ? [{ ...word, text: "3" }]
+          : word.text === "sunrise"
+            ? [
+                { text: "sun", startMs: 7_150, endMs: 7_500 },
+                { text: "rise.", startMs: 7_500, endMs: 7_900 },
+              ]
+            : [word]
+    )
+    const timed = timeScriptWords(SCRIPT, heard, DURATION)
+    expect(timed.map((word) => word.text)).toEqual(SCRIPT.split(" "))
+    // "seven," sits between "at" (ends 1,980) and "the" (starts 2,700).
+    expect(timed[5]).toEqual({ text: "seven,", startMs: 1_980, endMs: 2_700 })
+    expect(timed[10]).toEqual({ text: "three", startMs: 3_800, endMs: 4_050 })
+    // The last word fills from "before" to the end of the sound.
+    expect(timed[19]).toEqual({ text: "sunrise.", startMs: 7_150, endMs: 8_200 })
+    for (const [index, word] of timed.entries()) {
+      expect(Math.abs(word.startMs - SAID[index].startMs)).toBeLessThanOrEqual(150)
+    }
+  })
+
+  it("matches words whatever their case, accents and punctuation", () => {
+    const timed = timeScriptWords("Café, OK?", [
+      { text: "cafe", startMs: 0, endMs: 300 },
+      { text: "-", startMs: 300, endMs: 310 },
+      { text: "ok", startMs: 400, endMs: 600 },
+    ], 700)
+    expect(timed).toEqual([
+      { text: "Café,", startMs: 0, endMs: 300 },
+      { text: "OK?", startMs: 400, endMs: 600 },
+    ])
+  })
+
+  it("keeps every time inside the sound and in order", () => {
+    // Whisper's last word runs past the end of the sound, and "b" was heard
+    // starting before "a".
+    const timed = timeScriptWords("a b c", [
+      { text: "a", startMs: 300, endMs: 400 },
+      { text: "b", startMs: 200, endMs: 500 },
+      { text: "c", startMs: 500, endMs: 900 },
+    ], 600)
+    expect(timed).toEqual([
+      { text: "a", startMs: 300, endMs: 400 },
+      { text: "b", startMs: 300, endMs: 500 },
+      { text: "c", startMs: 500, endMs: 600 },
+    ])
+  })
+
+  it("has nothing to time for nothing said or no sound", () => {
+    expect(timeScriptWords("  ", SAID, DURATION)).toEqual([])
+    expect(timeScriptWords(SCRIPT, SAID, 0)).toEqual([])
   })
 })
 

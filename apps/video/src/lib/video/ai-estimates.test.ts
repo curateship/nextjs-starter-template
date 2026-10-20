@@ -93,6 +93,12 @@ describe("voiceCostCents", () => {
     expect(voiceCostCents("eleven_multilingual_v2", 900)).toBeCloseTo(13.5)
   })
 
+  it("adds Whisper's minutes to an OpenAI voice, which is timed afterwards", () => {
+    // 900 characters at $0.000015 is 1.35¢, and about a minute of Whisper
+    // at $0.006 is 0.6¢.
+    expect(voiceCostCents("gpt-4o-mini-tts", 900)).toBeCloseTo(1.95)
+  })
+
   it("costs nothing for a model with no price", () => {
     expect(voiceCostCents("no-such-voice", 900)).toBe(0)
   })

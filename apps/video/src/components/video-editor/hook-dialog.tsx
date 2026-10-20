@@ -264,6 +264,7 @@ export function HookDialog({
           ? "The opening line is changed and said in the new words. Undo puts it back."
           : "The opening is quietened and the new line said over it. Undo puts it back."
       )
+      if (said.notice) toast(said.notice)
       onOpenChange(false)
     } catch (error) {
       showErrorToast(getAiToolErrorMessage(error))

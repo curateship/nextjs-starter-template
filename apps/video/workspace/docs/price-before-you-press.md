@@ -43,7 +43,9 @@ It is the same pattern as the Voice window's script check
   the talking runs, at 900 characters a minute.
 - **A voice:** the characters times that voice's price. ElevenLabs reads with
   the model saved with the usual voice, and an OpenAI voice is priced as
-  `gpt-4o-mini-tts`.
+  `gpt-4o-mini-tts`. An OpenAI voice also adds Whisper's minutes for timing
+  its words, guessed at 900 characters a minute: 900 characters is 1.35¢ for
+  the voice and 0.6¢ for Whisper.
 - **What it matches:** the figure is what the AI meter will record for the
   run, and the meter rounds each call to whole cents on `/admin/ai`. So 0.3¢
   shows there as 0¢.

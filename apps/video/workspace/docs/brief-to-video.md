@@ -126,7 +126,8 @@ The editor saves first, then hands every scene to a background job
    16:9 for 4:3).
 2. **The voice:** the scene's words read aloud with the brief's voice and
    settings. ElevenLabs hands back each word's timing, which the captions are
-   built from. An OpenAI voice's captions are spread evenly (`voice.ts`).
+   built from. An OpenAI voice is timed by Whisper straight after
+   ([word-by-word-captions.md](word-by-word-captions.md)).
 
 Each one is held to the project's spend limit just before it is asked for, so
 a limit reached halfway stops the brief there.

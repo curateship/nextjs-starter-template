@@ -10,6 +10,7 @@ import {
   SCRIPT_BASE_WORDS_PER_MINUTE,
   scriptCheckCostCents,
 } from "@/lib/video/script-check"
+import { OPENAI_VOICE_MODEL } from "@/lib/video/remake-clip"
 import { planTranscriptPieces } from "@/lib/video/transcripts"
 
 /**
@@ -144,9 +145,15 @@ export function hookCostCents({
   return writing + listening
 }
 
-/** Reading these many characters aloud with this voice model. */
+/**
+ * Reading these many characters aloud with this voice model. An OpenAI voice
+ * is then played to Whisper to time its words, guessed at 900 characters a
+ * minute of talking.
+ */
 export function voiceCostCents(model: string, characters: number) {
-  return unitCostCents(model, characters)
+  const reading = unitCostCents(model, characters)
+  if (model !== OPENAI_VOICE_MODEL) return reading
+  return reading + unitCostCents("whisper-1", characters / CHARACTERS_PER_MINUTE_OF_TALK)
 }
 
 /** The translation prompt's own wording, before the lines go in. */

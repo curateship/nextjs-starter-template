@@ -40,7 +40,7 @@ now it threw that away after cutting the words into lines.
 | Whisper (OpenAI key) | Measured against the sound, word by word |
 | Gemini | Gemini's estimates, one for every word it writes down |
 | ElevenLabs voice | Measured, from where every letter falls in the sound it made |
-| OpenAI voice | None come back, so each line's time is shared out evenly |
+| OpenAI voice | Whisper listens to the reading straight after, so measured like Whisper (see "An OpenAI voice") |
 
 - **Punctuation sent as a word of its own** is joined onto the word before it,
   the same way the line's text already joins it. "well" and "," become "well,".
@@ -55,7 +55,61 @@ now it threw that away after cutting the words into lines.
 - **The rules are in `src/lib/video/caption-words.ts`**, with their tests
   beside it.
 
-## What is saved on the clip
+## An OpenAI voice
+
+OpenAI's voice (`gpt-4o-mini-tts`) sends back the sound and nothing else. It
+never says when each word is spoken. So the moment the reading comes back,
+`speakWithOpenAi` in `src/server/video/voice.ts` sends that same sound to
+Whisper, and Whisper answers with every word it heard and when.
+
+- **The script's words go on screen, Whisper only lends its times.** A word
+  keeps the spelling it was written with, punctuation included.
+- **The same number of words:** the script's words and Whisper's pair up in
+  order. That is the normal case.
+- **A different number of words:** Whisper heard "gonna" for "going to", or
+  "twenty" for "20". The words both sides agree on are paired. Case, accents
+  and punctuation do not count when comparing. Only the words left over between
+  two paired words share the time between those two evenly. A leftover word
+  at the very start or end shares the time from the start of the sound, or up
+  to its end.
+- **The rules are `timeScriptWords` in `src/lib/video/voice.ts`**, with their
+  tests in `voice.test.ts` beside it.
+- **What it costs:** Whisper charges $0.006 a minute of sound. A one-minute
+  reading costs about 0.6¢ more, on top of about 1.35¢ for the voice. The price
+  shown before pressing includes it
+  ([price-before-you-press.md](price-before-you-press.md)).
+- **On the AI usage page** the reading is two rows under the same feature
+  ("voiceover", or whichever tool asked): `gpt-4o-mini-tts` for the voice and
+  `whisper-1` for the minutes Whisper listened to. Both carry the project, so
+  the project's spend counts both.
+- **When Whisper fails or hears nothing,** the sound is kept anyway and the
+  captions share the sound's length out evenly, the way every OpenAI reading
+  did before. The editor says so in a message: "Read aloud, but its words
+  could not be timed, so the captions are shared out evenly across the sound".
+  A brief made with Brief to video has no place for that message, so there the
+  failure is only written to the server's log.
+
+### Measured on 20 Oct 2026
+
+One real reading, of a 20-word line with Alloy, 8.1 seconds long. Whisper's
+times were checked against the pauses ffmpeg finds in the sound, because the
+first word after a pause has to start where the pause ends. Four words follow a
+pause long enough to check that way.
+
+| Word | Really starts | Whisper's time | Shared out evenly |
+| --- | --- | --- | --- |
+| Good | 0.22 s | 0.00 s, 0.22 early | 0.00 s, 0.22 early |
+| Every | 1.80 s | 1.82 s, 0.02 late | 0.81 s, 0.99 early |
+| the | 3.22 s | 3.28 s, 0.06 late | 2.43 s, 0.79 early |
+| and | 5.93 s | 5.54 s, 0.39 early | 5.68 s, 0.25 early |
+
+- **Two of the four were within the task's 0.15 seconds.** The two that missed
+  sit next to a pause, and Whisper itself put them there. It gave "stairs" no
+  length at all and started "and" where "stairs" ended, before the pause
+  instead of after it.
+- **Whisper is still far closer than the even share overall.** The even share
+  was out by up to 0.99 seconds on the same four words.
+
 
 - **`wordTimes`:** a start and an end for each word, measured from the clip's
   own start. The words themselves are not saved a second time. The first time

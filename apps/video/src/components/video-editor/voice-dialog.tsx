@@ -286,6 +286,7 @@ export function VoiceDialog({
       toast.success(
         `Read aloud, with ${result.captions.length} ${plural(result.captions.length, "caption", "captions")}. Undo removes it.`
       )
+      if (result.notice) toast(result.notice)
       onOpenChange(false)
       setScript("")
       setChecked(null)

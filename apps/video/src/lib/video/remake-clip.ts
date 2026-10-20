@@ -38,6 +38,8 @@ export type SpokenLine = {
   durationMs: number
   captions: CaptionLine[]
   origin: VoiceOrigin
+  /** Said when the reading worked but its words could not be timed. */
+  notice?: string
 }
 
 /** The model OpenAI reads with; its voices have no models to choose between. */

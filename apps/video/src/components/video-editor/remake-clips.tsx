@@ -482,6 +482,7 @@ function RemakeVoiceDialog({
           ? "Read again. It ran longer than the room after it, so it is on a lane of its own. Undo brings the old line back."
           : "Read again. Undo brings the old line back."
       )
+      if (line.notice) toast(line.notice)
       onClose()
     } catch (error) {
       reportError(getAiToolErrorMessage(error))
