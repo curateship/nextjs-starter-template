@@ -591,8 +591,13 @@ goes, so it no longer ends up on whatever task was open.
   no longer on the project, a deleted label or a type that's gone opens
   without that filter and says so, such as "Leo isn't on this project any
   more, so "Leo's stuck tasks" opened without that filter." Leaving a
-  project deletes my views on it, and leaving the team deletes them all. At
-  most 30 in one place.
+  project deletes my views on it, leaving the team deletes them all, and
+  deleting a team deletes everyone's views on it. At most 30 in one place.
+  Since 20 Oct 2026 views are kept in the shell's saved views, one table for
+  every app, under `project:<project id>` and `my-tasks:<team id>`; Tyler
+  asked for Viral's views and said "Fix project too". Every view saved before
+  was copied there with its own id, and `project_saved_views` is kept but
+  nothing reads or writes it.
 - **Search and filters.** The magnifying glass opens the search box, which
   looks through each task's title and notes, every word typed, whatever its
   capitals. It doesn't look inside a task type's fields. The box stays open
@@ -1269,11 +1274,16 @@ Projects, Team and Task types to the members' menu and to each admin menu.
   column is still in the database, unread, until the move to
   `project_task_waits` is proven on the live database; a later migration
   drops it.
-- **Search and saved views:** `src/server/project/search.ts` and
-  `saved-views.ts`, the table `project_saved_views` and the search's
-  indexes in `drizzle/0110_project_finding_and_seeing.sql`, endpoints in
-  `src/lib/api/project/finding.ts`, screens `task-search-header.tsx` and
-  `saved-views.tsx`. The search's indexes need Postgres's `pg_trgm`; where
+- **Search and saved views:** `src/server/project/search.ts` and the
+  search's indexes in `drizzle/0110_project_finding_and_seeing.sql`, its
+  endpoint in `src/lib/api/project/finding.ts`, screen
+  `task-search-header.tsx`. Views are the shell's (`src/server/saved-views.ts`,
+  the table `saved_views`, `src/components/shared/saved-views.tsx`); Project's
+  `src/server/project/saved-views.ts` registers its two screens in
+  `src/app/server-options.ts` (who may keep views, which filters a view keeps,
+  the names it records) and `src/components/project/saved-views.tsx` adds the
+  task filters' wording and Edit view's rows. `drizzle/0129_project_saved_views_to_shell.sql`
+  copied the old rows across. The search's indexes need Postgres's `pg_trgm`; where
   it can't be loaded (the in-memory test database) the search runs without
   them and gives the same answers.
 - **Rules:** `src/server/project/projects.ts` and `src/server/project/tasks.ts`,

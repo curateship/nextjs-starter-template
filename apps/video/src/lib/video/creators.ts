@@ -51,7 +51,7 @@ export const savedVideoStatusLabels: Record<SavedVideoStatus, string> = {
 
 /**
  * True while the job is still moving, so the screen keeps asking. A
- * `downloaded` video is finished: nothing moves until AI analyse is pressed.
+ * `downloaded` video is finished: nothing moves until Break it down is pressed.
  */
 export function isSavedVideoWorking(status: SavedVideoStatus): boolean {
   return status === "waiting" || status === "downloading" || status === "analysing"

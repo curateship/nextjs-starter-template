@@ -8,13 +8,17 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   normalizeAutomationPause,
   normalizeMaintenance,
+  normalizeRoleSections,
   normalizeSessionPolicy,
   normalizeTopLeftMode,
   normalizeTopLeftNavLimit,
   normalizeTopLeftShortcuts,
   shortcutsForRole,
   type ShellConfig,
+  type ShellSection,
 } from "@/lib/custom-shell"
+import type { Role } from "@/lib/role-id"
+import { appRoleFor } from "@/lib/roles"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import {
   normalizePublicSeo,
@@ -410,7 +414,7 @@ export async function readShellSettings(
     topRightNavigation: isAdmin(user)
       ? workspaceSettings.topRightNavigation
       : globals.memberTopRightNavigation,
-    sections: isAdmin(user) ? workspaceSettings.sections : globals.memberSections,
+    sections: sectionsForRole(user.role, workspaceSettings.sections, globals),
     // A member's header never draws an admin shortcut, so their copy of the
     // list never carries one either.
     topLeftShortcuts: isAdmin(user)
@@ -422,6 +426,28 @@ export async function readShellSettings(
     // pricing page must not close Beta's.
     pages: workspaceSettings.pages,
   }
+}
+
+/**
+ * The left menu this role is drawn: the admin's own, the members' one, or
+ * the app role's own. An app role never falls back to the members' menu,
+ * which holds Changelog and the member home an app role does not get. A role
+ * the app no longer declares gets no menu at all.
+ */
+export function sectionsForRole(
+  role: Role,
+  adminSections: ShellSection[],
+  globals: Pick<ShellConfig, "memberSections" | "roleSections">
+): ShellSection[] {
+  if (role === "admin") return adminSections
+  if (role === "member") return globals.memberSections
+  const appRole = appRoleFor(role)
+  if (!appRole) return []
+  // Own entries only: a role called "constructor" must not read the object's
+  // built-in property as its menu.
+  return Object.hasOwn(globals.roleSections, role)
+    ? globals.roleSections[role]
+    : appRole.menu
 }
 
 export function parseShellGlobals(value: unknown) {
@@ -527,6 +553,9 @@ export function parseShellGlobals(value: unknown) {
     memberSections: Array.isArray(settings.memberSections)
       ? settings.memberSections
       : createDefaultMemberSections(),
+    // Saved is saved, per role, the same as memberSections. A role with no
+    // entry here falls back to its app's starting menu when it is read.
+    roleSections: normalizeRoleSections(settings.roleSections),
     // Same rule as memberSections: saved is saved, empty included. The starter
     // set only fills a row that has never held a member top-right menu at all.
     memberTopRightNavigation: Array.isArray(settings.memberTopRightNavigation)
@@ -602,6 +631,7 @@ export function pickShellGlobals(
     | "adminRoute"
     | "memberHomeRoute"
     | "memberSections"
+    | "roleSections"
     | "memberTopRightNavigation"
     | "liveNotifications"
     | "passkeySignIn"
@@ -652,6 +682,7 @@ export function pickShellGlobals(
     adminRoute: settings.adminRoute,
     memberHomeRoute: settings.memberHomeRoute,
     memberSections: settings.memberSections,
+    roleSections: settings.roleSections,
     memberTopRightNavigation: settings.memberTopRightNavigation,
     liveNotifications: settings.liveNotifications,
     passkeySignIn: settings.passkeySignIn,

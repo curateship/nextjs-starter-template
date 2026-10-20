@@ -175,3 +175,17 @@ export function atAGlance(videos: ViralVideo[], creators: ViralCreator[]) {
     ),
   }
 }
+
+const SHORT_DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" })
+const SHORT_DAY_AND_YEAR = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+})
+
+/** "Oct 15" for this year, "Oct 15, 2025" for another, as the list and keywords show a day. */
+export function formatShortDay(value: string | null, now = new Date()) {
+  if (!value) return "—"
+  const day = new Date(value)
+  return (day.getFullYear() === now.getFullYear() ? SHORT_DAY : SHORT_DAY_AND_YEAR).format(day)
+}

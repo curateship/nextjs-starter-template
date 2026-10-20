@@ -203,15 +203,15 @@ function SideBody({ side }: { side: TaskSide }) {
       {side.link}
       {side.notices}
       {side.notes.empty ? null : (
-        <PanelCard storageId="project-task-notes" title="Notes" settings quiet>
+        <PanelCard storageId="project-task-notes" title="Notes" settings>
           {side.notes.field({ adding: false, onFinished: () => undefined })}
         </PanelCard>
       )}
-      <PanelCard storageId="project-task-steps" title="Steps" meta={side.steps.meta} settings={!side.readOnly} quiet>
+      <PanelCard storageId="project-task-steps" title="Steps" meta={side.steps.meta} settings={!side.readOnly}>
         <StepsBox>{side.steps.content}</StepsBox>
       </PanelCard>
       {side.chat.count === 0 && !side.readOnly ? null : (
-        <PanelCard storageId="project-task-chat" title="Chat" meta={side.chat.count || null} quiet>
+        <PanelCard storageId="project-task-chat" title="Chat" meta={side.chat.count || null}>
           {side.chat.content}
         </PanelCard>
       )}

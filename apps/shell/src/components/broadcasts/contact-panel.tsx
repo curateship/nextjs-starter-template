@@ -247,7 +247,7 @@ function OpenContact({
                 onChanged={onChanged}
               />
               <NotesCard key={contact.id} contactId={contact.id} saved={detail.notes} />
-              <PanelCard storageId="contact-activity" title="Activity" quiet>
+              <PanelCard storageId="contact-activity" title="Activity">
                 <ActivityList
                   contact={contact}
                   history={detail.history}
@@ -361,7 +361,7 @@ function TagsCard({
   }
 
   return (
-    <PanelCard storageId="contact-tags" title="Tags" meta={tags.length || undefined} quiet>
+    <PanelCard storageId="contact-tags" title="Tags" meta={tags.length || undefined}>
       <ContactTagsBox
         id={`contact-tags-${contactId}`}
         tags={tags}
@@ -417,7 +417,6 @@ function SegmentsCard({
       storageId="contact-segments"
       title="Segments"
       meta={theirs.length || undefined}
-      quiet
       actionOpen={menuOpen}
       action={
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
@@ -551,7 +550,6 @@ function NotesCard({ contactId, saved }: { contactId: string; saved: string }) {
               ? "Not saved"
               : undefined
       }
-      quiet
     >
       <Textarea
         aria-label="Notes"

@@ -22,7 +22,8 @@ import { TaskCalendar } from "@/components/project/task-calendar"
 import { TaskTimeline } from "@/components/project/task-timeline"
 import { PersonAvatar, TintChip } from "@/components/project/task-bits"
 import { TaskFilterPopover } from "@/components/project/task-filter-popover"
-import { SearchToggle, UnderlineTabs } from "@/components/project/task-header-controls"
+import { SearchToggle } from "@/components/project/task-header-controls"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { TaskSidePanel } from "@/components/project/task-side-panel"
 import { TeamStart } from "@/components/project/team-start"
 import { ThreePanels } from "@/components/project/three-panels"
@@ -452,7 +453,7 @@ function MyTasksPanel({
   const [savingView, setSavingView] = React.useState(false)
   const bulk = { people: checkin.people, projects: [] }
   const clients = clientChoices([...open, ...done].map((task) => task.projectClient))
-  const here = { projectId: null, labels: dashboard.labels, types: dashboard.taskTypes, clients }
+  const here = { screen: dashboard.viewScreen, labels: dashboard.labels, types: dashboard.taskTypes, clients }
 
   async function reorder(next: string[]) {
     setOrder({ from: savedOrder, ids: next })
@@ -537,7 +538,7 @@ function MyTasksPanel({
           then search, Filter, Views and New task. No members
           dropdown, since every task here is mine. */}
       <DashboardCardHeader className="@container">
-        <UnderlineTabs
+        <DashboardTabs
           value={view}
           onValueChange={(value) => setView(value as MyView)}
           tabs={[

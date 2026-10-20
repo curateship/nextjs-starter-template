@@ -178,6 +178,15 @@ export function useShellRuntime() {
   return context
 }
 
+/**
+ * The same runtime, or null outside the signed-in layout (a guest page, a
+ * component test), for a shared piece that only reads a setting and has a
+ * sensible default without one.
+ */
+export function useOptionalShellRuntime() {
+  return React.useContext(ShellRuntimeContext)
+}
+
 export function ShellLayout({
   user,
   settings,

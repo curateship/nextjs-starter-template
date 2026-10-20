@@ -32,14 +32,13 @@ import { listTeamTypes } from "@/server/project/task-types"
 import { loadTemplatePlan } from "@/server/project/templates"
 import type { TaskType } from "@/lib/project/task-types"
 import { requireSharedProject } from "@/server/project/personal"
-import { listSavedViews, type SavedView } from "@/server/project/saved-views"
+import { listSavedViews, projectViewScreen, type SavedView } from "@/server/project/saved-views"
 import { listTaskCards, siteAdminPerson, withUnread, type TaskCard } from "@/server/project/tasks"
 import { pauseTaskClock } from "@/server/project/task-clock-runs"
 import { clearAssignee, listTeamMembers } from "@/server/project/teams"
 import {
   projectProjectMembers,
   projectProjectStars,
-  projectSavedViews,
   projectProjects,
   projectTaskClockRuns,
   projectTasks,
@@ -47,6 +46,7 @@ import {
   projectTeams,
 } from "@/server/project/schema"
 import { listTeamNames } from "@/server/project/record-team"
+import { deleteSavedViewsFor } from "@/server/saved-views"
 import { customShellUsers } from "@/server/schema"
 
 export type ProjectListRow = {
@@ -333,6 +333,8 @@ export type ProjectPage = {
   otherProjects: { id: string; name: string; color: ProjectColor }[]
   /** My own saved views on this project. */
   views: SavedView[]
+  /** The shell's key those views are kept under, `project:<id>`. */
+  viewScreen: string
 }
 
 export async function loadProjectPage(
@@ -403,6 +405,7 @@ export async function loadProjectPage(
     taskTypes: await listTeamTypes(membership.teamId, database),
     labels: await listTeamLabels(membership.teamId, database),
     views: await listSavedViews(userId, membership.teamId, project.id, database),
+    viewScreen: projectViewScreen(membership.teamId, project.id),
     myUserId: userId,
     myRole: membership.role,
     siteAdminMe: siteAdminMe && {
@@ -701,9 +704,8 @@ export async function removeProjectMember(
       .where(
         and(eq(projectProjectStars.projectId, projectId), eq(projectProjectStars.userId, userId))
       )
-    await tx
-      .delete(projectSavedViews)
-      .where(and(eq(projectSavedViews.projectId, projectId), eq(projectSavedViews.userId, userId)))
+    // The shell's table can't cascade from a project membership, so the views go here.
+    await deleteSavedViewsFor({ userId, screens: [projectViewScreen(project.teamId, projectId)] }, tx)
     await tx
       .delete(projectProjectMembers)
       .where(

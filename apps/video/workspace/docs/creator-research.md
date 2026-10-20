@@ -3,7 +3,7 @@
 The Creators page is gone: following creators now happens inside a Viral
 project, and how that screen works is in `viral-projects.md`. This file is
 what sits underneath it: following somebody, the timer that checks them for
-new videos, what Download and AI analyse download, spend and write down, and
+new videos, what Download and Break it down download, spend and write down, and
 what deleting a saved video removes.
 
 ## Following somebody
@@ -59,7 +59,7 @@ button.
   TikTok and YouTube creators instead.**
 
   One Instagram video by its own link is a different matter: `InstagramIE` is
-  not marked broken, so Download or AI analyse on a pasted reel link should still
+  not marked broken, so Download or Break it down on a pasted reel link should still
   work. That one has not been measured.
 
 ## Covers
@@ -119,7 +119,7 @@ for new posts** switch and a line saying when the timer last looked, such as
 - **Only the owner can flip it.** The server looks the creator up by the
   caller's own id, so somebody else's creator is refused as not found.
 
-## Download and AI analyse
+## Download and Break it down
 
 Under the player there are two buttons, and the line above them says which
 one spends AI money. Tyler asked for the split on 18 Oct 2026: "Have 2 button
@@ -128,7 +128,7 @@ to download the video and another button to Ai anaylize it".
 - **Download** keeps the video in the media library and spends no AI. It costs
   storage only, up to `VIDEO_MAX_DOWNLOAD_BYTES` (100MB by default, which is
   also the media library's own ceiling).
-- **AI analyse** has Gemini break the video down, and downloads it first when
+- **Break it down** has Gemini break the video down, and downloads it first when
   it is not downloaded yet. It is the only one of the two that spends from the
   monthly AI allowance, and pressed in a Viral project it counts against that
   project's spend limit.
@@ -146,10 +146,10 @@ then:
    splits the video into its parts (hook, problem, twist of the knife,
    solution, proof, the ask) and marks every scene cut.
 
-**AI analyse on a downloaded video never downloads it again.** The row goes
+**Break it down on a downloaded video never downloads it again.** The row goes
 back in the queue, and the worker sees the file is already in the library and
 hands Gemini that stored copy. The same goes for Try again on a breakdown that
-failed after its download had landed. AI analyse pressed while a Download is
+failed after its download had landed. Break it down pressed while a Download is
 still running is not lost either: the worker reads the row's
 `wants_analysis` in the same statement that records the finished download.
 
@@ -158,12 +158,12 @@ put back in the queue on the next tick, because its claim has expired.
 
 Pressing a button twice is one row, never two. Saving the same video from two
 projects is also one row: it is keyed on who you are, which platform it is on
-and the platform's own id for the video. AI analyse on a row saved with
+and the platform's own id for the video. Break it down on a row saved with
 Download alone turns the AI on for that same row, and the project it was
 pressed in becomes the one whose spend limit the breakdown counts against.
 
 A row's status runs waiting, downloading, then either `downloaded` (Download)
-or analysing and `ready` (AI analyse). `failed` keeps its reason. Migration
+or analysing and `ready` (Break it down). `failed` keeps its reason. Migration
 0121 added `downloaded` to the table's allowed statuses and the
 `wants_analysis` column. Every row saved before then was saved with Save &
 break down, so the column starts true for all of them.
@@ -178,7 +178,7 @@ Viral project and in the editor's Copy panel.
 ### Copy this
 
 Above the two buttons sits **Copy this**. It saves and breaks the video down
-the way AI analyse does, makes a new project that copies it, and opens that
+the way Break it down does, makes a new project that copies it, and opens that
 project in the editor on its Copy panel (see `project-first.md` and
 `viral-projects.md`). It works before or after the video is saved; a video
 already downloaded is not downloaded again.

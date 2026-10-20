@@ -20,6 +20,7 @@ import { listTemplates } from "@/server/project/templates"
 import type { TemplateRow } from "@/lib/project/templates"
 import { clearPersonValues } from "@/server/project/task-types"
 import { pauseClocksOf } from "@/server/project/task-clock-runs"
+import { projectViewScreen } from "@/server/project/saved-views"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
 import {
   findMembership,
@@ -31,7 +32,6 @@ import { visibleClients } from "@/server/project/clients"
 import {
   projectProjectMembers,
   projectProjectStars,
-  projectSavedViews,
   projectTaskReminders,
   projectTaskSteps,
   projectProjects,
@@ -39,6 +39,7 @@ import {
   projectTeamMembers,
   projectTeams,
 } from "@/server/project/schema"
+import { deleteSavedViewsFor } from "@/server/saved-views"
 import { customShellUsers } from "@/server/schema"
 
 export type TeamSummary = {
@@ -194,6 +195,7 @@ export async function deleteTeam(userId: string, teamId: string, database = db) 
     ])
     const open = projects.filter((project) => !project.archivedAt).length
     if (Number(people.n) || open) throw new Error(PROJECT_ERRORS.teamNotEmpty)
+    await deleteSavedViewsFor({ screens: await teamViewScreens(teamId, tx) }, tx)
     await tx.delete(projectTeams).where(eq(projectTeams.id, teamId))
   })
 }
@@ -364,9 +366,8 @@ async function takePersonOffTeam(teamId: string, userId: string, tx: ProjectDb) 
         inArray(projectProjectStars.projectId, teamProjectIds)
       )
     )
-  await tx
-    .delete(projectSavedViews)
-    .where(and(eq(projectSavedViews.teamId, teamId), eq(projectSavedViews.userId, userId)))
+  // My tasks on this team and every project of it; the shell's table can't cascade from a membership.
+  await deleteSavedViewsFor({ userId, screens: await teamViewScreens(teamId, tx) }, tx)
   await tx
     .delete(projectTaskReminders)
     .where(
@@ -503,4 +504,13 @@ export async function eachOf(
     }
   }
   return result
+}
+
+/** The saved-view screens a team holds: its My tasks and each of its projects. */
+async function teamViewScreens(teamId: string, database: ProjectDb) {
+  const projects = await database
+    .select({ id: projectProjects.id })
+    .from(projectProjects)
+    .where(eq(projectProjects.teamId, teamId))
+  return [projectViewScreen(teamId, null), ...projects.map((project) => projectViewScreen(teamId, project.id))]
 }

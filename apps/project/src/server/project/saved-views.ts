@@ -1,32 +1,31 @@
-import { and, asc, count, eq, isNull } from "drizzle-orm"
-import type { z } from "zod"
+import { and, eq } from "drizzle-orm"
 
-import { PROJECT_ERRORS } from "@/lib/project/errors"
-import { LIMITS } from "@/lib/project/rules"
 import {
+  savedViewFiltersSchema,
   viewFilters,
-  viewHasFilters,
-  type saveViewSchema,
-  type updateViewSchema,
   type SavedViewFilters,
   type SavedViewNames,
 } from "@/lib/project/saved-views"
 import { NOBODY_FILTER } from "@/lib/project/task-filters"
-import { now, uuid } from "@/server/auth/security"
+import { savedViewScreen, type SavedViewValues } from "@/lib/saved-views"
+import type { SavedViewScreen } from "@/server/app-options"
 import { db } from "@/server/db"
 import { requireMembership, requireProjectAccess, type ProjectDb } from "@/server/project/access"
 import {
   projectLabels,
-  projectSavedViews,
   projectTaskTypes,
   projectTeamMembers,
 } from "@/server/project/schema"
+import { listSavedViews as listShellSavedViews } from "@/server/saved-views"
 import { customShellUsers } from "@/server/schema"
 
 /**
- * Saved views: a person's own named filters on one project, or on My tasks
- * (no project). Only their person reads, saves or deletes them, and a view on
- * a project needs the person to still see that project.
+ * Saved views on Project's two task screens: one project's Board and List
+ * (`project:<id>`), and My tasks (`my-tasks:<team id>`). They live in the
+ * shell's `saved_views` table since 20 Oct 2026, when views moved into the
+ * shell for every app; `project_saved_views` holds the rows from before and
+ * nothing writes to it. The shell keeps the table and the limits; this file
+ * says who may keep views where and which filters a view keeps.
  */
 
 export type SavedView = {
@@ -36,6 +35,11 @@ export type SavedView = {
   names: SavedViewNames
 }
 
+/** The shell's key for a project's views, or My tasks' for `projectId` null. */
+export function projectViewScreen(teamId: string, projectId: string | null) {
+  return projectId === null ? savedViewScreen("my-tasks", teamId) : savedViewScreen("project", projectId)
+}
+
 /** The person's views on a project, or on My tasks for `projectId` null. Call after an access check. */
 export async function listSavedViews(
   userId: string,
@@ -43,108 +47,46 @@ export async function listSavedViews(
   projectId: string | null,
   database: ProjectDb = db
 ): Promise<SavedView[]> {
-  return database
-    .select({
-      id: projectSavedViews.id,
-      name: projectSavedViews.name,
-      filters: projectSavedViews.filters,
-      names: projectSavedViews.names,
-    })
-    .from(projectSavedViews)
-    .where(
-      and(
-        eq(projectSavedViews.userId, userId),
-        eq(projectSavedViews.teamId, teamId),
-        projectId === null
-          ? isNull(projectSavedViews.projectId)
-          : eq(projectSavedViews.projectId, projectId)
-      )
-    )
-    .orderBy(asc(projectSavedViews.createdAt))
+  // Every row was kept by `keep` below, so its values are task filters.
+  return (await listShellSavedViews(userId, projectViewScreen(teamId, projectId), database)) as SavedView[]
 }
 
-export async function saveView(
-  userId: string,
-  input: z.output<typeof saveViewSchema>,
-  database = db
-): Promise<SavedView> {
-  const membership = input.projectId
-    ? (await requireProjectAccess(userId, input.projectId, database)).membership
-    : await requireMembership(userId, database)
-  const filters = keptFilters(input.projectId, input.filters)
-
-  const [{ total }] = await database
-    .select({ total: count() })
-    .from(projectSavedViews)
-    .where(
-      and(
-        eq(projectSavedViews.userId, userId),
-        eq(projectSavedViews.teamId, membership.teamId),
-        input.projectId === null
-          ? isNull(projectSavedViews.projectId)
-          : eq(projectSavedViews.projectId, input.projectId)
-      )
-    )
-  if (total >= LIMITS.viewsPerPlace) throw new Error(PROJECT_ERRORS.tooManyViews)
-
-  const names = await namesOf(membership.teamId, filters, database)
-  const view = {
-    id: uuid(),
-    teamId: membership.teamId,
-    userId,
-    projectId: input.projectId,
-    name: input.name,
-    filters,
-    names,
-    createdAt: now(),
-  }
-  await database.insert(projectSavedViews).values(view)
-  return { id: view.id, name: view.name, filters, names }
-}
-
-/**
- * Edit view: the name and filters of one of the person's own views. It stays
- * on its project or on My tasks, and the person must still see that project.
- */
-export async function updateView(
-  userId: string,
-  input: z.output<typeof updateViewSchema>,
-  database = db
-): Promise<SavedView> {
-  const [row] = await database
-    .select({ teamId: projectSavedViews.teamId, projectId: projectSavedViews.projectId })
-    .from(projectSavedViews)
-    .where(and(eq(projectSavedViews.id, input.viewId), eq(projectSavedViews.userId, userId)))
-  if (!row) throw new Error(PROJECT_ERRORS.viewNotFound)
-  if (row.projectId) await requireProjectAccess(userId, row.projectId, database)
-  const filters = keptFilters(row.projectId, input.filters)
-  const names = await namesOf(row.teamId, filters, database)
-  await database
-    .update(projectSavedViews)
-    .set({ name: input.name, filters, names })
-    .where(and(eq(projectSavedViews.id, input.viewId), eq(projectSavedViews.userId, userId)))
-  return { id: input.viewId, name: input.name, filters, names }
-}
-
-/** What a view keeps of the filters given, refused when that is nothing. */
-function keptFilters(projectId: string | null, given: SavedViewFilters) {
-  const filters = viewFilters(given)
+/** The filters a view keeps, checked against the task filters' own rules. */
+function keptFilters(filters: SavedViewValues, myTasks: boolean): SavedViewValues {
+  const parsed = savedViewFiltersSchema.safeParse(filters)
+  if (!parsed.success) return {}
+  const kept = viewFilters(parsed.data)
   // My tasks has no Person filter, every task there being the person's own,
   // and no Group row.
-  if (projectId === null) {
-    delete filters.person
-    delete filters.group
+  if (myTasks) {
+    delete kept.person
+    delete kept.group
   }
-  if (!viewHasFilters(filters)) throw new Error(PROJECT_ERRORS.viewNeedsFilters)
-  return filters
+  return kept
 }
 
-export async function deleteView(userId: string, viewId: string, database = db) {
-  const deleted = await database
-    .delete(projectSavedViews)
-    .where(and(eq(projectSavedViews.id, viewId), eq(projectSavedViews.userId, userId)))
-    .returning({ id: projectSavedViews.id })
-  if (deleted.length === 0) throw new Error(PROJECT_ERRORS.viewNotFound)
+export const projectSavedViewScreens: Record<string, SavedViewScreen> = {
+  project: {
+    authorize: async ({ userId, recordId, database }) => {
+      await requireProjectAccess(userId, recordId, database)
+    },
+    keep: ({ filters }) => keptFilters(filters, false),
+    namesOf: async ({ userId, recordId, filters, database }) => {
+      const { membership } = await requireProjectAccess(userId, recordId, database)
+      return namesOf(membership.teamId, filters as SavedViewFilters, database)
+    },
+  },
+  "my-tasks": {
+    authorize: async ({ userId, recordId, database }) => {
+      // A member's membership is their own team whatever team is asked for,
+      // so the key's team must be checked against it: otherwise a view could be
+      // keyed to another team and its names read back from there.
+      const membership = await requireMembership(userId, database, recordId)
+      if (membership.teamId !== recordId) throw new Error("FORBIDDEN")
+    },
+    keep: ({ filters }) => keptFilters(filters, true),
+    namesOf: async ({ recordId, filters, database }) => namesOf(recordId, filters as SavedViewFilters, database),
+  },
 }
 
 /**
@@ -155,7 +97,7 @@ async function namesOf(
   teamId: string,
   filters: SavedViewFilters,
   database: ProjectDb
-): Promise<SavedViewNames> {
+): Promise<Record<string, string>> {
   const names: SavedViewNames = {}
   if (filters.person && filters.person !== NOBODY_FILTER) {
     const [person] = await database

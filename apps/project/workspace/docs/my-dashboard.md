@@ -78,7 +78,8 @@ version.
 ## Middle: my tasks
 
 The header is the project page's (Tyler, 14 Oct 2026): the same four views,
-List, Board, Calendar and Timeline, as underlined tabs, then the search as a
+List, Board, Calendar and Timeline, as tabs drawn the way Settings → Styling →
+Dashboard tabs says (pills unless the site picked Underlined), then the search as a
 magnifying glass, Filter, Views and New task. List is first since 19 Oct 2026,
 as on the project page. New task
 opens the same dropdown as the signed-in header's, with a Project picker

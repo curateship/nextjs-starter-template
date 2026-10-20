@@ -162,7 +162,7 @@ function creator(name: string, followed: Partial<ViralCreator> | null): ViralCre
 }
 
 describe("the Creators list", () => {
-  it("gives followed rows the switch and when they were last checked, and search-only rows neither", () => {
+  it("gives followed rows the switch at the right and when they were last checked, and search-only rows neither", () => {
     const changes: [string, boolean][] = []
     act(() =>
       root.render(
@@ -181,11 +181,15 @@ describe("the Creators list", () => {
       )
     )
     const rows = [...container.querySelectorAll("li")]
-    expect(rows[0].textContent).toContain("Check for new posts")
-    expect(rows[0].textContent).toContain("Last checked 2 hours ago")
+    expect(rows[0].textContent).toContain("0 hits · — typical · 2h ago")
+    expect(rows[0].querySelector('[role="switch"]')?.getAttribute("aria-label")).toBe(
+      "Check watched for new posts"
+    )
     expect(rows[1].textContent).toContain("Paused")
-    expect(rows[1].textContent).toContain("Not checked yet")
-    expect(rows[2].textContent).not.toContain("Check for new posts")
+    expect(rows[1].textContent).toContain("not checked yet")
+    // Found by the search only: the typical score at the right, and no switch.
+    expect(rows[2].textContent).toContain("typical")
+    expect(rows[2].textContent).not.toContain("checked")
     expect(rows[2].querySelector('[role="switch"]')).toBeNull()
 
     const switches = [...container.querySelectorAll<HTMLButtonElement>('[role="switch"]')]

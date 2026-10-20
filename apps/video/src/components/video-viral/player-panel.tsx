@@ -1,19 +1,15 @@
 import * as React from "react"
 import {
-  DownloadIcon,
   EyeOffIcon,
   ExternalLinkIcon,
   LinkIcon,
   Loader2Icon,
   PlayIcon,
-  SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { InspectorCard } from "@/components/shared/inspector-card"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -26,7 +22,7 @@ import { BreakdownPanel } from "@/components/video-viral/breakdown-panel"
 import { CopyThisButton } from "@/components/video-viral/copy-this-button"
 import { DeleteSavedVideosDialog } from "@/components/video-viral/delete-saved-videos-dialog"
 import { StarMenu, type Favourites } from "@/components/video-viral/star-menu"
-import { ViralScoreParts } from "@/components/video-viral/viral-score-parts"
+import { ViralScoreBlock } from "@/components/video-viral/viral-score-parts"
 import {
   getSavedVideoErrorMessage,
   loadSavedVideoDetail,
@@ -34,26 +30,29 @@ import {
   saveVideos,
   type SavedVideoDetail,
 } from "@/lib/api/video/viral-videos"
+import { formatDate } from "@/lib/format/format-time"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 import {
   creatorPlatformLabels,
   formatCount,
+  formatDuration,
   isSavedVideoWorking,
   savedVideoStatusLabels,
 } from "@/lib/video/creators"
 import type { ViralVideo } from "@/lib/video/viral"
 
 /**
- * The right panel: watch the video, see why it scores what it scores, then
- * star it, copy it or have it broken down.
+ * The right panel as Tyler drew it on 20 Oct 2026: the title with its
+ * platform and channel, the video's own actions as icons in the header, the
+ * player, a strip of figures, the score with a bar per part, the details, and
+ * the buttons pinned to the panel's foot.
  *
  * **Picking a video spends nothing.** A YouTube video plays in YouTube's own
  * embed, which is free. TikTok and Instagram show their cover and a way out,
  * because their embeds need third-party scripts. Download spends storage only;
- * AI analyse is the one button that spends AI money, and the note above the
- * two buttons says so.
+ * Break it down is the one button that spends AI money, and its hover says so.
  */
-
 /** How often the panel asks again while a breakdown is moving. */
 const POLL_MS = 3_000
 
@@ -170,7 +169,7 @@ function PlayerBody({
     return () => clearInterval(timer)
   }, [read, saved])
 
-  /** Download (no AI) or AI analyse (downloading first when needed). */
+  /** Download (no AI) or Break it down (downloading first when needed). */
   async function onSave(analyse: boolean) {
     if (busy) return
     setBusy(analyse ? "analyse" : "download")
@@ -215,13 +214,60 @@ function PlayerBody({
   const working = saved !== null && isSavedVideoWorking(saved.status)
   const platform = creatorPlatformLabels[video.platform]
 
+  /** A sample's videos are made up, so the two buttons say so instead of failing. */
+  function sampleSays() {
+    showErrorToast("This is a made-up sample video, so nothing is downloaded or broken down. Make your own project to try it.")
+  }
+
   return (
     <>
       <DashboardCardTitleHeader
-        icon={<PlayIcon />}
         back={onBack ? { label: "Back to the creator", onClick: onBack } : undefined}
-        title={video.title}
-        meta={video.channelName ? `${platform} · ${video.channelName}` : platform}
+        title={
+          <span className="grid leading-tight">
+            <span className="truncate">{video.title}</span>
+            <span className="truncate text-xs font-normal text-muted-foreground">
+              {video.channelName ? `${platform} · ${video.channelName}` : platform}
+            </span>
+          </span>
+        }
+        action={
+          <span className="flex items-center">
+            {video.sample ? null : (
+              <StarMenu
+                videos={[video]}
+                favourites={favourites}
+                sourceProjectId={projectId}
+                onChanged={onFavouritesChanged}
+              />
+            )}
+            {video.sample ? null : (
+              <IconAction label="Copy link" onClick={() => void copyLink()}>
+                <LinkIcon />
+              </IconAction>
+            )}
+            {saved && onDeleted ? (
+              <IconAction label="Delete the saved video" onClick={() => setDeleting(true)}>
+                <Trash2Icon />
+              </IconAction>
+            ) : null}
+            {onHideChannel ? (
+              <IconAction
+                label={`Hide ${video.channelName || "this channel"} from this project`}
+                onClick={() => onHideChannel(video)}
+              >
+                <EyeOffIcon />
+              </IconAction>
+            ) : null}
+            {video.sample ? null : (
+              <IconAction label={`Open on ${platform}`}>
+                <a href={video.url} target="_blank" rel="noreferrer noopener">
+                  <ExternalLinkIcon />
+                </a>
+              </IconAction>
+            )}
+          </span>
+        }
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid grid-cols-[minmax(0,1fr)]">
@@ -232,128 +278,25 @@ function PlayerBody({
             onTime={setAtMs}
           />
 
-          <dl className="grid grid-cols-3 gap-2 border-b px-3 py-2 text-center">
+          <dl className="grid grid-cols-4 divide-x border-b">
             <Figure label="Views" value={formatCount(video.views)} />
             <Figure label="Likes" value={formatCount(video.likes)} />
             <Figure label="Comments" value={formatCount(video.comments)} />
+            <Figure label="Fits" value={video.topicMatch === null ? "—" : String(video.topicMatch)} />
           </dl>
 
-          <div className="grid gap-3 p-3">
-            <div className="flex flex-wrap items-center gap-1">
-              {video.sample ? null : (
-                <StarMenu
-                  videos={[video]}
-                  favourites={favourites}
-                  sourceProjectId={projectId}
-                  onChanged={onFavouritesChanged}
-                />
-              )}
-              {video.sample ? null : (
-                <IconAction label={`Open on ${platform}`}>
-                  <a href={video.url} target="_blank" rel="noreferrer noopener">
-                    <ExternalLinkIcon />
-                  </a>
-                </IconAction>
-              )}
-              {video.sample ? null : (
-                <IconAction label="Copy link" onClick={() => void copyLink()}>
-                  <LinkIcon />
-                </IconAction>
-              )}
-              {saved && onDeleted ? (
-                <IconAction
-                  label="Delete the saved video"
-                  onClick={() => setDeleting(true)}
-                >
-                  <Trash2Icon />
-                </IconAction>
-              ) : null}
-              {onHideChannel ? (
-                <IconAction
-                  label={`Hide ${video.channelName || "this channel"} from this project`}
-                  onClick={() => onHideChannel(video)}
-                >
-                  <EyeOffIcon />
-                </IconAction>
-              ) : null}
-              <span className="ml-auto flex flex-wrap items-center gap-1">
-                {video.isNew ? <Badge>New</Badge> : null}
-                {video.topicMatch !== null ? (
-                  <Badge variant="secondary">Fits {video.topicMatch}</Badge>
-                ) : null}
-              </span>
-            </div>
-
-            {video.sample ? (
-              <p className="text-sm text-muted-foreground">
-                This is a made-up sample video. Make your own project to see
-                real ones.
-              </p>
-            ) : (
-              <>
-                <CopyThisButton
-                  url={video.url}
-                  title={video.title}
-                  viralProjectId={projectId}
-                  className="w-full"
-                />
-                {saved === null ? (
-                  <div className="grid gap-2">
-                    <SpendNote />
-                    <SaveButtons busy={busy} onSave={(analyse) => void onSave(analyse)} />
-                  </div>
-                ) : working ? (
-                  <div className="grid gap-2">
-                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2Icon className="size-4 animate-spin" />
-                      {savedVideoStatusLabels[saved.status]}…
-                    </p>
-                    {saved.wantsAnalysis ? null : (
-                      <AnalyseButton busy={busy} onPress={() => void onSave(true)} />
-                    )}
-                  </div>
-                ) : saved.status === "downloaded" ? (
-                  <div className="grid gap-2">
-                    <p className="text-sm text-muted-foreground">
-                      Downloaded into your media library. No AI has watched it
-                      yet. AI analyse spends from your monthly AI allowance.
-                    </p>
-                    <AnalyseButton busy={busy} onPress={() => void onSave(true)} />
-                  </div>
-                ) : saved.status === "failed" ? (
-                  <div className="grid gap-2">
-                    <ErrorRow
-                      message={saved.error ?? "The video could not be saved."}
-                    />
-                    <Button
-                      variant="outline"
-                      disabled={busy !== null}
-                      onClick={() => void onTryAgain()}
-                    >
-                      {busy === "retry" ? <Loader2Icon className="animate-spin" /> : null}
-                      Try again
-                    </Button>
-                  </div>
-                ) : null}
-              </>
-            )}
-
-            <InspectorCard
-              storageId="viral-player-score"
-              title={`Why it scores ${video.score.score}`}
-              description={`Out of 100, sure: ${video.score.confidence}.`}
-            >
-              <div className="grid gap-1.5 text-sm">
-                <ViralScoreParts score={video.score} />
-              </div>
-            </InspectorCard>
-
-            {video.keywords.length ? (
-              <p className="text-xs text-muted-foreground">
-                Found by {video.keywords.map((keyword) => `“${keyword}”`).join(", ")}
-              </p>
-            ) : null}
+          <div className="border-b p-4">
+            <ViralScoreBlock score={video.score} />
           </div>
+
+          <dl className="grid gap-2 p-4 text-sm">
+            <Detail label="Posted" value={video.postedAt ? formatDate(video.postedAt) : "—"} />
+            <Detail label="Length" value={formatDuration(video.durationSeconds) || "—"} />
+            <Detail label="Views a day" value={formatCount(video.score.viewsPerDay)} />
+            {video.keywords.length ? (
+              <Detail label="Found by" value={video.keywords.map((keyword) => `“${keyword}”`).join(", ")} />
+            ) : null}
+          </dl>
 
           {saved?.breakdown ? (
             <BreakdownPanel
@@ -364,6 +307,60 @@ function PlayerBody({
           ) : null}
         </div>
       </ScrollArea>
+
+      {/* Pinned to the panel's foot, under everything that scrolls. */}
+      <div className="grid gap-2 border-t p-3">
+        {video.sample ? (
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="outline" onClick={sampleSays}>
+              Download
+            </Button>
+            <Button onClick={sampleSays}>Break it down</Button>
+          </div>
+        ) : saved === null ? (
+          <div className="grid grid-cols-3 gap-2">
+            <DownloadButton busy={busy} onPress={() => void onSave(false)} />
+            <CopyThisButton url={video.url} title={video.title} viralProjectId={projectId} className="h-8" />
+            <BreakDownButton busy={busy} onPress={() => void onSave(true)} />
+          </div>
+        ) : working ? (
+          <>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2Icon className="size-4 animate-spin" />
+              {savedVideoStatusLabels[saved.status]}…
+            </p>
+            <div className={cn("grid gap-2", saved.wantsAnalysis ? "grid-cols-1" : "grid-cols-2")}>
+              <CopyThisButton url={video.url} title={video.title} viralProjectId={projectId} className="h-8" />
+              {saved.wantsAnalysis ? null : (
+                <BreakDownButton busy={busy} onPress={() => void onSave(true)} />
+              )}
+            </div>
+          </>
+        ) : saved.status === "downloaded" ? (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Downloaded into your media library. No AI has watched it yet.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <CopyThisButton url={video.url} title={video.title} viralProjectId={projectId} className="h-8" />
+              <BreakDownButton busy={busy} onPress={() => void onSave(true)} />
+            </div>
+          </>
+        ) : saved.status === "failed" ? (
+          <>
+            <ErrorRow message={saved.error ?? "The video could not be saved."} />
+            <div className="grid grid-cols-2 gap-2">
+              <CopyThisButton url={video.url} title={video.title} viralProjectId={projectId} className="h-8" />
+              <Button disabled={busy !== null} onClick={() => void onTryAgain()}>
+                {busy === "retry" ? <Loader2Icon className="animate-spin" /> : null}
+                Try again
+              </Button>
+            </div>
+          </>
+        ) : (
+          <CopyThisButton url={video.url} title={video.title} viralProjectId={projectId} className="h-8 w-full" />
+        )}
+      </div>
       {onDeleted ? (
         <DeleteSavedVideosDialog
           videos={deleting && saved ? [{ savedVideoId: saved.id, title: video.title }] : []}
@@ -386,45 +383,7 @@ function PlayerBody({
   )
 }
 
-/** The one sentence on what the two buttons spend. */
-function SpendNote() {
-  return (
-    <p className="text-xs text-muted-foreground">
-      Only AI analyse spends AI money, from your monthly AI allowance. Download
-      keeps the video in your media library and spends storage only, up to
-      100MB.
-    </p>
-  )
-}
-
-/** Download and AI analyse, side by side. */
-function SaveButtons({
-  busy,
-  onSave,
-}: {
-  busy: "download" | "analyse" | "retry" | null
-  onSave: (analyse: boolean) => void
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      <Button
-        variant="outline"
-        disabled={busy !== null}
-        onClick={() => onSave(false)}
-      >
-        {busy === "download" ? (
-          <Loader2Icon className="animate-spin" />
-        ) : (
-          <DownloadIcon />
-        )}
-        Download
-      </Button>
-      <AnalyseButton busy={busy} onPress={() => onSave(true)} />
-    </div>
-  )
-}
-
-function AnalyseButton({
+function DownloadButton({
   busy,
   onPress,
 }: {
@@ -432,14 +391,36 @@ function AnalyseButton({
   onPress: () => void
 }) {
   return (
-    <Button disabled={busy !== null} onClick={onPress}>
-      {busy === "analyse" ? (
-        <Loader2Icon className="animate-spin" />
-      ) : (
-        <SparklesIcon />
-      )}
-      AI analyse
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="outline" disabled={busy !== null} onClick={onPress}>
+          {busy === "download" ? <Loader2Icon className="animate-spin" /> : null}
+          Download
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Keeps the video in your media library. No AI runs; it spends storage only, up to 100MB.</TooltipContent>
+    </Tooltip>
+  )
+}
+
+/** The one button that spends AI money, which its hover says. */
+function BreakDownButton({
+  busy,
+  onPress,
+}: {
+  busy: "download" | "analyse" | "retry" | null
+  onPress: () => void
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button disabled={busy !== null} onClick={onPress}>
+          {busy === "analyse" ? <Loader2Icon className="animate-spin" /> : null}
+          Break it down
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>The AI watches it and writes the breakdown. Spends from your monthly AI allowance.</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -460,9 +441,18 @@ function Player({
   onTime: (ms: number) => void
 }) {
   if (video.sample) {
+    const length = formatDuration(video.durationSeconds)
     return (
-      <div className="grid aspect-[9/16] max-h-[40vh] w-full place-items-center border-b bg-muted p-6 text-center text-sm text-muted-foreground">
-        A sample has nothing to play.
+      <div className="relative flex aspect-[9/16] max-h-[60vh] w-full flex-col items-center justify-center gap-3 bg-neutral-900 p-6 text-center">
+        <span aria-hidden className="grid size-12 place-items-center rounded-full bg-white/10 text-white">
+          <PlayIcon className="size-4 fill-current" />
+        </span>
+        <p className="text-xs text-white/70">A sample has nothing to play.</p>
+        {length ? (
+          <span className="absolute right-2 bottom-2 rounded bg-black/70 px-1.5 py-0.5 text-xs font-medium text-white tabular-nums">
+            {length}
+          </span>
+        ) : null}
       </div>
     )
   }
@@ -545,11 +535,21 @@ function IconAction({
   )
 }
 
+/** One cell of the strip under the player: a small label over a bold figure. */
 function Figure({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm tabular-nums">{value}</dd>
+    <div className="min-w-0 px-3 py-2">
+      <dt className="truncate text-xs text-muted-foreground">{label}</dt>
+      <dd className="truncate text-sm font-semibold tabular-nums">{value}</dd>
+    </div>
+  )
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right font-medium">{value}</dd>
     </div>
   )
 }

@@ -30,7 +30,9 @@ All of them are in `src/components/shared/`.
   Contacts already worked.
 - **`panel-card.tsx`, `PanelCard` and `PanelHeading`.** The grey folding card
   of a side panel, which remembers being open or shut, with a muted note after
-  its title, a badge, a button of its own and a footer of buttons.
+  its title, a badge, a button of its own and a footer of buttons. Its cog, its own buttons and its fold arrow show only while the card is
+  pointed at or focused (Tyler, 20 Oct 2026: "all these should be hover to
+  show only"); always on a phone.
   `PanelHeading` is the one small-caps heading over a group inside a panel.
   `PanelBox` is the same grey box with no heading and no fold, for a record's
   opening card whose first line is the record's own name, as the open
@@ -55,14 +57,47 @@ All of them are in `src/components/shared/`.
   back arrow; Escape on a page goes back. `SelectedMenuRow` and
   `SelectedMenuSeparator` are its lines.
 
+- **`dashboard-tabs.tsx`, `DashboardTabs` and `DashboardTabButton`.** The tabs
+  in a panel header, with a count after the word. They are drawn the way
+  Settings → Styling → **Dashboard tabs** says for the whole site: the grey
+  pills, or words with a line under the one showing. Tyler, 20 Oct 2026: "Line
+  tab or pill tabs should be a choice all apps can make", with pills for a
+  site that never chose. Either way the marker slides to the tab picked, on
+  the pill's own curve (`useSlidingPill` with `variant: "underline"` draws the
+  line), and a row too long for the header scrolls sideways.
+  `DashboardTabButton` is a control drawn as one more tab, such as Project's
+  More dropdown. The setting is `ShellStyling.dashboardTabs`
+  (`src/lib/layout/styling-values.ts`), optional, so a site saved before it
+  existed reads as pills. The CRM inbox's All / Unread uses it too.
+- **`saved-views.tsx`, `SavedViewsControls` and `SaveViewDialog`.** Views: a
+  person's own named filters on one dashboard, the Views button with its menu
+  ("Delete views…", a cog per row for Edit view) and the Save view window,
+  moved here from Project on 20 Oct 2026. They live in the `saved_views` table
+  (`src/server/saved-views.ts`, migration `0097_custom_shell_saved_views.sql`),
+  each under a screen key `<kind>:<record id>`, such as `project:<id>`. The
+  app that owns a kind answers for it in `savedViews.screens`
+  (`src/server/app-options.ts`): who may keep views on the record, which
+  filters a view keeps, and the names those filters point at when saved. A
+  kind no app named is refused. At most 30 views per person per screen, names
+  up to 60 characters. The screen opens a view itself (`onOpen`), so it can
+  say what the view names that has gone and open with the rest. The table
+  cannot cascade from an app's record, so the app calls `deleteSavedViewsFor`
+  where it deletes one or takes a person off it.
+
 ## Which screens use them
 
 - **Contacts, `/admin/contacts`.** Every piece above.
   `src/components/broadcasts/contacts-dashboard.tsx` is the place to start
   reading.
-- **Project** still draws its own copies (`apps/project/src/components/project/`),
-  and Trade and Video draw their own layouts. Moving them onto these pieces is
-  the open picks G1 to G9 in the shell's task "Three-column dashboards".
+- **Video's Viral project, `/admin/video-viral/<id>`.** `ThreePanels`,
+  `PanelCard`, `DashboardTabs`, `SearchToggle`, `FilterPopover`, mass select,
+  `NewRecordDropdown` (the Creators card's +) and saved views, since 20 Oct
+  2026. `apps/video/src/components/video-viral/viral-project-screen.tsx`.
+- **Project** uses `DashboardTabs` and the shell's saved views since 20 Oct
+  2026, and still draws its own copies of the rest
+  (`apps/project/src/components/project/`). Trade draws its own layouts.
+  Moving them onto these pieces is the open picks in the shell's task
+  "Three-column dashboards".
 
 ## Things to know when using them
 

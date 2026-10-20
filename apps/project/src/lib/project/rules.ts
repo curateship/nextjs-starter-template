@@ -302,9 +302,6 @@ export const LIMITS = {
   chatPage: 50,
   /** The most a refresh reloads at once: ten pages. */
   chatMostShown: 500,
-  /** A saved view's name, and how many one person keeps on one project or on My tasks. */
-  viewName: 60,
-  viewsPerPlace: 30,
   /** Matches the header's search lists at once. */
   searchResults: 20,
   /** Tasks one task can wait on. */

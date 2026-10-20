@@ -11,6 +11,7 @@ import { ProjectFiles } from "@/components/project/project-files"
 import { QuickNewTask } from "@/components/project/quick-new-task"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { SaveViewDialog, SavedViewsControls } from "@/components/project/saved-views"
+import { DashboardTabButton, DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { ALL_LANE, NOBODY_LANE, TaskBoard, type BoardLane } from "@/components/project/task-board"
 import { TaskCalendar } from "@/components/project/task-calendar"
 import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION, showBinnedToast } from "@/components/project/task-body"
@@ -18,8 +19,6 @@ import { TaskFilterPopover } from "@/components/project/task-filter-popover"
 import {
   MembersFilterMenu,
   SearchToggle,
-  UNDERLINE_TAB_CLASS,
-  UnderlineTabs,
 } from "@/components/project/task-header-controls"
 import { TaskList } from "@/components/project/task-list"
 import { TaskTimeline } from "@/components/project/task-timeline"
@@ -333,7 +332,7 @@ export function ProjectTasksPanel({
     else void changeStatus(task, status, null, order)
   }
 
-  const here = { projectId: page.project.id, people, labels: page.labels, types: page.taskTypes, groups: TASK_GROUPINGS }
+  const here = { screen: page.viewScreen, people, labels: page.labels, types: page.taskTypes, groups: TASK_GROUPINGS }
   const taskTab = view !== "activity" && view !== "files" && view !== "chat"
 
   const thisProject: NewTaskProject = {
@@ -437,7 +436,7 @@ export function ProjectTasksPanel({
           "revert to the way it was but make that header divider appear"). Every other line keeps
           Settings > Styling's Divider lines, which is too faint to show against that grey. */}
       <DashboardCardHeader className="@container border-b-muted-foreground/10">
-        <UnderlineTabs
+        <DashboardTabs
           value={view}
           onValueChange={(value) => pickView(value as View)}
           tabs={[
@@ -720,17 +719,12 @@ function MoreViews({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {/* Drawn as a fifth tab, underlined while one of its views shows. */}
-        <button
-          type="button"
-          className={UNDERLINE_TAB_CLASS}
-          data-state={showing ? "active" : "inactive"}
-          aria-current={showing ? "page" : undefined}
-        >
+        {/* Drawn as a fifth tab, marked while one of its views shows. */}
+        <DashboardTabButton active={Boolean(showing)}>
           {showing ?? "More"}
           {unread}
           <ChevronDownIcon className="size-4" />
-        </button>
+        </DashboardTabButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48">
         <DropdownMenuItem onSelect={() => onPick("activity")}>Activity</DropdownMenuItem>

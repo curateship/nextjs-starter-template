@@ -117,6 +117,11 @@ export const AI_MODEL_PRICES: Record<
   // Google's price page on 2026-10-08: this rate holds through 31 Dec 2026,
   // then $1.50 in and $7.50 out.
   "gemini-3.8-flash": { inputPerMillion: 0.75, outputPerMillion: 3.75 },
+  // Gemini Omni Flash makes video and is billed by the token, not the second:
+  // $1.50 per million in (words and pictures) and $17.50 per million of video
+  // out, from Google's price page on 2026-10-19. Google counts 5,792 tokens
+  // for each second of 720p video, about $0.10 a second.
+  "gemini-omni-1.1-flash": { inputPerMillion: 1.5, outputPerMillion: 17.5 },
 }
 
 /**

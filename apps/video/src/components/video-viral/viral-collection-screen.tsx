@@ -112,7 +112,7 @@ export function ViralCollectionScreen({
   const [searchText, setSearchText] = useSearchBoxText(search.q ?? "", (next) =>
     setSearch({ q: next.trim() ? next : undefined })
   )
-  const [layout, setLayout] = useRememberedChoice(LAYOUT_STORAGE_KEY, "grid", VIRAL_LAYOUTS)
+  const [layout, setLayout] = useRememberedChoice(LAYOUT_STORAGE_KEY, "list", VIRAL_LAYOUTS)
   const [size, setSize] = useRememberedChoice<ViralCardSize>(SIZE_STORAGE_KEY, "medium", VIRAL_CARD_SIZES)
   const [renaming, setRenaming] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)

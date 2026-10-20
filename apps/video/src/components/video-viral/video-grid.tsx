@@ -8,9 +8,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { FieldLabel } from "@/components/ui/field-label"
 import { ScrollBar } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Table,
   TableBody,
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table"
 import { StarMenu, type Favourites } from "@/components/video-viral/star-menu"
 import { ViralScoreCell } from "@/components/video-viral/viral-score-cell"
-import { formatDate, formatTimeAgo } from "@/lib/format/format-time"
+import { formatDate } from "@/lib/format/format-time"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 import {
@@ -36,7 +36,7 @@ import {
   type ViralCreator,
   type ViralVideo,
 } from "@/lib/video/viral"
-import type { ViralCardSize, ViralSort } from "@/lib/video/viral-view"
+import { formatShortDay, type ViralCardSize, type ViralSort } from "@/lib/video/viral-view"
 
 /**
  * The middle panel's two ways to show videos, a grid of covers or a list of
@@ -60,7 +60,7 @@ type GridProps = {
   favourites: Favourites
   onFavouritesChanged: () => Promise<void>
   projectId: string | null
-  /** A button drawn under each card, such as AI analyse on the Downloaded tab. */
+  /** A button drawn under each card, such as Break it down on the Downloaded tab. */
   cardAction?: (video: ViralVideo) => React.ReactNode
 }
 
@@ -231,37 +231,56 @@ function SavedChip({ status }: { status: string | null }) {
 }
 
 const LIST_COLUMNS: TableHeaderColumn<ViralSort>[] = [
-  { key: "video", label: "Video", sortable: false, column: "main", className: "min-w-56" },
+  // The video takes the spare width, so the figures sit together at the right.
+  { key: "video", label: "Video", sortable: false, column: "main", className: "w-full min-w-56" },
   { key: "score", label: "Score", column: "meta" },
   { key: "topic", label: "Fits", column: "meta" },
   { key: "views", label: "Views", column: "meta" },
   { key: "views_per_day", label: "Views a day", column: "meta" },
   { key: "newest", label: "Posted", column: "meta" },
-  { key: "channel", label: "Channel", sortable: false, column: "meta" },
   { key: "length", label: "Length", sortable: false, column: "meta" },
-  { key: "star", label: "", sortable: false, column: "meta" },
 ]
 
 export function VideoList({
   sort,
   direction,
   onSort,
+  selectChip,
   ...props
 }: GridProps & {
   sort: ViralSort
   direction: "asc" | "desc"
   onSort: (sort: ViralSort) => void
+  /** The "Mass select" chip, beside the first column's heading. */
+  selectChip?: React.ReactNode
 }) {
   const { videos, selectedKey, onPick, ticked, onTick } = props
+  const columns: TableHeaderColumn<ViralSort>[] = selectChip
+    ? [
+        {
+          ...LIST_COLUMNS[0],
+          sortable: false,
+          className: "group/title w-full min-w-56",
+          label: (
+            <span className="flex items-center gap-2">
+              Video
+              {selectChip}
+            </span>
+          ),
+        },
+        ...LIST_COLUMNS.slice(1),
+      ]
+    : LIST_COLUMNS
   return (
     <>
       <Table containerClassName="overflow-visible">
         <SortableTableHeader
-          columns={LIST_COLUMNS}
+          columns={columns}
           sort={sort}
           direction={direction}
           onSort={onSort}
           leading={ticked && onTick ? <TableHead column="select" /> : undefined}
+          trailing={props.cardAction ? <TableHead column="meta" /> : undefined}
         />
         <TableBody>
           {videos.map((video) => (
@@ -285,9 +304,9 @@ export function VideoList({
                   />
                 </TableCell>
               ) : null}
-              <TableCell column="main" className="min-w-56">
-                <div className="flex max-w-md items-center gap-3">
-                  <span className="h-12 w-8 shrink-0 overflow-hidden rounded bg-muted">
+              <TableCell column="main" className="w-full max-w-0 min-w-56">
+                <div className="flex items-center gap-3">
+                  <span className="size-8 shrink-0 overflow-hidden rounded-md bg-muted">
                     {video.thumbnailUrl ? (
                       <img
                         src={video.thumbnailUrl}
@@ -297,18 +316,24 @@ export function VideoList({
                       />
                     ) : null}
                   </span>
-                  <span className="grid min-w-0 gap-1">
-                    <button
-                      type="button"
-                      className="truncate text-left font-medium hover:underline"
-                      onClick={() => onPick(video)}
-                    >
-                      {video.title}
-                    </button>
-                    <span className="flex items-center gap-1.5">
+                  <span className="grid min-w-0 gap-0.5">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <button
+                        type="button"
+                        className="truncate text-left font-medium hover:underline"
+                        onClick={() => onPick(video)}
+                      >
+                        {video.title}
+                      </button>
                       {video.isNew ? <Badge>New</Badge> : null}
+                    </span>
+                    {/* Where saving has got to sits with the channel, leaving the title its row. */}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-xs text-muted-foreground">
+                        {video.channelName || creatorPlatformLabels[video.platform]}
+                      </span>
                       {isProcessing(video) ? (
-                        <span className="flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                        <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300">
                           <Loader2Icon className="size-3.5 animate-spin" />
                           {savedVideoStatusLabels[video.savedStatus as SavedVideoStatus]}…
                         </span>
@@ -331,28 +356,15 @@ export function VideoList({
               <TableCell column="meta" className="tabular-nums">
                 {formatCount(video.score.viewsPerDay)}
               </TableCell>
-              <TableCell column="meta">
-                {video.postedAt ? formatDate(video.postedAt) : "—"}
-              </TableCell>
-              <TableCell column="meta" className="max-w-48 truncate">
-                {video.channelName || "—"}
+              <TableCell column="meta" className="whitespace-nowrap">
+                {formatShortDay(video.postedAt)}
               </TableCell>
               <TableCell column="meta" className="tabular-nums">
                 {formatDuration(video.durationSeconds) || "—"}
               </TableCell>
-              <TableCell column="actions">
-                <span className="flex items-center justify-end gap-1">
-                  {props.cardAction ? props.cardAction(video) : null}
-                  {video.sample ? null : (
-                    <StarMenu
-                      videos={[video]}
-                      favourites={props.favourites}
-                      sourceProjectId={props.projectId}
-                      onChanged={props.onFavouritesChanged}
-                    />
-                  )}
-                </span>
-              </TableCell>
+              {props.cardAction ? (
+                <TableCell column="actions">{props.cardAction(video)}</TableCell>
+              ) : null}
             </TableRow>
           ))}
         </TableBody>
@@ -381,101 +393,117 @@ export function CreatorList({
   onWatchChange?: (creator: ViralCreator, watch: boolean) => void
 }) {
   return (
-    <ul aria-label="Creators" className="divide-y">
-      {creators.map((creator) => (
-        <li
-          key={creator.key}
-          className={cn(creator.key === selectedKey && "bg-muted")}
-        >
-          <button
-            type="button"
-            aria-current={creator.key === selectedKey ? "true" : undefined}
-            onClick={() => onPick(creator)}
-            className={cn(
-              "flex w-full items-center gap-3 px-3 py-2.5 text-left",
-              creator.key === selectedKey ? null : "hover:bg-muted/50",
-              focusRing
-            )}
+    // Sized for the left panel's Creators section, as Tyler drew it. A
+    // followed creator's row carries its typical score and its last check in
+    // the muted line and the watch switch at the right (20 Oct 2026); one the
+    // search found has its typical score at the right instead.
+    <ul aria-label="Creators" className="-mx-2 grid grid-cols-[minmax(0,1fr)] gap-0.5">
+      {creators.map((creator) => {
+        const watched = Boolean(creator.followedId && onWatchChange)
+        return (
+          <li
+            key={creator.key}
+            className={cn("flex min-w-0 items-center rounded-md", creator.key === selectedKey && "bg-muted")}
           >
-            <Avatar className="size-9 shrink-0">
-              {creator.avatarUrl ? (
-                <AvatarImage src={creator.avatarUrl} alt="" />
-              ) : null}
-              <AvatarFallback className="text-xs">
-                {creator.name.replace(/^@/, "").slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <span className="grid min-w-0 flex-1 gap-0.5">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-sm font-medium">{creator.name}</span>
-                {creator.followedId ? (
-                  <Badge variant="secondary">
-                    {creator.watch === false ? "Paused" : "Following"}
-                  </Badge>
+            <button
+              type="button"
+              aria-current={creator.key === selectedKey ? "true" : undefined}
+              onClick={() => onPick(creator)}
+              className={cn(
+                "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left",
+                creator.key === selectedKey ? null : "hover:bg-muted/60",
+                focusRing
+              )}
+            >
+              <Avatar className="size-8 shrink-0">
+                {creator.avatarUrl ? (
+                  <AvatarImage src={creator.avatarUrl} alt="" />
                 ) : null}
+                <AvatarFallback className="text-xs font-medium">
+                  {initials(creator.name)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="grid min-w-0 flex-1 gap-0.5">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-sm font-medium">{creator.name}</span>
+                  {creator.followedId ? (
+                    <Badge variant="secondary">
+                      {creator.watch === false ? "Paused" : "Following"}
+                    </Badge>
+                  ) : null}
+                </span>
+                <span className="truncate text-xs text-muted-foreground tabular-nums">
+                  {[
+                    creator.subscribers !== null ? `${formatCount(creator.subscribers)} subs` : null,
+                    `${creator.hits} ${creator.hits === 1 ? "hit" : "hits"}`,
+                    watched ? `${creator.typicalScore ?? "—"} typical` : null,
+                    watched ? checkedAgo(creator.lastCheckedAt) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
               </span>
-              <span className="truncate text-xs text-muted-foreground">
-                {[
-                  creatorPlatformLabels[creator.platform],
-                  creator.handle ? `@${creator.handle}` : null,
-                  creator.subscribers !== null
-                    ? `${formatCount(creator.subscribers)} subscribers`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
-            </span>
-            <span className="grid shrink-0 text-right text-xs text-muted-foreground tabular-nums">
-              <span>
-                {creator.hits} {creator.hits === 1 ? "hit" : "hits"}
-              </span>
-              <span>typical {creator.typicalScore ?? "—"}</span>
-            </span>
-          </button>
-          {creator.followedId && onWatchChange ? (
-            <CreatorWatchRow creator={creator} onWatchChange={onWatchChange} />
-          ) : null}
-        </li>
-      ))}
+              {watched ? null : (
+                <span className="grid shrink-0 text-right leading-tight">
+                  <span className="text-sm font-semibold tabular-nums">{creator.typicalScore ?? "—"}</span>
+                  <span className="text-xs text-muted-foreground">typical</span>
+                </span>
+              )}
+            </button>
+            {watched && onWatchChange ? (
+              <WatchSwitch creator={creator} onWatchChange={onWatchChange} />
+            ) : null}
+          </li>
+        )
+      })}
     </ul>
   )
 }
 
-/** "Check for new posts" and "Last checked 2 hours ago", on a followed row. */
-function CreatorWatchRow({
+/** "Five Minute Moves" → "FM", "@yayaxixi" → "YA": two letters for a creator with no picture. */
+function initials(name: string) {
+  const words = name.replace(/^@/, "").trim().split(/\s+/).filter(Boolean)
+  const letters = words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? "").slice(0, 2)
+  return letters.toUpperCase()
+}
+
+/**
+ * "Check for new posts" for one followed creator, as a switch at the row's
+ * right; what it does is on hover.
+ */
+function WatchSwitch({
   creator,
   onWatchChange,
 }: {
   creator: ViralCreator
   onWatchChange: (creator: ViralCreator, watch: boolean) => void
 }) {
-  const id = `creator-watch-${creator.followedId}`
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 pb-2.5 pl-15">
-      <span className="flex items-center gap-2">
-        <Switch
-          id={id}
-          checked={creator.watch !== false}
-          onCheckedChange={(checked) => onWatchChange(creator, checked)}
-        />
-        <FieldLabel
-          htmlFor={id}
-          className="text-xs"
-          hint="The watch timer looks for their new posts every six hours. They are one creator in every project they are in, so switching this off pauses them in all of those projects. Posts already saved stay."
-        >
-          Check for new posts
-        </FieldLabel>
-      </span>
-      <span className="text-xs text-muted-foreground">
-        {creator.lastCheckedAt ? `Last checked ${checkedAgo(creator.lastCheckedAt)}` : "Not checked yet"}
-      </span>
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="flex shrink-0 pr-1.5">
+          <Switch
+            checked={creator.watch !== false}
+            onCheckedChange={(checked) => onWatchChange(creator, checked)}
+            aria-label={`Check ${creator.name} for new posts`}
+          />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64">
+        Check for new posts. The watch timer looks every six hours. They are one
+        creator in every project they are in, so switching this off pauses them
+        in all of those projects. Posts already saved stay.
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
-/** "2 hours ago", "yesterday", "just now", to follow "Last checked". */
-function checkedAgo(at: string) {
-  const ago = formatTimeAgo(at)
-  return ago.charAt(0).toLowerCase() + ago.slice(1)
+/** "3h ago", "just now", "2d ago" or "not checked yet", after the typical score. */
+function checkedAgo(at: string | null) {
+  if (!at) return "not checked yet"
+  const minutes = Math.floor((Date.now() - new Date(at).getTime()) / 60_000)
+  if (minutes < 1) return "just now"
+  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 24 * 60) return `${Math.floor(minutes / 60)}h ago`
+  return `${Math.floor(minutes / (24 * 60))}d ago`
 }

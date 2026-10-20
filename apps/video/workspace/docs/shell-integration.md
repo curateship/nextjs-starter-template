@@ -284,3 +284,46 @@ took `/manifest.webmanifest` the same way. `scripts/setup-database.mjs` and
 suites ran at once, and pass alone. **One test fails in the shell too.** `public-branding.test.ts` expects the
 public header settings without the `menuFontSize` field the shell now writes.
 It fails the same way in `apps/shell`.
+
+## Shell merge, 20 October 2026
+
+Every shell change since the 15 Oct merge is in Video, done in workspace 17
+so the Viral project screen could be rebuilt on the shell's three-column
+pieces. 90 shell files were replaced and 54 added. Each replaced file was
+first matched against every version of that file in the shell's history
+(`apps/shell`, and `apps/custom-shell` before the 17 Oct rename), and all 90
+were unmodified older shell copies. Six files the shell had deleted were
+deleted here: the old Contacts and Segments pages, the old contact window,
+`test-with-member-dialog.tsx` and `contact-filter-segment.ts` with its test.
+No routes were added, so the route tree needed nothing.
+
+**What arrived.**
+
+- **App roles** beside admin and member, set per app.
+- **Contacts and Segments as one three-column dashboard** at
+  `/admin/contacts`, with notes on a contact, a CSV import, and the shell's
+  three-column pieces in `src/components/shared/` (`ThreePanels`,
+  `PanelCard`, `FilterPopover`, mass select, `SearchToggle`,
+  `NewRecordDropdown`) and `src/lib/layout/dashboard-place.ts`.
+- **Big video uploads** go to storage in pieces, up to 5GB, which needs
+  `@aws-sdk/s3-request-presigner` (added to `package.json`, the version the
+  shell uses).
+- **An automation's test run** picks a contact, and webhooks skip in tests.
+- **Dashboard tabs, a Styling setting**, and **saved views in the shell**,
+  both made in this worktree's shell the same day for the Viral project
+  screen (`docs/shell/three-column-dashboards.md`).
+
+**Four migrations**, under Video's next free numbers:
+`0132_custom_shell_app_roles.sql` (shell 0094),
+`0133_custom_shell_test_run_contact.sql` (shell 0095),
+`0134_custom_shell_contact_notes.sql` (shell 0096) and
+`0135_custom_shell_saved_views.sql` (shell 0097). All four are applied to the
+local database. The live database still needs them.
+
+**Merged by hand.** `src/theme.css` took the shell's stronger table heading
+line on top of Video's six font faces, so it differs from the shell by
+additions only. `scripts/setup-database.mjs` stays Video's own: the shell's
+copy imports the CRM sample script Video does not carry and names the shell's
+own database. `src/app/open-endpoints.ts` stays Video's own, and gained the
+export window's "Edited by hand" save, which the guard test found missing from
+its list of endpoints guarded deeper.

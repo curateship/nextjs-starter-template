@@ -1,13 +1,13 @@
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 
-import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
 import { FrontPageRows } from "@/components/marketing/front-page-rows"
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
-import { PricingTable } from "@/components/shared/pricing-table"
+import { BareAuthPage } from "@/components/shell/auth-shell"
+import { SignInForm } from "@/components/shell/sign-in-form"
 import { Button } from "@/components/ui/button"
 import { definePublicPage } from "@/lib/app-options"
-import { loadCurrentUser } from "@/lib/api/auth/auth"
+import { loadCurrentUser, loadSignInOptions } from "@/lib/api/auth/auth"
 import {
   loadBillingOverview,
   loadPublicPricing,
@@ -19,7 +19,6 @@ import {
   loadPublicPageBlocks,
 } from "@/lib/api/content/page-blocks"
 import { FRONT_PAGE_PATH } from "@/lib/pages/page-descriptor"
-import { useAppName } from "@/lib/branding"
 import type { BillingInterval } from "@/lib/billing/pricing-choice"
 import {
   APP_FRONT_PAGE_ROW_KIND,
@@ -42,15 +41,20 @@ type LandingData = {
   appRowData: Record<string, unknown>
   /** The cards each Pages list block shows, by row id. */
   listedPages: Record<string, FrontPageListedPage[]>
+  /** Which ways in the sign-in card offers. Only read when no rows are saved. */
+  signIn: { google: boolean; passkeys: boolean } | null
 }
 
+/** How long the signed-in message waits before it moves on by itself. */
+const SIGNED_IN_REDIRECT_SECONDS = 5
+
 /**
- * The front door. Saved front-page rows draw first. With no rows, everybody
- * sees the former page unchanged: the branding the admin set, a headline, and
- * the real public plans.
+ * The front door. Saved front-page rows draw first. With no rows, the page is
+ * the sign-in card on its own, with no menu, no plans and no footer. Somebody
+ * already signed in is told so and sent to their dashboard after a few
+ * seconds, with a button to go straight away. Tyler's call on 18 Oct 2026.
  *
- * Billing is loaded only for the former page or a composed page with a plans
- * row. Signing in changes where plan buttons lead, but this page deliberately
+ * Billing is loaded only for a composed page with a plans row. Signing in changes where plan buttons lead, but this page deliberately
  * does not mark a subscriber's current plan. `/pricing` owns that account
  * detail.
  *
@@ -115,6 +119,27 @@ export async function loadPricingLandingData(
       trialUsed: false,
       appRowData,
       listedPages,
+      signIn: null,
+    }
+  }
+
+  // No rows saved: the sign-in card, or the signed-in message. Neither shows
+  // a plan, so pricing is never asked for.
+  if (frontPageRows.length === 0) {
+    const [user, signIn] = await Promise.all([
+      loadCurrentUser(),
+      loadSignInOptions(),
+    ])
+    return {
+      frontPageRows,
+      hostIsSite,
+      signedIn: Boolean(user),
+      userRole: user?.role ?? null,
+      plans: [],
+      trialUsed: false,
+      appRowData,
+      listedPages,
+      signIn,
     }
   }
 
@@ -145,6 +170,7 @@ export async function loadPricingLandingData(
     trialUsed: Boolean(overview?.trialUsed),
     appRowData,
     listedPages,
+    signIn: null,
   }
 }
 
@@ -158,14 +184,14 @@ function PricingLanding({ data }: { data: LandingData }) {
     trialUsed,
     appRowData,
     listedPages,
+    signIn,
   } = data
-  const appName = useAppName()
   const navigate = useNavigate()
   const [interval, setInterval] = React.useState<BillingInterval>("monthly")
-  const signedInAction =
+  const dashboardPath =
     userRole === "admin"
-      ? ({ to: "/admin/dashboard", label: "Go to overview" } as const)
-      : ({ to: "/home", label: "Go to home" } as const)
+      ? ("/admin/dashboard" as const)
+      : ("/home" as const)
 
   // Picking a plan never checks out from here. A visitor has no account to bill
   // yet, and a member's own plan and the Stripe portal both live on /pricing,
@@ -207,44 +233,47 @@ function PricingLanding({ data }: { data: LandingData }) {
     )
   }
 
-  return (
-    <PublicPageFrame>
-      <div className="flex w-full flex-col gap-2 md:gap-3">
-        <header className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold">Get started with {appName}</h1>
-          <p className="text-sm text-muted-foreground">
-            Accounts, workspaces and billing, ready to run. Start free and move
-            up when you need more.
-          </p>
-          <div
-            className={`flex flex-wrap gap-2 ${publicContentAlignmentRowClassName}`}
-          >
-            {signedIn ? (
-              <Button asChild>
-                <Link to={signedInAction.to}>{signedInAction.label}</Link>
-              </Button>
-            ) : (
-              <>
-                <Button asChild>
-                  <Link to="/register">Create account</Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link to="/login">Sign in</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </header>
+  if (signedIn) return <SignedInRedirect to={dashboardPath} />
 
-        <PricingTable
-          plans={plans}
-          interval={interval}
-          onIntervalChange={setInterval}
-          onSelect={handleSelect}
-          trialUsed={trialUsed}
-          actionLabel="Get started"
-        />
+  return (
+    <SignInForm
+      bare
+      google={signIn?.google ?? false}
+      passkeys={signIn?.passkeys ?? false}
+    />
+  )
+}
+
+/**
+ * What somebody already signed in sees on the front page: a countdown, then
+ * their dashboard. The button skips the wait.
+ */
+function SignedInRedirect({ to }: { to: "/admin/dashboard" | "/home" }) {
+  const navigate = useNavigate()
+  const [seconds, setSeconds] = React.useState(SIGNED_IN_REDIRECT_SECONDS)
+
+  React.useEffect(() => {
+    if (seconds <= 0) {
+      void navigate({ to, replace: true })
+      return
+    }
+    const timer = window.setTimeout(() => setSeconds(seconds - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [navigate, seconds, to])
+
+  return (
+    <BareAuthPage>
+      <div className="flex w-full max-w-sm flex-col items-center gap-6 rounded-xl border bg-card p-6 text-center shadow-sm">
+        <p className="text-sm" role="status" aria-live="polite">
+          You are logged in. Redirecting in {seconds}{" "}
+          {seconds === 1 ? "second" : "seconds"}.
+        </p>
+        <Button asChild className="w-full">
+          <Link to={to} replace>
+            Go to dashboard
+          </Link>
+        </Button>
       </div>
-    </PublicPageFrame>
+    </BareAuthPage>
   )
 }

@@ -412,7 +412,6 @@ function newsletterChildLinks(): ShellChildItem[] {
   return [
     newsletterSelfChildLink(),
     contactsChildLink(),
-    segmentsChildLink(),
     systemEmailsChildLink(),
   ]
 }
@@ -431,10 +430,6 @@ function newsletterSelfChildLink(): ShellChildItem {
 
 function contactsChildLink(): ShellChildItem {
   return { id: CONTACTS_LINK_ID, label: "Contacts", href: CONTACTS_HREF }
-}
-
-function segmentsChildLink(): ShellChildItem {
-  return { id: SEGMENTS_LINK_ID, label: "Segments", href: SEGMENTS_HREF }
 }
 
 function systemEmailsChildLink(): ShellChildItem {
@@ -463,7 +458,7 @@ function newsletterLink(): ShellItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 20
+export const NAVIGATION_VERSION = 21
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -1312,11 +1307,6 @@ async function applyNavigationUpgrade(
   if (settings.navVersion < 15) {
     sections = removeMediaChildLinks(sections)
   }
-  // After `addNewsletterLink` above, so the parent it hangs a child on is there
-  // to hang it on.
-  if (settings.navVersion < 16) {
-    sections = addSegmentsLink(sections)
-  }
   // After `addTrafficLink` above, so the link this one sits beside is there
   // first.
   if (settings.navVersion < 17) {
@@ -1330,6 +1320,9 @@ async function applyNavigationUpgrade(
   }
   if (settings.navVersion < 20) {
     sections = addCrmLink(sections)
+  }
+  if (settings.navVersion < 21) {
+    sections = removeSegmentsLink(sections)
   }
 
   const [updated] = await database
@@ -2120,51 +2113,32 @@ export function addSystemEmailsLink(sections: ShellSection[]): ShellSection[] {
 }
 
 /**
- * Hangs "Segments" under the Newsletter link, right after Contacts — the two
- * answer the same question and are always looked at together.
- *
- * Same rules as `addSystemEmailsLink` above: only ever adds a child, never
- * doubles one that is already reachable however it got there, and leaves a
- * sidebar with no Newsletter link alone, because `addNewsletterLink` builds
- * that parent complete.
+ * Takes the Segments link off wherever it sits. Segments live on the Contacts
+ * dashboard's left panel now (Tyler, 19 Oct 2026), and `/admin/segments` only
+ * forwards there, so a saved menu keeping the link would hold two ways to the
+ * same page.
  */
-export function addSegmentsLink(sections: ShellSection[]): ShellSection[] {
-  if (!sections.length) return sections
-
-  const isNewsletter = (link: { id: string; href?: string }) =>
-    link.id === NEWSLETTER_LINK_ID || link.href === NEWSLETTER_HREF
-  const isContacts = (link: { id: string; href?: string }) =>
-    link.id === CONTACTS_LINK_ID || link.href === CONTACTS_HREF
+export function removeSegmentsLink(sections: ShellSection[]): ShellSection[] {
+  let changed = false
   const isSegments = (link: { id: string; href?: string }) =>
     link.id === SEGMENTS_LINK_ID || link.href === SEGMENTS_HREF
 
-  const reachable = sections.some((section) =>
-    section.entries.some(
-      (entry) =>
-        isSegments(entry) ||
-        (isShellItem(entry) && (entry.children ?? []).some(isSegments))
-    )
-  )
-  if (reachable) return sections
-
-  return sections.map((section) => ({
+  const result = sections.map((section) => ({
     ...section,
-    entries: section.entries.map((entry) => {
-      if (!isShellItem(entry) || !isNewsletter(entry)) return entry
-      // A parent with no children yet has no row of chips, and adding one child
-      // would leave its own page missing from that row.
-      const children = entry.children?.length
-        ? [...entry.children]
-        : [newsletterSelfChildLink()]
-      const contactsAt = children.findIndex(isContacts)
-      children.splice(
-        contactsAt >= 0 ? contactsAt + 1 : children.length,
-        0,
-        segmentsChildLink()
-      )
-      return { ...entry, children }
+    entries: section.entries.flatMap((entry) => {
+      if (isShellItem(entry) && isSegments(entry)) {
+        changed = true
+        return []
+      }
+      if (!isShellItem(entry) || !entry.children?.length) return [entry]
+      const children = entry.children.filter((child) => !isSegments(child))
+      if (children.length === entry.children.length) return [entry]
+      changed = true
+      return [children.length ? { ...entry, children } : stripChildren(entry)]
     }),
   }))
+
+  return changed ? result : sections
 }
 
 /** Adds Templates beneath an existing Automations sidebar item. */

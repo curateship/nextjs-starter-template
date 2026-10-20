@@ -39,20 +39,6 @@ export const savedViewFiltersSchema = z.object({
 
 type DueKey = (typeof DUE_FILTERS)[number]["key"]
 
-export const saveViewSchema = z.object({
-  /** Null is My tasks. */
-  projectId: id.nullable(),
-  name: z
-    .string()
-    .trim()
-    .min(1, "Give the view a name.")
-    .max(LIMITS.viewName, `A view's name can be at most ${LIMITS.viewName} characters.`),
-  filters: savedViewFiltersSchema,
-})
-
-/** Edit view: a new name and filters for one of the person's views, which stays where it was saved. */
-export const updateViewSchema = saveViewSchema.omit({ projectId: true }).extend({ viewId: id })
-
 /** The filters a view keeps: only the ones set, so an empty search isn't saved as one. */
 export function viewFilters(filters: SavedViewFilters): SavedViewFilters {
   const kept: SavedViewFilters = {}

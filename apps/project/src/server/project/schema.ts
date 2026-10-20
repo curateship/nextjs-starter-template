@@ -984,6 +984,10 @@ export const projectTaskThanks = pgTable(
  * A person's own saved filters on one project (`projectId`) or on My tasks
  * (`projectId` null). Nobody else sees them
  * (`drizzle/0110_project_finding_and_seeing.sql`).
+ *
+ * Frozen since 20 Oct 2026: views live in the shell's `saved_views` table
+ * (`drizzle/0129_project_saved_views_to_shell.sql` copied every row there).
+ * Nothing reads or writes this table any more; it is kept, never dropped.
  */
 export const projectSavedViews = pgTable("project_saved_views", {
   id: varchar("id", { length: 36 }).primaryKey(),

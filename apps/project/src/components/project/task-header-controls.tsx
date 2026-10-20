@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Tabs as TabsPrimitive } from "radix-ui"
 import { CheckIcon, ChevronDownIcon, SearchIcon, UserIcon, UsersIcon } from "lucide-react"
 
 import { PersonAvatar } from "@/components/project/task-bits"
@@ -10,65 +9,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ProjectMemberRow } from "@/lib/api/project/projects"
 import { plural } from "@/lib/format/plural"
 import { NOBODY_FILTER } from "@/lib/project/task-filters"
 import { cn } from "@/lib/utils"
-
-/**
- * The project page's view tabs as Tyler drew them on 14 Oct 2026: words with
- * a line under the one showing, sitting on the header's bottom edge. The
- * UI rules' grey pills stay everywhere else; this header and My dashboard's
- * middle header are the exception, by his choice. They scroll sideways rather than sliding under
- * the buttons.
- */
-export function UnderlineTabs({
-  value,
-  onValueChange,
-  tabs,
-  after,
-  className,
-}: {
-  value: string
-  onValueChange: (value: string) => void
-  tabs: { value: string; label: React.ReactNode }[]
-  /** More, drawn as one of the tabs. */
-  after?: React.ReactNode
-  /** In a row of its own rather than a header, `my-0` drops the pull to the header's edges. */
-  className?: string
-}) {
-  return (
-    <TabsPrimitive.Root
-      value={value}
-      onValueChange={onValueChange}
-      // Out to the header's top and bottom edges, so the line sits on its divider.
-      className={cn("-my-3 flex min-w-0 flex-1 self-stretch", className)}
-    >
-      <ScrollArea className="h-full min-w-0" viewportClassName="[&>div]:h-full">
-        <div className="flex h-full w-max items-stretch gap-5 px-1">
-          <TabsPrimitive.List className="flex items-stretch gap-5">
-            {tabs.map((tab) => (
-              <TabsPrimitive.Trigger key={tab.value} value={tab.value} className={UNDERLINE_TAB_CLASS}>
-                {tab.label}
-              </TabsPrimitive.Trigger>
-            ))}
-          </TabsPrimitive.List>
-          {after}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-    </TabsPrimitive.Root>
-  )
-}
-
-/** One tab's look, shared with More so it reads as a fifth tab. */
-export const UNDERLINE_TAB_CLASS = cn(
-  "inline-flex items-center gap-1.5 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors",
-  "hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-  "data-[state=active]:border-foreground data-[state=active]:text-foreground"
-)
 
 /**
  * The search as a magnifying glass that opens into the box. It stays open

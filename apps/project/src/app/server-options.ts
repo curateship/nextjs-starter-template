@@ -3,6 +3,7 @@ import { runCheckinJobs } from "@/server/project/checkin-jobs"
 import { addProjectNavigation } from "@/server/project/navigation"
 import { runPlanningJobs } from "@/server/project/planning-jobs"
 import { runReminderJobs } from "@/server/project/reminder-jobs"
+import { projectSavedViewScreens } from "@/server/project/saved-views"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -37,4 +38,6 @@ export const appServerOptions: AppServerOptions = {
       { name: "project-planning", tick: () => runPlanningJobs() },
     ],
   },
+  // Views on a project's Board and List, and on My tasks.
+  savedViews: { screens: projectSavedViewScreens },
 }

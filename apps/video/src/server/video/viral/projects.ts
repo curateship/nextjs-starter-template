@@ -31,6 +31,8 @@ import {
   FOLDER_NAME_TAKEN_MESSAGE,
   FOLDER_NOT_FOUND_MESSAGE,
 } from "@/lib/video/project-folders"
+import { savedViewScreen } from "@/lib/saved-views"
+import { VIRAL_SAVED_VIEW_KIND } from "@/lib/video/viral-saved-views"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
@@ -45,6 +47,7 @@ import {
   videoViralProjects,
   type VideoViralProjectRow,
 } from "@/server/video/schema"
+import { deleteSavedViewsFor } from "@/server/saved-views"
 import { isUniqueViolation } from "@/server/video/unique-violation"
 
 /**
@@ -521,7 +524,7 @@ export async function viralDeleteSummary(
 
 /**
  * Deletes projects. Their keywords, results, hidden channels and creator
- * links go through the foreign keys. A creator left in no project at all is
+ * links go through the foreign keys, and their saved views are deleted here. A creator left in no project at all is
  * unfollowed too, so the watch timer stops checking somebody nobody is
  * looking at. Starred videos keep their own copy and stay.
  */
@@ -538,6 +541,10 @@ export async function deleteViralProjects(
   await db
     .delete(videoViralProjects)
     .where(inArray(videoViralProjects.id, owned))
+  // The shell's saved views can't cascade from a project, so they go here.
+  await deleteSavedViewsFor({
+    screens: owned.map((id) => savedViewScreen(VIRAL_SAVED_VIEW_KIND, id)),
+  })
   await dropUnlinkedCreators(
     ownerId,
     linked.map((row) => row.creatorId)

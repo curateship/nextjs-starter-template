@@ -222,7 +222,8 @@ Day. The tab is "Day" so it doesn't sit over the panel's own Check-ins tab.
   [History](history.md#past-days-on-the-team-dashboard) and The team's
   Activity below.
 - **Right: the chosen day.** Its header is the tabs, Check-ins, Workload
-  and, for the site admin, Attention, underlined like the project page's;
+  and, for the site admin, Attention, drawn like the project page's (Settings
+  → Styling → Dashboard tabs);
   Attention carries the count of tasks needing it in red. There is no date
   or arrows: the day is picked on the calendar (Tyler, 16 Oct 2026). Under
   each tab sit the day's **Meetings** (the whole row lights on hover and

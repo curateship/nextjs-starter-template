@@ -100,6 +100,7 @@ import {
   MAX_MODAL_PADDING,
   MIN_CONTENT_GUTTER,
   DARK_SHADE_IDS,
+  DASHBOARD_TAB_STYLES,
   DEFAULT_DARK_SHADE,
   SHELL_BACKGROUND_MODES,
 } from "@/lib/layout/styling-values"
@@ -196,6 +197,7 @@ const shellTopRightItemSchema = z.discriminatedUnion("type", [
     type: z.literal("app"),
     id: z.string().trim().min(1).max(64),
     visible: z.boolean(),
+    foldsOnPhone: z.boolean().optional(),
   }),
   z.object({
     type: z.literal("link"),
@@ -243,6 +245,7 @@ const shellStylingSchema = z.object({
   content: shellBackgroundSchema,
   chrome: shellBackgroundSchema,
   modal: shellModalStylingSchema,
+  dashboardTabs: z.enum(DASHBOARD_TAB_STYLES).optional(),
 })
 
 const publicNavigationLinkSchema = z.object({

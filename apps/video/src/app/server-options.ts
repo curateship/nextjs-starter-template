@@ -1,4 +1,6 @@
 import type { AppServerOptions } from "@/server/app-options"
+import { VIRAL_SAVED_VIEW_KIND } from "@/lib/video/viral-saved-views"
+import { viralSavedViewScreen } from "@/server/video/viral/saved-views"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -105,4 +107,6 @@ export const appServerOptions: AppServerOptions = {
       },
     ],
   },
+  // Views on a Viral project's videos.
+  savedViews: { screens: { [VIRAL_SAVED_VIEW_KIND]: viralSavedViewScreen } },
 }

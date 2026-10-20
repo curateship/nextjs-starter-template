@@ -59,6 +59,8 @@ function job(aspect: AspectRatio): RenderJobSummary {
     has_thumbnail: false,
     created_at: "2026-09-24T00:00:00.000Z",
     finished_at: "2026-09-24T00:01:00.000Z",
+    ai_parts: null,
+    ai_hand_edited: true,
   }
 }
 

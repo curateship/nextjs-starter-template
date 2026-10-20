@@ -7,7 +7,7 @@ import { db } from "@/server/db"
 import { requireMembership } from "@/server/project/access"
 import { loadCheckinPage, type CheckinPage } from "@/server/project/checkins"
 import { listTeamLabels, type Label } from "@/server/project/labels"
-import { listSavedViews, type SavedView } from "@/server/project/saved-views"
+import { listSavedViews, projectViewScreen, type SavedView } from "@/server/project/saved-views"
 import { listTeamTypes } from "@/server/project/task-types"
 import type { TaskType } from "@/lib/project/task-types"
 import { listTimeOffFor, loadCheckinRecord, type CheckinRecord } from "@/server/project/time-off"
@@ -42,6 +42,8 @@ export type MyDashboard = {
   record: CheckinRecord
   /** My own saved views on My tasks. */
   views: SavedView[]
+  /** The shell's key those views are kept under, `my-tasks:<team id>`. */
+  viewScreen: string
   /** The bell notices I've switched off. Only I see these. */
   noticesOff: NoticeSwitchId[]
   /** My Board's columns, in my own order. */
@@ -84,6 +86,7 @@ export async function loadMyDashboard(userId: string, database = db): Promise<My
     taskTypes: await listTeamTypes(membership.teamId, database),
     record: await loadCheckinRecord(userId, database),
     views: await listSavedViews(userId, membership.teamId, null, database),
+    viewScreen: projectViewScreen(membership.teamId, null),
     noticesOff: await loadNoticesOff(userId, database),
     statusOrder: boardStatusOrder(row.statusOrder),
     timeOff: await listTimeOffFor(userId, undefined, database),

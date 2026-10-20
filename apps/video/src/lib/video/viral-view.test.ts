@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { postsPerWeek, typical, type ViralCreator, type ViralVideo } from "./viral"
 import { scoreViralVideo } from "./viral-score"
-import { atAGlance, filterCreators, filterVideos, sortVideos } from "./viral-view"
+import { atAGlance, filterCreators, filterVideos, formatShortDay, sortVideos } from "./viral-view"
 
 const NOW = new Date("2099-01-30T00:00:00Z")
 
@@ -133,5 +133,14 @@ describe("the figures", () => {
     expect(glance.videos).toBe(3)
     expect(glance.typicalViews).toBe(200)
     expect(glance.bestScore).not.toBeNull()
+  })
+})
+
+describe("formatShortDay", () => {
+  const now = new Date("2026-10-20T12:00:00Z")
+  it("leaves the year off this year's days and keeps it on others", () => {
+    expect(formatShortDay("2026-10-15T12:00:00Z", now)).toBe("Oct 15")
+    expect(formatShortDay("2025-12-30T12:00:00Z", now)).toBe("Dec 30, 2025")
+    expect(formatShortDay(null, now)).toBe("—")
   })
 })

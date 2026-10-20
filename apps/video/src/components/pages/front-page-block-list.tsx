@@ -41,6 +41,7 @@ import {
   FRONT_PAGE_BLOCK_FALLBACK_ICON,
   FRONT_PAGE_BLOCK_ICONS,
 } from "@/components/pages/front-page-block-kinds"
+import { useSiteAddress } from "@/lib/hooks/use-site-address"
 import { cn } from "@/lib/utils"
 
 /**
@@ -92,6 +93,7 @@ export function FrontPageBlockList({
   onDelete: (row: FrontPageRow) => void
 }) {
   const sensors = useNavSensors()
+  const siteAddress = useSiteAddress()
   const ids = rows.map((row) => row.id)
   // Where a card dragged in from the left would land, so the list can open the
   // space before it is let go. Null while nothing is being dragged over it.
@@ -162,12 +164,13 @@ export function FrontPageBlockList({
         action={
           /* Straight to the page as a visitor sees it, which is the question
              somebody building it asks constantly. The address is the page's
-             own path on this host, the same link the Pages list uses. */
+             own path on the site being edited, the same link the Pages list
+             uses. */
           <Tooltip>
             <TooltipTrigger asChild>
               <Button asChild variant="ghost" size="icon" className="size-8">
                 <a
-                  href={page.path}
+                  href={siteAddress(page.path)}
                   target="_blank"
                   rel="noreferrer"
                   aria-label={`Open ${page.name} in a new tab`}

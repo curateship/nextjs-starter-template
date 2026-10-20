@@ -56,7 +56,6 @@ export function ProjectMilestones({
       storageId="project-details-milestones"
       title="Milestones"
       after={milestones.length ? <span className="font-normal text-muted-foreground">{milestones.length}</span> : null}
-      quiet
       actionOpen={adding}
       action={
         readOnly ? null : (

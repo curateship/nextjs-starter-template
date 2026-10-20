@@ -33,7 +33,7 @@ import { DayDueTasks, DeadlineChips, DueChips } from "@/components/project/team-
 import { MeetingChips, MeetingsCard } from "@/components/project/team-meetings"
 import { InviteResentDialog } from "@/components/project/team-members"
 import { PanelCard } from "@/components/project/panel-card"
-import { UnderlineTabs } from "@/components/project/task-header-controls"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { TeamSideCard } from "@/components/project/team-side-card"
 import { AttentionPanel, WorkloadPanel, useAttention } from "@/components/project/team-work-panels"
 import { TeamSettingsDialog } from "@/components/project/team-settings-dialog"
@@ -617,12 +617,15 @@ function CalendarPanel({
     <>
       {/* On a phone the month and its arrows take a second row, so the name never squeezes to nothing. */}
       <DashboardCardHeader className="@container flex-wrap">
-        <Tabs value={tab} onValueChange={(value) => setTab(value as MiddleTab)}>
-          <TabsList>
-            <TabsTrigger value="calendar">Calendar</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <DashboardTabs
+          value={tab}
+          onValueChange={(value) => setTab(value as MiddleTab)}
+          className="flex-none"
+          tabs={[
+            { value: "calendar", label: "Calendar" },
+            { value: "activity", label: "Activity" },
+          ]}
+        />
         {calendar ? (
           <div className="flex min-w-0 flex-1 items-center gap-1 pl-2 @max-lg:order-last @max-lg:basis-full @max-lg:pl-0">
             <Button
@@ -1010,7 +1013,7 @@ function RightPanel({
       {/* The tabs are the header (Tyler, 16 Oct 2026); the day is picked on the calendar.
           px-2 lines the first tab up with the cards and leaves room for all three. */}
       <DashboardCardHeader className="@container px-2">
-        <UnderlineTabs
+        <DashboardTabs
           value={tab}
           onValueChange={(value) => setTab(value as RightTab)}
           tabs={[

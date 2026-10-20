@@ -19,8 +19,10 @@ import { joinedSegmentNode } from "./nodes/joined-segment"
 import { memberEventNode } from "./nodes/member-event"
 import { memberTagNode } from "./nodes/member-tag"
 import { placeholderNode } from "./nodes/placeholder"
+import { segmentDripNode } from "./nodes/segment-drip"
 import { sendEmailNode } from "./nodes/send-email"
 import { timeActivateNode } from "./nodes/time-activate"
+import { waitNode } from "./nodes/wait"
 import { waitForApprovalNode } from "./nodes/wait-for-approval"
 import { webhookNode } from "./nodes/webhook"
 
@@ -36,11 +38,13 @@ const SHELL_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   audienceNode,
   billingMomentNode,
   joinedSegmentNode,
+  segmentDripNode,
   memberEventNode,
   memberTagNode,
   timeActivateNode,
   placeholderNode,
   sendEmailNode,
+  waitNode,
   waitForApprovalNode,
   webhookNode,
 ]

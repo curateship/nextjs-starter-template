@@ -70,7 +70,7 @@ export function ContactsLeftPanel({
         <div className="grid gap-3 p-3">
           {/* One column that may shrink, in each card, so a long segment name
               is cut with "…" rather than pushing the panel sideways. */}
-          <PanelCard storageId="contacts-people" title="People" quiet>
+          <PanelCard storageId="contacts-people" title="People">
             <ul className="-mx-2 -my-1 grid grid-cols-[minmax(0,1fr)]">
               {CONTACT_SHORTCUTS.map((shortcut) => {
                 const on = !openSegmentId && shortcutIsOn(shortcut, rules)
@@ -91,7 +91,6 @@ export function ContactsLeftPanel({
             storageId="contacts-segments"
             title="Segments"
             meta={data.segments.length || undefined}
-            quiet
             action={
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -155,7 +154,7 @@ export function ContactsLeftPanel({
               </ul>
             )}
           </PanelCard>
-          <PanelCard storageId="contacts-recent" title={`Last ${NEW_CONTACT_DAYS} days`} quiet>
+          <PanelCard storageId="contacts-recent" title={`Last ${NEW_CONTACT_DAYS} days`}>
             <dl className="grid grid-cols-3 gap-2">
               <RecentFigure label="Joined" value={data.recent.joined} plus />
               <RecentFigure label="Opted out" value={data.recent.optedOut} />

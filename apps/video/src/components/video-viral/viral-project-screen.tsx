@@ -3,15 +3,12 @@ import { getRouteApi, useRouter } from "@tanstack/react-router"
 import {
   DownloadIcon,
   EyeOffIcon,
-  FilmIcon,
   GridIcon,
   ListIcon,
   Loader2Icon,
-  PlusIcon,
   SparklesIcon,
   StarIcon,
   Trash2Icon,
-  XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -19,40 +16,47 @@ import {
   DashboardCardHeader,
   DashboardCardTitleHeader,
 } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { FilterPopover } from "@/components/shared/filter-popover"
 import {
-  dashboardToolbarButtonActiveClassName,
-  dashboardToolbarButtonGroupClassName,
-  dashboardToolbarButtonGroupItemClassName,
-  DashboardToolbarButton,
-  DashboardToolbarSearch,
-  DashboardToolbarSelectTrigger,
-} from "@/components/shared/dashboard-toolbar"
+  MassSelectChip,
+  SelectedMenu,
+  SelectedMenuRow,
+} from "@/components/shared/mass-select"
+import {
+  SaveViewDialog,
+  SavedViewsControls,
+  type EditFields,
+  type SavedViewsScreen,
+} from "@/components/shared/saved-views"
+import { SearchToggle } from "@/components/shared/search-toggle"
+import { ThreePanels } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
   SelectItem,
+  SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AddCreatorDialog } from "@/components/video-viral/add-creator-dialog"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { CreatorCard } from "@/components/video-viral/creator-card"
+import { CreatorsCard } from "@/components/video-viral/creators-card"
 import { DeleteSavedVideosDialog } from "@/components/video-viral/delete-saved-videos-dialog"
 import { PlayerPanel } from "@/components/video-viral/player-panel"
 import { ProjectPanel } from "@/components/video-viral/project-panel"
 import { StarMenu, type Favourites } from "@/components/video-viral/star-menu"
-import {
-  CreatorList,
-  VideoGrid,
-  VideoList,
-} from "@/components/video-viral/video-grid"
-import { ViralPanels } from "@/components/video-viral/viral-panels"
+import { VideoGrid, VideoList } from "@/components/video-viral/video-grid"
 import { ViralProjectDialog } from "@/components/video-viral/viral-project-dialog"
 import { useSavedProgress } from "@/components/video-viral/use-saved-progress"
+import type { SavedView } from "@/lib/api/saved-views"
 import { getViralErrorMessage } from "@/lib/api/video/viral"
 import {
   addViralKeywordFn,
@@ -70,6 +74,8 @@ import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 import { useRememberedChoice } from "@/lib/remembered-choice"
+import { SAVED_VIEW_ERRORS, savedViewScreen, type SavedViewValues } from "@/lib/saved-views"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { formatCount } from "@/lib/video/creators"
 import {
@@ -83,11 +89,16 @@ import {
   type ViralVideo,
 } from "@/lib/video/viral"
 import {
+  describeViralView,
+  VIRAL_SAVED_VIEW_KIND,
+  viralViewFilters,
+  type ViralViewFilters,
+} from "@/lib/video/viral-saved-views"
+import {
   atAGlance,
   filterCreators,
   filterVideos,
   sortVideos,
-  SUBSCRIBER_STEPS,
   VIRAL_CARD_SIZES,
   VIRAL_LAYOUTS,
   VIRAL_FIT_CHOICES,
@@ -109,23 +120,35 @@ const SEARCHING_POLL_MS = 3000
 const LAYOUT_STORAGE_KEY = "video-viral-layout"
 const SIZE_STORAGE_KEY = "video-viral-card-size"
 
+/**
+ * Where this browser keeps the panels' widths, and where the dashboard was.
+ * App keys, so they live here rather than in the shell's `panelLayoutKey`.
+ * The `-2` drops widths measured for the layout before 20 Oct 2026.
+ */
+const LAYOUT_KEY = "video-viral-project-horizontal-2"
+const PLACE_KEY = "video-viral-project-place"
+
 type ChannelUploads =
   | { state: "loading" }
   | { state: "ready"; videos: ViralVideo[] }
   | { state: "failed"; error: string }
 
 /**
- * One Viral project's screen. Everything the address can hold lives there
- * (the view, the picked video or creator, the sort, the filters), so a reload
- * or a shared link opens the same thing. Nothing here calls YouTube except
- * the buttons that say what they cost.
+ * One Viral project's three-column dashboard (UI standard, "Three-column
+ * dashboards"): the project, its keywords and its creators on the left, the
+ * videos in the middle, the one picked on the right. Everything the address
+ * can hold lives there (the tab, the open video, the picked creator, the sort,
+ * the filters), so a reload or a shared link opens the same thing. Nothing
+ * here calls YouTube except the buttons that say what they cost.
  */
 export function ViralProjectScreenView({
   screen,
   favourites,
+  views,
 }: {
   screen: ViralProjectScreen
   favourites: Favourites
+  views: SavedView[]
 }) {
   const router = useRouter()
   const search = projectRoute.useSearch()
@@ -139,13 +162,17 @@ export function ViralProjectScreenView({
   const fit = search.fit ?? 0
   const text = search.q ?? ""
 
-  const [layout, setLayout] = useRememberedChoice(LAYOUT_STORAGE_KEY, "grid", VIRAL_LAYOUTS)
+  // The list for a browser that never chose (Tyler, 20 Oct 2026).
+  const [layout, setLayout] = useRememberedChoice(LAYOUT_STORAGE_KEY, "list", VIRAL_LAYOUTS)
   const [size, setSize] = useRememberedChoice<ViralCardSize>(SIZE_STORAGE_KEY, "medium", VIRAL_CARD_SIZES)
+  const [selecting, setSelecting] = React.useState(false)
   const [ticked, setTicked] = React.useState<Set<string>>(new Set())
   const [range, setRange] = React.useState<SubscriberRange>({ min: null, max: null })
+  const [creatorSearch, setCreatorSearch] = React.useState("")
   const [uploads, setUploads] = React.useState<Record<string, ChannelUploads>>({})
   const [settingsOpen, setSettingsOpen] = React.useState(false)
-  const [addingCreator, setAddingCreator] = React.useState(false)
+  const [filterOpen, setFilterOpen] = React.useState(false)
+  const [savingView, setSavingView] = React.useState(false)
   const [removing, setRemoving] = React.useState<ViralKeyword | null>(null)
   const [offerSearch, setOfferSearch] = React.useState(false)
   const [deletingVideos, setDeletingVideos] = React.useState<ViralVideo[]>([])
@@ -209,12 +236,12 @@ export function ViralProjectScreenView({
   )
   const creators = React.useMemo(
     () =>
-      filterCreators(screen.creators, range, view === "creators" ? text : "").map((creator) =>
+      filterCreators(screen.creators, range, creatorSearch).map((creator) =>
         creator.followedId && creator.followedId in watchOverride
           ? { ...creator, watch: watchOverride[creator.followedId] }
           : creator
       ),
-    [range, screen.creators, text, view, watchOverride]
+    [range, screen.creators, creatorSearch, watchOverride]
   )
   const glance = atAGlance(projectVideos, screen.creators)
 
@@ -237,29 +264,26 @@ export function ViralProjectScreenView({
   const appliedProjectVideos = projectVideos.map(progress.apply)
   const downloadedCount = appliedProjectVideos.filter(isDownloaded).length
   const brokenDownCount = appliedProjectVideos.filter(isBrokenDown).length
-  const middleVideos =
-    view === "creators" && pickedCreator
-      ? creatorUploads?.state === "ready"
-        ? creatorUploads.videos.map(progress.apply)
-        : []
-      : view === "broken"
-        ? shown.map(progress.apply).filter(isBrokenDown)
-        : view === "downloaded"
-          ? shown.map(progress.apply).filter(isDownloaded)
-          : shown.map(progress.apply)
+  const middleVideos = pickedCreator
+    ? creatorUploads?.state === "ready"
+      ? creatorUploads.videos.map(progress.apply)
+      : []
+    : view === "broken"
+      ? shown.map(progress.apply).filter(isBrokenDown)
+      : view === "downloaded"
+        ? shown.map(progress.apply).filter(isDownloaded)
+        : shown.map(progress.apply)
 
-  // The picked video is looked for everywhere this screen has videos, so a
+  // The open video is looked for everywhere this screen has videos, so a
   // filter that hides it does not stop it playing.
-  const found = search.video
-    ? allVideos.find((video) => video.key === search.video)
-    : undefined
+  const found = search.open ? allVideos.find((video) => video.key === search.open) : undefined
   const pickedVideo = found ? progress.apply(found) : null
 
   // An address naming a video that is no longer in the results (a re-run
   // replaced it, or its channel was hidden) drops it rather than failing.
-  const missingVideo = Boolean(search.video) && !pickedVideo && creatorUploads?.state !== "loading"
+  const missingVideo = Boolean(search.open) && !pickedVideo && creatorUploads?.state !== "loading"
   React.useEffect(() => {
-    if (missingVideo) setSearch({ video: undefined })
+    if (missingVideo) setSearch({ open: undefined })
   }, [missingVideo, setSearch])
 
   // A picked creator's uploads are read when they are first picked, and on a
@@ -297,7 +321,7 @@ export function ViralProjectScreenView({
   }, [project.id, wanted])
 
   function pickCreator(creator: ViralCreator) {
-    setSearch({ creator: creator.key, video: undefined })
+    setSearch({ creator: creator.key, open: undefined })
   }
 
   function retryUploads(creator: ViralCreator) {
@@ -309,7 +333,7 @@ export function ViralProjectScreenView({
   }
 
   function pickVideo(video: ViralVideo) {
-    setSearch({ video: video.key })
+    setSearch({ open: video.key })
   }
 
   function toggleTick(key: string) {
@@ -319,6 +343,11 @@ export function ViralProjectScreenView({
       else next.add(key)
       return next
     })
+  }
+
+  function toggleSelecting() {
+    setSelecting((on) => !on)
+    setTicked(new Set())
   }
   const tickedVideos = middleVideos.filter((video) => ticked.has(video.key))
 
@@ -376,7 +405,7 @@ export function ViralProjectScreenView({
       // Read the project again before the address changes: a navigation
       // started first would land with the videos as they were.
       await refresh()
-      setSearch({ video: undefined, creator: undefined })
+      setSearch({ open: undefined, creator: undefined })
       toast.success(
         unique.length === 1
           ? `${unique[0].channelName || "That channel"} is hidden from this project. Project settings can show it again.`
@@ -385,7 +414,7 @@ export function ViralProjectScreenView({
     })
   }
 
-  /** Download (no AI) or AI analyse, for some videos in one request. */
+  /** Download (no AI) or Break it down, for some videos in one request. */
   async function saveMany(videos: ViralVideo[], analyse: boolean) {
     await run(async () => {
       const saving = videos.filter((video) => !video.sample)
@@ -402,7 +431,7 @@ export function ViralProjectScreenView({
       const count = `${saved.length} ${plural(saved.length, "video")}`
       toast.success(
         analyse
-          ? `${count} sent to AI analyse. Each shows its progress on its card.`
+          ? `Breaking down ${count}. Each shows its progress on its card.`
           : `Downloading ${count}. No AI runs. ${saved.length === 1 ? "It shows" : "They show"} on the Downloaded tab once ${saved.length === 1 ? "it is" : "they are"} in.`
       )
     })
@@ -460,6 +489,76 @@ export function ViralProjectScreenView({
   const hasSearched = screen.keywords.some((keyword) => keyword.ran_at)
   const searchAgainCost = screen.keywords.length * unitsPerKeyword(project.video_length)
 
+  // ------------------------------------------------------- Saved views --
+
+  // What the address holds now, as a view keeps it.
+  const currentView = viralViewFilters({
+    ...(search.q ? { q: search.q } : {}),
+    ...(search.from ? { from: search.from } : {}),
+    ...(search.fit ? { fit: search.fit } : {}),
+    ...(search.keyword ? { keyword: search.keyword } : {}),
+    ...(search.sort ? { sort: search.sort } : {}),
+    ...(search.direction ? { direction: search.direction } : {}),
+  })
+  const viewsHere: SavedViewsScreen = {
+    screen: savedViewScreen(VIRAL_SAVED_VIEW_KIND, project.id),
+    describe: (filters) => describeViralView(viralViewFilters(filters)),
+    kept: (filters) => viralViewFilters(filters) as SavedViewValues,
+    // The shell's own refusals are sentences already; anything else is Viral's.
+    describeError: (error) => {
+      const message = error instanceof Error ? error.message : ""
+      return (Object.values(SAVED_VIEW_ERRORS) as string[]).includes(message)
+        ? message
+        : getViralErrorMessage(error)
+    },
+  }
+
+  /** Opens a view: its filters replace the ones set, and a removed keyword is said and left out. */
+  function openView(saved: SavedView) {
+    const filters = viralViewFilters(saved.filters)
+    if (filters.keyword && !screen.keywords.some((keyword) => keyword.keyword === filters.keyword)) {
+      showErrorToast(`The keyword “${filters.keyword}” was removed, so “${saved.name}” opened without it.`)
+      delete filters.keyword
+    }
+    setSearch({
+      q: filters.q,
+      from: filters.from,
+      fit: filters.fit,
+      keyword: filters.keyword,
+      sort: filters.sort,
+      direction: filters.direction,
+      creator: undefined,
+    })
+  }
+
+  function saveAsView() {
+    setFilterOpen(false)
+    if (Object.keys(currentView).length === 0) {
+      showErrorToast("Search or pick a filter first, then save it as a view.")
+      return
+    }
+    setSavingView(true)
+  }
+
+  const editViewFields: EditFields = ({ filters, change }) => {
+    const values = viralViewFilters(filters)
+    return (
+      <>
+        <div className="grid gap-2">
+          <Label htmlFor="edit-view-search">Search</Label>
+          <Input
+            id="edit-view-search"
+            value={typeof filters.q === "string" ? filters.q : ""}
+            maxLength={200}
+            placeholder="Words in the title or channel"
+            onChange={(event) => change({ q: event.target.value || undefined })}
+          />
+        </div>
+        <ViralFilterRows idPrefix="edit-view" values={values} keywords={screen.keywords} onChange={change} />
+      </>
+    )
+  }
+
   // ------------------------------------------------------------- Panels --
 
   const left = (
@@ -468,221 +567,209 @@ export function ViralProjectScreenView({
       glance={glance}
       activeKeyword={keywordFilter}
       busy={busy}
-      onPickKeyword={(keyword) =>
-        setSearch({ keyword: keyword ?? undefined, view: undefined, creator: undefined })
-      }
+      onPickKeyword={(keyword) => setSearch({ keyword: keyword ?? undefined, creator: undefined })}
       onSearchAll={() => void searchAll()}
       onRefreshKeyword={(keyword) => void refreshKeyword(keyword)}
       onRemoveKeyword={setRemoving}
       onAddKeyword={addKeyword}
       onOpenSettings={() => setSettingsOpen(true)}
+      creators={
+        <CreatorsCard
+          creators={creators}
+          total={screen.creators.length}
+          selectedKey={pickedCreator?.key ?? null}
+          onPick={pickCreator}
+          onWatchChange={project.sample ? undefined : (creator, watch) => void changeWatch(creator, watch)}
+          search={creatorSearch}
+          onSearch={setCreatorSearch}
+          range={range}
+          onRange={setRange}
+          projectId={project.id}
+          sample={project.sample}
+          onAdded={refresh}
+        />
+      }
     />
   )
 
-  // Four tabs are wider than a phone. There the header wraps, the buttons
-  // beside the tabs drop to a second line, and the tab row slides sideways
-  // rather than running off the card's edge.
-  const viewTabs = (
-    <ScrollArea className="max-w-full min-w-0">
-      <Tabs
-        value={view}
-        onValueChange={(next) =>
-          setSearch({ view: next === "videos" ? undefined : next, creator: undefined })
-        }
-        className="w-max"
-      >
-        <TabsList>
-          <TabsTrigger value="videos">Videos {projectVideos.length}</TabsTrigger>
-          <TabsTrigger value="downloaded">Downloaded {downloadedCount}</TabsTrigger>
-          <TabsTrigger value="broken">Broken down {brokenDownCount}</TabsTrigger>
-          <TabsTrigger value="creators">Creators {screen.creators.length}</TabsTrigger>
-        </TabsList>
-      </Tabs>
-      <ScrollBar orientation="horizontal" />
-    </ScrollArea>
-  )
-
+  // A pair like the tabs, list first, as Tyler drew it on 20 Oct 2026.
   const layoutToggle = (
-    <div className="flex items-center gap-2">
-      <div className={dashboardToolbarButtonGroupClassName}>
-        <DashboardToolbarButton
-          type="button"
-          variant="ghost"
-          aria-label="Grid"
-          aria-pressed={layout === "grid"}
-          className={cn(dashboardToolbarButtonGroupItemClassName, layout === "grid" && dashboardToolbarButtonActiveClassName)}
-          onClick={() => setLayout("grid")}
-        >
-          <GridIcon className="size-4" />
-        </DashboardToolbarButton>
-        <DashboardToolbarButton
-          type="button"
-          variant="ghost"
-          aria-label="List"
-          aria-pressed={layout === "list"}
-          className={cn(dashboardToolbarButtonGroupItemClassName, layout === "list" && dashboardToolbarButtonActiveClassName)}
-          onClick={() => setLayout("list")}
-        >
-          <ListIcon className="size-4" />
-        </DashboardToolbarButton>
-      </div>
-      {layout === "grid" ? (
-        <Select value={size} onValueChange={(next) => setSize(next as ViralCardSize)}>
-          <DashboardToolbarSelectTrigger aria-label="Card size" className="min-w-24">
-            <SelectValue />
-          </DashboardToolbarSelectTrigger>
-          <SelectContent>
-            <SelectItem value="small">Small</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="large">Large</SelectItem>
-          </SelectContent>
-        </Select>
-      ) : null}
-    </div>
-  )
-
-  const searchBox = (
-    <DashboardToolbarSearch
-      name="viral-in-results"
-      aria-label={view === "creators" ? "Search creators" : "Search these videos"}
-      placeholder={view === "creators" ? "Search creators…" : "Search titles and channels…"}
-      value={searchText}
-      onChange={(event) => setSearchText(event.target.value)}
-    />
-  )
-
-  const videosToolbar = (
-    <div className="flex flex-wrap items-center gap-2 border-b p-3">
-      {searchBox}
-      <Select value={sort} onValueChange={(next) => setSearch({ sort: next === "score" ? undefined : next, direction: undefined })}>
-        <DashboardToolbarSelectTrigger aria-label="Sort by" className="min-w-36">
-          <SelectValue />
-        </DashboardToolbarSelectTrigger>
-        <SelectContent>
-          {VIRAL_SORTS.map((one) => (
-            <SelectItem key={one} value={one}>
-              Sort: {viralSortLabels[one]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select value={source} onValueChange={(next) => setSearch({ from: next === "both" ? undefined : next })}>
-        <DashboardToolbarSelectTrigger aria-label="Where the videos come from" className="min-w-40">
-          <SelectValue />
-        </DashboardToolbarSelectTrigger>
-        <SelectContent>
-          {VIRAL_SOURCES.map((one) => (
-            <SelectItem key={one} value={one}>
-              From: {viralSourceLabels[one]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select value={String(fit)} onValueChange={(next) => setSearch({ fit: next === "0" ? undefined : Number(next) })}>
-        <DashboardToolbarSelectTrigger aria-label="How well they fit the description" className="min-w-32">
-          <SelectValue />
-        </DashboardToolbarSelectTrigger>
-        <SelectContent>
-          {VIRAL_FIT_CHOICES.map((one) => (
-            <SelectItem key={one} value={String(one)}>
-              {one ? `Fits ${one} or more` : "Any fit"}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {keywordFilter ? (
-        <Button variant="secondary" size="sm" onClick={() => setSearch({ keyword: undefined })}>
-          Keyword: {keywordFilter}
-          <XIcon />
-          <span className="sr-only">Show every keyword</span>
-        </Button>
-      ) : null}
-      {/* Here rather than beside the tabs, which fill the header with four. */}
-      <div className="ml-auto">{layoutToggle}</div>
-    </div>
-  )
-
-  const creatorsToolbar = (
-    <div className="flex flex-wrap items-center gap-2 border-b p-3">
-      {searchBox}
-      <SubscriberSelect
-        label="Subscribers from"
-        value={range.min}
-        onChange={(min) => setRange((was) => ({ ...was, min }))}
-      />
-      <SubscriberSelect
-        label="Subscribers up to"
-        value={range.max}
-        onChange={(max) => setRange((was) => ({ ...was, max }))}
-      />
-    </div>
+    <Tabs value={layout} onValueChange={(next) => setLayout(next as typeof layout)} className="gap-0">
+      <TabsList>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <TabsTrigger value="list" aria-label="List" className="px-2">
+              <ListIcon className="size-4" />
+            </TabsTrigger>
+          </TooltipTrigger>
+          <TooltipContent>List</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <TabsTrigger value="grid" aria-label="Grid" className="px-2">
+              <GridIcon className="size-4" />
+            </TabsTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Grid</TooltipContent>
+        </Tooltip>
+      </TabsList>
+    </Tabs>
   )
 
   // On the Downloaded and Broken down tabs every ticked video is saved, so
   // Delete is offered there. Download has nothing left to do on either, and
-  // AI analyse nothing on Broken down.
-  const savedTab = view === "downloaded" || view === "broken"
+  // Break it down nothing on Broken down. A sample's videos are made up, so
+  // nothing is saved or starred from one.
+  const savedTab = !pickedCreator && (view === "downloaded" || view === "broken")
   const tickedSaved = tickedVideos.filter((video) => video.savedVideoId)
-  const bulkBar = tickedVideos.length ? (
-    <div className="flex flex-wrap items-center gap-2 border-b bg-muted/40 p-3">
-      <span className="text-sm">{tickedVideos.length} ticked</span>
-      {savedTab ? null : (
-        <DashboardToolbarButton type="button" variant="outline" disabled={busy || project.sample} onClick={() => void saveMany(tickedVideos, false)}>
-          {busy ? <Loader2Icon className="size-4 animate-spin" /> : <DownloadIcon className="size-4" />}
-          Download
-        </DashboardToolbarButton>
-      )}
-      {view === "broken" ? null : (
-        <DashboardToolbarButton type="button" variant="outline" disabled={busy || project.sample} onClick={() => void saveMany(tickedVideos, true)}>
-          {busy ? <Loader2Icon className="size-4 animate-spin" /> : <SparklesIcon className="size-4" />}
-          AI analyse
-        </DashboardToolbarButton>
-      )}
-      {project.sample ? null : (
-        <StarMenu
-          videos={tickedVideos}
-          favourites={favourites}
-          sourceProjectId={project.id}
-          onChanged={async () => {
-            setTicked(new Set())
-            await refresh()
-          }}
-          trigger={
-            <DashboardToolbarButton type="button" variant="outline">
-              <StarIcon className="size-4" />
-              Star
-            </DashboardToolbarButton>
-          }
+  const selectedMenu =
+    selecting && tickedVideos.length ? (
+      <SelectedMenu
+        count={tickedVideos.length}
+        busy={busy}
+        onClear={() => setTicked(new Set())}
+        pages={{}}
+        main={(menu) => (
+          <>
+            {view === "broken" || project.sample ? null : (
+              <SelectedMenuRow
+                onClick={() => {
+                  menu.close()
+                  void saveMany(tickedVideos, true)
+                }}
+              >
+                <SparklesIcon className="size-4 text-muted-foreground" />
+                Break it down
+              </SelectedMenuRow>
+            )}
+            {savedTab || project.sample ? null : (
+              <SelectedMenuRow
+                onClick={() => {
+                  menu.close()
+                  void saveMany(tickedVideos, false)
+                }}
+              >
+                <DownloadIcon className="size-4 text-muted-foreground" />
+                Download
+              </SelectedMenuRow>
+            )}
+            {project.sample ? null : (
+              <StarMenu
+                videos={tickedVideos}
+                favourites={favourites}
+                sourceProjectId={project.id}
+                onChanged={async () => {
+                  menu.close()
+                  setTicked(new Set())
+                  await refresh()
+                }}
+                trigger={
+                  <SelectedMenuRow onClick={() => undefined}>
+                    <StarIcon className="size-4 text-muted-foreground" />
+                    Star…
+                  </SelectedMenuRow>
+                }
+              />
+            )}
+            <SelectedMenuRow
+              onClick={() => {
+                menu.close()
+                void hideChannels(tickedVideos)
+              }}
+            >
+              <EyeOffIcon className="size-4 text-muted-foreground" />
+              Hide their channels
+            </SelectedMenuRow>
+            {savedTab && tickedSaved.length ? (
+              <SelectedMenuRow
+                onClick={() => {
+                  menu.close()
+                  setDeletingVideos(tickedSaved)
+                }}
+              >
+                <Trash2Icon className="size-4 text-muted-foreground" />
+                Delete
+              </SelectedMenuRow>
+            ) : null}
+          </>
+        )}
+      />
+    ) : null
+
+  const filterCount = [search.from, search.fit, search.keyword].filter(Boolean).length
+
+  const toolbar = (
+    <div className="flex shrink-0 items-center gap-1">
+      {selectedMenu}
+      <SearchToggle
+        name="viral-in-results"
+        label="Search these videos"
+        placeholder="Search titles and channels…"
+        value={searchText}
+        onChange={setSearchText}
+      />
+      <FilterPopover
+        count={filterCount}
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        onClear={() => setSearch({ from: undefined, fit: undefined, keyword: undefined })}
+        save={
+          <Button type="button" onClick={saveAsView}>
+            Save as view
+          </Button>
+        }
+      >
+        <ViralFilterRows
+          idPrefix="viral-filter"
+          values={currentView}
+          keywords={screen.keywords}
+          onChange={(patch) => setSearch({ ...patch, creator: undefined })}
         />
-      )}
-      <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => void hideChannels(tickedVideos)}>
-        <EyeOffIcon className="size-4" />
-        Hide their channels
-      </DashboardToolbarButton>
-      {savedTab && tickedSaved.length ? (
-        <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => setDeletingVideos(tickedSaved)}>
-          <Trash2Icon className="size-4" />
-          Delete
-        </DashboardToolbarButton>
+        {/* How the grid is drawn, not what it holds, so Clear and views leave it alone.
+            It sits here rather than in the header, which it would push the tabs out of. */}
+        {layout === "grid" ? (
+          <FilterRow id="viral-filter-size" label="Card size">
+            <Select value={size} onValueChange={(next) => setSize(next as ViralCardSize)}>
+              <SelectTrigger id="viral-filter-size" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="small">Small</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="large">Large</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterRow>
+        ) : null}
+      </FilterPopover>
+      <SavedViewsControls
+        here={viewsHere}
+        views={views}
+        filters={currentView as SavedViewValues}
+        onOpen={openView}
+        editFields={editViewFields}
+        saveButton={false}
+        buttonVariant="ghost"
+      />
+      {layoutToggle}
+      {searching ? (
+        <Loader2Icon className="size-4 animate-spin text-muted-foreground" aria-label="Searching" />
       ) : null}
-      <DashboardToolbarButton type="button" variant="ghost" onClick={() => setTicked(new Set())}>
-        Clear
-      </DashboardToolbarButton>
     </div>
-  ) : null
+  )
 
   const gridProps = {
     videos: middleVideos,
     selectedKey: pickedVideo?.key ?? null,
     onPick: pickVideo,
-    ticked,
-    onTick: toggleTick,
+    ticked: selecting ? ticked : undefined,
+    onTick: selecting ? toggleTick : undefined,
     favourites,
     onFavouritesChanged: refresh,
     projectId: project.id,
-    // Each downloaded video carries its own AI analyse button.
+    // Each downloaded video carries its own Break it down button.
     cardAction:
-      view === "downloaded"
+      view === "downloaded" && !pickedCreator
         ? (video: ViralVideo) => (
             <Button
               type="button"
@@ -692,20 +779,27 @@ export function ViralProjectScreenView({
               onClick={() => void saveMany([video], true)}
             >
               <SparklesIcon />
-              AI analyse
+              Break it down
             </Button>
           )
         : undefined,
   }
 
+  const selectChip = <MassSelectChip on={selecting} onToggle={toggleSelecting} />
+
   const videoContent = (emptyText: string) =>
     middleVideos.length === 0 ? (
       <p className="px-4 py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
     ) : layout === "grid" ? (
-      <VideoGrid size={size} {...gridProps} />
+      <>
+        {/* The grid has no heading row, so the chip has a row of its own. */}
+        <div className="flex px-3 pt-3">{selectChip}</div>
+        <VideoGrid size={size} {...gridProps} />
+      </>
     ) : (
       <VideoList
         {...gridProps}
+        selectChip={selectChip}
         sort={sort}
         direction={direction}
         onSort={(column) =>
@@ -720,7 +814,7 @@ export function ViralProjectScreenView({
 
   const brokenDownEmpty = brokenDownCount
     ? "No broken-down video matches these filters."
-    : "Nothing broken down yet. Pick a video and press AI analyse. It shows here once the AI has watched it."
+    : "Nothing broken down yet. Pick a video and press Break it down. It shows here once the AI has watched it."
 
   const downloadedEmpty = downloadedCount
     ? "No downloaded video matches these filters."
@@ -736,13 +830,16 @@ export function ViralProjectScreenView({
         ? "No video matches these filters."
         : "The searches found nothing. Try other keywords or a longer window."
 
+  // The grid's chip shows while the grid is pointed at, as a list's does
+  // while its first heading is.
+  const bodyClassName = cn("min-h-0 flex-1", layout === "grid" && "group/title")
+
   let middle: React.ReactNode
-  if (view === "creators" && pickedCreator) {
+  if (pickedCreator) {
     middle = (
       <>
         <DashboardCardTitleHeader
-          icon={<FilmIcon />}
-          back={{ label: "Back to every creator", onClick: () => setSearch({ creator: undefined, video: undefined }) }}
+          back={{ label: "Back to every video", onClick: () => setSearch({ creator: undefined, open: undefined }) }}
           title={pickedCreator.name}
           meta={
             pickedCreator.subscribers !== null
@@ -751,10 +848,14 @@ export function ViralProjectScreenView({
                 ? `@${pickedCreator.handle}`
                 : undefined
           }
-          action={layoutToggle}
+          action={
+            <div className="flex items-center gap-1">
+              {selectedMenu}
+              {layoutToggle}
+            </div>
+          }
         />
-        {bulkBar}
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea className={bodyClassName}>
           {creatorUploads?.state === "loading" ? (
             <LoadingRow label="Reading their newest uploads…" />
           ) : creatorUploads?.state === "failed" ? (
@@ -771,49 +872,25 @@ export function ViralProjectScreenView({
         </ScrollArea>
       </>
     )
-  } else if (view === "creators") {
-    middle = (
-      <>
-        <DashboardCardHeader className="flex-wrap">
-          {viewTabs}
-          <div className="ml-auto">
-            <DashboardToolbarButton type="button" variant="outline" disabled={project.sample} onClick={() => setAddingCreator(true)}>
-              <PlusIcon className="size-4" />
-              Add a creator
-            </DashboardToolbarButton>
-          </div>
-        </DashboardCardHeader>
-        {creatorsToolbar}
-        <ScrollArea className="min-h-0 flex-1">
-          {creators.length ? (
-            <CreatorList
-              creators={creators}
-              selectedKey={pickedCreator?.key ?? null}
-              onPick={pickCreator}
-              onWatchChange={project.sample ? undefined : (creator, watch) => void changeWatch(creator, watch)}
-            />
-          ) : (
-            <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-              {screen.creators.length
-                ? "No creator matches these filters."
-                : "Creators show here once a search has found videos, or once you add one."}
-            </p>
-          )}
-        </ScrollArea>
-      </>
-    )
   } else {
     middle = (
       <>
-        <DashboardCardHeader className="flex-wrap">
-          {viewTabs}
-          {searching ? (
-            <Loader2Icon className="ml-auto size-4 animate-spin text-muted-foreground" aria-label="Searching" />
-          ) : null}
+        <DashboardCardHeader className="@container">
+          <DashboardTabs
+            value={view}
+            onValueChange={(next) => {
+              setTicked(new Set())
+              setSearch({ view: next === "videos" ? undefined : next })
+            }}
+            tabs={[
+              { value: "videos", label: "Videos", count: projectVideos.length },
+              { value: "downloaded", label: "Downloaded", count: downloadedCount },
+              { value: "broken", label: "Broken down", count: brokenDownCount },
+            ]}
+          />
+          {toolbar}
         </DashboardCardHeader>
-        {videosToolbar}
-        {bulkBar}
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea className={bodyClassName}>
           {videoContent(
             view === "broken" ? brokenDownEmpty : view === "downloaded" ? downloadedEmpty : videosEmpty
           )}
@@ -826,11 +903,12 @@ export function ViralProjectScreenView({
     pickedVideo || !pickedCreator ? (
       <PlayerPanel
         video={pickedVideo}
+        emptyText="Click a video to play it and see its breakdown here."
         projectId={project.id}
         favourites={favourites}
         onFavouritesChanged={refresh}
         onHideChannel={(video) => void hideChannels([video])}
-        onBack={pickedCreator ? () => setSearch({ video: undefined }) : undefined}
+        onBack={pickedCreator ? () => setSearch({ open: undefined }) : undefined}
         onSavedChange={progress.report}
         onDeleted={(video) => afterDelete([video.key])}
       />
@@ -858,17 +936,19 @@ export function ViralProjectScreenView({
     )
 
   return (
-    <>
-      <ViralPanels
-        left={left}
-        middle={middle}
-        right={right}
-        leftLabel="Show the project"
-        rightLabel={pickedVideo ? "Show the video" : "Show the creator"}
-        rightOpen={Boolean(pickedVideo || pickedCreator)}
-        onCloseRight={() => setSearch(pickedVideo ? { video: undefined } : { creator: undefined })}
-      />
-
+    <ThreePanels
+      layoutKey={LAYOUT_KEY}
+      place={{ key: PLACE_KEY, search, ids: middleVideos.map((video) => video.key) }}
+      showMiddleFor={search.creator ?? ""}
+      showRightFor={search.open}
+      left={{ label: "Project", showLabel: "Show the project", content: left }}
+      middle={{ label: "Videos", content: middle }}
+      right={{
+        label: pickedVideo || !pickedCreator ? "Video" : "Creator",
+        showLabel: pickedVideo || !pickedCreator ? "Show the video" : "Show the creator",
+        content: right,
+      }}
+    >
       <ViralProjectDialog
         open={settingsOpen}
         project={project}
@@ -882,11 +962,11 @@ export function ViralProjectScreenView({
         }}
       />
 
-      <AddCreatorDialog
-        projectId={project.id}
-        open={addingCreator}
-        onOpenChange={setAddingCreator}
-        onAdded={refresh}
+      <SaveViewDialog
+        open={savingView}
+        here={viewsHere}
+        filters={currentView as SavedViewValues}
+        onClose={() => setSavingView(false)}
       />
 
       <DeleteSavedVideosDialog
@@ -943,32 +1023,117 @@ export function ViralProjectScreenView({
           await searchAll()
         }}
       />
+    </ThreePanels>
+  )
+}
+
+const ANY = "any"
+
+/**
+ * The Filter popover's rows, also Edit view's: the sort and its order, where
+ * the videos come from, how well they fit, and the keyword that found them.
+ * Each row is a label, then its Select.
+ */
+function ViralFilterRows({
+  idPrefix,
+  values,
+  keywords,
+  onChange,
+}: {
+  idPrefix: string
+  values: ViralViewFilters
+  keywords: ViralKeyword[]
+  onChange: (patch: Record<string, string | number | undefined>) => void
+}) {
+  // A view's keyword that has since been removed still shows, so the row never reads blank.
+  const keywordChoices = [
+    ...keywords.map((keyword) => keyword.keyword),
+    ...(values.keyword && !keywords.some((keyword) => keyword.keyword === values.keyword) ? [values.keyword] : []),
+  ]
+  return (
+    <>
+      <FilterRow id={`${idPrefix}-sort`} label="Sort by">
+        <Select value={values.sort ?? "score"} onValueChange={(next) => onChange({ sort: next === "score" ? undefined : next })}>
+          <SelectTrigger id={`${idPrefix}-sort`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {VIRAL_SORTS.map((one) => (
+              <SelectItem key={one} value={one}>
+                {viralSortLabels[one]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-direction`} label="Order">
+        <Select
+          value={values.direction ?? "desc"}
+          onValueChange={(next) => onChange({ direction: next === "asc" ? "asc" : undefined })}
+        >
+          <SelectTrigger id={`${idPrefix}-direction`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="desc">Highest first</SelectItem>
+            <SelectItem value="asc">Lowest first</SelectItem>
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-from`} label="From">
+        <Select value={values.from ?? "both"} onValueChange={(next) => onChange({ from: next === "both" ? undefined : next })}>
+          <SelectTrigger id={`${idPrefix}-from`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {VIRAL_SOURCES.map((one) => (
+              <SelectItem key={one} value={one}>
+                {viralSourceLabels[one]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-fit`} label="Fits the topic">
+        <Select value={String(values.fit ?? 0)} onValueChange={(next) => onChange({ fit: next === "0" ? undefined : Number(next) })}>
+          <SelectTrigger id={`${idPrefix}-fit`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {VIRAL_FIT_CHOICES.map((one) => (
+              <SelectItem key={one} value={String(one)}>
+                {one ? `${one} or more` : "Any fit"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-keyword`} label="Keyword">
+        <Select value={values.keyword ?? ANY} onValueChange={(next) => onChange({ keyword: next === ANY ? undefined : next })}>
+          <SelectTrigger id={`${idPrefix}-keyword`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY}>Every keyword</SelectItem>
+            {keywordChoices.map((keyword) => (
+              <SelectItem key={keyword} value={keyword}>
+                {keyword}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
     </>
   )
 }
 
-function SubscriberSelect({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: number | null
-  onChange: (value: number | null) => void
-}) {
+function FilterRow({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
   return (
-    <Select value={value === null ? "any" : String(value)} onValueChange={(next) => onChange(next === "any" ? null : Number(next))}>
-      <DashboardToolbarSelectTrigger aria-label={label} className="min-w-40">
-        <SelectValue />
-      </DashboardToolbarSelectTrigger>
-      <SelectContent>
-        <SelectItem value="any">{label}: any</SelectItem>
-        {SUBSCRIBER_STEPS.map((step) => (
-          <SelectItem key={step} value={String(step)}>
-            {label}: {formatCount(step)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-2">
+      <Label htmlFor={id} className="text-muted-foreground">
+        {label}
+      </Label>
+      {children}
+    </div>
   )
 }

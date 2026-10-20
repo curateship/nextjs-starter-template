@@ -18,7 +18,7 @@ import {
   loadProjectPage,
   removeProjectMember,
 } from "@/server/project/projects"
-import { deleteView, listSavedViews, saveView, updateView } from "@/server/project/saved-views"
+import { listSavedViews, projectSavedViewScreens, projectViewScreen } from "@/server/project/saved-views"
 import { projectTasks } from "@/server/project/schema"
 import { searchTasks } from "@/server/project/search"
 import { assignTask, createTask, deleteTask, setTaskStatus, updateTask } from "@/server/project/tasks"
@@ -26,9 +26,11 @@ import { loadTeamFigures, loadTeamTrends } from "@/server/project/team-figures"
 import { loadTeamMonth } from "@/server/project/team-days"
 import { removeTeamMember } from "@/server/project/teams"
 import { insertEmployee, projectFor, startTeam } from "@/server/project/test-people"
+import { deleteSavedView, saveSavedView, updateSavedView } from "@/server/saved-views"
 import type { CustomShellUser } from "@/server/schema"
 import { createTestDatabase } from "@/server/test-support"
 import type { TaskActivityEntry } from "@/server/project/project-activity"
+import { SAVED_VIEW_ERRORS, type SavedViewValues } from "@/lib/saved-views"
 
 /*
  * More features task 04: search every project, saved views, the team's
@@ -144,6 +146,31 @@ describe("searching every project", () => {
   })
 })
 
+/** A view on a project, or on My tasks for `projectId` null, kept in the shell's table. */
+async function saveView(
+  userId: string,
+  { projectId, ...input }: { projectId: string | null; name: string; filters: SavedViewValues },
+  database: CustomShellDb
+) {
+  const team = projectId ? "" : (await requireMembership(userId, database)).teamId
+  return saveSavedView(
+    userId,
+    { ...input, screen: projectViewScreen(team, projectId) },
+    database,
+    projectSavedViewScreens
+  )
+}
+
+function updateView(
+  userId: string,
+  input: { viewId: string; name: string; filters: SavedViewValues },
+  database: CustomShellDb
+) {
+  return updateSavedView(userId, input, database, projectSavedViewScreens)
+}
+
+const deleteView = deleteSavedView
+
 describe("saved views", () => {
   it("are the person's own, per project and on My tasks", async () => {
     const label = { status: "stuck" as const, person: ben.id }
@@ -158,7 +185,7 @@ describe("saved views", () => {
     expect(mine.filters).toEqual({ status: "stuck" })
     // Ben sees none of Anna's, and can't delete them.
     expect((await loadProjectPage(ben.id, website, database)).views).toEqual([])
-    await expect(deleteView(ben.id, view.id, database)).rejects.toThrow(PROJECT_ERRORS.viewNotFound)
+    await expect(deleteView(ben.id, view.id, database)).rejects.toThrow(SAVED_VIEW_ERRORS.notFound)
     await deleteView(anna.id, view.id, database)
     expect((await loadProjectPage(anna.id, website, database)).views).toEqual([])
   })
@@ -166,7 +193,7 @@ describe("saved views", () => {
   it("refuses an empty view and a project the person can't see", async () => {
     await expect(
       saveView(anna.id, { projectId: website, name: "Nothing", filters: { q: "  " } }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.viewNeedsFilters)
+    ).rejects.toThrow(SAVED_VIEW_ERRORS.needsFilters)
     await expect(
       saveView(ben.id, { projectId: secret, name: "Peek", filters: { status: "todo" } }, database)
     ).rejects.toThrow(PROJECT_ERRORS.projectNotFound)
@@ -185,11 +212,11 @@ describe("saved views", () => {
     // "None" isn't kept, so it alone is an empty view.
     await expect(
       saveView(anna.id, { projectId: website, name: "Nothing", filters: { group: "none" } }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.viewNeedsFilters)
+    ).rejects.toThrow(SAVED_VIEW_ERRORS.needsFilters)
     // My tasks has no Group row, so a group alone is nothing there.
     await expect(
       saveView(anna.id, { projectId: null, name: "By priority", filters: { group: "priority" } }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.viewNeedsFilters)
+    ).rejects.toThrow(SAVED_VIEW_ERRORS.needsFilters)
     const mine = await saveView(anna.id, { projectId: null, name: "Doing", filters: { status: "doing", group: "priority" } }, database)
     expect(mine.filters).toEqual({ status: "doing" })
   })
@@ -212,11 +239,11 @@ describe("saved views", () => {
     // Nothing left to show is refused, and the view is as it was.
     await expect(
       updateView(anna.id, { viewId: view.id, name: "Empty", filters: { group: "none" } }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.viewNeedsFilters)
+    ).rejects.toThrow(SAVED_VIEW_ERRORS.needsFilters)
     // Someone else's view isn't there for them.
     await expect(
       updateView(ben.id, { viewId: view.id, name: "Mine now", filters: { status: "todo" } }, database)
-    ).rejects.toThrow(PROJECT_ERRORS.viewNotFound)
+    ).rejects.toThrow(SAVED_VIEW_ERRORS.notFound)
     expect((await loadProjectPage(anna.id, website, database)).views).toEqual([edited])
 
     // On My tasks a view keeps no person or group.
@@ -225,6 +252,19 @@ describe("saved views", () => {
       (await updateView(anna.id, { viewId: mine.id, name: "Done", filters: { status: "done", person: ben.id, group: "tags" } }, database))
         .filters
     ).toEqual({ status: "done" })
+  })
+
+  it("can't be kept on another team's My tasks", async () => {
+    const other = await insertEmployee(database, { name: "Olga", email: "olga@example.test" })
+    const otherTeam = (await startTeam(database, [other])).team.id
+    await expect(
+      saveSavedView(
+        anna.id,
+        { screen: projectViewScreen(otherTeam, null), name: "Peek", filters: { status: "todo" } },
+        database,
+        projectSavedViewScreens
+      )
+    ).rejects.toThrow("FORBIDDEN")
   })
 
   it("go when their person leaves the project or the team", async () => {

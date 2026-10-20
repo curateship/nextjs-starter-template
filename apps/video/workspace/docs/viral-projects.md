@@ -54,42 +54,76 @@ changed most recently.
 
 ## The project screen
 
-`/admin/video-viral/<project id>` is three panels, the same shape as the
-editor: the project on the left, the videos in the middle, and the video you
-picked on the right. Drag the dividers and the sizes come back next time.
-Double-click a side panel's empty space to shut it, and a tab on the middle
-panel's edge opens it again.
+`/admin/video-viral/<project id>` is a three-column dashboard, built on the
+shell's pieces like every other one (the UI standard's "Three-column
+dashboards", `docs/shell/three-column-dashboards.md`). The left panel holds the
+project, its keywords and its creators. The middle holds the videos, and the
+right holds the video or creator you picked. Drag the dividers and the sizes
+come back next time. Double-click a side panel's empty space to shut it, and a
+tab on the middle panel's edge opens it again.
+
+**On arrival it goes back to where you were.** Opened from the left menu or
+the projects list, it returns to the address it last had in this browser: the
+tab, the filters, the sort, the picked creator and the playing video. Then, if
+no video is playing, the first one in the list opens, so the right panel is
+never empty. A shared link keeps its own view.
 
 ### The left panel
 
-One grey card per group:
+Flat sections, one per group, split by a line that runs to the panel's edges:
+no box and no grey behind them. Tyler drew it on 20 Oct 2026, and Viral is
+trying it; every other dashboard keeps the shell's grey cards. Each section's
+heading has a muted count where it has one ("Keywords · 3"), and its own
+buttons and fold arrow show only while it is pointed at. Each remembers
+whether it is open (`src/components/video-viral/flat-section.tsx`).
 
 - **About:** the description.
-- **Keywords:** one row per keyword with how its last search went: "Waiting
-  to search", "Searching", "12 found Oct 17", or "Failed" with the reason. A
+- **Keywords:** one plain row per keyword with how its last search went:
+  "Waiting to search", "Searching", "12 found · Oct 17", or "Failed" with the
+  reason. The picked keyword's row is grey. A
   keyword that found new videos shows "3 new". Clicking a keyword narrows the
   middle panel to the videos it found. The arrow searches that keyword again
   on its own. The cross removes it, after a window saying how many videos go
   with it. Below the rows: a box to add a keyword, the **Search every
   keyword** button, and a line with what a full search costs and how many of
   today's units are left.
+- **Creators:** every channel behind the project's results, plus everyone
+  followed in it, each with their subscribers, hits and typical score, with
+  how many there are ("Creators · 40", or "12 of 40"
+  while narrowed). Tyler moved it here from a middle tab on 20 Oct 2026,
+  together with Add creator. Under the list, **Filter** shows a search box and
+  the subscriber range, and **Add creator** opens a small dropdown to add a
+  creator by profile link. "Creators" below has the rest.
 - **Filters:** what the project asks YouTube for and which videos show, with a
   button to change them.
-- **At a glance:** how many videos and creators, the best score, the typical
-  views (the middle number of all of them), the YouTube units used and the
-  AI spend.
+- **At a glance:** a row each for how many videos and creators, the best
+  score, the typical views (the middle number of all of them), the YouTube
+  units used and the AI spend.
 - **Made from this:** every editor project Copy this made from this project,
   each one a link into the editor.
 
 ### The middle panel
 
-Four tabs: **Videos**, **Downloaded**, **Broken down** and **Creators**. On a
-phone the four are wider than the screen, so the row of tabs slides sideways.
+Three tabs in the header: **Videos**, **Downloaded** and **Broken down**, each
+with its count. They are drawn as pills or underlined, as Settings → Styling →
+Dashboard tabs says for every dashboard on the site. A row too long for the
+header slides sideways.
 
-The Videos tab has a grid of covers or a list of rows. Both choices and the
-card size (small, medium or large) are remembered in this browser. The grid
-and list switch sits at the end of the toolbar under the tabs, because four
-tabs fill the header.
+Right of the tabs, in this order: the **N selected** button while videos are
+ticked, the search (a magnifying glass that opens into a box), **Filter**,
+**Views**, and the list and grid switch.
+
+The Videos tab has a list of rows or a grid of covers. A browser that never
+chose opens on the list (Tyler, 20 Oct 2026). The choice is remembered in this
+browser, and so is the grid's card size (small, medium or large), which is the
+last row of the Filter dropdown.
+
+- **Each row of the list** has a small cover, the title with a **New** badge,
+  the channel under it (with Downloaded, Broken down or how far saving has
+  got), then the score as a short bar and a bold number, how well it fits the
+  topic, the views, views a day, the day it was posted ("Oct 15") and its
+  length. The video takes the spare width, so the figures sit together at the
+  right. Pointing at the score shows how sure it is and each part's points.
 
 - Each card shows the cover (upright for a Short, wide for anything longer),
   the score, the length, a **New** badge, the title, the channel, the views
@@ -102,31 +136,57 @@ tabs fill the header.
   about every working video in one request every 3 seconds, stops asking once
   none is working, and reads the project again when one finishes so its new
   score shows. Tyler asked for this on 17 Oct 2026.
-- **Sort** by score (the default), views, views per day, newest, or how well
-  it fits the topic. In the list, the column headings sort too.
 - **Search** narrows the videos by words in the title or channel name, on what
-  is already loaded.
-- **From** picks where the videos come from: the keyword searches, the
-  followed creators' own uploads, or both.
-- **Fit** hides videos the AI judged off-topic (below 40 or below 70). A video
-  the AI has not judged yet is kept, so the filter never seems to remove
-  something it never looked at.
-- **Ticking videos** offers Download, AI analyse, Star and Hide their
-  channels for all of them in one request each.
+  is already loaded. Escape empties and closes it.
+- **Filter** opens a dropdown with a row each for:
+  - **Sort by**: score (the default), views, views per day, newest, or how
+    well it fits the topic. In the list, the column headings sort too.
+  - **Order**: highest or lowest first.
+  - **From**: the keyword searches, the followed creators' own uploads, or
+    both.
+  - **Fits the topic**: hides videos the AI judged off-topic (below 40 or
+    below 70). A video the AI has not judged yet is kept, so the filter never
+    seems to remove something it never looked at.
+  - **Keyword**: the videos one keyword found. Clicking a keyword in the left
+    panel sets the same row.
+  - **Card size**, on the grid only.
+
+  The button counts the filters set (From, Fits and Keyword). **Clear** empties
+  those and leaves the sort and the card size alone. **Save as view** keeps the
+  search, filters and sort under a name.
+- **Views** lists your saved views on this project. Opening one sets its
+  search, filters and sort, as picking them by hand would. A view whose keyword
+  has since been removed says so and opens without it. Each row's cog renames
+  it or changes what it shows, and "Delete views…" removes them. Views are
+  yours alone and live in the shell's saved views, under
+  `viral-project:<project id>` (`src/lib/video/viral-saved-views.ts`,
+  `src/server/video/viral/saved-views.ts`).
+- **Mass select:** the tick boxes stay hidden until **Mass select** is
+  pressed. It shows while the grid, or the list's first heading, is pointed
+  at; on a phone it always shows. Ticked videos gather in the **N selected**
+  button, whose menu has **Break it down**, **Download**, **Star…**, **Hide their
+  channels**, and **Delete** on the saved tabs, then **Clear selection**. Each
+  is one request. **Hide select** hides the boxes again and clears the ticks.
+  A sample project's menu has Hide their channels only, because its videos
+  are made up and cannot be saved or starred.
 
 The **Downloaded** tab is the same list kept to the videos saved with
 Download whose AI has not run, with the same search, sort, source and fit,
-and its own count. Each card has its own **AI analyse** button, which moves
+and its own count. Each card has its own **Break it down** button, which moves
 it to Broken down without downloading it again. Ticking videos there offers
-AI analyse and **Delete**. Tyler asked for this tab on 18 Oct 2026. The
+Break it down and **Delete**. Tyler asked for this tab on 18 Oct 2026. The
 address keeps it (`?view=downloaded`).
 
 The **Broken down** tab is the same list kept to the videos whose breakdown
 has finished, with the same search, sort, source and fit, and its own count.
 A video still being broken down is not in it yet; it is the amber card on the
-Videos tab. Ticking videos there offers **Delete**, and no Download or AI
-analyse, since both are done. Tyler asked for this tab on 17 Oct 2026. The
+Videos tab. Ticking videos there offers **Delete**, and no Download or Break
+it down, since both are done. Tyler asked for this tab on 17 Oct 2026. The
 address keeps it (`?view=broken`).
+
+**A picked creator** replaces the tabs with their name, their subscribers and
+a back arrow ("Back to every video"), and the middle shows their newest
+uploads.
 
 Delete opens a window that lists the editor projects made from those videos
 with Copy this, and says what happens to the downloaded files
@@ -136,39 +196,56 @@ None of the sorting, searching or filtering asks the server or YouTube.
 
 ### The right panel
 
-Picking a video plays it here.
+Picking a video plays it here. Tyler drew this panel on 20 Oct 2026, and the
+Favourites screen shows the same one.
 
+- **The header** has the title, with the platform and channel under it
+  ("YouTube · Desk Fit Daily"), then the video's actions as icons, each with
+  its name on hover: **Star**, **Copy link**, **Delete** (a saved video only),
+  **Hide** the channel, and **Open on YouTube**. A sample has only Hide,
+  because its videos are made up.
 - **Playing costs nothing.** A YouTube video plays in YouTube's own embed,
   through the no-cookie address so looking at research is not tracked. TikTok
   and Instagram show their cover and a button out to their own site. A video
-  that was downloaded plays from the app's own copy instead.
-- Under the player: views, likes and comments; the star; **Open on YouTube**;
-  **Copy link**; **Delete** for a saved video; and **Hide** for the channel.
-- **Why it scores N** lists the five parts of the score with the points each
-  gave, such as "21.8 of 25", and what was missing. The score itself is in
+  that was downloaded plays from the app's own copy instead. A sample shows a
+  dark box with a play mark, "A sample has nothing to play." and its length.
+- **Under the player,** one strip: Views, Likes, Comments and Fits.
+- **The score** is written large, "62 / 100 score", with how sure it is in a
+  chip beside it. Under it, each of the five parts with its points out of what
+  it is worth, such as "25.6 of 30", and a bar filled to match. A line under
+  them says what was missing, such as "Breakdown is missing, so it scores 0 of
+  10. Break this video down to fill it in." The score itself is in
   `viral-score.md`.
-- **Copy this**, **Download** and **AI analyse** sit under the score, with a
-  line above them saying only AI analyse spends AI money
-  (`creator-research.md` for what each downloads and spends). A downloaded
-  video shows AI analyse alone, with a line saying no AI has watched it yet.
-  Pressed here, they remember this project: Copy this saves the project's id
-  on the editor project it makes, and the breakdown's AI cost counts against
-  this project's spend limit. Download spends no AI, so a spend limit never
-  refuses it.
+- **The details:** when it was posted, its length, views a day, and the
+  keywords that found it.
+- **A finished breakdown** follows the details (`creator-research.md`).
+- **The buttons are pinned to the panel's foot,** under everything that
+  scrolls. A video nobody has saved has **Download**, **Copy this** and
+  **Break it down**. While one is being saved the bar says how far it has got.
+  A downloaded one has Copy this and Break it down, a broken-down one Copy this,
+  and a failed one says why with **Try again**. On a sample, Download and
+  Break it down say the video is made up instead of running. Hovering
+  Download says it spends storage only; hovering Break it down says it spends
+  from the monthly AI allowance (`creator-research.md` for what each
+  downloads and spends). Pressed here, they remember this project: Copy this
+  saves the project's id on the editor project it makes, and the breakdown's
+  AI cost counts against this project's spend limit. Download spends no AI, so
+  a spend limit never refuses it.
 
 ### The address
 
 Everything you would want back after a reload is in the address: the tab, the
-playing video (`?video=youtube:<id>`), the picked creator, the sort, the
-search words, the source, the keyword and the fit. A reload or a shared link
-opens the same thing. An address naming a video that is no longer in the
-results drops it quietly instead of showing an error.
+playing video (`?open=youtube:<id>`, the dashboard's open record), the picked
+creator, the sort, the search words, the source, the keyword and the fit. A
+reload or a shared link opens the same thing. An address naming a video that
+is no longer in the results drops it quietly instead of showing an error.
 
 ### On a phone
 
-Below 1280 pixels wide, the left and middle panels stack and the page scrolls.
-Tapping a video opens the right panel as a sheet over the grid. Closing it
-leaves the grid exactly where it was.
+Below 1280 pixels wide, one panel shows at a time, under a row of three
+pills: Videos, Project and Video (or Creator). Picking a video switches to
+Video, and picking a creator in the Project panel switches to their videos.
+All three stay loaded, so going back keeps the grid exactly where it was.
 
 ## Searching
 
@@ -271,14 +348,20 @@ The cog in the left panel's header opens **Project settings**:
 
 ## Creators
 
-The Creators tab lists every channel behind the project's results, plus every
-creator followed in the project, most hits first.
+The Creators card in the left panel lists every channel behind the project's
+results, plus every creator followed in the project, most hits first.
 
-- **Hits** is how many of the project's videos are theirs. **Typical** is the
-  middle score of their videos.
-- **Subscribers from** and **up to** narrow the list, for example to creators
-  with 10,000 to 500,000 subscribers. A creator whose count is hidden only
-  shows with no range set.
+- Each row has the picture, the name, a Following or Paused badge, and one
+  muted line: the subscribers and the **hits** (how many of the project's
+  videos are theirs). **Typical** (the middle score of their videos) sits at
+  the row's right for a creator the search found. A followed creator's line
+  adds their typical score and when they were last checked ("0 hits · 49
+  typical · 3h ago"), and the row's right holds their **Check for new posts**
+  switch (Tyler, 20 Oct 2026).
+- **Filter**, under the list, shows a search box and **Subscribers from** and
+  **Subscribers up to**, for example creators with 10,000 to 500,000 subscribers. A creator
+  whose count is hidden only shows with no range set. The search and range
+  stay while you move around the screen and start empty on a reload.
 - **Picking a creator** fills the middle panel with their newest uploads and
   shows their card on the right: picture, subscribers, hits, how often they
   post, Follow or Unfollow, their profile and Hide. Picking one of their videos
@@ -288,17 +371,20 @@ creator followed in the project, most hits first.
   YouTube channels can be looked at without following them.
 - **How often they post** is videos a week over the last 4 weeks. With fewer
   than 3 posts known it says "Not enough posts yet".
-- **Check for new posts** is a switch on each followed creator's row, with
-  "Last checked 2 hours ago" beside it. Switching it off pauses the watch
+- **Check for new posts** is the switch at the right of each followed
+  creator's row, and hovering it says what it does. Switching it off pauses the watch
   timer for that creator in every project they are in, because a creator is
   stored once (`creator-research.md`, "Pausing one creator"). Creators found
   only through the search have neither, because the timer never checks them.
 - **Follow** adds them to this project. A YouTube creator's 10 newest uploads
   are read at once, so the grid has them before the watch timer's next turn.
-- **Add a creator** takes a profile link, for somebody the search did not
-  find. TikTok creators' videos arrive when the watch timer next checks.
-  Instagram creators can be added but never get videos, because Instagram
-  refuses the app's requests (`creator-research.md`).
+- **Add creator**, under the list, opens a small dropdown with a **Profile
+  link** box: a YouTube channel, a TikTok profile or an Instagram profile, for
+  somebody the search did not find. Enter adds them. TikTok creators' videos
+  arrive when the watch timer next checks. Instagram creators can be added but
+  never get videos, because Instagram refuses the app's requests
+  (`creator-research.md`). A sample project follows nobody, so its + is off
+  and says why.
 
 ### One creator in several projects
 

@@ -57,6 +57,28 @@ export type ShellStyling = {
   modal: ShellModalStyling
   /** How dark the dark mode is. Ignored in light mode. */
   darkShade: DarkShadeId
+  /**
+   * How a three-column dashboard draws the tabs in its panel headers. Unset
+   * reads as pills (`DEFAULT_DASHBOARD_TABS`). Optional, because a row saved
+   * before the choice existed, and a scaffold captured before it, have none.
+   */
+  dashboardTabs?: DashboardTabStyle
+}
+
+/**
+ * The two ways a dashboard's header tabs can be drawn: the grey track with a
+ * raised pill, or words with a line under the one showing. Tyler, 20 Oct
+ * 2026: "Line tab or pill tabs should be a choice all apps can make".
+ */
+export const DASHBOARD_TAB_STYLES = ["pills", "underline"] as const
+
+export type DashboardTabStyle = (typeof DASHBOARD_TAB_STYLES)[number]
+
+/** Pills, Tyler's pick on 20 Oct 2026 for a site that never chose. */
+export const DEFAULT_DASHBOARD_TABS: DashboardTabStyle = "pills"
+
+export function isDashboardTabStyle(value: unknown): value is DashboardTabStyle {
+  return DASHBOARD_TAB_STYLES.includes(value as DashboardTabStyle)
 }
 
 export type ShellModalStyling = {
@@ -286,6 +308,9 @@ export function normalizeStyling(value: unknown): ShellStyling {
     content: normalizeBackground(styling.content, fallback.content),
     chrome: normalizeBackground(styling.chrome, fallback.chrome),
     modal: normalizeModalStyling(styling.modal),
+    ...(isDashboardTabStyle(styling.dashboardTabs)
+      ? { dashboardTabs: styling.dashboardTabs }
+      : {}),
   }
 }
 

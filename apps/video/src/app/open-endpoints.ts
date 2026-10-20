@@ -62,6 +62,8 @@ export const appGuardedDeeper: Record<string, string> = {
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project, or signedInActor refuses a guest when no project is named.",
   "video/exports.ts:updateExportFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForExport finds the export's project and checks it is the guest's before updateOwnedExport.",
+  "video/exports.ts:setExportHandEditedFn":
+    "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForExport finds the export's project and checks it is the guest's before setOwnedExportHandEdited.",
   "video/exports.ts:setExportCoverFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForExport finds the export's project and checks it is the guest's before setOwnedExportCover.",
   "video/saved-frames.ts:saveExportFrameFn":

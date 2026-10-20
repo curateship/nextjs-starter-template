@@ -215,17 +215,19 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
     upload.
   - A left panel that is a list or figures (an inbox, a list of types, a run's
     stats) has neither.
-- **Tabs follow their count.** A row of 3 or more tabs is `UnderlineTabs`,
-  drawn on the header's bottom line. A row of 1 or 2 is the shell's pill
-  `Tabs`. Tyler, 19 Oct 2026: "if there are more than 2 tabs then we use the
-  bottom border underline. If not then we use regular tabs."
-  - A "More" dropdown drawn as a tab counts as a tab.
-  - A row whose length depends on who is looking takes its style from the
-    most tabs it can show, so it never changes style between people.
-  - Words only, no icons. A count goes after the word, as `TabsCount`.
-  - `UnderlineTabs` lives in
-    `apps/project/src/components/project/task-header-controls.tsx` until it
-    moves to the shell.
+- **Tabs are a site's choice, pills or underlined.** Tyler, 20 Oct 2026:
+  "Line tab or pill tabs should be a choice all apps can make." Settings →
+  Styling → Dashboard tabs picks one for every dashboard on the site, and a
+  site that never chose gets pills. This replaced the rule of 19 Oct 2026
+  that the count decided (3 or more underlined, 1 or 2 pills).
+  - Every tab row in a dashboard's panel header is the shell's
+    `DashboardTabs` (`src/components/shared/dashboard-tabs.tsx`), so it
+    follows the setting. A "More" dropdown drawn as a tab is
+    `DashboardTabButton`.
+  - Either way the marker slides to the tab picked: the pill, or the line
+    under it (Tyler, 20 Oct 2026: "line tab should use the sliding animation
+    too like pill").
+  - Words only, no icons. A count goes after the word, as the tab's `count`.
 - **The middle header's toolbar**, right of the tabs, in this order: the "N
   selected" button while rows are ticked, the search toggle, Filter, Views,
   the people filter, then the one primary "New …" button. In a narrow panel
@@ -265,9 +267,15 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
   - **Views** are filter sets saved per person with a name. The Views button
     lists them and applies one, "Save as view" in Filter makes one, and a view
     whose person or tag has since gone says so instead of failing.
-  - The reference is `TaskFilterPopover` (`task-filter-popover.tsx`) and
-    `SavedViewsControls` (`saved-views.tsx`) in
-    `apps/project/src/components/project/`, until they move to the shell.
+  - Views are the shell's `SavedViewsControls` and `SaveViewDialog`
+    (`src/components/shared/saved-views.tsx`), kept in the shell's
+    `saved_views` table. The app registers each screen's kind in
+    `savedViews.screens` (`src/server/app-options.ts`). They moved there from
+    Project on 20 Oct 2026, when Tyler asked for them on Video's Viral project
+    and said "Fix project too".
+  - The Filter frame is the shell's `FilterPopover`
+    (`src/components/shared/filter-popover.tsx`); Project's
+    `TaskFilterPopover` is the drawing it was taken from.
 - **A middle list whose rows can change together has mass select** (Tyler,
   19 Oct 2026: "the mass select function as well"). It replaces the Tables
   rule's always-shown tick box column on these screens.
@@ -290,10 +298,23 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
     (`task-bulk-bar.tsx`) in `apps/project/src/components/project/`, until
     they move to the shell.
 - **Side panel bodies** are a `ScrollArea` holding `grid gap-3 p-3`. Groups in
-  them are `PanelCard` (`apps/project/src/components/project/panel-card.tsx`
-  until it moves to the shell): a grey box that folds and remembers it, with a
-  note after the title, a badge, a cog or + of its own, and a footer of
+  them are the shell's `PanelCard` (`src/components/shared/panel-card.tsx`;
+  Project still has its own copy): a grey box that folds and remembers it,
+  with a note after the title, a badge, a cog or + of its own, and a footer of
   buttons. Small-caps headings use one shared heading, never a copied class.
+  - **One screen is trying flat sections instead.** Video's Viral project
+    draws its left panel as sections with no box or grey, split by a line
+    running to the panel's edges (Tyler's design, 20 Oct 2026;
+    `apps/video/src/components/video-viral/flat-section.tsx`). Every other
+    dashboard keeps `PanelCard` until Tyler decides.
+- **A card's header buttons show on hover only.** Tyler, 20 Oct 2026,
+  pointing at a card's cog, + and arrow: "all these should be hover to show
+  only." The cog, the card's own buttons and the fold arrow stay hidden until
+  the card is pointed at or holds the keyboard's focus, folded or open. A
+  button whose dropdown or footer is open stays in view, and a screen with no
+  pointer (a phone) always shows them. `PanelCard` does this for every card;
+  there is no switch to turn it off. The title, its note and its badge always
+  show.
 - **The right panel** with nothing open has a `DashboardCardTitleHeader` naming
   what will show there, then a centred icon and one line, such as "Click a task
   to see its steps and chat here." With a record open, its header holds the
@@ -406,8 +427,9 @@ card in the rail on `/admin/settings`.
 - The list may fill available width, but triggers stay content-width.
 - Tabs in a dashboard card header have words only and no icons (Tyler, 25 Sep
   2026).
-- **In a three-column dashboard, the count decides.** Three or more tabs in a
-  row are `UnderlineTabs`; one or two are these pills (Tyler, 19 Oct 2026; see
+- **In a three-column dashboard, the site decides.** A panel header's tabs
+  are `DashboardTabs`, drawn as these pills or underlined as Settings →
+  Styling → Dashboard tabs says, pills by default (Tyler, 20 Oct 2026; see
   Three-column dashboards). Elsewhere, tabs are pills, and no other screen
   draws underline or plain-text tabs.
 - **One exception outside a dashboard: Video's Extras box** in the AI clip

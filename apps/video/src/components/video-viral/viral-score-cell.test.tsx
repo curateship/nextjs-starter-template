@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import { ViralScoreCell } from "@/components/video-viral/viral-score-cell"
+import { ViralScoreBlock } from "@/components/video-viral/viral-score-parts"
 import { scoreViralVideo } from "@/lib/video/viral-score"
 
 // The first worked example in viral-score.test.ts: 80, medium, no breakdown.
@@ -67,10 +68,10 @@ function render(rowAction = vi.fn()) {
 }
 
 describe("ViralScoreCell", () => {
-  it("shows the score with how sure it is beside it", () => {
+  it("shows the score in bold after its bar, and says how sure it is to a screen reader", () => {
     render()
     const button = container.querySelector("button")
-    expect(button?.textContent).toBe("80sure: medium")
+    expect(button?.textContent).toBe("80")
     expect(button?.getAttribute("aria-label")).toContain(
       "Score 80 out of 100, sure: medium"
     )
@@ -89,5 +90,38 @@ describe("ViralScoreCell", () => {
     expect(text).toContain("Breakdown0 of 10")
     expect(text).toContain("Missing breakdown")
     expect(rowAction).not.toHaveBeenCalled()
+  })
+})
+
+describe("the right panel's score block", () => {
+  it("shows the score, how sure it is, each part out of its worth, and what the missing breakdown costs", () => {
+    act(() => root.render(<ViralScoreBlock score={score} />))
+    const text = container.textContent ?? ""
+    expect(text).toContain("80/ 100 score")
+    expect(text).toContain("Sure: medium")
+    expect(text).toContain("Views per day30 of 30")
+    expect(text).toContain("Breakdown0 of 10")
+    expect(text).toContain(
+      "Breakdown is missing, so it scores 0 of 10. Break this video down to fill it in."
+    )
+    expect(text).not.toContain("Also missing")
+  })
+
+  it("names other missing figures on their own when the breakdown is there", () => {
+    const noFollowers = scoreViralVideo({
+      views: 1_200_000,
+      likes: 90_000,
+      comments: 3_000,
+      postedAt: "2026-10-05T12:00:00Z",
+      followers: null,
+      breakdown: {
+        transcript: [{ startMs: 0, endMs: 2000, text: "Stop scrolling" }],
+        segments: [{ role: "hook", startMs: 0, endMs: 2000, summary: "A dare" }],
+        scenes: [{ startMs: 0, endMs: 2000 }],
+      },
+      now: new Date("2026-10-09T12:00:00Z"),
+    })
+    act(() => root.render(<ViralScoreBlock score={noFollowers} />))
+    expect(container.textContent).toContain("Missing: follower count.")
   })
 })

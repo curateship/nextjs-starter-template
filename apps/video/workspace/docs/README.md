@@ -206,7 +206,7 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   look picture set in a project's Settings window, which AI tools send them, and
   why a bad style line spoils every scene at once.
 - [creator-research.md](creator-research.md) — following a creator, the
-  six-hourly watch timer, pausing one creator, what Download and AI analyse
+  six-hourly watch timer, pausing one creator, what Download and Break it down
   download, spend and write down, and what deleting a saved video removes.
 
 The AI tools, the credit ledger and the rest of the export and render path were

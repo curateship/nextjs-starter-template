@@ -5,7 +5,10 @@ import { ViralProjectScreenView } from "@/components/video-viral/viral-project-s
 import { getViralErrorMessage } from "@/lib/api/video/viral"
 import { loadFavourites } from "@/lib/api/video/viral-collections"
 import { loadViralProject } from "@/lib/api/video/viral-projects"
+import { loadSavedViews } from "@/lib/api/saved-views"
 import { readDirection, readOneOf, readSearchText } from "@/lib/nav/list-search"
+import { savedViewScreen } from "@/lib/saved-views"
+import { VIRAL_SAVED_VIEW_KIND } from "@/lib/video/viral-saved-views"
 import {
   VIRAL_FIT_CHOICES,
   VIRAL_SORTS,
@@ -15,9 +18,9 @@ import {
 
 type ViralProjectSearch = {
   /** Videos is the default and stays out of the address. */
-  view?: "downloaded" | "broken" | "creators"
-  /** The playing video, `platform:id`. */
-  video?: string
+  view?: "downloaded" | "broken"
+  /** The playing video, `platform:id`: the dashboard's open record. */
+  open?: string
   /** The picked creator, `platform:channel`. */
   creator?: string
   sort?: (typeof VIRAL_SORTS)[number]
@@ -49,13 +52,8 @@ function readFit(value: unknown): ViralFit | undefined {
  */
 export const Route = createFileRoute("/_authenticated/admin/video-viral_/$projectId")({
   validateSearch: (search: Record<string, unknown>): ViralProjectSearch => ({
-    view:
-      search.view === "creators" ||
-      search.view === "broken" ||
-      search.view === "downloaded"
-        ? search.view
-        : undefined,
-    video: readKey(search.video),
+    view: search.view === "broken" || search.view === "downloaded" ? search.view : undefined,
+    open: readKey(search.open),
     creator: readKey(search.creator),
     sort: readOneOf(search.sort, VIRAL_SORTS),
     direction: readDirection(search.direction),
@@ -68,17 +66,18 @@ export const Route = createFileRoute("/_authenticated/admin/video-viral_/$projec
     fit: readFit(search.fit),
   }),
   loader: async ({ params }) => {
-    const [screen, favourites] = await Promise.all([
+    const [screen, favourites, views] = await Promise.all([
       loadViralProject(params.projectId),
       loadFavourites(),
+      loadSavedViews(savedViewScreen(VIRAL_SAVED_VIEW_KIND, params.projectId)),
     ])
-    return { screen, favourites }
+    return { screen, favourites, views }
   },
   component: AdminViralProjectRoute,
   errorComponent: routeErrorComponent(getViralErrorMessage),
 })
 
 function AdminViralProjectRoute() {
-  const { screen, favourites } = Route.useLoaderData()
-  return <ViralProjectScreenView screen={screen} favourites={favourites} />
+  const { screen, favourites, views } = Route.useLoaderData()
+  return <ViralProjectScreenView screen={screen} favourites={favourites} views={views} />
 }

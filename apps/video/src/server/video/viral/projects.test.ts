@@ -6,6 +6,10 @@ import { now, uuid } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
+import { listSavedViews, saveSavedView } from "@/server/saved-views"
+import { savedViewScreen } from "@/lib/saved-views"
+import { VIRAL_SAVED_VIEW_KIND } from "@/lib/video/viral-saved-views"
+import { viralSavedViewScreen } from "@/server/video/viral/saved-views"
 import { createOwnedProject } from "@/server/video/projects"
 import {
   videoCreatorPosts,
@@ -242,6 +246,20 @@ describe("deleting", () => {
       .from(videoProjects)
       .where(eq(videoProjects.id, editor.id))
     expect(kept.sourceViralProjectId).toBeNull()
+  })
+
+  it("takes the project's saved views with it", async () => {
+    const project = await newProject(["desk stretches"])
+    const screen = savedViewScreen(VIRAL_SAVED_VIEW_KIND, project.id)
+    await saveSavedView(
+      user.id,
+      { screen, name: "Most viewed", filters: { sort: "views" } },
+      database,
+      { [VIRAL_SAVED_VIEW_KIND]: viralSavedViewScreen }
+    )
+    expect(await listSavedViews(user.id, screen, database)).toHaveLength(1)
+    await deleteViralProjects(user.id, [project.id])
+    expect(await listSavedViews(user.id, screen, database)).toEqual([])
   })
 
   it("refuses to delete somebody else's project", async () => {

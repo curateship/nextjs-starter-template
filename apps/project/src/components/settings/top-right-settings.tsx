@@ -9,7 +9,13 @@ import {
   arrayMove,
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { GripVertical, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
+import {
+  GripVertical,
+  PlusIcon,
+  RotateCcwIcon,
+  SmartphoneIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import {
@@ -32,8 +38,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import type { AppHeaderAction } from "@/lib/app-options"
+import { appActionFoldsOnPhone, type AppHeaderAction } from "@/lib/app-options"
 import {
   isShellEntryNamed,
   isShellTopRightLink,
@@ -75,10 +86,12 @@ function AppActionChip({
   item,
   action,
   onVisibleChange,
+  onFoldsOnPhoneChange,
 }: {
   item: ShellTopRightAppAction
   action: AppHeaderAction | undefined
   onVisibleChange: (visible: boolean) => void
+  onFoldsOnPhoneChange: (foldsOnPhone: boolean) => void
 }) {
   if (!action) return null
 
@@ -87,6 +100,14 @@ function AppActionChip({
       item={item}
       meta={action}
       onVisibleChange={onVisibleChange}
+      phone={
+        action.phoneChoice
+          ? {
+              folds: appActionFoldsOnPhone(item, action),
+              onChange: onFoldsOnPhoneChange,
+            }
+          : undefined
+      }
     />
   )
 }
@@ -95,10 +116,13 @@ function SortableFixedChip({
   item,
   meta,
   onVisibleChange,
+  phone,
 }: {
   item: ShellTopRightBuiltIn | ShellTopRightAppAction
   meta: { label: string; icon: AppHeaderAction["icon"] }
   onVisibleChange: (visible: boolean) => void
+  /** Where it goes on a phone, for an app control that lets you choose. */
+  phone?: { folds: boolean; onChange: (folds: boolean) => void }
 }) {
   const Icon = meta.icon
   const chip = useSortableChip(item.id, meta.label)
@@ -130,6 +154,29 @@ function SortableFixedChip({
           />
           <span className="sr-only">Show {meta.label}</span>
         </label>
+        {/* Says where the control sits on a phone and moves it on a press:
+            in the header row, or folded into the three-dot dropdown. */}
+        {phone ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0 gap-1.5 text-muted-foreground"
+                aria-label={`On a phone, ${meta.label} is in the ${phone.folds ? "dropdown" : "menu bar"}. Move it to the ${phone.folds ? "menu bar" : "dropdown"}.`}
+                onClick={() => phone.onChange(!phone.folds)}
+              >
+                <SmartphoneIcon className="h-4 w-4" />
+                {phone.folds ? "Dropdown" : "Menu bar"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Where it goes on a phone. Press to move it to the{" "}
+              {phone.folds ? "menu bar" : "dropdown"}.
+            </TooltipContent>
+          </Tooltip>
+        ) : null}
       </div>
     </div>
   )
@@ -355,6 +402,16 @@ export function TopRightSettings({
     )
   }
 
+  const handleFoldsOnPhoneChange = (actionId: string, foldsOnPhone: boolean) => {
+    onItemsChange(
+      items.map((item) =>
+        item.type === "app" && item.id === actionId
+          ? { ...item, foldsOnPhone }
+          : item
+      )
+    )
+  }
+
   // Looked up live when the dialog renders, so it can never name a link that
   // has already been deleted.
   const pendingDeleteLink =
@@ -409,6 +466,9 @@ export function TopRightSettings({
                     )}
                     onVisibleChange={(visible) =>
                       handleVisibleChange(item.id, visible)
+                    }
+                    onFoldsOnPhoneChange={(foldsOnPhone) =>
+                      handleFoldsOnPhoneChange(item.id, foldsOnPhone)
                     }
                   />
                 ) : (

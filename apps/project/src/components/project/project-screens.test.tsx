@@ -36,6 +36,8 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/lib/layout/wide-screen", () => ({ useWideScreen: () => true }))
 vi.mock("@/components/shell/shell-layout", () => ({
   useShellRuntime: () => ({ config: { dashboardRowsPerPage: 25 } }),
+  // No runtime, so dashboard tabs draw as pills, the default.
+  useOptionalShellRuntime: () => null,
 }))
 
 function card(overrides: Partial<TaskCard>): TaskCard {
@@ -480,6 +482,7 @@ describe("the project page", () => {
     tasks,
     otherProjects: [],
     views: [],
+    viewScreen: "project:p1",
   }
 
   it("draws details, tasks with the header's dropdowns, and an empty task panel", () => {

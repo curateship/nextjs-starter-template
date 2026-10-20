@@ -13,6 +13,7 @@ import {
 import { runBillingTriggerScans } from "@/server/automations/billing-triggers"
 import { runTimeActivateTriggers } from "@/server/automations/time-triggers"
 import { runJoinedSegmentTriggers } from "@/server/automations/segment-triggers"
+import { runSegmentDripTriggers } from "@/server/automations/segment-drip"
 import { readAutomationsPaused } from "@/server/automations/pause"
 import { automationSubjectLabel } from "@/server/automations/triggers"
 import {
@@ -26,7 +27,7 @@ import {
   publishNotificationCreated,
   publishNotificationCreatedMany,
 } from "@/server/notifications/events"
-import { findActiveWorkspaceMember } from "@/server/people/workspace-users"
+import { findAutomationTestContact } from "@/server/automations/test-contacts"
 import {
   customShellAutomationRuns,
   customShellAutomationRunSteps,
@@ -99,6 +100,11 @@ export async function runAutomationTick(database: CustomShellDb = db) {
     started += await runJoinedSegmentTriggers(database)
   } catch (error) {
     console.error("Joined-segment trigger scan failed", error)
+  }
+  try {
+    started += await runSegmentDripTriggers(database)
+  } catch (error) {
+    console.error("Segment drip scan failed", error)
   }
   try {
     started += await runTimeActivateTriggers(database)
@@ -504,6 +510,13 @@ async function processRun(
       startedAt,
     })
 
+    if (result.type === "sleep") {
+      // The run stays pointed at this step. Waking walks back into it, and the
+      // step reads the line just written to know it has done its waiting.
+      await release({ status: "active", attempts: 0, wakeAt: result.until })
+      return
+    }
+
     const next =
       result.type === "complete"
         ? null
@@ -791,12 +804,16 @@ export async function startAutomationRun(
   )
 }
 
-/** Starts a side-effect-safe rehearsal with one real member as its subject. */
+/**
+ * Starts a side-effect-safe rehearsal with one real contact as its subject,
+ * the same way a segment run is about one contact. The contact may have no
+ * account behind it.
+ */
 export async function startAutomationTestRun(
   workspaceId: string,
   userId: string,
   automationId: string,
-  subjectUserId: string,
+  subjectContactId: string,
   database: CustomShellDb = db
 ): Promise<CustomShellAutomationRun> {
   const [admin, subject] = await Promise.all([
@@ -811,17 +828,18 @@ export async function startAutomationTestRun(
         )
       )
       .limit(1),
-    findActiveWorkspaceMember(workspaceId, subjectUserId, database),
+    findAutomationTestContact(workspaceId, subjectContactId, database),
   ])
   if (!admin[0]) throw new Error("NOT_FOUND")
-  if (!subject) throw new Error("MEMBER_NOT_FOUND")
+  if (!subject) throw new Error("CONTACT_NOT_FOUND")
 
   return startAutomationRunRecord(
     workspaceId,
     userId,
     automationId,
     {
-      subjectUserId: subject.id,
+      subjectContactId: subject.id,
+      subjectUserId: subject.userId,
       subjectLabel: automationSubjectLabel(subject),
       testRecipientEmail: admin[0].email,
     },
@@ -835,7 +853,8 @@ async function startAutomationRunRecord(
   automationId: string,
   test:
     | {
-        subjectUserId: string
+        subjectContactId: string
+        subjectUserId: string | null
         subjectLabel: string
         testRecipientEmail: string
       }
@@ -890,6 +909,7 @@ async function startAutomationRunRecord(
       configSnapshot: inspected.compiledConfig,
       wakeAt: timestamp,
       attempts: 0,
+      subjectContactId: test?.subjectContactId,
       subjectUserId: test?.subjectUserId,
       subjectLabel: test?.subjectLabel,
       testRun: Boolean(test),

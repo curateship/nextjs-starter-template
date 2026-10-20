@@ -16,6 +16,7 @@ import type {
   CrmThreadStatus,
 } from "@/lib/crm/crm"
 import type { PlanFeatures } from "@/lib/billing/plan-features"
+import type { SavedViewValues } from "@/lib/saved-views"
 import {
   bigint,
   boolean,
@@ -1274,8 +1275,10 @@ export const customShellAutomationRuns = pgTable(
       { onDelete: "set null" }
     ),
     /**
-     * A rehearsal against `subjectUserId`. Outside actions are redirected or
+     * A rehearsal against `subjectContactId`. Outside actions are redirected or
      * skipped, and the copied address is the only address an email may reach.
+     * Test runs from before 17 Oct 2026 name only `subjectUserId`; they are
+     * history, which is why the check still accepts them.
      */
     testRun: boolean("test_run").notNull().default(false),
     testRecipientEmail: varchar("test_recipient_email", { length: 255 }),
@@ -1311,7 +1314,7 @@ export const customShellAutomationRuns = pgTable(
     ),
     check(
       "automation_runs_test_recipient_check",
-      sql`${table.testRun} = (${table.testRecipientEmail} is not null) and (${table.testRun} = false or ${table.subjectUserId} is not null)`
+      sql`${table.testRun} = (${table.testRecipientEmail} is not null) and (${table.testRun} = false or ${table.subjectContactId} is not null or ${table.subjectUserId} is not null)`
     ),
     index("ix_automation_runs_status_wake").on(table.status, table.wakeAt),
     index("ix_automation_runs_approval_deadline")
@@ -1872,6 +1875,8 @@ export const customShellContacts = pgTable(
       .default(sql`'{}'::text[]`),
     status: varchar("status", { length: 20 }).notNull().default("subscribed"),
     unsubscribedAt: timestamp("unsubscribed_at", { withTimezone: true }),
+    /** What the admin wrote about them in the open contact's Notes box. */
+    notes: text("notes").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -2844,3 +2849,40 @@ export type CustomShellCrmMessage =
   typeof customShellCrmMessages.$inferSelect
 export type CustomShellCrmBlockedSender =
   typeof customShellCrmBlockedSenders.$inferSelect
+
+/**
+ * A person's own named filters on one dashboard (`src/server/saved-views.ts`).
+ * `screen` names the dashboard and the record it is about, such as
+ * `project:<id>` or `viral-project:<id>`; the app that owns that kind checks
+ * access, so no workspace column is needed. `filters` is the screen's own flat
+ * set of values, `names` the names those values pointed at when saved, so a
+ * view can later say what has gone. Moved into the shell from Project on
+ * 20 Oct 2026, Tyler: "Fix project too".
+ */
+export const customShellSavedViews = pgTable(
+  "saved_views",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    screen: varchar("screen", { length: 120 }).notNull(),
+    name: text("name").notNull(),
+    filters: jsonb("filters").$type<SavedViewValues>().notNull(),
+    names: jsonb("names")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("saved_views_user_screen_idx").on(
+      table.userId,
+      table.screen,
+      table.createdAt
+    ),
+  ]
+)
+
+export type CustomShellSavedView = typeof customShellSavedViews.$inferSelect

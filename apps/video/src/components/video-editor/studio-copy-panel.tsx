@@ -208,7 +208,7 @@ function OpenViralButton({ viral }: { viral: ProjectSourceDetail["viral"] }) {
         <Link
           to="/admin/video-viral/$projectId"
           params={{ projectId: viral.projectId }}
-          search={viral.videoKey ? { video: viral.videoKey } : {}}
+          search={viral.videoKey ? { open: viral.videoKey } : {}}
         >
           <ChartNoAxesCombinedIcon />
           Open Viral

@@ -58,6 +58,8 @@ export type AutomationNodeFieldsProps = {
   node: AutomationNode
   /** The current draft, for panels that explain their surrounding flow. */
   graph?: AutomationGraph
+  /** The saved flow this node belongs to. Unset while editing a template. */
+  automationId?: string
   onChange: (node: AutomationNode) => void
   /** Opens the node's full-screen editor when it has one. */
   onOpenEditor?: () => void
