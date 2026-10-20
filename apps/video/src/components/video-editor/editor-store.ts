@@ -9,6 +9,11 @@ import {
   sourceSpanMs,
   storedPlaybackValue,
 } from "@/lib/video/clip-playback"
+import {
+  landBriefScenes,
+  type BriefLanding,
+  type SceneWithFiles,
+} from "@/lib/video/brief"
 import type { ClipboardClip } from "@/lib/video/clip-clipboard"
 import { LEFT_OF_CUT, RIGHT_OF_CUT } from "@/lib/video/clip-fades"
 import { landMovingShot, type MovingPiece } from "@/lib/video/moving-still"
@@ -104,6 +109,9 @@ export type EditorAction =
   // A voice line read again, swapped in with its words (remake-clip.ts). One
   // action, so one Undo brings the old line and its captions back together.
   | { type: "REMAKE_VOICE_LINE"; clipId: string; line: SpokenLine }
+  // A brief's made scenes, each a still, its voice and its captions, laid in
+  // order on the brief's lanes (brief.ts). One action, one Undo.
+  | { type: "LAND_BRIEF_SCENES"; scenes: SceneWithFiles[]; landing: BriefLanding }
   | { type: "ADD_TRACK" }
   // Cut several pieces out of one clip at once, closing the gaps. What comes
   // after on the same lane shuffles back by however much was taken out.
@@ -814,6 +822,12 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
     case "LAND_MOVING_SHOT": {
       const landed = landMovingShot(state.tracks, { ...action, newId: editorId })
       if (landed.outcome === "gone") return state
+      return pushUndo(state, landed.tracks)
+    }
+
+    case "LAND_BRIEF_SCENES": {
+      const landed = landBriefScenes(state.tracks, action, editorId)
+      if (!landed?.placed.length) return state
       return pushUndo(state, landed.tracks)
     }
 

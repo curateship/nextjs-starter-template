@@ -15,8 +15,16 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
+import type {
+  BriefLanding,
+  BriefPlatform,
+  BriefStatus,
+  BriefVoice,
+  StoredScene,
+} from "@/lib/video/brief"
 import type { ExtraPicks, SentExtra } from "@/lib/video/extras"
 import type { ClipOutcome } from "@/lib/video/moving-still"
+import type { ScriptCheck } from "@/lib/video/script-check"
 import { customShellMedia, customShellUsers } from "@/server/schema"
 
 /**
@@ -1560,6 +1568,57 @@ export const videoViralCollectionItems = pgTable(
     }),
   ]
 )
+
+/**
+ * A brief and the storyboard written from it (`workspace/docs/brief-to-video.md`,
+ * drizzle/0129). The scenes, and whatever has been made for each, sit in one
+ * list on the row, so the storyboard reopens exactly as it was left and costs
+ * nothing to reopen. The lease is the background job's, which makes the
+ * scenes one after another and survives a reload or a restart.
+ */
+export const videoBriefs = pgTable(
+  "video_briefs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    about: text("about").notNull(),
+    audience: text("audience").notNull().default(""),
+    lengthSeconds: integer("length_seconds").notNull(),
+    platform: varchar("platform", { length: 16 }).$type<BriefPlatform>().notNull(),
+    voice: jsonb("voice").$type<BriefVoice>().notNull(),
+    pictureModel: varchar("picture_model", { length: 100 }).notNull(),
+    title: text("title").notNull(),
+    hook: text("hook").notNull(),
+    scenes: jsonb("scenes").$type<StoredScene[]>().notNull(),
+    // The script check's answer (ai-generation task 01), or why it could not
+    // be run. Never both.
+    check: jsonb("check").$type<ScriptCheck>(),
+    checkError: text("check_error"),
+    status: varchar("status", { length: 8 }).$type<BriefStatus>().notNull(),
+    // Set when Make it is pressed: where scene one starts, and the lanes the
+    // scenes went on once they exist.
+    landing: jsonb("landing").$type<BriefLanding>(),
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_video_briefs_project").on(table.projectId, table.createdAt),
+    index("ix_video_briefs_status").on(table.status),
+    check(
+      "video_briefs_status_check",
+      sql`${table.status} in ('draft', 'making', 'stopped', 'done')`
+    ),
+  ]
+)
+
+export type VideoBriefRow = typeof videoBriefs.$inferSelect
 
 /**
  * Every YouTube call the app makes, in units. The free 10,000 a day belong to

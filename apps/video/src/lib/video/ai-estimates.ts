@@ -5,7 +5,11 @@ import {
   type TranscriberId,
   type WriterId,
 } from "@/lib/video/ai-choices"
-import { formatCheckCost } from "@/lib/video/script-check"
+import {
+  formatCheckCost,
+  SCRIPT_BASE_WORDS_PER_MINUTE,
+  scriptCheckCostCents,
+} from "@/lib/video/script-check"
 import { planTranscriptPieces } from "@/lib/video/transcripts"
 
 /**
@@ -198,6 +202,49 @@ export function translateCostCents({
       ? transcribeCostCents(listen.transcriber, listen.fileSoundMs)
       : 0
   return translating + listening
+}
+
+/**
+ * The Brief to video prompt's own wording, before the brief goes in
+ * (`briefPrompt` in `src/server/video/briefs.ts`).
+ */
+const BRIEF_PROMPT_CHARACTERS = 3_000
+
+/**
+ * Thinking each writer is billed for on top of the script. Estimates until a
+ * brief is run with each, scaled from the script check's measured figures.
+ */
+const BRIEF_THINKING_TOKENS: Record<WriterId, number> = {
+  gemini: 400,
+  openai: 3_000,
+  anthropic: 1_500,
+}
+
+/**
+ * Writing a brief's script, then checking it. A word is about six characters
+ * with its space, and each scene of about five seconds adds a picture
+ * direction of about 150 characters with its JSON around it.
+ */
+export function briefScriptCostCents({
+  writer,
+  lengthSeconds,
+  briefCharacters,
+}: {
+  writer: WriterId
+  lengthSeconds: number
+  /** What it is about and who it is for, as typed. */
+  briefCharacters: number
+}) {
+  const model = WRITERS.find((one) => one.id === writer)?.model
+  if (!model || !Number.isFinite(lengthSeconds) || lengthSeconds <= 0) return 0
+  const scriptCharacters = ((lengthSeconds * SCRIPT_BASE_WORDS_PER_MINUTE) / 60) * 6
+  const answerCharacters = scriptCharacters + (lengthSeconds / 5) * 150
+  const writing = tokenCostCents(
+    model,
+    (BRIEF_PROMPT_CHARACTERS + briefCharacters) / CHARACTERS_PER_TOKEN,
+    answerCharacters / CHARACTERS_PER_TOKEN + BRIEF_THINKING_TOKENS[writer]
+  )
+  return writing + scriptCheckCostCents(scriptCharacters, writer)
 }
 
 /**

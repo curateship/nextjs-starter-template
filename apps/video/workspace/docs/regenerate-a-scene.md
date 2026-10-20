@@ -33,7 +33,9 @@ wherever it goes (`src/lib/video/clip-origin.ts`). There are three kinds.
 
 - **A picture** from the AI clip panel's first frames: the direction, the
   picture model, the actor, the actor's pictures it was drawn from, the
-  extras, and the shape.
+  extras, and the shape. A brief's scene picture keeps the direction, the
+  model and the shape, and has no actor: it is made again from its direction
+  and the project's look, and the new picture goes on the Media panel.
 - **A moving clip**: what moves, the picture it started on, the person board
   and backdrop it was sent, the shape and the quality. That is a shot from the
   AI clip panel, or a picture made to move (`animate-a-still.md`). A long shot
@@ -52,11 +54,12 @@ copies it onto the clip it lays down. These tools write one:
 - Voice (Read this aloud).
 - Hook, when the new opening line is spoken.
 - Another language, when the translation is read aloud.
+- Brief to video, on every scene's picture and voice line
+  (`brief-to-video.md`).
 
 A voiceover laid again from the Voices panel has no recipe, because the shelf
 keeps the words and the voice but not the model or the settings
-(`saved-voiceovers.md`). Task 08's scenes will write one when that task is
-built.
+(`saved-voiceovers.md`).
 
 ## The window
 

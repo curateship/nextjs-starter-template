@@ -13,6 +13,8 @@ import {
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { BriefDialog } from "@/components/video-editor/brief-to-video"
+import { useBriefProgress } from "@/components/video-editor/briefs-context"
 import { CaptionsDialog } from "@/components/video-editor/captions-dialog"
 import { HookDialog } from "@/components/video-editor/hook-dialog"
 import { JumpCutsDialog } from "@/components/video-editor/jump-cuts-dialog"
@@ -88,14 +90,14 @@ const TOOLS: {
   },
   {
     id: "brief",
-    label: "Brief to reel",
-    description: "Turn a brief into a whole reel.",
+    label: "Brief to video",
+    description: "Turn a brief into a script, then into scenes on the timeline.",
     Icon: FileTextIcon,
   },
 ]
 
 /** The ones that are built. The rest show as what is coming, greyed out. */
-const BUILT: ToolId[] = ["captions", "jump-cut", "voice", "hook", "translate"]
+const BUILT: ToolId[] = ["captions", "jump-cut", "voice", "hook", "translate", "brief"]
 
 export function AiPanel() {
   const { store } = useEditorRuntime()
@@ -107,6 +109,8 @@ export function AiPanel() {
   const [voiceOpen, setVoiceOpen] = React.useState(false)
   const [hookOpen, setHookOpen] = React.useState(false)
   const [translateOpen, setTranslateOpen] = React.useState(false)
+  const [briefOpen, setBriefOpen] = React.useState(false)
+  const briefProgress = useBriefProgress()
 
   React.useEffect(() => {
     let active = true
@@ -129,6 +133,7 @@ export function AiPanel() {
     if (id === "voice") setVoiceOpen(true)
     if (id === "hook") setHookOpen(true)
     if (id === "translate") setTranslateOpen(true)
+    if (id === "brief") setBriefOpen(true)
   }
 
   return (
@@ -165,7 +170,11 @@ export function AiPanel() {
                       {label}
                     </span>
                     <span className="line-clamp-2 text-[10px] leading-4 text-muted-foreground">
-                      {ready ? description : "Not built yet."}
+                      {!ready
+                        ? "Not built yet."
+                        : id === "brief" && briefProgress
+                          ? briefProgress
+                          : description}
                     </span>
                   </span>
                 </button>
@@ -199,6 +208,11 @@ export function AiPanel() {
       <TranslateDialog
         open={translateOpen}
         onOpenChange={setTranslateOpen}
+        available={available}
+      />
+      <BriefDialog
+        open={briefOpen}
+        onOpenChange={setBriefOpen}
         available={available}
       />
     </div>
