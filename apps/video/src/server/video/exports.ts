@@ -183,6 +183,33 @@ export async function updateOwnedExport({
 }
 
 /**
+ * Whether the paragraph saying what AI made adds "edited by hand" to the
+ * script and the pictures. Kept per export (say-what-ai-made.md).
+ */
+export async function setOwnedExportHandEdited({
+  userId,
+  exportId,
+  handEdited,
+  database = db,
+}: {
+  userId: string
+  exportId: string
+  handEdited: boolean
+  database?: CustomShellDb
+}): Promise<RenderJobSummary> {
+  // One write: an export deleted a moment ago is refused, not a crash.
+  const [row] = await database
+    .update(videoRenderJobs)
+    .set({ aiHandEdited: handEdited, updatedAt: now() })
+    .where(
+      and(eq(videoRenderJobs.id, exportId), eq(videoRenderJobs.userId, userId))
+    )
+    .returning()
+  if (!row) throw new Error(RENDER_NOT_FOUND_MESSAGE)
+  return serializeRenderJob(row)
+}
+
+/**
  * Pick a different moment of the video as its cover. The frame is taken from
  * the finished file itself, so the picture always belongs to the export it is
  * standing in for.

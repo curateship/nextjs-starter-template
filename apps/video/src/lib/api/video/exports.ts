@@ -39,6 +39,7 @@ import {
   deleteOwnedExports,
   listOwnedExports,
   setOwnedExportCover,
+  setOwnedExportHandEdited,
   updateOwnedExport,
   type ExportListResponse,
 } from "@/server/video/exports"
@@ -210,6 +211,18 @@ const updateExportFn = createServerFn({ method: "POST" })
     })
   })
 
+const setExportHandEditedFn = createServerFn({ method: "POST" })
+  .middleware([editorPost])
+  .inputValidator(exportIdSchema.extend({ handEdited: z.boolean() }))
+  .handler(async ({ data, context }) => {
+    const { userId } = await actorForExport(context.caller, data.exportId)
+    return setOwnedExportHandEdited({
+      userId,
+      exportId: data.exportId,
+      handEdited: data.handEdited,
+    })
+  })
+
 const setExportCoverFn = createServerFn({ method: "POST" })
   .middleware([editorPost])
   .inputValidator(
@@ -332,6 +345,10 @@ export function updateExport(
   description: string
 ) {
   return updateExportFn({ data: { exportId, title, description } })
+}
+
+export function setExportHandEdited(exportId: string, handEdited: boolean) {
+  return setExportHandEditedFn({ data: { exportId, handEdited } })
 }
 
 export function setExportCover(exportId: string, atMs: number) {

@@ -30,6 +30,7 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { EXPORT_TITLE_MAX } from "@/lib/video/render"
+import { ExportAiPartsCard } from "@/components/video-editor/export-ai-parts-card"
 import { ExportCover } from "@/components/video-editor/export-cover"
 
 /** Stands in while there is no cover picture to show. */
@@ -42,8 +43,8 @@ function CoverPlaceholder() {
 }
 
 /**
- * One export: what it is called, what it is about, and which moment of it
- * stands in for it in the gallery.
+ * One export: what it is called, what it is about, which moment of it
+ * stands in for it in the gallery, and, for a video, what AI made in it.
  *
  * The cover is chosen by picking a moment rather than by uploading a picture —
  * a still from the video itself always belongs to it, and there is nothing to
@@ -144,7 +145,9 @@ export function ExportDetailsDialog({
           <DialogHeader>
             <DialogTitle>Export</DialogTitle>
             <DialogDescription>
-              What this one is called, and the picture that stands in for it.
+              {carousel
+                ? "What this one is called, and the picture that stands in for it."
+                : "What this one is called, what AI made in it, and the picture that stands in for it."}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -182,6 +185,10 @@ export function ExportDetailsDialog({
                   </div>
                 </CardContent>
               </Card>
+
+              {carousel ? null : (
+                <ExportAiPartsCard item={item} onSaved={onSaved} />
+              )}
 
               <Card size="sm">
                 <CardHeader>
