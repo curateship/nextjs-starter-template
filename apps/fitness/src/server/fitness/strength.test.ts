@@ -239,6 +239,8 @@ describe("logging", () => {
       .innerJoin(fitnessNoticeLinks, eq(fitnessNoticeLinks.noticeId, customShellNotifications.id))
       .where(eq(customShellNotifications.recipientUserId, anna.id))
     expect(notices.map((notice) => notice.message)).toContain("New record: Back squat, 77.5 kg")
+    // A record notice opens its lift on the program's Progress view, in `?open=` like every three-column dashboard.
+    expect(notices.every((notice) => /^\/programs\/[\w-]+\?view=progress&open=[\w-]+$/.test(notice.href))).toBe(true)
   })
 
   it("keeps a light week light and its weights where they were", async () => {

@@ -1,6 +1,7 @@
 import { loadPhotoSessions } from "@/lib/api/fitness/photos"
 import { loadProgram } from "@/lib/api/fitness/programs"
 import { loadProgressPage } from "@/lib/api/fitness/progress"
+import { loadSavedViews } from "@/lib/api/fitness/saved-views"
 import { loadWorkoutHistory, loadWorkoutPage } from "@/lib/api/fitness/workouts"
 import { FITNESS_ERRORS } from "@/lib/fitness/errors"
 import type { ProgramView } from "@/lib/fitness/program-search"
@@ -17,16 +18,19 @@ export async function loadProgramPage(input: { programId: string; view: ProgramV
   const program = await loadProgram(input.programId)
   const person = program.program.mine ? undefined : program.program.userId
   const [viewData, workout] = await Promise.all([
-    loadViewData(input.view, person),
+    loadViewData(input.view, input.programId, person),
     input.workout ? loadWorkoutPage(input.workout).catch(missingWorkout) : null,
   ])
   return { ...program, viewData, workout }
 }
 
-async function loadViewData(view: ProgramView, person: string | undefined) {
+async function loadViewData(view: ProgramView, programId: string, person: string | undefined) {
   switch (view) {
     case "history":
-      return { view, history: await loadWorkoutHistory(person) } as const
+      return {
+        view,
+        ...(await loadHistoryAndViews(programId, person)),
+      } as const
     case "progress":
       return { view, progress: await loadProgressPage(person) } as const
     case "photos":
@@ -47,3 +51,12 @@ function missingWorkout(error: unknown): null {
 }
 
 export type ProgramPage = Awaited<ReturnType<typeof loadProgramPage>>
+
+/**
+ * History's workouts and the signed-in person's own saved views on this
+ * program, both at once. A coach gets their own views, never the client's.
+ */
+async function loadHistoryAndViews(programId: string, person: string | undefined) {
+  const [history, views] = await Promise.all([loadWorkoutHistory(person), loadSavedViews(programId)])
+  return { history, views }
+}

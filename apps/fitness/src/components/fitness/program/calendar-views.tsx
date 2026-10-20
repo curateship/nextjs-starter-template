@@ -1,8 +1,9 @@
-import { PanelBody, PanelEmpty, PanelHeader } from "@/components/fitness/dashboard/panel-parts"
+import { CalendarDaysIcon } from "lucide-react"
+
+import { PanelBody, RightEmpty, RightHeader } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
 import { CalendarDayCard } from "@/components/fitness/program/calendar-day-card"
 import { ProgramCalendar } from "@/components/fitness/program/program-calendar"
-import { Button } from "@/components/ui/button"
 
 /**
  * The Calendar view: the program's week repeated through the month. A date
@@ -15,42 +16,31 @@ export function CalendarMiddle({ page, search, go }: ProgramViewProps) {
       programId={page.program.id}
       today={page.today}
       hasPlan={page.week.length > 0}
-      pickedId={search.pick}
-      onPick={(pick) => go({ pick })}
+      pickedId={search.open}
+      onPick={(pick) => go({ open: pick })}
     />
   )
 }
 
 /**
  * The right panel on the Calendar view: the picked date, to start it, open
- * what was logged, or move it. With nothing picked, it says what to pick.
+ * what was logged, or move it. With nothing picked, it says what to click.
  */
 export function CalendarRight({ page, search, go }: ProgramViewProps) {
-  if (!search.pick) {
+  if (!search.open) {
     return (
-      <>
-        <PanelHeader>
-          <h2 className="text-sm font-semibold">Date</h2>
-        </PanelHeader>
-        <PanelEmpty>Pick a date on the calendar to start, open or move its workout here.</PanelEmpty>
-      </>
+      <RightEmpty title="Date" icon={CalendarDaysIcon} line="Click a date on the calendar to start, open or move its workout here." />
     )
   }
   return (
     <>
-      <PanelHeader>
-        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">Date</h2>
-        <Button type="button" variant="ghost" onClick={() => go({ pick: undefined })}>
-          Close
-        </Button>
-      </PanelHeader>
+      <RightHeader title="Date" closeLabel="Close this date" onClose={() => go({ open: undefined })} />
       <PanelBody>
         <CalendarDayCard
-          key={search.pick}
-          scheduledId={search.pick}
+          key={search.open}
+          scheduledId={search.open}
           canLog={page.program.mine && !page.program.archived}
-          onClose={() => go({ pick: undefined })}
-          onOpenWorkout={(workout) => go({ workout, pick: undefined })}
+          onOpenWorkout={(workout) => go({ workout, open: undefined })}
         />
       </PanelBody>
     </>

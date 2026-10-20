@@ -13,7 +13,7 @@ const FooterOpen = React.createContext<boolean | null>(null)
 
 /**
  * A folding card on one of a program dashboard's side panels: "This week
- * · 2 of 3", "Day A · 4 lifts", "Starting data". Copied from Project's
+ * · 2 of 3", "Day A · 4 lifts", "Records". Copied from Project's
  * `panel-card.tsx` so both apps' side panels look the same. The same
  * grey box, border, 15px heading and arrow as the shell's `InspectorCard`,
  * with two things Tyler's drawings of 13 Oct 2026 add to the heading: a muted
@@ -30,7 +30,6 @@ const FooterOpen = React.createContext<boolean | null>(null)
 export function PanelCard({
   storageId,
   title,
-  subtitle,
   meta,
   after,
   badge,
@@ -45,8 +44,6 @@ export function PanelCard({
   /** Plain characters only; it names the card's remembered open or shut state. */
   storageId: string
   title: string
-  /** A muted second line under the title, such as "66 kg · 172 cm · Build muscle". */
-  subtitle?: React.ReactNode
   /** Muted, after a dot: "0 of 2 done", "4", "Oct 12 to 13". */
   meta?: React.ReactNode
   /** After the title with a gap and no dot, such as a status: "Status   ● At risk". */
@@ -98,9 +95,6 @@ export function PanelCard({
                 {title}
                 {meta ? <span className="font-normal text-muted-foreground"> · {meta}</span> : null}
                 {after ? <span className="ml-2">{after}</span> : null}
-                {subtitle ? (
-                  <span className="block truncate text-[13px] font-normal text-muted-foreground">{subtitle}</span>
-                ) : null}
               </span>
             </button>
           </CollapsibleTrigger>

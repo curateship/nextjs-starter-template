@@ -24,14 +24,14 @@ export function useStartWorkout(page: ProgramViewProps["page"], go: ProgramViewP
       try {
         const onToday = day.weekday === weekdayOf(page.today) && todaysRow && todaysRow.dayId === day.id
         if (onToday && todaysRow.workoutId) {
-          go({ workout: todaysRow.workoutId, pick: undefined })
+          go({ workout: todaysRow.workoutId, open: undefined })
           return
         }
         const { id } = onToday
           ? await beginWorkout({ from: "scheduled", scheduledId: todaysRow.id })
           : await beginWorkout({ from: "day", dayId: day.id })
         calendarChanged()
-        go({ workout: id, pick: undefined })
+        go({ workout: id, open: undefined })
       } catch (error) {
         reportFitnessError(error)
       } finally {

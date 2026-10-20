@@ -13,6 +13,7 @@ import { todayFor } from "@/server/fitness/calendar"
 import { exerciseFor, exerciseForRoutine, exercisesById } from "@/server/fitness/exercises"
 import { sendFitnessNotice } from "@/server/fitness/notices"
 import { preferencesFor } from "@/server/fitness/profile"
+import { settleDayOrder } from "@/server/fitness/week"
 import {
   fitnessBaselines,
   fitnessPhotoSessions,
@@ -273,11 +274,8 @@ export async function startWorkout(
   const lightWeek = strength ? isLightWeek(day, strength.startDay, strength.blockWeeks) : false
   const profile = await preferencesFor(personId, database)
   const bodyweightKg = await latestBodyweight(personId, database)
-  const planExercises = await database
-    .select()
-    .from(fitnessDayExercises)
-    .where(eq(fitnessDayExercises.dayId, dayId))
-    .orderBy(asc(fitnessDayExercises.position))
+  // In the Day view's order, so the workout runs top to bottom as the day shows.
+  const planExercises = await settleDayOrder(dayId, database)
   const exercises = await exercisesById(planExercises.map((row) => row.exerciseId), database)
 
   const id = uuid()
@@ -367,16 +365,22 @@ async function repeatWorkout(actorId: string, workoutId: string, database: Fitne
 }
 
 /**
- * For the Day view's exercise rows: the last finished session of each lift,
- * as "3 x 5 on Oct 11". Reps are the first set's.
+ * For the Day view's exercise rows: the best working set of each lift's last
+ * finished session, "Last: 60 kg × 8" (Tyler's drawing, 20 Oct 2026). The
+ * best is the heaviest, and of those the one with the most reps.
  */
 export async function lastTimesFor(userId: string, exerciseIds: string[], database: FitnessDb = db) {
   const sessions = await lastSessions(userId, exerciseIds, "", database)
-  const result: Record<string, { day: Day; sets: number; reps: number }> = {}
+  const result: Record<string, { day: Day; weightKg: number; reps: number }> = {}
   for (const [exerciseId, session] of sessions) {
-    if (session && session.sets.length) {
-      result[exerciseId] = { day: session.day, sets: session.sets.length, reps: session.sets[0].reps ?? 0 }
-    }
+    if (!session || !session.sets.length) continue
+    const best = session.sets.reduce((top, set) =>
+      (set.weightKg ?? 0) > (top.weightKg ?? 0) ||
+      ((set.weightKg ?? 0) === (top.weightKg ?? 0) && (set.reps ?? 0) > (top.reps ?? 0))
+        ? set
+        : top
+    )
+    result[exerciseId] = { day: session.day, weightKg: best.weightKg ?? 0, reps: best.reps ?? 0 }
   }
   return result
 }
@@ -636,10 +640,13 @@ export async function swapExercise(
     .where(and(eq(fitnessWorkoutSets.workoutId, workoutId), eq(fitnessWorkoutSets.exercisePosition, input.position)))
   const dayExerciseId = sets[0].dayExerciseId
   if (input.changePlan && dayExerciseId) {
-    await database
+    const [planned] = await database
       .update(fitnessDayExercises)
       .set({ exerciseId: exercise.id, missStreak: 0 })
       .where(eq(fitnessDayExercises.id, dayExerciseId))
+      .returning({ dayId: fitnessDayExercises.dayId })
+    // The new lift may belong to another body part.
+    if (planned) await settleDayOrder(planned.dayId, database)
   }
 }
 
@@ -884,7 +891,7 @@ export async function finishWorkout(
         kind: "record",
         message: `New record: ${record.exerciseName}, ${figure}`,
         detail: `Your ${RECORD_WORDS[record.kind]} on ${record.exerciseName}.`,
-        href: workout.programId ? `/programs/${workout.programId}?view=progress&pick=${record.exerciseId}` : "/programs",
+        href: workout.programId ? `/programs/${workout.programId}?view=progress&open=${record.exerciseId}` : "/programs",
       },
       database
     )

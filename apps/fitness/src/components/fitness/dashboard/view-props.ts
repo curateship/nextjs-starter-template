@@ -12,6 +12,6 @@ export type ProgramViewProps = {
   page: ProgramPage
   /** The address, with `view` and `day` filled in (Day view, today's weekday, when unset). */
   search: ProgramSearch & { view: NonNullable<ProgramSearch["view"]>; day: number }
-  /** Changes the address. Unset keys are dropped; `pick: undefined` closes the right panel's item. */
+  /** Changes the address. Unset keys are dropped; `open: undefined` closes the right panel's item. */
   go: (patch: Partial<ProgramSearch>, options?: { replace?: boolean }) => void
 }

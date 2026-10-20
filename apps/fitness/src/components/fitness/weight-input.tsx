@@ -22,6 +22,7 @@ export function WeightInput({
   placeholder,
   className,
   showUnit = false,
+  unitLabel,
   "aria-label": ariaLabel,
 }: {
   id?: string
@@ -32,6 +33,8 @@ export function WeightInput({
   className?: string
   /** Writes the unit inside the box, so the label can leave it out. */
   showUnit?: boolean
+  /** What `showUnit` writes in the box instead of the unit, such as "+kg" for weight added to a bodyweight lift. */
+  unitLabel?: string
   "aria-label"?: string
 }) {
   const shown = valueKg === null ? "" : formatWeightNumber(valueKg, unit)
@@ -49,6 +52,9 @@ export function WeightInput({
     if (text === "") {
       setInvalid(false)
       onCommit(null)
+      // Show what the box holds now: a box that falls back to a target
+      // shows the target again, so what is shown is what gets logged.
+      setDraft(shown)
       return
     }
     const value = Number(text)
@@ -63,7 +69,7 @@ export function WeightInput({
   }
 
   return (
-    <UnitSuffix unit={showUnit ? unit : undefined}>
+    <UnitSuffix unit={showUnit ? (unitLabel ?? unit) : undefined}>
     <Input
       id={id}
       inputMode="decimal"

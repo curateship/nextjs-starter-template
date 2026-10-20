@@ -108,7 +108,8 @@ export function ProgramCalendar({
 
   return (
     <>
-      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-2 px-3 pb-3">
+      {/* Clear of the header's line above; the calendar under it brings its own 12px gap. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-2 px-3 pt-3">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button type="button" variant="ghost" size="icon" aria-label="Previous month" onClick={() => shiftMonth(-1)}>

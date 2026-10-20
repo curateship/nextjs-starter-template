@@ -42,6 +42,52 @@ export const MUSCLE_LABELS: Record<Muscle, string> = {
   calves: "Calves",
 }
 
+/**
+ * The body parts a day's exercises are grouped under (Tyler, 20 Oct 2026).
+ * A lift's body part is never typed in: it comes from its main muscle, the
+ * first in its list, so every lift has one, built-in or your own.
+ */
+export const BODY_PARTS = ["chest", "back", "shoulders", "arms", "core", "legs", "other"] as const
+export type BodyPart = (typeof BODY_PARTS)[number]
+
+export const BODY_PART_LABELS: Record<BodyPart, string> = {
+  chest: "Chest",
+  back: "Back",
+  shoulders: "Shoulders",
+  arms: "Arms",
+  core: "Core",
+  legs: "Legs",
+  other: "Other",
+}
+
+const BODY_PART_OF_MUSCLE: Record<Muscle, BodyPart> = {
+  chest: "chest",
+  upper_back: "back",
+  lats: "back",
+  traps: "back",
+  lower_back: "back",
+  shoulders: "shoulders",
+  biceps: "arms",
+  triceps: "arms",
+  forearms: "arms",
+  abs: "core",
+  glutes: "legs",
+  quads: "legs",
+  hamstrings: "legs",
+  calves: "legs",
+}
+
+/** The muscles whose lifts file under a body part, for narrowing a list to it. */
+export function musclesOfBodyPart(part: BodyPart): Muscle[] {
+  return MUSCLES.filter((muscle) => BODY_PART_OF_MUSCLE[muscle] === part)
+}
+
+/** A lift's body part, from its main muscle. A lift with no muscle set is Other. */
+export function bodyPartOf(muscles: readonly string[]): BodyPart {
+  const main = muscles[0] as Muscle | undefined
+  return (main && BODY_PART_OF_MUSCLE[main]) || "other"
+}
+
 export const EQUIPMENT = [
   "barbell",
   "dumbbell",

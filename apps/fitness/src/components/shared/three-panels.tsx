@@ -9,6 +9,7 @@ import {
   WorkspacePanel,
 } from "@/components/ui/resizable"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useDashboardPlace } from "@/lib/layout/dashboard-place"
 import {
   useBlankSpaceDoubleClick,
   usePanelCollapsed,
@@ -20,18 +21,23 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
 type Side = { label: string; content: React.ReactNode; showLabel: string }
 
 /**
- * Fitness's three-panel screen, copied from Project's
- * (`apps/project/src/components/project/three-panels.tsx`), which Tyler asked
- * Fitness to follow on 17 Oct 2026. The layout is the CRM screen's
- * (`crm-workspace.tsx`). The side panels collapse by being dragged shut or by
- * a double-click on blank space, and widths are remembered under `layoutKey`.
- * The page fills the screen and each panel scrolls on its own. Below 1280px
- * one panel shows at a time, with a tab for each. All three stay mounted and
- * the hidden two are `inert`, so switching tabs keeps each panel's own tab,
- * scroll and loaded lists instead of starting it over.
+ * The three-column dashboard every app shares (UI standard, "Three-column
+ * dashboards"): left 22%, middle 54%, right 24%. It started as Project's
+ * project page and moved here for Contacts on 19 Oct 2026. The side panels
+ * collapse by being dragged shut or by a double-click on blank space, come
+ * back from a tab on the middle panel's edge, and their widths are remembered
+ * in this browser under `layoutKey`, one of `panelLayoutKey`. The page fills
+ * the screen and each panel scrolls on its own. Below 1280px one panel shows
+ * at a time, with a pill for each. All three stay mounted and the hidden two
+ * are `inert`, so switching keeps each panel's own tab, scroll and loaded
+ * lists instead of starting it over.
+ *
+ * `place` is not optional: every three-column dashboard goes back to where it
+ * was and opens its first row on arrival (`useDashboardPlace`).
  */
 export function ThreePanels({
   layoutKey,
+  place,
   left,
   middle,
   right,
@@ -40,37 +46,53 @@ export function ThreePanels({
   children,
 }: {
   layoutKey: string
+  /**
+   * Where the dashboard was, kept under `key`, one of `panelLayoutKey`'s
+   * `…Place` keys: the route's own search, and the ids of the list's rows as
+   * shown, first row first. The open record must be `?open=` and
+   * `showRightFor` its id.
+   */
+  place: { key: string; search: Record<string, unknown>; ids: string[] }
   left: Side
   middle: { label: string; content: React.ReactNode }
   right: Side
   /**
    * On a narrow screen, each new value here switches to the middle panel's
-   * tab: a task opened from the inbox or a notice shows at once.
+   * pill: a list picked in the left panel shows at once.
    */
   showMiddleFor?: string
   /**
-   * The same for the right panel: each new value switches to its tab, and
-   * going back to nothing returns to the middle panel's tab, as closing the
-   * project page's task does.
+   * The same for the right panel: each new value switches to its pill, and
+   * going back to nothing returns to the middle one, as closing the open
+   * record does.
    */
   showRightFor?: string
   /** Windows that open over the screen. */
   children?: React.ReactNode
 }) {
   const wide = useWideScreen()
-  // A link that opens with something already picked shows it first on a phone.
-  const [narrowView, setNarrowView] = React.useState<"left" | "middle" | "right">(showRightFor ? "right" : "middle")
+  const [narrowView, setNarrowView] = React.useState<"left" | "middle" | "right">("middle")
   const [shownFor, setShownFor] = React.useState(showMiddleFor)
   if (showMiddleFor !== shownFor) {
     setShownFor(showMiddleFor)
     if (showMiddleFor) setNarrowView("middle")
   }
   const [rightFor, setRightFor] = React.useState(showRightFor)
+  // A record the dashboard opened by itself on arrival. Nobody pressed it, so
+  // a narrow screen stays on the list rather than jumping to it.
+  const [quietRight, setQuietRight] = React.useState<string>()
   if (showRightFor !== rightFor) {
     setRightFor(showRightFor)
-    if (showRightFor) setNarrowView("right")
+    if (showRightFor && showRightFor === quietRight) setQuietRight(undefined)
+    else if (showRightFor) setNarrowView("right")
     else if (narrowView === "right") setNarrowView("middle")
   }
+  useDashboardPlace({
+    placeKey: place.key,
+    search: place.search,
+    ids: place.ids,
+    onQuietOpen: setQuietRight,
+  })
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)
   const rightRef = React.useRef<PanelImperativeHandle | null>(null)
   const layout = useRememberedPanelLayout(layoutKey)
