@@ -172,6 +172,14 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   the AI made: what a picture, a moving clip and a voice line remember, which
   tools write it, the window and its price, what the swap keeps, the length
   rule for a voice line and what happens to its captions.
+- [brief-to-video.md](brief-to-video.md) — a brief written into a script,
+  cut into scenes on a priced storyboard, then made into stills, voice lines
+  and captions laid end to end: what the writer is asked, where scenes land,
+  who lays them, what a failed scene leaves, and what it costs.
+- [b-roll.md](b-roll.md) — free Pexels clips under each sentence of the voice
+  line: where the key goes, how sentences are cut, the phrase rules and why,
+  the 200-an-hour request budget, where the credit is kept, and how a short
+  clip holds its last frame.
 - [ai-clip.md](ai-clip.md) — the editor's AI clip panel: an actor, a first
   frame, a shot, then dragging it onto the timeline; what each step costs,
   where frames and shots are kept, and a carousel from first frames.

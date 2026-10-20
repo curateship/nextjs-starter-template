@@ -20,7 +20,11 @@ import {
   firstFramePictureLines,
   type ExtraPicks,
 } from "@/lib/video/extras"
-import { isPictureOrigin, type PictureOrigin } from "@/lib/video/clip-origin"
+import {
+  isPictureOrigin,
+  type FirstFrameOrigin,
+  type PictureOrigin,
+} from "@/lib/video/clip-origin"
 import { REMAKE_NOT_FOUND_MESSAGE } from "@/lib/video/remake-clip"
 import { parseTimelineForReset } from "@/lib/video/timeline-schema"
 import { withLook } from "@/lib/video/visual-style"
@@ -32,6 +36,7 @@ import {
   serializeVideoMedia,
   type VideoMediaItem,
 } from "@/server/video/media-list"
+import { remakeScenePicture } from "@/server/video/briefs"
 import { readProjectLook } from "@/server/video/project-look"
 import { requireProjectBudget } from "@/server/video/project-spend"
 import { getOwnedProject } from "@/server/video/projects"
@@ -74,7 +79,7 @@ export type FirstFrameItem = {
   /** The extras it was made with, by their names today. */
   made_with: string[]
   /** How it was made, which the clip it is laid down as keeps for Make it again. */
-  origin: PictureOrigin
+  origin: FirstFrameOrigin
   created_at: string
 }
 
@@ -316,6 +321,8 @@ export async function createFirstFrames(
  * again window sends. It is read off the saved timeline, so the editor saves
  * first. The new picture is a first frame of its own, in the AI clip panel;
  * the editor swaps it into the clip (`workspace/docs/regenerate-a-scene.md`).
+ * A brief's scene has no actor: it is made again from its direction and the
+ * project's look, and lands on the project's Media panel instead.
  */
 export async function remakeFirstFrame(
   userId: string,
@@ -325,7 +332,7 @@ export async function remakeFirstFrame(
     prompt: string
     model: GeminiImageModelId
   }
-): Promise<FirstFrameItem> {
+): Promise<{ image: VideoMediaItem; origin: PictureOrigin }> {
   const project = await getOwnedProject(userId, payload.projectId)
   const { timeline } = parseTimelineForReset(project.timeline)
   const clip = timeline.tracks
@@ -335,6 +342,9 @@ export async function remakeFirstFrame(
     throw new Error(REMAKE_NOT_FOUND_MESSAGE)
   }
   const { origin } = clip
+  if (origin.tool === "brief") {
+    return remakeScenePicture(userId, project.id, origin, payload)
+  }
   const actor = await requireOwnedActor(userId, origin.actorId)
   const made = await createFirstFrames(userId, {
     projectId: project.id,

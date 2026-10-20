@@ -22,3 +22,6 @@ Posts became notes kept in libraries.
 - [note-editor.md](note-editor.md): the note editor's blocks, the "/" menu,
   links between notes, pictures, saving with the revision check and the
   offline copy, and History.
+- [launch.md](launch.md): the live site on note.barelycompany.com. Where it
+  runs, every live value, why the worker needs curl_cffi, how to deploy, and
+  the release record.

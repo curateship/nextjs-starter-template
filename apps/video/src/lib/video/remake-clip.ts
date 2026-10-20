@@ -84,7 +84,8 @@ function captionLook(clip: Clip): Partial<Clip> {
   }
 }
 
-function fits(track: Track, clips: Clip[]) {
+/** Whether these clips go on this lane without touching anything on it. */
+export function clipsFit(track: Track, clips: Clip[]) {
   if (track.clips.length + clips.length > MAX_TRACK_CLIPS) return false
   return clips.every((clip) =>
     track.clips.every(
@@ -113,7 +114,7 @@ function lay(
 ): { tracks: Tracks; newLane: boolean } {
   const index = tracks.findIndex((track) => track.id === laneId)
   const lane = tracks[index]
-  if (fits(lane, clips)) {
+  if (clipsFit(lane, clips)) {
     const next = [...tracks]
     next[index] = { ...lane, clips: sorted([...lane.clips, ...clips]) }
     return { tracks: next, newLane: false }

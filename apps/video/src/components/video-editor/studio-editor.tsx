@@ -67,6 +67,7 @@ import { StudioTimeline } from "@/components/video-editor/studio-timeline"
 import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
 import { useRememberedRailPanel } from "@/components/video-editor/use-remembered-view"
 import { OpenElsewhereDialog } from "@/components/video-editor/open-elsewhere-dialog"
+import { BriefsProvider } from "@/components/video-editor/brief-to-video"
 import { MovingStillsProvider } from "@/components/video-editor/moving-stills"
 import { RemakeClipsProvider } from "@/components/video-editor/remake-clips"
 import { useProjectGuest } from "@/components/video-editor/project-guest"
@@ -330,38 +331,40 @@ export function StudioEditor({
   return (
     <MovingStillsProvider>
       <RemakeClipsProvider>
-        <div
-          className="studio-root flex min-h-0 flex-1 flex-col"
-          style={{ gap: "var(--shell-gutter, 0.75rem)" }}
-        >
-          <OpenElsewhereDialog />
-          <ResizablePanelGroup
-            key={verticalLayout.layoutKey}
-            orientation="vertical"
-            className="min-h-0 flex-1"
-            defaultLayout={verticalLayout.defaultLayout}
-            onLayoutChanged={verticalLayout.onLayoutChanged}
+        <BriefsProvider>
+          <div
+            className="studio-root flex min-h-0 flex-1 flex-col"
+            style={{ gap: "var(--shell-gutter, 0.75rem)" }}
           >
-            <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">
-              <div className="flex h-full min-h-0">{workspace}</div>
-            </ResizablePanel>
-            {/* Keeps its gap even while the panel is shut — the collapsed toolbar
-                row is still on screen, and this handle is what drags it open. */}
-            <ResizableHandle gap />
-            <ResizablePanel
-              id="timeline"
-              panelRef={timelineRef}
-              defaultSize="32%"
-              minSize="15%"
-              collapsible
-              collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+            <OpenElsewhereDialog />
+            <ResizablePanelGroup
+              key={verticalLayout.layoutKey}
+              orientation="vertical"
+              className="min-h-0 flex-1"
+              defaultLayout={verticalLayout.defaultLayout}
+              onLayoutChanged={verticalLayout.onLayoutChanged}
             >
-              <WorkspacePanel onDoubleClick={timelineDoubleClick}>
-                <StudioTimeline />
-              </WorkspacePanel>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </div>
+              <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">
+                <div className="flex h-full min-h-0">{workspace}</div>
+              </ResizablePanel>
+              {/* Keeps its gap even while the panel is shut — the collapsed toolbar
+                  row is still on screen, and this handle is what drags it open. */}
+              <ResizableHandle gap />
+              <ResizablePanel
+                id="timeline"
+                panelRef={timelineRef}
+                defaultSize="32%"
+                minSize="15%"
+                collapsible
+                collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+              >
+                <WorkspacePanel onDoubleClick={timelineDoubleClick}>
+                  <StudioTimeline />
+                </WorkspacePanel>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </div>
+        </BriefsProvider>
       </RemakeClipsProvider>
     </MovingStillsProvider>
   )

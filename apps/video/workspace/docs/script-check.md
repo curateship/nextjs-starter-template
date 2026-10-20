@@ -123,7 +123,8 @@ check" (`script_check`) on `/admin/ai`.
 ## For whoever builds on it
 
 `checkScript` in `src/server/video/script-check.ts` takes the script and the
-speed and returns all five rules. Brief to video (AI generation task 08) calls
-the same function on the script it writes. The answer must name every rule, or
+speed and returns all five rules. Brief to video calls the same function on
+the script it writes, and shows the findings on its storyboard
+(`brief-to-video.md`). The answer must name every rule, or
 the check fails with "Script check came back in an unexpected shape" rather
 than quietly skipping one.

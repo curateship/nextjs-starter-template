@@ -59,6 +59,13 @@ export const appServerOptions: AppServerOptions = {
           ),
       },
       {
+        // Makes a brief's scenes one after another, then lays made scenes on
+        // the timeline when no editor has the project open to do it.
+        name: "video-briefs",
+        tick: () =>
+          import("@/server/video/briefs").then((briefs) => briefs.briefTick()),
+      },
+      {
         // Downloads a saved video and has Gemini break it down. Closing the
         // browser never stops one, and a restart puts an interrupted job back.
         name: "video-viral-breakdown",

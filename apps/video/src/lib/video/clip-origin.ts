@@ -43,6 +43,20 @@ const pictureOriginSchema = z
   .strict()
 
 /**
+ * A scene's picture from Brief to video (`workspace/docs/brief-to-video.md`):
+ * the picture direction and the model, with the project's look and no actor.
+ */
+const scenePictureOriginSchema = z
+  .object({
+    tool: z.literal("brief"),
+    model: z.string().min(1).max(100),
+    /** The scene's picture direction, such as "Bread on a board in low light". */
+    prompt: z.string().max(5000),
+    aspectRatio: z.enum(ASSET_ASPECT_RATIOS),
+  })
+  .strict()
+
+/**
  * One piece of a moving shot: from the AI clip panel ("shot"), or a picture
  * on the timeline made to move ("animate").
  */
@@ -63,10 +77,10 @@ const movingOriginSchema = z
   })
   .strict()
 
-/** A voice line from Voice, Hook or Another language. */
+/** A voice line from Voice, Hook, Another language or a brief's scene. */
 const voiceOriginSchema = z
   .object({
-    tool: z.enum(["voice", "hook", "translate"]),
+    tool: z.enum(["voice", "hook", "translate", "brief-voice"]),
     model: z.string().min(1).max(100),
     /** The script as it was written, directions such as [whispering] included. */
     prompt: z.string().max(VOICE_TEXT_MAX),
@@ -83,17 +97,21 @@ const voiceOriginSchema = z
 
 export const clipOriginSchema = z.discriminatedUnion("tool", [
   pictureOriginSchema,
+  scenePictureOriginSchema,
   movingOriginSchema,
   voiceOriginSchema,
 ])
 
 export type ClipOrigin = z.infer<typeof clipOriginSchema>
-export type PictureOrigin = z.infer<typeof pictureOriginSchema>
+export type FirstFrameOrigin = z.infer<typeof pictureOriginSchema>
+export type ScenePictureOrigin = z.infer<typeof scenePictureOriginSchema>
+/** A picture the AI made: a first frame, or a brief's scene. */
+export type PictureOrigin = FirstFrameOrigin | ScenePictureOrigin
 export type MovingOrigin = z.infer<typeof movingOriginSchema>
 export type VoiceOrigin = z.infer<typeof voiceOriginSchema>
 
 export function isPictureOrigin(origin: ClipOrigin): origin is PictureOrigin {
-  return origin.tool === "first-frame"
+  return origin.tool === "first-frame" || origin.tool === "brief"
 }
 
 export function isMovingOrigin(origin: ClipOrigin): origin is MovingOrigin {
@@ -101,5 +119,10 @@ export function isMovingOrigin(origin: ClipOrigin): origin is MovingOrigin {
 }
 
 export function isVoiceOrigin(origin: ClipOrigin): origin is VoiceOrigin {
-  return origin.tool === "voice" || origin.tool === "hook" || origin.tool === "translate"
+  return (
+    origin.tool === "voice" ||
+    origin.tool === "hook" ||
+    origin.tool === "translate" ||
+    origin.tool === "brief-voice"
+  )
 }

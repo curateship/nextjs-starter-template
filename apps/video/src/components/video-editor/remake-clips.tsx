@@ -231,8 +231,14 @@ function RemakePictureDialog({
       await saveNow()
       const frame = await remakeFirstFrame({ projectId, clipId: clip.id, prompt: direction, model })
       refreshSpend()
+      // A scene's picture lands on the Media panel rather than the AI clip panel.
+      if (origin.tool === "brief") store.refreshMediaShelf()
       if (!onTimeline(store, clip.id)) {
-        toast("The picture was deleted meanwhile. The new one is with the first frames in the AI clip panel.")
+        toast(
+          origin.tool === "brief"
+            ? "The picture was deleted meanwhile. The new one is in the Media panel."
+            : "The picture was deleted meanwhile. The new one is with the first frames in the AI clip panel."
+        )
         onClose()
         return
       }
@@ -336,12 +342,15 @@ function RemakePictureDialog({
                     </Select>
                   </div>
                   <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                    Sent with it: the actor&apos;s pictures and the extras it was made
-                    with
-                    {project.look?.style
-                      ? `, and the project's style line, "${project.look.style}"`
-                      : ""}
-                    .
+                    {origin.tool === "brief"
+                      ? project.look?.style
+                        ? `Sent with it: the project's style line, "${project.look.style}".`
+                        : "It is made from the direction alone, as it was for the brief."
+                      : `Sent with it: the actor's pictures and the extras it was made with${
+                          project.look?.style
+                            ? `, and the project's style line, "${project.look.style}"`
+                            : ""
+                        }.`}
                   </p>
                 </CardContent>
               </Card>
@@ -746,7 +755,9 @@ export function RemakeCard({ clip }: { clip: EditorClip }) {
   }
   const price = dollars(remakeCents(clip, origin))
   const description = isPictureOrigin(origin)
-    ? `Makes this picture again from its words, with the same actor and extras, for ${price}.`
+    ? origin.tool === "brief"
+      ? `Makes this scene's picture again from its direction, for ${price}.`
+      : `Makes this picture again from its words, with the same actor and extras, for ${price}.`
     : moving
       ? `Google makes this shot again from the picture it started on, from ${price}.`
       : `Reads this line again from its script, for ${price}.`

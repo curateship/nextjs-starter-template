@@ -52,10 +52,10 @@ like it belongs with scene one, instead of drifting from photo to cartoon to 3D.
   video like any other, so it gets the style line in the same place and no
   look picture. Its window shows the line as "Sent with it"
   (`animate-a-still.md`).
-- **What reads it next:** regenerating a scene and brief to video (AI
-  generation tasks 07 and 08) are inside a project, so they read the look
-  with `readProjectLook` in `src/server/video/project-look.ts` and build the
-  request with `withLook`.
+- **Brief to video:** every scene's picture is made with the style line and
+  the look picture, read with `readProjectLook` in
+  `src/server/video/project-look.ts` and built with `withLook`, and so is a
+  scene's picture made again (`brief-to-video.md`).
 
 ## When the look picture is gone
 
