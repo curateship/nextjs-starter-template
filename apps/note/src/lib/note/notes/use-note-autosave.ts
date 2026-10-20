@@ -1,8 +1,9 @@
 import * as React from "react"
 import type { JSONContent } from "@tiptap/core"
 
-import { getNotesErrorMessage, isChangedElsewhere, saveNoteChanges } from "@/lib/api/note/notes"
-import type { NoteCard } from "@/lib/note/notes/notes"
+import { getLibraryErrorMessage } from "@/lib/api/note/library"
+import { isChangedElsewhere, saveNoteChanges } from "@/lib/api/note/notes"
+import type { NoteCard } from "@/lib/note/library/notes"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -21,8 +22,6 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 export type NoteChanges = {
   title?: string
   body?: JSONContent
-  icon?: string | null
-  coverUrl?: string | null
 }
 
 export type AutosaveStatus = "idle" | "saving" | "saved" | "offline" | "conflict"
@@ -70,7 +69,7 @@ export function forgetKeptChanges(noteId: string) {
 
 /** Whether an error is the server refusing the change itself, not a lost connection. */
 function isRefusal(error: unknown) {
-  return getNotesErrorMessage(error) !== getNotesErrorMessage(new Error("unknown"))
+  return getLibraryErrorMessage(error) !== getLibraryErrorMessage(new Error("unknown"))
 }
 
 export function useNoteAutosave(options: {
@@ -91,15 +90,17 @@ export function useNoteAutosave(options: {
   )
   const revision = React.useRef(options.revision)
   const pending = React.useRef<NoteChanges>(options.startWith ?? {})
-  const inFlight = React.useRef(false)
+  // The save on its way, which a flush waits for before sending what is left.
+  const inFlight = React.useRef<Promise<void> | null>(null)
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const retry = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const stopped = React.useRef(Boolean(options.startInConflict))
   // The server turned the last save down for good reason (too long, in
   // Trash, signed out). Nothing is sent again until the next change.
   const refused = React.useRef(false)
-  // The note has closed. A last save still goes, but nothing is retried from
-  // a panel that is gone: the change waits in this browser for the next open.
+  // The note has closed. A last save still goes, after any save already on
+  // its way, but nothing is retried from a panel that is gone: a failed one
+  // waits in this browser for the next open.
   const closed = React.useRef(false)
   const saved = React.useRef(options.onSaved)
   React.useEffect(() => {
@@ -115,49 +116,63 @@ export function useNoteAutosave(options: {
     timer.current = null
     if (retry.current) clearTimeout(retry.current)
     retry.current = null
-    if (inFlight.current || stopped.current || refused.current) return
+    // A save already on its way finishes first, so a flush the caller waits
+    // on (Save as template, Move to Trash) really has sent everything typed.
+    while (inFlight.current) await inFlight.current
+    if (stopped.current || refused.current) return
     const sending = pending.current
     if (!Object.keys(sending).length) return
-    inFlight.current = true
-    keep(noteId, revision.current, sending)
-    setStatus("saving")
+    const sent = (async (): Promise<boolean> => {
+      keep(noteId, revision.current, sending)
+      setStatus("saving")
+      try {
+        const result = await saveNoteChanges({ id: noteId, revision: revision.current, ...sending })
+        revision.current = result.revision
+        // Only what was sent is done; anything typed meanwhile is still waiting.
+        const rest: NoteChanges = {}
+        for (const key of Object.keys(pending.current) as (keyof NoteChanges)[]) {
+          if (pending.current[key] !== sending[key]) Object.assign(rest, { [key]: pending.current[key] })
+        }
+        pending.current = rest
+        if (Object.keys(rest).length) keep(noteId, revision.current, rest)
+        else forgetKeptChanges(noteId)
+        setStatus("saved")
+        saved.current(result)
+        return true
+      } catch (error) {
+        if (isChangedElsewhere(error)) {
+          stopped.current = true
+          setStatus("conflict")
+        } else if (isRefusal(error)) {
+          refused.current = true
+          setStatus("idle")
+          showErrorToast(getLibraryErrorMessage(error))
+        } else {
+          setStatus("offline")
+          if (!closed.current) retry.current = setTimeout(() => void again.current(), RETRY_MS)
+        }
+        return false
+      }
+    })()
+    const settled = sent.then(() => undefined)
+    inFlight.current = settled
+    let went = false
     try {
-      const result = await saveNoteChanges({ id: noteId, revision: revision.current, ...sending })
-      revision.current = result.revision
-      // Only what was sent is done; anything typed meanwhile is still waiting.
-      const rest: NoteChanges = {}
-      for (const key of Object.keys(pending.current) as (keyof NoteChanges)[]) {
-        if (pending.current[key] !== sending[key]) Object.assign(rest, { [key]: pending.current[key] })
-      }
-      pending.current = rest
-      if (Object.keys(rest).length) keep(noteId, revision.current, rest)
-      else forgetKeptChanges(noteId)
-      setStatus("saved")
-      saved.current(result)
-    } catch (error) {
-      if (isChangedElsewhere(error)) {
-        stopped.current = true
-        setStatus("conflict")
-      } else if (isRefusal(error)) {
-        refused.current = true
-        setStatus("idle")
-        showErrorToast(getNotesErrorMessage(error))
-      } else {
-        setStatus("offline")
-        if (!closed.current) retry.current = setTimeout(() => void again.current(), RETRY_MS)
-      }
+      went = await sent
     } finally {
-      inFlight.current = false
+      if (inFlight.current === settled) inFlight.current = null
     }
+    // What was typed while a save that went through was on its way goes next,
+    // a closed note's too. A save that failed is retried on the timer instead.
     if (
+      went &&
       !stopped.current &&
       !refused.current &&
-      !closed.current &&
       Object.keys(pending.current).length &&
       !retry.current &&
       !timer.current
     ) {
-      void again.current()
+      await again.current()
     }
   }, [noteId])
   React.useEffect(() => {

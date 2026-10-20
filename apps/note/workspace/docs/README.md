@@ -3,31 +3,25 @@
 What is true of the Note app in particular. What is true of every app built on
 the shell lives in the repo's `docs/`.
 
-- [videos-dashboard.md](videos-dashboard.md): the `/videos` screen. Folders on
-  the left, cards in the middle, the picked video on the right, the sample, and
-  the three tabs on a phone.
-- [saving-a-video.md](saving-a-video.md): which links work, uploads, the
-  30-minute and 500MB limits, the `note-videos` worker and its lease, failures
-  and Try again, what Delete removes, and what a deploy needs.
-- [analysing-a-video.md](analysing-a-video.md): the two Gemini calls behind the
-  Analyse button, what each card holds, the price line, and the bell notices.
-- [notes-dashboard.md](notes-dashboard.md): the `/notes` screen. Folders inside
-  folders, Recently opened, the list, table and board views, saved views,
-  search, picking many notes, pin, archive and Trash.
-- [note-fields.md](note-fields.md): each folder's own fields, what a value may
-  be, moving a note between folders, Suggest fields (the AI), the video link,
-  templates, and Markdown in and out.
+Since 20 Oct 2026 the app has one screen family, Library: Videos, Notes and
+Posts became notes kept in libraries.
+
+- [library-list.md](library-list.md): the `/library` screen. The table of
+  libraries, pins, New library, Library settings, deleting a library, and the
+  one Library link in the left menu.
+- [library-dashboard.md](library-dashboard.md): one library's three-column
+  dashboard. Folders, Authors, Recently opened and Tags on the left, the notes
+  table with search, Filter, Views and mass select in the middle, the open
+  note on the right, moving notes between libraries, and Trash.
+- [importing-a-note.md](importing-a-note.md): the Import dropdown, which links
+  work, the folder each source files into, the `note-imports` worker, failures,
+  Save from x.com, and what a deploy needs.
+- [analysing-a-note.md](analysing-a-note.md): the Analyse button and its price,
+  what the AI is asked for a video and for an X post, the Summary, Action plan
+  and Quotes cards, Analyse many, One plan from many, and the bell.
 - [note-editor.md](note-editor.md): the note editor's blocks, the "/" menu,
   links between notes, pictures, saving with the revision check and the
   offline copy, and History.
-- [note-reminders.md](note-reminders.md): date reminders in the bell.
-- [posts-dashboard.md](posts-dashboard.md): the `/posts` screen. Folders and
-  authors on the left, the cards and filters in the middle, the picked post on
-  the right, highlights, and the editable action plan.
-- [saving-a-post.md](saving-a-post.md): which X links work, why the app reads
-  X's own post page and not its embed feed, what is kept (long text, thread,
-  quote, pictures, video), Bring in the article, the Save from x.com button,
-  failures, and what a deploy needs.
-- [analysing-a-post.md](analysing-a-post.md): the Gemini call behind Analyse,
-  the about-you line, the folder suggestion, the similar-post warning, the
-  price line, Analyse many, One plan from many, and the bell.
+- [launch.md](launch.md): the live site on note.barelycompany.com. Where it
+  runs, every live value, why the worker needs curl_cffi, how to deploy, and
+  the release record.

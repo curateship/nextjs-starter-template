@@ -3,10 +3,10 @@ import { z } from "zod"
 import { DEFAULT_AI_MODEL } from "@/lib/ai/ai-models"
 import { runAiCall } from "@/server/ai/usage"
 import { generateJson, withGeminiFile } from "@/server/note/gemini"
-import type { ActionStep, Quote, TranscriptLine } from "@/lib/note/videos"
+import type { PlanStep, Quote, TranscriptLine } from "@/lib/note/library/notes"
 
 /**
- * What Gemini is asked about a saved video, in two calls.
+ * What Gemini is asked about an imported video, in two calls.
  *
  * The first listens to the sound only, never the picture, and writes every
  * word down with the time it was said, in the language spoken. The second
@@ -61,7 +61,7 @@ export type Transcript = { language: string; lines: TranscriptLine[] }
 
 export type Summary = {
   summary: string[]
-  actionPlan: ActionStep[]
+  actionPlan: PlanStep[]
   quotes: Quote[]
   tags: string[]
 }
@@ -84,11 +84,15 @@ Rules:
 - Leave out music, sound effects and silence. If nobody speaks, return "lines": [].`
 }
 
-function summarisePrompt(lines: TranscriptLine[]) {
+function summarisePrompt(lines: TranscriptLine[], aboutYou: string) {
   const transcript = lines.map((line) => `[${line.startMs}] ${line.text}`).join("\n")
+  const forWhom = aboutYou.trim()
+    ? `Write the plan for someone who: ${aboutYou.trim()}`
+    : "Write the plan for a person who saved this video to act on it."
   return `Below is the transcript of a video, one spoken line per row. Each row starts with the millisecond it is said at.
 
 Write everything in English, whatever language the transcript is in.
+${forWhom}
 
 Return ONLY a JSON object with this exact shape (no markdown, no commentary):
 { "summary": ["..."], "actionPlan": ["..."], "quotes": [{ "text": "...", "startMs": 0 }], "tags": ["..."] }
@@ -105,17 +109,17 @@ ${transcript}`
 
 /**
  * Writes down every word in the sound, with times, in the language spoken.
- * `sound` is the small mp3 the worker cut out of the file. `about` names the
- * saved video, or the saved post whose video it is, on the AI meter's row.
+ * `sound` is the small mp3 the worker cut out of the file. `noteId` names the
+ * note on the AI meter's row.
  */
 export async function transcribe(options: {
   ownerId: string
-  about: { noteVideoId: string } | { notePostId: string }
+  noteId: string
   apiKey: string
   sound: Uint8Array
   durationMs: number | null
 }): Promise<Transcript> {
-  const { ownerId, about, apiKey, sound, durationMs } = options
+  const { ownerId, noteId, apiKey, sound, durationMs } = options
   const label = "Writing the words down"
   const answer = await runAiCall(
     {
@@ -123,7 +127,7 @@ export async function transcribe(options: {
       provider: "gemini",
       model: MODEL,
       feature: "note_transcribe",
-      metadata: about,
+      metadata: { noteId },
     },
     async () => {
       const result = await withGeminiFile(sound, "audio/mpeg", apiKey, label, (part) =>
@@ -149,16 +153,18 @@ export async function transcribe(options: {
 
 /**
  * Reads the transcript and writes the summary, plan, quotes and tags, in
- * English. Text only, so it costs a fraction of the listening.
+ * English, with the plan written for the about-you line in Settings → App
+ * settings. Text only, so it costs a fraction of the listening.
  */
 export async function summarise(options: {
   ownerId: string
-  videoId: string
+  noteId: string
   apiKey: string
+  aboutYou: string
   lines: TranscriptLine[]
   durationMs: number | null
 }): Promise<Summary> {
-  const { ownerId, videoId, apiKey, lines, durationMs } = options
+  const { ownerId, noteId, apiKey, aboutYou, lines, durationMs } = options
   const label = "Summarising"
   const answer = await runAiCall(
     {
@@ -166,13 +172,13 @@ export async function summarise(options: {
       provider: "gemini",
       model: MODEL,
       feature: "note_summarise",
-      metadata: { noteVideoId: videoId },
+      metadata: { noteId },
     },
     async () => {
       const result = await generateJson({
         apiKey,
         model: MODEL,
-        parts: [{ text: summarisePrompt(lines) }],
+        parts: [{ text: summarisePrompt(lines, aboutYou) }],
         schema: summarySchema,
         label,
       })

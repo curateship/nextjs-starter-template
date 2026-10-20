@@ -28,10 +28,10 @@ Personal can show it in a panel.
   because the link never leaves the server.
 - **Both resources** build `develop` from the public GitHub repo with the root
   `Dockerfile`, base `/`, port 3000. Auto-deploy is off.
-- **The build stage** is set by hand in Coolify → the resource →
-  Configuration → Build → Docker Build Stage Target. The API refuses the
-  field. Left empty, Docker builds the last stage in the file, which is the
-  worker, on both.
+- **The build stage** was set through Coolify's API
+  (`dockerfile_target_build`) on 19 Oct 2026. It shows in Coolify → the
+  resource → Configuration → Build → Docker Build Stage Target. Left empty,
+  Docker builds the last stage in the file, which is the worker, on both.
 - **DNS:** `A fitness.barelycompany.com` → 46.224.177.156, proxied by
   Cloudflare. The zone's https mode is Full.
 
@@ -104,3 +104,28 @@ On Tyler's Mac on 19 Oct 2026, both images were built from the root
 
 | Date | Commit | Deployments | Notes |
 | --- | --- | --- | --- |
+| 19 Oct 2026 | `2b752d223` | web `dmlmiicha0a0wrejrf9tcnx7` (554 s), worker `e3r9arwgszq74ai3dovjceri` (523 s) | First launch. The website went first and applied all 102 database changes, then the worker followed. Both read healthy, and the health address answered `{"status":"ok"}`. The four AI keys were written straight after. `create-admin.mjs` made typham2@gmail.com a verified admin. The first sign-in made the site, then `copy-menu.mjs` copied this Mac's admin and members' menus to live. |
+
+### What the first live check covered, 19 Oct 2026
+
+Playwright, signed in as Tyler, nothing pressed that changes data.
+
+- **As a visitor:** the home page, `/register`, `/login` and
+  `/forgot-password` load with no errors, and the page is a secure context.
+  Plain `http://` redirects to `https://`.
+- **The sign-up check:** the Turnstile script loads on `/register`. A real
+  sign-up was not tried.
+- **Signed in:** the `fitness_session` cookie is Secure and HttpOnly. Every
+  left-menu link opens with no page errors and no failed requests: Programs,
+  Exercises, Dashboard and its tabs, Pages, CRM, Broadcast, Automations and
+  Settings. Settings → AI shows all four keys set. Programs at phone width
+  (390 px) has no sideways scroll.
+- **Found, not fixed:**
+  - The tab title and the public home page still say "Custom Shell". The
+    site's name and front page are saved settings, and a deploy copies only
+    the menu.
+  - At 1280 px wide, the admin dashboard's row of tabs (Dashboard to
+    Referrals) ends at 1286 px, so every admin page scrolls sideways by 6 px.
+    The row is the shell's.
+- **Not yet tried on live:** making a program, logging a workout, a photo
+  upload, an emailed link, and the calendar feed.

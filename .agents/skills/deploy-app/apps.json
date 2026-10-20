@@ -103,5 +103,23 @@
     "database": {
       "uuid": "qi7owchjxxin7stgfpb4fvnm"
     }
+  },
+  "note": {
+    "server": "de",
+    "project": "Note",
+    "healthUrl": "https://note.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "gaqliog3hnnyhx7tdgih3zt5"
+      },
+      {
+        "role": "worker",
+        "uuid": "am6pke5hxmkluo2ky11v3rli"
+      }
+    ],
+    "database": {
+      "uuid": "o6fpwrpa6xfddszyrqqpwpvj"
+    }
   }
 }

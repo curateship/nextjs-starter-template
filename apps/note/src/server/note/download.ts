@@ -5,12 +5,7 @@ import path from "node:path"
 
 import { checkLinkHost, type VideoLink } from "@/server/note/links"
 import { SayableError } from "@/server/note/sayable"
-import {
-  MAX_DURATION_SECONDS,
-  MAX_FILE_BYTES,
-  NOTE_SAYS,
-  type NoteVideoKind,
-} from "@/lib/note/videos"
+import { LIBRARY_SAYS, MAX_DURATION_SECONDS, MAX_FILE_BYTES, type MediaKind } from "@/lib/note/library/notes"
 
 /**
  * Fetching one video with yt-dlp, into a folder of its own on this machine.
@@ -29,7 +24,7 @@ export const YT_DLP_MISSING_MESSAGE = "yt-dlp is not installed on this server"
 const DOWNLOAD_TIMEOUT_MS = 15 * 60_000
 
 /** What yt-dlp may write, and what the library calls each one. */
-const EXTENSIONS: Record<string, { mimeType: string; kind: NoteVideoKind }> = {
+const EXTENSIONS: Record<string, { mimeType: string; kind: MediaKind }> = {
   mp4: { mimeType: "video/mp4", kind: "video" },
   m4v: { mimeType: "video/mp4", kind: "video" },
   mov: { mimeType: "video/quicktime", kind: "video" },
@@ -48,7 +43,7 @@ export type DownloadedVideo = {
   dir: string
   filePath: string
   mimeType: string
-  kind: NoteVideoKind
+  kind: MediaKind
   sizeBytes: number
   /** yt-dlp's name for the site, lowercased: "youtube", "tiktok", "vimeo". */
   source: string | null
@@ -105,8 +100,8 @@ export async function downloadVideo(link: VideoLink): Promise<DownloadedVideo> {
       link.url,
     ])
 
-    if (said.includes("does not pass filter")) throw new SayableError(NOTE_SAYS.tooLong)
-    if (said.includes("larger than max-filesize")) throw new SayableError(NOTE_SAYS.tooBig)
+    if (said.includes("does not pass filter")) throw new SayableError(LIBRARY_SAYS.tooLong)
+    if (said.includes("larger than max-filesize")) throw new SayableError(LIBRARY_SAYS.tooBig)
 
     const files = await readdir(dir)
     const filename = files.find(
@@ -123,12 +118,12 @@ export async function downloadVideo(link: VideoLink): Promise<DownloadedVideo> {
     const { size } = await stat(filePath)
     if (!size) throw new SayableError("The video came back empty.")
     // Two pieces under the cap each can still join into one over it.
-    if (size > MAX_FILE_BYTES) throw new SayableError(NOTE_SAYS.tooBig)
+    if (size > MAX_FILE_BYTES) throw new SayableError(LIBRARY_SAYS.tooBig)
 
     const info = await readInfo(path.join(dir, "video.info.json"))
     const durationSeconds = readSeconds(info.duration)
     if (durationSeconds !== null && durationSeconds > MAX_DURATION_SECONDS) {
-      throw new SayableError(NOTE_SAYS.tooLong)
+      throw new SayableError(LIBRARY_SAYS.tooLong)
     }
 
     return {

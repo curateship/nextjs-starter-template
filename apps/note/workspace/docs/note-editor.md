@@ -1,7 +1,12 @@
 # The note editor
 
 The text of a note is written in a Tiptap editor of the app's own
-(`src/components/note-notes/note-editor.tsx`). What a note may hold is one
+(`src/components/note-library/note-editor.tsx`). In the right panel it runs
+edge to edge with the panel's own inset (`inset`), and its toolbar shows only
+after the pencil in the panel's header is pressed (`tools`). Tyler, 20 Oct
+2026: "Just add an edit icon here and if clicked the tool appears at the top",
+after a toolbar that appeared on hover pushed the text down, one at the bottom
+was "worse", and one floating over the text covered the first line. What a note may hold is one
 list, `noteBodyExtensions` in `src/lib/note/notes/body.ts`, and the server
 checks every save against the same list.
 
@@ -48,14 +53,15 @@ leaves the shell file untouched.
 
 ## Links between notes
 
-- **"[[" opens a search of the person's own note titles.** Picking one puts in a
+- **"[[" opens a search of the note titles in the same library.** Picking one puts in a
   link that shows the note's current title, so a rename shows everywhere.
 - **Clicking a link opens that note.** A link to a note in Trash shows its title
   struck through. A link to a note deleted for good shows "Deleted note" and
   does nothing.
 - **Linked from**, under the text, lists the notes that link to this one.
 - **The server rewrites the links on every save** from the text itself, only to
-  the person's own notes (`note_note_links`).
+  notes in the same library (`note_links`). A note moved to another library
+  loses its links to the notes left behind, which become plain text.
 
 ## Saving
 
@@ -80,8 +86,13 @@ leaves the shell file untouched.
 - **Opening the note again in this browser** picks a kept change up and sends
   it. If the note changed elsewhere meanwhile, the same version window asks
   first.
-- **Field values and the video link save separately** and never count as a
-  revision, so they cannot collide with the text.
+- **Tags, priority, folder, author and the AI's cards save separately** and
+  never count as a revision, so they cannot collide with the text.
+- **Opening a note never saves it.** The editor tidies a note as it first draws
+  it, which arrives as a change with the very same text; the editor hands on
+  only a real change (`docText` in `note-editor.tsx`). Before 20 Oct 2026 every
+  opening saved, and two copies of the panel could clash and ask which version
+  to keep.
 
 ## History
 
@@ -91,7 +102,6 @@ leaves the shell file untouched.
 - **History in the note's header** lists the copies by time. Picking one shows
   it as it was; Restore puts it back. The note as it is now is kept as a copy
   first, so a restore can be undone the same way.
-- **Restoring keeps only values for fields the folder still has.**
 
 ## What the server checks on every save
 

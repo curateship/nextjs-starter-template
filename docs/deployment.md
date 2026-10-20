@@ -59,7 +59,16 @@ no website calls these programs.
 | --- | --- | --- |
 | Pomodoro | `ffmpeg yt-dlp` | Uploaded sounds and clips, and every AI background and soundscape, are re-encoded by the `pomodoro-media-uploads` and `pomodoro-generations` workers. Without FFmpeg each card says "Sound and video cannot be prepared yet." The `pomodoro-youtube-imports` worker calls `yt-dlp` to fetch 5 seconds of a YouTube video for a theme; without it the row says "yt-dlp is not installed on this server". Alpine 3.24's `yt-dlp` was 2026.08.19 on 10 Oct 2026 and fetched a clip inside the worker image. |
 | Video | `ffmpeg yt-dlp` | Its workers call `ffmpeg`, `ffprobe` and `yt-dlp` (`apps/video/src/server/video/media-workers.ts`, `viral/download.ts`). Alpine's `ffmpeg` package brings `ffprobe` with it. On 18 Oct 2026 the Video worker image had FFmpeg 8.1.2, ffprobe 8.1.2 and yt-dlp 2026.08.19. |
+| Note | `ffmpeg yt-dlp` | The `note-imports` worker downloads a video with `yt-dlp` and takes its cover with `ffmpeg` (`apps/note/src/server/note/download.ts`, `ffmpeg.ts`). It also needs `curl_cffi` from `WORKER_PIP_PACKAGES` below. |
 | Custom Shell, Trade, CMS | not set | Nothing in their workers calls an outside program. |
+
+A Python package Alpine does not carry goes in `WORKER_PIP_PACKAGES`, by its
+pip name, space-separated. The worker installs it with pip after the Alpine
+packages, then removes pip. Empty is the default and installs nothing.
+
+| App | `WORKER_PIP_PACKAGES` | Why |
+| --- | --- | --- |
+| Note | `curl_cffi` | Note runs `yt-dlp --impersonate chrome`, and yt-dlp can only pretend to be Chrome with curl_cffi. Alpine 3.24 has no package for it. Without it every download stops with `Impersonate target "chrome" is not available`. On 20 Oct 2026 pip put in curl_cffi 0.16.3 and a YouTube download test then worked inside the worker image. |
 
 ### No stylesheets in the worker
 

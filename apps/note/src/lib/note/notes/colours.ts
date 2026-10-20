@@ -1,5 +1,5 @@
 /**
- * The colours a note can use: a choice field's options, the highlighter, the
+ * The colours a note's text can use: the swatches, the highlighter, the
  * text colour and a callout's box. Each is stored as a name, never as a CSS
  * value, so what is saved can only ever be one of these and a dark screen
  * gets its own shade. The class strings are written out in full so Tailwind
@@ -17,33 +17,6 @@ export const OPTION_COLOURS = [
   "pink",
 ] as const
 export type OptionColour = (typeof OPTION_COLOURS)[number]
-
-export const OPTION_COLOUR_LABELS: Record<OptionColour, string> = {
-  grey: "Grey",
-  blue: "Blue",
-  green: "Green",
-  yellow: "Yellow",
-  orange: "Orange",
-  red: "Red",
-  purple: "Purple",
-  pink: "Pink",
-}
-
-/** A choice option drawn as a small badge. */
-export const OPTION_BADGE_CLASS: Record<OptionColour, string> = {
-  grey: "border-border bg-muted text-foreground",
-  blue: "border-blue-200 bg-blue-100 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-200",
-  green:
-    "border-green-200 bg-green-100 text-green-900 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
-  yellow:
-    "border-yellow-200 bg-yellow-100 text-yellow-900 dark:border-yellow-900/50 dark:bg-yellow-950/50 dark:text-yellow-200",
-  orange:
-    "border-orange-200 bg-orange-100 text-orange-900 dark:border-orange-900/50 dark:bg-orange-950/50 dark:text-orange-200",
-  red: "border-red-200 bg-red-100 text-red-900 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-200",
-  purple:
-    "border-purple-200 bg-purple-100 text-purple-900 dark:border-purple-900/50 dark:bg-purple-950/50 dark:text-purple-200",
-  pink: "border-pink-200 bg-pink-100 text-pink-900 dark:border-pink-900/50 dark:bg-pink-950/50 dark:text-pink-200",
-}
 
 /** The six highlighter colours in the bubble menu. */
 export const HIGHLIGHT_COLOURS = ["yellow", "green", "blue", "purple", "pink", "red"] as const

@@ -6,17 +6,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const save = vi.fn()
 vi.mock("@/lib/api/note/notes", async () => {
-  const { NOTES_SAY } = await import("@/lib/note/notes/notes")
+  const { LIBRARY_SAYS } = await import("@/lib/note/library/notes")
   return {
     saveNoteChanges: (...args: unknown[]) => save(...args),
-    isChangedElsewhere: (error: unknown) => error instanceof Error && error.message.includes(NOTES_SAY.changedElsewhere),
-    getNotesErrorMessage: (error: unknown) =>
-      error instanceof Error && error.message.includes("too long") ? error.message : "That did not work. Try again in a moment.",
+    isChangedElsewhere: (error: unknown) => error instanceof Error && error.message.includes(LIBRARY_SAYS.changedElsewhere),
   }
 })
+vi.mock("@/lib/api/note/library", () => ({
+  getLibraryErrorMessage: (error: unknown) =>
+    error instanceof Error && error.message.includes("too long") ? error.message : "That did not work. Try again in a moment.",
+}))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
 
-import { NOTES_SAY } from "@/lib/note/notes/notes"
+import { LIBRARY_SAYS } from "@/lib/note/library/notes"
 import { keptChangesKey, readKeptChanges, useNoteAutosave } from "@/lib/note/notes/use-note-autosave"
 
 /**
@@ -81,6 +83,30 @@ describe("useNoteAutosave", () => {
     expect(readKeptChanges("n1")).toBeNull()
   })
 
+  it("waits for a save on its way, then sends what was typed meanwhile before a flush ends", async () => {
+    let finishFirst: (value: unknown) => void = () => undefined
+    save
+      .mockImplementationOnce(() => new Promise((resolve) => (finishFirst = resolve)))
+      .mockResolvedValue({ revision: 5, card, words: 2 })
+    await act(async () => root.render(<Harness />))
+    await act(async () => {
+      hook.change({ title: "First" }, true)
+    })
+    let flushed = false
+    await act(async () => {
+      hook.change({ title: "First and second" })
+      void hook.flush().then(() => (flushed = true))
+    })
+    // The flush has not finished: the first save is still on its way.
+    expect(flushed).toBe(false)
+    await act(async () => {
+      finishFirst({ revision: 4, card, words: 1 })
+    })
+    expect(flushed).toBe(true)
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(save).toHaveBeenLastCalledWith({ id: "n1", revision: 4, title: "First and second" })
+  })
+
   it("keeps the change in the browser when the connection drops, and sends it once back", async () => {
     save.mockRejectedValueOnce(new TypeError("Failed to fetch")).mockResolvedValue({ revision: 4, card, words: 1 })
     await act(async () => root.render(<Harness />))
@@ -99,7 +125,7 @@ describe("useNoteAutosave", () => {
 
   it("stops and asks when another tab saved first, and sends on the newer revision once told to", async () => {
     save
-      .mockRejectedValueOnce(new Error(NOTES_SAY.changedElsewhere))
+      .mockRejectedValueOnce(new Error(LIBRARY_SAYS.changedElsewhere))
       .mockResolvedValue({ revision: 9, card, words: 1 })
     await act(async () => root.render(<Harness />))
     await act(async () => {
