@@ -208,6 +208,16 @@ export type TaskEventKind =
   | "sent_back"
   /** The due date moved from one day to another; the reason holds both, "2026-11-03 2026-11-10". */
   | "due_moved"
+  /** Start on a task nobody had made it theirs (`workspace/docs/task-clock.md`). */
+  | "took"
+  /**
+   * The task clock. A pause's reason holds that stretch's seconds, with
+   * " midnight" after them when it paused itself at midnight; a fix's holds
+   * the old and new totals in seconds, "10800 4200".
+   */
+  | "clock_started"
+  | "clock_paused"
+  | "clock_fixed"
 
 /**
  * A task picked on this many days and still not Done gets a mark saying so,
@@ -273,6 +283,10 @@ export const LIMITS = {
   fieldLink: 2048,
   /** Field columns a project's List can add when filtered to one type. */
   fieldColumns: 3,
+  /** A task's guess, in minutes: up to 999 hours. */
+  guessMinutes: 999 * 60,
+  /** A task's time set by hand, in seconds: up to 999 hours. */
+  clockSeconds: 999 * 60 * 60,
   /** Files sent with one chat message, so one send stays one upload of at most 50 MB. */
   filesPerMessage: 5,
   /** The team's pinned announcement: one message, never a chat. */
@@ -641,6 +655,17 @@ export const updateTaskSchema = z.object({
   startDate: dueDateSchema.optional(),
   snoozedUntil: dueDateSchema.optional(),
   priority: z.enum(TASK_PRIORITIES).optional(),
+  /** How long it is guessed to take, in minutes; null takes the guess off. */
+  guessMinutes: z.number().int().min(1).max(LIMITS.guessMinutes).nullable().optional(),
+})
+
+/** Start and Pause, from the task panel's footer. */
+export const clockSchema = z.object({ taskId: id })
+
+/** A task's time set by hand, for a clock left running by mistake. */
+export const setClockSchema = z.object({
+  taskId: id,
+  seconds: z.number().int().min(0).max(LIMITS.clockSeconds),
 })
 
 const weekDaysSchema = z

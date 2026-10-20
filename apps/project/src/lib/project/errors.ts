@@ -31,6 +31,7 @@ export const PROJECT_ERRORS = {
   notProjectMember: "Tasks can only be handed to members of the project.",
   stuckNeedsReason: "Say in a line why the task is stuck.",
   notAssignee: "Only the person the task is assigned to can do that.",
+  clockNotYours: "Only the person the task is assigned to, or the site admin, can run its clock.",
   nothingToHandBack: "This task wasn't handed to you by anyone.",
   cantDeleteTask: "Only the person who made the task or the site admin can delete it.",
   tooManySteps: "A task can have at most 50 steps.",

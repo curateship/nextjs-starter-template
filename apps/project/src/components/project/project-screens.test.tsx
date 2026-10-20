@@ -12,6 +12,7 @@ import { TaskBoard } from "@/components/project/task-board"
 import type { FieldRule } from "@/lib/project/task-fields"
 import { TaskBulkMenu } from "@/components/project/task-bulk-bar"
 import { TaskList } from "@/components/project/task-list"
+import { MyTaskRows } from "@/components/project/my-task-rows"
 import { TeamStart } from "@/components/project/team-start"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { ProjectPage } from "@/lib/api/project/projects"
@@ -73,6 +74,8 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     repeat: null,
     type: null,
     fieldValues: {},
+    clock: { seconds: 0, runningSince: null },
+    guessMinutes: null,
     ...overrides,
   }
 }
@@ -281,10 +284,50 @@ describe("the list", () => {
     expect(html).toContain(">YouTube<")
   })
 
+  it("shows the Time column only when picked, ticking on a running clock", () => {
+    const timed = [
+      card({ id: "t1", title: "Timed", clock: { seconds: 70 * 60, runningSince: null } }),
+      card({ id: "t2", title: "Never started" }),
+    ]
+    const plain = renderToStaticMarkup(<TaskList tasks={timed} readOnly={false} onOpenTask={() => {}} />)
+    expect(plain).not.toContain(">Time<")
+    const html = renderToStaticMarkup(<TaskList tasks={timed} readOnly={false} onOpenTask={() => {}} showTime />)
+    expect(html).toContain(">Time<")
+    expect(html).toContain(">1h 10m<")
+  })
+
+  it("marks a task whose clock is running with a Doing chip", () => {
+    const rows = [
+      card({ id: "c1", title: "Clocking", status: "doing", clock: { seconds: 0, runningSince: new Date().toISOString() } }),
+      card({ id: "c2", title: "Idle", status: "doing", clock: { seconds: 600, runningSince: null } }),
+    ]
+    const html = renderToStaticMarkup(<TaskList tasks={rows} readOnly={false} onOpenTask={() => {}} />)
+    expect(html.match(/animate-spin/g)).toHaveLength(1)
+    expect(html).toMatch(/Clocking.*>Doing<\/span>/s)
+  })
+
   it("names the project instead of the person on My dashboard", () => {
     const html = renderToStaticMarkup(<TaskList tasks={tasks} readOnly={false} showProject onOpenTask={() => {}} />)
     expect(html).toContain(">Project<")
     expect(html).not.toContain("Assigned to")
+  })
+})
+
+describe("My tasks rows (Task panel task 01, part 6)", () => {
+  it("show a running clock with its own Pause, beside the row's button", () => {
+    const rows = [
+      card({ id: "r1", title: "Running", status: "doing", clock: { seconds: 0, runningSince: new Date().toISOString() } }),
+      card({ id: "r2", title: "Paused", status: "doing", clock: { seconds: 600, runningSince: null } }),
+    ]
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <MyTaskRows tasks={rows} onOpenTask={() => {}} bulk={{ people: [], projects: [] }} emptyText="None" />
+      </TooltipProvider>
+    )
+    expect(html).toContain('aria-label="Pause the clock on Running"')
+    expect(html).not.toContain("Pause the clock on Paused")
+    // A button inside a button is invalid HTML; the Pause sits beside the row's button.
+    expect(html).not.toMatch(/<button(?:(?!<\/button>).)*<button/s)
   })
 })
 

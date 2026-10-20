@@ -354,9 +354,11 @@ built. Each was the recommended option.
   2026): "sorting is also a filter".
 - **Each saved view has a cog in the Views menu** to rename it or change its
   filters (20 Oct 2026).
-- **The task panel's top is the status, then three dots and the cog at the
-  right**, with Add tags, Add note, Add comment and Add files in the three
-  dots and no cross on the project page (20 Oct 2026).
+- **The task panel's top is the task's name, then three dots and the cog at
+  the right**, with Add tags, Add note, Add comment and Add files in the three
+  dots and no cross on the project page (20 Oct 2026). The status went to a
+  footer pinned to the panel's bottom later the same day (see "Choices for
+  the task clock" below).
 - **The Notes card has a Delete button**, and a card footer's buttons fill
   the row (20 Oct 2026).
 - **Over a project's banner, the left panel's header has no line under it**
@@ -375,8 +377,48 @@ order they get built.
 
 - The weekly manager email.
 - Guests who see only some projects.
-- Online status, screenshots and activity timers. The check-in is the only thing
-  the app tracks about a person.
+- Online status, screenshots and activity timers that run without being
+  asked. The check-in is the only thing the app tracks about a person on its
+  own. The task clock (below) is different: it runs only after the person
+  presses Start, and they pause it themselves.
+
+## Choices for the task clock
+
+Tyler asked on 20 Oct 2026: "Put the status to the bottom of the panel and
+make it sticky. Replace where the status is with the task name. In the bottom
+footer (beside status) add a button that says "Start task" when task starts,
+the countdown timer appears to record how long a task takes. I can also pause
+the timer. Beside it there will be another button that says "Task completed"
+to finish a task." He picked the recommended option on every question that
+day. How it works is in [The task clock](task-clock.md).
+
+- **The clock counts up** from 0:00 to record how long the task took. It
+  never counts down.
+- **Start moves the task to Doing, and Completed moves it to
+  Done**, through Done's usual checks.
+- **Only the person assigned and the site admin run the clock.** Everyone on
+  the project sees the total, and anyone on the project can press
+  Completed.
+- **Start on a task nobody has makes it theirs.**
+- **A Done task shows its total and Start again.**
+- **The footer is for the side panel only**, not the Team dashboard's
+  window.
+- **A clock left running pauses at midnight** in the person's own zone, with
+  a bell notice in the morning.
+- **Times in Yesterday show to everyone on the team.**
+- **The ten ideas around it were all ticked**: one clock at a time, pausing
+  by itself, fixing a wrong time, clock lines in History, the clock on My
+  dashboard rows, times in Yesterday, the unfinished steps question, a Time
+  column on the List, hours this week in Workload, and a guess to compare
+  against.
+- **The buttons say "Start" and "Completed"** (Tyler, 20 Oct 2026: "rename
+  button to "Start" and "Completed""). A Done task's button still says Start
+  again.
+- **A task whose clock is running carries a rainbow "Doing" chip** after its
+  title on the List, the rainbow going round it (Tyler, 20 Oct 2026,
+  `assets/pasted-image-1792518621244475000.png`).
+- **New task gets its Type choice back** in the dropdown, after "More
+  options" took the window's Type picker out of reach on 19 Oct 2026.
 
 ## Choices for the 19 Oct status
 

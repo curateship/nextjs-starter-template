@@ -137,7 +137,11 @@ check in with its own dashboard".
 - **With no check-out, Yesterday lists what the person finished.** The box
   opens with the title of each task assigned to them that became Done since
   their last check-in, one per line, oldest first (Tyler's choice, 13 Oct
-  2026: since the last check-in, so a Monday covers the weekend). A task
+  2026: since the last check-in, so a Monday covers the weekend). A task with
+  a minute or more on its clock adds its time: "Fix the login page, 1h 20m"
+  (Tyler, 20 Oct 2026; see [The task clock](task-clock.md)). The words are
+  the person's note, so the times show wherever the note does, the Team
+  dashboard included. A task
   moved back out of Done, a task in the bin and a task in a project they can
   no longer see are left out. It names at most ten and ends "and 15 more",
   and it stops sooner when the next title would take the note past 280
@@ -198,6 +202,8 @@ left on the person's page. Tyler's rule in
   because it went in the bin since the morning, the check-out says why and
   saves nothing, so no task is left half finished (`checkOut` in
   `src/server/project/checkins.ts`).
+- **Checking out pauses any task clock** the person still has running (see
+  [The task clock](task-clock.md)).
 - **Plan your next check-in.** Every open task of mine is listed to tick.
   The next check-in opens with them already ticked, and I can still change
   them there; a line says how many came from my check-out. A task ticked

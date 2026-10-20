@@ -15,13 +15,15 @@ import {
   projectTasks,
 } from "@/server/project/schema"
 import { nextTaskPosition } from "@/server/project/task-order"
+import { pauseClocksAtMidnight } from "@/server/project/task-clock"
 import { copyFieldValues } from "@/server/project/task-types"
 import type { FileStorage } from "@/server/project/task-files"
 
 /**
- * Planning's two background jobs, on the shell's fifteen-second loop
+ * Planning's background jobs, on the shell's fifteen-second loop
  * (`src/app/server-options.ts`): making each day's copy of a repeating task,
- * and emptying bins of anything deleted more than 30 days ago.
+ * emptying bins of anything deleted more than 30 days ago, and pausing task
+ * clocks left running past midnight (`task-clock.ts`).
  */
 
 const BATCH = 200
@@ -29,6 +31,7 @@ const BATCH = 200
 export async function runPlanningJobs(database: CustomShellDb = db, at = new Date()) {
   await makeRepeatCopies(database, at)
   await emptyOldBins(database, at)
+  await pauseClocksAtMidnight(database, at)
 }
 
 type DueCopy = { taskId: string; seriesId: string; day: string; zone: string }

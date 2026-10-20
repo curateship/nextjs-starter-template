@@ -58,6 +58,10 @@ For everyone, to see who has room before handing out more work.
   project, as everywhere else; a member sees counts and tasks from their own
   projects only. "Just me" tasks never count.
 - **Busiest first**, by open tasks.
+- **Clocked time this week**, "6h 20m this week" beside each name: their
+  time on the task clock from Monday's midnight in their own zone until now,
+  on projects the viewer can see and the picked client's only (Tyler, 20 Oct
+  2026; see [The task clock](task-clock.md)).
 - **One client's work.** With a client picked in the client choice beside the Workload heading, at the
   top of the tab, only that client's projects count, or those with no client
   (Features 16 Oct; see Clients in

@@ -23,6 +23,7 @@ import {
   UnreadBadge,
   WaitingBadge,
 } from "@/components/project/task-bits"
+import { RowClock } from "@/components/project/task-clock"
 import { TaskBulkBar, type BulkTargets } from "@/components/project/task-bulk-bar"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -31,6 +32,7 @@ import { changeTasks, type BulkOutcome, type TaskCard } from "@/lib/api/project/
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
+import { pauseTaskClock } from "@/lib/api/project/clock"
 import { reportBulkOutcome } from "@/lib/project/bulk-outcome"
 import { todayKey } from "@/lib/project/dates"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -103,6 +105,11 @@ export function MyTaskRows({
       .filter((group) => group.rows.length > 0)
   }, [groupOf, groups, tasks])
 
+  /** The row's own Pause, for a clock left running (Task panel task 01, part 6). */
+  async function pauseClock(task: TaskCard) {
+    if (await run(() => pauseTaskClock(task.id))) await router.invalidate()
+  }
+
   /** Each task is marked Done on its own, so one with a field still to fill is refused alone and named. */
   async function markDone() {
     let outcome: BulkOutcome = { changed: [], refused: [] }
@@ -167,6 +174,7 @@ export function MyTaskRows({
                         selected={selection.selected.has(task.id)}
                         onToggle={() => selection.toggle(task.id)}
                         onOpen={() => onOpenTask(task)}
+                        onPauseClock={() => void pauseClock(task)}
                       />
                     ))}
                   </ul>
@@ -187,6 +195,7 @@ function Row({
   selected,
   onToggle,
   onOpen,
+  onPauseClock,
 }: {
   task: TaskCard
   open: boolean
@@ -194,6 +203,7 @@ function Row({
   selected: boolean
   onToggle: () => void
   onOpen: () => void
+  onPauseClock: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -268,6 +278,8 @@ function Row({
           <ChevronRightIcon className="size-4 text-muted-foreground" aria-hidden />
         </span>
       </button>
+      {/* Beside the row's button, not in it, so Pause never opens the task. */}
+      <RowClock task={task} onPause={onPauseClock} />
     </li>
   )
 }

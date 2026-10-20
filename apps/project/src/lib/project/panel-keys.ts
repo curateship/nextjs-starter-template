@@ -16,6 +16,9 @@ export const MY_TASK_VIEW_KEY = "project-my-dashboard-task-view"
 /** The field columns a project's List shows when filtered to one task type, per type. */
 export const fieldColumnsKey = (typeId: string) => `project-type-columns-${typeId}`
 
+/** Whether every project's List shows the Time column (Task panel task 01, part 9). */
+export const LIST_TIME_COLUMN_KEY = "project-list-time-column"
+
 /** The project New task in the header chose last, so it is chosen first next time. */
 export const NEW_TASK_PROJECT_KEY = "project-new-task-project"
 

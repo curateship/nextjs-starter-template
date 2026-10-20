@@ -16,6 +16,7 @@ import {
   MessageSquareIcon,
   MessageSquareReplyIcon,
   PlayIcon,
+  TimerOffIcon,
   UndoIcon,
   UserCheckIcon,
   UserPlusIcon,
@@ -66,6 +67,7 @@ const APP_NOTICE_KINDS = [
   "task_reminder",
   "project_health",
   "milestone_due",
+  "clock_paused",
 ] as const
 
 const PROJECT_NOTICE_KINDS = [...TASK_NOTICE_KINDS, ...APP_NOTICE_KINDS] as const
@@ -160,6 +162,13 @@ const TASK_REMINDER_START = "Reminder: "
 export function taskReminderHeading(title: string) {
   return `${TASK_REMINDER_START}${title}`
 }
+
+const CLOCK_PAUSED_START = "Clock paused at midnight: "
+
+/** "Clock paused at midnight: Fix the login page", for a clock left running (`task-clock.ts`). */
+export function clockPausedHeading(title: string) {
+  return `${CLOCK_PAUSED_START}${title}`
+}
 const TASKS_HANDED_WORDS = / gave you \d+ tasks$/
 
 const WEEKDAY_NAMES = [
@@ -218,6 +227,7 @@ export function noticeKindFromWords(
   if (notice.message === CHECKIN_REMINDER_HEADING) return "checkin_reminder"
   // First, because a task's own title could end like another notice.
   if (notice.message.startsWith(TASK_REMINDER_START)) return "task_reminder"
+  if (notice.message.startsWith(CLOCK_PAUSED_START)) return "clock_paused"
   if (DUE_SOON_WORDS.test(notice.message)) return "due_soon"
   if (OVERDUE_WORDS.test(notice.message)) return "overdue"
   if (MILESTONE_DUE_WORDS.test(notice.message)) return "milestone_due"
@@ -388,6 +398,11 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
   },
   milestone_due: {
     icon: FlagIcon,
+    toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    categoryId: "tasks",
+  },
+  clock_paused: {
+    icon: TimerOffIcon,
     toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     categoryId: "tasks",
   },

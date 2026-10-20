@@ -16,6 +16,7 @@ import { TaskPlanCard } from "@/components/project/task-plan-card"
 import { StepMenu } from "@/components/project/step-menu"
 import { TaskTagList, TaskTagsField } from "@/components/project/task-tags-field"
 import { TaskLinkButton, TaskLinkField } from "@/components/project/task-link"
+import { TaskClockFooter } from "@/components/project/task-clock"
 import {
   DueDate,
   DueMovesMark,
@@ -139,9 +140,10 @@ export type TaskParts = {
  * of the fields in the cog's dropdown.
  */
 export type TaskSide = {
-  /** The title at the top of the panel, edited where it is written. */
+  /** The title in the panel's header, edited where it is written (Tyler, 20 Oct 2026). */
   title: React.ReactNode
-  status: React.ReactNode
+  /** The footer pinned to the panel's bottom: the status, the clock, Start and Completed. */
+  footer: React.ReactNode
   /** The tags under the title, to read; nothing while there are none. */
   tagList: React.ReactNode
   /** The tags box, in the three-dot button's Add tags (Tyler, 20 Oct 2026). */
@@ -617,15 +619,15 @@ function TaskForm({
     </div>
   )
 
-  // The project page's panel puts the status in its header, a small pill with
-  // the status's own dot, the same as the Board's column headings.
+  // The panel puts the status in its footer, a small pill with the status's
+  // own dot, the same as the Board's column headings.
   const statusPill = (
     <Select
       value={pendingStuck ? "stuck" : task.status}
       onValueChange={(value) => pickStatus(value as TaskStatus)}
       disabled={readOnly || busy}
     >
-      {/* No border or background in the panel's header, like the icons beside it (Tyler, 14 Oct 2026). */}
+      {/* No border or background, as it had in the header (Tyler, 14 Oct 2026). */}
       <SelectTrigger
         aria-label="Status"
         className="w-fit border-transparent bg-transparent shadow-none hover:bg-muted dark:bg-transparent dark:hover:bg-muted/50"
@@ -897,10 +899,11 @@ function TaskForm({
   )
 
   const side: TaskSide = {
-    // Written as a heading, as Tyler drew it on 14 Oct 2026, and edited in place.
-    // Enter saves rather than starting a new line, as the Title field did.
+    // In the header where the status was (Tyler, 20 Oct 2026), edited in place.
+    // Enter saves rather than starting a new line, as the Title field did. A
+    // long title wraps and the header grows with it.
     title: readOnly ? (
-      <h2 className="text-base font-semibold break-words">{task.title}</h2>
+      <h2 className="text-sm font-semibold break-words">{task.title}</h2>
     ) : (
       <Textarea
         aria-label="Task title"
@@ -915,10 +918,10 @@ function TaskForm({
             event.currentTarget.blur()
           }
         }}
-        className="-mx-2 resize-none border-transparent px-2 py-1 text-base font-semibold shadow-none hover:border-input dark:bg-transparent"
+        className="min-h-8 resize-none border-transparent px-2 py-1 text-sm font-semibold shadow-none hover:border-input dark:bg-transparent"
       />
     ),
-    status: statusPill,
+    footer: <TaskClockFooter detail={detail} status={statusPill} change={change} busy={busy} readOnly={readOnly} />,
     tagList: <TaskTagList tags={task.labels} />,
     tags: tagsField,
     link: linkButton,

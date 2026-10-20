@@ -34,12 +34,14 @@ import type { TaskType } from "@/lib/project/task-types"
 import { requireSharedProject } from "@/server/project/personal"
 import { listSavedViews, type SavedView } from "@/server/project/saved-views"
 import { listTaskCards, siteAdminPerson, withUnread, type TaskCard } from "@/server/project/tasks"
+import { pauseTaskClock } from "@/server/project/task-clock-runs"
 import { clearAssignee, listTeamMembers } from "@/server/project/teams"
 import {
   projectProjectMembers,
   projectProjectStars,
   projectSavedViews,
   projectProjects,
+  projectTaskClockRuns,
   projectTasks,
   projectTeamMembers,
   projectTeams,
@@ -590,10 +592,21 @@ export async function setProjectArchived(
 ) {
   const { project } = await requireProjectSettings(userId, projectId, database, { allowArchived: true })
   requireSharedProject(project)
-  await database
-    .update(projectProjects)
-    .set({ archivedAt: archived ? now() : null, updatedAt: now() })
-    .where(eq(projectProjects.id, projectId))
+  await database.transaction(async (tx) => {
+    await tx
+      .update(projectProjects)
+      .set({ archivedAt: archived ? now() : null, updatedAt: now() })
+      .where(eq(projectProjects.id, projectId))
+    // Nothing in an archived project can change, its clocks included, so they stop now.
+    if (archived) {
+      const running = await tx
+        .select({ taskId: projectTaskClockRuns.taskId })
+        .from(projectTaskClockRuns)
+        .innerJoin(projectTasks, eq(projectTasks.id, projectTaskClockRuns.taskId))
+        .where(and(eq(projectTasks.projectId, projectId), isNull(projectTaskClockRuns.stoppedAt)))
+      for (const run of running) await pauseTaskClock(tx, run.taskId, userId)
+    }
+  })
 }
 
 /**
