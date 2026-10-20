@@ -18,7 +18,7 @@ import {
   SortableTableHeader,
   type TableHeaderColumn,
 } from "@/components/shared/sortable-table-header"
-import { useShellRuntime } from "@/components/shell/shell-layout"
+import { usePromoGuest, usePromoShell } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -203,7 +203,7 @@ export function CommentsDashboard({
 
   const refresh = React.useCallback(
     (): Promise<void> =>
-      Promise.all([loadComments(), loadFailures(), loadOwnPosts()]).then(
+      Promise.all([loadComments(projectId), loadFailures(projectId), loadOwnPosts(projectId)]).then(
         ([comments, failures, posts]) => {
           // Every list is read whole and narrowed to this project here: the
           // lists are one person's, and each row already says its project.
@@ -308,11 +308,15 @@ function SentTable({
   commentId: string | null
   onShowAll: () => void
 }) {
-  const { config } = useShellRuntime()
+  const { rowsPerPage } = usePromoShell()
+  // A guest sent from Project may correct a comment's words, never delete it
+  // from Reddit, and has no say in which comments teach the AI.
+  const guest = usePromoGuest()
+  const columns = guest ? COLUMNS.filter((column) => column.key !== "example") : COLUMNS
   const [search, setSearch] = React.useState("")
   const { sort, direction, toggleSort } = useTableSort<SortColumn>("sent", "desc")
   const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
+  const [pageSize, setPageSize] = React.useState(rowsPerPage)
   const selection = useSelection()
   const [queueing, setQueueing] = React.useState<Set<string>>(new Set())
   const [marking, setMarking] = React.useState<string | null>(null)
@@ -503,7 +507,7 @@ function SentTable({
         }
         header={
           <SortableTableHeader
-            columns={COLUMNS}
+            columns={columns}
             sort={sort}
             direction={direction}
             onSort={toggleSort}
@@ -523,7 +527,7 @@ function SentTable({
             ? "No comments match that."
             : "Nothing sent from this project yet."
         }
-        emptyColSpan={COLUMNS.length + 2}
+        emptyColSpan={columns.length + 2}
         footer={{
           type: "pagination",
           page: currentPage,
@@ -572,6 +576,7 @@ function SentTable({
                 </Hint>
                 <span className="block truncate text-xs text-muted-foreground @[82rem]:hidden">
                   {row.account.handle ? `u/${row.account.handle}` : "An account not signed in"}
+                  {row.sentBy ? ` · ${row.sentBy}` : ""}
                   {` · sent ${postedDateText(new Date(row.postedAt)).toLowerCase()}`}
                 </span>
                 <span className="block truncate text-xs text-muted-foreground @[68rem]:hidden">
@@ -587,6 +592,7 @@ function SentTable({
                 <span className="block truncate">
                   {row.account.handle ? `u/${row.account.handle}` : "Not signed in"}
                 </span>
+                {row.sentBy ? <span className="block truncate text-xs text-muted-foreground">{row.sentBy}</span> : null}
               </TableCell>
               <TableCell column="meta" className="hidden max-w-32 @[68rem]:table-cell">
                 <span className="block truncate text-muted-foreground">r/{row.subreddit}</span>
@@ -645,32 +651,34 @@ function SentTable({
                   </span>
                 ) : null}
               </TableCell>
-              <TableCell column="actions">
-                <Hint
-                  label={
-                    row.notExample
-                      ? "Not used as an example of how you write"
-                      : row.inNextDraft
-                        ? "In the next draft, as an example of how you write"
-                        : "Used as an example once newer ones are switched off"
-                  }
-                >
-                  <span className="inline-flex items-center gap-2">
-                    {marking === row.id ? (
-                      <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-                    ) : null}
-                    <Switch
-                      checked={!row.notExample}
-                      disabled={marking !== null}
-                      aria-label={`Use your comment on ${row.postTitle} as an example of how you write`}
-                      onCheckedChange={(checked) => void setExample(row, checked)}
-                    />
-                    {row.inNextDraft ? (
-                      <span className="text-xs text-muted-foreground">Next draft</span>
-                    ) : null}
-                  </span>
-                </Hint>
-              </TableCell>
+              {guest ? null : (
+                <TableCell column="actions">
+                  <Hint
+                    label={
+                      row.notExample
+                        ? "Not used as an example of how you write"
+                        : row.inNextDraft
+                          ? "In the next draft, as an example of how you write"
+                          : "Used as an example once newer ones are switched off"
+                    }
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      {marking === row.id ? (
+                        <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                      ) : null}
+                      <Switch
+                        checked={!row.notExample}
+                        disabled={marking !== null}
+                        aria-label={`Use your comment on ${row.postTitle} as an example of how you write`}
+                        onCheckedChange={(checked) => void setExample(row, checked)}
+                      />
+                      {row.inNextDraft ? (
+                        <span className="text-xs text-muted-foreground">Next draft</span>
+                      ) : null}
+                    </span>
+                  </Hint>
+                </TableCell>
+              )}
               <TableCell column="actions">
                 <Hint label="Replies, and answering them">
                   <Button
@@ -721,24 +729,26 @@ function SentTable({
                         </Button>
                       </Hint>
                     </DisabledReason>
-                    <DisabledReason reason={changingReason(row.changing)} disabled={row.changing !== null}>
-                      <Hint label="Delete it from Reddit">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={row.changing !== null}
-                          onClick={() => setDeleting(row)}
-                          aria-label={`Delete your comment on ${row.postTitle} from Reddit`}
-                        >
-                          {row.changing === "delete" ? (
-                            <Loader2Icon className="size-4 animate-spin" />
-                          ) : (
-                            <Trash2Icon className="size-4" />
-                          )}
-                        </Button>
-                      </Hint>
-                    </DisabledReason>
+                    {guest ? null : (
+                      <DisabledReason reason={changingReason(row.changing)} disabled={row.changing !== null}>
+                        <Hint label="Delete it from Reddit">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={row.changing !== null}
+                            onClick={() => setDeleting(row)}
+                            aria-label={`Delete your comment on ${row.postTitle} from Reddit`}
+                          >
+                            {row.changing === "delete" ? (
+                              <Loader2Icon className="size-4 animate-spin" />
+                            ) : (
+                              <Trash2Icon className="size-4" />
+                            )}
+                          </Button>
+                        </Hint>
+                      </DisabledReason>
+                    )}
                   </>
                 )}
               </TableCell>

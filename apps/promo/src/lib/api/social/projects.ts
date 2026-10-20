@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { adminGet, adminPost } from "@/server/guards"
+import { actorFor, editorGet, editorPost, guestOnlyDescription, guestProjectView } from "@/server/social/project-guests"
 import {
   addAccountToProject,
   addProjectNetwork,
@@ -49,6 +50,7 @@ export const getProjectErrorMessage = passReaderWritten(createErrorMessage(
     "found no posts yet": "This project has found no posts yet, so there are no subreddits to look in. Run a keyword first.",
     "There is no reader browser": "Pick a reader browser in Settings → Behaviour first. The look runs in it.",
     "cannot use that network": "Promo cannot use that network yet.",
+    "description only": "You can change the description only.",
   },
   "That did not work. Please try again."
 ))
@@ -92,11 +94,13 @@ export function removeProjects(ids: string[]) {
 }
 
 const viewFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
+  .middleware([editorGet])
   .inputValidator(z.object({ projectId: z.string().min(1) }))
-  .handler(async ({ context, data }): Promise<ProjectView> =>
-    readProjectView(context.user.id, data.projectId)
-  )
+  .handler(async ({ context, data }): Promise<ProjectView> => {
+    const actor = await actorFor(context.caller, data.projectId)
+    const view = await readProjectView(actor.userId, data.projectId)
+    return actor.guest ? await guestProjectView(view, data.projectId) : view
+  })
 
 /** One project with its accounts, best to comment from first, and what the queue is doing. */
 export function loadProject(projectId: string) {
@@ -130,7 +134,7 @@ export function setProjectNetwork(projectId: string, network: Network, use: bool
 }
 
 const updateFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(
     z.object({
       projectId: z.string().min(1),
@@ -141,9 +145,12 @@ const updateFn = createServerFn({ method: "POST" })
       imageUrl: z.string().trim().max(2_048).optional(),
     })
   )
-  .handler(async ({ context, data: { projectId, ...input } }): Promise<void> =>
-    updateProject(context.user.id, projectId, input)
-  )
+  .handler(async ({ context, data: { projectId, ...input } }): Promise<void> => {
+    const actor = await actorFor(context.caller, projectId)
+    // A guest works the project and may rewrite what it makes, never its name or picture.
+    if (actor.guest) guestOnlyDescription(input)
+    await updateProject(actor.userId, projectId, input)
+  })
 
 /** Saves the name or the description as it is typed, or the picture when it is picked. */
 export function saveProject(data: { projectId: string; name?: string; description?: string; imageUrl?: string }) {
@@ -175,9 +182,11 @@ export function pauseProject(projectId: string, paused: boolean) {
 }
 
 const threadsFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
+  .middleware([editorGet])
   .inputValidator(z.object({ projectId: z.string().min(1) }))
-  .handler(async ({ context, data }) => listPromoThreads(context.user.id, data.projectId))
+  .handler(async ({ context, data }) =>
+    listPromoThreads((await actorFor(context.caller, data.projectId)).userId, data.projectId)
+  )
 
 /** The project's subreddits with a self-promotion thread found, and how many looks are on their way. */
 export function loadPromoThreads(projectId: string) {
@@ -185,10 +194,10 @@ export function loadPromoThreads(projectId: string) {
 }
 
 const lookFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(z.object({ projectId: z.string().min(1) }))
   .handler(async ({ context, data }): Promise<{ queued: number }> => ({
-    queued: await queuePromoThreadReads(context.user.id, data.projectId),
+    queued: await queuePromoThreadReads((await actorFor(context.caller, data.projectId)).userId, data.projectId),
   }))
 
 /** Looks for the self-promotion thread in each of the project's subreddits, in the reader browser. */

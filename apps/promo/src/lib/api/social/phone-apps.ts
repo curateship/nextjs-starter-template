@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { adminGet, adminPost } from "@/server/guards"
+import { actorFor, actorForInbox, editorGet, editorPost, guestProjectView } from "@/server/social/project-guests"
 import { draftCaption } from "@/server/social/phone-apps/captions"
 import {
   checkInboxNow,
@@ -84,11 +85,13 @@ const network = z.enum(PHONE_ONLY_NETWORKS)
 const id = z.string().min(1).max(64)
 
 const moduleFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
+  .middleware([editorGet])
   .inputValidator(z.object({ projectId: id, network }))
-  .handler(async ({ context, data }): Promise<AppModuleView> =>
-    readAppModuleView(context.user.id, data.projectId, data.network)
-  )
+  .handler(async ({ context, data }): Promise<AppModuleView> => {
+    const actor = await actorFor(context.caller, data.projectId)
+    const view = await readAppModuleView(actor.userId, data.projectId, data.network)
+    return actor.guest ? await guestProjectView(view, data.projectId) : view
+  })
 
 /** A project's accounts, posts and comments on Instagram or TikTok. */
 export function loadAppModule(projectId: string, picked: PhoneAppNetwork) {
@@ -156,9 +159,11 @@ export function writeInboxDraft(inboxId: string) {
 }
 
 const replyFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(z.object({ inboxId: id, text: z.string().max(5_000) }))
-  .handler(async ({ context, data }): Promise<void> => sendInboxReply(context.user.id, data.inboxId, data.text))
+  .handler(async ({ context, data }): Promise<void> =>
+    sendInboxReply((await actorForInbox(context.caller, [data.inboxId])).userId, data.inboxId, data.text)
+  )
 
 /** Sends an answer from the account's phone. Tried once, never again. */
 export function sendInboxAnswer(inboxId: string, text: string) {
@@ -166,9 +171,9 @@ export function sendInboxAnswer(inboxId: string, text: string) {
 }
 
 const skipFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
+  .middleware([editorPost])
   .inputValidator(z.object({ ids: z.array(id).min(1).max(200) }))
-  .handler(async ({ context, data }) => skipInbox(context.user.id, data.ids))
+  .handler(async ({ context, data }) => skipInbox((await actorForInbox(context.caller, data.ids)).userId, data.ids))
 
 /** Skips conversations (deleted, words and all) or comments (marked skipped). */
 export function skipInboxItems(ids: string[]) {

@@ -47,6 +47,7 @@ import {
 } from "@/server/project/planning"
 import { myReminderOn } from "@/server/project/task-reminders"
 import { listStepLists, type StepList } from "@/server/project/step-lists"
+import { taskLinkFor, type TaskLink } from "@/server/project/linked-records"
 import { canAskForReview, canReview, reviewerFor } from "@/server/project/task-review"
 import { hasThanked } from "@/server/project/task-thanks"
 import { listMoveTargets, type MoveTarget } from "@/server/project/task-changes"
@@ -384,6 +385,10 @@ export type TaskDetail = {
   /** The milestone it counts toward, and the project's milestones to pick from on the Plan card. */
   milestoneId: string | null
   milestones: Milestone[]
+  /** The Video or Promo record it points at, and whether I may open it. */
+  link: TaskLink | null
+  /** I may point it at a record: the site admin, on an open project. */
+  canSetLink: boolean
 }
 
 export async function loadTaskDetail(
@@ -493,6 +498,8 @@ export async function loadTaskDetail(
     fields: await loadTaskFields(viewer, task, project, archived, database),
     milestoneId: task.milestoneId,
     milestones: await listMilestones(project.id, database),
+    link: taskLinkFor(task, { userId, siteAdmin: membership.siteAdmin }),
+    canSetLink: membership.siteAdmin && !archived,
   }
 }
 

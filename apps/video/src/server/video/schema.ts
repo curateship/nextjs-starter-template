@@ -367,6 +367,9 @@ export const videoProjects = pgTable(
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     // The most AI spending the project may reach, in cents. Null is no limit.
     spendLimitCents: integer("spend_limit_cents"),
+    // "Sam via Project" when a guest sent from Project made the last save,
+    // null when the owner did (`drizzle/0125_video_project_guests.sql`).
+    lastEditedBy: text("last_edited_by"),
     // The extras picked in the AI clip panel, one extra id per kind, so a
     // series keeps the same outfit and place (drizzle/0124).
     extraPicks: jsonb("extra_picks").$type<ExtraPicks>().notNull().default({}),
@@ -411,6 +414,9 @@ export const videoProjectVersions = pgTable(
     durationMs: integer("duration_ms").notNull(),
     savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    // "Sam via Project" when a guest sent from Project made the save that
+    // kept it, null when the owner did (`drizzle/0125_video_project_guests.sql`).
+    editedBy: text("edited_by"),
   },
   (table) => [
     check(
@@ -1038,6 +1044,41 @@ export const videoExportShares = pgTable(
       .where(sql`${table.revokedAt} is null`),
   ]
 )
+
+/**
+ * The one-time id of every note Project has sent here that was used, so a
+ * copied handoff address fails (`drizzle/0125_video_project_guests.sql`).
+ */
+export const videoHandoffNotes = pgTable("video_handoff_notes", {
+  noteId: varchar("note_id", { length: 64 }).primaryKey(),
+  usedAt: timestamp("used_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * A guest sent from Project: signed in to one video project for 12 hours,
+ * with no account here. Only the cookie token's SHA-256 is kept. How it works
+ * is in `workspace/docs/project-guests.md`.
+ */
+export const videoProjectGuests = pgTable(
+  "video_project_guests",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    /** Who they are in Project: their id there, name and email. */
+    personId: varchar("person_id", { length: 36 }).notNull(),
+    personName: text("person_name").notNull(),
+    personEmail: text("person_email").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_video_project_guests_project").on(table.projectId)]
+)
+
+export type VideoProjectGuestRow = typeof videoProjectGuests.$inferSelect
 
 export type VideoMediaProxy = typeof videoMediaProxies.$inferSelect
 export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect

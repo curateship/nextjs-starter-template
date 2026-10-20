@@ -52,6 +52,13 @@ A version stores the timeline, the shape, how many clips it had, how long it
 ran, who saved it, when that timeline was saved and why it was kept
 (`video_project_versions`, migration `0118`).
 
+**A guest's saves are named.** When somebody sent from a Project task made
+the save that left a timeline, its row in the History panel reads "Saved by
+Sam via Project". The project keeps the name of whoever made its last save
+(`last_edited_by`), and a version kept from that timeline copies it
+(`edited_by`, migration `0127`). The owner's own saves carry no name, and the
+owner's next save clears it. See [Guests sent from Project](project-guests.md).
+
 The 30 minutes is a choice made while building this, not a number Tyler gave.
 It is `BREAK_MS` in `src/lib/video/project-versions.ts`.
 

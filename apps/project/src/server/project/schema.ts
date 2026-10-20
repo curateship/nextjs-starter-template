@@ -324,6 +324,15 @@ export const projectTasks = pgTable("project_tasks", {
   milestoneId: varchar("milestone_id", { length: 36 }).references((): AnyPgColumn => projectMilestones.id, {
     onDelete: "set null",
   }),
+  /**
+   * The one Video or Promo record the task points at: the app, the record's
+   * id there, and the address the site admin pasted
+   * (`drizzle/0124_project_task_linked_record.sql`). How the button works is
+   * in `workspace/docs/connected-apps.md`.
+   */
+  linkedApp: varchar("linked_app", { length: 16 }),
+  linkedRecordId: varchar("linked_record_id", { length: 64 }),
+  linkedAddress: text("linked_address"),
 })
 
 /**

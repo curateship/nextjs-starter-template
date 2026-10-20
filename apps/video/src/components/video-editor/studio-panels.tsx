@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner"
 
 import { uploadMedia } from "@/lib/api/media/media"
+import { uploadProjectMedia } from "@/lib/api/video/project-guests"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -23,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
 import { AiPanel } from "@/components/video-editor/studio-ai-panel"
 import { MusicPanel } from "@/components/video-editor/studio-music-panel"
@@ -62,6 +64,7 @@ import {
   SelectTileOverlay,
 } from "@/components/video-editor/studio-media-collections"
 import { useMediaCollections } from "@/components/video-editor/use-media-collections"
+import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { useDragToTimeline } from "@/components/video-editor/use-drag-to-timeline"
 import {
   useEditorRuntime,
@@ -161,13 +164,16 @@ const MEDIA_FILTERS: {
 
 function MediaPanel() {
   const { dispatch, store, projectId } = useEditorRuntime()
+  // A guest sent from Project uploads straight into this project and has no
+  // collections, library or delete (`workspace/docs/project-guests.md`).
+  const guest = useProjectGuest() !== null
   const [filter, setFilter] = React.useState<
     "all" | "video" | "image" | "audio"
   >("all")
   // "all" = every file, "uncollected" = the ones in no collection, anything
   // else is a collection's id.
   const [collectionFilter, setCollectionFilter] = React.useState("all")
-  const { collections, reload: reloadCollections } = useMediaCollections()
+  const { collections, reload: reloadCollections } = useMediaCollections({ enabled: !guest })
   const activeCollection =
     collections.find((collection) => collection.id === collectionFilter) ??
     null
@@ -340,6 +346,10 @@ function MediaPanel() {
     setUploading(true)
     try {
       for (const file of Array.from(files)) {
+        if (guest) {
+          await uploadProjectMedia(projectId, file)
+          continue
+        }
         const media = await uploadMedia(file)
         await attachEditorMedia({ type: "project", id: projectId }, media.id)
       }
@@ -397,6 +407,23 @@ function MediaPanel() {
                 </>
               ) : null}
             </div>
+            {guest ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={uploading}
+                    aria-label="Upload media"
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    {uploading ? <Loader2 className="animate-spin" /> : <Upload />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Upload media</TooltipContent>
+              </Tooltip>
+            ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -421,6 +448,7 @@ function MediaPanel() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
             <input
               ref={fileRef}
               type="file"
@@ -474,12 +502,14 @@ function MediaPanel() {
           })}
         </div>
 
-        <CollectionChips
-          collections={collections}
-          value={collectionFilter}
-          onChange={setCollectionFilter}
-          onCollectionsChanged={reloadCollections}
-        />
+        {guest ? null : (
+          <CollectionChips
+            collections={collections}
+            value={collectionFilter}
+            onChange={setCollectionFilter}
+            onCollectionsChanged={reloadCollections}
+          />
+        )}
 
         {items.length === 0 && activeCollection ? (
           <div
@@ -536,7 +566,7 @@ function MediaPanel() {
               style={{ marginBottom: 10 }}
             >
               <Label style={{ marginBottom: 0 }}>Clips · {items.length}</Label>
-              {selecting ? (
+              {guest ? null : selecting ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -577,7 +607,7 @@ function MediaPanel() {
               }
             >
               {items.map((item) => (
-                <EditorMediaContextMenu key={item.id} {...mediaMenuProps(item)}>
+                <GuestOrMenu key={item.id} guest={guest} menu={mediaMenuProps(item)}>
                   <div
                     style={{
                       position: "relative",
@@ -660,7 +690,7 @@ function MediaPanel() {
                       />
                     ) : null}
                   </div>
-                </EditorMediaContextMenu>
+                </GuestOrMenu>
               ))}
             </div>
           </>
@@ -697,6 +727,23 @@ function MediaPanel() {
       {ghost}
     </div>
   )
+}
+
+/**
+ * A tile's right-click menu (collections and delete), left off for a guest
+ * sent from Project, who can do neither.
+ */
+function GuestOrMenu({
+  guest,
+  menu,
+  children,
+}: {
+  guest: boolean
+  menu: Omit<React.ComponentProps<typeof EditorMediaContextMenu>, "children">
+  children: React.ReactElement
+}) {
+  if (guest) return children
+  return <EditorMediaContextMenu {...menu}>{children}</EditorMediaContextMenu>
 }
 
 /**
@@ -929,6 +976,8 @@ const TEXT_PRESETS: {
 
 function TextPanel() {
   const { dispatch, clock } = useEditorRuntime()
+  // Stickers are the owner's own shelf, so a guest sent from Project has none.
+  const guest = useProjectGuest() !== null
 
   function addText(
     text: string,
@@ -992,7 +1041,7 @@ function TextPanel() {
       </div>
 
       <Label>Stickers</Label>
-      <StickerShelf />
+      {guest ? null : <StickerShelf />}
     </div>
   )
 }

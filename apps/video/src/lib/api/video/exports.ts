@@ -30,6 +30,13 @@ import {
 } from "@/lib/video/timeline-schema"
 import { userGet, userPost } from "@/server/guards"
 import {
+  actorFor,
+  actorForExport,
+  editorGet,
+  editorPost,
+  signedInActor,
+} from "@/server/video/project-guests"
+import {
   clearOutOldExports,
   previewExportClearOut,
 } from "@/server/video/export-clear-out"
@@ -104,12 +111,16 @@ const startSchema = projectIdSchema.extend({
   title: z.string().max(EXPORT_TITLE_MAX).optional(),
 })
 
+// A guest sent from Project may export their own project, watch it, stop,
+// retry and name it (`workspace/docs/project-guests.md`). Deleting and share
+// links stay the signed-in person's.
 const startExportFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(startSchema)
   .handler(async ({ data, context }) => {
+    const { userId } = await actorFor(context.caller, data.projectId)
     return enqueueRenderJobs({
-      userId: context.user.id,
+      userId,
       projectId: data.projectId,
       aspects: data.aspects,
       quality: data.quality,
@@ -120,35 +131,39 @@ const startExportFn = createServerFn({ method: "POST" })
   })
 
 const projectExportFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([editorGet])
   .inputValidator(projectIdSchema)
   .handler(async ({ data, context }) => {
-    return getLatestRenderJobs(context.user.id, data.projectId)
+    const { userId } = await actorFor(context.caller, data.projectId)
+    return getLatestRenderJobs(userId, data.projectId)
   })
 
 const cancelExportFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(projectIdSchema)
   .handler(async ({ data, context }) => {
-    return cancelRenderJobs(context.user.id, data.projectId)
+    const { userId } = await actorFor(context.caller, data.projectId)
+    return cancelRenderJobs(userId, data.projectId)
   })
 
 const stopExportFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(exportIdSchema)
   .handler(async ({ data, context }) => {
-    return cancelRenderJob(context.user.id, data.exportId)
+    const { userId } = await actorForExport(context.caller, data.exportId)
+    return cancelRenderJob(userId, data.exportId)
   })
 
 const retryExportFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(exportIdSchema)
   .handler(async ({ data, context }) => {
-    return retryRenderJob(context.user.id, data.exportId)
+    const { userId } = await actorForExport(context.caller, data.exportId)
+    return retryRenderJob(userId, data.exportId)
   })
 
 const listExportsFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([editorGet])
   .inputValidator(
     z
       .object({
@@ -161,23 +176,29 @@ const listExportsFn = createServerFn({ method: "GET" })
       .optional()
   )
   .handler(async ({ data, context }): Promise<ExportListWithShares> => {
+    // A guest lists only their own project's exports, and never its share links.
+    const { userId, guest } = data?.projectId
+      ? await actorFor(context.caller, data.projectId)
+      : signedInActor(context.caller)
     const list = await listOwnedExports({
-      userId: context.user.id,
+      userId,
       page: data?.page ?? 1,
       pageSize: data?.pageSize ?? 24,
       search: data?.search,
       projectId: data?.projectId,
       kind: data?.kind ?? "video",
     })
-    const sharedIds = await listLiveSharedExportIds(
-      context.user.id,
-      list.exports.map((item) => item.id)
-    )
+    const sharedIds = guest
+      ? []
+      : await listLiveSharedExportIds(
+          userId,
+          list.exports.map((item) => item.id)
+        )
     return { ...list, shared_ids: sharedIds }
   })
 
 const updateExportFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(
     exportIdSchema.extend({
       title: z.string().max(EXPORT_TITLE_MAX),
@@ -185,8 +206,9 @@ const updateExportFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data, context }) => {
+    const { userId } = await actorForExport(context.caller, data.exportId)
     return updateOwnedExport({
-      userId: context.user.id,
+      userId,
       exportId: data.exportId,
       title: data.title,
       description: data.description,
@@ -194,13 +216,14 @@ const updateExportFn = createServerFn({ method: "POST" })
   })
 
 const setExportCoverFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(
     exportIdSchema.extend({ atMs: z.number().nonnegative().finite() })
   )
   .handler(async ({ data, context }) => {
+    const { userId } = await actorForExport(context.caller, data.exportId)
     return setOwnedExportCover({
-      userId: context.user.id,
+      userId,
       exportId: data.exportId,
       atMs: data.atMs,
     })

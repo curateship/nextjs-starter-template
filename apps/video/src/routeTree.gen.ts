@@ -35,6 +35,8 @@ import { Route as AuthenticatedChangelogRouteImport } from './routes/_authentica
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as GuestEndedRouteImport } from './routes/guest.ended'
+import { Route as HandoffProjectRouteImport } from './routes/handoff.project'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
@@ -69,6 +71,7 @@ import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_au
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
+import { Route as GuestVideoEditorProjectIdRouteImport } from './routes/guest.video-editor.$projectId'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
@@ -226,6 +229,16 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuestEndedRoute = GuestEndedRouteImport.update({
+  id: '/guest/ended',
+  path: '/guest/ended',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HandoffProjectRoute = HandoffProjectRouteImport.update({
+  id: '/handoff/project',
+  path: '/handoff/project',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -422,6 +435,12 @@ const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
   path: '/api/webhooks/stripe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuestVideoEditorProjectIdRoute =
+  GuestVideoEditorProjectIdRouteImport.update({
+    id: '/guest/video-editor/$projectId',
+    path: '/guest/video-editor/$projectId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAccountBillingSuccessRoute =
   AuthenticatedAccountBillingSuccessRouteImport.update({
     id: '/billing_/success',
@@ -619,6 +638,8 @@ export interface FileRoutesByFullPath {
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/guest/ended': typeof GuestEndedRoute
+  '/handoff/project': typeof HandoffProjectRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -651,6 +672,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/guest/video-editor/$projectId': typeof GuestVideoEditorProjectIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -707,6 +729,8 @@ export interface FileRoutesByTo {
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/guest/ended': typeof GuestEndedRoute
+  '/handoff/project': typeof HandoffProjectRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -735,6 +759,7 @@ export interface FileRoutesByTo {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/guest/video-editor/$projectId': typeof GuestVideoEditorProjectIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -795,6 +820,8 @@ export interface FileRoutesById {
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
+  '/guest/ended': typeof GuestEndedRoute
+  '/handoff/project': typeof HandoffProjectRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -827,6 +854,7 @@ export interface FileRoutesById {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/guest/video-editor/$projectId': typeof GuestVideoEditorProjectIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -887,6 +915,8 @@ export interface FileRouteTypes {
     | '/home'
     | '/workspaces'
     | '/api/health'
+    | '/guest/ended'
+    | '/handoff/project'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -919,6 +949,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/guest/video-editor/$projectId'
     | '/admin/'
     | '/changelog/'
     | '/account/billing/success'
@@ -975,6 +1006,8 @@ export interface FileRouteTypes {
     | '/home'
     | '/workspaces'
     | '/api/health'
+    | '/guest/ended'
+    | '/handoff/project'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -1003,6 +1036,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/guest/video-editor/$projectId'
     | '/admin'
     | '/changelog'
     | '/account/billing/success'
@@ -1062,6 +1096,8 @@ export interface FileRouteTypes {
     | '/_authenticated/home'
     | '/_authenticated/workspaces'
     | '/api/health'
+    | '/guest/ended'
+    | '/handoff/project'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
@@ -1094,6 +1130,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/guest/video-editor/$projectId'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
@@ -1149,9 +1186,12 @@ export interface RootRouteChildren {
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  GuestEndedRoute: typeof GuestEndedRoute
+  HandoffProjectRoute: typeof HandoffProjectRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  GuestVideoEditorProjectIdRoute: typeof GuestVideoEditorProjectIdRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
@@ -1348,6 +1388,20 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guest/ended': {
+      id: '/guest/ended'
+      path: '/guest/ended'
+      fullPath: '/guest/ended'
+      preLoaderRoute: typeof GuestEndedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/handoff/project': {
+      id: '/handoff/project'
+      path: '/handoff/project'
+      fullPath: '/handoff/project'
+      preLoaderRoute: typeof HandoffProjectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -1586,6 +1640,13 @@ declare module '@tanstack/react-router' {
       path: '/api/webhooks/stripe'
       fullPath: '/api/webhooks/stripe'
       preLoaderRoute: typeof ApiWebhooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guest/video-editor/$projectId': {
+      id: '/guest/video-editor/$projectId'
+      path: '/guest/video-editor/$projectId'
+      fullPath: '/guest/video-editor/$projectId'
+      preLoaderRoute: typeof GuestVideoEditorProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/account/billing_/success': {
@@ -2042,9 +2103,12 @@ const rootRouteChildren: RootRouteChildren = {
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
+  GuestEndedRoute: GuestEndedRoute,
+  HandoffProjectRoute: HandoffProjectRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  GuestVideoEditorProjectIdRoute: GuestVideoEditorProjectIdRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,

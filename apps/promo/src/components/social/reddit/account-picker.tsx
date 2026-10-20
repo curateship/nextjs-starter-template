@@ -2,6 +2,7 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { CheckIcon, ChevronDownIcon, Loader2Icon, PlusIcon, UsersIcon, XIcon } from "lucide-react"
 
+import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -47,6 +48,8 @@ export function AccountPicker({
   onAdd: (accountId: string) => Promise<void>
   onRemove: (accountId: string) => Promise<void>
 }) {
+  // A guest picks among the project's accounts and never moves one in or out.
+  const guest = usePromoGuest()
   const [busy, setBusy] = React.useState(false)
   const selected = accounts.find((account) => account.id === selectedId) ?? null
 
@@ -106,41 +109,45 @@ export function AccountPicker({
           })
         ) : (
           <p className="px-2 py-1.5 text-sm text-muted-foreground">
-            No Reddit accounts in this project yet. Add one below.
+            {guest ? "No Reddit accounts in this project yet." : "No Reddit accounts in this project yet. Add one below."}
           </p>
         )}
 
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Add to this project</DropdownMenuLabel>
-        {freeAccounts.length ? (
-          freeAccounts.map((account) => (
-            <DropdownMenuItem key={account.id} disabled={busy} onSelect={() => void run(() => onAdd(account.id))}>
-              <PlusIcon />
-              <span className="truncate">
-                {account.handle ? `u/${account.handle}` : "Not signed in"}
-                {account.profileName ? ` · ${account.profileName}` : ""}
-              </span>
+        {guest ? null : (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Add to this project</DropdownMenuLabel>
+            {freeAccounts.length ? (
+              freeAccounts.map((account) => (
+                <DropdownMenuItem key={account.id} disabled={busy} onSelect={() => void run(() => onAdd(account.id))}>
+                  <PlusIcon />
+                  <span className="truncate">
+                    {account.handle ? `u/${account.handle}` : "Not signed in"}
+                    {account.profileName ? ` · ${account.profileName}` : ""}
+                  </span>
+                </DropdownMenuItem>
+              ))
+            ) : (
+              <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                Every account is in a project. Manage accounts adds a new one.
+              </p>
+            )}
+
+            <DropdownMenuSeparator />
+            {selected ? (
+              <DropdownMenuItem disabled={busy} onSelect={() => void run(() => onRemove(selected.id))}>
+                <XIcon />
+                <span className="truncate">Take {selected.handle ? `u/${selected.handle}` : "this account"} out of this project</span>
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem asChild>
+              <Link to="/admin/accounts" search={{ platform: "reddit" }}>
+                <UsersIcon />
+                Manage accounts
+              </Link>
             </DropdownMenuItem>
-          ))
-        ) : (
-          <p className="px-2 py-1.5 text-sm text-muted-foreground">
-            Every account is in a project. Manage accounts adds a new one.
-          </p>
+          </>
         )}
-
-        <DropdownMenuSeparator />
-        {selected ? (
-          <DropdownMenuItem disabled={busy} onSelect={() => void run(() => onRemove(selected.id))}>
-            <XIcon />
-            <span className="truncate">Take {selected.handle ? `u/${selected.handle}` : "this account"} out of this project</span>
-          </DropdownMenuItem>
-        ) : null}
-        <DropdownMenuItem asChild>
-          <Link to="/admin/accounts" search={{ platform: "reddit" }}>
-            <UsersIcon />
-            Manage accounts
-          </Link>
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

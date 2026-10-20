@@ -20,6 +20,7 @@ import {
   type ProjectTimeline,
 } from "@/lib/video/timeline-schema"
 import { userGet, userPost } from "@/server/guards"
+import { actorFor, editorGet, editorPost, guestEditorName } from "@/server/video/project-guests"
 import { readProjectSpend } from "@/server/video/project-spend"
 import {
   createOwnedProject,
@@ -119,11 +120,14 @@ const listProjectsFn = createServerFn({ method: "GET" })
     })
   })
 
+// A guest sent from Project opens and saves their own project
+// (`workspace/docs/project-guests.md`).
 const getProjectFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([editorGet])
   .inputValidator(projectIdSchema)
   .handler(async ({ data, context }) => {
-    return getOwnedProjectDetail(context.user.id, data.projectId)
+    const { userId } = await actorFor(context.caller, data.projectId)
+    return getOwnedProjectDetail(userId, data.projectId)
   })
 
 const createProjectFn = createServerFn({ method: "POST" })
@@ -162,14 +166,17 @@ const deleteProjectsFn = createServerFn({ method: "POST" })
   })
 
 const saveProjectTimelineFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(saveSchema)
   .handler(async ({ data, context }) => {
+    const { userId, guest } = await actorFor(context.caller, data.projectId)
     return writeProjectTimeline(
-      context.user.id,
+      userId,
       data.projectId,
       data.timeline,
-      data.version
+      data.version,
+      undefined,
+      guestEditorName(guest)
     )
   })
 

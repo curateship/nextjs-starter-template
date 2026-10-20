@@ -125,6 +125,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   earlier versions of a project are kept and when, the twenty-per-project
   limit, looking at one without changing anything, why a restore can be
   undone, and the measured storage cost.
+- [project-guests.md](project-guests.md) — somebody sent from a Project task
+  editing one video project with no Video account: the one-minute,
+  one-use link, the 12-hour sign-in, what a guest can and can't do, and the
+  `PROJECT_HANDOFF_KEY` setting.
 - [two-windows.md](two-windows.md) — one project open in two windows: the
   warning the second window shows, what read-only stops, and the
   "(unsaved edits)" project that keeps the work of whichever window saves
