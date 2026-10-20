@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { sql } from "drizzle-orm"
 
-import { findCurrentUser } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { getOwnedMedia } from "@/server/media/library"
 import { kickVideoMediaWorker } from "@/server/video/media-workers"
+import { mediaViewerId } from "@/server/video/project-guests"
 
 /**
  * The shape of the sound in one file, as base64 points plus how long they
@@ -16,8 +16,9 @@ export const Route = createFileRoute("/api/v1/video/media/$mediaId/waveform")({
   server: {
     handlers: {
       GET: async ({ params }) => {
-        const user = await findCurrentUser()
-        if (!user) {
+        // A guest sent from Project is answered for their own project's files.
+        const viewerId = await mediaViewerId(params.mediaId)
+        if (!viewerId) {
           return Response.json(
             { detail: "Missing Custom Shell session" },
             { status: 401 }
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/api/v1/video/media/$mediaId/waveform")({
         }
 
         try {
-          await getOwnedMedia(user.id, params.mediaId)
+          await getOwnedMedia(viewerId, params.mediaId)
         } catch {
           return Response.json({ detail: "Waveform not found" }, { status: 404 })
         }

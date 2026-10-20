@@ -350,6 +350,17 @@ built. Each was the recommended option.
 - **Board cards show the fields picked for the List**, with no separate
   choice.
 - **A saved view on My dashboard keeps its client.**
+- **A saved view keeps its group, and a group alone is a view** (20 Oct
+  2026): "sorting is also a filter".
+- **Each saved view has a cog in the Views menu** to rename it or change its
+  filters (20 Oct 2026).
+- **The task panel's top is the status, then three dots and the cog at the
+  right**, with Add tags, Add note, Add comment and Add files in the three
+  dots and no cross on the project page (20 Oct 2026).
+- **The Notes card has a Delete button**, and a card footer's buttons fill
+  the row (20 Oct 2026).
+- **Over a project's banner, the left panel's header has no line under it**
+  (20 Oct 2026).
 
 ## The first version
 
@@ -381,3 +392,24 @@ picked the recommended option on all three questions.
 - **The Projects table** keeps its Status column, showing the new status with
   the late count. The old manual statuses stay saved but show nowhere, and the
   Activity tab keeps their old lines.
+
+## Choices for opening a task's record in Video or Promo
+
+Tyler answered these on 19 Oct 2026, before Connected apps task 01 was built.
+How it works is in [Opening a record in another app](connected-apps.md).
+
+- **Who may press the button:** the person the task is assigned to, and the
+  site admin. Anyone else who can see the task gets a refusal. (The task's
+  draft said the project's owner and admins, but those roles stopped giving
+  powers on 16 Oct 2026.)
+- **What a guest may do in Video:** edit the timeline, upload media into that
+  one project and export. AI generation is off for guests until Tyler says
+  otherwise. Deleting the project is never allowed.
+- **What "one record" is in Promo:** a Promo project. The guest works it:
+  searches posts, edits keywords and the description, and writes and sends
+  comments and posts with the project's own accounts. The guest never
+  deletes or pauses the project, adds a network or moves an account. The AI
+  that writes comments and posts is off for guests.
+- **CMS is left out for now.** Tyler, 19 Oct 2026: "skip cms for now".
+- **One record per task.** A task holds one Video project or one Promo
+  project, and shows one button.

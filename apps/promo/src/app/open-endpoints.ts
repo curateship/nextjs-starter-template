@@ -33,5 +33,81 @@ export const appOpenEndpoints: Record<string, string> = {}
 /**
  * The handler does no checking because the thing it calls does it instead. The
  * reason names that function, so the claim can be checked.
+ *
+ * Each of these lets in a signed-in admin or a guest sent from Project
+ * (`workspace/docs/project-guests.md`). `editorGet`/`editorPost` read who
+ * is calling; the helper named in the reason then decides who the call acts
+ * as, and refuses a guest anything outside their one project.
  */
-export const appGuardedDeeper: Record<string, string> = {}
+export const appGuardedDeeper: Record<string, string> = {
+  "social/comments.ts:listFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, whose list is cut to that project; anyone else must be a signed-in admin.",
+  "social/comments.ts:checkFn":
+    "editorPost, then actorForComments in src/server/social/project-guests.ts: every comment must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/comments.ts:failuresFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, whose failures are cut to that project; anyone else must be a signed-in admin.",
+  "social/comments.ts:dismissFn":
+    "editorPost, then actorForJobs in src/server/social/project-guests.ts: every failed job must be for the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/comments.ts:wordsFn":
+    "editorGet, then actorForJobs in src/server/social/project-guests.ts: the failed job must be for the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/comments.ts:changeFn":
+    "editorPost, then actorForComment in src/server/social/project-guests.ts: the comment must be in the guest's project, and a guest may edit but never delete; anyone else must be a signed-in admin.",
+  "social/comments.ts:repliesFn":
+    "editorGet, then actorForComment in src/server/social/project-guests.ts: the comment must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/comments.ts:sendFn":
+    "editorPost, then actorForComment in src/server/social/project-guests.ts: the comment answered must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/comments.ts:cancelFn":
+    "editorPost, then actorForComment in src/server/social/project-guests.ts: the comment must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/phone-apps.ts:moduleFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, with the owner's free accounts taken out; anyone else must be a signed-in admin.",
+  "social/phone-apps.ts:replyFn":
+    "editorPost, then actorForInbox in src/server/social/project-guests.ts: the inbox row's account must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/phone-apps.ts:skipFn":
+    "editorPost, then actorForInbox in src/server/social/project-guests.ts: every inbox row's account must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/projects.ts:viewFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, with the owner's free accounts taken out; anyone else must be a signed-in admin.",
+  "social/projects.ts:updateFn":
+    "editorPost, then actorFor in src/server/social/project-guests.ts: a guest only for their own project and only its description (guestOnlyDescription); anyone else must be a signed-in admin.",
+  "social/projects.ts:threadsFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, otherwise the caller must be a signed-in admin.",
+  "social/projects.ts:lookFn":
+    "editorPost, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, otherwise the caller must be a signed-in admin.",
+  "social/reddit/drafts.ts:postFn":
+    "editorPost, then actorForFind in src/server/social/project-guests.ts: the post must be in the guest's project, and accountForFind then insists the account is in that project too; anyone else must be a signed-in admin.",
+  "social/reddit/drafts.ts:cancelFn":
+    "editorPost, then actorForFind in src/server/social/project-guests.ts: the post must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/reddit/keywords.ts:loadKeywordsFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, otherwise the caller must be a signed-in admin.",
+  "social/reddit/keywords.ts:addKeywordFn":
+    "editorPost, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, otherwise the caller must be a signed-in admin.",
+  "social/reddit/keywords.ts:deleteKeywordFn":
+    "editorPost, then actorForKeyword in src/server/social/project-guests.ts: the keyword must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/reddit/keywords.ts:enableKeywordFn":
+    "editorPost, then actorForKeyword in src/server/social/project-guests.ts: the keyword must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/reddit/keywords.ts:runKeywordFn":
+    "editorPost, then actorForKeyword in src/server/social/project-guests.ts: the keyword must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/reddit/keywords.ts:loadFindsFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, otherwise the caller must be a signed-in admin.",
+  "social/reddit/keywords.ts:loadFindFn":
+    "editorGet, then actorForFind in src/server/social/project-guests.ts: the post must be in the guest's project, and a guest is shown none of the owner's past comments; anyone else must be a signed-in admin.",
+  "social/reddit/keywords.ts:readThreadFn":
+    "editorPost, then actorForFind in src/server/social/project-guests.ts: the post must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/reddit/keywords.ts:readRulesFn":
+    "editorPost, then actorForFind in src/server/social/project-guests.ts: the post must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/reddit/keywords.ts:setStatusFn":
+    "editorPost, then actorForFinds in src/server/social/project-guests.ts: every post must be in the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/reddit/own-posts.ts:sendFn":
+    "editorPost, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, and queueOwnPost insists the account is in it; anyone else must be a signed-in admin.",
+  "social/reddit/own-posts.ts:rulesFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for the project they name, otherwise the caller must be a signed-in admin.",
+  "social/reddit/own-posts.ts:readRulesFn":
+    "editorPost, then actorFor in src/server/social/project-guests.ts: a guest only for the project they name, otherwise the caller must be a signed-in admin.",
+  "social/reddit/own-posts.ts:listFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, whose posts are cut to that project; anyone else must be a signed-in admin.",
+  "social/reddit/own-posts.ts:failedFn":
+    "editorGet, then actorForJobs in src/server/social/project-guests.ts: the failed job must be for the guest's project, otherwise the caller must be a signed-in admin.",
+  "social/project-guests.ts:guestFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: answers with the guest's own name for their own project only; anyone else must be a signed-in admin.",
+  "social/today.ts:todayFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, otherwise the caller must be a signed-in admin.",
+}

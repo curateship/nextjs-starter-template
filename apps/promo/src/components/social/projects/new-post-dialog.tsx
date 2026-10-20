@@ -2,6 +2,7 @@ import * as React from "react"
 import { Loader2Icon, SparklesIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { SubredditRules } from "@/components/social/reddit/subreddit-rules"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -92,6 +93,8 @@ function NewPostWindow({
   start: NewPostStart | null
   onClose: () => void
 }) {
+  // Write with AI spends the owner's credits, so a guest sent from Project writes their own.
+  const guest = usePromoGuest()
   const [accountId, setAccountId] = React.useState<string>(
     start?.accountId && accounts.some((account) => account.id === start.accountId)
       ? start.accountId
@@ -112,11 +115,11 @@ function NewPostWindow({
 
   const lookUpRules = React.useCallback(
     (name: string): Promise<void> =>
-      loadRulesFor(name).then(
+      loadRulesFor(name, projectId).then(
         (answer) => setRules(answer ? { subreddit: answer.subreddit, view: answer.rules } : null),
         () => setRules(null)
       ),
-    []
+    [projectId]
   )
 
   // A read of the rules takes the reader browser a minute, so the window asks
@@ -232,7 +235,7 @@ function NewPostWindow({
                         working={rules.view.reading}
                         onRead={async () => {
                           try {
-                            await readRulesFor(rules.subreddit)
+                            await readRulesFor(rules.subreddit, projectId)
                             await lookUpRules(rules.subreddit)
                           } catch (error) {
                             showErrorToast(getOwnPostErrorMessage(error))
@@ -252,47 +255,49 @@ function NewPostWindow({
                     <CardTitle>The post</CardTitle>
                   </CardHeader>
                   <CardContent className="grid gap-4">
-                    <div className="grid gap-2">
-                      <FieldLabel
-                        htmlFor="new-post-idea"
-                        hint="Only for Write with AI. A line or two is plenty. Leave it empty and it writes from the project's description."
-                      >
-                        What it is about
-                      </FieldLabel>
-                      <Textarea
-                        id="new-post-idea"
-                        rows={1}
-                        value={idea}
-                        placeholder="What I learned getting my first 100 users from Reddit"
-                        onChange={(event) => setIdea(event.target.value)}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="justify-self-start"
-                        disabled={drafting}
-                        onClick={async () => {
-                          setDrafting(true)
-                          try {
-                            const draft = await writeOwnPost({
-                              projectId,
-                              accountId: account?.id ?? null,
-                              subreddit: cleaned,
-                              idea,
-                            })
-                            setTitle(draft.title)
-                            setBody(draft.body)
-                          } catch (error) {
-                            showErrorToast(getOwnPostErrorMessage(error))
-                          } finally {
-                            setDrafting(false)
-                          }
-                        }}
-                      >
-                        {drafting ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-                        Write with AI
-                      </Button>
-                    </div>
+                    {guest ? null : (
+                      <div className="grid gap-2">
+                        <FieldLabel
+                          htmlFor="new-post-idea"
+                          hint="Only for Write with AI. A line or two is plenty. Leave it empty and it writes from the project's description."
+                        >
+                          What it is about
+                        </FieldLabel>
+                        <Textarea
+                          id="new-post-idea"
+                          rows={1}
+                          value={idea}
+                          placeholder="What I learned getting my first 100 users from Reddit"
+                          onChange={(event) => setIdea(event.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="justify-self-start"
+                          disabled={drafting}
+                          onClick={async () => {
+                            setDrafting(true)
+                            try {
+                              const draft = await writeOwnPost({
+                                projectId,
+                                accountId: account?.id ?? null,
+                                subreddit: cleaned,
+                                idea,
+                              })
+                              setTitle(draft.title)
+                              setBody(draft.body)
+                            } catch (error) {
+                              showErrorToast(getOwnPostErrorMessage(error))
+                            } finally {
+                              setDrafting(false)
+                            }
+                          }}
+                        >
+                          {drafting ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+                          Write with AI
+                        </Button>
+                      </div>
+                    )}
                     <div className="grid gap-2">
                       <Label htmlFor="new-post-title">Title</Label>
                       <Input

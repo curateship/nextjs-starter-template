@@ -110,113 +110,14 @@ export function TaskFilterPopover({
             onChange={(event) => onChange({ q: event.target.value || undefined })}
           />
         ) : null}
-        <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
-          <FilterRow id="filter-status" label="Status">
-            <Select
-              value={filters.status ?? ALL}
-              onValueChange={(value) => onChange({ status: value === ALL ? undefined : (value as TaskStatus) })}
-            >
-              <SelectTrigger id="filter-status" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Any status</SelectItem>
-                {TASK_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {TASK_STATUS_LABEL[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterRow>
-          <FilterRow id="filter-priority" label="Priority">
-            <Select
-              value={filters.priority ?? ALL}
-              onValueChange={(value) =>
-                onChange({ priority: value === ALL ? undefined : (value as TaskPriority) })
-              }
-            >
-              <SelectTrigger id="filter-priority" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Any priority</SelectItem>
-                {TASK_PRIORITIES.map((priority) => (
-                  <SelectItem key={priority} value={priority}>
-                    {TASK_PRIORITY_LABEL[priority]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterRow>
-          <FilterRow id="filter-due" label="Due">
-            <Select
-              value={filters.due ?? ALL}
-              onValueChange={(value) => onChange({ due: value === ALL ? undefined : (value as DueFilter) })}
-            >
-              <SelectTrigger id="filter-due" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Any time</SelectItem>
-                {DUE_FILTERS.map((option) => (
-                  <SelectItem key={option.key} value={option.key}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterRow>
-          <FilterRow id="filter-label" label="Tags">
-            <Select
-              value={filters.label ?? ALL}
-              onValueChange={(value) => onChange({ label: value === ALL ? undefined : value })}
-            >
-              <SelectTrigger id="filter-label" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Any tag</SelectItem>
-                {labels.map((label) => (
-                  <SelectItem key={label.id} value={label.id}>
-                    <ProjectDot color={label.color} />
-                    {label.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterRow>
-          <FilterRow id="filter-type" label="Type">
-            <Select
-              value={filters.type ?? ALL}
-              onValueChange={(value) => onChange({ type: value === ALL ? undefined : value })}
-            >
-              <SelectTrigger id="filter-type" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Any type</SelectItem>
-                {types.map((type) => (
-                  <SelectItem key={type.id} value={type.id}>
-                    <TypeIconGlyph icon={type.icon} color={type.color} />
-                    {type.name}
-                    {type.archived ? <span className="text-muted-foreground"> (archived)</span> : null}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterRow>
-          {clients ? (
-            <FilterRow id="filter-client" label="Client">
-              <ClientFilterSelect
-                id="filter-client"
-                value={filters.client}
-                clients={clients}
-                onChange={(client) => onChange({ client })}
-              />
-            </FilterRow>
-          ) : null}
-        </div>
+        <TaskFilterFields
+          idPrefix="filter"
+          filters={filters}
+          onChange={onChange}
+          labels={labels}
+          types={types}
+          clients={clients}
+        />
         {group || extra ? (
           <>
             <Separator className="-mx-3 w-auto" />
@@ -255,7 +156,144 @@ export function TaskFilterPopover({
   )
 }
 
-function FilterRow({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+/**
+ * The filter rows, label beside choice: Status, Priority, Due, Tags and Type,
+ * and Client where `clients` is given. The Filter popover and the Edit view
+ * window both draw these, so a view is edited with the same choices it was
+ * made with.
+ */
+export function TaskFilterFields({
+  idPrefix,
+  filters,
+  onChange,
+  labels,
+  types,
+  clients,
+  children,
+}: {
+  /** Starts each row's id, so two sets on one page never share one. */
+  idPrefix: string
+  filters: TaskFilters
+  onChange: (patch: Partial<TaskFilters>) => void
+  labels: TaskLabel[]
+  types: TaskType[]
+  clients?: readonly string[]
+  /** More rows after Type and Client, such as the Edit view window's Assigned to. */
+  children?: React.ReactNode
+}) {
+  return (
+    <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
+      <FilterRow id={`${idPrefix}-status`} label="Status">
+        <Select
+          value={filters.status ?? ALL}
+          onValueChange={(value) => onChange({ status: value === ALL ? undefined : (value as TaskStatus) })}
+        >
+          <SelectTrigger id={`${idPrefix}-status`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any status</SelectItem>
+            {TASK_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {TASK_STATUS_LABEL[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-priority`} label="Priority">
+        <Select
+          value={filters.priority ?? ALL}
+          onValueChange={(value) =>
+            onChange({ priority: value === ALL ? undefined : (value as TaskPriority) })
+          }
+        >
+          <SelectTrigger id={`${idPrefix}-priority`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any priority</SelectItem>
+            {TASK_PRIORITIES.map((priority) => (
+              <SelectItem key={priority} value={priority}>
+                {TASK_PRIORITY_LABEL[priority]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-due`} label="Due">
+        <Select
+          value={filters.due ?? ALL}
+          onValueChange={(value) => onChange({ due: value === ALL ? undefined : (value as DueFilter) })}
+        >
+          <SelectTrigger id={`${idPrefix}-due`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any time</SelectItem>
+            {DUE_FILTERS.map((option) => (
+              <SelectItem key={option.key} value={option.key}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-label`} label="Tags">
+        <Select
+          value={filters.label ?? ALL}
+          onValueChange={(value) => onChange({ label: value === ALL ? undefined : value })}
+        >
+          <SelectTrigger id={`${idPrefix}-label`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any tag</SelectItem>
+            {labels.map((label) => (
+              <SelectItem key={label.id} value={label.id}>
+                <ProjectDot color={label.color} />
+                {label.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-type`} label="Type">
+        <Select
+          value={filters.type ?? ALL}
+          onValueChange={(value) => onChange({ type: value === ALL ? undefined : value })}
+        >
+          <SelectTrigger id={`${idPrefix}-type`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any type</SelectItem>
+            {types.map((type) => (
+              <SelectItem key={type.id} value={type.id}>
+                <TypeIconGlyph icon={type.icon} color={type.color} />
+                {type.name}
+                {type.archived ? <span className="text-muted-foreground"> (archived)</span> : null}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      {clients ? (
+        <FilterRow id={`${idPrefix}-client`} label="Client">
+          <ClientFilterSelect
+            id={`${idPrefix}-client`}
+            value={filters.client}
+            clients={clients}
+            onChange={(client) => onChange({ client })}
+          />
+        </FilterRow>
+      ) : null}
+      {children}
+    </div>
+  )
+}
+
+export function FilterRow({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
   return (
     <>
       <Label htmlFor={id} className="font-normal text-muted-foreground">

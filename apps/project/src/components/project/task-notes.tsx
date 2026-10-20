@@ -1,7 +1,7 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import type { Editor } from "@tiptap/react"
-import { HistoryIcon, ListTodoIcon, Loader2Icon, PencilIcon, PlusIcon, SettingsIcon } from "lucide-react"
+import { HistoryIcon, ListTodoIcon, Loader2Icon, PencilIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { PanelCardFooter } from "@/components/project/panel-card"
@@ -11,6 +11,7 @@ import {
 } from "@/components/project/task-link-extension"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Dialog,
   DialogBody,
@@ -26,7 +27,7 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import { findLinkableTasks, type LinkChoice } from "@/lib/api/project/chat"
 import { bringBackNoteVersion, loadNoteVersions, type NoteVersion } from "@/lib/api/project/tasks"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
-import type { WrittenPageNode } from "@/lib/pages/written-page-body"
+import { emptyWrittenPageBody, type WrittenPageNode } from "@/lib/pages/written-page-body"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import {
   linkedTaskOf,
@@ -94,6 +95,8 @@ export function TaskNotesField({
   const [editing, setEditing] = React.useState(editingAtStart)
   const [session, setSession] = React.useState(() => (editingAtStart ? crypto.randomUUID() : ""))
   const [versionsOpen, setVersionsOpen] = React.useState(false)
+  const [confirmDelete, setConfirmDelete] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
   // Null until something is typed, so leaving an untouched editor saves nothing.
   const [draft, setDraft] = React.useState<WrittenPageNode | null>(null)
   const editorBox = React.useRef<HTMLDivElement>(null)
@@ -148,6 +151,15 @@ export function TaskNotesField({
     if (!ok) return
     setEditing(false)
     onFinished?.()
+  }
+
+  // Deleting saves empty notes, so the Notes card leaves the panel; the
+  // words are kept as an earlier version, as any save keeps them.
+  async function deleteNotes() {
+    setDeleting(true)
+    const ok = await onSave(emptyWrittenPageBody(), crypto.randomUUID())
+    setDeleting(false)
+    if (ok) setConfirmDelete(false)
   }
 
   const versionsButton = (
@@ -266,10 +278,30 @@ export function TaskNotesField({
           right, and Done while writing whatever the cog says. Below the notes,
           so the formatting bar over the first line never sits on Done. */}
       {hideLabel ? (
-        <PanelCardFooter always={editing} className={editing ? "justify-end" : undefined}>
+        // Each button stretches, so together they fill the footer with no gap
+        // between them, wrapping onto a second row in a narrow panel (Tyler, 20 Oct 2026).
+        <PanelCardFooter always={editing} className={editing ? "justify-end" : "[&>button]:flex-1"}>
           {doneOrEdit}
-          {task && !editing ? <span className="ml-auto">{versionsButton}</span> : null}
+          {task && !editing ? versionsButton : null}
+          {/* Row actions end with Delete (Tyler, 20 Oct 2026: "the note card is missing a delete button"). */}
+          {task && !editing && !readOnly && !taskNotesAreEmpty(saved) ? (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDelete(true)}>
+              <Trash2Icon className="size-4" />
+              Delete
+            </Button>
+          ) : null}
         </PanelCardFooter>
+      ) : null}
+      {hideLabel && task && !readOnly ? (
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Delete these notes?"
+          description="The notes are emptied for everyone on the task, and the Notes card goes from the panel. Add note in the three-dot button starts new ones."
+          confirmLabel="Delete notes"
+          loading={deleting}
+          onConfirm={() => void deleteNotes()}
+        />
       ) : null}
       {task ? (
         <NoteVersionsDialog

@@ -158,6 +158,12 @@ export function HistoryPanel() {
                       <span className="truncate text-xs font-medium tabular-nums">
                         {formatDateTime(item.saved_at)}
                       </span>
+                      {/* Who saved it, when it was a guest sent from Project. */}
+                      {item.edited_by ? (
+                        <span className="truncate text-[0.625rem] text-muted-foreground">
+                          Saved by {item.edited_by}
+                        </span>
+                      ) : null}
                       <span className="truncate text-[0.625rem] text-muted-foreground tabular-nums">
                         {versionFacts(item)}
                       </span>

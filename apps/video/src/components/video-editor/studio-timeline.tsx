@@ -75,6 +75,10 @@ import {
   type EditorClip,
   type EditorTrack,
 } from "@/components/video-editor/editor-store"
+import {
+  StillContextMenu,
+  StillMarker,
+} from "@/components/video-editor/moving-stills"
 import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
 import { useRememberedTimelineView } from "@/components/video-editor/use-remembered-view"
 
@@ -315,6 +319,9 @@ export function StudioTimeline({ readOnly = false }: { readOnly?: boolean }) {
 
       <div
         ref={scrollRef}
+        // A file dragged from a panel lands on the nearest lane wherever it is
+        // let go in here (use-drag-to-timeline.tsx).
+        data-timeline-drop
         style={{ flex: 1, minHeight: 0, overflow: "auto", position: "relative" }}
       >
         <div
@@ -1214,7 +1221,7 @@ const ClipChip = React.memo(function ClipChip({
         : "rgba(0,0,0,.28)",
   }
 
-  return (
+  const chip = (
     <div
       ref={ref}
       data-clip
@@ -1429,7 +1436,16 @@ const ClipChip = React.memo(function ClipChip({
       >
         <span style={gripBar} />
       </div>
+      {clip.kind === "image" ? (
+        <StillMarker clipId={clip.id} roomy={width > 110} />
+      ) : null}
     </div>
+  )
+  // A picture can be made to move from its right-click menu (moving-stills.tsx).
+  return clip.kind === "image" ? (
+    <StillContextMenu clipId={clip.id}>{chip}</StillContextMenu>
+  ) : (
+    chip
   )
 })
 

@@ -20,7 +20,7 @@ import {
 } from "lucide-react"
 
 import { renameProject } from "@/lib/api/video/projects"
-import { useShellRuntime } from "@/components/shell/shell-layout"
+import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -67,6 +67,8 @@ import { StudioTimeline } from "@/components/video-editor/studio-timeline"
 import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
 import { useRememberedRailPanel } from "@/components/video-editor/use-remembered-view"
 import { OpenElsewhereDialog } from "@/components/video-editor/open-elsewhere-dialog"
+import { MovingStillsProvider } from "@/components/video-editor/moving-stills"
+import { useProjectGuest } from "@/components/video-editor/project-guest"
 import "@/components/video-editor/studio.css"
 
 /**
@@ -112,20 +114,38 @@ const RAIL_FOOT: typeof RAIL = [
   { id: "history", label: "History", Icon: HistoryIcon },
 ]
 
-function isRailPanel(name: string): name is StudioPanel {
-  return [...RAIL, ...RAIL_FOOT].some((item) => item.id === name)
+/**
+ * The panels a guest sent from Project sees: their project's media, text,
+ * its exports and its history. The rest use AI, the owner's library or
+ * things outside the project (`workspace/docs/project-guests.md`).
+ */
+const GUEST_PANELS = new Set<StudioPanel>(["media", "text", "exports", "history"])
+
+function railFor(guest: boolean) {
+  const keep = (item: (typeof RAIL)[number]) => !guest || GUEST_PANELS.has(item.id)
+  return { rail: RAIL.filter(keep), foot: RAIL_FOOT.filter(keep) }
 }
 
 export function StudioEditor({
   timelineError,
+  reportSaveStatus,
 }: {
   timelineError?: string | null
+  /** Where "Saving…" and "Saved" are shown: the app header, or the guest page's own. */
+  reportSaveStatus: (status: SaveStatus | null) => void
 }) {
   const { store, dispatch, clock } = useEditorRuntime()
-  const { reportSaveStatus } = useShellRuntime()
+  const guest = useProjectGuest() !== null
   const saveStatus = useEditorSaveStatus()
   const desktop = useWideScreen()
   const [panel, setPanel] = React.useState<StudioPanel>("media")
+  const isRailPanel = React.useCallback(
+    (name: string): name is StudioPanel => {
+      const { rail, foot } = railFor(guest)
+      return [...rail, ...foot].some((item) => item.id === name)
+    },
+    [guest]
+  )
   useRememberedRailPanel(panel, setPanel, isRailPanel)
 
   // A timeline the editor cannot read is said once and left in the shared
@@ -216,7 +236,7 @@ export function StudioEditor({
 
   const contextPanel = (
     <div data-screen-label="Panel" className="flex h-full min-h-0">
-      <ToolRail panel={panel} onSelect={setPanel} />
+      <ToolRail panel={panel} onSelect={setPanel} guest={guest} />
       <div className="flex min-w-0 flex-1 flex-col">
         <StudioContextPanel panel={panel} />
       </div>
@@ -307,38 +327,40 @@ export function StudioEditor({
   )
 
   return (
-    <div
-      className="studio-root flex min-h-0 flex-1 flex-col"
-      style={{ gap: "var(--shell-gutter, 0.75rem)" }}
-    >
-      <OpenElsewhereDialog />
-      <ResizablePanelGroup
-        key={verticalLayout.layoutKey}
-        orientation="vertical"
-        className="min-h-0 flex-1"
-        defaultLayout={verticalLayout.defaultLayout}
-        onLayoutChanged={verticalLayout.onLayoutChanged}
+    <MovingStillsProvider>
+      <div
+        className="studio-root flex min-h-0 flex-1 flex-col"
+        style={{ gap: "var(--shell-gutter, 0.75rem)" }}
       >
-        <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">
-          <div className="flex h-full min-h-0">{workspace}</div>
-        </ResizablePanel>
-        {/* Keeps its gap even while the panel is shut — the collapsed toolbar
-            row is still on screen, and this handle is what drags it open. */}
-        <ResizableHandle gap />
-        <ResizablePanel
-          id="timeline"
-          panelRef={timelineRef}
-          defaultSize="32%"
-          minSize="15%"
-          collapsible
-          collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+        <OpenElsewhereDialog />
+        <ResizablePanelGroup
+          key={verticalLayout.layoutKey}
+          orientation="vertical"
+          className="min-h-0 flex-1"
+          defaultLayout={verticalLayout.defaultLayout}
+          onLayoutChanged={verticalLayout.onLayoutChanged}
         >
-          <WorkspacePanel onDoubleClick={timelineDoubleClick}>
-            <StudioTimeline />
-          </WorkspacePanel>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
+          <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">
+            <div className="flex h-full min-h-0">{workspace}</div>
+          </ResizablePanel>
+          {/* Keeps its gap even while the panel is shut — the collapsed toolbar
+              row is still on screen, and this handle is what drags it open. */}
+          <ResizableHandle gap />
+          <ResizablePanel
+            id="timeline"
+            panelRef={timelineRef}
+            defaultSize="32%"
+            minSize="15%"
+            collapsible
+            collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+          >
+            <WorkspacePanel onDoubleClick={timelineDoubleClick}>
+              <StudioTimeline />
+            </WorkspacePanel>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
+    </MovingStillsProvider>
   )
 }
 
@@ -372,10 +394,13 @@ function RailButton({
 function ToolRail({
   panel,
   onSelect,
+  guest,
 }: {
   panel: StudioPanel
   onSelect: (panel: StudioPanel) => void
+  guest: boolean
 }) {
+  const { rail, foot } = railFor(guest)
   return (
     <nav
       data-screen-label="Tool rail"
@@ -388,7 +413,7 @@ function ToolRail({
         className="h-full"
         viewportClassName="[&>div]:flex! [&>div]:min-h-full [&>div]:flex-col [&>div]:items-center [&>div]:gap-1 [&>div]:py-2"
       >
-        {RAIL.map((item) => (
+        {rail.map((item) => (
           <RailButton
             key={item.id}
             {...item}
@@ -397,7 +422,7 @@ function ToolRail({
           />
         ))}
         <div className="mt-auto flex w-full flex-col items-center gap-1 border-t pt-2">
-          {RAIL_FOOT.map((item) => (
+          {foot.map((item) => (
             <RailButton
               key={item.id}
               {...item}
@@ -413,6 +438,7 @@ function ToolRail({
 
 /** The picture's header: what this project is called, and a link to it. */
 function StageHeader() {
+  const guest = useProjectGuest()
   const projectName = useEditorProjectName()
   const { setProjectName, projectId } = useEditorRuntime()
   const [editing, setEditing] = React.useState(false)
@@ -460,6 +486,16 @@ function StageHeader() {
 
   return (
     <DashboardCardHeader className="grid grid-cols-[1fr_auto_1fr]">
+      {/* A guest sent from Project has no project list to go back to, and
+          can't rename the project or share the editor's address. */}
+      {guest ? (
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h1 className="font-heading min-w-0 truncate text-[0.99rem] leading-snug font-medium">
+            {projectName}
+          </h1>
+          <LockedMarker />
+        </div>
+      ) : (
       <div className="flex min-w-0 items-center gap-2.5">
         <Button asChild variant="ghost" size="icon">
           <Link
@@ -507,15 +543,20 @@ function StageHeader() {
         )}
         <LockedMarker />
       </div>
+      )}
 
       <AspectSwitch />
 
       <div className="flex items-center justify-end gap-2">
-        <AiBudgetIndicator />
-        <Button type="button" variant="outline" onClick={shareLink}>
-          {shared ? <Check /> : <Share2 />}
-          {shared ? "Copied" : "Share"}
-        </Button>
+        {guest ? null : (
+          <>
+            <AiBudgetIndicator />
+            <Button type="button" variant="outline" onClick={shareLink}>
+              {shared ? <Check /> : <Share2 />}
+              {shared ? "Copied" : "Share"}
+            </Button>
+          </>
+        )}
         <Button type="button" onClick={() => setExportOpen(true)}>
           {rendering ? <Loader2Icon className="animate-spin" /> : <Upload />}
           {rendering ? "Exporting" : "Export"}

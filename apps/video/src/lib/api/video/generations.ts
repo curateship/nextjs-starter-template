@@ -11,6 +11,13 @@ import {
   type ShotLengthSeconds,
   type VideoQuality,
 } from "@/lib/video/asset-factories"
+import {
+  MOVING_STILL_BUSY_MESSAGE,
+  MOVING_STILL_NOT_FOUND_MESSAGE,
+  MOVING_STILL_NOT_FULL_FRAME_MESSAGE,
+  MOVING_STILL_TOO_LONG_MESSAGE,
+  MOVING_STILL_UNREADABLE_MESSAGE,
+} from "@/lib/video/moving-still"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
 import { userGet, userPost } from "@/server/guards"
@@ -39,6 +46,13 @@ export function getGenerationErrorMessage(error: unknown) {
       "Write one direction for each piece of the shot",
       "A video that is still generating cannot be deleted",
       "Add a Google Gemini key in Settings first",
+      MOVING_STILL_BUSY_MESSAGE,
+      MOVING_STILL_NOT_FOUND_MESSAGE,
+      MOVING_STILL_NOT_FULL_FRAME_MESSAGE,
+      MOVING_STILL_TOO_LONG_MESSAGE,
+      MOVING_STILL_UNREADABLE_MESSAGE,
+      "Pick a length at least as long as the picture",
+      "This shot is not ready to land",
     ].includes(message)
   ) return message
   if (message.includes("AI_LIMIT_REACHED")) return "Your monthly AI allowance is used up."
@@ -76,3 +90,31 @@ export function listGenerations(projectId: string) { return listFn({ data: { pro
 export function createGeneration(data: { projectId: string; firstFrameId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality }) { return createFn({ data }) }
 export function retryGeneration(generationId: string) { return retryFn({ data: { generationId } }) }
 export function deleteGenerations(generationIds: string[]) { return deleteFn({ data: { generationIds } }) }
+
+const createStillFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({
+    projectId: z.string().min(1).max(36),
+    clipId: z.string().min(1).max(64),
+    prompts: z.array(z.string().trim().min(1).max(5000)).min(1).max(4),
+    lengthSeconds: z.union(SHOT_LENGTHS.map((value) => z.literal(value)) as [z.ZodLiteral<ShotLengthSeconds>, ...z.ZodLiteral<ShotLengthSeconds>[]]),
+    quality: z.enum(VIDEO_QUALITY_IDS),
+  }))
+  .handler(({ data, context }) => import("@/server/video/asset-factories/moving-stills").then((m) => m.createStillShot(context.user.id, data)))
+
+const listStillFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ projectId: z.string().min(1).max(36) }))
+  .handler(({ data, context }) => import("@/server/video/asset-factories/moving-stills").then((m) => m.listStillShots(context.user.id, data.projectId)))
+
+const settleStillFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(idSchema.extend({ outcome: z.enum(["replaced", "gone"]) }))
+  .handler(({ data, context }) => import("@/server/video/asset-factories/moving-stills").then((m) => m.settleStillShot(context.user.id, data.generationId, data.outcome)))
+
+/** Asks for a moving shot of a picture clip, which replaces the picture when it arrives. */
+export function createStillShot(data: { projectId: string; clipId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality }) { return createStillFn({ data }) }
+/** This project's shots made from pictures that have not landed yet. */
+export function listStillShots(projectId: string) { return listStillFn({ data: { projectId } }) }
+/** Records that this editor landed a finished shot. `settled` is false when the worker already had. */
+export function settleStillShot(generationId: string, outcome: "replaced" | "gone") { return settleStillFn({ data: { generationId, outcome } }) }

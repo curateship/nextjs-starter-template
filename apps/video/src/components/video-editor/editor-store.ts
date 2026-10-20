@@ -11,6 +11,7 @@ import {
 } from "@/lib/video/clip-playback"
 import type { ClipboardClip } from "@/lib/video/clip-clipboard"
 import { LEFT_OF_CUT, RIGHT_OF_CUT } from "@/lib/video/clip-fades"
+import { landMovingShot, type MovingPiece } from "@/lib/video/moving-still"
 import { voiceoverRefusal } from "@/lib/video/saved-voiceovers"
 import { PlaybackClock } from "@/lib/video/playback-clock"
 import {
@@ -89,6 +90,14 @@ export type EditorAction =
         fileType: "video" | "image" | "audio"
         sourceDurationMs: number
       }
+    }
+  // A finished moving shot taking its picture's place (moving-still.ts). One
+  // action, so one Undo brings the picture back.
+  | {
+      type: "LAND_MOVING_SHOT"
+      clipId: string
+      stillMediaId: string | null
+      pieces: MovingPiece[]
     }
   | { type: "ADD_TRACK" }
   // Cut several pieces out of one clip at once, closing the gaps. What comes
@@ -766,6 +775,12 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         ),
       }))
       return { ...pushUndo(state, tracks), selectedClipId: action.clipId }
+    }
+
+    case "LAND_MOVING_SHOT": {
+      const landed = landMovingShot(state.tracks, { ...action, newId: editorId })
+      if (landed.outcome === "gone") return state
+      return pushUndo(state, landed.tracks)
     }
 
     case "UPDATE_CLIP": {

@@ -298,7 +298,9 @@ show out of the left panel and into that header.
   sizes for a picture field: the banner 192px wide like Share image, the
   avatar an 80px square like the account Photo. The banner lies behind the top of the left panel, its
   header included, drawn at 30 out of 100 strength and fading into the panel at
-  its foot, so the header's name, star and cog still read over it. The avatar
+  its foot, so the header's name, star and cog still read over it. Over a
+  banner the header has no line under it, so the picture runs on unbroken
+  (Tyler, 20 Oct 2026). The avatar
   is a circle with a 2px white edge at the banner's foot with the project's
   name and status beside it. The client is always under its own CLIENT
   heading beside Lead (Tyler, 19 Oct 2026: "the client name should be here"). With neither
@@ -570,12 +572,21 @@ goes, so it no longer ends up on whatever task was open.
   in a project the person isn't on never shows, and neither does one in the
   bin, someone else's "Just me" task, or a word that is only in a # link to
   another task. On a phone it folds into the header's three-dot menu.
-- **Saved views.** With a search or filter on, Save as view, at the foot of
+- **Saved views.** With a search, a filter or a group on, Save as view, at the foot of
   the Filter popover on the project page (Save view on My tasks), asks for a name (the filters to start with, such as "Stuck ·
   Leo") and keeps them. The Views menu lists them, each with what it shows.
   "Delete views…" at its foot turns the rows into delete buttons until the
-  menu closes. Opening one sets the same filters, and so the same
-  address, as picking them by hand. Views are each person's own, kept per
+  menu closes. The cog at the end of each row opens Edit view (Tyler, 20 Oct
+  2026): its name, then what it shows, with the search, the Filter popover's
+  rows, Assigned to and Group on a project, and Client on My tasks. Save
+  changes keeps it where it was saved; a view left showing nothing is
+  refused with a sentence saying so. Opening one sets the same filters, and so the same
+  address, as picking them by hand. A view also keeps the Group row's choice,
+  and a group on its own is enough to save one (Tyler, 20 Oct 2026: "sorting
+  is also a filter"), listed as "Group: Priority". Opening it sets the List's
+  and Timeline's Group, and the Board's rows by person when the group is
+  Assigned to; a view with no group leaves the Group row as it is, as Clear
+  does. My tasks has no Group row, so its views keep none. Views are each person's own, kept per
   project and on My tasks, and nobody else sees them. A view naming someone
   no longer on the project, a deleted label or a type that's gone opens
   without that filter and says so, such as "Leo isn't on this project any
@@ -591,7 +602,8 @@ goes, so it no longer ends up on whatever task was open.
   [Tags and groups](tags-and-groups.md#group)), then Clear and Save as
   view. Filter counts the filters set, "Filter 2", and Clear leaves the
   header's whose-tasks dropdown alone. Save as view with nothing picked
-  says "Search or pick a filter first, then save it as a view." A search that
+  says "Search, pick a filter or choose a group first, then save it as a
+  view." A search that
   finds nothing says so.
 - **Whose tasks show** is the dropdown with the members' faces: All members
   with the project's open tasks, each member with their job title and open
@@ -638,12 +650,16 @@ beside the Board or My tasks (Tyler, 13 Oct 2026, from his drawing). On My
 dashboard it takes the inbox's place, and closing it brings the inbox back.
 Neither puts a window over the page.
 
-- **The task panel.** Along the top: the status as a pill with
-  its dot, "Add note" (only while the task has no notes), the paperclip with
-  the number of files, the chat icon (only while the chat has no messages),
-  the cog, and a cross at the far right that closes the task. In a narrow
-  panel Add note keeps its pencil and drops its words. Follow is in the
-  cog's dropdown (Tyler, 14 Oct 2026). Down the panel: anything that needs an answer (a
+- **The task panel.** Along the top: the status as a pill with its dot at
+  the left, then the three-dot button and the cog at the right (Tyler, 20
+  Oct 2026, `assets/pasted-image-1792504237260017000.png`). The three dots
+  open a dropdown of Add tags, Add note (only while the task has no notes),
+  Add comment (only while the chat has no messages) and Add files with the
+  number of files; the one picked takes the dropdown's place, with an arrow
+  back to the list. The project page has no cross: the task stays open until
+  another is picked. My dashboard keeps its cross, since closing the task
+  there brings the inbox back. Follow is in the cog's dropdown (Tyler, 14
+  Oct 2026). Down the panel: anything that needs an answer (a
   hand-over to accept, a review, the Stuck reason row, the Move and Remind
   me cards), then Notes once the task has some, Steps ("Steps · 0 of 2
   done") and Chat ("Chat · 4") once it has a message, each a card that folds shut and stays shut
@@ -654,23 +670,27 @@ Neither puts a window over the page.
   the title is edited in one place. An archived project's title can't be
   edited. The open card is outlined on the Board.
 - **The panel's header buttons have no border or background**, the status
-  included, so the status, Add note, the paperclip, the chat icon and the
-  cog are plain until pointed at (Tyler, 14 Oct 2026).
+  included, so the status, the three dots and the cog are plain until
+  pointed at (Tyler, 14 Oct 2026).
 - **A card's arrow and cog show only while it is pointed at**, folded or
   open (Tyler, 14 Oct 2026, `assets/pasted-image-1791995305794293000.png`).
   The cog has no background. Clicking it, and only it, opens the card's
-  footer, a row of its buttons under a line: Notes has Edit notes (a pencil)
-  at the left and Earlier versions at the right; Steps has Add a step list
+  footer, a row of its buttons under a line: Notes has Edit notes (a pencil),
+  Earlier versions and Delete, each stretched so together they fill the row
+  and wrap onto a second one in a narrow panel (Tyler, 20 Oct 2026: "the
+  buttons should fill all the space"). Delete asks first, then empties the
+  notes for everyone and the Notes card goes; the words are kept as an
+  earlier version, as every save keeps them. Steps has Add a step list
   and Save these steps as a list. On a folded card the cog opens the card
   with its footer showing. The cog stays while its footer is open, so it can
   close it again. Chat has no buttons, so only its arrow. Moving onto a card
   with the keyboard shows them too, and a screen with no pointer always
   shows them (`src/components/project/panel-card.tsx`).
-- **Add note** opens a dropdown under the button with the editor ready
+- **Add note** opens the editor ready in the three-dot dropdown
   (Tyler, 13 Oct 2026). Done saves, and only then does the Notes card appear
   in the panel, as it shows from then on. Closed with nothing typed, nothing
   appears. Typing and then clicking away saves too, so nothing written is
-  lost. The dropdown opens leftward from the button, 16px clear of the
+  lost. The dropdown opens leftward from the three dots, 16px clear of the
   window's edge. The editor opens with a cursor at the end of the note, so
   the formatting bar shows only once words are selected. Double-clicking the
   notes opens the editor too, without the cog (Tyler, 19 Oct 2026: "double
@@ -679,14 +699,14 @@ Neither puts a window over the page.
   Done sits at the right of the Notes card's footer whatever the cog says,
   under the notes, so the formatting bar over the first line never covers
   it.
-- **The paperclip** opens a dropdown under it (Tyler, 14 Oct 2026; it was a
-  window) with "1 file", the limit, the task's files and the place to drop
-  more.
-- **The chat icon** works like Add note (Tyler, 14 Oct 2026): while the chat
-  has no messages, it opens a dropdown with the box to write the first one,
-  and once one is sent the Chat card appears and the icon goes. A deleted
-  message doesn't count, so a chat holding only "Message deleted" still has
-  the icon, shows the deleted line in the dropdown, and counts 0.
+- **Add files** shows "1 file", the limit, the task's files and the place to
+  drop more (Tyler, 14 Oct 2026; it was a window, then the paperclip).
+- **Add comment** works like Add note (Tyler, 14 Oct 2026, as the chat
+  icon): while the chat has no messages, it holds the box to write the first
+  one, and once one is sent the dropdown closes, the Chat card appears and
+  Add comment leaves the list. A deleted message doesn't count, so a chat
+  holding only "Message deleted" still offers Add comment, shows the deleted
+  line, and counts 0.
 - **The cog** opens a dropdown, as Tyler drew it on 13 Oct 2026
   (`assets/pasted-image-1791937217887403000.png`). Follow (or Following) sits
   at the right of its Details and History tabs (Tyler, 14 Oct 2026,

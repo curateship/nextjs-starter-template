@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { saveViewSchema } from "@/lib/project/saved-views"
+import { saveViewSchema, updateViewSchema } from "@/lib/project/saved-views"
 import { userGet, userPost } from "@/server/guards"
 import { inTeam } from "@/server/project/access"
 import { teamScope } from "@/lib/api/project/scope"
 import { loadTeamActivity } from "@/server/project/project-activity"
-import { deleteView, saveView } from "@/server/project/saved-views"
+import { deleteView, saveView, updateView } from "@/server/project/saved-views"
 import { searchTasks } from "@/server/project/search"
 import { loadTeamTrends } from "@/server/project/team-figures"
 
@@ -31,6 +31,11 @@ const saveViewFn = createServerFn({ method: "POST" })
   .inputValidator(saveViewSchema)
   .handler(async ({ data, context }) => saveView(context.user.id, data))
 
+const updateViewFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(updateViewSchema)
+  .handler(async ({ data, context }) => updateView(context.user.id, data))
+
 const deleteViewFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ viewId: id }))
@@ -53,6 +58,9 @@ export function searchProjectTasks(q: string) {
 }
 export function saveProjectView(data: z.input<typeof saveViewSchema>) {
   return saveViewFn({ data })
+}
+export function updateProjectView(data: z.input<typeof updateViewSchema>) {
+  return updateViewFn({ data })
 }
 export function deleteProjectView(viewId: string) {
   return deleteViewFn({ data: { viewId } })

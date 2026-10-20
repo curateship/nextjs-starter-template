@@ -191,7 +191,7 @@ function Dashboard({
           content: (
             <>
               {search.task ? (
-                <TaskSidePanel taskId={search.task} onClose={taskAddress.back} onLoaded={taskLoaded} />
+                <TaskSidePanel taskId={search.task} onClose={taskAddress.back} closeButton onLoaded={taskLoaded} />
               ) : null}
               {/* The inbox stays loaded under an open task, so closing the task
                   finds it on the same tab and scrolled to the same spot. */}
@@ -451,7 +451,8 @@ function MyTasksPanel({
   const [catchingUp, setCatchingUp] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
   const bulk = { people: checkin.people, projects: [] }
-  const here = { projectId: null, labels: dashboard.labels, types: dashboard.taskTypes }
+  const clients = clientChoices([...open, ...done].map((task) => task.projectClient))
+  const here = { projectId: null, labels: dashboard.labels, types: dashboard.taskTypes, clients }
 
   async function reorder(next: string[]) {
     setOrder({ from: savedOrder, ids: next })
@@ -555,7 +556,7 @@ function MyTasksPanel({
             types={dashboard.taskTypes}
             buttonVariant="ghost"
             onSaveView={saveView}
-            clients={clientChoices([...open, ...done].map((task) => task.projectClient))}
+            clients={clients}
           />
           <SavedViewsControls
             views={dashboard.views}

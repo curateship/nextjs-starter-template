@@ -2,6 +2,7 @@ import * as React from "react"
 import { Loader2Icon, SendIcon, SparklesIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -33,9 +34,12 @@ export function InboxAnswer({
   onChanged: (gone: boolean) => Promise<void>
 }) {
   const open = item.status === "open"
+  // The AI's suggestion spends the owner's credits, so a guest sent from
+  // Project gets none: no first draft and no Write again.
+  const guest = usePromoGuest()
   const [text, setText] = React.useState(item.draft)
   /** The first suggestion, asked for once when an open one is shown with nothing saved. */
-  const [first, setFirst] = React.useState<"waiting" | "done">(open && !item.draft ? "waiting" : "done")
+  const [first, setFirst] = React.useState<"waiting" | "done">(open && !item.draft && !guest ? "waiting" : "done")
   const [pressed, setPressed] = React.useState(false)
   const [busy, setBusy] = React.useState<"send" | "skip" | null>(null)
   const max = replyMax(item.kind, item.platform)
@@ -151,10 +155,12 @@ export function InboxAnswer({
               {busy === "send" ? <Loader2Icon className="animate-spin" /> : <SendIcon />}
               Send from phone
             </Button>
-            <Button type="button" variant="outline" disabled={drafting} onClick={() => void draft()}>
-              {drafting ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-              Write again
-            </Button>
+            {guest ? null : (
+              <Button type="button" variant="outline" disabled={drafting} onClick={() => void draft()}>
+                {drafting ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+                Write again
+              </Button>
+            )}
             <Button type="button" variant="ghost" disabled={busy !== null} onClick={() => void skip()}>
               {busy === "skip" ? <Loader2Icon className="animate-spin" /> : <XIcon />}
               Skip

@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   check,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -15,6 +16,7 @@ import {
 } from "drizzle-orm/pg-core"
 
 import type { ExtraPicks, SentExtra } from "@/lib/video/extras"
+import type { ClipOutcome } from "@/lib/video/moving-still"
 import { customShellMedia, customShellUsers } from "@/server/schema"
 
 /**
@@ -367,6 +369,9 @@ export const videoProjects = pgTable(
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     // The most AI spending the project may reach, in cents. Null is no limit.
     spendLimitCents: integer("spend_limit_cents"),
+    // "Sam via Project" when a guest sent from Project made the last save,
+    // null when the owner did (`drizzle/0125_video_project_guests.sql`).
+    lastEditedBy: text("last_edited_by"),
     // The extras picked in the AI clip panel, one extra id per kind, so a
     // series keeps the same outfit and place (drizzle/0124).
     extraPicks: jsonb("extra_picks").$type<ExtraPicks>().notNull().default({}),
@@ -411,6 +416,9 @@ export const videoProjectVersions = pgTable(
     durationMs: integer("duration_ms").notNull(),
     savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    // "Sam via Project" when a guest sent from Project made the save that
+    // kept it, null when the owner did (`drizzle/0125_video_project_guests.sql`).
+    editedBy: text("edited_by"),
   },
   (table) => [
     check(
@@ -817,9 +825,12 @@ export const videoAiGenerations = pgTable(
     projectId: varchar("project_id", { length: 36 })
       .notNull()
       .references(() => videoProjects.id, { onDelete: "cascade" }),
-    firstFrameId: varchar("first_frame_id", { length: 36 })
-      .notNull()
-      .references(() => videoFirstFrames.id, { onDelete: "cascade" }),
+    // Null on a shot made from a picture already on the timeline, which
+    // names that clip below instead (drizzle/0126).
+    firstFrameId: varchar("first_frame_id", { length: 36 }).references(
+      () => videoFirstFrames.id,
+      { onDelete: "cascade" }
+    ),
     firstFrameMediaId: varchar("first_frame_media_id", {
       length: 36,
     }).references(() => customShellMedia.id, { onDelete: "set null" }),
@@ -854,6 +865,13 @@ export const videoAiGenerations = pgTable(
       .notNull()
       .default([]),
     extras: jsonb("extras").$type<SentExtra[]>().notNull().default([]),
+    // A shot made from a picture on the timeline (drizzle/0126): the clip it
+    // replaces, where it sat and how long it ran when asked for, and whether
+    // it has landed. Null on every shot made in the AI clip panel.
+    clipId: varchar("clip_id", { length: 64 }),
+    clipStartMs: doublePrecision("clip_start_ms"),
+    clipDurationMs: doublePrecision("clip_duration_ms"),
+    clipOutcome: varchar("clip_outcome", { length: 8 }).$type<ClipOutcome>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -878,6 +896,18 @@ export const videoAiGenerations = pgTable(
     ),
     check("video_ai_generations_attempts_check", sql`${table.attempts} >= 0`),
     check(
+      "video_ai_generations_clip_check",
+      sql`(${table.clipId} is null and ${table.clipStartMs} is null and ${table.clipDurationMs} is null and ${table.clipOutcome} is null) or (${table.clipId} is not null and ${table.clipStartMs} is not null and ${table.clipDurationMs} is not null)`
+    ),
+    check(
+      "video_ai_generations_source_check",
+      sql`${table.firstFrameId} is not null or ${table.clipId} is not null`
+    ),
+    check(
+      "video_ai_generations_clip_outcome_check",
+      sql`${table.clipOutcome} is null or ${table.clipOutcome} in ('replaced', 'gone')`
+    ),
+    check(
       "video_ai_generations_ready_check",
       sql`${table.status} <> 'ready' or ${table.outputMediaId} is not null`
     ),
@@ -896,6 +926,9 @@ export const videoAiGenerations = pgTable(
     ),
     index("ix_video_ai_generations_first_frame_id").on(table.firstFrameId),
     index("ix_video_ai_generations_shot").on(table.shotId, table.shotIndex),
+    index("ix_video_ai_generations_unlanded")
+      .on(table.projectId)
+      .where(sql`${table.clipId} is not null and ${table.clipOutcome} is null`),
     index("ix_video_ai_generations_output_media_id").on(table.outputMediaId),
     index("ix_video_ai_generations_processing_lease").on(
       table.status,
@@ -1040,6 +1073,41 @@ export const videoExportShares = pgTable(
       .where(sql`${table.revokedAt} is null`),
   ]
 )
+
+/**
+ * The one-time id of every note Project has sent here that was used, so a
+ * copied handoff address fails (`drizzle/0125_video_project_guests.sql`).
+ */
+export const videoHandoffNotes = pgTable("video_handoff_notes", {
+  noteId: varchar("note_id", { length: 64 }).primaryKey(),
+  usedAt: timestamp("used_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * A guest sent from Project: signed in to one video project for 12 hours,
+ * with no account here. Only the cookie token's SHA-256 is kept. How it works
+ * is in `workspace/docs/project-guests.md`.
+ */
+export const videoProjectGuests = pgTable(
+  "video_project_guests",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    /** Who they are in Project: their id there, name and email. */
+    personId: varchar("person_id", { length: 36 }).notNull(),
+    personName: text("person_name").notNull(),
+    personEmail: text("person_email").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_video_project_guests_project").on(table.projectId)]
+)
+
+export type VideoProjectGuestRow = typeof videoProjectGuests.$inferSelect
 
 export type VideoMediaProxy = typeof videoMediaProxies.$inferSelect
 export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect

@@ -9,7 +9,7 @@ import {
   SortableTableHeader,
   type TableHeaderColumn,
 } from "@/components/shared/sortable-table-header"
-import { useShellRuntime } from "@/components/shell/shell-layout"
+import { usePromoShell } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -151,9 +151,9 @@ export function TodayDashboard({
 }
 
 function usePages<T>(rows: T[]) {
-  const { config } = useShellRuntime()
+  const { rowsPerPage } = usePromoShell()
   const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
+  const [pageSize, setPageSize] = React.useState(rowsPerPage)
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
   const currentPage = Math.min(page, totalPages)
   return {

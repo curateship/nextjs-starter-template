@@ -27,6 +27,8 @@ export type PostReplyRequest = {
   replyId: string
   text: string
   draftId?: string | null
+  /** "Sam via Project" when a guest sent from Project pressed Post; null for the owner. */
+  sentBy?: string | null
 }
 
 export async function postReply(
@@ -73,6 +75,7 @@ export async function postReply(
     text,
     parentId: comment.id,
     replyTo: reply,
+    sentBy: request.sentBy ?? null,
   }
 
   try {

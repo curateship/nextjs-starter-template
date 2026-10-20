@@ -9,9 +9,10 @@ import {
  * The person's media collections, fetched again whenever the tab is looked
  * at, so a collection made in another tab shows up without a reload. A failed
  * fetch keeps what is already showing: the chips are a filter, not the grid,
- * and the next look at the tab tries again.
+ * and the next look at the tab tries again. `enabled: false` fetches nothing,
+ * for a guest sent from Project, who has no collections.
  */
-export function useMediaCollections() {
+export function useMediaCollections({ enabled = true }: { enabled?: boolean } = {}) {
   const [collections, setCollections] = React.useState<
     MediaCollectionSummary[]
   >([])
@@ -19,6 +20,7 @@ export function useMediaCollections() {
   const reload = React.useCallback(() => setVersion((count) => count + 1), [])
 
   React.useEffect(() => {
+    if (!enabled) return
     let active = true
     listMediaCollections()
       .then((loaded) => {
@@ -28,9 +30,10 @@ export function useMediaCollections() {
     return () => {
       active = false
     }
-  }, [version])
+  }, [enabled, version])
 
   React.useEffect(() => {
+    if (!enabled) return
     function onLookedAt() {
       if (document.visibilityState === "visible") reload()
     }
@@ -40,7 +43,7 @@ export function useMediaCollections() {
       window.removeEventListener("focus", onLookedAt)
       document.removeEventListener("visibilitychange", onLookedAt)
     }
-  }, [reload])
+  }, [enabled, reload])
 
   return { collections, reload }
 }

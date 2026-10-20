@@ -7,6 +7,8 @@ import { alias } from "drizzle-orm/pg-core"
 import {
   assetPrompt,
   DEFAULT_VIDEO_QUALITY,
+  FREE_KEY_MESSAGE,
+  isFreeTierRefusal,
   PERSON_SHOTS_FULL_MESSAGE,
   pieceCostCents,
   PROJECT_SHOTS_FULL_MESSAGE,
@@ -195,7 +197,10 @@ export type GenerationPiece = {
 /** One shot: a single clip, or up to four pieces that play back to back. */
 export type GenerationItem = {
   id: string
-  first_frame_id: string
+  /** The AI clip panel's first frame it was made from. Null on a shot made from a picture on the timeline. */
+  first_frame_id: string | null
+  /** The timeline picture a shot replaces, and that picture's file. Null on a shot made in the AI clip panel. */
+  clip: { id: string; still_media_id: string | null } | null
   /** When Make the shot was pressed, so a row can say how long it has taken. */
   created_at: string
   aspect_ratio: AssetAspectRatio
@@ -220,7 +225,7 @@ export type GenerationItem = {
 }
 
 /** Actor and extra names for a list of shots, read once for all of them. */
-type ShotNames = {
+export type ShotNames = {
   actors: { id: string; name: string }[]
   extras: { id: string; name: string }[]
   /** What the meter holds for each shot, in cents, by shot id. */
@@ -243,7 +248,7 @@ type OmniInteraction = {
   }
 }
 
-type GenerationJoin = {
+export type GenerationJoin = {
   generation: VideoAiGenerationRow
   output: typeof customShellMedia.$inferSelect | null
 }
@@ -264,7 +269,7 @@ async function serializePiece(row: GenerationJoin): Promise<GenerationPiece> {
  * one piece has been made it counts as generating until then, even in the
  * moment its next piece is queued. `rows` is one shot's pieces in order.
  */
-async function shotNames(userId: string, rows: GenerationJoin[]): Promise<ShotNames> {
+export async function shotNames(userId: string, rows: GenerationJoin[]): Promise<ShotNames> {
   const actorIds = [
     ...new Set(rows.flatMap((row) => (row.generation.actorId ? [row.generation.actorId] : []))),
   ]
@@ -312,7 +317,7 @@ async function chargedByShot(userId: string, shotIds: string[]) {
   return charged
 }
 
-async function serializeShot(
+export async function serializeShot(
   rows: GenerationJoin[],
   names: ShotNames
 ): Promise<GenerationItem> {
@@ -330,6 +335,9 @@ async function serializeShot(
   return {
     id: first.generation.shotId,
     first_frame_id: first.generation.firstFrameId,
+    clip: first.generation.clipId
+      ? { id: first.generation.clipId, still_media_id: first.generation.firstFrameMediaId }
+      : null,
     created_at: first.generation.createdAt.toISOString(),
     aspect_ratio: first.generation.aspectRatio as AssetAspectRatio,
     duration_seconds: pieces.reduce((sum, piece) => sum + piece.duration_seconds, 0),
@@ -359,7 +367,7 @@ function boardPictureIds(
   return generation.referenceMediaIds.filter((id) => id !== backdrop?.media_id)
 }
 
-function generationRows(
+export function generationRows(
   userId: string,
   where: { projectId: string } | { shotId: string }
 ) {
@@ -383,7 +391,7 @@ function generationRows(
     )
 }
 
-function groupShots(rows: GenerationJoin[]) {
+export function groupShots(rows: GenerationJoin[]) {
   const shots = new Map<string, GenerationJoin[]>()
   for (const row of rows) {
     const shot = shots.get(row.generation.shotId)
@@ -411,7 +419,7 @@ export async function listGenerations(userId: string, projectId: string) {
   }
 }
 
-async function getShot(userId: string, shotId: string) {
+export async function getShot(userId: string, shotId: string) {
   const rows = await generationRows(userId, { shotId }).orderBy(
     asc(videoAiGenerations.shotIndex)
   )
@@ -460,7 +468,7 @@ async function shotsBeingMade(userId: string, projectId: string) {
  * on the meter until they arrive, so the money checks add them in; otherwise
  * three presses in a row would each see the same untouched balance.
  */
-async function requireRoomForShot(userId: string, projectId: string, nextCents: number) {
+export async function requireRoomForShot(userId: string, projectId: string, nextCents: number) {
   const making = await shotsBeingMade(userId, projectId)
   if (making.projectShots >= SHOTS_AT_ONCE_PER_PROJECT) {
     throw new Error(PROJECT_SHOTS_FULL_MESSAGE)
@@ -491,7 +499,7 @@ async function requireRoomForShot(userId: string, projectId: string, nextCents: 
  * presses that land together and both pass the check above. Its refusal
  * carries the same sentence, which drizzle wraps in a "Failed query" error.
  */
-function rethrowShotsFull(error: unknown): never {
+export function rethrowShotsFull(error: unknown): never {
   let current: unknown = error
   for (let depth = 0; depth < 5 && current instanceof Error; depth += 1) {
     if (
@@ -754,6 +762,13 @@ async function startJob(job: ClaimedGeneration) {
     const object = await getFromR2(frame.media.storagePath)
     const bytes = await object.Body?.transformToByteArray()
     if (!bytes?.byteLength) throw new Error("First frame image could not be read")
+    // A picture from the timeline is the person's own file, at any size and
+    // in any format, so it goes as a JPEG of at most 1536 pixels. A first
+    // frame from the AI clip panel goes exactly as it was made.
+    const firstFrame =
+      job.clipId && job.shotIndex === 1
+        ? await shrinkReference(bytes)
+        : { bytes, mimeType: frame.media.mimeType }
     const response = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/interactions",
       {
@@ -767,8 +782,8 @@ async function startJob(job: ClaimedGeneration) {
           omniRequestBody({
             prompt: videoPrompt(style, job.prompt, person?.prompt),
             firstFrame: {
-              mimeType: frame.media.mimeType,
-              data: Buffer.from(bytes).toString("base64"),
+              mimeType: firstFrame.mimeType,
+              data: Buffer.from(firstFrame.bytes).toString("base64"),
             },
             references: person?.referenceImages ?? [],
             aspectRatio: job.aspectRatio as AssetAspectRatio,
@@ -778,6 +793,7 @@ async function startJob(job: ClaimedGeneration) {
         ),
       }
     )
+    if (response.status === 429) await refuseFreeKey(response)
     if (
       response.status === 429 &&
       now().getTime() - (job.startedAt ?? job.updatedAt).getTime() < JOB_TIMEOUT_MS
@@ -987,6 +1003,20 @@ async function lastFrame(video: Uint8Array) {
   }
 }
 
+/**
+ * A 429 is usually Google asking to be asked less often, which is waited
+ * out. A free Gemini key gets the same 429 with a limit of 0, which no wait
+ * ever lifts: Google can accept the piece and then refuse every check on it,
+ * so the piece would sit for 15 minutes and fail as "took longer". That one
+ * fails at once, saying what to change. Reads a copy, so the caller can
+ * still read the answer.
+ */
+async function refuseFreeKey(response: Response) {
+  if (isFreeTierRefusal(providerMessage(await response.clone().text()))) {
+    throw new Error(FREE_KEY_MESSAGE)
+  }
+}
+
 /** Puts a piece Google was too busy to start back in the queue. */
 async function requeueJob(job: ClaimedGeneration) {
   await db
@@ -1050,6 +1080,7 @@ async function pollJob(job: ClaimedGeneration) {
       }
     )
     if (response.status === 429) {
+      await refuseFreeKey(response)
       // Google limits how often it is asked. The piece is asked about again
       // on a later pass, inside the same 15 minutes.
       await releaseJob(job)

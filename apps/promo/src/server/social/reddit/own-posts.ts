@@ -34,6 +34,8 @@ export type OwnPostInput = {
   subreddit: string
   title: string
   body: string
+  /** "Sam via Project" when a guest sent from Project pressed Post; null for the owner. */
+  sentBy?: string | null
 }
 
 /**
@@ -99,7 +101,7 @@ export async function queueOwnPost(
   const jobId = await queueJob(
     userId,
     "submit",
-    { accountId: account.id, projectId, subreddit, title, body },
+    { accountId: account.id, projectId, subreddit, title, body, ...(input.sentBy ? { sentBy: input.sentBy } : {}) },
     db,
     runAfter
   )
@@ -121,6 +123,7 @@ export async function submitOwnPost(
   const title = String(payload.title ?? "").trim()
   const body = String(payload.body ?? "").trim()
   const projectId = typeof payload.projectId === "string" ? payload.projectId : null
+  const sentBy = typeof payload.sentBy === "string" && payload.sentBy ? payload.sentBy : null
   if (!subreddit || !title) throw new Error("That post job is missing its subreddit or its title.")
 
   const id = uuid()
@@ -129,13 +132,13 @@ export async function submitOwnPost(
     if (!postUrl.startsWith("https://www.reddit.com/")) {
       throw new Error("Reddit answered with an address that is not Reddit's.")
     }
-    await db.insert(promoPosts).values({ id, userId, accountId, projectId, subreddit, title, body, status: "posted", postUrl, visit })
+    await db.insert(promoPosts).values({ id, userId, accountId, projectId, subreddit, title, body, status: "posted", postUrl, visit, sentBy })
     await db.update(promoAccounts).set({ lastPostedAt: new Date() }).where(eq(promoAccounts.id, accountId))
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     await db
       .insert(promoPosts)
-      .values({ id, userId, accountId, projectId, subreddit, title, body, status: "failed", lastError: message })
+      .values({ id, userId, accountId, projectId, subreddit, title, body, status: "failed", lastError: message, sentBy })
     throw error
   }
 }
@@ -149,6 +152,8 @@ export type OwnPostRow = {
   postedAt: Date
   account: { id: string; handle: string }
   project: { id: string; name: string } | null
+  /** "Sam via Project" when a guest sent from Project posted it; null for the owner. */
+  sentBy: string | null
 }
 
 /** Every post of your own that landed, newest first, for the Comments screen's Posts tab. */
@@ -173,6 +178,7 @@ export async function listOwnPosts(userId: string, db: CustomShellDb = defaultDb
     postedAt: post.postedAt,
     account: { id: post.accountId, handle },
     project: post.projectId && projectName !== null ? { id: post.projectId, name: projectName } : null,
+    sentBy: post.sentBy,
   }))
 }
 

@@ -17,6 +17,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
+import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { ExportCover } from "@/components/video-editor/export-cover"
 import { ExportDetailsDialog } from "@/components/video-editor/export-details-dialog"
 import { ExportShareDialog } from "@/components/video-editor/export-share-dialog"
@@ -48,6 +49,9 @@ const POLL_MS = 3_000
  */
 export function ExportsPanel() {
   const { projectId } = useEditorRuntime()
+  // A guest sent from Project downloads, names and retries exports, but
+  // makes no share links and deletes nothing (`workspace/docs/project-guests.md`).
+  const guest = useProjectGuest() !== null
   const [list, setList] = React.useState<ExportListWithShares | null>(null)
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [reads, setReads] = React.useState(0)
@@ -199,15 +203,17 @@ export function ExportsPanel() {
                               <DownloadIcon />
                             </a>
                           </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`Share ${name}`}
-                            onClick={() => setSharing(item)}
-                          >
-                            <Link2Icon />
-                          </Button>
+                          {guest ? null : (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Share ${name}`}
+                              onClick={() => setSharing(item)}
+                            >
+                              <Link2Icon />
+                            </Button>
+                          )}
                           <Button
                             type="button"
                             variant="ghost"
@@ -245,7 +251,7 @@ export function ExportsPanel() {
                           ) : null}
                           Stop export
                         </Button>
-                      ) : (
+                      ) : guest ? null : (
                         <Button
                           type="button"
                           variant="ghost"

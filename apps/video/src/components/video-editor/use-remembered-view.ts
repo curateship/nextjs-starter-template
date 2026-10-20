@@ -1,5 +1,4 @@
 import * as React from "react"
-import { getRouteApi } from "@tanstack/react-router"
 
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import {
@@ -11,14 +10,12 @@ import {
   findClip,
   useEditorRuntime,
 } from "@/components/video-editor/editor-store"
-
-const authenticatedRoute = getRouteApi("/_authenticated")
+import { useEditorPersonKey } from "@/components/video-editor/project-guest"
 
 /** Where this person's view of the open project is kept. */
 function useEditorViewKey() {
   const { projectId } = useEditorRuntime()
-  const { user } = authenticatedRoute.useLoaderData()
-  return editorViewStorageKey(user.id, projectId)
+  return editorViewStorageKey(useEditorPersonKey(), projectId)
 }
 
 // How long the timeline has to sit still before where it is gets written down.

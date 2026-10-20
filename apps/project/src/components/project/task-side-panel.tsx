@@ -1,10 +1,13 @@
 import * as React from "react"
 import {
+  ArrowLeftIcon,
+  EllipsisVerticalIcon,
   MessageSquarePlusIcon,
   PaperclipIcon,
   PenLineIcon,
   SettingsIcon,
   SquareMousePointerIcon,
+  TagIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react"
@@ -32,8 +35,10 @@ import { cn } from "@/lib/utils"
 /**
  * The project page's right panel: the open task. Tyler drew it on 13 Oct
  * 2026 (`workspace/docs/assets/pasted-image-1791936316739365000.png`): the
- * status, Add note, the files and a cog along the top with a cross to close,
- * then Steps and Chat. Notes show above Steps once a task has some. On 14
+ * status and a cog along the top, then Steps and Chat. On 20 Oct he put Add
+ * note, Add comment and Add files behind a three-dot button and took the
+ * cross away (`pasted-image-1792504237260017000.png`). My dashboard keeps the
+ * cross, since closing the task there is the way back to the inbox. Notes show above Steps once a task has some. On 14
  * Oct he moved Follow into the cog and gave the chat the notes' pattern: an
  * icon that opens a dropdown while it's empty.
  * The cog opens a dropdown with every other field (Tyler's second drawing,
@@ -44,10 +49,13 @@ import { cn } from "@/lib/utils"
 export function TaskSidePanel({
   taskId,
   onClose,
+  closeButton = false,
   onLoaded,
 }: {
   taskId: string | undefined
   onClose: () => void
+  /** A cross that closes the task, where closing brings something back, as My dashboard's inbox. */
+  closeButton?: boolean
   /** Once the task has loaded, which marks its chat read. */
   onLoaded?: (taskId: string) => void
 }) {
@@ -68,23 +76,28 @@ export function TaskSidePanel({
   }
   return (
     <TaskView key={taskId} taskId={taskId} onLoaded={onLoaded}>
-      {(parts) => <SidePanel parts={parts} onClose={onClose} />}
+      {(parts) => <SidePanel parts={parts} onClose={onClose} closeButton={closeButton} />}
     </TaskView>
   )
 }
 
-function SidePanel({ parts, onClose }: { parts: TaskParts; onClose: () => void }) {
+function SidePanel({
+  parts,
+  onClose,
+  closeButton,
+}: {
+  parts: TaskParts
+  onClose: () => void
+  closeButton: boolean
+}) {
   const { side } = parts
   const frame = React.useRef<HTMLDivElement>(null)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
-  const [addingNote, setAddingNote] = React.useState(false)
-  const [startingChat, setStartingChat] = React.useState(false)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   // A pick in Task settings that opens a card in the panel: the keyboard goes
   // there instead of back to the cog as the window closes.
   const picked = React.useRef<"move" | "remind" | null>(null)
   const { remove } = parts
-  const filesLabel = side?.files.count ? `${side.files.count} ${plural(side.files.count, "file")}` : null
 
   // Opening a task moves the keyboard into it, so Tab starts from the status.
   React.useEffect(() => {
@@ -99,28 +112,16 @@ function SidePanel({ parts, onClose }: { parts: TaskParts; onClose: () => void }
       aria-label={parts.title}
       role="region"
     >
-      {/* In a narrow panel Add note and Follow drop their words for their
-          icons, and anything still too wide scrolls sideways rather than
-          pushing the cross out of reach. The status and the icon buttons have
-          no border or background (Tyler, 14 Oct 2026). */}
+      {/* Anything too wide for a narrow panel scrolls sideways. The status and
+          the icon buttons have no border or background (Tyler, 14 Oct 2026). */}
       <DashboardCardHeader className="@container/task-head">
         <ScrollArea className="min-w-0 flex-1">
           {side ? (
-            <div className="flex w-max items-center gap-1">
+            // The status on the left, the three dots and the cog at the right (Tyler, 20 Oct 2026).
+            <div className="flex w-max min-w-full items-center gap-1">
               {side.status}
-              {side.notes.empty && !side.readOnly ? (
-                <AddNoteMenu open={addingNote} onOpenChange={setAddingNote}>
-                  {side.notes.field({ adding: true, onFinished: () => setAddingNote(false) })}
-                </AddNoteMenu>
-              ) : null}
-              <FilesMenu label={filesLabel} count={side.files.count}>
-                {side.files.content}
-              </FilesMenu>
-              {side.chat.count === 0 && !side.readOnly ? (
-                <ChatMenu open={startingChat} onOpenChange={setStartingChat}>
-                  {side.chat.content}
-                </ChatMenu>
-              ) : null}
+              <span className="flex-1" />
+              <TaskAddMenu side={side} />
               <TaskSettingsMenu
                 side={side}
                 open={settingsOpen}
@@ -156,14 +157,16 @@ function SidePanel({ parts, onClose }: { parts: TaskParts; onClose: () => void }
           )}
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" aria-label="Close the task" onClick={onClose}>
-              <XIcon className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Close the task</TooltipContent>
-        </Tooltip>
+        {closeButton ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button type="button" variant="ghost" size="icon" aria-label="Close the task" onClick={onClose}>
+                <XIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Close the task</TooltipContent>
+          </Tooltip>
+        ) : null}
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <div className="grid gap-3 p-3">
@@ -196,7 +199,8 @@ function SideBody({ side }: { side: TaskSide }) {
   return (
     <>
       {side.title}
-      {side.tags}
+      {side.tagList}
+      {side.link}
       {side.notices}
       {side.notes.empty ? null : (
         <PanelCard storageId="project-task-notes" title="Notes" settings quiet>
@@ -215,113 +219,47 @@ function SideBody({ side }: { side: TaskSide }) {
   )
 }
 
-/**
- * Add note, as Tyler asked on 13 Oct 2026: a dropdown under the button with
- * the editor ready. Done saves, and only then does the Notes card appear in
- * the panel. Closed with nothing typed, nothing appears. Typing and then
- * clicking away still saves, so nothing written is lost.
- */
-function AddNoteMenu({
-  open,
-  onOpenChange,
-  children,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  /** The notes field, opened ready to write. */
-  children: React.ReactNode
-}) {
-  return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" aria-label="Add note" className={cn(open && "bg-muted")}>
-          <PenLineIcon className="size-4" />
-          <span className="@max-lg/task-head:hidden">Add note</span>
-        </Button>
-      </PopoverTrigger>
-      {/* No heading: the editor's formatting bar floats over the top line. */}
-      {/* It opens leftward from the button and keeps 16px off the window's edge. */}
-      <PopoverContent
-        aria-label="Add note"
-        align="end"
-        collisionPadding={16}
-        className="w-[min(24rem,calc(100vw-2rem))] gap-3 p-3"
-      >
-        {open ? children : null}
-      </PopoverContent>
-    </Popover>
-  )
-}
+type Adding = "tags" | "note" | "chat" | "files"
 
 /**
- * The paperclip with the task's file count: a dropdown under it with the
- * files and the place to drop more (Tyler, 14 Oct 2026; it was a window).
+ * The three-dot button (Tyler, 20 Oct 2026): a dropdown of Add tags, Add
+ * note, Add comment and Add files, and the one picked takes the dropdown's
+ * place.
+ * - **Add tags** holds the tags box: Enter places a tag, its × takes it off.
+ *   The tags show under the title.
+ * - **Add note** (only while the task has no notes) opens the editor ready.
+ *   Done saves, and only then does the Notes card appear in the panel; closed
+ *   with nothing typed, nothing appears.
+ * - **Add comment** (only while the chat is empty) holds the chat's box to
+ *   write the first message. Once one is sent the Chat card appears.
+ * - **Add files** lists the task's files with the place to drop more, its
+ *   count beside it.
  */
-function FilesMenu({
-  label,
-  count,
-  children,
-}: {
-  /** "1 file", or null with none. */
-  label: string | null
-  count: number
-  children: React.ReactNode
-}) {
+function TaskAddMenu({ side }: { side: TaskSide }) {
   const [open, setOpen] = React.useState(false)
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              className={cn("px-2.5", open && "bg-muted")}
-              aria-label={`Files, ${count}`}
-            >
-              <PaperclipIcon className="size-4" />
-              {count}
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>{label ?? "No files yet"}</TooltipContent>
-      </Tooltip>
-      <PopoverContent
-        aria-label="Files"
-        align="end"
-        collisionPadding={16}
-        className="w-[min(24rem,calc(100vw-2rem))] gap-3 p-3"
-      >
-        <div className="grid gap-0.5">
-          <h2 className="text-sm font-medium">{label ?? "Files"}</h2>
-          <p className="text-xs text-muted-foreground">
-            Up to {LIMITS.filesPerTask} files on a task. Only people who can see the task can download them.
-          </p>
-        </div>
-        {open ? children : null}
-      </PopoverContent>
-    </Popover>
-  )
-}
+  const [adding, setAdding] = React.useState<Adding | null>(null)
+  const canNote = side.notes.empty && !side.readOnly
+  const canChat = side.chat.count === 0 && !side.readOnly
+  const filesCount = side.files.count
+  const filesLabel = filesCount ? `${filesCount} ${plural(filesCount, "file")}` : "Files"
 
-/**
- * The chat icon, as Tyler asked on 14 Oct 2026, the same pattern as Add note:
- * while a task has no messages, a dropdown under the icon holds the chat's
- * box to write the first one. Once one is sent, the Chat card appears in the
- * panel and the icon goes.
- */
-function ChatMenu({
-  open,
-  onOpenChange,
-  children,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  /** The task's chat, empty so far. */
-  children: React.ReactNode
-}) {
+  function toggle(next: boolean) {
+    setOpen(next)
+    if (!next) setAdding(null)
+  }
+
+  // The first message sent: the Chat card takes over in the panel, so the dropdown closes.
+  if (adding === "chat" && !canChat) toggle(false)
+
+  const rows: { key: Adding; label: string; icon: React.ReactNode; meta?: number }[] = [
+    ...(side.readOnly ? [] : [{ key: "tags" as const, label: "Add tags", icon: <TagIcon /> }]),
+    ...(canNote ? [{ key: "note" as const, label: "Add note", icon: <PenLineIcon /> }] : []),
+    ...(canChat ? [{ key: "chat" as const, label: "Add comment", icon: <MessageSquarePlusIcon /> }] : []),
+    { key: "files", label: "Add files", icon: <PaperclipIcon />, meta: filesCount },
+  ]
+
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={toggle}>
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
@@ -329,23 +267,69 @@ function ChatMenu({
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Start the chat"
+              aria-label="Add to the task"
               className={cn(open && "bg-muted")}
             >
-              <MessageSquarePlusIcon className="size-4" />
+              <EllipsisVerticalIcon className="size-4" />
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>Start the chat</TooltipContent>
+        <TooltipContent>Add tags, a note, a comment or files</TooltipContent>
       </Tooltip>
-      {/* It opens leftward from the icon and keeps 16px off the window's edge. */}
+      {/* It opens leftward from the button and keeps 16px off the window's edge. */}
       <PopoverContent
-        aria-label="Start the chat"
+        aria-label={adding ? rows.find((row) => row.key === adding)?.label : "Add to the task"}
         align="end"
         collisionPadding={16}
-        className="w-[min(24rem,calc(100vw-2rem))] gap-3 p-3"
+        className={cn("gap-3", adding ? "w-[min(24rem,calc(100vw-2rem))] p-3" : "w-56 gap-0 p-1")}
       >
-        {open ? children : null}
+        {adding === null ? (
+          rows.map((row) => (
+            <Button
+              key={row.key}
+              type="button"
+              variant="ghost"
+              className="w-full justify-start font-normal [&_svg]:text-muted-foreground"
+              onClick={() => setAdding(row.key)}
+            >
+              {row.icon}
+              <span className="flex-1 text-left">{row.label}</span>
+              {row.meta ? <span className="text-xs text-muted-foreground">{row.meta}</span> : null}
+            </Button>
+          ))
+        ) : (
+          <>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="-my-1 -ml-1 size-7"
+                aria-label="Back"
+                onClick={() => setAdding(null)}
+              >
+                <ArrowLeftIcon className="size-4" />
+              </Button>
+              <h2 className="text-sm font-medium">
+                {adding === "files" ? filesLabel : rows.find((row) => row.key === adding)?.label}
+              </h2>
+            </div>
+            {adding === "files" ? (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Up to {LIMITS.filesPerTask} files on a task. Only people who can see the task can download them.
+                </p>
+                {side.files.content}
+              </>
+            ) : adding === "tags" ? (
+              side.tags
+            ) : adding === "note" ? (
+              side.notes.field({ adding: true, onFinished: () => toggle(false) })
+            ) : (
+              side.chat.content
+            )}
+          </>
+        )}
       </PopoverContent>
     </Popover>
   )

@@ -161,11 +161,12 @@ export function AnswerPanel({
   onRead: (findId: string) => Promise<void>
   /** Reads the rules of the subreddit the post is in. */
   onReadRules: (findId: string) => Promise<void>
-  onDraft: (findId: string) => Promise<void>
+  /** Absent for a guest sent from Project, who writes their own words. */
+  onDraft?: (findId: string) => Promise<void>
   /** Reads the words in the box against the rules, on a press of Check. Null when it failed. */
-  onCheckRules: (findId: string, text: string) => Promise<RulesCheck | null>
+  onCheckRules?: (findId: string, text: string) => Promise<RulesCheck | null>
   /** Rewrites the words in the box and stores the result as a draft. Null when it failed. */
-  onRewrite: (findId: string, text: string, how: DraftRewrite) => Promise<{ id: string; text: string } | null>
+  onRewrite?: (findId: string, text: string, how: DraftRewrite) => Promise<{ id: string; text: string } | null>
   /**
    * Sends the comment. Answers with when Undo stops working, or null when it
    * waits for the account's morning instead, or the press failed.
@@ -409,7 +410,7 @@ export function AnswerPanel({
             </div>
           ) : null}
 
-          {text.trim() ? (
+          {text.trim() && onRewrite ? (
             <div className="flex flex-wrap items-center gap-1">
               {DRAFT_REWRITES.map((how) => (
                 <Hint
@@ -663,35 +664,37 @@ export function AnswerPanel({
             {/* One row that never wraps, with Post always on the box's bottom
                 right. */}
             <div className="flex items-center gap-1 p-1.5">
-              <Hint
-                label={
-                  voiceName
-                    ? `Write with AI, in the voice ${voiceName}`
-                    : "Write with AI. No voice picked for this account, so drafts are plain"
-                }
-              >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Write with AI"
-                  disabled={drafting}
-                  onClick={async () => {
-                    setDrafting(true)
-                    try {
-                      await onDraft(find.id)
-                    } finally {
-                      setDrafting(false)
-                    }
-                  }}
+              {onDraft ? (
+                <Hint
+                  label={
+                    voiceName
+                      ? `Write with AI, in the voice ${voiceName}`
+                      : "Write with AI. No voice picked for this account, so drafts are plain"
+                  }
                 >
-                  {drafting ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-                  <span className="hidden @[20rem]/box:inline">Write with AI</span>
-                </Button>
-              </Hint>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Write with AI"
+                    disabled={drafting}
+                    onClick={async () => {
+                      setDrafting(true)
+                      try {
+                        await onDraft(find.id)
+                      } finally {
+                        setDrafting(false)
+                      }
+                    }}
+                  >
+                    {drafting ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+                    <span className="hidden @[20rem]/box:inline">Write with AI</span>
+                  </Button>
+                </Hint>
+              ) : null}
               {/* Only on a press: Tyler, 12 Oct 2026, "let me click the check
                   button". Offered once there are words to check. */}
-              {text.trim() ? (
+              {text.trim() && onCheckRules ? (
                 <Hint label="Check the words against the subreddit's rules and your own">
                   <Button
                     type="button"

@@ -332,7 +332,7 @@ export function ProjectTasksPanel({
     else void changeStatus(task, status, null, order)
   }
 
-  const here = { projectId: page.project.id, people, labels: page.labels, types: page.taskTypes }
+  const here = { projectId: page.project.id, people, labels: page.labels, types: page.taskTypes, groups: TASK_GROUPINGS }
   const taskTab = view !== "activity" && view !== "files" && view !== "chat"
 
   const thisProject: NewTaskProject = {
@@ -411,12 +411,23 @@ export function ProjectTasksPanel({
   // Open tasks for the members dropdown, counted before any filter.
   const openTasks = tasks.filter((task) => task.status !== "done")
 
+  // What the Group row shows on this tab, which a saved view keeps with the filters.
+  const viewGroup: TaskGrouping | undefined =
+    view === "board" ? (byPerson ? "assignee" : undefined) : view === "list" || view === "timeline" ? grouping : undefined
+  const viewToSave = { ...filters, group: viewGroup }
+
   function saveView() {
-    if (!viewHasFilters(filters)) {
-      showErrorToast("Search or pick a filter first, then save it as a view.")
+    if (!viewHasFilters(viewToSave)) {
+      showErrorToast("Search, pick a filter or choose a group first, then save it as a view.")
       return
     }
     setSavingView(true)
+  }
+
+  /** A saved view's group: the List and Timeline take it, and the Board's rows follow. */
+  function openGroup(next: TaskGrouping) {
+    setGrouping(next)
+    if (!page.project.personal) setGroup(next === "assignee" ? "person" : "status")
   }
 
   return (
@@ -484,8 +495,9 @@ export function ProjectTasksPanel({
               />
               <SavedViewsControls
                 views={page.views}
-                filters={filters}
+                filters={viewToSave}
                 onChange={onFilters}
+                onGroup={openGroup}
                 here={here}
                 saveButton={false}
                 buttonVariant="ghost"
@@ -626,7 +638,7 @@ export function ProjectTasksPanel({
         onCreated={rememberProject}
       />
       <BinDialog projectId={page.project.id} open={binOpen} onClose={() => setBinOpen(false)} />
-      <SaveViewDialog open={savingView} filters={filters} here={here} onClose={() => setSavingView(false)} />
+      <SaveViewDialog open={savingView} filters={viewToSave} here={here} onClose={() => setSavingView(false)} />
       <ConfirmDialog
         open={Boolean(handingOver)}
         onOpenChange={(open) => (open || busy ? undefined : setHandingOver(null))}

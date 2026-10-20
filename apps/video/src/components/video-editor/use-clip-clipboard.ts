@@ -1,5 +1,4 @@
 import * as React from "react"
-import { getRouteApi } from "@tanstack/react-router"
 import { toast } from "sonner"
 
 import {
@@ -23,8 +22,7 @@ import {
   useEditorRuntime,
   type EditorStore,
 } from "@/components/video-editor/editor-store"
-
-const authenticatedRoute = getRouteApi("/_authenticated")
+import { useEditorPersonKey } from "@/components/video-editor/project-guest"
 
 // Editors with a paste still waiting on the server. A second paste meanwhile
 // would land the same copy twice. It is kept per editor rather than per call
@@ -47,7 +45,7 @@ const listFormat = new Intl.ListFormat("en", { type: "conjunction" })
  */
 export function useClipClipboard() {
   const { store, dispatch, clock, projectId } = useEditorRuntime()
-  const { user } = authenticatedRoute.useLoaderData()
+  const personKey = useEditorPersonKey()
 
   const copy = React.useCallback(() => {
     const { tracks, selectedClipIds } = store.getSnapshot().state
@@ -59,7 +57,7 @@ export function useClipClipboard() {
       return
     }
     try {
-      writeClipClipboard(user.id, clips)
+      writeClipClipboard(personKey, clips)
     } catch {
       showErrorToast(
         "This browser would not keep the copy. Its storage may be full or switched off."
@@ -68,11 +66,11 @@ export function useClipClipboard() {
     }
     dismissErrorToast()
     toast.success(`Copied ${clipCount(clips.length)}.`)
-  }, [store, user.id])
+  }, [store, personKey])
 
   const paste = React.useCallback(async () => {
     if (pasting.has(store)) return
-    const copied = readClipClipboard(user.id)
+    const copied = readClipClipboard(personKey)
     if (!copied) {
       showErrorToast(
         "There is nothing to paste. Select clips in any project and copy them first."
@@ -133,7 +131,7 @@ export function useClipClipboard() {
     } finally {
       pasting.delete(store)
     }
-  }, [clock, dispatch, projectId, store, user.id])
+  }, [clock, dispatch, projectId, store, personKey])
 
   return { copy, paste }
 }

@@ -158,6 +158,13 @@ export const PROJECT_ERRORS = {
   planNotYours: "You can only plan your own open tasks. Close the window and open it again to see them.",
   pollInTask: "A poll goes in a project's chat, not a task's.",
   pollChoiceGone: "That choice isn't on the poll.",
+  linkedAddressUnknown:
+    "That address isn't a Video project or a Promo project. Copy it from the address bar while the video is open in Video's editor, or while the project is open in Promo.",
+  linkedAppNotSetUp:
+    "That app isn't connected to Project on this server yet. Its address and key go in Project's server settings.",
+  linkedOpenNotAllowed: "Only the person the task is assigned to, or the site admin, can open its record.",
+  noLinkedRecord: "This task doesn't point at a record any more. Close it and open it again.",
+  linkedWhileViewingAs: "Stop viewing the app as someone else first, so the record opens as you.",
 } as const
 
 /**

@@ -7,7 +7,8 @@ import {
   VERSION_NOT_FOUND_MESSAGE,
   VERSION_UNREADABLE_MESSAGE,
 } from "@/lib/video/project-versions"
-import { userGet, userPost } from "@/server/guards"
+import { editorGet, editorPost } from "@/server/video/editor-guards"
+import { actorFor } from "@/server/video/project-guests"
 import {
   listOwnedProjectVersions,
   type ProjectVersionItem,
@@ -42,33 +43,30 @@ const versionSchema = projectIdSchema.extend({
   versionId: z.string().min(1).max(36),
 })
 
+// A guest sent from Project may read and restore their own project's
+// history (`workspace/docs/project-guests.md`).
 const listVersionsFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([editorGet])
   .inputValidator(projectIdSchema)
   .handler(async ({ data, context }) => {
-    return listOwnedProjectVersions(context.user.id, data.projectId)
+    const { userId } = await actorFor(context.caller, data.projectId)
+    return listOwnedProjectVersions(userId, data.projectId)
   })
 
 const getVersionFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([editorGet])
   .inputValidator(versionSchema)
   .handler(async ({ data, context }) => {
-    return getOwnedProjectVersion(
-      context.user.id,
-      data.projectId,
-      data.versionId
-    )
+    const { userId } = await actorFor(context.caller, data.projectId)
+    return getOwnedProjectVersion(userId, data.projectId, data.versionId)
   })
 
 const restoreVersionFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([editorPost])
   .inputValidator(versionSchema)
   .handler(async ({ data, context }) => {
-    return restoreOwnedProjectVersion(
-      context.user.id,
-      data.projectId,
-      data.versionId
-    )
+    const { userId } = await actorFor(context.caller, data.projectId)
+    return restoreOwnedProjectVersion(userId, data.projectId, data.versionId)
   })
 
 /** The project's kept versions, newest first, without their timelines. */
