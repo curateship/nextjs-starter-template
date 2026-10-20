@@ -1,13 +1,8 @@
 import * as React from "react"
 import { AlertCircleIcon, FilmIcon, Loader2Icon, RotateCwIcon, XIcon } from "lucide-react"
-import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
 import { toast } from "sonner"
 
 import { InspectorCard } from "@/components/broadcasts/inspector-fields"
-import {
-  CONTEXT_MENU_CONTENT_CLASS,
-  CONTEXT_MENU_ITEM_CLASS,
-} from "@/components/shared/editor-media-context-menu"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -30,6 +25,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
+  findClip,
   useEditorLock,
   useEditorRuntime,
   type EditorClip,
@@ -64,6 +60,7 @@ import {
   type ShotLengthSeconds,
   type VideoQuality,
 } from "@/lib/video/asset-factories"
+import { isMovingOrigin, type MovingOrigin } from "@/lib/video/clip-origin"
 import {
   landMovingShot,
   MOVING_STILL_BUSY_MESSAGE,
@@ -71,15 +68,17 @@ import {
   stillShotLengths,
   type MovingPiece,
 } from "@/lib/video/moving-still"
+import { REMAKE_BUSY_MESSAGE } from "@/lib/video/remake-clip"
 import { formatCents, isProjectSpendLimitMessage } from "@/lib/video/project-spend"
 import { editorId, formatClock } from "@/lib/video/timeline-utils"
 
 /**
  * Making a picture on the timeline move where it sits
- * (`workspace/docs/animate-a-still.md`). The provider keeps this project's
- * shots that have not landed, asks again while one is being made, and lands
- * a finished one in its picture's place as one Undo step. The background
- * worker lands it instead whenever no editor has the project open.
+ * (`workspace/docs/animate-a-still.md`), and making a moving clip again where
+ * it sits (`workspace/docs/regenerate-a-scene.md`). The provider keeps this
+ * project's shots that have not landed, asks again while one is being made,
+ * and lands a finished one in its clip's place as one Undo step. The
+ * background worker lands it instead whenever no editor has the project open.
  */
 
 /** How often the editor asks again while a shot is being made. */
@@ -97,11 +96,15 @@ function readyPieces(shot: GenerationItem): MovingPiece[] {
             mediaId: piece.output.id,
             url: piece.output.playback_url,
             durationMs: piece.duration_seconds * 1000,
+            origin: piece.origin ?? undefined,
           },
         ]
       : []
   )
 }
+
+/** What the window is open for: a picture to make move, or a moving clip to make again. */
+type Editing = { clip: EditorClip; again: MovingOrigin | null }
 
 /**
  * A guest sent from Project uses no AI (`project-guests.md`), so for a guest
@@ -118,7 +121,7 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
   const lock = useEditorLock()
   const [shots, setShots] = React.useState<GenerationItem[]>([])
   const [quality, setQuality] = React.useState<VideoQuality>(DEFAULT_VIDEO_QUALITY)
-  const [editing, setEditing] = React.useState<EditorClip | null>(null)
+  const [editing, setEditing] = React.useState<Editing | null>(null)
   // Shots this window has started landing, so a later answer that still
   // lists one never lands it twice.
   const landing = React.useRef(new Set<string>())
@@ -176,11 +179,13 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
     if (lock) return
     for (const shot of shots) {
       if (shot.status !== "ready" || !shot.clip || landing.current.has(shot.id)) continue
-      const { id: clipId, still_media_id: stillMediaId } = shot.clip
+      const { id: clipId, media_id: clipMediaId } = shot.clip
       const pieces = readyPieces(shot)
+      const wasPicture =
+        findClip(store.getSnapshot().state.tracks, clipId)?.clip.kind === "image"
       const still = landMovingShot(store.getSnapshot().state.tracks, {
         clipId,
-        stillMediaId,
+        clipMediaId,
         pieces,
         newId: editorId,
       })
@@ -192,11 +197,15 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
           if (!settled) return
           store.refreshMediaShelf()
           if (still.outcome === "gone") {
-            toast("A moving shot arrived after its picture was deleted. It is in Media.")
+            toast("A moving shot arrived after its clip was deleted. It is in Media.")
             return
           }
-          dispatch({ type: "LAND_MOVING_SHOT", clipId, stillMediaId, pieces })
-          toast.success("The picture moves now. Undo brings the still back.")
+          dispatch({ type: "LAND_MOVING_SHOT", clipId, clipMediaId, pieces })
+          toast.success(
+            wasPicture
+              ? "The picture moves now. Undo brings the still back."
+              : "The clip is made again. Undo brings the old one back."
+          )
         })
         .catch(() => {
           // Asked again on the next answer.
@@ -213,11 +222,10 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
       shotFor: (clipId) => byClip.get(clipId),
       open: (clipId) => {
         if (store.refuseIfLocked()) return
-        const clip = store
-          .getSnapshot()
-          .state.tracks.flatMap((track) => track.clips)
-          .find((candidate) => candidate.id === clipId)
-        if (!clip || clip.kind !== "image") return
+        const clip = findClip(store.getSnapshot().state.tracks, clipId)?.clip
+        const again =
+          clip?.kind === "video" && clip.origin && isMovingOrigin(clip.origin) ? clip.origin : null
+        if (!clip || (clip.kind !== "image" && !again)) return
         const refusal = stillRefusal(clip)
         if (refusal) {
           reportError(refusal)
@@ -225,10 +233,10 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
         }
         const current = byClip.get(clipId)
         if (current && shotWorking(current)) {
-          reportError(MOVING_STILL_BUSY_MESSAGE)
+          reportError(clip.kind === "image" ? MOVING_STILL_BUSY_MESSAGE : REMAKE_BUSY_MESSAGE)
           return
         }
-        setEditing(clip)
+        setEditing({ clip, again })
       },
       retry: (shot) => {
         if (store.refuseIfLocked()) return
@@ -252,24 +260,25 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
 
   async function make(draft: StillDraft) {
     if (!editing) return
-    // The server reads the picture off the saved timeline, so a picture just
+    const { clip } = editing
+    // The server reads the clip off the saved timeline, so a clip just
     // dropped or trimmed goes first.
     await saveNow()
     const shot = await createStillShot({
       projectId,
-      clipId: editing.id,
+      clipId: clip.id,
       prompts: draft.prompts,
       lengthSeconds: draft.lengthSeconds,
       quality: draft.quality,
     })
     setQuality(draft.quality)
     setShots((current) => [
-      ...current.filter((item) => item.clip?.id !== editing.id),
+      ...current.filter((item) => item.clip?.id !== clip.id),
       shot,
     ])
     setEditing(null)
     toast.success(
-      "Making it move. It takes a few minutes and carries on if you close the tab."
+      `${editing.again ? "Making it again" : "Making it move"}. It takes a few minutes and carries on if you close the tab.`
     )
   }
 
@@ -278,9 +287,10 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
       {children}
       {editing ? (
         <AnimateStillDialog
-          key={editing.id}
-          clip={editing}
-          startQuality={quality}
+          key={editing.clip.id}
+          clip={editing.clip}
+          again={editing.again}
+          startQuality={editing.again?.quality ?? quality}
           onClose={() => setEditing(null)}
           onMake={make}
           onError={(error) => reportError(getGenerationErrorMessage(error))}
@@ -299,15 +309,19 @@ type StillDraft = {
 /**
  * The Make it move window: the picture, what should move, the length and
  * size, the project's look when it has one, and the price on the button.
+ * Opened on a moving clip with `again`, it is the Make it again window: the
+ * clip as it is now, and its own directions to change.
  */
 function AnimateStillDialog({
   clip,
+  again,
   startQuality,
   onClose,
   onMake,
   onError,
 }: {
   clip: EditorClip
+  again: MovingOrigin | null
   startQuality: VideoQuality
   onClose: () => void
   onMake: (draft: StillDraft) => Promise<void>
@@ -317,7 +331,12 @@ function AnimateStillDialog({
   const lengths = stillShotLengths(clip.durationMs)
   const [lengthSeconds, setLengthSeconds] = React.useState<ShotLengthSeconds>(lengths[0])
   const [quality, setQuality] = React.useState<VideoQuality>(startQuality)
-  const [directions, setDirections] = React.useState<string[]>([])
+  // Every piece starts on the clip's own direction, however long a shot is picked.
+  const mostPieces = shotPieces(lengths[lengths.length - 1]).count
+  const startDirections = again
+    ? Array.from({ length: mostPieces }, () => again.prompt)
+    : []
+  const [directions, setDirections] = React.useState<string[]>(startDirections)
   const [invalid, setInvalid] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
 
@@ -325,7 +344,9 @@ function AnimateStillDialog({
   const shotCents = shotCostCents(lengthSeconds)
   const secondCents = pieceCostCents(VIDEO_MODEL, 1)
   const seconds = (clip.durationMs / 1000).toFixed(1)
-  const dirty = directions.some((line) => line.trim())
+  const dirty = again
+    ? directions.some((line, index) => line !== startDirections[index])
+    : directions.some((line) => line.trim())
 
   async function submit() {
     const sent = Array.from({ length: pieces }, (_, index) => directions[index]?.trim() ?? "")
@@ -353,10 +374,11 @@ function AnimateStillDialog({
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Make it move</DialogTitle>
+            <DialogTitle>{again ? "Make it again" : "Make it move"}</DialogTitle>
             <DialogDescription>
-              The moving shot takes this picture&apos;s place on the timeline and
-              nothing else moves.
+              {again
+                ? "The new shot takes this clip's place on the timeline and nothing else moves."
+                : "The moving shot takes this picture's place on the timeline and nothing else moves."}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -369,22 +391,34 @@ function AnimateStillDialog({
             <DialogBody>
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>The picture</CardTitle>
+                  <CardTitle>{again ? "The clip" : "The picture"}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   {clip.url ? (
                     <div className="grid place-items-center overflow-hidden rounded-lg bg-muted">
-                      <img
-                        src={clip.url}
-                        alt={clip.name}
-                        draggable={false}
-                        className="block max-h-48 w-auto object-contain"
-                      />
+                      {again ? (
+                        <video
+                          src={clip.url}
+                          aria-label={clip.name}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="block max-h-48 w-auto object-contain"
+                        />
+                      ) : (
+                        <img
+                          src={clip.url}
+                          alt={clip.name}
+                          draggable={false}
+                          className="block max-h-48 w-auto object-contain"
+                        />
+                      )}
                     </div>
                   ) : null}
                   <p className="text-sm text-muted-foreground">
-                    {seconds} seconds from {formatClock(clip.startMs)}. The shot
-                    starts from this exact picture and lands muted.
+                    {again
+                      ? `${seconds} seconds from ${formatClock(clip.startMs)}. The new shot starts from the same picture this one did, and the clip keeps its sound settings.`
+                      : `${seconds} seconds from ${formatClock(clip.startMs)}. The shot starts from this exact picture and lands muted.`}
                   </p>
                 </CardContent>
               </Card>
@@ -462,7 +496,7 @@ function AnimateStillDialog({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {lengthSeconds * 1000 > clip.durationMs
-                      ? `Trimmed back to the picture's ${seconds} seconds when it lands. `
+                      ? `Trimmed back to the ${again ? "clip" : "picture"}'s ${seconds} seconds when it lands. `
                       : ""}
                     {shotPriceLine(quality, lengthSeconds, secondCents, shotCents)}
                   </p>
@@ -479,71 +513,20 @@ function AnimateStillDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={busy}>
-                {busy ? <Loader2Icon className="animate-spin" /> : <FilmIcon />}
-                Make it move · {formatCents(shotCents)}
+                {busy ? (
+                  <Loader2Icon className="animate-spin" />
+                ) : again ? (
+                  <RotateCwIcon />
+                ) : (
+                  <FilmIcon />
+                )}
+                {again ? "Make it again" : "Make it move"} · {formatCents(shotCents)}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       )}
     </FormDialog>
-  )
-}
-
-/**
- * The right-click menu on a picture clip. Outside the editor itself, such as
- * the History preview, the clip is drawn without one.
- */
-export function StillContextMenu({
-  clipId,
-  children,
-}: {
-  clipId: string
-  children: React.ReactElement
-}) {
-  const stills = useMovingStills()
-  if (!stills) return children
-  const shot = stills.shotFor(clipId)
-  const failed = shot?.status === "error" ? shot : null
-  return (
-    <ContextMenuPrimitive.Root>
-      <ContextMenuPrimitive.Trigger asChild>{children}</ContextMenuPrimitive.Trigger>
-      <ContextMenuPrimitive.Portal>
-        <ContextMenuPrimitive.Content
-          className={CONTEXT_MENU_CONTENT_CLASS}
-          // The menu sits in a portal, but React still hands its presses up
-          // to the timeline, which would take the pointer for scrubbing and
-          // leave the item never chosen.
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <ContextMenuPrimitive.Item
-            className={CONTEXT_MENU_ITEM_CLASS}
-            onSelect={() => stills.open(clipId)}
-          >
-            <FilmIcon />
-            Make it move…
-          </ContextMenuPrimitive.Item>
-          {failed ? (
-            <>
-              <ContextMenuPrimitive.Item
-                className={CONTEXT_MENU_ITEM_CLASS}
-                onSelect={() => stills.retry(failed)}
-              >
-                <RotateCwIcon />
-                Try again
-              </ContextMenuPrimitive.Item>
-              <ContextMenuPrimitive.Item
-                className={CONTEXT_MENU_ITEM_CLASS}
-                onSelect={() => stills.clear(failed)}
-              >
-                <XIcon />
-                Clear the failed try
-              </ContextMenuPrimitive.Item>
-            </>
-          ) : null}
-        </ContextMenuPrimitive.Content>
-      </ContextMenuPrimitive.Portal>
-    </ContextMenuPrimitive.Root>
   )
 }
 
@@ -613,15 +596,31 @@ export function MakeItMoveCard({ clip }: { clip: EditorClip }) {
 
 /**
  * The "Making it move" marker along the bottom of a picture clip, drawn the
- * same way as a video clip's "Getting frames ready". A failed try says so,
- * with the reason on hover and Try again beside it.
+ * same way as a video clip's "Getting frames ready", and "Making it again"
+ * on a moving clip being made again. A failed try says so, with the reason
+ * on hover and Try again beside it.
  */
-export function StillMarker({ clipId, roomy }: { clipId: string; roomy: boolean }) {
+export function StillMarker({
+  clipId,
+  roomy,
+  again,
+}: {
+  clipId: string
+  roomy: boolean
+  /** A moving clip being made again, rather than a picture being made to move. */
+  again: boolean
+}) {
   const stills = useMovingStills()
   const shot = stills?.shotFor(clipId)
   if (!stills || !shot) return null
   const failed = shot.status === "error"
-  const label = failed ? "Couldn't make it move" : "Making it move"
+  const label = again
+    ? failed
+      ? "Couldn't make it again"
+      : "Making it again"
+    : failed
+      ? "Couldn't make it move"
+      : "Making it move"
   return (
     <span
       role="status"

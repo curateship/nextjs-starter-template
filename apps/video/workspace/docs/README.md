@@ -168,6 +168,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   picture: the right-click window, what is sent, how the moving shot takes
   the picture's place as one Undo step, who lands it when the tab is closed,
   and what happens when the picture is gone.
+- [regenerate-a-scene.md](regenerate-a-scene.md) — Make it again on a clip
+  the AI made: what a picture, a moving clip and a voice line remember, which
+  tools write it, the window and its price, what the swap keeps, the length
+  rule for a voice line and what happens to its captions.
 - [ai-clip.md](ai-clip.md) — the editor's AI clip panel: an actor, a first
   frame, a shot, then dragging it onto the timeline; what each step costs,
   where frames and shots are kept, and a carousel from first frames.

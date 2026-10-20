@@ -34,6 +34,7 @@ import {
   sendingOrder,
   videoReferenceLine,
 } from "@/lib/video/extras"
+import type { MovingOrigin } from "@/lib/video/clip-origin"
 import { styledPrompt } from "@/lib/video/visual-style"
 import {
   aiMonthSpendCents,
@@ -192,6 +193,11 @@ export type GenerationPiece = {
   /** The finished clip as the Media panel hands it out, so it can be dragged. */
   output: VideoMediaItem | null
   error_message: string | null
+  /**
+   * How the piece is made, which the clip it becomes keeps for Make it
+   * again. Null until the piece knows the picture it starts on.
+   */
+  origin: MovingOrigin | null
 }
 
 /** One shot: a single clip, or up to four pieces that play back to back. */
@@ -199,8 +205,12 @@ export type GenerationItem = {
   id: string
   /** The AI clip panel's first frame it was made from. Null on a shot made from a picture on the timeline. */
   first_frame_id: string | null
-  /** The timeline picture a shot replaces, and that picture's file. Null on a shot made in the AI clip panel. */
-  clip: { id: string; still_media_id: string | null } | null
+  /**
+   * The timeline clip a shot replaces, and the file it showed when the shot
+   * was asked for: a picture made to move, or a moving clip made again. Null
+   * on a shot made in the AI clip panel.
+   */
+  clip: { id: string; media_id: string | null } | null
   /** When Make the shot was pressed, so a row can say how long it has taken. */
   created_at: string
   aspect_ratio: AssetAspectRatio
@@ -261,6 +271,27 @@ async function serializePiece(row: GenerationJoin): Promise<GenerationPiece> {
     status: row.generation.status as PieceStatus,
     output: row.output ? (await serializeVideoMedia([row.output]))[0] : null,
     error_message: row.generation.errorMessage,
+    origin: pieceOrigin(row.generation),
+  }
+}
+
+/**
+ * A piece's recipe: what it was told, the picture it started on and what
+ * was sent beside it. A piece with an actor came from the AI clip panel, or
+ * is one made again from it; one without started on a timeline picture.
+ */
+export function pieceOrigin(generation: VideoAiGenerationRow): MovingOrigin | null {
+  if (!generation.firstFrameMediaId) return null
+  return {
+    tool: generation.actorId ? "shot" : "animate",
+    model: generation.model,
+    prompt: generation.prompt,
+    firstFrameMediaId: generation.firstFrameMediaId,
+    referenceMediaIds: generation.referenceMediaIds,
+    ...(generation.actorId ? { actorId: generation.actorId } : {}),
+    extras: generation.extras,
+    aspectRatio: generation.aspectRatio as AssetAspectRatio,
+    quality: generation.resolution as VideoQuality,
   }
 }
 
@@ -336,7 +367,7 @@ export async function serializeShot(
     id: first.generation.shotId,
     first_frame_id: first.generation.firstFrameId,
     clip: first.generation.clipId
-      ? { id: first.generation.clipId, still_media_id: first.generation.firstFrameMediaId }
+      ? { id: first.generation.clipId, media_id: first.generation.clipMediaId }
       : null,
     created_at: first.generation.createdAt.toISOString(),
     aspect_ratio: first.generation.aspectRatio as AssetAspectRatio,

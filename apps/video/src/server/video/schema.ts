@@ -869,6 +869,10 @@ export const videoAiGenerations = pgTable(
     // replaces, where it sat and how long it ran when asked for, and whether
     // it has landed. Null on every shot made in the AI clip panel.
     clipId: varchar("clip_id", { length: 64 }),
+    // The file that clip showed when the shot was asked for (drizzle/0128):
+    // the picture for Make it move, the moving shot for Make it again. The
+    // shot lands only while the clip still shows it.
+    clipMediaId: varchar("clip_media_id", { length: 36 }),
     clipStartMs: doublePrecision("clip_start_ms"),
     clipDurationMs: doublePrecision("clip_duration_ms"),
     clipOutcome: varchar("clip_outcome", { length: 8 }).$type<ClipOutcome>(),

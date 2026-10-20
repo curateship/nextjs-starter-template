@@ -4,6 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { VIDEO_MODEL } from "@/lib/video/asset-factories"
 import { MOVING_STILL_BUSY_MESSAGE } from "@/lib/video/moving-still"
+import {
+  REMAKE_ACTOR_GONE_MESSAGE,
+  REMAKE_BUSY_MESSAGE,
+  REMAKE_NOT_FOUND_MESSAGE,
+  REMAKE_START_GONE_MESSAGE,
+} from "@/lib/video/remake-clip"
 import type { ProjectTimeline } from "@/lib/video/timeline-schema"
 import { now } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
@@ -165,7 +171,7 @@ function makeLighthouseMove(projectId: string) {
 }
 
 /** Google accepts the piece, then finishes it on the next pass. */
-async function googleMakesIt() {
+async function googleMakesIt(shotId?: string) {
   vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "run-1" })))
   await videoGenerationTick()
   vi.stubGlobal(
@@ -185,7 +191,10 @@ async function googleMakesIt() {
     )
   )
   await videoGenerationTick()
-  const [piece] = await database.select().from(videoAiGenerations)
+  const [piece] = await database
+    .select()
+    .from(videoAiGenerations)
+    .where(shotId ? eq(videoAiGenerations.shotId, shotId) : undefined)
   expect(piece.status).toBe("ready")
   return piece
 }
@@ -206,6 +215,7 @@ describe("asking for a moving shot of a picture", () => {
       firstFrameId: null,
       firstFrameMediaId: "still",
       clipId: "seven",
+      clipMediaId: "still",
       clipStartMs: 5000,
       clipDurationMs: 4000,
       clipOutcome: null,
@@ -214,7 +224,7 @@ describe("asking for a moving shot of a picture", () => {
       model: VIDEO_MODEL,
       status: "queued",
     })
-    expect(shot.clip).toEqual({ id: "seven", still_media_id: "still" })
+    expect(shot.clip).toEqual({ id: "seven", media_id: "still" })
     expect((await listStillShots(user.id, project.id)).shots.map((item) => item.id)).toEqual([shot.id])
   })
 
@@ -243,7 +253,8 @@ describe("asking for a moving shot of a picture", () => {
         lengthSeconds,
         quality: "720p",
       })
-    await expect(ask("eight", 4)).rejects.toThrow("That picture is no longer on the timeline.")
+    // A video the AI did not make has nothing to make it again from.
+    await expect(ask("eight", 4)).rejects.toThrow(REMAKE_NOT_FOUND_MESSAGE)
     // A 4 second picture never pays for two 8 second pieces it would throw away.
     await expect(ask("seven", 16)).rejects.toThrow("Pick a length at least as long as the picture")
     expect(await database.select().from(videoAiGenerations)).toEqual([])
@@ -383,7 +394,7 @@ describe("landing a finished shot", () => {
     expect(notices[0]).toMatchObject({
       recipientUserId: user.id,
       type: "app_activity",
-      message: "A moving shot arrived after its picture was gone",
+      message: "A moving shot arrived after its clip was gone",
     })
   })
 
@@ -403,5 +414,156 @@ describe("landing a finished shot", () => {
     expect(shots[0].error_message).toBe("Google could not start the video: Bad picture")
     expect(starts((await savedTimeline(project.id)).timeline)).toEqual(starts(SEEDED))
     expect((await savedTimeline(project.id)).timeline.tracks[0].clips[1].kind).toBe("image")
+  })
+})
+
+describe("making a moving clip again", () => {
+  async function landedLighthouse() {
+    const project = await seedProject()
+    await makeLighthouseMove(project.id)
+    const first = await googleMakesIt()
+    await movingStillTick()
+    // Its sound turned up since it landed.
+    const current = await savedTimeline(project.id)
+    const turnedUp: ProjectTimeline = {
+      ...current.timeline,
+      tracks: current.timeline.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((item) =>
+          item.id === "seven" ? { ...item, muted: false, volume: 0.6 } : item
+        ),
+      })),
+    }
+    await writeProjectTimeline(user.id, project.id, turnedUp, current.version, database)
+    return { project, first }
+  }
+
+  function makeItAgain(projectId: string) {
+    return createStillShot(user.id, {
+      projectId,
+      clipId: "seven",
+      prompts: ["Waves crashing, the lamp off"],
+      lengthSeconds: 4,
+      quality: "360p",
+    })
+  }
+
+  it("remembers how the landed clip was made", async () => {
+    const { project, first } = await landedLighthouse()
+    const seven = (await savedTimeline(project.id)).timeline.tracks[0].clips[1]
+    expect(seven.mediaId).toBe(first.outputMediaId)
+    expect(seven.origin).toEqual({
+      tool: "animate",
+      model: VIDEO_MODEL,
+      prompt: "Waves crashing, lamp turning",
+      firstFrameMediaId: "still",
+      referenceMediaIds: [],
+      extras: [],
+      aspectRatio: "9:16",
+      quality: "720p",
+    })
+  })
+
+  it("starts on the picture it was first made from and takes the clip's place, as loud as it was", async () => {
+    const { project, first } = await landedLighthouse()
+    const shot = await makeItAgain(project.id)
+    const [row] = await database
+      .select()
+      .from(videoAiGenerations)
+      .where(eq(videoAiGenerations.shotId, shot.id))
+    expect(row).toMatchObject({
+      firstFrameMediaId: "still",
+      clipId: "seven",
+      clipMediaId: first.outputMediaId,
+      prompt: "Waves crashing, the lamp off",
+      resolution: "360p",
+      aspectRatio: "9:16",
+    })
+    await expect(makeItAgain(project.id)).rejects.toThrow(REMAKE_BUSY_MESSAGE)
+
+    const second = await googleMakesIt(shot.id)
+    const before = await savedTimeline(project.id)
+    await movingStillTick()
+    const after = await savedTimeline(project.id)
+
+    expect(starts(after.timeline)).toEqual(starts(before.timeline))
+    expect(after.timeline.tracks[0].clips[1]).toMatchObject({
+      id: "seven",
+      kind: "video",
+      mediaId: second.outputMediaId,
+      muted: false,
+      volume: 0.6,
+      fit: "cover",
+      origin: { prompt: "Waves crashing, the lamp off", quality: "360p" },
+    })
+  })
+
+  it("leaves the shot in Media when the clip was given another file meanwhile", async () => {
+    const { project } = await landedLighthouse()
+    const shot = await makeItAgain(project.id)
+    await googleMakesIt(shot.id)
+    const current = await savedTimeline(project.id)
+    const replaced: ProjectTimeline = {
+      ...current.timeline,
+      tracks: current.timeline.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((item) =>
+          item.id === "seven" ? { ...item, mediaId: "eight-file", origin: undefined } : item
+        ),
+      })),
+    }
+    await writeProjectTimeline(user.id, project.id, replaced, current.version, database)
+
+    await movingStillTick()
+
+    const after = await savedTimeline(project.id)
+    expect(after.timeline.tracks[0].clips[1].mediaId).toBe("eight-file")
+    const [landed] = await database
+      .select()
+      .from(videoAiGenerations)
+      .where(eq(videoAiGenerations.shotId, shot.id))
+    expect(landed.clipOutcome).toBe("gone")
+  })
+
+  it("says which part of the recipe is gone, and asks Google for nothing", async () => {
+    const { project } = await landedLighthouse()
+    const withRecipe = async (change: Record<string, unknown>) => {
+      const current = await savedTimeline(project.id)
+      const changed: ProjectTimeline = {
+        ...current.timeline,
+        tracks: current.timeline.tracks.map((track) => ({
+          ...track,
+          clips: track.clips.map((item) =>
+            item.id === "seven" && item.origin
+              ? ({ ...item, origin: { ...item.origin, ...change } } as typeof item)
+              : item
+          ),
+        })),
+      }
+      await writeProjectTimeline(user.id, project.id, changed, current.version, database)
+    }
+    await withRecipe({ firstFrameMediaId: "deleted-picture" })
+    await expect(makeItAgain(project.id)).rejects.toThrow(REMAKE_START_GONE_MESSAGE)
+    await withRecipe({ firstFrameMediaId: "still", tool: "shot", actorId: "deleted-actor" })
+    await expect(makeItAgain(project.id)).rejects.toThrow(REMAKE_ACTOR_GONE_MESSAGE)
+    const rows = await database.select().from(videoAiGenerations)
+    expect(rows).toHaveLength(1)
+  })
+
+  it("still lands a shot whose starting picture was deleted from Media meanwhile", async () => {
+    const project = await seedProject()
+    const shot = await makeLighthouseMove(project.id)
+    const piece = await googleMakesIt()
+    // What deleting the file from Media does to the row.
+    await database
+      .update(videoAiGenerations)
+      .set({ firstFrameMediaId: null })
+      .where(eq(videoAiGenerations.shotId, shot.id))
+
+    await movingStillTick()
+
+    const seven = (await savedTimeline(project.id)).timeline.tracks[0].clips[1]
+    expect(seven).toMatchObject({ kind: "video", mediaId: piece.outputMediaId })
+    expect(seven.origin).toBeUndefined()
   })
 })

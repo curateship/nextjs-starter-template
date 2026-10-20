@@ -425,19 +425,29 @@ export function AiClipPanel() {
 
   async function drop(item: Draggable, atMs: number, trackId?: string) {
     try {
+      // Each clip keeps how it was made, so it can be made again where it
+      // lands (regenerate-a-scene.md).
       if (item.kind === "frame") {
         const clip = await buildMediaClip(item.frame.image)
-        dispatch({ type: "ADD_CLIP", clip, atMs, trackId })
+        dispatch({
+          type: "ADD_CLIP",
+          clip: { ...clip, origin: item.frame.origin },
+          atMs,
+          trackId,
+        })
         return
       }
       // A long shot is several pieces that play back to back, laid down as
       // one paste so they stay together and one Undo takes them all back.
-      const outputs = item.shot.pieces.flatMap((piece) => piece.output ?? [])
       let offset = 0
       const clips = []
-      for (const output of outputs) {
-        const clip = await buildMediaClip(output)
-        clips.push({ clip: { ...clip, startMs: offset }, lane: 0 })
+      for (const piece of item.shot.pieces) {
+        if (!piece.output) continue
+        const clip = await buildMediaClip(piece.output)
+        clips.push({
+          clip: { ...clip, startMs: offset, origin: piece.origin ?? undefined },
+          lane: 0,
+        })
         offset += clip.durationMs
       }
       dispatch({ type: "PASTE_CLIPS", clips, atMs, trackId })

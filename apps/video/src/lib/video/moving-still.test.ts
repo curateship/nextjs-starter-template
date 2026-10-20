@@ -8,6 +8,7 @@ import {
   stillShotAspect,
   stillShotLengths,
 } from "@/lib/video/moving-still"
+import type { MovingOrigin } from "@/lib/video/clip-origin"
 import type { ProjectTimeline } from "@/lib/video/timeline-schema"
 
 type Clip = ProjectTimeline["tracks"][number]["clips"][number]
@@ -64,6 +65,17 @@ function starts(tracks: ProjectTimeline["tracks"]) {
 let made = 0
 const newId = () => `piece-${(made += 1)}`
 
+const origin: MovingOrigin = {
+  tool: "animate",
+  model: "gemini-omni-1.1-flash",
+  prompt: "Waves crashing, the lamp turning",
+  firstFrameMediaId: "still",
+  referenceMediaIds: [],
+  extras: [],
+  aspectRatio: "9:16",
+  quality: "720p",
+}
+
 describe("which lengths a picture can ask for", () => {
   it("offers 4, 6 or 8 seconds that cover a short picture", () => {
     expect(stillShotLengths(4000)).toEqual([4, 6, 8])
@@ -99,8 +111,8 @@ describe("landing a moving shot", () => {
     const tracks = seededTracks()
     const landed = landMovingShot(tracks, {
       clipId: "seven",
-      stillMediaId: "still",
-      pieces: [{ mediaId: "shot", url: "https://media.test/shot.mp4", durationMs: 4000 }],
+      clipMediaId: "still",
+      pieces: [{ mediaId: "shot", url: "https://media.test/shot.mp4", durationMs: 4000, origin }],
       newId,
     })
 
@@ -131,8 +143,8 @@ describe("landing a moving shot", () => {
   it("trims a longer shot back to the picture's length", () => {
     const landed = landMovingShot(seededTracks({ durationMs: 3200, startMs: 5000 }), {
       clipId: "seven",
-      stillMediaId: "still",
-      pieces: [{ mediaId: "shot", durationMs: 4000 }],
+      clipMediaId: "still",
+      pieces: [{ mediaId: "shot", durationMs: 4000, origin }],
       newId,
     })
     expect(landed.tracks[0].clips[1]).toMatchObject({ durationMs: 3200, sourceDurationMs: 4000 })
@@ -144,10 +156,10 @@ describe("landing a moving shot", () => {
     tracks[0].clips[2] = { ...tracks[0].clips[2], startMs: 15_000 }
     const landed = landMovingShot(tracks, {
       clipId: "seven",
-      stillMediaId: "still",
+      clipMediaId: "still",
       pieces: [
-        { mediaId: "part-1", durationMs: 8000 },
-        { mediaId: "part-2", durationMs: 8000 },
+        { mediaId: "part-1", durationMs: 8000, origin },
+        { mediaId: "part-2", durationMs: 8000, origin },
       ],
       newId,
     })
@@ -175,8 +187,8 @@ describe("landing a moving shot", () => {
     }))
     const shot = {
       clipId: "seven",
-      stillMediaId: "still",
-      pieces: [{ mediaId: "shot", durationMs: 4000 }],
+      clipMediaId: "still",
+      pieces: [{ mediaId: "shot", durationMs: 4000, origin }],
       newId,
     }
     expect(landMovingShot(deleted, shot)).toEqual({ tracks: deleted, outcome: "gone" })
@@ -184,6 +196,57 @@ describe("landing a moving shot", () => {
     const replaced = seededTracks({ mediaId: "another-picture" })
     expect(landMovingShot(replaced, shot).outcome).toBe("gone")
     // The picture's file was deleted from Media, so the shot cannot name it.
-    expect(landMovingShot(tracks, { ...shot, stillMediaId: null }).outcome).toBe("gone")
+    expect(landMovingShot(tracks, { ...shot, clipMediaId: null }).outcome).toBe("gone")
+  })
+
+  it("keeps each piece's recipe on the clip it becomes", () => {
+    const landed = landMovingShot(seededTracks(), {
+      clipId: "seven",
+      clipMediaId: "still",
+      pieces: [{ mediaId: "shot", durationMs: 4000, origin }],
+      newId,
+    })
+    expect(landed.tracks[0].clips[1].origin).toEqual(origin)
+  })
+
+  it("makes a moving clip again in its place, as loud as it was", () => {
+    // Scene seven is already a moving shot, with its sound turned up.
+    const tracks = seededTracks({
+      kind: "video",
+      mediaId: "first-take",
+      muted: false,
+      volume: 0.6,
+      motion: undefined,
+      origin,
+    })
+    const again = { ...origin, prompt: "Waves crashing, hands out of frame" }
+    const landed = landMovingShot(tracks, {
+      clipId: "seven",
+      clipMediaId: "first-take",
+      pieces: [{ mediaId: "second-take", durationMs: 4000, origin: again }],
+      newId,
+    })
+
+    expect(landed.outcome).toBe("replaced")
+    expect(starts(landed.tracks)).toEqual(starts(tracks))
+    expect(landed.tracks[0].clips[1]).toMatchObject({
+      id: "seven",
+      mediaId: "second-take",
+      muted: false,
+      volume: 0.6,
+      fit: "cover",
+      brightness: 0.1,
+      transition: { kind: "crossfade", durationMs: 500 },
+      origin: again,
+    })
+    // A take swapped for another file meanwhile is not replaced.
+    expect(
+      landMovingShot(tracks, {
+        clipId: "seven",
+        clipMediaId: "an-older-take",
+        pieces: [{ mediaId: "second-take", durationMs: 4000, origin: again }],
+        newId,
+      }).outcome
+    ).toBe("gone")
   })
 })

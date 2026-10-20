@@ -19,6 +19,12 @@ import {
   MOVING_STILL_UNREADABLE_MESSAGE,
 } from "@/lib/video/moving-still"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import {
+  REMAKE_ACTOR_GONE_MESSAGE,
+  REMAKE_BUSY_MESSAGE,
+  REMAKE_NOT_FOUND_MESSAGE,
+  REMAKE_START_GONE_MESSAGE,
+} from "@/lib/video/remake-clip"
 import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
 import { userGet, userPost } from "@/server/guards"
 import type { GenerationItem } from "@/server/video/asset-factories/generations"
@@ -51,6 +57,10 @@ export function getGenerationErrorMessage(error: unknown) {
       MOVING_STILL_NOT_FULL_FRAME_MESSAGE,
       MOVING_STILL_TOO_LONG_MESSAGE,
       MOVING_STILL_UNREADABLE_MESSAGE,
+      REMAKE_BUSY_MESSAGE,
+      REMAKE_NOT_FOUND_MESSAGE,
+      REMAKE_START_GONE_MESSAGE,
+      REMAKE_ACTOR_GONE_MESSAGE,
       "Pick a length at least as long as the picture",
       "This shot is not ready to land",
     ].includes(message)
@@ -112,9 +122,9 @@ const settleStillFn = createServerFn({ method: "POST" })
   .inputValidator(idSchema.extend({ outcome: z.enum(["replaced", "gone"]) }))
   .handler(({ data, context }) => import("@/server/video/asset-factories/moving-stills").then((m) => m.settleStillShot(context.user.id, data.generationId, data.outcome)))
 
-/** Asks for a moving shot of a picture clip, which replaces the picture when it arrives. */
+/** Asks for a moving shot of a picture, or of a moving clip made again, which takes that clip's place when it arrives. */
 export function createStillShot(data: { projectId: string; clipId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality }) { return createStillFn({ data }) }
-/** This project's shots made from pictures that have not landed yet. */
+/** This project's shots for timeline clips that have not landed yet. */
 export function listStillShots(projectId: string) { return listStillFn({ data: { projectId } }) }
 /** Records that this editor landed a finished shot. `settled` is false when the worker already had. */
 export function settleStillShot(generationId: string, outcome: "replaced" | "gone") { return settleStillFn({ data: { generationId, outcome } }) }

@@ -4,6 +4,7 @@ import {
   type AssetAspectRatio,
   type ShotLengthSeconds,
 } from "@/lib/video/asset-factories"
+import type { MovingOrigin } from "@/lib/video/clip-origin"
 import { clipScale } from "@/lib/video/clip-size"
 import type { ProjectTimeline } from "@/lib/video/timeline-schema"
 
@@ -12,7 +13,8 @@ import type { ProjectTimeline } from "@/lib/video/timeline-schema"
  * ask for, which shape, and the one rule that swaps the picture for the
  * moving shot. The background worker and an open editor both land a shot
  * with `landMovingShot`, so the timeline comes out the same whichever does it
- * (`workspace/docs/animate-a-still.md`).
+ * (`workspace/docs/animate-a-still.md`). Make it again on a moving clip lands
+ * its new shot the same way (`workspace/docs/regenerate-a-scene.md`).
  */
 
 type Tracks = ProjectTimeline["tracks"]
@@ -73,12 +75,18 @@ export function stillShotAspect(
   return projectClipAspect(projectAspect) ?? "9:16"
 }
 
-/** The picture a shot is for, if it is still on the timeline as that picture. */
-export function findStill(tracks: Tracks, clipId: string, stillMediaId: string | null) {
+/**
+ * The clip a shot is for, if it is still on the timeline showing the file it
+ * showed when the shot was asked for: a picture made to move, or a moving
+ * clip made again.
+ */
+export function findShotClip(tracks: Tracks, clipId: string, clipMediaId: string | null) {
   for (const track of tracks) {
     const clip = track.clips.find((candidate) => candidate.id === clipId)
     if (clip) {
-      return clip.kind === "image" && stillMediaId && clip.mediaId === stillMediaId
+      return (clip.kind === "image" || clip.kind === "video") &&
+        clipMediaId &&
+        clip.mediaId === clipMediaId
         ? clip
         : null
     }
@@ -93,35 +101,44 @@ export type MovingPiece = {
   url?: string
   /** How long Google was asked to make it. */
   durationMs: number
+  /**
+   * How it was made, so the clip it becomes can be made again. Absent when
+   * the picture it started on was deleted from Media meanwhile: the piece
+   * still lands, and that clip cannot be made again.
+   */
+  origin?: MovingOrigin
 }
 
 /**
  * Swaps the picture for its moving shot, on the same lane and in exactly the
- * picture's place and length, so nothing else on the timeline moves.
+ * picture's place and length, so nothing else on the timeline moves. A
+ * moving clip made again is swapped the same way, and keeps its own sound
+ * settings.
  *
  * - The first piece keeps the picture's clip id, name, transition and
  *   picture fade in; the last keeps its fade out. Every piece keeps the fit
  *   and the colour.
  * - The slow move goes, because the shot moves on its own, and so does a
  *   speed, because the shot was asked for at the picture's own length.
- * - The shot lands muted: the picture had no sound, so a voice or music
- *   under it is not talked over (Tyler, 19 Oct 2026).
+ * - A picture's shot lands muted: the picture had no sound, so a voice or
+ *   music under it is not talked over (Tyler, 19 Oct 2026). A clip made
+ *   again stays as loud or as muted as it was.
  * - Pieces past the picture's length are left off, and the last one is
  *   trimmed to end where the picture ended.
  *
- * "gone" means the picture was deleted, or swapped for another file, while
- * the shot was being made. The timeline is then left as it was.
+ * "gone" means the clip was deleted, or swapped for another file, while the
+ * shot was being made. The timeline is then left as it was.
  */
 export function landMovingShot(
   tracks: Tracks,
   shot: {
     clipId: string
-    stillMediaId: string | null
+    clipMediaId: string | null
     pieces: MovingPiece[]
     newId: () => string
   }
 ): { tracks: Tracks; outcome: ClipOutcome } {
-  const still = findStill(tracks, shot.clipId, shot.stillMediaId)
+  const still = findShotClip(tracks, shot.clipId, shot.clipMediaId)
   if (!still || !shot.pieces.length) return { tracks, outcome: "gone" }
 
   const endMs = still.startMs + still.durationMs
@@ -140,7 +157,7 @@ export function landMovingShot(
       durationMs,
       trimStartMs: 0,
       sourceDurationMs: piece.durationMs,
-      muted: true,
+      muted: still.kind === "image" ? true : still.muted,
       motion: undefined,
       speed: undefined,
       scale: undefined,
@@ -149,6 +166,7 @@ export function landMovingShot(
       transition: index === 0 ? still.transition : undefined,
       pictureFadeInMs: index === 0 ? still.pictureFadeInMs : undefined,
       pictureFadeOutMs: undefined,
+      origin: piece.origin,
     })
     atMs += durationMs
   }

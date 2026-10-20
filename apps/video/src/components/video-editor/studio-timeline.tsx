@@ -75,10 +75,8 @@ import {
   type EditorClip,
   type EditorTrack,
 } from "@/components/video-editor/editor-store"
-import {
-  StillContextMenu,
-  StillMarker,
-} from "@/components/video-editor/moving-stills"
+import { StillMarker } from "@/components/video-editor/moving-stills"
+import { ClipContextMenu } from "@/components/video-editor/remake-clips"
 import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
 import { useRememberedTimelineView } from "@/components/video-editor/use-remembered-view"
 
@@ -1436,17 +1434,18 @@ const ClipChip = React.memo(function ClipChip({
       >
         <span style={gripBar} />
       </div>
-      {clip.kind === "image" ? (
-        <StillMarker clipId={clip.id} roomy={width > 110} />
+      {clip.kind === "image" || clip.kind === "video" ? (
+        <StillMarker
+          clipId={clip.id}
+          roomy={width > 110}
+          again={clip.kind === "video"}
+        />
       ) : null}
     </div>
   )
-  // A picture can be made to move from its right-click menu (moving-stills.tsx).
-  return clip.kind === "image" ? (
-    <StillContextMenu clipId={clip.id}>{chip}</StillContextMenu>
-  ) : (
-    chip
-  )
+  // A picture can be made to move, and anything the AI made can be made
+  // again, from the right-click menu (remake-clips.tsx).
+  return <ClipContextMenu clip={clip}>{chip}</ClipContextMenu>
 })
 
 // A small diamond straddling the seam between two clips, marking a blend.

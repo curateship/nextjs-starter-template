@@ -12,6 +12,7 @@ import {
 import type { ClipboardClip } from "@/lib/video/clip-clipboard"
 import { LEFT_OF_CUT, RIGHT_OF_CUT } from "@/lib/video/clip-fades"
 import { landMovingShot, type MovingPiece } from "@/lib/video/moving-still"
+import { landVoiceLine, type SpokenLine } from "@/lib/video/remake-clip"
 import { voiceoverRefusal } from "@/lib/video/saved-voiceovers"
 import { PlaybackClock } from "@/lib/video/playback-clock"
 import {
@@ -91,14 +92,18 @@ export type EditorAction =
         sourceDurationMs: number
       }
     }
-  // A finished moving shot taking its picture's place (moving-still.ts). One
-  // action, so one Undo brings the picture back.
+  // A finished moving shot taking its picture's place, or the place of the
+  // moving clip it was made again for (moving-still.ts). One action, so one
+  // Undo brings the old clip back.
   | {
       type: "LAND_MOVING_SHOT"
       clipId: string
-      stillMediaId: string | null
+      clipMediaId: string | null
       pieces: MovingPiece[]
     }
+  // A voice line read again, swapped in with its words (remake-clip.ts). One
+  // action, so one Undo brings the old line and its captions back together.
+  | { type: "REMAKE_VOICE_LINE"; clipId: string; line: SpokenLine }
   | { type: "ADD_TRACK" }
   // Cut several pieces out of one clip at once, closing the gaps. What comes
   // after on the same lane shuffles back by however much was taken out.
@@ -202,6 +207,16 @@ export function timelineDurationMs(tracks: EditorTrack[]) {
     }
   }
   return max
+}
+
+/**
+ * What a piece of a cut clip remembers about how the AI made it. A picture
+ * or a moving clip cut in two is still that recipe, so either half can be
+ * made again. A voice line cut in two is not: reading it again would say
+ * the whole script from where the piece starts, over the other piece.
+ */
+function keptOrigin(clip: EditorClip) {
+  return clip.kind === "audio" ? undefined : clip.origin
 }
 
 export function findClip(tracks: EditorTrack[], clipId: string) {
@@ -522,6 +537,7 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
           // Only the first piece keeps the blend coming into it. The rest butt
           // against a cut in the same footage, where a dissolve makes no sense.
           transition: isFirst ? found.clip.transition : undefined,
+          origin: keptOrigin(found.clip),
         })
         timelineCursorMs += durationMs
       }
@@ -570,6 +586,8 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       const byId = new Map(action.lines.map((line) => [line.clipId, line.text]))
       const spoken = action.spoken
       if (!byId.size && !spoken) return state
+      const spokenBy =
+        spoken?.how === "swap" ? spoken.clipId : spoken?.how === "quieten" ? spoken.voice.id : null
 
       let tracks = state.tracks.map((track) => ({
         ...track,
@@ -607,10 +625,24 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
           }
 
           const text = byId.get(clip.id)
+          // Words the swapped voice used to say, outside the opening, are no
+          // longer its words.
+          if (text === undefined) {
+            return [
+              spokenBy && clip.spokenBy === spokenBy ? { ...clip, spokenBy: undefined } : clip,
+            ]
+          }
           // A clip whose share of the new line is empty keeps its place on the
-          // timeline rather than leaving a hole; it simply says nothing.
+          // timeline rather than leaving a hole; it simply says nothing. A
+          // spoken line owns its words, so making the line again rewrites
+          // them too (remake-clip.ts).
           return [
-            text === undefined ? clip : { ...clip, text, name: text || clip.name },
+            {
+              ...clip,
+              text,
+              name: text || clip.name,
+              ...(spokenBy ? { spokenBy } : {}),
+            },
           ]
         }),
       }))
@@ -745,6 +777,8 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         sourceDurationMs: isTimed ? action.media.sourceDurationMs : undefined,
         // Only a picture moves, so a move does not carry over to footage.
         motion: fileType === "image" ? found.clip.motion : undefined,
+        // Another file was not made by the AI, so there is nothing to make again.
+        origin: undefined,
         // Only a picture can be smaller than the frame and placed on it, so a
         // swap to footage goes back to the full frame.
         ...(fileType === "image"
@@ -781,6 +815,12 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       const landed = landMovingShot(state.tracks, { ...action, newId: editorId })
       if (landed.outcome === "gone") return state
       return pushUndo(state, landed.tracks)
+    }
+
+    case "REMAKE_VOICE_LINE": {
+      const landed = landVoiceLine(state.tracks, { ...action, newId: editorId })
+      if (!landed) return state
+      return { ...pushUndo(state, landed.tracks), selectedClipId: action.clipId }
     }
 
     case "UPDATE_CLIP": {
@@ -862,6 +902,7 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         ...clip,
         ...LEFT_OF_CUT,
         durationMs: offset,
+        origin: keptOrigin(clip),
       }
       const right: EditorClip = {
         ...clip,
@@ -871,6 +912,7 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         durationMs: clip.durationMs - offset,
         trimStartMs: sourceMsAt(clip, offset),
         transition: undefined,
+        origin: keptOrigin(clip),
       }
       const tracks = withTrack(state.tracks, found.track.id, (track) => ({
         ...track,

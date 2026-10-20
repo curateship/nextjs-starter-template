@@ -88,6 +88,8 @@ When every piece is ready, the picture clip becomes video clips:
 - **The first piece keeps the picture's clip**, its name, its transition in
   and its picture fade in. The last piece keeps its fade out. Every piece
   keeps the fit and the colour.
+- **Every piece remembers how it was made**: its own words and the frame it
+  started on, so it can be made again where it sits (`regenerate-a-scene.md`).
 - **The slow move goes**, because the shot moves on its own.
 - **It lands muted** (Tyler, 19 Oct 2026). The picture had no sound, so a
   voice or music under it is not talked over. The inspector turns the sound
@@ -133,8 +135,10 @@ being made:
 - **The shot goes to the project's Media panel** and is not put on the
   timeline.
 - **A notice says so.** An open editor shows "A moving shot arrived after its
-  picture was deleted. It is in Media." With no editor open, the bell gets "A
-  moving shot arrived after its picture was gone", naming the project.
+  clip was deleted. It is in Media." With no editor open, the bell gets "A
+  moving shot arrived after its clip was gone", naming the project. The words
+  say clip, not picture, because Make it again on a moving clip lands the
+  same way (`regenerate-a-scene.md`).
 - **It is still charged**, because Google made it.
 
 ## What it costs
@@ -147,15 +151,20 @@ line and the meter's row carries the shot's id.
 ## Where it is kept
 
 A shot made this way is a row of `video_ai_generations` like any other, with
-four more columns (migration `0126_video_animate_still.sql`):
+four more columns (migration `0126_video_animate_still.sql`) and a fifth
+(migration `0128_video_remake_clip.sql`):
 
 - **`clip_id`:** the timeline clip it is for.
+- **`clip_media_id`:** the file that clip showed when Make it move was
+  pressed, which for a picture is the picture itself. The shot lands only
+  while the clip still shows it. Make it again on a moving clip needs it,
+  because that shot starts on a different file from the one the clip shows.
 - **`clip_start_ms` and `clip_duration_ms`:** where the picture sat and how
   long it ran when Make it move was pressed.
 - **`clip_outcome`:** empty until it lands, then `replaced` or `gone`.
 
 It has no first frame row, so it never shows in the AI clip panel's lists.
-Shots made in the AI clip panel have the four columns empty.
+Shots made in the AI clip panel have the five columns empty.
 
 ## Limits worth knowing
 

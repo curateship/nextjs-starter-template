@@ -51,6 +51,9 @@ frame with the shots made from it underneath.
 
 - **Dragging again:** a first frame drags onto the timeline as a 4-second
   still, and a ready shot drags as a clip, as many times as you like.
+- **What the clip remembers:** each one dragged on keeps how it was made, so
+  right-clicking it on the timeline offers Make it again
+  (`regenerate-a-scene.md`). Delete here leaves that alone.
 - **Use:** picks that first frame for step 3.
 - **Try again:** on a shot that failed, makes the failed piece again.
 - **Delete:** a first frame takes its shots with it. Anything already on the
