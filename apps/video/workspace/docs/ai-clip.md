@@ -69,7 +69,8 @@ frame with the shots made from it underneath.
   Deleting the project deletes them, and their pictures leave storage unless
   something else still uses them, such as a duplicate of the project.
 - **Shots belong to one project** (`video_ai_generations.project_id`), as they
-  always did.
+  always did. A shot made from a picture on the timeline with Make it move has
+  no first frame, so it never shows in this panel (`animate-a-still.md`).
 - **Made pictures stay in this panel.** They reach the Media panel only once
   they are on the timeline.
 

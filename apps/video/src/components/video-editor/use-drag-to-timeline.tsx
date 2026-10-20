@@ -6,6 +6,35 @@ import { pxToMs } from "@/lib/video/timeline-utils"
 type Drag<T> = { item: T; startX: number; startY: number; moved: boolean }
 
 /**
+ * The lane a drop at this point lands on. The pointer is captured by the
+ * tile, so the page is asked what is under it.
+ *
+ * Anywhere in the timeline counts, not only the lane strips: the ruler, the
+ * gutter and the empty space under the last lane take the lane nearest the
+ * pointer, because a timeline with one lane is mostly empty space and a drop
+ * there used to add nothing. Null means a timeline with no lanes yet, and
+ * undefined means the pointer was not over the timeline at all.
+ */
+function laneAt(x: number, y: number): HTMLElement | null | undefined {
+  const under = document.elementsFromPoint(x, y)
+  const direct = under.find((element) => element.matches("[data-track-lane]"))
+  if (direct) return direct as HTMLElement
+  const timeline = under.find((element) => element.matches("[data-timeline-drop]"))
+  if (!timeline) return undefined
+  let nearest: HTMLElement | null = null
+  let nearestGap = Infinity
+  for (const lane of timeline.querySelectorAll<HTMLElement>("[data-track-lane]")) {
+    const rect = lane.getBoundingClientRect()
+    const gap = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0
+    if (gap < nearestGap) {
+      nearest = lane
+      nearestGap = gap
+    }
+  }
+  return nearest
+}
+
+/**
  * Dragging something from a panel beside the rail onto a timeline lane. It
  * lands where it is let go. Shared by the Media panel and the AI clip panel,
  * so a file dragged from either becomes a clip the same way.
@@ -68,18 +97,18 @@ export function useDragToTimeline<T>({
       /* noop */
     }
     if (!drag.moved) return
-    // The pointer is captured by the tile, so the lane has to be looked up.
-    const target = document
-      .elementsFromPoint(event.clientX, event.clientY)
-      .find((element) => element.matches("[data-track-lane]"))
-    if (!target) return
-    const trackId = (target as HTMLElement).dataset.trackId
-    const rect = target.getBoundingClientRect()
+    const lane = laneAt(event.clientX, event.clientY)
+    if (lane === undefined) return
+    if (!lane) {
+      onDrop(drag.item, 0, undefined)
+      return
+    }
+    const rect = lane.getBoundingClientRect()
     const pps = store.getSnapshot().state.pxPerSecond
     onDrop(
       drag.item,
       Math.max(0, pxToMs(event.clientX - rect.left, pps)),
-      trackId
+      lane.dataset.trackId
     )
   }
 
