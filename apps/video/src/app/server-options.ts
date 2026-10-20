@@ -42,7 +42,7 @@ export const appServerOptions: AppServerOptions = {
           ),
       },
       {
-        // Starts and checks durable Veo jobs. A page reload never owns the job.
+        // Starts and checks durable AI shot jobs. A page reload never owns the job.
         name: "video-generation",
         tick: () =>
           import("@/server/video/asset-factories/generations").then(

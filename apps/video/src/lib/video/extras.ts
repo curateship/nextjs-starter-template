@@ -25,7 +25,7 @@ export const EXTRA_KIND_LABELS: Record<
  */
 export type ExtraPicks = Partial<Record<ExtraKind, string>>
 
-/** One extra as a first frame or a Veo piece was sent it. */
+/** One extra as a first frame or a shot's piece was sent it. */
 export type SentExtra = { kind: ExtraKind; extra_id: string; media_id: string }
 
 /**
@@ -45,12 +45,6 @@ export function boardExtraCount(picks: ExtraPicks) {
   return BOARD_EXTRA_KINDS.filter((kind) => picks[kind]).length
 }
 
-/**
- * Veo takes reference pictures on 8 second clips only (Google's Veo page,
- * read 19 Oct 2026), so a 4 or 6 second piece is sent the words alone.
- */
-export const VEO_REFERENCE_SECONDS = 8
-
 function sentence(text: string) {
   const trimmed = text.trim().replace(/\s+/g, " ")
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`
@@ -67,7 +61,7 @@ export function extraLine(kind: ExtraKind, prompt: string) {
   return `${lead}: ${sentence(prompt)}`
 }
 
-/** The line a Veo prompt opens the person's words with. */
+/** The line a shot's prompt opens the person's words with. */
 export function personLine(prompt: string) {
   return `The person is: ${sentence(prompt)}`
 }
@@ -125,17 +119,16 @@ export function firstFramePictureLines(options: {
 }
 
 /**
- * What a Veo prompt says about its reference pictures, when it has any: the
- * first is the person (a board when there was more than one picture of them),
- * and the last is the place when a backdrop was sent.
+ * What a shot's prompt says about its reference pictures, when it has any,
+ * by the tags Omni Flash reads: <IMAGE_REF_0> is the person (a board when
+ * there was more than one picture of them), and <IMAGE_REF_1> is the place
+ * when a backdrop was sent.
  */
-export function veoReferenceLine(options: { board: boolean; backdrop: boolean }) {
+export function videoReferenceLine(options: { board: boolean; backdrop: boolean }) {
   const person = options.board
-    ? "The first reference picture is a board of one person from several sides and what they wear and hold: show that one person, never the board."
-    : "The first reference picture shows the person."
-  return options.backdrop
-    ? `${person} The last reference picture is the place.`
-    : person
+    ? "<IMAGE_REF_0> is a board of one person from several sides and what they wear and hold: show that one person, never the board."
+    : "<IMAGE_REF_0> shows the person."
+  return options.backdrop ? `${person} <IMAGE_REF_1> is the place.` : person
 }
 
 /**

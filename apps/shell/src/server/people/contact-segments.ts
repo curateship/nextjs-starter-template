@@ -536,6 +536,41 @@ export async function countDraftSegmentContacts(
   return { matching, everyone }
 }
 
+/**
+ * How many contacts each of several rule sets matches, in one query.
+ *
+ * The Contacts dashboard's People card counts five of them on every load, so
+ * they share one pass of the contacts table and one fetch of the segment
+ * context, the same `count(…) filter (where …)` shape `listWorkspaceSegments`
+ * uses.
+ */
+export async function countContactsMatchingEach(
+  workspaceId: string,
+  rulesList: readonly SegmentRules[],
+  database: CustomShellDb = db,
+  timestamp: Date = now()
+): Promise<number[]> {
+  if (rulesList.length === 0) return []
+  const context = await loadSegmentContext(workspaceId, database)
+  const columns: Record<string, SQL<number>> = {}
+  for (const [index, rules] of rulesList.entries()) {
+    const conditions = buildConditions(
+      workspaceId,
+      { id: `count-${index}`, kind: "rules", rules },
+      database,
+      timestamp,
+      context,
+      [`count-${index}`]
+    )
+    columns[`total${index}`] = sql<number>`count(*) filter (where ${conditions})::int`
+  }
+  const [totals] = await database
+    .select(columns)
+    .from(customShellContacts)
+    .where(eq(customShellContacts.workspaceId, workspaceId))
+  return rulesList.map((_, index) => totals?.[`total${index}`] ?? 0)
+}
+
 /** The people in one segment, worked out the same way the count was. */
 export async function listSegmentContacts(
   workspaceId: string,
@@ -630,7 +665,7 @@ export async function listWorkspaceSegments(
  * Which segments one person is in right now, worked out fresh.
  *
  * Not a stored list — for a rules segment there is nothing stored to read. Every
- * segment is asked the same question it would be asked on the segments page,
+ * segment is asked the question its count on the Contacts dashboard asks,
  * through the very same `buildConditions`, so "why are they getting this?" is
  * answered by the rules themselves rather than by a second opinion about them.
  *
@@ -1139,6 +1174,56 @@ export async function addMatchingContactsToSegment(
     matching.map((contact) => contact.id),
     database
   )
+}
+
+/**
+ * Takes people out of a hand-picked segment, from ticked rows or from
+ * everybody the list's filters match.
+ *
+ * Counted the way adding is: somebody who was not in it is said so rather
+ * than reported as taken out. The contacts themselves are untouched.
+ */
+export async function removeContactsFromSegment(
+  workspaceId: string,
+  segmentId: string,
+  people: { contactIds: string[] } | { filter: ContactListFilter },
+  database: CustomShellDb = db
+): Promise<{ removed: number; notThere: number }> {
+  await requireHandPickedSegment(workspaceId, segmentId, database)
+
+  // Scoped to the workspace either way, so an id from somewhere else is
+  // simply not among the people found.
+  const found = await database
+    .select({ id: customShellContacts.id })
+    .from(customShellContacts)
+    .where(
+      "filter" in people
+        ? await contactFilterConditions(workspaceId, people.filter, database)
+        : and(
+            eq(customShellContacts.workspaceId, workspaceId),
+            inArray(customShellContacts.id, people.contactIds)
+          )
+    )
+  const ids = found.map((contact) => contact.id)
+  if (ids.length === 0) return { removed: 0, notThere: 0 }
+
+  let removed = 0
+  for (let at = 0; at < ids.length; at += MEMBER_INSERT_BATCH) {
+    const deleted = await database
+      .delete(customShellContactSegmentMembers)
+      .where(
+        and(
+          eq(customShellContactSegmentMembers.segmentId, segmentId),
+          inArray(
+            customShellContactSegmentMembers.contactId,
+            ids.slice(at, at + MEMBER_INSERT_BATCH)
+          )
+        )
+      )
+      .returning({ contactId: customShellContactSegmentMembers.contactId })
+    removed += deleted.length
+  }
+  return { removed, notThere: ids.length - removed }
 }
 
 export type SegmentDeleteResult = {

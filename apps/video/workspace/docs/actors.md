@@ -110,5 +110,5 @@ replaces stays on the sheet, where it can be made main again or taken off.
 These are later parts of task `features/42-actor-character-sheets.md`:
 making the sheet's missing angles in one press, adding a first frame to the
 sheet, sending the sheet on Re-pose, the same-person check, and a description
-kept apart from the pose. Sending the sheet to Veo was built by task
+kept apart from the pose. Sending the sheet with a shot was built by task
 `ai-generation/04-veo-keeps-the-character.md`; `extras.md` says how.

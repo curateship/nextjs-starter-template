@@ -49,8 +49,11 @@ sat in thirteen app folders, and nothing read them.
   the progress number, what cancelling leaves behind, and the CORS rule the
   bucket needs once.
 - `contacts-and-sending.md` — the five contact statuses and who may set each,
-  who a send reaches, the rule that marks somebody as gone quiet, and why an
-  admin table has to be told to fit the window.
+  who a send reaches, the rule that marks somebody as gone quiet, how the
+  contacts list fits its panel, and where segments live now.
+- `three-column-dashboards.md` — the shell's pieces for a three-column
+  dashboard: the layout, the side panel card, the search, Filter, New and mass
+  select, and which screens use them.
 
 ## Writing a doc
 

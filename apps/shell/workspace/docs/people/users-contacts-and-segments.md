@@ -33,27 +33,110 @@ account for removal so an admin can restore it during the recovery period. The
 server protects the last active admin from changes that would leave the platform
 without an administrator.
 
-## Contacts
+## Contacts and segments: one dashboard
 
-The Contacts dashboard can:
+Contacts and segments are one three-column dashboard at `/admin/contacts`
+(Tyler, 19 Oct 2026: "We have to combine both the contacts and segment into one
+3 col dashboard"). `/admin/segments` forwards there, and the left menu has no
+Segments link.
 
-- Add, edit, tag, unsubscribe, and delete workspace contacts.
-- Bulk update contacts.
-- Sync account details into matching contacts.
+### Left panel
 
-List search, filters, sort, page, and an open record live in the address so the
-view survives reload and browser navigation.
+- **People** counts the contacts on the list, opted out, bouncing, gone quiet,
+  and new this month, which is anyone who joined in the last 30 days. The rows
+  use the list's own badge words (Tyler's pick, 19 Oct 2026). Pressing a row
+  shows those people in the middle; pressing it again shows everybody. Each row
+  is a set of segment rules (`src/lib/contacts/contact-shortcuts.ts`), so
+  "Save to segment" saves it as it is.
+- **Segments** lists every segment with how many people are in it now, and
+  "Hand-picked" after the ones chosen by hand. Pressing one applies it to the
+  list. Its cog opens the segment window (name, description, rules or people)
+  and its bin deletes it. The + makes a new one.
+
+### Middle panel
+
+The header names what the list shows (All contacts, a People row, a segment, or
+Filtered contacts) and how many. Its buttons, left to right:
+
+- **"N selected"**, while ticked rows exist. Its menu holds Add to segment,
+  Remove from segment and Status, each stepping into its own list, then Delete,
+  then Clear selection. Add and Remove list the hand-picked segments only,
+  because a rules segment works out its own people. Once a whole page is
+  ticked it offers everybody who matches; every change is then sent as the
+  filters, not as ids.
+- **Search**, a magnifying glass that opens into the box.
+- **Filter**, holding the same rule builder a segment is written in. A change
+  applies a moment after it is made, and a rule still being filled in waits.
+  Beside Clear is the save: "Save to segment" with nothing open. With a rules
+  segment open it is a Save menu of "Update <segment>", once the rules differ
+  from the segment's, and "Save as new segment". Update asks first, because
+  every newsletter and automation sent to that segment from then on reaches
+  different people. With a hand-picked segment open it is "Save as new segment"
+  alone. Search words are never saved, only the rules.
+- **New contact**, a dropdown: email, first and last name, status and tags.
+  An address already on the list is updated rather than added twice.
+
+Tags work the way Project's task tags do (Tyler, 19 Oct 2026: "fix how tag
+flow. Look at how project does it"): each tag is a pill with an ×, typing a
+name and pressing Enter places it, Backspace in the empty box takes the last
+one off, and tags other contacts already carry show under the box to click as
+you type. On the open contact each change saves at once, by the contact's id,
+and goes back if the save is refused, so a contact deleted in another tab is
+refused rather than added again; in New contact they wait for Create contact. The side cards'
+arrows and buttons show only while a card is pointed at, as on Project's
+panels.
+
+The tick boxes stay hidden until Mass select, beside the Email heading, is
+pressed. Clicking a tag on a row adds it to the "tagged any of" rule, or takes
+it off. Each row keeps Take off or Put back and a bin.
+
+A new segment saved from the list opens straight away in the left panel.
+Changing the rules of an open segment keeps it open, so it can be updated;
+emptying the rules closes it.
+
+### Right panel
+
+The open contact: their status in the header (saved the moment it is picked), a
+cog whose menu deletes them, and an × that closes the panel. Below, folding
+cards for who they are, their tags, the segments they are in right now, and
+every email sent to them, ten at a time. Pressing one of their segments shows it in the list. With
+nobody open the panel says to click a contact.
+
+The page never arrives with nobody open. Opened from the left menu or a
+bookmark, it first goes back to the address it had last time in this browser,
+for this person and this site, and then opens the list's first contact if
+nobody is open. A remembered contact who has since been deleted gives way to
+the first one. A pasted link keeps its own view. Closing the contact with the
+× leaves the panel empty until the next visit. Tyler asked for this on
+19 Oct 2026, for every three-column dashboard (UI standard, "Three-column
+dashboards").
+
+### The address
+
+The search, the rules (`filter`), the open segment (`segment`), the sort, the
+page, the page size and the open person (`open`) are all in the address. A
+pasted link opens the same view. Pressing a segment puts only
+`?segment=<id>` there, which shows the segment's rules as saved; the rules
+join it as `filter` once one is changed, which is what makes Filter offer
+"Update". Saving a segment, or editing the open one from its cog, goes back to
+`?segment=<id>` alone, so an older copy of its rules never stays behind. The
+old Segments address arrives the same way. A link to a segment that has since
+been deleted shows everybody and says so.
+
+Pressing a People row or a segment also empties the search box, so the list
+holds the number the row showed; the counts on the left never count a search.
+
+Opening the list brings it up to date with who has signed up, before the list,
+the People counts and the segment counts are read.
 
 ## Segments
 
 Segments have two membership models:
 
-- A static segment contains chosen contacts.
-- A dynamic segment contains rules and calculates membership from current
+- A hand-picked segment contains chosen contacts, added and removed through
+  mass select.
+- A rules segment contains rules and calculates membership from current
   contact data.
-
-The segment screen shows fresh counts and lets an admin turn current contact
-filters into reusable rules.
 
 Newsletters and automations may depend on a segment. The server refuses to
 delete a segment while another saved record still refers to it. Removing the

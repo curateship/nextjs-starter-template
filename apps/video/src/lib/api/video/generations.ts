@@ -7,7 +7,9 @@ import {
   PERSON_SHOTS_FULL_MESSAGE,
   PROJECT_SHOTS_FULL_MESSAGE,
   SHOT_LENGTHS,
+  VIDEO_QUALITY_IDS,
   type ShotLengthSeconds,
+  type VideoQuality,
 } from "@/lib/video/asset-factories"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
@@ -55,6 +57,7 @@ const createFn = createServerFn({ method: "POST" })
     firstFrameId: z.string().min(1).max(36),
     prompts: z.array(z.string().trim().min(1).max(5000)).min(1).max(4),
     lengthSeconds: z.union(SHOT_LENGTHS.map((value) => z.literal(value)) as [z.ZodLiteral<ShotLengthSeconds>, ...z.ZodLiteral<ShotLengthSeconds>[]]),
+    quality: z.enum(VIDEO_QUALITY_IDS),
   }))
   .handler(({ data, context }) => import("@/server/video/asset-factories/generations").then((m) => m.createGeneration(context.user.id, data)))
 
@@ -70,6 +73,6 @@ const deleteFn = createServerFn({ method: "POST" })
 
 /** This project's shots, newest first. */
 export function listGenerations(projectId: string) { return listFn({ data: { projectId } }) }
-export function createGeneration(data: { projectId: string; firstFrameId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds }) { return createFn({ data }) }
+export function createGeneration(data: { projectId: string; firstFrameId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality }) { return createFn({ data }) }
 export function retryGeneration(generationId: string) { return retryFn({ data: { generationId } }) }
 export function deleteGenerations(generationIds: string[]) { return deleteFn({ data: { generationIds } }) }

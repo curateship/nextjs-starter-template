@@ -352,7 +352,7 @@ export async function upsertWorkspaceContact(
     tags?: string[]
     source?: string | null
     /**
-     * Only ever sent by the Add and Edit window, where somebody picked it.
+     * Only ever sent by New contact, where somebody picked it.
      * Left out means "do not touch it" on an existing contact and "on the
      * list" on a new one, so every other caller keeps behaving as before.
      */
@@ -385,8 +385,8 @@ export async function upsertWorkspaceContact(
         status: input.status ?? existing.status,
         // The date is the opt-out's own, so it is set when the new status is
         // "opted out" and cleared when it is anything else. Leaving a stale
-        // date on somebody who was put back makes the contact window say they
-        // opted out on a day they did not.
+        // date on somebody who was put back would say they opted out on a day
+        // they did not.
         unsubscribedAt: input.status
           ? input.status === "unsubscribed"
             ? (existing.unsubscribedAt ?? timestamp)
@@ -451,6 +451,53 @@ export async function setContactStatus(
         inArray(customShellContacts.id, contactIds)
       )
     )
+    .returning({ id: customShellContacts.id })
+  return updated.length
+}
+
+/**
+ * Replaces one contact's tags, found by id rather than by address, so a
+ * contact deleted in another tab is refused instead of being added again.
+ */
+export async function setWorkspaceContactTags(
+  workspaceId: string,
+  contactId: string,
+  tags: string[],
+  database: CustomShellDb = db
+): Promise<void> {
+  const updated = await database
+    .update(customShellContacts)
+    .set({ tags: cleanTags(tags), updatedAt: now() })
+    .where(
+      and(
+        eq(customShellContacts.workspaceId, workspaceId),
+        eq(customShellContacts.id, contactId)
+      )
+    )
+    .returning({ id: customShellContacts.id })
+  if (updated.length === 0) throw new Error("CONTACT_NOT_FOUND")
+}
+
+/**
+ * Sets the status of everybody the list's filters match, the way
+ * `deleteWorkspaceContactsMatching` deletes them: by the condition the list is
+ * drawn from, never a list of ids gathered earlier.
+ */
+export async function setContactStatusMatching(
+  workspaceId: string,
+  filter: ContactListFilter,
+  status: ContactSegmentStatus,
+  database: CustomShellDb = db
+) {
+  const timestamp = now()
+  const updated = await database
+    .update(customShellContacts)
+    .set({
+      status,
+      unsubscribedAt: status === "unsubscribed" ? timestamp : null,
+      updatedAt: timestamp,
+    })
+    .where(await contactFilterConditions(workspaceId, filter, database))
     .returning({ id: customShellContacts.id })
   return updated.length
 }

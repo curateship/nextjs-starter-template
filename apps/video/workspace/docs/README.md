@@ -133,8 +133,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   warning the second window shows, what read-only stops, and the
   "(unsaved edits)" project that keeps the work of whichever window saves
   second.
-- [longer-ai-clips.md](longer-ai-clips.md) — why one AI clip stops at eight
-  seconds, what Google's Veo 3.1 offers for a longer shot, and what it costs.
+- [longer-ai-clips.md](longer-ai-clips.md) — the video model (Gemini Omni
+  Flash, since Google switches Veo off on 22 Oct 2026), the Draft, Normal and
+  Sharp sizes and their prices, and how a shot longer than eight seconds is
+  made.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
 - [viral-projects.md](viral-projects.md) — Viral as projects, one niche
@@ -161,7 +163,7 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   person board, and what removing or deleting keeps.
 - [extras.md](extras.md) — clothing, backdrops, props and hair looks: the tabs
   on the Actors dashboard, the Extras button, the 4-picture person board, and
-  what the first frame and the Veo clip are sent.
+  what the first frame and the shot are sent.
 - [ai-clip.md](ai-clip.md) — the editor's AI clip panel: an actor, a first
   frame, a shot, then dragging it onto the timeline; what each step costs,
   where frames and shots are kept, and a carousel from first frames.

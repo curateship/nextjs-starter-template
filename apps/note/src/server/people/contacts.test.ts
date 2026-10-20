@@ -6,6 +6,8 @@ import { createWorkspaceSegment } from "@/server/people/contact-segments"
 import {
   deleteWorkspaceContactsMatching,
   listWorkspaceContacts,
+  setContactStatusMatching,
+  setWorkspaceContactTags,
 } from "@/server/people/contacts"
 import { type CustomShellDb } from "@/server/db"
 import {
@@ -691,5 +693,72 @@ describe("filtering by what they did with an email", () => {
     expect(
       await listed([{ type: "engaged", operator: "within", days: 30 }])
     ).toEqual([])
+  })
+})
+
+describe("setting the status of everybody the filter matches", () => {
+  it("changes exactly the people the same rules put on the list", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await insertContact("bob", { tags: ["beta"] })
+    await insertContact("cat")
+    await db.insert(customShellContacts).values({
+      id: "elsewhere",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "elsewhere@example.test",
+      status: "subscribed",
+      tags: ["beta"],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+    const conditions: SegmentCondition[] = [
+      { type: "tag", operator: "includes", tags: ["beta"] },
+    ]
+
+    expect(
+      await setContactStatusMatching(
+        WORKSPACE_ID,
+        { rules: { conditions } },
+        "unsubscribed",
+        db
+      )
+    ).toBe(2)
+    expect(
+      await listed([{ type: "status", operator: "is", status: "unsubscribed" }])
+    ).toEqual(["ada@example.test", "bob@example.test"])
+    const { contacts } = await listWorkspaceContacts(OTHER_WORKSPACE_ID, {}, db)
+    expect(contacts.map((contact) => contact.status)).toEqual(["subscribed"])
+  })
+})
+
+describe("saving one contact's tags", () => {
+  it("replaces the tags of that contact, found by id", async () => {
+    await insertContact("ada", { tags: ["old"] })
+    await setWorkspaceContactTags(WORKSPACE_ID, "ada", ["beta", " beta ", "vip"], db)
+    expect(await listed([{ type: "tag", operator: "includes", tags: ["vip"] }])).toEqual([
+      "ada@example.test",
+    ])
+    expect(await listed([{ type: "tag", operator: "includes", tags: ["old"] }])).toEqual([])
+  })
+
+  it("refuses a contact that is gone rather than adding them again", async () => {
+    await expect(
+      setWorkspaceContactTags(WORKSPACE_ID, "deleted-elsewhere", ["beta"], db)
+    ).rejects.toThrow("CONTACT_NOT_FOUND")
+    expect(await listed([])).toEqual([])
+  })
+
+  it("refuses another workspace's contact", async () => {
+    await db.insert(customShellContacts).values({
+      id: "theirs",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "theirs@example.test",
+      status: "subscribed",
+      tags: [],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+    await expect(
+      setWorkspaceContactTags(WORKSPACE_ID, "theirs", ["beta"], db)
+    ).rejects.toThrow("CONTACT_NOT_FOUND")
   })
 })

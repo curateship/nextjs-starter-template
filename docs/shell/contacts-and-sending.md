@@ -28,7 +28,9 @@ A status answers one question: can we still email this person?
 | `bounced` | Bouncing | Resend, reporting a refused address |
 | `complained` | Marked it spam | Resend, reporting a spam complaint |
 
-**All five can be set by hand**, from the dropdown in a contact's own window.
+**All five can be set by hand**, from the dropdown in the open contact's header
+on the Contacts dashboard, or for many people at once from Status in the "N
+selected" menu.
 That includes the two Resend reports. Marking a bouncing address as fine does not
 make the mail arrive, so it is not a repair, but an admin who knows a bounce was
 a full mailbox on one bad afternoon needs a way to say so. Nothing pretends: the
@@ -88,23 +90,18 @@ unopened, so nobody else's answer can have changed. On a 25,000 contact list a
 timed sweep would read every send ever recorded to work out what a batch of 200
 already knows.
 
-## The contacts list fits the window
+## The contacts list fits its panel
 
-The table is a `DashboardTable` with `fillHeight`, so the card is exactly as tall
-as the space it is given, the rows scroll inside it, and the column headings and
-the paging controls stay put.
+The contacts list is the middle panel of a three-column dashboard, so the page
+fills the window and the list scrolls inside its own panel, with the column
+headings and the paging controls staying put. It used to be a `DashboardTable`
+whose card hid what did not fit with `overflow-hidden`: on a 900px tall window
+the last four rows and the whole footer were out of reach (measured 4 Oct 2026).
 
-Without it the card is shrunk to the space left over and hides what does not fit,
-and it hides it with `overflow-hidden`, which nobody can scroll. On a 900px tall
-window that put the last four rows and the whole footer out of reach, so there
-was no way to change the page size or move to page two. Measured 4 Oct 2026:
-1,198px of content in an 812px card, 386px of it unreachable.
-
-**Every other admin table still has this.** `/admin/users` hides 333px the same
-way with a full page of rows. `fillHeight` is the fix and it is one word, but it
-changes how a short list looks — the card fills the window whether it holds
-twenty rows or one — so it is turned on per screen rather than everywhere at
-once.
+The columns hide by the panel's width, not the window's, because the panel is
+about half the window. At 646px wide the list shows Email, Status and Actions;
+Name, Tags, Last emailed and Added join as the panel widens, and on a phone
+Status goes too, since the open contact's header shows it.
 
 A row is as tall as its tallest cell, which is why the tags column stops after
 three and offers "+N more". An imported contact carrying 74 tags made one row 74
@@ -164,6 +161,15 @@ The contacts list's own filters are written in exactly the same rules, and go
 through the same code, so the list you filtered down to and a segment saved from
 it can never mean two different things. That matters because two of the things
 that read a filter delete people.
+
+Segments live on the Contacts dashboard, not a page of their own (Tyler, 19 Oct
+2026: "We have to combine both the contacts and segment into one 3 col
+dashboard"). They work like saved views: pressing one in the left panel applies
+it to the list, and Filter saves the list's rules as a new segment or updates
+the open one. `/admin/segments` only forwards to `/admin/contacts`, with
+`?open=<id>` becoming `?segment=<id>`, and the left menu has no Segments link.
+The app's own doc, `apps/shell/workspace/docs/people/users-contacts-and-segments.md`,
+describes the screen.
 
 ## One list of statuses, in one file
 

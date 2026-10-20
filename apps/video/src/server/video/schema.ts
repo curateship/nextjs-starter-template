@@ -805,7 +805,7 @@ export const videoFirstFrames = pgTable(
 )
 
 /**
- * A durable Veo request. The background worker owns queued/processing rows, so
+ * A durable AI shot request. The background worker owns queued/processing rows, so
  * leaving or reloading the dashboard does not cancel the provider operation.
  *
  * One row is one piece of a shot. A shot longer than 8 seconds is several
@@ -833,6 +833,8 @@ export const videoAiGenerations = pgTable(
     model: varchar("model", { length: 100 }).notNull(),
     aspectRatio: varchar("aspect_ratio", { length: 8 }).notNull(),
     durationSeconds: integer("duration_seconds").notNull(),
+    // The picture size asked for (drizzle/0125). Every Veo piece was 720p.
+    resolution: varchar("resolution", { length: 8 }).notNull().default("720p"),
     shotId: varchar("shot_id", { length: 36 }).notNull(),
     shotIndex: integer("shot_index").notNull(),
     shotPieces: integer("shot_pieces").notNull(),
