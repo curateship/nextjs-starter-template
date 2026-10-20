@@ -23,6 +23,7 @@ import type {
   NoteFilters,
   NotePriority,
   NoteSource,
+  PinnedRow,
   PlanStep,
   PostPicture,
   PostVideoStatus,
@@ -57,7 +58,9 @@ export const noteLibraries = pgTable(
     avatarUrl: text("avatar_url"),
     bannerUrl: text("banner_url"),
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
-    /** When its dashboard was last opened, which the Save from x.com button saves into. */
+    /** The LIBRARY card's rows pinned to its Pinned card, each with when. */
+    pinnedRows: jsonb("pinned_rows").$type<PinnedRow[]>().notNull().default([]),
+    /** When its dashboard was last opened, which the Save to Note button saves into. */
     lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -79,6 +82,8 @@ export const noteFolders = pgTable(
     name: varchar("name", { length: 80 }).notNull(),
     source: varchar("source", { length: 20 }).$type<ImportSource>(),
     position: integer("position").notNull().default(0),
+    /** Pinned to the Pinned card above LIBRARY. Empty means not pinned. */
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -158,6 +163,8 @@ export const noteNotes = pgTable(
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }),
+    /** Where the saved video or sound was stopped, in whole seconds. Empty means from the start. */
+    playedSeconds: integer("played_seconds"),
     revision: integer("revision").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -173,7 +180,7 @@ export const noteNotes = pgTable(
     check("ck_note_notes_priority", sql`${table.priority} in ('high', 'normal', 'low')`),
     check(
       "ck_note_notes_source",
-      sql`${table.source} in ('note', 'youtube_long', 'youtube_short', 'instagram', 'tiktok', 'x')`
+      sql`${table.source} in ('note', 'youtube_long', 'youtube_short', 'instagram', 'tiktok', 'x', 'threads', 'linkedin', 'facebook', 'reddit')`
     ),
     check(
       "ck_note_notes_import_status",

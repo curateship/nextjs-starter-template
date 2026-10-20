@@ -18,6 +18,7 @@ import { cleanHighlights, type Highlight, type HighlightPart } from "@/lib/note/
 import { EMPTY_BODY } from "@/lib/note/notes/body"
 import {
   isAnalysing,
+  isPostSource,
   LIBRARY_SAYS,
   MANY_AT_ONCE_MAX,
   noteTitle,
@@ -131,13 +132,12 @@ async function cardOf(ownerId: string, id: string): Promise<NoteCard> {
 }
 
 /**
- * The Save from x.com button: the post goes into the X/Twitter folder of the
- * library opened last. Its key must be this person's own (`save-key.ts`).
+ * The Save to Note button, and the iPhone Shortcut that opens the same
+ * address: any link the Import menu takes goes into its source's folder in
+ * the library opened last. Its key must be this person's own (`save-key.ts`).
  */
-export async function saveFromX(ownerId: string, url: string, key: string): Promise<ImportResult> {
+export async function saveFromLink(ownerId: string, url: string, key: string): Promise<ImportResult> {
   requireSaveKey(ownerId, key)
-  const link = readImportLink(url)
-  if (link.source !== "x") throw new Error(LIBRARY_SAYS.notALink)
   return importLink(ownerId, { libraryId: await libraryForSaving(ownerId), url })
 }
 
@@ -249,7 +249,7 @@ function analyseRefusal(
   if (row.mergedFrom) return row.analyseStatus === "failed" ? null : LIBRARY_SAYS.notAnImport
   if (row.source === "note" || row.importStatus === null) return LIBRARY_SAYS.notAnImport
   if (row.importStatus !== "saved") return LIBRARY_SAYS.notImported
-  if (row.source === "x") {
+  if (isPostSource(row.source)) {
     if (row.postText === null) return LIBRARY_SAYS.notImported
     if (row.videoStatus === "waiting" || row.videoStatus === "downloading") return LIBRARY_SAYS.videoStillSaving
     return null
@@ -409,17 +409,18 @@ export async function savePlan(ownerId: string, id: string, steps: PlanStep[]): 
   return cardOf(ownerId, id)
 }
 
-/** The words of each part of an X post a highlight can sit on. */
-function partTextOf(row: Pick<NoteRow, "postText" | "quoted" | "thread">) {
+/** The words of each part a highlight can sit on: an X post's parts, or one transcript line. */
+function partTextOf(row: Pick<NoteRow, "postText" | "quoted" | "thread" | "transcript">) {
   return (part: HighlightPart): string | null => {
     if (part === "post") return row.postText
     if (part === "quoted") return row.quoted?.text ?? null
+    if (part.startsWith("line-")) return row.transcript?.[Number(part.slice("line-".length))]?.text ?? null
     const index = Number(part.slice("thread-".length))
     return row.thread?.[index]?.text ?? null
   }
 }
 
-/** The highlights as they now stand. Only ones that fit the post's own words are kept. */
+/** The highlights as they now stand. Only ones that fit the saved words are kept. */
 export async function saveHighlights(ownerId: string, id: string, highlights: Highlight[]): Promise<NoteCard> {
   const row = await requireNote(ownerId, id)
   const clean = cleanHighlights(highlights, partTextOf(row))

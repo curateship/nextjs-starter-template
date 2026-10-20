@@ -4,12 +4,12 @@ import { LibraryDashboard } from "@/components/note-library/library-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { getLibraryErrorMessage, loadLibrary } from "@/lib/api/note/library"
 import { loadNotes } from "@/lib/api/note/notes"
-import { filtersOf, readLibrarySearch, scopeOf } from "@/lib/note/library/address"
+import { filtersOf, readLibrarySearch, scopeOf, sortOf } from "@/lib/note/library/address"
 
 /**
  * One library's dashboard: folders and authors on the left, its notes in the
  * middle, the open note on the right. The folder, author, search, filters,
- * saved view and open note live in the address, so a reload and a bell notice
+ * saved view, sort and open note live in the address, so a reload and a bell notice
  * come back to the same place.
  */
 export const Route = createFileRoute("/_authenticated/library/$libraryId")({
@@ -21,7 +21,13 @@ export const Route = createFileRoute("/_authenticated/library/$libraryId")({
     const search = readLibrarySearch(location.search as Record<string, unknown>)
     const [page, list] = await Promise.all([
       loadLibrary(params.libraryId),
-      loadNotes({ libraryId: params.libraryId, scope: scopeOf(search), search: search.q, filters: filtersOf(search) }),
+      loadNotes({
+        libraryId: params.libraryId,
+        scope: scopeOf(search),
+        search: search.q,
+        filters: filtersOf(search),
+        sort: sortOf(search),
+      }),
     ])
     return { page, list }
   },

@@ -7,7 +7,7 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Textarea } from "@/components/ui/textarea"
-import { SaveFromXButton } from "@/components/note-library/save-from-x-button"
+import { IphoneShortcutSteps, SaveToNoteButton } from "@/components/note-library/save-to-note"
 import { getLibraryErrorMessage } from "@/lib/api/note/library"
 import { loadAboutYou, saveAboutYouLine } from "@/lib/api/note/settings"
 import { ABOUT_YOU_MAX } from "@/lib/note/library/notes"
@@ -26,8 +26,8 @@ let held: string | null = null
 /**
  * Settings → App settings → Library: the one line every imported note's plan
  * is written for (Tyler, 19 Oct 2026: "One line for the whole app"), which
- * saves itself as you type with no button, and the Save from x.com button to
- * drag to the bookmarks bar.
+ * saves itself as you type with no button, the Save to Note button to drag to
+ * the bookmarks bar, and the steps for the same thing from an iPhone.
  */
 export default function LibrarySettingsTab() {
   const [text, setText] = React.useState(() => held ?? "")
@@ -139,12 +139,19 @@ export default function LibrarySettingsTab() {
       </CollapsibleSettingsCard>
       <CollapsibleSettingsCard
         storageId="note-library-save-from-x"
-        title="Save from x.com"
-        description="Drag this button to your bookmarks bar once. On any X post, click it and the post is imported into the X/Twitter folder of the library you opened last."
+        title="Save to Note"
+        description="Drag this button to your bookmarks bar once. On a YouTube, Instagram, TikTok, X, LinkedIn, Facebook or Reddit page, click it and the link is imported into its own folder in the library you opened last."
       >
         <div className="max-w-60">
-          <SaveFromXButton />
+          <SaveToNoteButton />
         </div>
+      </CollapsibleSettingsCard>
+      <CollapsibleSettingsCard
+        storageId="note-library-save-from-iphone"
+        title="Save from your iPhone"
+        description="An Apple Shortcut puts Save to Note in your iPhone's Share menu. Make it once with these steps."
+      >
+        <IphoneShortcutSteps />
       </CollapsibleSettingsCard>
     </CardGroup>
   )

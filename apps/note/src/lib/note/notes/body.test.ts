@@ -90,6 +90,24 @@ describe("cleanNoteBody", () => {
     expect(JSON.stringify(cleaned)).not.toContain("evil")
   })
 
+  it("keeps a video time and drops one that is not a whole number within a day", () => {
+    const cleaned = cleanNoteBody(
+      doc(
+        p(
+          { type: "videoTime", attrs: { ms: 252_000 } },
+          text(" the pricing trick"),
+          { type: "videoTime", attrs: { ms: -1 } },
+          { type: "videoTime", attrs: { ms: 1.5 } },
+          { type: "videoTime", attrs: { ms: "252000" } },
+          { type: "videoTime", attrs: { ms: 25 * 60 * 60 * 1000 } }
+        )
+      )
+    )
+    const times = (cleaned.content?.[0]?.content ?? []).filter((node) => node.type === "videoTime")
+    expect(times).toEqual([{ type: "videoTime", attrs: { ms: 252_000 } }])
+    expect(noteBodyFacts(cleaned).text).toBe("4:12 the pricing trick")
+  })
+
   it("refuses a block the editor does not have", () => {
     expect(() => cleanNoteBody(doc({ type: "script", content: [] }))).toThrow(BODY_SAYS.unreadable)
     expect(() => cleanNoteBody({ type: "paragraph" })).toThrow(BODY_SAYS.unreadable)

@@ -1,4 +1,4 @@
-import { MusicIcon, SmartphoneIcon, SquarePlayIcon, XIcon } from "lucide-react"
+import { AtSignIcon, BriefcaseBusinessIcon, MessagesSquareIcon, MusicIcon, SmartphoneIcon, SquarePlayIcon, UsersRoundIcon, XIcon } from "lucide-react"
 
 import {
   LIBRARY_COLOUR_DOT,
@@ -51,5 +51,13 @@ export function SourceIcon({ source, className }: { source: ImportSource; classN
       return <MusicIcon className={iconClass} aria-hidden />
     case "x":
       return <XIcon className={iconClass} aria-hidden />
+    case "threads":
+      return <AtSignIcon className={iconClass} aria-hidden />
+    case "linkedin":
+      return <BriefcaseBusinessIcon className={iconClass} aria-hidden />
+    case "facebook":
+      return <UsersRoundIcon className={iconClass} aria-hidden />
+    case "reddit":
+      return <MessagesSquareIcon className={iconClass} aria-hidden />
   }
 }

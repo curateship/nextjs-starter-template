@@ -155,6 +155,7 @@ export async function toDetail(row: NoteRow, folderName: string | null): Promise
   return {
     ...toCard(row, folderName),
     body: row.body,
+    playedSeconds: row.playedSeconds,
     revision: row.revision,
     words: row.words,
     linkedFrom,

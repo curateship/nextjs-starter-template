@@ -69,7 +69,7 @@ missing.
 | `CUSTOM_SHELL_APP_URL` | `https://note.barelycompany.com` |
 | `CUSTOM_SHELL_APP_ORIGINS` | `https://note.barelycompany.com`, website only |
 | `CUSTOM_SHELL_API_ENV` | `production` |
-| `CUSTOM_SHELL_SECRET_ENCRYPTION_KEY` | Made once on 20 Oct 2026. Never change it: every saved key, the AI keys included, would become unreadable, and every Save from x.com button would stop working. |
+| `CUSTOM_SHELL_SECRET_ENCRYPTION_KEY` | Made once on 20 Oct 2026. Never change it: every saved key, the AI keys included, would become unreadable, and every Save to Note button and iPhone Shortcut would stop working. |
 | `CUSTOM_SHELL_RESEND_API_KEY`, `CUSTOM_SHELL_EMAIL_FROM` | The sending key above, `Note <hello@barelycompany.com>` |
 | `CUSTOM_SHELL_TURNSTILE_SITE_KEY`, `CUSTOM_SHELL_TURNSTILE_SECRET_KEY` | The "Note" widget |
 | `CUSTOM_SHELL_R2_ACCOUNT_ID`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY`, `_BUCKET_NAME`, `_PUBLIC_URL` | The `note` bucket and its own key |

@@ -5,10 +5,10 @@ import { runAiCall } from "@/server/ai/usage"
 import { generateJson } from "@/server/note/gemini"
 import type { NoteRow } from "@/server/note/schema"
 import { formatDate } from "@/lib/format/format-time"
-import type { PlanStep, Quote } from "@/lib/note/library/notes"
+import { SOURCE_SITE, type PlanStep, type Quote } from "@/lib/note/library/notes"
 
 /**
- * What Gemini is asked about an imported X post, in one call: the post's
+ * What Gemini is asked about an imported X or Threads post, in one call: the post's
  * words, the post it quotes, the rest of its thread, what was said in its
  * video, and its pictures, so the words inside a screenshot or a chart count
  * too. It writes the summary, the action plan, the best lines and the tags.
@@ -76,7 +76,7 @@ function postPrompt(row: NoteRow, aboutYou: string, pictureCount: number) {
     ? `Write the plan for someone who: ${aboutYou.trim()}`
     : "Write the plan for a person who saved this post to act on it."
 
-  return `Below is a post from X that a person saved, with everything that goes with it.
+  return `Below is a post from ${SOURCE_SITE[row.source] || "X"} that a person saved, with everything that goes with it.
 
 Write everything in English, whatever language the post is in.
 ${forWhom}

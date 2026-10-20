@@ -10,18 +10,22 @@ Posts became notes kept in libraries.
   libraries, pins, New library, Library settings, deleting a library, and the
   one Library link in the left menu.
 - [library-dashboard.md](library-dashboard.md): one library's three-column
-  dashboard. Folders, Authors, Recently opened and Tags on the left, the notes
-  table with search, Filter, Views and mass select in the middle, the open
-  note on the right, moving notes between libraries, and Trash.
+  dashboard. Pinned folders, the folding LIBRARY card, Plan steps and Quotes,
+  Folders, Authors, Recently opened and Tags on the left, renaming and merging
+  tags and authors, the notes table with search, Filter, Views, sorting and
+  mass select in the middle, the open note on the right with the player's
+  speed and remembered place, Duplicate, Download video, moving notes between
+  libraries, and Trash.
 - [importing-a-note.md](importing-a-note.md): the Import dropdown, which links
   work, the folder each source files into, the `note-imports` worker, failures,
-  Save from x.com, and what a deploy needs.
+  Save to Note and the iPhone Shortcut, and what a deploy needs.
 - [analysing-a-note.md](analysing-a-note.md): the Analyse button and its price,
-  what the AI is asked for a video and for an X post, the Summary, Action plan
-  and Quotes cards, Analyse many, One plan from many, and the bell.
+  what the AI is asked for a video and for an X post, the Summary, Action plan,
+  Quotes and Transcript cards, Add to note, transcript highlights, Analyse
+  many, One plan from many, and the bell.
 - [note-editor.md](note-editor.md): the note editor's blocks, the "/" menu,
-  links between notes, pictures, saving with the revision check and the
-  offline copy, and History.
+  video times, links between notes, pictures, saving with the revision check
+  and the offline copy, and History.
 - [launch.md](launch.md): the live site on note.barelycompany.com. Where it
   runs, every live value, why the worker needs curl_cffi, how to deploy, and
   the release record.

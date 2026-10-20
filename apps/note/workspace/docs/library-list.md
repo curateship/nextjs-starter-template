@@ -26,7 +26,7 @@ His answers, in his words where he gave words. They outrank the code.
 - A library has no status and no lead, since it has nothing to measure.
 - Deleting a library asks first, says how many notes go with it, and deletes
   them for good. There is no Trash for libraries.
-- The Save from x.com button saves into the library opened last, or makes one
+- The Save to Note button saves into the library opened last, or makes one
   called "My library" for somebody with none.
 
 ## The table
@@ -70,4 +70,4 @@ loses the three. `/library` is not under `/admin`, so members see it.
 - Server functions: `src/lib/api/note/library.ts`, every one on `userGet` or
   `userPost`, scoped to the signed-in person.
 - Route: `src/routes/_authenticated/library.index.tsx`. Its `?save=` is the
-  Save from x.com button's link (`importing-a-note.md`).
+  Save to Note button's and the iPhone Shortcut's link (`importing-a-note.md`).

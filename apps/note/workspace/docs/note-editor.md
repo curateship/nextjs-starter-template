@@ -39,17 +39,36 @@ leaves the shell file untouched.
 - **Highlight and text colour**: six of each in the bar over selected text. Each
   is stored as a name and has a dark-mode shade (`src/lib/note/notes/colours.ts`).
 - **Links to other notes**, typed with "[[" (below).
+- **Video times**: a small chip such as "▶ 4:12" for a moment in the note's own
+  video. Clicking it plays the video from there. On a note with no video now
+  (removed with the bin) it shows the time and does nothing.
 
 ## Ways in
 
 - **"/"** at the start of a line or after a space opens the block list: Text,
   Heading 1 to 3, Bulleted list, Numbered list, Checklist, Toggle, Callout,
-  Quote, Code, Divider, Table, Image, Link to a note. Typing narrows it, arrows
+  Quote, Code, Divider, Table, Image, Link to a note, and Video time while the
+  note's video can play. Typing narrows it, arrows
   move, Enter picks, Escape closes.
 - **The toolbar above the text** has the same blocks as buttons.
 - **The bar over selected text** has bold, italic, strikethrough, inline code,
   link, highlight and text colour. The colours open as a second row in the same
   bar.
+
+## Video times
+
+`VideoTime` in `src/lib/note/notes/body.ts`, drawn by `VideoTimeView` in the
+editor.
+
+- **"Add time to note"** under the player puts the player's time at the cursor,
+  or on a new line at the end when the text was never clicked into.
+- **"/" Video time** does the same, offered only while the note's video can
+  play, with the time it is at as the hint.
+- **Only the time is stored**, in whole milliseconds. The server drops a time
+  that is not a whole number from 0 to a day.
+- **Markdown** writes it as "[4:12]". Reading Markdown back in leaves "[4:12]"
+  as plain words.
+- **Search and the word count** read it as "4:12".
 
 ## Links between notes
 

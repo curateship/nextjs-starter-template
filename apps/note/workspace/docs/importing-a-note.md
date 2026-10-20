@@ -1,7 +1,7 @@
 # Importing a note
 
 The Import dropdown in a library's middle header brings in a YouTube, Instagram,
-TikTok or X link as a note. The click only writes the note and returns; the slow
+TikTok, X, Threads, LinkedIn, Facebook or Reddit link as a note. The click only writes the note and returns; the slow
 part happens in the `note-imports` worker, so closing the browser never stops
 an import.
 
@@ -19,6 +19,11 @@ an import.
   post, the pictures and the video, read from X's own post page. Highlights and
   the Save from x.com button stay.
 - Importing never spends AI money. ("Only on the button")
+- Threads, LinkedIn, Facebook and Reddit join the menu, after his five.
+  LinkedIn, Facebook and Reddit are videos only. yt-dlp has no reader for
+  Threads, so Threads has a page reader of its own, as X does. ("build page
+  reader for threads too")
+- Saving from his iPhone is an Apple Shortcut. ("iPhone")
 - The author is read from the link, and can be edited. ("Read from link but I
   can edit it")
 
@@ -45,8 +50,21 @@ an import.
   `/t/` links, which only say which video they are once followed.
 - **X/Twitter**: `x.com` and `twitter.com` `/<handle>/status/<id>` and
   `/i/status/<id>`, with or without `?s=` on the end.
-- **Anything else** is refused: "That link isn't from YouTube, Instagram, TikTok
-  or X."
+- **LinkedIn**: `linkedin.com/posts/…-activity-<id>-…` and
+  `/feed/update/urn:li:activity:<id>`. A profile or a page is refused.
+- **Facebook**: `/watch?v=<id>`, `/reel/<id>`, `/<page>/videos/<id>`, and the
+  share links `/share/v/…`, `/share/r/…` and `fb.watch/…`, which only say which
+  video they are once followed.
+- **Reddit**: `/r/<community>/comments/<id>/…` on `www.`, `old.`, `new.` or
+  `m.reddit.com`, `redd.it/<id>`, and the share link `/r/<community>/s/…`.
+- **Threads**: `threads.com/@<handle>/post/<code>` and the older `threads.net`
+  address, kept as the one `https://www.threads.com/…` address, so a post is
+  one note whichever way it was pasted. A profile is refused.
+- **LinkedIn, Facebook and Reddit are saved as videos**, the way YouTube and
+  TikTok are: yt-dlp downloads the post's video. A post with no video fails
+  with yt-dlp's own sentence. The post's words are not read, as X's are.
+- **Anything else** is refused: "That link isn't from YouTube, Instagram,
+  TikTok, X, LinkedIn, Facebook or Reddit."
 - **A link already in the library** opens that note. One in Trash is brought
   back out, and the toast says so.
 
@@ -67,6 +85,19 @@ an import.
    posts, the quoted post and the like and repost counts. The note's title is
    the post's first line. A post with a video then downloads it the same way
    while the words are already there to read.
+4. **A Threads link**: the worker reads the post's page
+   (`src/server/note/library/threads-reader.ts`) the way a link preview does,
+   as Facebook's preview fetcher, since a Threads page fetched as a browser is
+   an empty shell filled in by a script. That page carries the author's name
+   and handle and the post's words in full, which the note keeps, titled with
+   the first line, in a Post card like an X post's. A signed-out reader gets
+   nothing else: no pictures (the one preview picture is a card Threads draws
+   of the words, so it is not kept), no video, no replies, no likes and no
+   date. A private or deleted post gets Threads' log-in page instead, and the
+   card says "Threads didn't show this post. It may be private or deleted, or
+   Threads changed its page." Read on 20 Oct 2026 from a Mac against two real
+   posts; whether Threads answers the live server the same way is not yet
+   checked.
 5. **A shortened TikTok link that turns out to be a video already in the
    library** stops with "That link is already in this library", and nothing
    typed is lost.
@@ -105,22 +136,37 @@ workers.
 - An X post whose video failed keeps its words and offers "Try the video again".
 - Each failure rings the bell once, with the reason under it.
 
-## Save from x.com
+## Save to Note
 
 A bookmark button, dragged once to the browser's bookmarks bar from Settings →
-App settings → Library. Clicked on an X post it opens
-`/library?key=<key>&save=<link>` in a new tab, which imports the post into the
-X/Twitter folder of the library opened last (or a new "My library") and opens
-it there.
+App settings → Library (`src/components/note-library/save-to-note.tsx`). It was
+"Save from x.com" until 20 Oct 2026; a button dragged before keeps working,
+since its key is the same. Clicked on a YouTube, Instagram, TikTok, X,
+LinkedIn, Facebook or Reddit page it opens `/library?key=<key>&save=<link>` in
+a new tab, which imports the link into its own source's folder of the library
+opened last (or a new "My library") and opens it there (`saveFromLink` in
+`src/server/note/library/imports.ts`).
+
+## Save from your iPhone
+
+An iPhone does not let a website appear in its Share menu, so an Apple Shortcut
+does it. The "Save from your iPhone" card under Save to Note lists the steps
+and the person's own address with a Copy button: a Shortcut shown in the Share
+Sheet that takes URLs, URL-encodes the shared link, puts it after the address,
+and opens the result. That is the same `/library?key=<key>&save=<link>` the
+bookmark opens, so nothing on the server is new. The address holds the
+person's key, which the card's label says to keep to themselves. An Android
+Share menu entry would need a change to the shell's manifest and was not
+asked for.
 
 - **The key is the person's own** (`src/server/note/library/save-key.ts`): a
   code made from the server's secret and their account, built into their
   button. The page imports with no click, so without it another site could send
   a signed-in member there and import a post of its choosing. A missing or
-  wrong key says "This Save from x.com button is not yours, or is an old one.
+  wrong key says "This Save to Note button is not yours, or is an old one.
   Drag it again from Settings → App settings → Library."
 - **It needs `CUSTOM_SHELL_SECRET_ENCRYPTION_KEY`**, the same secret saved AI
-  keys use. Without it the button says so instead of saving.
+  keys use. Without it the button and the Shortcut say so instead of saving.
 
 ## What removing or deleting takes
 
@@ -135,7 +181,9 @@ media library, where they can be deleted by hand.
 - Migrations `0102_note_library.sql` (drops the old Videos, Notes and Posts
   tables and makes the library ones) and `0103_note_library_menu.sql` (the
   Library link) run on the way in. **0102 deletes every saved video, post and
-  note**, as Tyler asked.
+  note**, as Tyler asked. `0104_note_pins_and_play_place.sql` adds the folder
+  and row pins, the video's place and the three newer sources, and deletes
+  nothing.
 - `WORKER_PACKAGES="ffmpeg yt-dlp"` and `WORKER_PIP_PACKAGES="curl_cffi"` on
   the worker image, both build time. Alpine's yt-dlp comes without curl_cffi,
   and without it `--impersonate chrome` stops every download. `launch.md` has

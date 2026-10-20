@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react"
+import { act, createRef } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type { Editor } from "@tiptap/core"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -13,7 +13,7 @@ vi.mock("@/lib/api/media/media", () => ({
   getMediaErrorMessage: () => "Upload failed",
 }))
 
-import { NoteEditor } from "@/components/note-library/note-editor"
+import { NoteEditor, type NoteEditorHandle } from "@/components/note-library/note-editor"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 /**
@@ -27,6 +27,11 @@ let root: Root
 
 beforeEach(() => {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  // jsdom lays nothing out, so the editor's scroll to the cursor gets empty boxes.
+  const empty = () => ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] }) as unknown as DOMRectList
+  Range.prototype.getClientRects ??= empty
+  Range.prototype.getBoundingClientRect ??= () => new DOMRect()
+  Element.prototype.getClientRects ??= empty
   host = document.createElement("div")
   document.body.appendChild(host)
   root = createRoot(host)
@@ -187,5 +192,64 @@ describe("NoteEditor", () => {
     expect(option?.textContent).toContain("Reading list")
     await act(async () => option?.click())
     expect(JSON.stringify(editor.getJSON())).toContain('"type":"noteLink","attrs":{"id":"n2","label":"Reading list"}')
+  })
+
+  it("draws a video time as a chip that plays from there, and only shows it with no video", async () => {
+    const played: number[] = []
+    const withTime = { type: "doc", content: [p({ type: "videoTime", attrs: { ms: 252_000 } }, text(" the pricing trick"))] }
+    await draw(
+      <NoteEditor libraryId="l1" noteId="n1" editable initial={withTime} linkTitles={{}} onSeek={(ms) => played.push(ms)} />
+    )
+    const chip = host.querySelector<HTMLButtonElement>('button[aria-label="Play from 4:12"]')
+    expect(chip?.textContent).toBe("4:12")
+    await act(async () => chip?.click())
+    expect(played).toEqual([252_000])
+
+    await draw(<NoteEditor libraryId="l1" noteId="n1" editable initial={withTime} linkTitles={{}} />)
+    expect(host.querySelector('button[aria-label="Play from 4:12"]')).toBeNull()
+    expect(host.textContent).toContain("4:12 the pricing trick")
+  })
+
+  it("puts a time on a new line at the end, and a quote with its time after it", async () => {
+    const handle = createRef<NoteEditorHandle>()
+    await draw(
+      <NoteEditor ref={handle} libraryId="l1" noteId="n1" editable initial={{ type: "doc", content: [p(text("Mine"))] }} linkTitles={{}} />
+    )
+    await act(async () => handle.current?.insertTime(65_000))
+    await act(async () => handle.current?.insertQuote("they have really long trunks", 4000))
+    const content = editorOf().getJSON().content ?? []
+    expect(content[1]).toEqual({ type: "paragraph", content: [{ type: "videoTime", attrs: { ms: 65_000 } }, text(" ")] })
+    expect(content[2]).toEqual({
+      type: "blockquote",
+      content: [{ type: "paragraph", content: [text("they have really long trunks "), { type: "videoTime", attrs: { ms: 4000 } }] }],
+    })
+  })
+
+  it("offers Video time in the / menu only while a video can play", async () => {
+    await draw(
+      <NoteEditor
+        libraryId="l1"
+        noteId="n1"
+        editable
+        initial={{ type: "doc", content: [p()] }}
+        linkTitles={{}}
+        videoTimeNow={() => 90_000}
+      />
+    )
+    const editor = editorOf()
+    await act(async () => {
+      editor.chain().focus().insertContent("/video").run()
+    })
+    const option = document.body.querySelector<HTMLButtonElement>('[role="listbox"][aria-label="Blocks"] [role="option"]')
+    expect(option?.textContent).toContain("Video time")
+    expect(option?.textContent).toContain("1:30")
+    await act(async () => option?.click())
+    expect(JSON.stringify(editor.getJSON())).toContain('"type":"videoTime","attrs":{"ms":90000}')
+
+    await draw(<NoteEditor libraryId="l1" noteId="n1" editable initial={{ type: "doc", content: [p()] }} linkTitles={{}} />)
+    await act(async () => {
+      editorOf().chain().focus().insertContent("/video").run()
+    })
+    expect(document.body.querySelector('[role="listbox"][aria-label="Blocks"] [role="option"]')).toBeNull()
   })
 })

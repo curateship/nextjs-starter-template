@@ -33,6 +33,7 @@ import {
   type LibraryPage,
   type LibraryRow,
   type NoteFilters,
+  type PinnableRow,
 } from "@/lib/note/library/notes"
 
 /**
@@ -167,6 +168,28 @@ export async function pinLibrary(ownerId: string, id: string, pinned: boolean): 
 }
 
 /**
+ * Pins one of the LIBRARY card's own rows to the Pinned card, or takes it off
+ * (Tyler, 20 Oct 2026: "I should be able to pin library folders too").
+ * Pinning one already pinned keeps its place.
+ */
+export async function pinLibraryRowToCard(ownerId: string, libraryId: string, row: PinnableRow, pinned: boolean) {
+  await db.transaction(async (tx) => {
+    const [library] = await tx
+      .select({ pinnedRows: noteLibraries.pinnedRows })
+      .from(noteLibraries)
+      .where(and(eq(noteLibraries.id, libraryId), eq(noteLibraries.ownerId, ownerId)))
+      .for("update")
+    if (!library) throw new Error(LIBRARY_SAYS.libraryNotFound)
+    const already = library.pinnedRows.some((each) => each.row === row)
+    if (pinned === already) return
+    const pinnedRows = pinned
+      ? [...library.pinnedRows, { row, pinnedAt: now().toISOString() }]
+      : library.pinnedRows.filter((each) => each.row !== row)
+    await tx.update(noteLibraries).set({ pinnedRows }).where(eq(noteLibraries.id, libraryId))
+  })
+}
+
+/**
  * Deletes the library and every note in it for good, with their saved files.
  * There is no Trash for libraries; the confirm said how many notes go.
  */
@@ -218,7 +241,7 @@ export async function loadLibraryPage(ownerId: string, id: string): Promise<Libr
   const live = and(eq(noteNotes.libraryId, id), isNull(noteNotes.deletedAt))
   const shown = and(live, isNull(noteNotes.archivedAt))
 
-  const [library, folders, folderCounts, counts, authors, tags, recent, views, templates, others] =
+  const [library, folders, folderCounts, counts, authors, tags, recent, views, templates, others, pins] =
     await Promise.all([
       libraryRow(ownerId, id),
       db.select().from(noteFolders).where(eq(noteFolders.libraryId, id)).orderBy(asc(noteFolders.position), asc(noteFolders.name)),
@@ -233,6 +256,12 @@ export async function loadLibraryPage(ownerId: string, id: string): Promise<Libr
           loose: sql<number>`count(*) filter (where ${noteNotes.deletedAt} is null and ${noteNotes.archivedAt} is null and ${noteNotes.folderId} is null)`,
           archived: sql<number>`count(*) filter (where ${noteNotes.deletedAt} is null and ${noteNotes.archivedAt} is not null)`,
           trash: sql<number>`count(*) filter (where ${noteNotes.deletedAt} is not null)`,
+          // Unticked plan steps, and quotes plus highlighted transcript lines, on shown notes.
+          openSteps: sql<number>`coalesce(sum(case when jsonb_typeof(${noteNotes.actionPlan}) = 'array' then jsonb_array_length(jsonb_path_query_array(${noteNotes.actionPlan}, '$[*] ? (@.done == false)')) end) filter (where ${noteNotes.deletedAt} is null and ${noteNotes.archivedAt} is null), 0)`,
+          quotes: sql<number>`coalesce(sum(
+            (case when jsonb_typeof(${noteNotes.quotes}) = 'array' then jsonb_array_length(${noteNotes.quotes}) else 0 end)
+            + (case when jsonb_typeof(${noteNotes.highlights}) = 'array' then jsonb_array_length(jsonb_path_query_array(${noteNotes.highlights}, '$[*] ? (@.part starts with "line-")')) else 0 end)
+          ) filter (where ${noteNotes.deletedAt} is null and ${noteNotes.archivedAt} is null), 0)`,
         })
         .from(noteNotes)
         .where(eq(noteNotes.libraryId, id)),
@@ -272,6 +301,7 @@ export async function loadLibraryPage(ownerId: string, id: string): Promise<Libr
         .from(noteLibraries)
         .where(and(eq(noteLibraries.ownerId, ownerId), ne(noteLibraries.id, id)))
         .orderBy(asc(noteLibraries.name)),
+      db.select({ pinnedRows: noteLibraries.pinnedRows }).from(noteLibraries).where(eq(noteLibraries.id, id)),
     ])
 
   const countOf = new Map(folderCounts.map((row) => [row.folderId, Number(row.total)]))
@@ -285,6 +315,7 @@ export async function loadLibraryPage(ownerId: string, id: string): Promise<Libr
         source: folder.source,
         position: folder.position,
         noteCount: countOf.get(folder.id) ?? 0,
+        pinnedAt: folder.pinnedAt?.toISOString() ?? null,
       })
     ),
     counts: {
@@ -292,6 +323,8 @@ export async function loadLibraryPage(ownerId: string, id: string): Promise<Libr
       loose: Number(totals?.loose ?? 0),
       archived: Number(totals?.archived ?? 0),
       trash: Number(totals?.trash ?? 0),
+      openSteps: Number(totals?.openSteps ?? 0),
+      quotes: Number(totals?.quotes ?? 0),
     },
     authors: await Promise.all(
       authors.map(async (author) => ({
@@ -306,6 +339,7 @@ export async function loadLibraryPage(ownerId: string, id: string): Promise<Libr
     views: views.map((view) => ({ id: view.id, name: view.name, filters: view.filters, position: view.position })),
     templates,
     otherLibraries: others.map((other) => ({ ...other, colour: cleanColour(other.colour) })),
+    pinnedRows: pins[0]?.pinnedRows ?? [],
   }
 }
 
@@ -363,7 +397,7 @@ export async function createFolder(ownerId: string, libraryId: string, name: str
     throw error
   }
   const folder = await requireFolder(ownerId, id)
-  return { id, name: folder.name, source: null, position: folder.position, noteCount: 0 }
+  return { id, name: folder.name, source: null, position: folder.position, noteCount: 0, pinnedAt: null }
 }
 
 export async function renameFolder(ownerId: string, folderId: string, name: string): Promise<void> {
@@ -377,6 +411,19 @@ export async function renameFolder(ownerId: string, folderId: string, name: stri
     if (isUniqueViolation(error)) throw new Error(LIBRARY_SAYS.folderTaken)
     throw error
   }
+}
+
+/**
+ * Pins the folder to the Pinned card above LIBRARY, or takes it off (Tyler,
+ * 20 Oct 2026: "Pin a folder"). Pinning one already pinned keeps its place.
+ */
+export async function pinFolder(ownerId: string, folderId: string, pinned: boolean): Promise<void> {
+  const folder = await requireFolder(ownerId, folderId)
+  if (pinned === (folder.pinnedAt !== null)) return
+  await db
+    .update(noteFolders)
+    .set({ pinnedAt: pinned ? now() : null, updatedAt: now() })
+    .where(eq(noteFolders.id, folderId))
 }
 
 /**

@@ -1,8 +1,9 @@
 # Analysing a note
 
 The Analyse button on an imported note's Video or Post card has the AI write a
-Summary, an Action plan with tick boxes, and the best Quotes, as cards of their
-own under the card. The note's own text is never touched.
+Summary, an Action plan with tick boxes, the best Quotes and the Transcript, as
+cards of their own under the card. Analyse never touches the note's own text;
+only the person's "Add to note" press copies a line into it.
 
 ## Tyler's rules
 
@@ -44,8 +45,9 @@ shell's one price list, never a number typed here.
   words, which is what its price line counts. A second reads that transcript and
   writes 3 to 8 summary bullets, 3 to 12 plan steps, up to 6 quotes with their
   times, and up to 8 tags, in English.
-- **An X post** (`src/server/note/library/post-analysis.ts`): its video, if it
-  has one, is written down first, once. Then one call reads the post, the
+- **An X or Threads post** (`src/server/note/library/post-analysis.ts`): its
+  video, if it has one, is written down first, once. A Threads post has only
+  its words and author, so that is all the call reads. Then one call reads the post, the
   quoted post, the thread, what was said in the video and up to 12 pictures,
   and writes the same four lists. Its quotes have no times.
 - **One plan from many**: one call reads the picked notes' summaries and plans
@@ -63,6 +65,22 @@ shell's one price list, never a number typed here.
   at once, one save at a time. While an analysis runs the plan cannot change,
   since it is about to be replaced.
 - **Quotes**: a video's quotes jump the player to the moment they were said.
+- **Add to note**: on hover, a pen beside each quote and summary line copies
+  it into the end of the note's text as a quote, with the video's time chip
+  after a video quote (`note-editor.md`). The toast says "Added to your note."
+  A note in Trash has none.
+- **Transcript**: the words of a video, or of an X post's video, line by line
+  with their times, in a box that scrolls past about 400px so the cards under
+  it stay in reach. A line's time plays the video from there. The line playing
+  now is shaded, and kept in view while the video plays, never while it is
+  paused, so reading back is not pulled away. A post of words only has no
+  Transcript card.
+- **Highlights on the transcript**: selecting words in a line brings up the
+  same Highlight button an X post has, and clicking a yellow stretch takes it
+  off. Each is stored as `line-<n>` in the note's `highlights`. Analyse again
+  keeps the transcript it already has, so the marks stay on their words;
+  removing the video takes them with it. Search reads them, and the Quotes list
+  shows them (`library-dashboard.md`).
 - **Tags the AI suggests join the note's own** and are never taken off.
 - Before an analysis each card says "Not analysed yet. Analyse writes this." A
   video where nobody speaks says so.

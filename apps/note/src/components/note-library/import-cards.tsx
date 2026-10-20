@@ -1,10 +1,12 @@
 import * as React from "react"
-import { ExternalLinkIcon, FilmIcon, Loader2Icon, SparklesIcon, Trash2Icon } from "lucide-react"
+import { ExternalLinkIcon, FilmIcon, Loader2Icon, NotebookPenIcon, SparklesIcon, Trash2Icon } from "lucide-react"
 
 import { PlanCard } from "@/components/note-library/plan-card"
+import { PlayerTools } from "@/components/note-library/player-tools"
 import { PostWords } from "@/components/note-library/post-words"
 import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
@@ -14,6 +16,8 @@ import { addHighlight, removeHighlight, type Highlight } from "@/lib/note/librar
 import {
   distinctName,
   formatTimecode,
+  isPostSource,
+  type TranscriptLine,
   isAnalysing,
   isImporting,
   noteTitle,
@@ -27,9 +31,10 @@ import { cn } from "@/lib/utils"
 /**
  * The cards an imported note adds under its own text: the Video card (or the
  * Post card for X) with the player, the facts and the Analyse button, then
- * the Summary, Action plan and Quotes the AI writes (Tyler, 20 Oct 2026:
- * "Cards on the right"). A note's own text stays its own; Analyse never
- * writes into it.
+ * the Summary, Action plan, Quotes and Transcript the AI writes (Tyler, 20 Oct
+ * 2026: "Cards on the right"). A note's own text stays its own; Analyse never
+ * writes into it, and "Add to note" on a quote or a summary line is the
+ * person's own press.
  */
 
 const NOT_ANALYSED = "Not analysed yet. Analyse writes this."
@@ -38,7 +43,7 @@ const NOT_ANALYSED = "Not analysed yet. Analyse writes this."
 function factsLine(detail: NoteDetail) {
   return [
     SOURCE_SITE[detail.source],
-    detail.source === "x" ? (detail.authorHandle ? `@${detail.authorHandle}` : null) : detail.authorName,
+    isPostSource(detail.source) ? (detail.authorHandle ? `@${detail.authorHandle}` : null) : detail.authorName,
     detail.durationSeconds ? formatTimecode(detail.durationSeconds * 1000) : null,
     detail.postedAt ? formatDate(detail.postedAt) : null,
   ]
@@ -56,6 +61,7 @@ export function SourceCard({
   onRetryVideo,
   onRemove,
   onHighlights,
+  onAddTime,
 }: {
   detail: NoteDetail
   busy: string | null
@@ -66,9 +72,12 @@ export function SourceCard({
   onRetryVideo: () => void
   onRemove: () => void
   onHighlights: (highlights: Highlight[]) => void
+  /** Puts the player's time into the note's text. */
+  onAddTime: () => void
 }) {
   const site = SOURCE_SITE[detail.source]
-  const x = detail.source === "x"
+  // An X or Threads post: words first, then any pictures and video.
+  const x = isPostSource(detail.source)
   // Each change is worked out from the newest list, so two quick highlights both stay.
   const latest = React.useRef(detail.highlights)
   React.useEffect(() => {
@@ -131,6 +140,9 @@ export function SourceCard({
             <PostWords text={detail.postText} part="post" {...highlightProps} />
             <Pictures pictures={detail.pictures} />
             <PostVideo detail={detail} playerRef={playerRef} busy={busy === "video"} onRetry={onRetryVideo} />
+            {detail.videoStatus === "saved" && detail.playbackUrl ? (
+              <PlayerTools playerRef={playerRef} onAddTime={readOnly ? undefined : onAddTime} />
+            ) : null}
             {detail.quoted ? (
               <div className="grid grid-cols-[minmax(0,1fr)] gap-2 rounded-md border bg-background p-3">
                 <p className="text-xs text-muted-foreground">
@@ -179,6 +191,7 @@ export function SourceCard({
       ) : (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
           <Player detail={detail} playerRef={playerRef} />
+          {detail.playbackUrl ? <PlayerTools playerRef={playerRef} onAddTime={readOnly ? undefined : onAddTime} /> : null}
           {detail.importStatus === "saved" ? (
             <div className="grid gap-0.5">
               <p className="text-sm font-medium break-words">{noteTitle(detail.title)}</p>
@@ -199,7 +212,7 @@ function Placeholder({ detail }: { detail: NoteDetail }) {
       {isImporting(detail.importStatus) ? (
         <span className="flex items-center gap-2">
           <Loader2Icon className="size-4 animate-spin" />
-          {detail.source === "x" ? "Reading the post…" : "Downloading…"}
+          {isPostSource(detail.source) ? "Reading the post…" : "Downloading…"}
         </span>
       ) : (
         <FilmIcon className="size-8" aria-hidden />
@@ -337,7 +350,7 @@ function AnalyseBox({
     return (
       <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2Icon className="size-4 animate-spin" />
-        {detail.source === "x" ? "Reading the post…" : "Downloading the video…"}
+        {isPostSource(detail.source) ? "Reading the post…" : "Downloading the video…"}
       </p>
     )
   }
@@ -390,31 +403,44 @@ function EmptyLine({ detail }: { detail: NoteDetail }) {
   const words = isAnalysing(detail.analyseStatus)
     ? "Being analysed now. This fills in by itself when it is done."
     : detail.analysed
-      ? detail.source !== "x" && detail.transcript.length === 0
+      ? !isPostSource(detail.source) && detail.transcript.length === 0
         ? "Nobody speaks in this video, so there is nothing to write down."
         : "Nothing came back for this one."
       : NOT_ANALYSED
   return <p className="text-sm text-muted-foreground">{words}</p>
 }
 
-/** The AI's three cards: Summary, Action plan with tick boxes, and Quotes. */
+/** The AI's cards: Summary, Action plan with tick boxes, Quotes, and the Transcript. */
 export function AiCards({
   detail,
   playable,
   busy,
+  readOnly,
+  playerRef,
   onSeek,
   onPlan,
   onRetryMerge,
+  onHighlights,
+  onAddToNote,
 }: {
   detail: NoteDetail
   playable: boolean
   busy: boolean
+  readOnly: boolean
+  playerRef: React.RefObject<HTMLMediaElement | null>
   onSeek: (ms: number) => void
   onPlan: (steps: PlanStep[]) => void
   /** Writes a failed One plan from many again. */
   onRetryMerge: () => void
+  onHighlights: (highlights: Highlight[]) => void
+  /** Copies a quote or a summary line into the note's own text, with its moment when it has one. */
+  onAddToNote: (text: string, startMs: number | null) => void
 }) {
   const merged = detail.mergedFrom.length > 0 || (detail.source === "note" && detail.analyseStatus !== null)
+  // A video, or an X post with a video, has a transcript once analysed; a post of words only has none.
+  const spoken = !merged && (!isPostSource(detail.source) || detail.videoStatus !== "none")
+  const addButton = (text: string, startMs: number | null) =>
+    readOnly ? null : <AddToNoteButton onAdd={() => onAddToNote(text, startMs)} />
   return (
     <>
       {merged ? null : (
@@ -422,7 +448,12 @@ export function AiCards({
           {detail.summary.length ? (
             <ul className="grid list-disc gap-1.5 pl-5 text-sm">
               {detail.summary.map((line, index) => (
-                <li key={index}>{line}</li>
+                <li key={index} className="group/line">
+                  <span className="flex items-start gap-1">
+                    <span className="min-w-0 flex-1">{line}</span>
+                    {addButton(line, null)}
+                  </span>
+                </li>
               ))}
             </ul>
           ) : (
@@ -469,29 +500,163 @@ export function AiCards({
         <PanelCard quiet storageId="note-library-quotes" title="Quotes">
           {detail.quotes.length ? (
             <div className="grid gap-2">
-              {detail.quotes.map((quote, index) =>
-                quote.startMs !== null && playable ? (
-                  <button
-                    key={index}
-                    type="button"
-                    onClick={() => onSeek(quote.startMs ?? 0)}
-                    className={cn("grid gap-1 rounded-md border bg-background px-3 py-2 text-left text-sm hover:bg-muted", focusRing)}
-                  >
-                    <span>“{quote.text}”</span>
-                    <span className="text-xs text-muted-foreground tabular-nums">{formatTimecode(quote.startMs)}</span>
-                  </button>
-                ) : (
-                  <blockquote key={index} className="rounded-md border bg-background px-3 py-2 text-sm">
-                    “{quote.text}”
-                  </blockquote>
-                )
-              )}
+              {detail.quotes.map((quote, index) => (
+                <div key={index} className="group/line flex items-start gap-1">
+                  {quote.startMs !== null && playable ? (
+                    <button
+                      type="button"
+                      onClick={() => onSeek(quote.startMs ?? 0)}
+                      className={cn("grid min-w-0 flex-1 gap-1 rounded-md border bg-background px-3 py-2 text-left text-sm hover:bg-muted", focusRing)}
+                    >
+                      <span>“{quote.text}”</span>
+                      <span className="text-xs text-muted-foreground tabular-nums">{formatTimecode(quote.startMs)}</span>
+                    </button>
+                  ) : (
+                    <blockquote className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm">“{quote.text}”</blockquote>
+                  )}
+                  {addButton(quote.text, playable ? quote.startMs : null)}
+                </div>
+              ))}
             </div>
           ) : (
             <EmptyLine detail={detail} />
           )}
         </PanelCard>
       )}
+      {spoken ? (
+        <PanelCard
+          quiet
+          storageId="note-library-transcript"
+          title="Transcript"
+          meta={detail.transcript.length ? `${detail.transcript.length} ${plural(detail.transcript.length, "line")}` : undefined}
+        >
+          {detail.transcript.length ? (
+            <TranscriptLines
+              lines={detail.transcript}
+              playable={playable}
+              playerRef={playerRef}
+              highlights={detail.highlights}
+              onSeek={onSeek}
+              onHighlights={readOnly ? undefined : onHighlights}
+            />
+          ) : (
+            <EmptyLine detail={detail} />
+          )}
+        </PanelCard>
+      ) : null}
     </>
+  )
+}
+
+/** The pen beside a quote or a summary line that copies it into the note, shown on hover. */
+function AddToNoteButton({ onAdd }: { onAdd: () => void }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Add to note"
+          onClick={onAdd}
+          className="shrink-0 text-muted-foreground opacity-0 group-hover/line:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+        >
+          <NotebookPenIcon />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Add to note</TooltipContent>
+    </Tooltip>
+  )
+}
+
+/**
+ * The transcript, line by line (Tyler's task 02, parts 1 and 2). A line's
+ * time plays the video from there; the line playing now is shaded and kept in
+ * view while the video plays. Words can be marked yellow as an X post's can.
+ */
+function TranscriptLines({
+  lines,
+  playable,
+  playerRef,
+  highlights,
+  onSeek,
+  onHighlights,
+}: {
+  lines: TranscriptLine[]
+  playable: boolean
+  playerRef: React.RefObject<HTMLMediaElement | null>
+  highlights: Highlight[]
+  onSeek: (ms: number) => void
+  onHighlights?: (highlights: Highlight[]) => void
+}) {
+  const [playing, setPlaying] = React.useState(-1)
+  const lineRefs = React.useRef<(HTMLLIElement | null)[]>([])
+  // Each change is worked out from the newest list, so two quick highlights both stay.
+  const latest = React.useRef(highlights)
+  React.useEffect(() => {
+    latest.current = highlights
+  }, [highlights])
+
+  React.useEffect(() => {
+    const player = playerRef.current
+    if (!player || !playable) return
+    const onTime = () => {
+      const ms = player.currentTime * 1000
+      let at = -1
+      for (let index = 0; index < lines.length && lines[index].startMs <= ms; index += 1) at = index
+      setPlaying(at)
+      // Kept in view only while it plays, so reading back is never pulled away.
+      const element = at >= 0 ? lineRefs.current[at] : null
+      const viewport = element?.closest<HTMLElement>("[data-slot=scroll-area-viewport]")
+      if (!element || !viewport || player.paused) return
+      const box = viewport.getBoundingClientRect()
+      const line = element.getBoundingClientRect()
+      if (line.top < box.top || line.bottom > box.bottom) {
+        viewport.scrollTop += line.top - box.top - viewport.clientHeight / 3
+      }
+    }
+    player.addEventListener("timeupdate", onTime)
+    return () => player.removeEventListener("timeupdate", onTime)
+  }, [lines, playable, playerRef])
+
+  return (
+    <ScrollArea viewportClassName="max-h-96">
+      <ol className="grid gap-0.5 pr-2">
+        {lines.map((line, index) => (
+          <li
+            key={index}
+            ref={(element) => {
+              lineRefs.current[index] = element
+            }}
+            aria-current={index === playing || undefined}
+            className={cn("grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 rounded-md px-1 py-0.5", index === playing && "bg-background")}
+          >
+            {playable ? (
+              <button
+                type="button"
+                onClick={() => onSeek(line.startMs)}
+                aria-label={`Play from ${formatTimecode(line.startMs)}`}
+                className={cn("rounded-sm pt-0.5 text-xs text-muted-foreground tabular-nums hover:text-foreground hover:underline", focusRing)}
+              >
+                {formatTimecode(line.startMs)}
+              </button>
+            ) : (
+              <span className="pt-0.5 text-xs text-muted-foreground tabular-nums">{formatTimecode(line.startMs)}</span>
+            )}
+            <PostWords
+              text={line.text}
+              part={`line-${index}`}
+              highlights={highlights}
+              {...(onHighlights
+                ? {
+                    onHighlight: (highlight: Highlight) => onHighlights(addHighlight(latest.current, highlight)),
+                    onRemove: (highlight: Highlight) => onHighlights(removeHighlight(latest.current, highlight)),
+                  }
+                : {})}
+            />
+          </li>
+        ))}
+      </ol>
+    </ScrollArea>
   )
 }
