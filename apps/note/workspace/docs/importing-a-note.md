@@ -136,8 +136,10 @@ media library, where they can be deleted by hand.
   tables and makes the library ones) and `0103_note_library_menu.sql` (the
   Library link) run on the way in. **0102 deletes every saved video, post and
   note**, as Tyler asked.
-- `WORKER_PACKAGES="ffmpeg yt-dlp"` on the worker image. yt-dlp must be built
-  with `curl_cffi` for `--impersonate chrome`.
+- `WORKER_PACKAGES="ffmpeg yt-dlp"` and `WORKER_PIP_PACKAGES="curl_cffi"` on
+  the worker image, both build time. Alpine's yt-dlp comes without curl_cffi,
+  and without it `--impersonate chrome` stops every download. `launch.md` has
+  the rest of the live setup.
 - A storage bucket saved in Settings → General.
 - A Gemini key in Settings → AI for Analyse.
 - **Not yet known:** whether X serves the same post page to the Hetzner server

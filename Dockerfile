@@ -134,6 +134,17 @@ ENV NODE_ENV=production
 ARG WORKER_PACKAGES=""
 RUN if [ -n "$WORKER_PACKAGES" ]; then apk add --no-cache $WORKER_PACKAGES; fi
 
+# Python packages Alpine does not carry, space-separated, installed after the
+# Alpine ones. Empty means none. Note sets it to `curl_cffi`, because its
+# downloads run yt-dlp with `--impersonate chrome`, which needs curl_cffi, and
+# Alpine has no package for it. pip is removed again once they are in.
+ARG WORKER_PIP_PACKAGES=""
+RUN if [ -n "$WORKER_PIP_PACKAGES" ]; then \
+      apk add --no-cache --virtual .pip py3-pip \
+      && pip install --no-cache-dir --break-system-packages --root-user-action=ignore $WORKER_PIP_PACKAGES \
+      && apk del .pip; \
+    fi
+
 RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nodeapp
 
