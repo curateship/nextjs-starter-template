@@ -142,5 +142,7 @@ media library, where they can be deleted by hand.
   the rest of the live setup.
 - A storage bucket saved in Settings → General.
 - A Gemini key in Settings → AI for Analyse.
-- **Not yet known:** whether X serves the same post page to the Hetzner server
-  as it does to a Mac.
+- **On the live server**, X serves the same post page as it does to a Mac: an
+  X post imported on note.barelycompany.com on 20 Oct 2026. YouTube does not.
+  It answers the server with its "Sign in to confirm you're not a bot" check,
+  so YouTube imports fail on live. `launch.md` → "YouTube refuses the server".

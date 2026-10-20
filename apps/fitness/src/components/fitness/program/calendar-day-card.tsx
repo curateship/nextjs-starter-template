@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, PlayIcon, XIcon } from "lucide-react"
+import { Loader2Icon, PlayIcon } from "lucide-react"
 
 import { PanelCard } from "@/components/fitness/panel-card"
 import { moveCalendarDay, SCHEDULE_STATUS } from "@/components/fitness/program/calendar-actions"
@@ -10,7 +10,6 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { loadCalendarDay, type CalendarDay } from "@/lib/api/fitness/programs"
 import { beginWorkout } from "@/lib/api/fitness/workouts"
 import { formatDay, type Day } from "@/lib/fitness/dates"
@@ -27,13 +26,11 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 export function CalendarDayCard({
   scheduledId,
   canLog,
-  onClose,
   onOpenWorkout,
 }: {
   scheduledId: string
   /** False for a coach: only the person who trains logs a workout. */
   canLog: boolean
-  onClose: () => void
   onOpenWorkout: (workoutId: string) => void
 }) {
   const version = useCalendarVersion()
@@ -101,16 +98,6 @@ export function CalendarDayCard({
       storageId="fitness-right-calendar-day"
       title={entry?.dayName ?? "Date"}
       meta={entry ? formatDay(entry.day) : undefined}
-      action={
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label="Close this date" onClick={onClose}>
-              <XIcon className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Close this date</TooltipContent>
-        </Tooltip>
-      }
     >
       {error && !entry ? (
         <ErrorRow message={error} onRetry={() => setRetryAt(Date.now())} />

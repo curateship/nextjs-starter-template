@@ -42,6 +42,8 @@ export const FITNESS_ERRORS = {
   coachNotFound: "That coach is no longer linked to you.",
   aiNoKey: "AI isn't set up yet. The site admin adds a key in Settings, AI.",
   aiFailed: "The AI couldn't build a plan this time. Try again.",
+  viewNotFound: "That view no longer exists.",
+  tooManyViews: "You have 30 views on this program. Delete one to save another.",
 } as const
 
 const KNOWN_MESSAGES = new Set<string>(Object.values(FITNESS_ERRORS))

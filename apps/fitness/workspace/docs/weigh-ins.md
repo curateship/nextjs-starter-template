@@ -5,6 +5,9 @@ view (`/programs/<id>?view=progress`). Bodyweight belongs to the person, not
 the program, so every program shows the same weigh-ins. It keeps a daily bodyweight and draws which way it is really
 going.
 
+- **Adding one.** New weigh-in, in the Progress view's middle header, opens a
+  dropdown with Day and Weight (the unit written in the box) and Create
+  weigh-in. Clicking away keeps what was typed for the next opening.
 - **One weigh-in a day.** Saving a second weight for the same day replaces the
   first. The day defaults to today on the person's own clock, and any earlier
   day can be picked.
@@ -21,10 +24,10 @@ going.
 - **Where else it is used.** The latest weigh-in is the bodyweight a new
   bodyweight lift starts with, and a photo day's bodyweight counts too when it
   is newer (`latestBodyweight` in `src/server/fitness/workouts.ts`).
-- **A coach** sees the card and the line but not the entry or the delete
+- **A coach** sees the card and the line but not New weigh-in or the delete
   buttons.
 
 Stored in `fitness_weigh_ins`, one row per person per day. The code is
 `saveWeighIn`, `deleteWeighIn` and `loadWeighIns` in
-`src/server/fitness/progress.ts`, and the card is
+`src/server/fitness/progress.ts`, and the card and New weigh-in are
 `src/components/fitness/progress/bodyweight-card.tsx`.

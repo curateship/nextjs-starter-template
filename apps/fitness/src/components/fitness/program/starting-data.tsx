@@ -1,17 +1,18 @@
 import * as React from "react"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
-import { ExercisePicker } from "@/components/fitness/exercise-picker"
+import { ExerciseList } from "@/components/fitness/exercise-picker"
 import { DecimalInput } from "@/components/fitness/program/decimal-input"
 import { useAutoSave, type ProgramPageData } from "@/components/fitness/program/program-data"
 import { WeightInput } from "@/components/fitness/weight-input"
-import { PanelCard } from "@/components/fitness/panel-card"
 import { SegmentedChoice } from "@/components/fitness/segmented-choice"
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { NumberField } from "@/components/ui/number-field"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { changeBaselineLift, saveProgramBaseline, type Baseline } from "@/lib/api/fitness/programs"
 import { EQUIPMENT, EQUIPMENT_LABELS, type Equipment } from "@/lib/fitness/exercise-catalog"
@@ -21,8 +22,8 @@ import { estimateOneRepMax, formatWeight, type WeightUnit } from "@/lib/fitness/
 type BaselineChange = Parameters<typeof saveProgramBaseline>[0]["change"]
 
 /**
- * The program's starting data, as the first card in the program's cog
- * dropdown, laid out the way Tyler drew it on 18 Oct 2026: a summary line under
+ * The program's starting data, as a card in the program's settings window,
+ * laid out the way Tyler drew it on 18 Oct 2026: a summary line under
  * the heading, then Body and Training, each field with its unit inside the
  * box and each choice as a segmented row. It saves as it is typed, with no
  * Save button.
@@ -67,11 +68,15 @@ export function StartingData({ data }: { data: ProgramPageData }) {
   ].filter(Boolean)
 
   return (
-    <PanelCard
+    <CollapsibleSettingsCard
       storageId="fitness-program-starting-data"
       title="Starting data"
-      subtitle={summary.join(" · ") || "Nothing filled in yet"}
+      description={summary.join(" · ") || "Nothing filled in yet"}
+      size="sm"
+      contentClassName="grid gap-4"
     >
+      {/* An archived program can't change, so its fields only show what it holds; the card still folds. */}
+      <fieldset disabled={data.program.archived} className="contents">
       <section className="grid gap-3" aria-labelledby={`${base}-body`}>
         <SectionLabel id={`${base}-body`}>Body</SectionLabel>
         <div className="grid grid-cols-2 items-end gap-3">
@@ -192,10 +197,25 @@ export function StartingData({ data }: { data: ProgramPageData }) {
           >
             Best lifts
           </SectionLabel>
-          <Button type="button" variant="outline" size="sm" onClick={() => setPicking(true)}>
-            <PlusIcon />
-            Add lift
-          </Button>
+          {/* A dropdown, not a window: this sits inside the settings window already. */}
+          <Popover open={picking} onOpenChange={setPicking}>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="outline" size="sm">
+                <PlusIcon />
+                Add lift
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 p-3" aria-label="Add a best lift">
+              <ExerciseList
+                compact
+                exercises={data.exercises.filter((exercise) => !liftIds.includes(exercise.id))}
+                onPick={(exercise) => {
+                  setPending((current) => [...current, exercise.id])
+                  setPicking(false)
+                }}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
         {liftIds.length === 0 ? (
           <p className="text-sm text-muted-foreground">
@@ -230,15 +250,8 @@ export function StartingData({ data }: { data: ProgramPageData }) {
           </ul>
         )}
       </section>
-
-      <ExercisePicker
-        open={picking}
-        onOpenChange={setPicking}
-        exercises={data.exercises.filter((exercise) => !liftIds.includes(exercise.id))}
-        title="Add a best lift"
-        onPick={(exercise) => setPending((current) => [...current, exercise.id])}
-      />
-    </PanelCard>
+      </fieldset>
+    </CollapsibleSettingsCard>
   )
 }
 

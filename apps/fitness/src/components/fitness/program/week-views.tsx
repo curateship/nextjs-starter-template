@@ -1,23 +1,11 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core"
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-import {
   BedIcon,
   CopyIcon,
+  DumbbellIcon,
   EllipsisIcon,
-  GripVerticalIcon,
   LayoutTemplateIcon,
-  Link2Icon,
   Loader2Icon,
   PlayIcon,
   PencilIcon,
@@ -26,18 +14,20 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { PanelBody, PanelEmpty, PanelHeader } from "@/components/fitness/dashboard/panel-parts"
+import { PanelBody, RightEmpty } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
-import { ExercisePicker } from "@/components/fitness/exercise-picker"
 import { PanelCard } from "@/components/fitness/panel-card"
 import { calendarChanged } from "@/components/fitness/program/calendar-version"
 import { DayExercisePanel } from "@/components/fitness/program/day-exercise-panel"
+import { dayLine } from "@/components/fitness/program/day-groups"
+import { DayExercises, DayHeading } from "@/components/fitness/program/day-list"
 import { NameDialog } from "@/components/fitness/program/name-dialog"
+import { NewButton, NewExercise } from "@/components/fitness/program/new-exercise"
 import { AiPlanDialog, TemplateDialog } from "@/components/fitness/program/plan-dialogs"
 import { ProgramStateLine } from "@/components/fitness/program/program-actions"
 import { ProgramHero } from "@/components/fitness/program/program-hero"
 import { StatusDot, type DotKind } from "@/components/fitness/status-dot"
-import { TONE } from "@/components/fitness/status-tones"
+import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { Meter } from "@/components/ui/meter"
 import { useStartWorkout } from "@/components/fitness/program/start-workout"
 import { useThisWeek } from "@/components/fitness/program/this-week"
@@ -63,12 +53,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import type { Exercise } from "@/lib/api/fitness/exercises"
-import { changeWeek, type DayExercise, type WeekDay } from "@/lib/api/fitness/programs"
+import { changeWeek, type WeekDay } from "@/lib/api/fitness/programs"
 import { WEEKDAY_NAMES, WEEK_MONDAY_FIRST, formatDay, weekdayOf } from "@/lib/fitness/dates"
 import { beginWorkout } from "@/lib/api/fitness/workouts"
 import { reportFitnessError } from "@/lib/fitness/report-error"
-import { formatWeight, type WeightUnit } from "@/lib/fitness/weights"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -81,16 +69,15 @@ function dayOf(page: ProgramViewProps["page"], weekday: number) {
 // ---------------------------------------------------------------------------
 
 /**
- * The left panel, as Tyler drew it on 18 Oct 2026: the program's banner,
- * picture and name, then This week: how many workouts are done against the
+ * The left panel: the program's header, banner and picture (`ProgramHero`),
+ * then This week as Tyler drew it on 18 Oct 2026: how many workouts are done against the
  * weekly goal, the streak, and the week from Monday to Sunday, each day a
  * workout or Rest with a dot for how it went. Picking a day opens it in the
  * middle.
  */
 export function WeekLeft({ page, search, go }: ProgramViewProps) {
   return (
-    <>
-      <ProgramHero data={page} />
+    <ProgramHero data={page}>
       <PanelBody>
         <ProgramStateLine data={page} />
         {page.openWorkout && page.openWorkout.id !== search.workout ? (
@@ -99,7 +86,7 @@ export function WeekLeft({ page, search, go }: ProgramViewProps) {
               <span className="font-medium">{page.openWorkout.name}</span> from {formatDay(page.openWorkout.day)} isn&apos;t
               finished.
             </p>
-            <Button type="button" onClick={() => go({ workout: page.openWorkout!.id, pick: undefined })}>
+            <Button type="button" onClick={() => go({ workout: page.openWorkout!.id, open: undefined })}>
               <PlayIcon />
               Pick up {page.openWorkout.name}
             </Button>
@@ -107,7 +94,7 @@ export function WeekLeft({ page, search, go }: ProgramViewProps) {
         ) : null}
         <ThisWeekCard page={page} search={search} go={go} />
       </PanelBody>
-    </>
+    </ProgramHero>
   )
 }
 
@@ -169,7 +156,7 @@ function ThisWeekCard({ page, search, go }: ProgramViewProps) {
                   "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                   picked && "border-border bg-background shadow-xs"
                 )}
-                onClick={() => go({ view: "day", day: weekday, pick: undefined })}
+                onClick={() => go({ view: "day", day: weekday, open: undefined })}
               >
                 <span className={cn("w-8 shrink-0 text-[13px] text-muted-foreground", isToday && "font-semibold text-foreground")}>
                   {WEEKDAY_NAMES[weekday].slice(0, 3)}
@@ -193,11 +180,12 @@ function ThisWeekCard({ page, search, go }: ProgramViewProps) {
 // ---------------------------------------------------------------------------
 
 /**
- * The Day view's buttons, in the row with the dashboard's tabs as Tyler drew
- * it on 18 Oct 2026: the day's menu (rename, copy, make it a rest day, a
- * template or the AI for the whole week, an extra workout) and Start workout.
+ * The day's menu in the middle panel's header, on every view as Tyler drew
+ * Progress on 18 Oct 2026: rename, copy, make it a rest day, a template or
+ * the AI for the whole week, and an extra workout. Away from the Day view it
+ * acts on the weekday last picked, today's by default.
  */
-export function DayActions({ page, search, go }: ProgramViewProps) {
+export function DayMenu({ page, search, go }: ProgramViewProps) {
   const router = useRouter()
   const weekday = search.day
   const day = dayOf(page, weekday)
@@ -208,10 +196,6 @@ export function DayActions({ page, search, go }: ProgramViewProps) {
   const [templates, setTemplates] = React.useState(false)
   const [ai, setAi] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
-  const { byWeekday } = useThisWeek(page.program.id, page.today)
-  const { start, busy: starting } = useStartWorkout(page, go)
-  const todayRow = weekday === weekdayOf(page.today) ? byWeekday.get(weekday) : undefined
-
   async function refresh() {
     calendarChanged()
     await router.invalidate()
@@ -240,7 +224,7 @@ export function DayActions({ page, search, go }: ProgramViewProps) {
     setBusy(true)
     try {
       const { id } = await beginWorkout({ from: "empty", programId: page.program.id })
-      go({ workout: id, pick: undefined })
+      go({ workout: id, open: undefined })
     } catch (error) {
       reportFitnessError(error)
     } finally {
@@ -255,7 +239,7 @@ export function DayActions({ page, search, go }: ProgramViewProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="icon" aria-label={`${WEEKDAY_NAMES[weekday]} actions`}>
+                <Button type="button" variant="ghost" size="icon" aria-label={`${WEEKDAY_NAMES[weekday]} actions`}>
                   {busy ? <Loader2Icon className="animate-spin" /> : <EllipsisIcon />}
                 </Button>
               </DropdownMenuTrigger>
@@ -304,12 +288,6 @@ export function DayActions({ page, search, go }: ProgramViewProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
-      {day && page.program.mine && canChange ? (
-        <Button type="button" disabled={starting} onClick={() => void start(day, todayRow)}>
-          {starting ? <Loader2Icon className="animate-spin" /> : <PlayIcon className="fill-current" />}
-          {todayRow?.workoutId && todayRow.dayId === day.id ? "Carry on" : "Start workout"}
-        </Button>
-      ) : null}
 
       {day ? (
         <>
@@ -337,7 +315,7 @@ export function DayActions({ page, search, go }: ProgramViewProps) {
               )
               if (done) {
                 setCopying(false)
-                go({ day: toWeekday, pick: undefined })
+                go({ day: toWeekday, open: undefined })
               }
             }}
           />
@@ -356,7 +334,7 @@ export function DayActions({ page, search, go }: ProgramViewProps) {
               ).then((done) => {
                 if (done) {
                   setResting(false)
-                  go({ pick: undefined })
+                  go({ open: undefined })
                 }
               })
             }
@@ -365,6 +343,112 @@ export function DayActions({ page, search, go }: ProgramViewProps) {
       ) : null}
       <WeekDialogs page={page} templates={templates} ai={ai} onTemplates={setTemplates} onAi={setAi} onDone={refresh} />
     </>
+  )
+}
+
+/**
+ * Start workout, the middle header's main button on every view: it starts the
+ * weekday last picked, or carries on with today's if it is already open. Only
+ * the person who trains sees it, and in a narrow header it keeps its icon and
+ * drops its words.
+ */
+export function StartWorkoutButton({ page, search, go }: ProgramViewProps) {
+  const day = dayOf(page, search.day)
+  const { byWeekday } = useThisWeek(page.program.id, page.today)
+  const { start, busy } = useStartWorkout(page, go)
+  if (!day || !page.program.mine || page.program.archived) return null
+  const todayRow = search.day === weekdayOf(page.today) ? byWeekday.get(search.day) : undefined
+  const label = todayRow?.workoutId && todayRow.dayId === day.id ? "Carry on" : "Start workout"
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          className="@max-3xl:size-8 @max-3xl:px-0"
+          aria-label={`${label}: ${day.name}`}
+          disabled={busy}
+          onClick={() => void start(day, todayRow)}
+        >
+          {busy ? <Loader2Icon className="animate-spin" /> : <PlayIcon className="fill-current" />}
+          <span className="@max-3xl:hidden">{label}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {label}: {day.name}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+/**
+ * The Day view's "New …" (UI standard: "The primary New … button opens a
+ * dropdown, not a window"): New exercise on a workout day, New workout on a
+ * rest day. Start workout stays the header's main button, as Tyler picked on
+ * 20 Oct 2026, so this one is outlined.
+ */
+export function DayNew(props: ProgramViewProps) {
+  const day = dayOf(props.page, props.search.day)
+  if (props.page.program.archived) return null
+  return day ? <NewExercise key={day.id} {...props} day={day} /> : <NewWorkoutDay {...props} />
+}
+
+/** New workout on a rest day: its name makes the weekday a workout day. */
+function NewWorkoutDay({ page, search }: ProgramViewProps) {
+  const router = useRouter()
+  const weekday = search.day
+  const [open, setOpen] = React.useState(false)
+  const [name, setName] = React.useState("")
+  const [invalid, setInvalid] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+  const nameId = React.useId()
+
+  async function create() {
+    if (!name.trim()) {
+      setInvalid(true)
+      showErrorToast("Give the workout a name, such as Push or Legs.")
+      return
+    }
+    setBusy(true)
+    try {
+      await changeWeek({ action: "setDay", programId: page.program.id, weekday, name: name.trim() })
+      toast.success(`${WEEKDAY_NAMES[weekday]} is now a workout day.`)
+      calendarChanged()
+      await router.invalidate()
+      setOpen(false)
+      setName("")
+    } catch (error) {
+      reportFitnessError(error)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <NewRecordDropdown
+      label="New workout"
+      open={open}
+      onOpenChange={setOpen}
+      submitLabel="Create workout"
+      busy={busy}
+      onSubmit={() => void create()}
+      trigger={<NewButton label="New workout" />}
+    >
+      <div className="grid gap-2">
+        <Label htmlFor={nameId}>Workout name on {WEEKDAY_NAMES[weekday]}</Label>
+        <Input
+          id={nameId}
+          value={name}
+          maxLength={60}
+          autoFocus
+          placeholder="Push, Pull, Legs, Upper..."
+          aria-invalid={invalid || undefined}
+          onChange={(event) => {
+            setName(event.target.value)
+            setInvalid(false)
+          }}
+        />
+      </div>
+    </NewRecordDropdown>
   )
 }
 
@@ -407,161 +491,49 @@ function WeekDialogs({
   )
 }
 
-/** "3 min", "1:30", "45 s". */
-function restWords(seconds: number) {
-  if (seconds <= 0) return "No rest"
-  if (seconds < 60) return `${seconds} s`
-  const minutes = Math.floor(seconds / 60)
-  const left = seconds % 60
-  return left ? `${minutes}:${String(left).padStart(2, "0")}` : `${minutes} min`
-}
-
-/**
- * How long a day takes, roughly: 45 seconds a set, the rest between sets, a
- * minute between exercises, to the nearest 5 minutes.
- */
-function dayMinutes(exercises: readonly DayExercise[]) {
-  const seconds = exercises.reduce(
-    (sum, row) => sum + row.sets * 45 + Math.max(row.sets - 1, 0) * row.restSeconds,
-    Math.max(exercises.length - 1, 0) * 60
-  )
-  return Math.max(5, Math.round(seconds / 60 / 5) * 5)
-}
-
-const SHORT_DATE = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" })
-
-/** The quiet line under the day's name: "Sunday · Today · 3 exercises · 9 sets · about 25 min". */
-function dayLine(page: ProgramViewProps["page"], weekday: number, day: WeekDay | null) {
-  const parts: string[] = [WEEKDAY_NAMES[weekday]]
-  if (weekday === weekdayOf(page.today)) parts.push("Today")
-  if (day) {
-    const sets = day.exercises.reduce((sum, row) => sum + row.sets, 0)
-    parts.push(`${day.exercises.length} ${day.exercises.length === 1 ? "exercise" : "exercises"}`)
-    if (sets) parts.push(`${sets} ${sets === 1 ? "set" : "sets"}`, `about ${dayMinutes(day.exercises)} min`)
-  }
-  return parts.join(" · ")
-}
-
 /**
  * The middle panel on the Day view, as Tyler drew it on 18 Oct 2026: the
  * picked weekday's workout as a large heading with how long it takes, then
- * its exercises as cards in order. A rest day says so, and can be made a
- * workout day, or the whole week can come from a template or the AI.
+ * its exercises as cards in order. A rest day says so; New workout in the
+ * header makes it a workout day, or the whole week can come from a template
+ * or the AI.
  */
 export function DayMiddle({ page, search, go }: ProgramViewProps) {
-  const router = useRouter()
   const weekday = search.day
   const day = dayOf(page, weekday)
   const canChange = !page.program.archived
 
   if (day) {
     return (
-      <DayExercises key={day.id} page={page} day={day} pickedId={search.pick} canChange={canChange} onPick={(pick) => go({ pick })} />
+      <DayExercises key={day.id} page={page} go={go} day={day} pickedId={search.open} canChange={canChange} />
     )
   }
-  return (
-    <RestDay
-      page={page}
-      weekday={weekday}
-      canChange={canChange}
-      onMake={async (name) => {
-        try {
-          await changeWeek({ action: "setDay", programId: page.program.id, weekday, name })
-          toast.success(`${WEEKDAY_NAMES[weekday]} is now a workout day.`)
-          calendarChanged()
-          await router.invalidate()
-          return true
-        } catch (error) {
-          reportFitnessError(error)
-          return false
-        }
-      }}
-    />
-  )
-}
-
-/** The day's heading: its name large, the quiet line under it, and a button at the right. */
-function DayHeading({ title, line, action }: { title: string; line: string; action?: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-3 px-1 pb-1">
-      <div className="grid min-w-0 flex-1 gap-0.5">
-        <h2 className="truncate text-2xl font-semibold tracking-tight">{title}</h2>
-        <p className="truncate text-[13px] text-muted-foreground">{line}</p>
-      </div>
-      {action}
-    </div>
-  )
+  return <RestDay page={page} weekday={weekday} canChange={canChange} />
 }
 
 function RestDay({
   page,
   weekday,
   canChange,
-  onMake,
 }: {
   page: ProgramViewProps["page"]
   weekday: number
   canChange: boolean
-  onMake: (name: string) => Promise<boolean>
 }) {
   const router = useRouter()
-  const [name, setName] = React.useState("")
-  const [busy, setBusy] = React.useState(false)
-  const [invalid, setInvalid] = React.useState(false)
   const [templates, setTemplates] = React.useState(false)
   const [ai, setAi] = React.useState(false)
-  const nameId = React.useId()
-
-  async function make() {
-    if (!name.trim()) {
-      setInvalid(true)
-      showErrorToast("Give the workout a name, such as Push or Legs.")
-      return
-    }
-    setBusy(true)
-    const done = await onMake(name.trim())
-    setBusy(false)
-    if (done) setName("")
-  }
 
   return (
-    <PanelBody>
+    <PanelBody padded={false}>
       <DayHeading title="Rest" line={dayLine(page, weekday, null)} />
-      <div className="grid gap-4 rounded-xl border p-4">
-        <div className="grid gap-1">
-          <p className="text-sm font-medium">{WEEKDAY_NAMES[weekday]} is a rest day.</p>
-          <p className="text-sm text-muted-foreground">
-            Nothing is planned and nothing counts as missed. Make it a workout day to give it exercises.
-          </p>
-        </div>
-        {canChange ? (
-          <form
-            className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void make()
-            }}
-          >
-            <div className="grid gap-2">
-              <Label htmlFor={nameId}>Workout name</Label>
-              <Input
-                id={nameId}
-                value={name}
-                maxLength={60}
-                placeholder="Push, Pull, Legs, Upper..."
-                aria-invalid={invalid || undefined}
-                onChange={(event) => {
-                  setName(event.target.value)
-                  setInvalid(false)
-                }}
-              />
-            </div>
-            <Button type="submit" disabled={busy}>
-              {busy ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
-              Make it a workout day
-            </Button>
-          </form>
-        ) : null}
+      <div className="grid gap-3 p-5">
+      <div className="grid gap-1 rounded-xl border p-4">
+        <p className="text-sm font-medium">{WEEKDAY_NAMES[weekday]} is a rest day.</p>
+        <p className="text-sm text-muted-foreground">
+          Nothing is planned and nothing counts as missed.
+          {canChange ? " Press New workout to make it a workout day and give it exercises." : ""}
+        </p>
       </div>
       {canChange ? (
         <div className="grid gap-2 rounded-xl border p-4">
@@ -592,243 +564,8 @@ function RestDay({
           await router.invalidate()
         }}
       />
-    </PanelBody>
-  )
-}
-
-/** The day's exercises in order. Drag the handle to reorder; click a card to edit it on the right. */
-function DayExercises({
-  page,
-  day,
-  pickedId,
-  canChange,
-  onPick,
-}: {
-  page: ProgramViewProps["page"]
-  day: WeekDay
-  pickedId: string | undefined
-  canChange: boolean
-  onPick: (dayExerciseId: string) => void
-}) {
-  const router = useRouter()
-  const [rows, setRows] = React.useState(day.exercises)
-  const [shown, setShown] = React.useState(day.exercises)
-  if (shown !== day.exercises) {
-    setShown(day.exercises)
-    setRows(day.exercises)
-  }
-  const [picking, setPicking] = React.useState(false)
-  const [adding, setAdding] = React.useState(false)
-  const names = React.useMemo(() => new Map(page.exercises.map((exercise) => [exercise.id, exercise])), [page.exercises])
-  const unit = page.preferences.unit
-  const dndId = React.useId()
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-
-  async function onDragEnd(event: DragEndEvent) {
-    const from = rows.findIndex((row) => row.id === event.active.id)
-    const to = rows.findIndex((row) => row.id === event.over?.id)
-    if (from < 0 || to < 0 || from === to) return
-    const before = rows
-    const next = arrayMove(rows, from, to)
-    setRows(next)
-    try {
-      await changeWeek({ action: "reorderExercises", dayId: day.id, ids: next.map((row) => row.id) })
-      await router.invalidate()
-    } catch (error) {
-      setRows(before)
-      reportFitnessError(error)
-    }
-  }
-
-  async function add(exercise: Exercise) {
-    setAdding(true)
-    try {
-      const { id } = await changeWeek({
-        action: "addExercise",
-        dayId: day.id,
-        exerciseId: exercise.id,
-        sets: 3,
-        reps: exercise.movement === "isolation" ? 10 : 5,
-        weightKg: 0,
-        restSeconds: exercise.movement === "isolation" ? 90 : 180,
-      })
-      await router.invalidate()
-      if (id) onPick(id)
-    } catch (error) {
-      reportFitnessError(error)
-    } finally {
-      setAdding(false)
-    }
-  }
-
-  return (
-    <PanelBody>
-      <DayHeading
-        title={day.name}
-        line={dayLine(page, day.weekday, day)}
-        action={
-          canChange ? (
-            <Button type="button" variant="outline" disabled={adding} onClick={() => setPicking(true)}>
-              {adding ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
-              Add exercise
-            </Button>
-          ) : null
-        }
-      />
-      {rows.length === 0 ? (
-        <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-          No exercises yet. Press Add exercise to put the first one in.
-        </p>
-      ) : (
-        <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => void onDragEnd(event)}>
-          <SortableContext items={rows.map((row) => row.id)} strategy={verticalListSortingStrategy}>
-            <ol className="grid gap-2" aria-label={`${day.name} exercises`}>
-              {rows.map((row, index) => {
-                const inGroup = row.groupKey !== null && (rows[index - 1]?.groupKey === row.groupKey || rows[index + 1]?.groupKey === row.groupKey)
-                const groupStart = inGroup && rows[index - 1]?.groupKey !== row.groupKey
-                return (
-                  <ExerciseRow
-                    key={row.id}
-                    row={row}
-                    position={index + 1}
-                    exercise={names.get(row.exerciseId)}
-                    last={page.lastTimes[row.exerciseId]}
-                    unit={unit}
-                    picked={row.id === pickedId}
-                    inGroup={inGroup}
-                    groupStart={groupStart}
-                    canChange={canChange}
-                    onPick={() => onPick(row.id)}
-                  />
-                )
-              })}
-            </ol>
-          </SortableContext>
-        </DndContext>
-      )}
-      <ExercisePicker
-        open={picking}
-        onOpenChange={setPicking}
-        exercises={page.exercises}
-        title={`Add an exercise to ${day.name}`}
-        onPick={(exercise) => void add(exercise)}
-      />
-    </PanelBody>
-  )
-}
-
-/** "80 kg", "+10 kg" on a bodyweight lift, "Bodyweight", or "No weight" in amber when nothing is set yet. */
-function WeightPill({ row, exercise, unit }: { row: DayExercise; exercise: Exercise | undefined; unit: WeightUnit }) {
-  const pill = "rounded-md px-2 py-0.5 text-xs font-medium tabular-nums"
-  if (row.weightKg > 0) {
-    return (
-      <span className={cn(pill, "border")}>
-        {exercise?.isBodyweight ? `+${formatWeight(row.weightKg, unit)}` : formatWeight(row.weightKg, unit)}
-      </span>
-    )
-  }
-  if (exercise?.isBodyweight) return <span className={cn(pill, "border text-muted-foreground")}>Bodyweight</span>
-  return <span className={cn(pill, TONE.warning)}>No weight</span>
-}
-
-function ExerciseRow({
-  row,
-  position,
-  exercise,
-  last,
-  unit,
-  picked,
-  inGroup,
-  groupStart,
-  canChange,
-  onPick,
-}: {
-  row: DayExercise
-  position: number
-  exercise: Exercise | undefined
-  last: { day: string; sets: number; reps: number } | undefined
-  unit: WeightUnit
-  picked: boolean
-  inGroup: boolean
-  groupStart: boolean
-  canChange: boolean
-  onPick: () => void
-}) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id: row.id,
-    disabled: !canChange,
-  })
-  const name = exercise?.name ?? "Exercise"
-  const lastWords = last
-    ? `Last: ${last.sets} × ${last.reps} on ${SHORT_DATE.format(new Date(`${last.day}T00:00:00Z`))}`
-    : "Not logged yet"
-  return (
-    <li
-      ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn("relative grid gap-1", isDragging && "z-10 opacity-80")}
-    >
-      {groupStart ? (
-        <p className="flex items-center gap-1.5 px-1 text-xs font-medium text-muted-foreground">
-          <Link2Icon className="size-3.5" aria-hidden />
-          Superset: no rest until the last one
-        </p>
-      ) : null}
-      <div
-        className={cn(
-          "flex items-center gap-2 rounded-xl border bg-card py-2.5 pr-3 pl-1 transition-colors",
-          picked && "border-foreground ring-1 ring-foreground",
-          inGroup && !picked && "border-l-2 border-l-foreground/40"
-        )}
-      >
-        {canChange ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                ref={setActivatorNodeRef}
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Drag ${name} to reorder`}
-                className="cursor-grab touch-none text-muted-foreground/60"
-                {...attributes}
-                {...listeners}
-              >
-                <GripVerticalIcon />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Drag to reorder</TooltipContent>
-          </Tooltip>
-        ) : (
-          <span className="w-1" />
-        )}
-        <button
-          type="button"
-          aria-current={picked ? "true" : undefined}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-          onClick={onPick}
-        >
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md border text-xs tabular-nums">
-            {position}
-          </span>
-          <span className="grid min-w-0 flex-1">
-            <span className="truncate text-sm font-medium">{name}</span>
-            <span className="truncate text-xs text-muted-foreground">
-              {row.restSeconds > 0 ? `Rest ${restWords(row.restSeconds)}` : "No rest"} · {lastWords}
-            </span>
-          </span>
-          <span className="flex shrink-0 items-center gap-1.5">
-            <span className="rounded-md border px-2 py-0.5 text-xs font-medium tabular-nums">
-              {row.sets} × {row.reps}
-            </span>
-            <WeightPill row={row} exercise={exercise} unit={unit} />
-          </span>
-        </button>
       </div>
-    </li>
+    </PanelBody>
   )
 }
 
@@ -912,35 +649,26 @@ function CopyDayDialog({
 // Right: the picked exercise
 // ---------------------------------------------------------------------------
 
-/**
- * The right panel on the Day view: the picked exercise. The program's own
- * settings live in the cog beside its name (Tyler, 18 Oct 2026), so with
- * nothing picked this only says what to pick.
- */
+/** The right panel on the Day view: the picked exercise, or what to click. */
 export function DayRight({ page, search, go }: ProgramViewProps) {
   const day = dayOf(page, search.day)
-  const row = day?.exercises.find((entry) => entry.id === search.pick)
+  const row = day?.exercises.find((entry) => entry.id === search.open)
   if (!day || !row) {
     return (
-      <>
-        <PanelHeader>
-          <h2 className="text-sm font-semibold">Exercise</h2>
-        </PanelHeader>
-        <PanelEmpty>
-          {day ? "Pick an exercise in the middle to change its sets, reps and weight here." : "A rest day has no exercises."}
-        </PanelEmpty>
-      </>
+      <RightEmpty
+        title="Exercise"
+        icon={DumbbellIcon}
+        line={day ? "Click an exercise to change its sets, reps and weight here." : "A rest day has no exercises."}
+      />
     )
   }
-  const index = day.exercises.findIndex((entry) => entry.id === row.id)
   return (
     <DayExercisePanel
       key={row.id}
       page={page}
       day={day}
       row={row}
-      first={index === 0}
-      onClose={() => go({ pick: undefined })}
+      onClose={() => go({ open: undefined })}
     />
   )
 }

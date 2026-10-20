@@ -1,10 +1,10 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 
-import { PanelCard } from "@/components/fitness/panel-card"
 import { calendarChanged } from "@/components/fitness/program/calendar-version"
 import { useAutoSave, type ProgramPageData } from "@/components/fitness/program/program-data"
 import { WeightInput } from "@/components/fitness/weight-input"
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { FieldLabel } from "@/components/ui/field-label"
 import { NumberField } from "@/components/ui/number-field"
 import { Switch } from "@/components/ui/switch"
@@ -14,7 +14,7 @@ import { formatWeight } from "@/lib/fitness/weights"
 type StrengthSettingsChange = Parameters<typeof saveStrengthRules>[0]["change"]
 
 /**
- * The program's own rules, as two cards in the right panel: how the weights
+ * The program's own rules, as two cards in the program's settings window: how the weights
  * move after each session, and the training blocks with their lighter weeks.
  * Which weekdays are workouts is the week itself, on the left.
  * Everything saves as it changes; a save that fails says so in a toast.
@@ -47,7 +47,8 @@ export function StrengthSettings({ data }: { data: ProgramPageData }) {
 
   return (
     <>
-      <PanelCard storageId="fitness-program-weight-rules" title="Weight rules">
+      <CollapsibleSettingsCard storageId="fitness-program-weight-rules" title="Weight rules" size="sm" contentClassName="grid gap-4">
+        <fieldset disabled={data.program.archived} className="contents">
         <div className="flex items-center gap-3">
           <Switch
             id={`${base}-auto`}
@@ -99,9 +100,11 @@ export function StrengthSettings({ data }: { data: ProgramPageData }) {
             />
           </>
         ) : null}
-      </PanelCard>
+      </fieldset>
+      </CollapsibleSettingsCard>
 
-      <PanelCard storageId="fitness-program-training-blocks" title="Training blocks">
+      <CollapsibleSettingsCard storageId="fitness-program-training-blocks" title="Training blocks" size="sm" contentClassName="grid gap-4">
+        <fieldset disabled={data.program.archived} className="contents">
         <NumberField
           id={`${base}-block`}
           label="Weeks in a block, 0 for none"
@@ -124,7 +127,8 @@ export function StrengthSettings({ data }: { data: ProgramPageData }) {
             onCommit={() => save("light", { lightWeekPercent: strength.lightWeekPercent }, "now")}
           />
         ) : null}
-      </PanelCard>
+      </fieldset>
+      </CollapsibleSettingsCard>
     </>
   )
 }

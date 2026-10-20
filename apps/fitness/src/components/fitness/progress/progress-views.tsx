@@ -1,12 +1,14 @@
 import * as React from "react"
+import { TrendingUpIcon } from "lucide-react"
 
 import { PanelCard } from "@/components/fitness/panel-card"
-import { BodyweightCard } from "@/components/fitness/progress/bodyweight-card"
+import { BodyweightCard, NewWeighIn } from "@/components/fitness/progress/bodyweight-card"
 import { LiftChart, type LiftMetric } from "@/components/fitness/progress/lift-chart"
 import { ONE_REP_MAX_HINT, RecordsList } from "@/components/fitness/progress/records-list"
 import { WeeklySets } from "@/components/fitness/progress/weekly-sets"
-import { PanelBody, PanelHeader } from "@/components/fitness/dashboard/panel-parts"
+import { PanelBody, RightEmpty, RightHeader } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
+import { ownRecords } from "@/components/fitness/dashboard/view-rows"
 import { SegmentedChoice } from "@/components/fitness/segmented-choice"
 import { Button } from "@/components/ui/button"
 import type { LiftRecord } from "@/lib/api/fitness/progress"
@@ -14,12 +16,6 @@ import { formatDay } from "@/lib/fitness/dates"
 import { formatWeight, formatWeightNumber } from "@/lib/fitness/weights"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { cn } from "@/lib/utils"
-
-/** The person's lifts of this program's routine type only: a program never lists another type's lifts. */
-function ownRecords(page: ProgramViewProps["page"]) {
-  if (page.viewData.view !== "progress") return []
-  return page.viewData.progress.records.filter((record) => record.routineType === page.program.routineType)
-}
 
 /** The lift on the chart: the picked one, or the one trained most recently. */
 function shownLift(records: readonly LiftRecord[], pick: string | undefined) {
@@ -87,7 +83,7 @@ export function ProgressMiddle({ page, search, go }: ProgramViewProps) {
   const { weeklyGoal, weighIns, weeklySets, preferences, personId } = page.viewData.progress
   const records = ownRecords(page)
   const unit = preferences.unit
-  const shown = shownLift(records, search.pick)
+  const shown = shownLift(records, search.open)
   const ticked = records.map((record) => record.exerciseId).filter((id) => selection.selected.has(id))
   const compared = comparing && ticked.length > 1 ? ticked : null
   const chartIds = compared ?? (shown ? [shown.exerciseId] : [])
@@ -182,7 +178,7 @@ export function ProgressMiddle({ page, search, go }: ProgramViewProps) {
           unit={unit}
           shownId={compared ? null : (shown?.exerciseId ?? null)}
           selection={comparing ? selection : null}
-          onShow={(pick) => go({ pick }, { replace: true })}
+          onShow={(pick) => go({ open: pick }, { replace: true })}
         />
       </ProgressCard>
 
@@ -193,31 +189,45 @@ export function ProgressMiddle({ page, search, go }: ProgramViewProps) {
   )
 }
 
+/** Progress's tools in the middle header: New weigh-in, for the person who trains. */
+export function ProgressTools({ page }: ProgramViewProps) {
+  if (page.viewData.view !== "progress" || !page.program.mine) return null
+  const { preferences } = page.viewData.progress
+  return <NewWeighIn unit={preferences.unit} timeZone={preferences.timeZone} />
+}
+
 /**
- * Progress on the right, as Tyler drew it on 18 Oct 2026: the lift on the
- * chart, with its four best numbers in a grid, then bodyweight with its
- * weigh-ins.
+ * Progress on the right, as Tyler drew it on 18 Oct 2026: the lift picked,
+ * with its four best numbers in a grid, then bodyweight with its weigh-ins.
+ * With no lift picked, the bodyweight stays under the line saying what to click.
  */
-export function ProgressRight({ page, search }: ProgramViewProps) {
+export function ProgressRight({ page, search, go }: ProgramViewProps) {
   if (page.viewData.view !== "progress") return null
   const { weighIns, preferences } = page.viewData.progress
   const records = ownRecords(page)
   const unit = preferences.unit
-  const lift = shownLift(records, search.pick)
+  const lift = records.find((record) => record.exerciseId === search.open) ?? null
+  const bodyweight = <BodyweightCard weighIns={weighIns} unit={unit} canEdit={page.program.mine} />
+  if (!lift) {
+    return (
+      <RightEmpty
+        title="Lift"
+        icon={TrendingUpIcon}
+        line={records.length ? "Click a lift in Records to see its best numbers here." : "Finish a workout, then click a lift to see its records here."}
+      >
+        {bodyweight}
+      </RightEmpty>
+    )
+  }
   return (
     <>
-      <PanelHeader plain>
-        <div className="grid min-w-0 flex-1">
-          <h2 className="truncate text-lg font-semibold tracking-tight">{lift ? lift.name : "Progress"}</h2>
-          {lift ? (
-            <span className="truncate text-[13px] text-muted-foreground">
-              {lift.sessions} {lift.sessions === 1 ? "session" : "sessions"} · last trained {formatDay(lift.lastDay)}
-            </span>
-          ) : null}
-        </div>
-      </PanelHeader>
+      <RightHeader
+        title={lift.name}
+        meta={`${lift.sessions} ${lift.sessions === 1 ? "session" : "sessions"} · last trained ${formatDay(lift.lastDay)}`}
+        closeLabel="Close this lift"
+        onClose={() => go({ open: undefined })}
+      />
       <PanelBody>
-        {lift ? (
           <PanelCard storageId="fitness-right-lift" title="Records" flush>
             <dl className="grid grid-cols-2 border-b [&>div]:grid [&>div]:gap-1 [&>div]:p-4 [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(odd)]:border-r">
               <div>
@@ -245,17 +255,7 @@ export function ProgressRight({ page, search }: ProgramViewProps) {
             </dl>
             <p className="p-4 text-[13px] text-muted-foreground">One-rep max: {ONE_REP_MAX_HINT.toLowerCase()}</p>
           </PanelCard>
-        ) : (
-          <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-            Finish a workout, then click a lift to see its records here.
-          </p>
-        )}
-        <BodyweightCard
-          weighIns={weighIns}
-          unit={unit}
-          timeZone={preferences.timeZone}
-          canEdit={page.program.mine}
-        />
+        {bodyweight}
       </PanelBody>
     </>
   )

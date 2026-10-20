@@ -27,7 +27,7 @@ in the row with the tabs, as on every view. Under them, four cards:
 - **Records.** One row per lift: last trained, sessions, heaviest and best
   one-rep max, in small capital headings that sort when pressed. Columns step
   back as the panel narrows. Clicking a lift puts it on the chart, outlines
-  its row, opens it on the right, and sets `?pick=<lift>` in the address. A
+  its row, opens it on the right, and sets `?open=<lift>` in the address. A
   record notice in the bell opens the same address. Tyler's drawing headed the
   last column "Best 1RM"; it says "Best one-rep max" because the app never
   uses gym shorthand on screen.
@@ -42,15 +42,16 @@ handful of lifts.
 
 ## The right panel
 
-- **The lift's name** large, with "1 session · last trained Sun, Oct 18" under
-  it.
+- **The header** holds the lift's name, "1 session · last trained Sun, Oct 18"
+  after it, and an × that closes it. Arriving on Progress with nothing open
+  opens the first lift in Records. With none open, the header says Lift, then
+  an icon and one line saying what to click, and Bodyweight stays under it.
 - **Records:** heaviest lifted, best one-rep max, most reps and at what
   weight, and last trained, as four figures two by two, with a line under
   them saying what the one-rep max means.
-- **Bodyweight:** Day and Weight (the unit written in the box), side by side
-  when the panel has room, then Save weigh-in across the card. The shell's
-  date field writes the date out in full, so a narrow panel stacks the two.
-  See `weigh-ins.md`.
+- **Bodyweight:** the dots and the seven-day line, and the last ten
+  weigh-ins. A weigh-in is added from New weigh-in in the middle header. See
+  `weigh-ins.md`.
 
 ## Comparing lifts
 
@@ -70,7 +71,7 @@ goes back to one lift.
 ## A coach looking
 
 A coach opens a client's program from the client's Programs dashboard; the
-program's own dashboard then shows the client's numbers. The weigh-in entry is
+program's own dashboard then shows the client's numbers. New weigh-in is
 hidden, because a coach reads the line but doesn't weigh in for the client.
 The server refuses anyone who isn't the person or a coach they accepted.
 

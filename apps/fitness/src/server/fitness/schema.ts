@@ -12,6 +12,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
+import type { HistoryFilters } from "@/lib/fitness/history-filters"
 import { customShellNotifications, customShellUsers } from "@/server/schema"
 
 /**
@@ -316,4 +317,18 @@ export const fitnessNoticeLinks = pgTable("fitness_notice_links", {
 export const fitnessNavigationAdded = pgTable("fitness_navigation_added", {
   scope: varchar("scope", { length: 80 }).primaryKey(),
   addedAt: timestamp("added_at", { withTimezone: true }).notNull(),
+})
+
+/** A person's own named History filters on one program (`drizzle/0100_fitness_saved_views.sql`). */
+export const fitnessSavedViews = pgTable("fitness_saved_views", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  userId: varchar("user_id", { length: 36 })
+    .notNull()
+    .references(userRef, { onDelete: "cascade" }),
+  programId: varchar("program_id", { length: 36 })
+    .notNull()
+    .references(() => fitnessPrograms.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 60 }).notNull(),
+  filters: jsonb("filters").$type<HistoryFilters>().notNull(),
+  createdAt: createdAt(),
 })

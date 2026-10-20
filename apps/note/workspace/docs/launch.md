@@ -114,3 +114,14 @@ On Tyler's Mac on 20 Oct 2026, both images were built from the root
 
 | Date | Commit | Deployments | Notes |
 | --- | --- | --- | --- |
+| 20 Oct 2026 | `3640b0c0b` | web `fvzym8hximfz2hrhlnveuien` (574 s), worker `wwljhw6oekcgqoonssjqldlw` (523 s) | First launch. Both containers healthy; health `{"status":"ok"}`. Four AI keys written. `create-admin.mjs` made typham2@gmail.com a verified admin; Playwright signed in once, then `copy-menu.mjs` copied this Mac's admin and members' menus. All 18 left-menu and admin links opened. React error 418 showed on `/admin/users` only in a browser set to Tokyo time, the shell's server-in-UTC problem, not Note's. In a throwaway library, an X post imported with its text and counts, and a YouTube import failed on YouTube's bot check (below). The library was deleted. |
+
+## YouTube refuses the server
+
+On 20 Oct 2026 a YouTube import on live failed with "Sign in to confirm you're
+not a bot". yt-dlp reached YouTube, so curl_cffi works, but YouTube turns away
+downloads from the Hetzner server's address. The same video downloaded inside
+the same image on Tyler's Mac. X posts are not affected: an X post imported on
+live with its text, likes and reposts. Fixing YouTube needs either cookies from
+a signed-in YouTube account or a proxy at a home address, and neither is set
+up.

@@ -12,7 +12,7 @@ import { db } from "@/server/db"
 import { programFor, type FitnessDb } from "@/server/fitness/access"
 import { rescheduleFromToday, todayFor } from "@/server/fitness/calendar"
 import { builtInBySlug, listExercises } from "@/server/fitness/exercises"
-import { loadBaseline } from "@/server/fitness/week"
+import { loadBaseline, settleDayOrder } from "@/server/fitness/week"
 import { preferencesFor } from "@/server/fitness/profile"
 import { fitnessWeekDays, fitnessDayExercises } from "@/server/fitness/schema"
 
@@ -227,6 +227,7 @@ export async function applyAiPlan(actorId: string, programId: string, draft: Pla
         missStreak: 0,
       }))
     if (rows.length) await database.insert(fitnessDayExercises).values(rows)
+    await settleDayOrder(dayId, database)
   }
   await rescheduleFromToday(programId, await todayFor(program.userId, database), database)
 }

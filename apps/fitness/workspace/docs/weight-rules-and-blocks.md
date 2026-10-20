@@ -1,6 +1,6 @@
 # Weight rules and training blocks
 
-Two folding cards in the program's cog dropdown, beside its name at the top of the left panel, decide how the weights move after each workout and whether the program runs in blocks with a lighter week. They sit under Starting data. Every field saves as it changes, and the card's heading says Saving…, Saved or Not saved.
+Two folding cards in the program's settings window, behind the cog in the left panel's header, decide how the weights move after each workout and whether the program runs in blocks with a lighter week. They sit under Starting data. Every field saves as it changes, and the card's heading says Saving…, Saved or Not saved.
 
 ## Weight rules
 

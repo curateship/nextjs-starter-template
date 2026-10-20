@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, max } from "drizzle-orm"
 
 import { weekOrder } from "@/lib/fitness/dates"
+import { groupedIds, orderByBodyPart } from "@/lib/fitness/day-order"
 
 import { FITNESS_ERRORS } from "@/lib/fitness/errors"
 import { PLAN_TEMPLATES, TEMPLATE_START_SHARE, type ExperienceId, type GoalId } from "@/lib/fitness/templates"
@@ -16,6 +17,7 @@ import {
   fitnessBaselines,
   fitnessWeekDays,
   fitnessDayExercises,
+  fitnessExercises,
   fitnessStrengthSettings,
 } from "@/server/fitness/schema"
 
@@ -58,6 +60,37 @@ export async function loadStrengthSettings(programId: string, database: FitnessD
     .limit(1)
   const { programId: _id, scheduledThrough: _through, ...settings } = strength
   return settings
+}
+
+/**
+ * Saves one day's exercises in the order the Day view shows them, body part
+ * by body part with a superset kept together (`orderByBodyPart`), and returns
+ * them in that order. Every change that adds, swaps or reorders a day's
+ * exercises ends here, and a workout starts from it, so the numbers on the
+ * Day view, the saved order and the workout always agree. A day saved before
+ * 20 Oct 2026 in another order is put right the first time it is touched.
+ */
+export async function settleDayOrder(dayId: string, database: FitnessDb = db) {
+  const rows = await database
+    .select()
+    .from(fitnessDayExercises)
+    .where(eq(fitnessDayExercises.dayId, dayId))
+    .orderBy(asc(fitnessDayExercises.position))
+  if (rows.length < 2) return rows
+  const library = await database
+    .select({ id: fitnessExercises.id, muscles: fitnessExercises.muscles })
+    .from(fitnessExercises)
+    .where(inArray(fitnessExercises.id, [...new Set(rows.map((row) => row.exerciseId))]))
+  const muscles = new Map(library.map((entry) => [entry.id, entry.muscles]))
+  const order = groupedIds(orderByBodyPart(rows, (exerciseId) => muscles.get(exerciseId) ?? []))
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  const settled = order.map((id, position) => ({ ...byId.get(id)!, position }))
+  for (const row of settled) {
+    if (byId.get(row.id)!.position !== row.position) {
+      await database.update(fitnessDayExercises).set({ position: row.position }).where(eq(fitnessDayExercises.id, row.id))
+    }
+  }
+  return settled
 }
 
 /** The program's week, Monday first. Rest days have no entry. */
@@ -251,6 +284,7 @@ export async function copyWeekDay(actorId: string, dayId: string, toWeekday: num
     return { ...exercise, id: uuid(), dayId: target.id, groupKey, missStreak: 0 }
   })
   if (rows.length) await database.insert(fitnessDayExercises).values(rows)
+  await settleDayOrder(target.id, database)
   return target
 }
 
@@ -284,6 +318,7 @@ export async function addDayExercise(
     groupKey: null,
     missStreak: 0,
   })
+  await settleDayOrder(dayId, database)
   return { id }
 }
 
@@ -304,12 +339,14 @@ export async function updateDayExercise(
   change: Partial<DayExerciseInput & { exerciseId: string }>,
   database: FitnessDb = db
 ) {
-  const { program } = await dayExerciseFor(actorId, dayExerciseId, database)
+  const { row, program } = await dayExerciseFor(actorId, dayExerciseId, database)
   if (change.exerciseId) await exerciseForRoutine(program.userId, change.exerciseId, program.routineType, database)
   await database
     .update(fitnessDayExercises)
     .set({ ...change, ...(change.weightKg !== undefined ? { missStreak: 0 } : {}) })
     .where(eq(fitnessDayExercises.id, dayExerciseId))
+  // A swap can move the lift to another body part.
+  if (change.exerciseId) await settleDayOrder(row.dayId, database)
 }
 
 export async function removeDayExercise(actorId: string, dayExerciseId: string, database: FitnessDb = db) {
@@ -332,6 +369,8 @@ export async function reorderDayExercises(
   for (const [position, id] of ids.filter((id) => known.has(id)).entries()) {
     await database.update(fitnessDayExercises).set({ position }).where(eq(fitnessDayExercises.id, id))
   }
+  // An order sent from an older screen, or across body parts, is put back into body part order.
+  await settleDayOrder(dayId, database)
 }
 
 /**
@@ -351,11 +390,8 @@ export async function setSuperset(
   database: FitnessDb = db
 ) {
   const { row } = await dayExerciseFor(actorId, dayExerciseId, database)
-  const siblings = await database
-    .select()
-    .from(fitnessDayExercises)
-    .where(eq(fitnessDayExercises.dayId, row.dayId))
-    .orderBy(asc(fitnessDayExercises.position))
+  // "The one above" is the one above on the Day view.
+  const siblings = await settleDayOrder(row.dayId, database)
   const index = siblings.findIndex((sibling) => sibling.id === row.id)
   /** The run of neighbours sharing `key`, walking from `from` in `step` direction. */
   const run = (from: number, step: 1 | -1, key: string | null) => {
@@ -383,6 +419,7 @@ export async function setSuperset(
   const groupKey = above.groupKey ?? uuid()
   const following = run(index + 1, 1, row.groupKey)
   await setKey([above.id, row.id, ...following], groupKey)
+  await settleDayOrder(row.dayId, database)
 }
 
 /**
@@ -434,6 +471,7 @@ export async function applyTemplate(
       ]
     })
     if (rows.length > 0) await database.insert(fitnessDayExercises).values(rows)
+    await settleDayOrder(dayId, database)
   }
   await relayCalendar(program, database)
 }

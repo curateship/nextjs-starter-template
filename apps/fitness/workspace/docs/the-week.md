@@ -7,12 +7,19 @@ A program is one fixed week. Each weekday, Monday to Sunday, is either a workout
 Tyler redrew all of this on 18 Oct 2026, and the screens follow his drawings.
 
 - **Left panel, This week:** first two figures side by side. Workouts is "1 / 3", this week's workouts against the weekly goal in Settings, App settings, with a bar under it. Streak is "4 weeks in a row". Both count only this program's workouts, and skip only the weeks this program was paused. Under them the week, Monday first: the weekday, a dot, the workout's name or "Rest", and a word at the right. The dot is green when done, amber when missed, dark for today, and an empty ring when planned or resting. The word says Done, Missed, Paused or Today, so the dot is never the only sign. The picked day sits on a white row. Picking a day opens it in the middle.
-- **Middle, Day view:** the picked weekday's workout as a large heading, "Chest day". Under it: "Sunday · Today · 3 exercises · 9 sets · about 25 min", where the minutes allow 45 seconds a set, the rest between sets and a minute between exercises, rounded to 5. Add exercise sits at its right, and offers only the lifts of the program's routine type. The day's menu (three dots) and Start workout sit up in the row with the tabs. The exercises are cards in order. Each card has a drag handle, its number, the name, "Rest 3 min · Last: 3 × 5 on Oct 11" (or "Not logged yet"), the sets and reps, and the weight: "80 kg", "+10 kg" on a bodyweight lift, "Bodyweight", or "No weight" in amber when none is set. A superset says "Superset: no rest until the last one" above its first card. Clicking a card opens it on the right, with a dark outline on the card.
+- **Middle, Day view,** as Tyler drew it on 20 Oct 2026. The picked weekday's workout as a large heading, "Push and Pull", and under it the date it falls on this week, how many exercises and how many sets: "Tue, Oct 20 · 7 exercises · 24 sets". Then the exercises run edge to edge under grey body part headings with their count, "Chest · 2", in the order each body part first comes in the day.
+  - **Each row:** a drag handle, its number (filled in dark while it is open on the right), the name, "Rest 3 min · Last: 60 kg × 8" (last session's best set, or "Not logged yet"), and the working sets ticked in this week's workout for the day, "0/4 sets". A lift in a superset says "Superset" before its rest.
+  - **Body parts** come from each lift's main muscle, the first in its list: chest is Chest; upper back, lats, traps and lower back are Back; shoulders are Shoulders; biceps, triceps and forearms are Arms; abs are Core; glutes, quads, hamstrings and calves are Legs; a lift with no muscle is Other. Nobody types a body part in (`bodyPartOf` in `src/lib/fitness/exercise-catalog.ts`).
+  - **The "+" on a body part's heading** shows while the heading is pointed at (always on a phone). It opens New exercise listing only that body part's lifts, with only its muscles in the muscle choice. The new lift joins the end of its body part.
+  - **A bodyweight lift** with nothing added reads "Last: bodyweight × 8".
+  - **Dragging** moves a lift within its body part only, since where it sits doesn't change its body part. The server keeps every day in that order (`settleDayOrder` in `src/server/fitness/week.ts`, the rule in `src/lib/fitness/day-order.ts`): after a new lift, a swap, a drag, a superset, a copied day, a template or the AI week, and again just before a workout starts. So the numbers on the Day view, the right panel's "Exercise 1 of 3" and the workout always agree, and a day saved before 20 Oct 2026 in another order is put right the first time it is touched.
+  - **A superset stays together,** filed under its first lift's body part: a bench press and row superset sits under Chest, and its rest still comes after the last of them. "Join with the one above" joins the lift shown above.
+  - **New exercise,** in the middle header, opens a dropdown with the lift (only the lifts of the program's routine type), sets and reps, weight and rest, and Create exercise; a lift picked fills in the usual reps and rest for its kind. The day's menu (three dots) and Start workout sit in the same header. Clicking a row opens it on the right.
 - **Right panel:** the picked exercise. See below.
 
 ## Making the week
 
-- **A rest day** says so, with a name box and "Make it a workout day". It can also "Use a template" or "Build with AI", both of which set the whole week at once and replace it.
+- **A rest day** says so. New workout, in the middle header, names the workout and makes it a workout day. The rest day can also "Use a template" or "Build with AI", both of which set the whole week at once and replace it.
 - **A workout day's actions** (the three dots): Rename this workout, Copy to another weekday (the copy has the same exercises, sets, reps and weights, and from then on each day keeps its own), Make it a rest day (asks first; its exercises go and its planned dates leave the calendar, logged workouts stay), and the template and AI choices.
 - **Templates** each set fixed weekdays: 5x5 is Monday A, Wednesday B, Friday A. Push Pull Legs is Monday, Wednesday, Friday. Upper Lower is Monday and Thursday upper, Tuesday and Friday lower. Each heavy lift starts at 75 out of 100 of the best lift in Starting data, or empty when none was given.
 - **The AI** writes one workout per weekday from the goal, experience and equipment in Starting data, using only library lifts. A beginner gets at most four days and five lifts a day. The draft is read first; nothing changes until "Use this week".
@@ -26,7 +33,7 @@ The right panel shows the exercise's name and its day, then:
 - **Next time:** the weight rules as numbers for this exercise, a row each: a green up arrow, "Hit all 3 sets of 5", 65 kg; an amber down arrow, "Miss reps 3 sessions in a row", 57.5 kg. Or that automatic changes are off.
 - **Swap exercise** and **Remove** side by side at the foot. Swap keeps the sets, reps, weight and rest and changes the lift; Remove, in red, asks first.
 
-With nothing picked, the right panel says what to pick. The program's own settings (Starting data, Weight rules and Training blocks) live in the cog on the banner (`program-dashboard.md`).
+Arriving on a workout day opens its first exercise on the right. With nothing open, the right panel says what to click. The program's own settings (Pictures, Starting data, Weight rules and Training blocks) live in the settings window behind the cog in the left panel's header (`program-dashboard.md`).
 
 ## Starting a workout
 
@@ -47,7 +54,7 @@ The Calendar view repeats the week through the month, four weeks ahead at a time
 - **A moved workout.** It stays on the date it was moved to, and the date it left stays empty: the week is never laid back onto it (`moved_from` on `fitness_scheduled_workouts`).
 - **History.** Making a weekday a rest day, or replacing the week with a template or the AI, keeps that weekday's finished dates, named after the workout that was done (`drizzle/0098_fitness_calendar_keeps_history.sql`). Its dates still to come, and its missed dates, leave the calendar.
 
-A pause (Pause program in the cog) takes its dates off the calendar: no missed days, no reminders, no weight drops. Resume puts the week back from today.
+A pause (Pause program in the left header's three dots) takes its dates off the calendar: no missed days, no reminders, no weight drops. Resume puts the week back from today.
 
 ## Code
 
