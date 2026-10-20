@@ -1,4 +1,5 @@
 import { formatClockTime } from "@/lib/format/format-time"
+import type { SwipeDecision } from "@/lib/dating/options"
 
 /**
  * How the Dating screens say a time: the clock for today, "Yesterday" and the
@@ -18,9 +19,10 @@ export function nameAndAge(name: string, age: number | null): string {
   return age ? `${name}, ${age}` : name
 }
 
-export function swipeWords(swipe: "none" | "like" | "pass", by: "member" | "ai" | null): string {
+export function swipeWords(swipe: SwipeDecision, by: "member" | "ai" | null): string {
   if (swipe === "none") return "Not swiped"
-  return `${swipe === "like" ? "Liked" : "Passed"} by ${by === "ai" ? "the AI" : "you"}`
+  const done = swipe === "super" ? "Super Liked" : swipe === "like" ? "Liked" : "Passed"
+  return `${done} by ${by === "ai" ? "the AI" : "you"}`
 }
 
 export function dollars(value: number): string {

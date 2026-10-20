@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { ChevronDownIcon, FlagIcon, HeartIcon, ListFilterIcon, Loader2Icon, RefreshCwIcon, SearchIcon, TrendingDownIcon, TrendingUpIcon, UserRoundXIcon, XIcon } from "lucide-react"
+import { ChevronDownIcon, FlagIcon, HeartIcon, ListFilterIcon, Loader2Icon, RefreshCwIcon, SearchIcon, StarIcon, TrendingDownIcon, TrendingUpIcon, UserRoundXIcon, XIcon } from "lucide-react"
 
 import { DashboardCardHeader, dashboardCardTabClassName } from "@/components/shared/dashboard-card-header"
 import { Badge } from "@/components/ui/badge"
@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsCount, TabsList, TabsTrigger } from "@/component
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { MatchAnswer } from "@/lib/api/dating/chats"
 import type { DatingDashboard } from "@/lib/api/dating/dashboard"
-import { MATCH_FLAG_WORDS, PROFILE_FILTERS, type ListTab, type ProfileFilter } from "@/lib/dating/options"
+import { isLike, MATCH_FLAG_WORDS, PROFILE_FILTERS, type ListTab, type ProfileFilter, type SwipeDecision } from "@/lib/dating/options"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
@@ -64,7 +64,7 @@ export function DatingList({
   onClearDead: () => void
 }) {
   const profiles = data.profiles.filter((profile) => {
-    if (filter === "liked") return profile.swipe === "like"
+    if (filter === "liked") return isLike(profile.swipe)
     if (filter === "passed") return profile.swipe === "pass"
     if (filter === "unswiped") return profile.swipe === "none"
     return true
@@ -360,7 +360,8 @@ function Row({ active, onClick, children }: { active: boolean; onClick: () => vo
   )
 }
 
-function SwipeMark({ swipe }: { swipe: "none" | "like" | "pass" }) {
+function SwipeMark({ swipe }: { swipe: SwipeDecision }) {
+  if (swipe === "super") return <StarIcon className="size-4 fill-primary text-primary" aria-label="Super Liked" />
   if (swipe === "like") return <HeartIcon className="size-4 fill-primary text-primary" aria-label="Liked" />
   if (swipe === "pass") return <XIcon className="size-4 text-muted-foreground" aria-label="Passed" />
   return <span className="size-4" aria-hidden />

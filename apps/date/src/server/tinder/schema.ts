@@ -17,7 +17,9 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
 /**
  * What Date reads off Tinder and does there: the cards it read, the matches
  * and their messages, the member's own profile, and the job list of walks.
- * The SQL is `drizzle/0097_date_tinder.sql` and `drizzle/0100_date_chats.sql`.
+ * The SQL is `drizzle/0097_date_tinder.sql`, `drizzle/0100_date_chats.sql`,
+ * `drizzle/0103_date_first_look_model.sql` and
+ * `drizzle/0104_date_forget_passed_photos.sql`.
  * Stored fields are never renamed.
  */
 
@@ -68,6 +70,8 @@ export const dateProfiles = pgTable(
     /** Every line read off the card and its profile, in order, so the AI sees all of it. */
     texts: jsonb("texts").$type<string[]>().notNull().default([]),
     photoIds: jsonb("photo_ids").$type<string[]>().notNull().default([]),
+    /** A pass's photos were deleted 30 days after it, and `photoIds` emptied. The name, age, score and read stay. */
+    photosForgottenAt: timestamp("photos_forgotten_at", { withTimezone: true }),
     /** The same person read twice before a swipe is one card, told by name, age and first photo. */
     fingerprint: varchar("fingerprint", { length: 64 }).notNull().default(""),
     readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
@@ -80,6 +84,8 @@ export const dateProfiles = pgTable(
     /** The member's own dealbreakers this card hits, in the AI's words. */
     aiDealbreakers: jsonb("ai_dealbreakers").$type<string[]>().notNull().default([]),
     aiReadAt: timestamp("ai_read_at", { withTimezone: true }),
+    /** The model whose score counts: the first look's, or Opus's when it looked again. Null when no AI read the card. */
+    aiModel: varchar("ai_model", { length: 40 }),
     /** When an AI read was started, so two passes never pay for the same card twice. */
     aiStartedAt: timestamp("ai_started_at", { withTimezone: true }),
     /** Why the AI's last try at this card failed, in words, or empty. */

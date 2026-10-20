@@ -6,6 +6,7 @@ import { readDatingSettings, saveDatingSettings } from "@/server/dating/settings
 import { inWords } from "@/server/dating/words"
 import { db } from "@/server/db"
 import { userGet, userPost } from "@/server/guards"
+import { datePhones } from "@/server/phone/schema"
 import { dateMatches } from "@/server/tinder/schema"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
@@ -36,6 +37,13 @@ const saveFn = createServerFn({ method: "POST" })
           .update(dateMatches)
           .set({ draftSendAt: null })
           .where(and(eq(dateMatches.userId, context.user.id), eq(dateMatches.workspaceId, workspaceId), ne(dateMatches.draft, "")))
+      }
+      // Tinder's own filters follow Date's: the phone sets them on its next free pass.
+      if (before.maxDistanceKm !== saved.maxDistanceKm || before.ageMin !== saved.ageMin || before.ageMax !== saved.ageMax) {
+        await db
+          .update(datePhones)
+          .set({ discoveryOwed: true })
+          .where(and(eq(datePhones.userId, context.user.id), eq(datePhones.workspaceId, workspaceId)))
       }
       return saved
     })

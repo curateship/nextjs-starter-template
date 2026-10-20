@@ -1,6 +1,6 @@
 # The Dating dashboard
 
-`/admin/dating`, under Dating in the left menu. Three columns. The left one opens 230 pixels wide and the right one 280, their narrowest, on any screen; the middle takes the rest. Copied copied from Promo's project columns: the sides shut and reopen, double-clicking a side's blank space shuts it, the dividers drag and the layout is remembered. Below 1280 pixels the list comes first, and an open card or chat sits behind a back arrow with the right column's cards under it.
+`/admin/dating`, under Dating in the left menu. Three columns. The left one opens 230 pixels wide and the right one 280, their narrowest, on any screen; the middle takes the rest. Copied from Promo's project columns: the sides shut and reopen, double-clicking a side's blank space shuts it, the dividers drag and the layout is remembered. Below 1280 pixels the list comes first, and an open card or chat sits behind a back arrow with the right column's cards under it.
 
 ## Left: Profiles and Matches
 
@@ -11,20 +11,20 @@
 
 ## Middle: the person or the chat
 
-- **A card**: its photos with arrows, every line Tinder showed, and Like and Pass. A card already swiped says who swiped it and when; a swipe on its way says so until the phone does it.
+- **A card**: its photos with arrows, or "Photos deleted after 30 days." on an old pass, every line Tinder showed, and Like and Pass. A card already swiped says who swiped it and when; a swipe on its way says so until the phone does it.
 - **A chat**: theirs on the left, ours on the right marked "You" or "AI", newest at the bottom, with what is still sending, unsure or not sent. Refresh reads it again from the phone; Moved to text stops the AI there; Unmatch, after a confirm, unmatches on the phone. A chat the AI read as over says so with Not over; one moved to text says so with Undo.
 
 ## Right: the AI and the phone
 
 - **Before your date**, on a chat where they said yes: their line, photos, when and where, their number, three lines from the chat and what they told you, with Add to calendar (`chats/dates-and-calendar.md`).
-- **What the AI thinks**: the score, its three lines, flags and dealbreakers, Read again; for a chat, the counts each way, whether a date was suggested, warming up or cooling off with why, and the AI's question with an answer box.
+- **What the AI thinks**: the score, "checked twice" when Opus looked again, its three lines, flags and dealbreakers, Read again; for a chat, the counts each way, whether a date was suggested, warming up or cooling off with why, and the AI's question with an answer box.
 - **Reply**: the AI's draft, yours to change, Send from phone, Tidy, Regenerate, Show 3 and the tone buttons, and how many of your last 20 drafts went unchanged. With automate on, the time it goes out by itself.
 - **What they told you** and **This chat** (the AI drafts here switch and the note to the AI), on a chat (`chats/chats-and-replies.md`).
 - **Phone**: here or away since when, battery, Date in control, the stop reason with Resume, Open screen window.
 - **Start and Read profile** sit in the right column's header, beside the button that shuts every card. They show only their icons when the column is narrow.
-- **Swiping**: swipes and messages this hour against the limits, AI spend against the cap, quiet hours, what the phone is doing now and the last problem.
+- **Swiping**: swipes today and this hour, messages this hour, AI spend against the cap, the schedule and quiet hours, what a match and a date cost this month, how many overruled swipes the AI learns from, what Tinder's own distance and ages were set to, what the phone is doing now and the last problem.
 - **My profile**: the AI's suggested photo order, bio and notes for your own profile.
-- **Daily tally**: today and the six days before: swipes, likes, matches, messages sent, dates suggested. Its Openers tab counts the AI's first messages by kind and how many got an answer within 3 days.
+- **Daily tally**: today and the six days before: swipes, likes, matches, messages sent, dates suggested. Its Openers tab counts the AI's first messages by kind and how many got an answer within 3 days, and its What's working tab counts liked cards by band of score and how many became matches.
 
 The dashboard reads everything again every 4 seconds while the phone or the AI is busy, and every 15 otherwise.
 

@@ -176,6 +176,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   cut into scenes on a priced storyboard, then made into stills, voice lines
   and captions laid end to end: what the writer is asked, where scenes land,
   who lays them, what a failed scene leaves, and what it costs.
+- [say-what-ai-made.md](say-what-ai-made.md) — the Made by AI card in an
+  export's window: which parts are listed, how the render works them out from
+  the timeline it draws, the Edited by hand tick, the one-paragraph copy for
+  YouTube and TikTok, and why the voice is the part platforms cannot see.
 - [b-roll.md](b-roll.md) — free Pexels clips under each sentence of the voice
   line: where the key goes, how sentences are cut, the phrase rules and why,
   the 200-an-hour request budget, where the credit is kept, and how a short

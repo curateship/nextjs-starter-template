@@ -75,7 +75,8 @@ describe("chats and replies", () => {
     workspaceId = (await insertWorkspace(db)).id
     phoneId = uuid()
     clock = T0
-    await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0 })
+    // Tinder's distance and ages are already set, so the pass does not open Tinder's settings first.
+    await db.insert(datePhones).values({ id: phoneId, userId, workspaceId, name: "Pixel 8a", keyEncrypted: "paired", timeZone: "UTC", lastSeenAt: T0, discoveryOwed: false })
     asked = []
     answers = []
     notes = []

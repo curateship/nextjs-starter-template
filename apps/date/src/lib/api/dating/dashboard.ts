@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
+import { swipedWord } from "@/lib/dating/options"
 import { draftReply, reviewOwnProfile, scoreCard } from "@/server/dating/ai"
 import {
   dashboardPhone,
@@ -92,7 +93,7 @@ const swipeFn = createServerFn({ method: "POST" })
     inWords(async () => {
       const card = await ownCard(context.user.id, data.profileId)
       if (card.sample) throw new Error(SAMPLE_WORDS)
-      if (card.swipe !== "none") throw new Error(`${card.name} was already ${card.swipe === "like" ? "liked" : "passed"}.`)
+      if (card.swipe !== "none") throw new Error(`${card.name} was already ${swipedWord(card.swipe)}.`)
       if (!card.phoneId) throw new Error("No phone read this card, so it cannot be swiped.")
       await queueWalk({ userId: context.user.id, phoneId: card.phoneId, kind: data.decision, input: { profileId: card.id }, askedBy: "member" })
     })

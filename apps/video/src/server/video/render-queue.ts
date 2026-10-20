@@ -15,7 +15,11 @@ import {
 } from "@/lib/video/render"
 import { DEFAULT_NORMALIZE_LOUDNESS } from "@/lib/video/audio-loudness"
 import type { CarouselFormat } from "@/lib/video/carousel-schema"
-import type { AspectRatio } from "@/lib/video/timeline-schema"
+import type { AiPart } from "@/lib/video/ai-parts"
+import {
+  requireCanonicalTimeline,
+  type AspectRatio,
+} from "@/lib/video/timeline-schema"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
@@ -26,6 +30,7 @@ import {
   renderTimeline,
   SAFE_RENDER_ERRORS,
 } from "@/server/video/render"
+import { workOutAiParts } from "@/server/video/ai-parts"
 import { videoProjects, videoRenderJobs } from "@/server/video/schema"
 import { isUniqueViolation } from "@/server/video/unique-violation"
 
@@ -94,6 +99,10 @@ export type RenderJobSummary = {
   queue_position: number | null
   title: string | null
   description: string | null
+  /** What the AI made in the file. Null before 20 Oct 2026 and on carousels. */
+  ai_parts: AiPart[] | null
+  /** Whether the copied paragraph says the script and pictures were edited. */
+  ai_hand_edited: boolean
   file_size: number | null
   duration_ms: number | null
   width: number | null
@@ -126,6 +135,8 @@ export function serializeRenderJob(
     queue_position: null,
     title: row.title,
     description: row.description,
+    ai_parts: row.aiParts,
+    ai_hand_edited: row.aiHandEdited,
     file_size: row.fileSize,
     duration_ms: row.durationMs,
     width: row.width,
@@ -600,6 +611,12 @@ async function runJob(job: ClaimedJob) {
       .limit(1)
     if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
 
+    // From the timeline this run draws, not the one the export was asked
+    // for: the project can be edited while the export waits in the queue.
+    const aiParts = await workOutAiParts(
+      requireCanonicalTimeline(project.timeline)
+    )
+
     const result = await renderTimeline({
       userId: job.user_id,
       timeline: project.timeline,
@@ -637,6 +654,7 @@ async function runJob(job: ClaimedJob) {
         durationMs: result.durationMs,
         width: result.width,
         height: result.height,
+        aiParts,
         leaseToken: null,
         leaseExpiresAt: null,
         finishedAt: now(),

@@ -20,11 +20,12 @@ Promo's rule, kept: "a comment or post is never tried twice".
 
 ## Limits
 
-Tyler's choice, 17 Oct 2026, the careful ones. The hourly numbers and the quiet hours are in Settings → Dating.
+Tyler's choice, 17 Oct 2026, the careful ones, with 150 swipes a day added on 18 Oct 2026. The numbers and the quiet hours are in Settings → Dating.
 
 | Limit | Default |
 | --- | --- |
 | Gap between swipes | 4 to 9 seconds, drawn at random |
+| Swipes a day, from midnight on the phone's clock | 150 |
 | Swipes an hour | 60 |
 | Messages an hour | 20 |
 | Quiet hours, on the phone's own clock | 1am to 7am |
@@ -32,4 +33,4 @@ Tyler's choice, 17 Oct 2026, the careful ones. The hourly numbers and the quiet 
 - **Quiet hours stop every walk.** The swipe loop pauses through them.
 - **A walk a limit stops is refused before anything is written**, with which limit and when it is allowed again, such as "Quiet hours on the phone, 1:00 to 7:00. Allowed again at 07:00."
 - **The gap only delays a swipe**: it waits its turn on the list.
-- **Hitting the hourly swipe limit ends the swipe loop**, saying so on the Swiping card.
+- **Hitting the daily or hourly swipe limit ends the swipe loop**, saying so on the Swiping card with when it is allowed again, such as "150 swipes today, the most allowed. Allowed again at 00:00." A Like, a Super Like and a Pass all count. With a swiping schedule, the schedule starts the loop again once an hourly limit allows (`../ai/swiping-and-scoring.md`).

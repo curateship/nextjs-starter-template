@@ -1,17 +1,18 @@
-import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, ne } from "drizzle-orm"
+import { and, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, ne } from "drizzle-orm"
 
 import { WALK_WORDS } from "@/lib/dating/options"
-import type { DatingSettings } from "@/lib/dating/settings"
+import { inHourWindow, type DatingSettings } from "@/lib/dating/settings"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { cancelAbandonedActions } from "@/server/phone/actions"
 import { tidyOldPictures } from "@/server/phone/pictures"
 import { datePhones } from "@/server/phone/schema"
-import { phoneClock, phoneHour, inQuietHours, walkRefusal } from "@/server/tinder/limits"
+import { phoneClock, phoneHour, phoneMidnight, inQuietHours, walkRefusal } from "@/server/tinder/limits"
 import { phoneIsBusy, queueWalk, runWalkList, type RunOptions } from "@/server/tinder/jobs"
 import { dateMatches, dateOwnProfiles, dateProfiles, dateWalks } from "@/server/tinder/schema"
 import { createOutgoingMessage, settleMessage } from "@/server/tinder/store"
 
-import { decideSwipe, draftReply, makeDateBrief, readChatNotes, reviewOwnProfile, scoreCard, type AiDeps } from "./ai"
+import { decideSwipe, draftReply, makeDateBrief, readChatNotes, reviewOwnProfile, scoreCard, SUPER_LIKE_SCORE, type AiDeps } from "./ai"
+import { forgetPassedPhotos } from "./forget-photos"
 import { newestMessages } from "./dashboard"
 import { readDatingSettings } from "./settings"
 import { spendCapReached } from "./spend"
@@ -31,10 +32,12 @@ import { spendCapReached } from "./spend"
  *
  * What ends the loop, in Tyler's words of 17 Oct 2026: Stop, a hit limit, a
  * stop screen, the spend cap, or the phone going away. Quiet hours pause it.
+ * With a swiping schedule (18 Oct 2026), the schedule starts it at the
+ * window's first hour and stops it at its end; see `scheduleStep`.
  */
 
 /** The walks the loop itself asks for. */
-const LOOP_WALKS = ["read-card", "like", "pass", "read-matches"] as const
+const LOOP_WALKS = ["read-card", "like", "super-like", "pass", "read-matches"] as const
 
 /** A phone silent this long while running has gone away, and the loop stops. */
 const AWAY_STOPS_LOOP_MS = 2 * 60_000
@@ -49,6 +52,10 @@ const CARDS_PER_PASS = 10
 const TIDY_EVERY_MS = 60 * 60_000
 let lastTidy = 0
 
+/** Deleting old passes' photos runs once a day in one process. */
+const FORGET_EVERY_MS = 24 * 60 * 60_000
+let lastForget = 0
+
 export type PassOptions = RunOptions & AiDeps
 
 export async function runDatingPass(
@@ -62,6 +69,10 @@ export async function runDatingPass(
     lastTidy = now.getTime()
     work.push(tidyOldPictures(db, now).catch((error) => console.error("Old Date pictures could not be tidied", error)))
   }
+  if (now.getTime() - lastForget > FORGET_EVERY_MS) {
+    lastForget = now.getTime()
+    work.push(forgetPassedPhotos(db, now).catch((error) => console.error("Old passes' photos could not be deleted", error)))
+  }
 
   const phones = await db.select().from(datePhones).where(isNotNull(datePhones.keyEncrypted))
   for (const phone of phones) {
@@ -69,7 +80,9 @@ export async function runDatingPass(
       const settings = await readDatingSettings(phone.userId, phone.workspaceId, db)
       work.push(...aiWork(phone, db, now, options))
       await sendDueDrafts(phone, settings, db, now)
-      if (phone.running) await loopStep(phone, settings, db, now, work, options)
+      await setDiscoveryIfOwed(phone, settings, db, now)
+      const scheduled = await scheduleStep(phone, settings, db, now)
+      if (scheduled.running) await loopStep(scheduled, settings, db, now, work, options)
     } catch (error) {
       console.error(`The Date pass failed for phone ${phone.id}`, error)
     }
@@ -231,12 +244,141 @@ async function sendDueDrafts(phone: Phone, settings: DatingSettings, db: CustomS
   }
 }
 
-/** Ends the loop with the reason in words. */
-async function stopLoop(phone: Phone, why: string, db: CustomShellDb, now: Date): Promise<void> {
+/**
+ * Ends the loop with the reason in words. A limit passes the moment it allows
+ * again, so the schedule can start the loop once more inside its window.
+ */
+async function stopLoop(phone: Phone, why: string, db: CustomShellDb, now: Date, resumeAt: Date | null = null): Promise<void> {
   await db
     .update(datePhones)
-    .set({ running: false, stopWhy: why, stopWhyAt: now, updatedAt: now })
+    .set({ running: false, stopWhy: why, stopWhyAt: now, resumeAt, updatedAt: now })
     .where(and(eq(datePhones.id, phone.id), eq(datePhones.running, true)))
+}
+
+/** The loop's walks waiting on the phone are called off, with the reason. A send already on its way is not. */
+async function cancelLoopWalks(phoneId: string, why: string, db: CustomShellDb, now: Date): Promise<void> {
+  await db
+    .update(dateWalks)
+    .set({ status: "cancelled", error: why, finishedAt: now })
+    .where(and(eq(dateWalks.phoneId, phoneId), eq(dateWalks.status, "waiting"), eq(dateWalks.askedBy, "ai"), inArray(dateWalks.kind, LOOP_WALKS)))
+}
+
+/**
+ * The phone-clock day a swiping window opened, such as "2099-01-01", for a
+ * moment inside it. A time zone the server does not know counts as UTC, the
+ * same as `phoneHour`, so one odd phone never stops its own pass.
+ */
+function windowDay(start: number, timeZone: string, now: Date): string {
+  const hoursIn = (phoneHour(timeZone, now) - start + 24) % 24
+  const opened = new Date(now.getTime() - hoursIn * 3_600_000)
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: timeZone || "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(opened)
+  } catch {
+    return opened.toISOString().slice(0, 10)
+  }
+}
+
+/**
+ * The swiping schedule, Tyler's choice of 18 Oct 2026: one window every day,
+ * such as 19:00 to 22:00 on the phone's clock.
+ *
+ * - Inside the window the schedule starts the loop once, when the phone is
+ *   here, paired, in control and not stopped on a Tinder screen, and the
+ *   spend cap has room. It never resumes a stop screen: that needs Resume.
+ * - A limit that ended the loop inside the window (an hour's swipes) lets the
+ *   schedule start it again once the limit allows, and a phone that went away
+ *   for a while gets it started again once it is back. Anything else that
+ *   ended it (Stop, a failed walk, nobody new) holds until the next day's
+ *   window. Stop pressed inside the window holds it the same way.
+ * - At the window's end the schedule stops a loop that started inside the
+ *   window, by the schedule or by hand. A loop the member started by hand
+ *   outside the window is theirs to stop.
+ *
+ * Returns the phone as it now stands.
+ */
+async function scheduleStep(phone: Phone, settings: DatingSettings, db: CustomShellDb, now: Date): Promise<Phone> {
+  const { scheduleStart: start, scheduleEnd: end } = settings
+  if (start === null || end === null) return phone
+  const inWindow = inHourWindow(start, end, phoneHour(phone.timeZone, now))
+
+  if (!inWindow) {
+    const startedInWindow =
+      phone.runningSince !== null &&
+      now.getTime() - phone.runningSince.getTime() < 24 * 3_600_000 &&
+      inHourWindow(start, end, phoneHour(phone.timeZone, phone.runningSince))
+    if (!phone.running || (phone.startedBy !== "schedule" && !startedInWindow)) return phone
+    const why = `Schedule: swiping ends at ${end}:00 on the phone's clock, and starts again at ${start}:00.`
+    await stopLoop(phone, why, db, now)
+    await cancelLoopWalks(phone.id, why, db, now)
+    return { ...phone, running: false }
+  }
+
+  if (phone.running) return phone
+  const day = windowDay(start, phone.timeZone, now)
+  const limitPassed = phone.resumeAt !== null && phone.resumeAt <= now
+  if (phone.scheduleDay === day && !limitPassed) return phone
+  if (!phone.keyEncrypted || !phone.inControl || phone.stoppedReason) return phone
+  if (!phone.lastSeenAt || now.getTime() - phone.lastSeenAt.getTime() > AWAY_STOPS_LOOP_MS) return phone
+  if (await spendCapReached(phone.userId, settings.spendCapDollars, db, now)) return phone
+  const [started] = await db
+    .update(datePhones)
+    .set({ running: true, runningSince: now, startedBy: "schedule", scheduleDay: day, resumeAt: null, stopWhy: "", stopWhyAt: null, updatedAt: now })
+    .where(and(eq(datePhones.id, phone.id), eq(datePhones.running, false)))
+    .returning()
+  return started ?? phone
+}
+
+/**
+ * Tinder's own distance and ages are set to Date's when a setting changed or
+ * Resume was pressed: one `set-discovery` walk, put on the list when the
+ * phone is here and free. A walk that fails is not tried again by itself; changing a
+ * setting or Resume tries again.
+ */
+async function setDiscoveryIfOwed(phone: Phone, settings: DatingSettings, db: CustomShellDb, now: Date): Promise<void> {
+  if (!phone.discoveryOwed || !phone.keyEncrypted || !phone.inControl || phone.stoppedReason) return
+  // A phone asleep in a pocket would leave the walk waiting until it is called off; it goes once the phone is checking in.
+  if (!phone.lastSeenAt || now.getTime() - phone.lastSeenAt.getTime() > AWAY_STOPS_LOOP_MS) return
+  if (inQuietHours(settings, phoneHour(phone.timeZone, now)) || (await phoneIsBusy(phone.id, db))) return
+  // Marked done before it is queued, so a refusal can never hold up the rest of the pass on every pass.
+  await db.update(datePhones).set({ discoveryOwed: false }).where(eq(datePhones.id, phone.id))
+  try {
+    await queueWalk(
+      {
+        userId: phone.userId,
+        phoneId: phone.id,
+        kind: "set-discovery",
+        input: { distanceKm: settings.maxDistanceKm, ageMin: settings.ageMin, ageMax: settings.ageMax },
+        askedBy: "ai",
+      },
+      db,
+      now
+    )
+  } catch (error) {
+    console.error(`Tinder's distance and ages could not be put on phone ${phone.id}'s list`, error)
+  }
+}
+
+/**
+ * A like is a Super Like when the card scored 95 or more and no Super Like
+ * was tried on this phone since midnight on its clock. A try that met
+ * Tinder's offer to buy more ended as a plain like, and still counts as
+ * today's, so the offer is met once a day at most.
+ */
+async function superLikeDue(phone: Phone, score: number | null, db: CustomShellDb, now: Date): Promise<boolean> {
+  if (score === null || score < SUPER_LIKE_SCORE) return false
+  const [tried] = await db
+    .select({ id: dateWalks.id })
+    .from(dateWalks)
+    .where(
+      and(
+        eq(dateWalks.phoneId, phone.id),
+        eq(dateWalks.kind, "super-like"),
+        inArray(dateWalks.status, ["waiting", "running", "done", "failed"]),
+        gte(dateWalks.createdAt, phoneMidnight(phone.timeZone, now))
+      )
+    )
+    .limit(1)
+  return !tried
 }
 
 /**
@@ -252,7 +394,8 @@ async function loopStep(phone: Phone, settings: DatingSettings, db: CustomShellD
   }
   if (!phone.lastSeenAt || now.getTime() - phone.lastSeenAt.getTime() > AWAY_STOPS_LOOP_MS) {
     const since = phone.lastSeenAt ? ` since ${phoneClock(phone.timeZone, phone.lastSeenAt)}` : ""
-    await stopLoop(phone, `The phone went away${since}: it stopped checking in.`, db, now)
+    // Allowed again at once: the schedule starts the loop again when the phone is back inside its window.
+    await stopLoop(phone, `The phone went away${since}: it stopped checking in.`, db, now, now)
     return
   }
   const cap = await spendCapReached(phone.userId, settings.spendCapDollars, db, now)
@@ -328,13 +471,14 @@ async function loopStep(phone: Phone, settings: DatingSettings, db: CustomShellD
     work.push(...aiWork(phone, db, now, deps))
     return
   }
-  const refusal = await walkRefusal(phone, decision, settings, db, now)
+  const kind = decision === "like" && (await superLikeDue(phone, waiting.aiScore, db, now)) ? "super-like" : decision
+  const refusal = await walkRefusal(phone, kind, settings, db, now)
   if (refusal?.limit === "gap") return
   if (refusal) {
-    await stopLoop(phone, refusal.words, db, now)
+    await stopLoop(phone, refusal.words, db, now, refusal.until)
     return
   }
-  await queueWalk({ userId: phone.userId, phoneId: phone.id, kind: decision, input: { profileId: waiting.id }, askedBy: "ai" }, db, now)
+  await queueWalk({ userId: phone.userId, phoneId: phone.id, kind, input: { profileId: waiting.id }, askedBy: "ai" }, db, now)
 }
 
 /** Start on the dashboard: the loop runs from the next pass until Stop or a limit. */
@@ -351,9 +495,21 @@ export async function startLoop(userId: string, phoneId: string, db: CustomShell
   const settings = await readDatingSettings(userId, phone.workspaceId, db)
   const cap = await spendCapReached(userId, settings.spendCapDollars, db, now)
   if (cap) throw new Error(cap)
+  // Started by hand inside the swiping window counts as that window's start, so the schedule does not start it a second time.
+  const { scheduleStart: start, scheduleEnd: end } = settings
+  const inWindow = start !== null && end !== null && inHourWindow(start, end, phoneHour(phone.timeZone, now))
   await db
     .update(datePhones)
-    .set({ running: true, runningSince: now, stopWhy: "", stopWhyAt: null, updatedAt: now })
+    .set({
+      running: true,
+      runningSince: now,
+      startedBy: "member",
+      resumeAt: null,
+      stopWhy: "",
+      stopWhyAt: null,
+      updatedAt: now,
+      ...(inWindow ? { scheduleDay: windowDay(start, phone.timeZone, now) } : {}),
+    })
     .where(eq(datePhones.id, phone.id))
 }
 
@@ -366,10 +522,16 @@ export async function stopLoopByHand(userId: string, phoneId: string, db: Custom
     .limit(1)
   if (!phone) throw new Error("That phone does not exist.")
   await stopLoop(phone, "Stopped by you.", db, now)
+  // Inside the swiping window, Stop holds until the next day's window.
+  const settings = await readDatingSettings(userId, phone.workspaceId, db)
+  const { scheduleStart: start, scheduleEnd: end } = settings
+  if (start !== null && end !== null && inHourWindow(start, end, phoneHour(phone.timeZone, now))) {
+    await db
+      .update(datePhones)
+      .set({ scheduleDay: windowDay(start, phone.timeZone, now), resumeAt: null })
+      .where(eq(datePhones.id, phone.id))
+  }
   // What the loop queued and the phone has not started is called off with
   // it. An automated reply already on its way is not: Stop is the swiping.
-  await db
-    .update(dateWalks)
-    .set({ status: "cancelled", error: "Stopped by you.", finishedAt: now })
-    .where(and(eq(dateWalks.phoneId, phone.id), eq(dateWalks.status, "waiting"), eq(dateWalks.askedBy, "ai"), inArray(dateWalks.kind, LOOP_WALKS)))
+  await cancelLoopWalks(phone.id, "Stopped by you.", db, now)
 }

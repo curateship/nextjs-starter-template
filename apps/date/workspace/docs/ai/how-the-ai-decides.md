@@ -1,10 +1,11 @@
 # How the AI decides
 
-Date's AI is Claude Opus 5.5, named once in `src/server/dating/model.ts`, called through the shell's usage meter. Every call is checked against the monthly spend cap first (`spend.md`). Sample cards and chats are never sent to it.
+Date's AI is Claude Opus 5.5, with Claude Sonnet 5.5 taking the first look at each card, both named once in `src/server/dating/model.ts` and called through the shell's usage meter. Every call is checked against the monthly spend cap first (`spend.md`). Sample cards and chats are never sent to it.
 
 ## Reading a card
 
-- **A score out of 100** for fit with what the member wrote they want, three lines in plain words, and red flags.
+- **A score out of 100** for fit with what the member wrote they want, three lines in plain words, and red flags. Sonnet scores first and Opus again when Sonnet is within 10 of the like line; the AI is also shown the member's last 10 overruled cards (`swiping-and-scoring.md`).
+- **Someone on the People I know list** is passed without an AI call.
 - **It sees the photos**, shrunk to 768 pixels on their long side, and every line read off the card.
 - **Flags the card shows by itself**: no bio, one photo, outside the age range. **Flags only the AI can see**: photos that look generated, photos heavily filtered, further than the member wants (only when the member names a distance), and each dealbreaker it hits.
 - **It never invents a fact** that is not on the card.
@@ -12,7 +13,7 @@ Date's AI is Claude Opus 5.5, named once in `src/server/dating/model.ts`, called
 
 ## The swipe rule
 
-No AI call. A score at or above the member's number is a like, below it a pass, and a card that hits a dealbreaker is always a pass.
+No AI call. A score at or above the member's number is a like, below it a pass, and a card that hits a dealbreaker or is on the People I know list is always a pass. A like scoring 95 or more is a Super Like, at most one a day.
 
 ## Drafting a reply
 
@@ -42,7 +43,9 @@ Off by default. On, a draft goes out by itself 10 to 90 minutes after their mess
 2. With no card waiting it reads the card in front.
 3. It waits for the AI's score, then likes or passes.
 
-It ends at Stop, a hit hourly limit, a stop screen, the spend cap, the phone away for two minutes, a walk that failed, or Tinder having nobody new. Quiet hours pause it.
+It ends at Stop, a hit daily or hourly limit, a stop screen, the spend cap, the phone away for two minutes, a walk that failed, or Tinder having nobody new. Quiet hours pause it. With a swiping schedule, the schedule starts it and stops it (`swiping-and-scoring.md`).
+
+Once a day the pass also deletes the photos of passes older than 30 days, and when a setting or Resume asks for it, it puts the walk that sets Tinder's own distance and ages on the phone's list.
 
 Every pass, whether or not the loop runs, the AI also works through the member's matches in this order: new cards scored; chats with new messages from them read for notes (what they told you, and a yes to a date); answers where their message is newest; first messages for new matches; the one follow-up on chats quiet for 3 days; and the brief for each newly agreed date. A chat that is over, moved to text, taken over by the member, flagged or a sample gets none of it.
 

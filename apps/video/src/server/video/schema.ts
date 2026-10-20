@@ -22,6 +22,7 @@ import type {
   BriefVoice,
   StoredScene,
 } from "@/lib/video/brief"
+import type { AiPart } from "@/lib/video/ai-parts"
 import type { ExtraPicks, SentExtra } from "@/lib/video/extras"
 import type { ClipOutcome } from "@/lib/video/moving-still"
 import type { ScriptCheck } from "@/lib/video/script-check"
@@ -1009,6 +1010,11 @@ export const videoRenderJobs = pgTable(
     height: integer("height"),
     title: varchar("title", { length: 200 }),
     description: text("description"),
+    // Which parts of the file the AI made, worked out by the render from the
+    // timeline it drew. Null before drizzle/0131 and on carousel exports.
+    aiParts: jsonb("ai_parts").$type<AiPart[]>(),
+    // Whether the copied paragraph says a person edited them too.
+    aiHandEdited: boolean("ai_hand_edited").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
