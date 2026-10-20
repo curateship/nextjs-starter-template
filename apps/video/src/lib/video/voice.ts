@@ -101,9 +101,10 @@ export type Voice = {
  *
  * ElevenLabs sounds better and can use a voice of your own; OpenAI is a fixed
  * set of voices for a tenth of the price, and works off a key most people
- * already have for other things. Both hand back the sound; only ElevenLabs
- * also says where every character of the script falls inside it, so only its
- * captions land on the exact word.
+ * already have for other things. Both hand back the sound. ElevenLabs also
+ * says where every character of the script falls inside it; OpenAI does not,
+ * so its sound is played to Whisper afterwards to hear when each word was
+ * said. Whisper's times can be off at a pause (word-by-word-captions.md).
  */
 export const VOICE_SPEAKERS = [
   {
@@ -115,7 +116,7 @@ export const VOICE_SPEAKERS = [
   {
     id: "openai",
     label: "OpenAI",
-    note: "A fixed set of voices, far cheaper. Captions are spread evenly.",
+    note: "A fixed set of voices, far cheaper. Captions are timed to the voice.",
     model: "gpt-4o-mini-tts",
   },
 ] as const
@@ -140,6 +141,8 @@ export type VoiceoverResult = {
   durationMs: number
   /** The words as they are said, ready to become captions. */
   captions: CaptionLine[]
+  /** Something the person should know about how it went, though it worked. */
+  notice?: string
 }
 
 /**
@@ -194,6 +197,8 @@ export const VOICE_TOO_MANY_PAUSES_MESSAGE =
   "A script can hold 10 pauses at most, because more make the voice speed up or crackle"
 export const VOICE_NOT_YOURS_MESSAGE =
   "That voice was made from someone else's sample, so only they can read with it"
+export const VOICE_UNTIMED_NOTICE =
+  "Read aloud, but its words could not be timed, so the captions are shared out evenly across the sound"
 
 export const SAFE_VOICE_ERRORS = new Set([
   VOICE_NO_TEXT_MESSAGE,
@@ -309,23 +314,108 @@ const CAPTION_MAX_WORDS = 4
 const CAPTION_MAX_MS = 1_500
 
 /**
- * Lines for a voice that hands back sound but no timings.
+ * The script's words, each given when it was said, from what a transcriber
+ * heard in the sound.
  *
- * Without knowing when each word was said, the only honest thing is to share
- * the time out evenly across the words — which reads well enough, because the
- * lines are short and the speech is even. It is not the same as knowing.
+ * The script's words are what goes on screen, spelled the way they were
+ * written; the transcriber only lends its times. When it heard as many words
+ * as the script has, they pair up in order. When it heard a different number
+ * ("gonna" for "going to", "twenty" for "20"), the words both agree on are
+ * paired, and only the words between two paired ones share out the time
+ * between them evenly. Heard nothing, every word shares out the whole sound
+ * evenly, which is the best that can be done without listening.
  */
-export function spreadCaptionsEvenly(text: string, durationMs: number) {
-  const words = text.trim().split(/\s+/).filter(Boolean)
+export function timeScriptWords(
+  script: string,
+  heard: readonly SpokenWord[],
+  durationMs: number
+): SpokenWord[] {
+  const words = script.trim().split(/\s+/).filter(Boolean)
   if (!words.length || durationMs <= 0) return []
-  const perWord = durationMs / words.length
-  return wordsToCaptions(
-    words.map((word, index) => ({
-      text: word,
-      startMs: Math.round(index * perWord),
-      endMs: Math.round((index + 1) * perWord),
-    }))
-  )
+  const said = heard.filter((word) => comparable(word.text))
+  const paired =
+    said.length === words.length ? said : pairAgreedWords(words, said)
+
+  const timed: SpokenWord[] = []
+  let floor = 0
+  let index = 0
+  while (index < words.length) {
+    const match = paired[index]
+    if (match) {
+      // In order, inside the sound, and never ending before it starts.
+      const startMs = Math.min(durationMs, Math.max(floor, match.startMs))
+      const endMs = Math.min(durationMs, Math.max(startMs, match.endMs))
+      timed.push({ text: words[index], startMs, endMs })
+      floor = startMs
+      index += 1
+      continue
+    }
+    // A run of words nobody heard: they share the gap between the paired
+    // words either side, or the sound's start and end.
+    let next = index
+    while (next < words.length && !paired[next]) next += 1
+    const fromMs = timed.at(-1)?.endMs ?? 0
+    const toMs = Math.max(fromMs, Math.min(durationMs, paired[next]?.startMs ?? durationMs))
+    const share = (toMs - fromMs) / (next - index)
+    for (let gap = 0; gap < next - index; gap += 1) {
+      timed.push({
+        text: words[index + gap],
+        startMs: Math.round(fromMs + gap * share),
+        endMs: Math.round(fromMs + (gap + 1) * share),
+      })
+    }
+    floor = timed.at(-1)?.startMs ?? floor
+    index = next
+  }
+  return timed
+}
+
+/** A word as the two sides compare it: lower case, letters and digits only. */
+function comparable(word: string) {
+  return word
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, "")
+}
+
+/**
+ * The longest run of words the script and the transcriber agree on, in
+ * order, with each script word's heard word, or undefined where none agreed.
+ */
+function pairAgreedWords(
+  words: readonly string[],
+  said: readonly SpokenWord[]
+): (SpokenWord | undefined)[] {
+  const a = words.map(comparable)
+  const b = said.map((word) => comparable(word.text))
+  const width = b.length + 1
+  // How many words agree from here to the end of both, for every pair of
+  // places. A script is at most 5,000 characters, about 900 words, so this
+  // is under a million numbers.
+  const agree = new Uint32Array((a.length + 1) * width)
+  for (let i = a.length - 1; i >= 0; i -= 1) {
+    for (let j = b.length - 1; j >= 0; j -= 1) {
+      agree[i * width + j] =
+        a[i] && a[i] === b[j]
+          ? agree[(i + 1) * width + j + 1] + 1
+          : Math.max(agree[(i + 1) * width + j], agree[i * width + j + 1])
+    }
+  }
+  const paired: (SpokenWord | undefined)[] = new Array(a.length)
+  let i = 0
+  let j = 0
+  while (i < a.length && j < b.length) {
+    if (a[i] && a[i] === b[j]) {
+      paired[i] = said[j]
+      i += 1
+      j += 1
+    } else if (agree[(i + 1) * width + j] >= agree[i * width + j + 1]) {
+      i += 1
+    } else {
+      j += 1
+    }
+  }
+  return paired
 }
 
 /**

@@ -4,12 +4,12 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 
 - [Programs and routine types](strength-training.md): what a program and a routine type are, the rules Tyler set on 18 Oct 2026, the tables, the rules that hold everywhere, the first-run database snapshot, and the open questions.
 - [The Programs dashboard](programs-dashboard.md): the list of programs, the New program window with starting data, an unfinished workout to pick up, coach requests and clients.
-- [A program's dashboard](program-dashboard.md): the three panels, what each holds, and what the address keeps.
+- [A program's dashboard](program-dashboard.md): the three panels, the middle header's New and Start workout, the settings window and three dots, opening on arrival, and what the address keeps.
 - [The week](the-week.md): the fixed week Monday to Sunday, workout and rest days, a day's exercises, templates, the AI week, and the calendar that repeats it.
 - [Weight rules and training blocks](weight-rules-and-blocks.md): automatic increases, the drop after missed sessions, and lighter weeks.
 - [The workout logger](workout-logger.md): logging inside the program's dashboard, the set grid, the rest timer, plates, swaps, "This hurts" and finishing.
 - [Logging without signal](logging-without-signal.md): what the phone keeps when the signal drops, and what still needs a shell change.
-- [History](history.md): a program's workouts by week, Do this again, and the last four weeks.
+- [History](history.md): a program's workouts by week, search, Filter and saved Views, Do this again, and the last four weeks.
 - [Progress and records](progress-and-records.md): records, each lift's line, sets per muscle each week.
 - [Weigh-ins](weigh-ins.md): daily bodyweight and its seven-day average.
 - [Before and after photos](before-and-after-photos.md): private photo days, comparing two, and who can see them.

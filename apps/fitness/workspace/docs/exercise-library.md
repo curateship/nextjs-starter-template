@@ -11,7 +11,7 @@ Exercises is a dashboard of its own at `/exercises`, in the left menu as Exercis
 
 ## Built-in lifts
 
-- They are written once, in `src/lib/fitness/exercise-catalog.ts`, each with a stable slug, its muscles (main one first), its equipment and its movement (push, pull, squat, hinge, lunge, carry, core or single muscle). All of them are Strength training.
+- They are written once, in `src/lib/fitness/exercise-catalog.ts`, each with a stable slug, its muscles (main one first), its equipment and its movement (push, pull, squat, hinge, lunge, carry, core or single muscle). All of them are Strength training. A lift's body part (Chest, Back, Shoulders, Arms, Core, Legs or Other), which the Day view groups by, comes from its main muscle, so your own lifts get one from the muscles you pick.
 - The server copies that list into `fitness_exercises` the first time anything asks for the library, matched by slug, so plans and logged sets point at one row however a name is later spelled.
 - Nobody can change or delete a built-in lift. Someone who wants a different one adds their own.
 

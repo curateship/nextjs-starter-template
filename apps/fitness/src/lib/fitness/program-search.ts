@@ -4,12 +4,18 @@
  *
  * - `view`: the middle panel's tab. Unset means Day.
  * - `day`: the weekday the Day view shows, 0 = Sunday. Unset means today's.
- * - `pick`: what is open in the right panel. Its kind follows the view: an
+ * - `open`: what is open in the right panel. Its kind follows the view: an
  *   exercise in the day, a calendar date, a workout, a lift or a photo day.
  * - `workout`: a workout being logged. While it is set, the middle panel is
  *   the live workout and the right panel its current exercise.
+ * - `at`: the lift open on the right of a workout being logged, "pos-2". It
+ *   is kept apart from `open`, so a dashboard remembered mid-workout never
+ *   comes back asking for "pos-2" as a date or a workout.
  * - `compare`: two photo days side by side, "idA,idB".
+ * - History's search, filters and grouping (`history-filters.ts`).
  */
+
+import { readHistoryFilters, type HistoryFilters } from "@/lib/fitness/history-filters"
 
 export const PROGRAM_VIEWS = ["day", "calendar", "history", "progress", "photos"] as const
 export type ProgramView = (typeof PROGRAM_VIEWS)[number]
@@ -22,11 +28,12 @@ export const PROGRAM_VIEW_LABELS: Record<ProgramView, string> = {
   photos: "Photos",
 }
 
-export type ProgramSearch = {
+export type ProgramSearch = HistoryFilters & {
   view?: ProgramView
   day?: number
-  pick?: string
+  open?: string
   workout?: string
+  at?: string
   compare?: string
 }
 
@@ -42,7 +49,15 @@ export function readProgramSearch(search: Record<string, unknown>): ProgramSearc
       : undefined
   const compare =
     typeof search.compare === "string" && /^[\w-]{1,36},[\w-]{1,36}$/.test(search.compare) ? search.compare : undefined
-  const result: ProgramSearch = { view, day, pick: id(search.pick), workout: id(search.workout), compare }
+  const result: ProgramSearch = {
+    view,
+    day,
+    open: id(search.open),
+    workout: id(search.workout),
+    at: typeof search.at === "string" && /^pos-\d{1,3}$/.test(search.at) ? search.at : undefined,
+    compare,
+    ...readHistoryFilters(search),
+  }
   for (const key of Object.keys(result) as (keyof ProgramSearch)[]) {
     if (result[key] === undefined) delete result[key]
   }

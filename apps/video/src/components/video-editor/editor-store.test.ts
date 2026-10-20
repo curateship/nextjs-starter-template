@@ -1186,3 +1186,28 @@ describe("making a clip again", () => {
     expect(replaced.tracks[1].clips[0].origin).toBeUndefined()
   })
 })
+
+describe("placing B-roll", () => {
+  const placement = (startMs: number, endMs: number) => ({
+    startMs,
+    endMs,
+    mediaId: `pexels-${startMs}`,
+    url: `https://media.test/${startMs}.mp4`,
+    name: "Pexels: bread",
+    sourceDurationMs: 5_000,
+  })
+
+  it("lays every picked clip on one new lane above the footage, and one Undo takes them all off", () => {
+    const after = editorReducer(START, {
+      type: "PLACE_BROLL",
+      placements: [placement(1_000, 3_000), placement(4_000, 7_500)],
+    })
+    expect(after.tracks).toHaveLength(START.tracks.length + 1)
+    expect(after.tracks[0].clips.map((clip) => [clip.startMs, clip.durationMs])).toEqual([
+      [1_000, 2_000],
+      [4_000, 3_500],
+    ])
+    expect(after.tracks.slice(1)).toEqual(START.tracks)
+    expect(editorReducer(after, { type: "UNDO" }).tracks).toEqual(START.tracks)
+  })
+})

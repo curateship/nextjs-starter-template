@@ -5,6 +5,7 @@ import {
   ArchiveRestoreIcon,
   CircleCheckIcon,
   CopyIcon,
+  EllipsisIcon,
   Loader2Icon,
   PauseIcon,
   PencilIcon,
@@ -21,6 +22,8 @@ import type { ProgramPageData } from "@/components/fitness/program/program-data"
 import { dateToDay, dayToDate } from "@/components/fitness/program/program-data"
 import { StartingData } from "@/components/fitness/program/starting-data"
 import { StrengthSettings } from "@/components/fitness/program/strength-rules"
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -40,21 +43,25 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { changeProgram } from "@/lib/api/fitness/programs"
 import { formatDay } from "@/lib/fitness/dates"
 import { reportFitnessError } from "@/lib/fitness/report-error"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
 
 const PAUSE_REASONS = [
   { id: "holiday", label: "Holiday" },
@@ -63,52 +70,27 @@ const PAUSE_REASONS = [
 ] as const
 
 /**
- * The cog in the program's header and everything about the program as a
- * whole. Tyler, 18 Oct 2026: "All of these settings should be in a cog icon
- * dropdown here and all the other options should live within this dropdown".
- * The same shape as Project's My settings: the actions at the top (rename,
- * make active, pause or resume, share, archive, delete), then the program's
- * own settings as cards that fold open, each saving as it changes: starting
- * data, weight rules and training blocks. Share is the owner's alone.
+ * The three dots in the program's header: what can be done to the program as
+ * a whole. Its settings sit behind the cog beside it
+ * (`ProgramSettingsWindow`), because the UI standard keeps the cog for
+ * settings (Tyler, 20 Oct 2026, picking the standard's settings window over
+ * his 18 Oct cog dropdown). Share is the owner's alone; Delete is at the foot
+ * of the settings window.
  */
-export function ProgramSettingsMenu({
-  data,
-  triggerClassName,
-  onDeleted,
-}: {
-  data: ProgramPageData
-  /** Extra look for the cog, such as the pale backing it needs on the banner. */
-  triggerClassName?: string
-  /** Called once the program is gone, so the dashboard can show another. */
-  onDeleted: () => void
-}) {
+export function ProgramActionsMenu({ data }: { data: ProgramPageData }) {
   const router = useRouter()
   const { program, pause } = data
-  const [open, setOpen] = React.useState(false)
   const [renaming, setRenaming] = React.useState(false)
   const [pausing, setPausing] = React.useState(false)
   const [sharing, setSharing] = React.useState(false)
-  const [deleting, setDeleting] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
 
-  // Leaving a field saves it, so closing the dropdown first leaves the field
-  // being typed in, the way Project's My settings does.
-  function changeOpen(next: boolean) {
-    if (!next && document.activeElement instanceof HTMLElement) document.activeElement.blur()
-    setOpen(next)
-  }
-
-  /** A window can't open inside the dropdown, so the dropdown closes first. */
-  function openWindow(show: (value: boolean) => void) {
-    changeOpen(false)
-    show(true)
-  }
-
-  async function act(action: () => Promise<unknown>, success?: string) {
+  async function act(action: () => Promise<unknown>, success: string) {
     setBusy(true)
     try {
       await action()
-      if (success) toast.success(success)
+      toast.success(success)
+      calendarChanged()
       await router.invalidate()
     } catch (error) {
       reportFitnessError(error)
@@ -117,116 +99,70 @@ export function ProgramSettingsMenu({
     }
   }
 
-  const row = "h-9 w-full justify-start gap-3 px-3 font-normal"
-
   return (
     <>
-      <Popover open={open} onOpenChange={changeOpen}>
+      <DropdownMenu>
         <Tooltip>
           <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Program settings"
-                className={cn(triggerClassName, open && "bg-muted")}
-              >
-                {busy ? <Loader2Icon className="animate-spin" /> : <SettingsIcon />}
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" size="icon" aria-label="Program actions">
+                {busy ? <Loader2Icon className="animate-spin" /> : <EllipsisIcon />}
               </Button>
-            </PopoverTrigger>
+            </DropdownMenuTrigger>
           </TooltipTrigger>
-          <TooltipContent>Program settings</TooltipContent>
+          <TooltipContent>Program actions</TooltipContent>
         </Tooltip>
-        {/* Opens to the right of the cog, over the middle panel, rather than back over the left menu (Tyler, 18 Oct 2026). */}
-        <PopoverContent
-          align="start"
-          collisionPadding={16}
-          aria-label="Program settings"
-          className="flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-0 p-2"
-        >
-          {/* Tyler, 18 Oct 2026: the program's settings cards at the top,
-              scrolling on their own, and its actions as a plain menu under
-              them, Delete last and apart. */}
-          <ScrollArea className="min-h-0" viewportClassName="max-h-[min(55vh,32rem)]">
-            <div className="grid gap-2">
-              <StartingData key={`start-${program.id}`} data={data} />
-              <StrengthSettings key={`rules-${program.id}`} data={data} />
-            </div>
-          </ScrollArea>
-          <div className="grid pt-1">
-            <Button type="button" variant="ghost" className={row} onClick={() => openWindow(setRenaming)}>
-              <PencilIcon />
-              Rename
-            </Button>
-            {!program.isActive && !program.archived ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className={row}
-                disabled={busy}
-                onClick={() =>
-                  void act(
-                    () => changeProgram({ action: "activate", programId: program.id }),
-                    program.mine ? "This is now your active program." : "This is now their active program."
-                  )
-                }
-              >
-                <CircleCheckIcon />
-                Make it the active program
-              </Button>
-            ) : null}
-            {pause ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className={row}
-                disabled={busy}
-                onClick={() => void act(() => changeProgram({ action: "resume", programId: program.id }), "Program resumed.")}
-              >
-                <PlayIcon />
-                Resume program
-              </Button>
-            ) : !program.archived ? (
-              <Button type="button" variant="ghost" className={row} onClick={() => openWindow(setPausing)}>
-                <PauseIcon />
-                Pause program
-              </Button>
-            ) : null}
-            {program.mine && !program.archived ? (
-              <Button type="button" variant="ghost" className={row} onClick={() => openWindow(setSharing)}>
-                <ShareIcon />
-                Share
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="ghost"
-              className={row}
-              disabled={busy}
-              onClick={() =>
+        <DropdownMenuContent align="end" className="min-w-56">
+          <DropdownMenuItem disabled={program.archived} onSelect={() => setRenaming(true)}>
+            <PencilIcon />
+            Rename
+          </DropdownMenuItem>
+          {!program.isActive && !program.archived ? (
+            <DropdownMenuItem
+              onSelect={() =>
                 void act(
-                  () => changeProgram({ action: "archive", programId: program.id, archived: !program.archived }),
-                  program.archived ? "Program brought back." : "Program archived."
+                  () => changeProgram({ action: "activate", programId: program.id }),
+                  program.mine ? "This is now your active program." : "This is now their active program."
                 )
               }
             >
-              {program.archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
-              {program.archived ? "Bring back" : "Archive"}
-            </Button>
-            <div className="mx-1 my-1 border-t" />
-            <Button
-              type="button"
-              variant="ghost"
-              className={cn(row, "text-destructive hover:text-destructive")}
-              onClick={() => openWindow(setDeleting)}
+              <CircleCheckIcon />
+              Make it the active program
+            </DropdownMenuItem>
+          ) : null}
+          {pause ? (
+            <DropdownMenuItem
+              onSelect={() => void act(() => changeProgram({ action: "resume", programId: program.id }), "Program resumed.")}
             >
-              <Trash2Icon />
-              Delete program
-            </Button>
-          </div>
-        </PopoverContent>
-      </Popover>
+              <PlayIcon />
+              Resume program
+            </DropdownMenuItem>
+          ) : !program.archived ? (
+            <DropdownMenuItem onSelect={() => setPausing(true)}>
+              <PauseIcon />
+              Pause program
+            </DropdownMenuItem>
+          ) : null}
+          {program.mine && !program.archived ? (
+            <DropdownMenuItem onSelect={() => setSharing(true)}>
+              <ShareIcon />
+              Share
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() =>
+              void act(
+                () => changeProgram({ action: "archive", programId: program.id, archived: !program.archived }),
+                program.archived ? "Program brought back." : "Program archived."
+              )
+            }
+          >
+            {program.archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
+            {program.archived ? "Bring back" : "Archive"}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <NameDialog
         open={renaming}
@@ -257,6 +193,84 @@ export function ProgramSettingsMenu({
         shareCode={data.strength.shareSlug}
         onClose={() => setSharing(false)}
       />
+    </>
+  )
+}
+
+/**
+ * The cog in the program's header and the window it opens (UI standard,
+ * "Settings": the cog opens the settings window for the panel's subject).
+ * Tyler, 20 Oct 2026, chose this window over his 18 Oct cog dropdown, and a
+ * Pictures card in it over clicking the picture.
+ *
+ * - Pictures: the banner and the round picture, from the person's own
+ *   uploads (`setProgramPictures` refuses anything else).
+ * - Starting data, Weight rules, Training blocks: each field saves as it
+ *   changes, so the window ends with Done. A save that fails says so in a
+ *   toast.
+ * - Delete program sits at the foot on the left. The window closes before
+ *   the question opens, so one window never sits on another.
+ */
+export function ProgramSettingsWindow({ data, onDeleted }: { data: ProgramPageData; onDeleted: () => void }) {
+  const { program } = data
+  const [open, setOpen] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+
+  // Fields save when they are left, so the one being typed in is left first:
+  // Escape or a click outside would otherwise close the window over it.
+  function close() {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    setOpen(false)
+  }
+
+  return (
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button type="button" variant="ghost" size="icon" aria-label="Program settings" onClick={() => setOpen(true)}>
+            <SettingsIcon />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Program settings</TooltipContent>
+      </Tooltip>
+
+      <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
+        <DialogContent variant="admin" className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Program settings</DialogTitle>
+            <DialogDescription>
+              {program.archived
+                ? "This program is archived, so nothing in it can change. Bring it back from the program's actions."
+                : "Changes save as you make them."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <ProgramPicturesCard data={data} />
+            <StartingData key={`start-${program.id}`} data={data} />
+            <StrengthSettings key={`rules-${program.id}`} data={data} />
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="text-destructive hover:text-destructive sm:mr-auto"
+              onClick={() => {
+                close()
+                setDeleting(true)
+              }}
+            >
+              <Trash2Icon />
+              Delete program
+            </Button>
+            <Button type="button" size="lg" onClick={close}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}
@@ -282,6 +296,59 @@ export function ProgramSettingsMenu({
         }
       />
     </>
+  )
+}
+
+/**
+ * The banner and the round picture, both optional, from the person's own
+ * uploads. The banner lies faintly behind the top of the left panel and the
+ * picture sits at its foot beside the program's name.
+ */
+function ProgramPicturesCard({ data }: { data: ProgramPageData }) {
+  const router = useRouter()
+  const { program } = data
+  const [busy, setBusy] = React.useState(false)
+
+  async function save(fields: { bannerUrl?: string | null; avatarUrl?: string | null }, done: string) {
+    setBusy(true)
+    try {
+      await changeProgram({ action: "pictures", programId: program.id, ...fields })
+      toast.success(done)
+      await router.invalidate()
+    } catch (error) {
+      reportFitnessError(error)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <CollapsibleSettingsCard
+      storageId="fitness-program-pictures"
+      title="Pictures"
+      size="sm"
+      contentClassName="flex flex-col gap-4 sm:flex-row sm:items-start"
+    >
+      <ImageUpload
+        label="Banner"
+        hint="A wide picture shown faintly behind the top of the program's left panel."
+        value={program.bannerUrl ?? ""}
+        emptyLabel="Add a banner"
+        className="max-w-48"
+        disabled={program.archived || busy}
+        onChange={(url) => void save({ bannerUrl: url || null }, url ? "Banner saved." : "Banner removed.")}
+      />
+      <ImageUpload
+        label="Picture"
+        hint="A round picture beside the program's name at the top of its left panel."
+        value={program.avatarUrl ?? ""}
+        aspect="square"
+        emptyLabel="Add a picture"
+        className="max-w-20"
+        disabled={program.archived || busy}
+        onChange={(url) => void save({ avatarUrl: url || null }, url ? "Picture saved." : "Picture removed.")}
+      />
+    </CollapsibleSettingsCard>
   )
 }
 

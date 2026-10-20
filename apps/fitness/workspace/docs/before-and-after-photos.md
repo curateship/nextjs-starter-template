@@ -37,20 +37,24 @@ These are the most private thing in the app.
 
 Laid out as Tyler drew it on 18 Oct 2026.
 
+- **The middle header** holds Timeline and Compare as two pills, then New
+  photo day, right of the view tabs.
 - **The middle panel** starts with a lock and a line saying who can see the
-  photos, then Timeline or Compare, and New photo day. Under them, every photo
+  photos. Under it, every photo
   day newest first, each a card: the date and "0 of 3 photos", three boxes for
   Front, Side and Back ("or browse files"; a photo file can also be dropped on
   a box), and its figures as small tags, "Waist **84 cm**". Clicking a card
-  outlines it, opens it on the right and sets `?pick=<day>`. A photo added in
+  outlines it, opens it on the right and sets `?open=<day>`. Arriving on
+  Photos with nothing open opens the newest day. A photo added in
   the middle opens that day too.
-- **New photo day** (beside Timeline and Compare) asks for the date,
+- **New photo day** opens a window, because it asks for the date,
   bodyweight, chest, waist, hips, arm and thigh in centimetres, and a note.
   All but the date are optional. The new day opens on the right, where its
   photos go in one slot at a time; each slot opens the phone's camera or
   photo library.
-- **The right panel** shows the picked day: the date large with "Photo day"
-  under it, the cog (edit the date and figures) and the bin (delete the day).
+- **The right panel** shows the picked day. Its header holds the date with
+  "Photo day" after it, the bin (delete the day), the cog (edit the date and
+  figures) and an × that closes it.
   Then Photos, "0 of 3", with a box each to add, replace or remove a photo,
   and Measurements: bodyweight and the five tape measurements as figures two
   by two, each with what changed since the day before it ("Down 3 cm since
@@ -62,7 +66,7 @@ Laid out as Tyler drew it on 18 Oct 2026.
 
 ## Compare
 
-Compare (beside Timeline) opens on the earliest day and the picked one, or the
+Compare opens on the earliest day and the picked one, or the
 latest, and puts `?compare=<a>,<b>` in the address. Timeline goes back to the
 list. The comparison fills the middle panel, and either day can be changed
 there. Two ways to look:

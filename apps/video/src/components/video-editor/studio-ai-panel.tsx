@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   CaptionsIcon,
   FileTextIcon,
+  FilmIcon,
   LanguagesIcon,
   MicIcon,
   PenLineIcon,
@@ -13,6 +14,7 @@ import {
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { BrollDialog } from "@/components/video-editor/b-roll-dialog"
 import { BriefDialog } from "@/components/video-editor/brief-to-video"
 import { useBriefProgress } from "@/components/video-editor/briefs-context"
 import { CaptionsDialog } from "@/components/video-editor/captions-dialog"
@@ -45,6 +47,7 @@ type ToolId =
   | "translate"
   | "script"
   | "brief"
+  | "b-roll"
 
 const TOOLS: {
   id: ToolId
@@ -94,10 +97,24 @@ const TOOLS: {
     description: "Turn a brief into a script, then into scenes on the timeline.",
     Icon: FileTextIcon,
   },
+  {
+    id: "b-roll",
+    label: "B-roll",
+    description: "Free Pexels clips under each sentence of the voice line.",
+    Icon: FilmIcon,
+  },
 ]
 
 /** The ones that are built. The rest show as what is coming, greyed out. */
-const BUILT: ToolId[] = ["captions", "jump-cut", "voice", "hook", "translate", "brief"]
+const BUILT: ToolId[] = [
+  "captions",
+  "jump-cut",
+  "voice",
+  "hook",
+  "translate",
+  "brief",
+  "b-roll",
+]
 
 export function AiPanel() {
   const { store } = useEditorRuntime()
@@ -110,6 +127,7 @@ export function AiPanel() {
   const [hookOpen, setHookOpen] = React.useState(false)
   const [translateOpen, setTranslateOpen] = React.useState(false)
   const [briefOpen, setBriefOpen] = React.useState(false)
+  const [brollOpen, setBrollOpen] = React.useState(false)
   const briefProgress = useBriefProgress()
 
   React.useEffect(() => {
@@ -134,6 +152,7 @@ export function AiPanel() {
     if (id === "hook") setHookOpen(true)
     if (id === "translate") setTranslateOpen(true)
     if (id === "brief") setBriefOpen(true)
+    if (id === "b-roll") setBrollOpen(true)
   }
 
   return (
@@ -213,6 +232,11 @@ export function AiPanel() {
       <BriefDialog
         open={briefOpen}
         onOpenChange={setBriefOpen}
+        available={available}
+      />
+      <BrollDialog
+        open={brollOpen}
+        onOpenChange={setBrollOpen}
         available={available}
       />
     </div>

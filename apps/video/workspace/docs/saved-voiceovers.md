@@ -4,7 +4,9 @@ Every voiceover the studio reads aloud is kept on a shelf with the words it
 said. The Voiceovers panel on the studio rail (the microphone, labelled
 "Voices") lists them, and one press lays one into the project you are in.
 Reusing a voiceover costs nothing. Only reading new words spends ElevenLabs or
-OpenAI characters.
+OpenAI characters, plus Whisper's minutes for an OpenAI reading, which Whisper
+listens to straight after to time its words
+([word-by-word-captions.md](word-by-word-captions.md)).
 
 ## What is kept alongside a voiceover
 

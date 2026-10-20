@@ -54,14 +54,18 @@ export async function transcribeWithWhisper({
   apiKey,
   audio,
   label,
+  format = "wav",
 }: {
   apiKey: string
   audio: Uint8Array
   label: string
+  /** Whisper reads what the sound is from the file's name, so it must be right. */
+  format?: "wav" | "mp3"
 }): Promise<WhisperResult> {
   const form = new FormData()
   const bytes = new Uint8Array(audio).buffer as ArrayBuffer
-  form.append("file", new Blob([bytes], { type: "audio/wav" }), "audio.wav")
+  const type = format === "mp3" ? "audio/mpeg" : "audio/wav"
+  form.append("file", new Blob([bytes], { type }), `audio.${format}`)
   form.append("model", "whisper-1")
   form.append("response_format", "verbose_json")
   // Without this it answers in sentences; the whole point here is words.

@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { LockIcon, PlusIcon, SettingsIcon, SquareMousePointerIcon, Trash2Icon } from "lucide-react"
+import { ImageIcon, LockIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PanelCard } from "@/components/fitness/panel-card"
@@ -8,11 +8,12 @@ import { CompareView } from "@/components/fitness/photos/compare-view"
 import { PHOTO_MEASUREMENTS } from "@/components/fitness/photos/measurements"
 import { PhotoDayDialog } from "@/components/fitness/photos/photo-day-dialog"
 import { PhotoSlot } from "@/components/fitness/photos/photo-slot"
-import { PanelBody, PanelHeader } from "@/components/fitness/dashboard/panel-parts"
+import { PanelBody, RightEmpty, RightHeader } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
-import { SegmentedChoice } from "@/components/fitness/segmented-choice"
+import { newestFirst } from "@/components/fitness/dashboard/view-rows"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { changePhotoSession, type PhotoSession, type PhotoSlot as Slot } from "@/lib/api/fitness/photos"
 import { formatDay, todayIn } from "@/lib/fitness/dates"
@@ -23,16 +24,7 @@ import { cn } from "@/lib/utils"
 
 const SLOTS: Slot[] = ["front", "side", "back"]
 
-function newestFirst(sessions: readonly PhotoSession[]) {
-  return [...sessions].sort((a, b) => b.day.localeCompare(a.day))
-}
-
 const SHORT_DAY = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" })
-
-const VIEW_CHOICES = [
-  { value: "timeline", label: "Timeline" },
-  { value: "compare", label: "Compare" },
-] as const
 
 /** A day's figures that were filled in, as label and value: Waist, "84 cm". */
 function figuresOf(session: PhotoSession, unit: WeightUnit) {
@@ -50,15 +42,15 @@ function roundCm(value: number) {
 
 /**
  * Before and after in the middle panel, as Tyler drew it on 18 Oct 2026: the
- * privacy line, Timeline or Compare, and New photo day; then every photo day
- * newest first as a card with its three photo boxes (click to browse, or drop
- * a file on one) and its figures as tags, or two days compared while
- * `?compare=` is set. Clicking a day opens it on the right. Only the owner sees any of it, and
- * a coach they switched photos on for.
+ * privacy line, then every photo day newest first as a card with its three
+ * photo boxes (click to browse, or drop a file on one) and its figures as
+ * tags, or two days compared while `?compare=` is set. Timeline, Compare and
+ * New photo day sit in the middle header (`PhotosTools`). Clicking a day opens
+ * it on the right. Only the owner sees any of it, and a coach they switched
+ * photos on for.
  */
 export function PhotosMiddle({ page, search, go }: ProgramViewProps) {
   const router = useRouter()
-  const [creating, setCreating] = React.useState(false)
   if (page.viewData.view !== "photos") return null
   const { sessions, preferences } = page.viewData.photos
   const unit = preferences.unit
@@ -66,44 +58,15 @@ export function PhotosMiddle({ page, search, go }: ProgramViewProps) {
   const sorted = newestFirst(sessions)
   const pair = search.compare?.split(",") as [string, string] | undefined
 
-  function startCompare() {
-    if (sorted.length < 2) {
-      showErrorToast("Add a second photo day to compare two of them.")
-      return
-    }
-    const later = search.pick && sorted.some((session) => session.id === search.pick) ? search.pick : sorted[0].id
-    const earlier = sorted[sorted.length - 1].id === later ? sorted[sorted.length - 2].id : sorted[sorted.length - 1].id
-    go({ compare: `${earlier},${later}` })
-  }
-
   return (
     <>
-      {/* The privacy line takes its own row when the panel is too narrow to
-          hold it beside the buttons on one line. */}
-      <div className="@container shrink-0 px-3 pb-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="flex min-w-0 basis-full items-center gap-2 text-[13px] text-muted-foreground @4xl:flex-1 @4xl:basis-0">
+      <PanelBody>
+        <p className="flex items-center gap-2 px-1 text-[13px] text-muted-foreground">
           <LockIcon className="size-3.5 shrink-0" aria-hidden />
           {canEdit
             ? "Only you can see these photos. A coach sees them only if you switch that on for them."
             : "Your client switched photos on for you. Nobody else can see them."}
         </p>
-        <SegmentedChoice
-          label="Show"
-          value={pair ? "compare" : "timeline"}
-          options={VIEW_CHOICES}
-          className="w-auto [&>button]:flex-none [&>button]:px-3"
-          onChange={(next) => (next === "compare" ? startCompare() : go({ compare: undefined }))}
-        />
-        {canEdit ? (
-          <Button type="button" onClick={() => setCreating(true)}>
-            <PlusIcon />
-            New photo day
-          </Button>
-        ) : null}
-      </div>
-      </div>
-      <PanelBody>
         {pair ? (
           <CompareView
             sessions={sorted}
@@ -122,7 +85,7 @@ export function PhotosMiddle({ page, search, go }: ProgramViewProps) {
           <ul className="grid gap-3">
             {sorted.map((session) => {
               const figures = figuresOf(session, unit)
-              const picked = session.id === search.pick
+              const picked = session.id === search.open
               return (
                 <li
                   key={session.id}
@@ -130,7 +93,7 @@ export function PhotosMiddle({ page, search, go }: ProgramViewProps) {
                     "cursor-pointer rounded-xl border bg-muted/40 transition-colors hover:border-foreground/30",
                     picked && "border-foreground hover:border-foreground"
                   )}
-                  onClick={() => go({ pick: session.id })}
+                  onClick={() => go({ open: session.id })}
                 >
                   <div className="flex items-baseline justify-between gap-2 px-4 pt-3 pb-3">
                     <h3 className="text-[15px] font-semibold">
@@ -140,7 +103,7 @@ export function PhotosMiddle({ page, search, go }: ProgramViewProps) {
                         className="rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                         onClick={(event) => {
                           event.stopPropagation()
-                          go({ pick: session.id })
+                          go({ open: session.id })
                         }}
                       >
                         {formatDay(session.day)}
@@ -180,19 +143,69 @@ export function PhotosMiddle({ page, search, go }: ProgramViewProps) {
           </ul>
         )}
       </PanelBody>
+    </>
+  )
+}
+
+/**
+ * Photos' tools in the middle header: Timeline or Compare as the shell's two
+ * pills (two tabs are pills, UI standard), then New photo day. A photo day
+ * asks for its date and measurements when it is made, so New photo day opens
+ * its window, as the standard allows for a kind that asks for fields.
+ */
+export function PhotosTools({ page, search, go }: ProgramViewProps) {
+  const [creating, setCreating] = React.useState(false)
+  if (page.viewData.view !== "photos") return null
+  const { sessions, preferences } = page.viewData.photos
+  const canEdit = page.program.mine
+  const sorted = newestFirst(sessions)
+
+  function startCompare() {
+    if (sorted.length < 2) {
+      showErrorToast("Add a second photo day to compare two of them.")
+      return
+    }
+    const later = search.open && sorted.some((session) => session.id === search.open) ? search.open : sorted[0].id
+    const earlier = sorted[sorted.length - 1].id === later ? sorted[sorted.length - 2].id : sorted[sorted.length - 1].id
+    go({ compare: `${earlier},${later}` })
+  }
+
+  return (
+    <>
+      <Tabs
+        value={search.compare ? "compare" : "timeline"}
+        onValueChange={(next) => (next === "compare" ? startCompare() : go({ compare: undefined }))}
+      >
+        <TabsList aria-label="Show">
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="compare">Compare</TabsTrigger>
+        </TabsList>
+      </Tabs>
       {canEdit ? (
-        <PhotoDayDialogFor
-          open={creating}
-          session={null}
-          today={todayIn(preferences.timeZone)}
-          unit={unit}
-          onClose={() => setCreating(false)}
-          onSaved={(saved) => {
-            setCreating(false)
-            go({ pick: saved.id, compare: undefined })
-            toast.success("Photo day made. Add its photos on the right.")
-          }}
-        />
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            className="@max-3xl:size-8 @max-3xl:px-0"
+            aria-label="New photo day"
+            onClick={() => setCreating(true)}
+          >
+            <PlusIcon />
+            <span className="@max-3xl:hidden">New photo day</span>
+          </Button>
+          <PhotoDayDialogFor
+            open={creating}
+            session={null}
+            today={todayIn(preferences.timeZone)}
+            unit={preferences.unit}
+            onClose={() => setCreating(false)}
+            onSaved={(saved) => {
+              setCreating(false)
+              go({ open: saved.id, compare: undefined })
+              toast.success("Photo day made. Add its photos on the right.")
+            }}
+          />
+        </>
       ) : null}
     </>
   )
@@ -234,22 +247,16 @@ export function PhotosRight({ page, search, go }: ProgramViewProps) {
   const unit = preferences.unit
   const canEdit = page.program.mine
   const sorted = newestFirst(sessions)
-  const index = sorted.findIndex((session) => session.id === search.pick)
+  const index = sorted.findIndex((session) => session.id === search.open)
   const session = index >= 0 ? sorted[index] : null
 
   if (!session) {
     return (
-      <>
-        <PanelHeader>
-          <h2 className="text-sm font-semibold">Photo day</h2>
-        </PanelHeader>
-        <div className="grid flex-1 content-center justify-items-center gap-2 p-6 text-center">
-          <SquareMousePointerIcon className="size-5 text-muted-foreground" aria-hidden />
-          <p className="max-w-56 text-sm text-muted-foreground">
-            {sorted.length ? "Click a photo day to see it here." : "Make a photo day, then add its photos here."}
-          </p>
-        </div>
-      </>
+      <RightEmpty
+        title="Photo day"
+        icon={ImageIcon}
+        line={sorted.length ? "Click a photo day to see it here." : "Press New photo day, then add its photos here."}
+      />
     )
   }
 
@@ -261,7 +268,7 @@ export function PhotosRight({ page, search, go }: ProgramViewProps) {
     try {
       await changePhotoSession({ action: "delete", sessionId: session.id })
       setDeleting(false)
-      go({ pick: undefined, compare: undefined })
+      go({ open: undefined, compare: undefined })
       await router.invalidate()
       toast.success(`Deleted ${formatDay(session.day)} and its photos.`)
     } catch (error) {
@@ -296,32 +303,34 @@ export function PhotosRight({ page, search, go }: ProgramViewProps) {
 
   return (
     <>
-      <PanelHeader plain>
-        <div className="grid min-w-0 flex-1">
-          <h2 className="truncate text-lg font-semibold tracking-tight">{formatDay(session.day)}</h2>
-          <span className="text-[13px] text-muted-foreground">Photo day</span>
-        </div>
-        {canEdit ? (
-          <>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" aria-label="Edit date and measurements" onClick={() => setEditing(true)}>
-                  <SettingsIcon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Edit date and measurements</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" aria-label="Delete this photo day" onClick={() => setDeleting(true)}>
-                  <Trash2Icon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Delete this photo day</TooltipContent>
-            </Tooltip>
-          </>
-        ) : null}
-      </PanelHeader>
+      <RightHeader
+        title={formatDay(session.day)}
+        meta="Photo day"
+        closeLabel="Close this photo day"
+        onClose={() => go({ open: undefined })}
+        actions={
+          canEdit ? (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" aria-label="Delete this photo day" onClick={() => setDeleting(true)}>
+                    <Trash2Icon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete this photo day</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" aria-label="Edit date and measurements" onClick={() => setEditing(true)}>
+                    <SettingsIcon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Edit date and measurements</TooltipContent>
+              </Tooltip>
+            </>
+          ) : null
+        }
+      />
       <PanelBody>
         <PanelCard storageId="fitness-right-photos" title="Photos" meta={`${filled} of 3`}>
           <div className="grid grid-cols-3 gap-2">

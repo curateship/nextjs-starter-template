@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, Trash2Icon } from "lucide-react"
+import { PlusIcon, Trash2Icon } from "lucide-react"
 import { useRouter } from "@tanstack/react-router"
 import { CartesianGrid, ComposedChart, Line, Scatter, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { ChartLegend } from "@/components/fitness/progress/chart-legend"
 import { WeightInput } from "@/components/fitness/weight-input"
 import { PanelCard } from "@/components/fitness/panel-card"
+import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -35,35 +36,21 @@ function dayOf(date: Date) {
 }
 
 /**
- * Daily bodyweight. Weight moves a kilogram or more from one morning to the
- * next with water and food, so each weigh-in is a dot and the line is the
- * average of the seven days ending on it, which shows the real direction.
- * One weigh-in per day: a second one on the same day replaces the first.
- *
- * A card on the right of the Progress view. A save or a delete reloads the
- * page's data, so the Bodyweight tile in the middle moves with it.
+ * Progress's "New …" in the middle header: one weigh-in, the day first, then
+ * the weight, with Create weigh-in at the bottom. One weigh-in per day: a
+ * second one on the same day replaces the first. Clicking away keeps what was
+ * typed for the next opening.
  */
-export function BodyweightCard({
-  weighIns,
-  unit,
-  timeZone,
-  canEdit,
-}: {
-  weighIns: readonly WeighInPoint[]
-  unit: WeightUnit
-  timeZone: string
-  /** False when a coach is looking: they read the line but don't weigh in for the client. */
-  canEdit: boolean
-}) {
+export function NewWeighIn({ unit, timeZone }: { unit: WeightUnit; timeZone: string }) {
   const router = useRouter()
   const today = todayIn(timeZone)
   const dayId = React.useId()
   const weightId = React.useId()
+  const [open, setOpen] = React.useState(false)
   const [day, setDay] = React.useState(today)
   const [weightKg, setWeightKg] = React.useState<number | null>(null)
   const [saving, setSaving] = React.useState(false)
-  const [deleting, setDeleting] = React.useState<string | null>(null)
-  const [confirming, setConfirming] = React.useState<string | null>(null)
+  const [year, month, date] = day.split("-").map(Number)
 
   async function save() {
     if (weightKg === null) {
@@ -76,12 +63,68 @@ export function BodyweightCard({
       await router.invalidate()
       toast.success(`Saved ${formatWeight(weightKg, unit)} for ${formatDay(day)}.`)
       setWeightKg(null)
+      setDay(today)
+      setOpen(false)
     } catch (error) {
       reportFitnessError(error)
     } finally {
       setSaving(false)
     }
   }
+
+  return (
+    <NewRecordDropdown
+      label="New weigh-in"
+      open={open}
+      onOpenChange={setOpen}
+      submitLabel="Create weigh-in"
+      busy={saving}
+      onSubmit={() => void save()}
+      trigger={
+        <Button type="button" variant="outline" className="@max-3xl:size-8 @max-3xl:px-0" aria-label="New weigh-in">
+          <PlusIcon />
+          <span className="@max-3xl:hidden">New weigh-in</span>
+        </Button>
+      }
+    >
+      <div className="grid gap-2">
+        <FieldLabel htmlFor={dayId}>Day</FieldLabel>
+        <DatePicker
+          id={dayId}
+          value={new Date(year, month - 1, date)}
+          onChange={(picked) => setDay(picked ? dayOf(picked) : today)}
+        />
+      </div>
+      <div className="grid gap-2">
+        <FieldLabel htmlFor={weightId}>Weight</FieldLabel>
+        <WeightInput id={weightId} valueKg={weightKg} unit={unit} showUnit placeholder={"\u2013"} onCommit={setWeightKg} />
+      </div>
+    </NewRecordDropdown>
+  )
+}
+
+/**
+ * Daily bodyweight. Weight moves a kilogram or more from one morning to the
+ * next with water and food, so each weigh-in is a dot and the line is the
+ * average of the seven days ending on it, which shows the real direction.
+ * Weigh-ins are added from New weigh-in in the middle header.
+ *
+ * A card on the right of the Progress view. A save or a delete reloads the
+ * page's data, so the Bodyweight tile in the middle moves with it.
+ */
+export function BodyweightCard({
+  weighIns,
+  unit,
+  canEdit,
+}: {
+  weighIns: readonly WeighInPoint[]
+  unit: WeightUnit
+  /** False when a coach is looking: they read the line but don't weigh in for the client. */
+  canEdit: boolean
+}) {
+  const router = useRouter()
+  const [deleting, setDeleting] = React.useState<string | null>(null)
+  const [confirming, setConfirming] = React.useState<string | null>(null)
 
   async function remove(target: string) {
     setDeleting(target)
@@ -99,7 +142,6 @@ export function BodyweightCard({
 
   const recent = [...weighIns].reverse().slice(0, 10)
   const latest = weighIns[weighIns.length - 1]
-  const [year, month, date] = day.split("-").map(Number)
 
   return (
     <PanelCard
@@ -107,49 +149,11 @@ export function BodyweightCard({
       title="Bodyweight"
       meta={latest ? formatWeight(latest.weightKg, unit) : undefined}
     >
-        {canEdit ? (
-          <form
-            className="grid gap-3"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void save()
-            }}
-          >
-            {/* Side by side when the panel has room; the shell's date field
-                writes the date out in full, so a narrow panel stacks them. */}
-            <div className="@container">
-            <div className="grid gap-3 @xs:grid-cols-2">
-              <div className="grid min-w-0 gap-2">
-                <FieldLabel htmlFor={dayId}>Day</FieldLabel>
-                <DatePicker
-                  id={dayId}
-                  value={new Date(year, month - 1, date)}
-                  onChange={(picked) => setDay(picked ? dayOf(picked) : today)}
-                />
-              </div>
-              <div className="grid min-w-0 gap-2">
-                <FieldLabel htmlFor={weightId}>Weight</FieldLabel>
-                <WeightInput
-                  id={weightId}
-                  valueKg={weightKg}
-                  unit={unit}
-                  showUnit
-                  placeholder={"\u2013"}
-                  onCommit={setWeightKg}
-                />
-              </div>
-            </div>
-            </div>
-            <Button type="submit" disabled={saving} className="w-full">
-              {saving ? <Loader2Icon className="animate-spin" /> : null}
-              Save weigh-in
-            </Button>
-          </form>
-        ) : null}
-
         {weighIns.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            {canEdit ? "Weigh in on a few mornings and the line shows which way you're going." : "No weigh-ins yet."}
+            {canEdit
+              ? "Press New weigh-in on a few mornings and the line shows which way you're going."
+              : "No weigh-ins yet."}
           </p>
         ) : (
           <WeightChart weighIns={weighIns} unit={unit} />

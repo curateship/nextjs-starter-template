@@ -10,28 +10,32 @@ A workout is logged inside its program's dashboard, not on a page of its own. Ty
 
 ## The middle panel
 
-- **The top row:** the workout's name, which can be changed in place, and Finish. A finished workout shows Do this again and a bin instead.
-- **The line under it:** the day, the minutes so far, Light week in a lighter week, and Finished once it is.
-- **Each lift** is a compact block, the way gym apps draw it: Set, Previous (what was lifted on that set last time, "100 x 5"), the weight with its unit written in the box ("kg" or "lb", "+kg" for what a bodyweight lift adds), Reps, and a tick.
-  - A warm-up set is marked W. Working sets are numbered from 1.
-  - A done set shows a tick and an open one an empty circle, so the state never rests on colour.
+Laid out as Tyler drew it on 20 Oct 2026.
+
+- **The header:** the back arrow, the workout's name (it reads as a heading and can be changed in place), then the day, the sets ticked out of all of them with a bar and the share done ("0/8 sets", "0%"), the clock since the start as hours and minutes ("0:06"), and Finish. A finished workout shows the time it took, Do this again and a bin instead of Finish. As the panel narrows, the day, then the bar and share, then the sets drop out, and Do this again keeps only its icon.
+- **Notices** take a line at the top of the list only when they apply: Light week in a lighter week, Finished once it is, a coach's reading line, and the no-signal line.
+- **Each lift is a band across the panel** with a line under it, no cards (Tyler's second drawing, 20 Oct 2026). The lift being done is white and the others grey.
+  - The heading: the name and last time's best set ("Last: 30 kg × 6", or "First time"), then "Now" on the lift being done and how many of its sets are ticked ("0/5"). Clicking the heading opens the lift on the right.
+  - The rows: Set, Previous (what was lifted on that set last time, "30 kg × 6"), the weight with its unit written in the box ("kg" or "lb", "+kg" for what a bodyweight lift adds), Reps, and a Done tick box. The whole 40px Done cell takes the tap, not just the box.
+  - A warm-up set is a W in amber. Working sets are numbered from 1 in a small box. The set to do next is shaded.
+  - The weight and reps boxes start filled with the set's target, so ticking Done without typing logs exactly what is written. Emptying a box puts the target back, for the same reason.
   - Lifts in a superset sit together under "Superset: one set of each in turn, then rest".
-  - Every field is the normal 32px height.
 - **Typing a weight** on a set fills the open working sets below it that have none yet, so a lift added mid-workout needs its weight typed once. Ticking a blank set takes the numbers of the set above it.
-- **Add a set** under each lift, and **Add exercise** at the bottom, which only offers lifts of the program's own routine type.
+- **Add a set** under each lift's rows, and **Add exercise** as a dashed full-width button at the bottom, which only offers lifts of the program's own routine type.
 - **The rest timer** is a bar pinned to the bottom of the middle panel. It starts when a working set is ticked, for that lift's rest time, and in a superset only after the group's last lift. It has +30s and Skip, and at zero the phone buzzes and beeps once where the browser allows it.
 
 ## The right panel
 
-It shows the lift picked in the middle (click its name), or else the first lift with a set still to do. Its cards:
+It shows the lift picked in the middle, or else the first lift with a set still to do. The header holds the lift's name over "Exercise 1 of 2", arrows to the lift before and after, and the three dots. Its cards, as Tyler drew them on 20 Oct 2026:
 
-- **Plates** for a barbell lift: what goes on each side for the next open set, "20 a side, 60 kg on a 20 kg bar", or "Can't make exactly 101 kg. Closest: 100 kg." The bar and the plates on hand are set in Settings, App settings.
-- **Bodyweight** for a bodyweight lift: the person's bodyweight, what was added, and the total.
-- **Warm-ups:** the warm-up sets and which are done. Warm-ups come with lifts from the program's week when the workout starts, while they are switched on in Settings, App settings.
-- **Last time:** the day and every set from the last workout with this lift.
+- **Up next** ("Up next · Warm-up", "Up next · Set 2"): the weight and reps of the set to do now, and what that set was last time. Under them, for a barbell lift, the plates on each side ("20 + 5 a side on a 20 kg bar", or the closest it can make); for a bodyweight lift, the total with the person's bodyweight. The bar and the plates on hand are set in Settings, App settings.
+- **Warm-ups** ("0 of 2"): each warm-up set and whether it is done. A barbell lift with none says why: warm-ups are off in Settings, App settings, or the lift was added after the workout started. Warm-ups come with lifts from the program's week when the workout starts, while they are switched on in Settings, App settings.
+- **Last time**, with its date: the best set and how many working sets there were.
 - **Note** on the next open set.
-- **Change this lift:** Add a set, Remove the last set, Swap for another lift (with "Change the plan too"), This hurts (puts the lift on the pain list, then offers a swap), Remove from this workout.
 - **How it went**, once finished: the 1 to 10 effort score and the workout's note, each saved as it changes.
+- **Remove from this workout**, a red line at the foot, which asks first.
+
+Tyler took the "Change this lift" card out on 20 Oct 2026 ("we dont need this card"). Add a set is under each lift in the middle. The three dots in the right panel's header hold Remove the last set (only while the lift has more than one), Swap for another lift (with "Change the plan too") and This hurts (puts the lift on the pain list, then offers a swap).
 
 ## Finishing
 

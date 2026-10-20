@@ -637,6 +637,9 @@ export const videoSettings = pgTable(
     // The YouTube Data API key for the Viral page, scrambled the same way the
     // shell scrambles AI keys. NULL falls back to VIDEO_YOUTUBE_API_KEY.
     youtubeApiKey: text("youtube_api_key"),
+    // The Pexels API key the B-roll tool searches stock video with, scrambled
+    // the same way. NULL means no key, and B-roll asks for one.
+    pexelsApiKey: text("pexels_api_key"),
     // The words the script check flags, as a JSON list. NULL until somebody
     // saves a list on Settings → Scripts; the starter words apply until then.
     scriptBannedWords: jsonb("script_banned_words"),

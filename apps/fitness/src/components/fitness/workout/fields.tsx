@@ -10,12 +10,14 @@ export function RepsInput({
   label,
   value,
   placeholder,
+  className,
   onCommit,
 }: {
   id: string
   label: string
   value: number | null
   placeholder?: string
+  className?: string
   onCommit: (reps: number | null) => void
 }) {
   const shown = value === null ? "" : String(value)
@@ -33,6 +35,9 @@ export function RepsInput({
     if (text === "") {
       setInvalid(false)
       onCommit(null)
+      // Show what the box holds now: a box that falls back to a target
+      // shows the target again, so what is shown is what gets logged.
+      setDraft(shown)
       return
     }
     const reps = Number(text)
@@ -54,6 +59,7 @@ export function RepsInput({
       autoComplete="off"
       value={draft}
       placeholder={placeholder}
+      className={className}
       aria-invalid={invalid || undefined}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={commit}

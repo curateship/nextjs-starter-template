@@ -1,15 +1,14 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { CopyIcon, ExternalLinkIcon, Loader2Icon, Trash2Icon, XIcon } from "lucide-react"
+import { CopyIcon, ExternalLinkIcon, HistoryIcon, Loader2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PanelCard } from "@/components/fitness/panel-card"
-import { PanelBody, PanelHeader } from "@/components/fitness/dashboard/panel-parts"
+import { PanelBody, RightEmpty, RightHeader } from "@/components/fitness/dashboard/panel-parts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { HistoryRow } from "@/lib/api/fitness/workouts"
 import { beginWorkout, loadWorkoutPage, removeWorkout, type WorkoutView } from "@/lib/api/fitness/workouts"
 import { addDays, formatDay, todayIn } from "@/lib/fitness/dates"
@@ -61,14 +60,7 @@ function NothingPicked({ rows, unit, timeZone }: { rows: HistoryRow[]; unit: Wei
   const [since] = React.useState(() => addDays(todayIn(timeZone), -27))
   const recent = finished.filter((row) => row.day >= since)
   return (
-    <>
-      <PanelHeader>
-        <h2 className="text-sm font-semibold">Workout</h2>
-      </PanelHeader>
-      <PanelBody>
-        <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-          Pick a workout to see it here.
-        </p>
+    <RightEmpty title="Workout" icon={HistoryIcon} line="Click a workout to see its lifts and sets here.">
         <PanelCard storageId="fitness-history-totals" title="Last four weeks" flush>
           <dl className="grid grid-cols-2 [&>div]:grid [&>div]:gap-1 [&>div]:p-4 [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(odd)]:border-r">
             <div>
@@ -97,8 +89,7 @@ function NothingPicked({ rows, unit, timeZone }: { rows: HistoryRow[]; unit: Wei
             </div>
           </dl>
         </PanelCard>
-      </PanelBody>
-    </>
+    </RightEmpty>
   )
 }
 
@@ -171,17 +162,12 @@ function PickedWorkout({
 
   return (
     <>
-      <PanelHeader>
-        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{workout?.name ?? "Workout"}</h2>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" aria-label="Close the workout" onClick={onClose}>
-              <XIcon className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Close</TooltipContent>
-        </Tooltip>
-      </PanelHeader>
+      <RightHeader
+        title={workout?.name ?? "Workout"}
+        meta={workout ? formatDay(workout.day) : undefined}
+        closeLabel="Close the workout"
+        onClose={onClose}
+      />
       <PanelBody>
         {failed ? (
           <p className="text-sm text-muted-foreground">{failed}</p>

@@ -1,12 +1,13 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { ArrowDownIcon, ArrowLeftRightIcon, ArrowUpIcon, Loader2Icon, XIcon } from "lucide-react"
+import { ArrowDownIcon, ArrowLeftRightIcon, ArrowUpIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
-import { PanelBody, PanelHeader } from "@/components/fitness/dashboard/panel-parts"
+import { PanelBody, RightHeader } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
 import { ExercisePicker } from "@/components/fitness/exercise-picker"
 import { PanelCard } from "@/components/fitness/panel-card"
+import { groupByBodyPart } from "@/components/fitness/program/day-groups"
 import { useAutoSave } from "@/components/fitness/program/program-data"
 import { SegmentedChoice } from "@/components/fitness/segmented-choice"
 import { TONE } from "@/components/fitness/status-tones"
@@ -17,7 +18,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { changeWeek, type DayExercise, type WeekDay } from "@/lib/api/fitness/programs"
 import { reportFitnessError } from "@/lib/fitness/report-error"
 import { formatWeight, roundToStep } from "@/lib/fitness/weights"
@@ -64,13 +64,11 @@ export function DayExercisePanel({
   page,
   day,
   row,
-  first,
   onClose,
 }: {
   page: ProgramViewProps["page"]
   day: WeekDay
   row: DayExercise
-  first: boolean
   onClose: () => void
 }) {
   const router = useRouter()
@@ -87,7 +85,12 @@ export function DayExercisePanel({
   const [removing, setRemoving] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const base = `day-exercise-${row.id}`
-  const joined = row.groupKey !== null && day.exercises[day.exercises.findIndex((entry) => entry.id === row.id) - 1]?.groupKey === row.groupKey
+  // Counted as the Day view shows the day, body part by body part, which is the order the server keeps.
+  const shownOrder = groupByBodyPart(day.exercises, new Map(page.exercises.map((entry) => [entry.id, entry]))).flatMap(
+    (group) => group.rows
+  )
+  const shownIndex = shownOrder.findIndex((entry) => entry.id === row.id)
+  const joined = row.groupKey !== null && shownOrder[shownIndex - 1]?.groupKey === row.groupKey
 
   function save(field: "sets" | "reps" | "restSeconds" | "weightKg", value: number, at: "soon" | "now") {
     autoSave[at](`${base}-${field}`, async () => {
@@ -118,27 +121,17 @@ export function DayExercisePanel({
   const missesLeft = Math.max(strength.missesBeforeDrop - row.missStreak, 1)
   const weightWord = exercise?.isBodyweight ? "the added weight" : "it"
 
-  const position = day.exercises.findIndex((entry) => entry.id === row.id) + 1
+  const position = shownIndex + 1
   const restChoice = REST_CHOICES.some((choice) => choice.value === String(rest)) ? String(rest) : null
 
   return (
     <>
-      <PanelHeader plain>
-        <div className="grid min-w-0 flex-1">
-          <h2 className="truncate text-lg font-semibold tracking-tight">{name}</h2>
-          <span className="truncate text-[13px] text-muted-foreground">
-            Exercise {position} of {day.exercises.length} · {day.name}
-          </span>
-        </div>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" aria-label="Close this exercise" onClick={onClose}>
-              <XIcon />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Close this exercise</TooltipContent>
-        </Tooltip>
-      </PanelHeader>
+      <RightHeader
+        title={name}
+        meta={`Exercise ${position} of ${day.exercises.length} · ${day.name}`}
+        closeLabel="Close this exercise"
+        onClose={onClose}
+      />
       <PanelBody>
         <PanelCard storageId="fitness-right-exercise-sets" title="Sets and weight">
           <div className="grid grid-cols-2 gap-3">
@@ -202,7 +195,7 @@ export function DayExercisePanel({
               <p className="text-[13px] text-muted-foreground">{restLabel(rest)} now. Pick one to change it.</p>
             ) : null}
           </div>
-          {!first && canChange ? (
+          {shownIndex > 0 && canChange ? (
             <div className="flex items-center gap-2">
               <Switch
                 id={`${base}-superset`}

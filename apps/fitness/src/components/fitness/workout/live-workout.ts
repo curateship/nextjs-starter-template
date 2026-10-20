@@ -2,6 +2,7 @@ import * as React from "react"
 
 import type { RestTimerState } from "@/components/fitness/workout/rest-timer"
 import type { SetView, WorkoutView } from "@/lib/api/fitness/workouts"
+import { formatWeightNumber, type WeightUnit } from "@/lib/fitness/weights"
 
 /**
  * What the person has done to a workout in this tab, laid over what the
@@ -111,4 +112,22 @@ export function pickFor(position: number) {
 /** The set the plates are worked out for: the first one still open, or the last. */
 export function currentSet(sets: readonly SetView[]) {
   return sets.find((set) => !set.done) ?? sets[sets.length - 1] ?? null
+}
+
+type SetFigures = { weightKg: number | null; reps: number | null }
+
+/** "30 kg × 6"; on a bodyweight lift, the weight added: "+10 kg × 12". */
+export function setWords(set: SetFigures, unit: WeightUnit, bodyweight: boolean) {
+  const weight = `${formatWeightNumber(set.weightKg ?? 0, unit)} ${unit}`
+  return `${bodyweight ? "+" : ""}${weight} × ${set.reps ?? 0}`
+}
+
+/** Last time's best set: the heaviest, and of those the one with most reps. */
+export function bestOf<Set extends SetFigures>(sets: readonly Set[]): Set | null {
+  return sets.reduce<Set | null>((best, set) => {
+    if (!best) return set
+    const weight = set.weightKg ?? 0
+    const bestWeight = best.weightKg ?? 0
+    return weight > bestWeight || (weight === bestWeight && (set.reps ?? 0) > (best.reps ?? 0)) ? set : best
+  }, null)
 }
