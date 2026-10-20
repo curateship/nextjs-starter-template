@@ -492,3 +492,38 @@ export function segmentReferences(rules: SegmentRules): string[] {
   }
   return [...ids]
 }
+
+/**
+ * The filter that shows one segment's people on the contacts list, which is
+ * what pressing a segment there applies.
+ *
+ * A rules segment is its own rules, so changing a rule and pressing "Update"
+ * saves the list as it now stands. A hand-picked one has no rules to show, so
+ * it is the "in this segment" rule, and its people change through mass select
+ * instead.
+ */
+export function rulesShowingSegment(segment: {
+  id: string
+  kind: SegmentKind
+  rules: SegmentRules
+}): SegmentRules {
+  return segment.kind === "static"
+    ? { conditions: [{ type: "in", segmentIds: [segment.id] }] }
+    : segment.rules
+}
+
+/** Two rule sets that select the same people, however they were written down. */
+export function sameSegmentRules(a: SegmentRules, b: SegmentRules): boolean {
+  return (
+    segmentRulesMatch(a) === segmentRulesMatch(b) &&
+    JSON.stringify(a.conditions) === JSON.stringify(b.conditions)
+  )
+}
+
+/** Rules as the address and a saved segment store them: "all" is left unsaid. */
+export function cleanSegmentRules(rules: SegmentRules): SegmentRules {
+  return {
+    ...(segmentRulesMatch(rules) === "any" ? { match: "any" as const } : {}),
+    conditions: rules.conditions,
+  }
+}
