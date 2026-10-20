@@ -350,6 +350,17 @@ built. Each was the recommended option.
 - **Board cards show the fields picked for the List**, with no separate
   choice.
 - **A saved view on My dashboard keeps its client.**
+- **A saved view keeps its group, and a group alone is a view** (20 Oct
+  2026): "sorting is also a filter".
+- **Each saved view has a cog in the Views menu** to rename it or change its
+  filters (20 Oct 2026).
+- **The task panel's top is the status, then three dots and the cog at the
+  right**, with Add tags, Add note, Add comment and Add files in the three
+  dots and no cross on the project page (20 Oct 2026).
+- **The Notes card has a Delete button**, and a card footer's buttons fill
+  the row (20 Oct 2026).
+- **Over a project's banner, the left panel's header has no line under it**
+  (20 Oct 2026).
 
 ## The first version
 

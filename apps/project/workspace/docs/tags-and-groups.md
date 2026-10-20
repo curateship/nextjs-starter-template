@@ -25,7 +25,10 @@ number.
 ## Tags
 
 - **On the task, right under its title**, in the right panel: the task's
-  tags as pills, each with an × that takes it off, then a box. Typing a name
+  tags as pills to read, and nothing while it has none. They are changed in
+  Add tags, in the three-dot button at the top of the panel (Tyler, 20 Oct
+  2026: "Move the add tags into the vertical menu dropdown too"): the tags as
+  pills, each with an × that takes it off, then a box. Typing a name
   and pressing Enter puts that tag on the task. If the team has no tag of
   that name yet, it is made first, grey. Backspace in the empty box takes the
   last tag off; Escape empties the box. While typing, the team's tags that
@@ -67,7 +70,9 @@ number.
   then No type.
 - **The choice is kept per project** in this browser (`project-task-grouping-<id>`),
   and Clear in Filter leaves it alone, since it arranges tasks rather than
-  hiding any. It starts on None.
+  hiding any. It starts on None. A saved view keeps it too, and a group on
+  its own is enough to save one (see Saved views in
+  [Projects and tasks](projects-and-tasks.md)).
 - **The Board keeps its status columns.** Its Group row offers None or
   Assigned to, which draws a row of columns per person: the old "Group by
   person" switch, moved into the row.
