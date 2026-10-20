@@ -1,31 +1,36 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { and, asc, desc, eq, inArray, isNull, lt, or } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
-import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import {
   assetPrompt,
+  DEFAULT_VIDEO_QUALITY,
   PERSON_SHOTS_FULL_MESSAGE,
+  pieceCostCents,
   PROJECT_SHOTS_FULL_MESSAGE,
   providerMessage,
   shotAllowanceShortMessage,
+  shotCostCents,
   shotPieces,
   SHOTS_AT_ONCE_PER_PERSON,
   SHOTS_AT_ONCE_PER_PROJECT,
-  VEO_MODEL,
+  VIDEO_MODEL,
+  videoModelName,
+  videoQualityName,
+  videoTokens,
   type AssetAspectRatio,
   type ShotLengthSeconds,
   type VideoDurationSeconds,
+  type VideoQuality,
 } from "@/lib/video/asset-factories"
 import {
   describeExtras,
   extraLine,
   personLine,
   sendingOrder,
-  VEO_REFERENCE_SECONDS,
-  veoReferenceLine,
+  videoReferenceLine,
 } from "@/lib/video/extras"
 import { styledPrompt } from "@/lib/video/visual-style"
 import {
@@ -41,13 +46,14 @@ import { getAiKey } from "@/server/ai/keys"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { getFromR2 } from "@/server/media/storage"
-import { customShellMedia } from "@/server/schema"
+import { customShellAiUsageEvents, customShellMedia } from "@/server/schema"
 import { runFfmpeg } from "@/server/video/ffmpeg"
 import {
   serializeVideoMedia,
   type VideoMediaItem,
 } from "@/server/video/media-list"
 import { readProjectStyle } from "@/server/video/project-look"
+import { getAiDefaults, saveAiDefaults } from "@/server/video/settings"
 import {
   projectSpendMetadata,
   requireProjectBudget,
@@ -69,6 +75,9 @@ import {
 
 const outputMedia = alias(customShellMedia, "generation_output_media")
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024
+// Google hands a finished clip back inside its JSON answer as base64, which
+// is a third bigger than the file, plus a little for the rest of the answer.
+const MAX_ANSWER_BYTES = Math.ceil((MAX_VIDEO_BYTES * 4) / 3) + 1024 * 1024
 const JOB_TIMEOUT_MS = 15 * 60 * 1000
 const JOB_LEASE_MS = 5 * 60 * 1000
 const PROVIDER_REQUEST_TIMEOUT_MS = 90_000
@@ -86,33 +95,87 @@ type ClaimedGeneration = VideoAiGenerationRow & { leaseToken: string }
  * The actor and extras a piece is told about: one line each, and what its
  * reference pictures are when it has any.
  */
-export type VeoPerson = {
+export type ShotPerson = {
   lines: string[]
   references: { board: boolean; backdrop: boolean } | null
 }
 
+/** A picture sent inside the request, as base64. */
+type InlinePicture = { mimeType: string; data: string }
+
+/** How many reference pictures a piece sends: the person, then the place. */
+function referenceCount(person?: ShotPerson) {
+  if (!person?.references) return 0
+  return person.references.backdrop ? 2 : 1
+}
+
 /**
- * What Veo is told for one piece: the project's style line first, then the
- * direction, then the person and what they wear, hold and stand in, then the
- * rule about the first frame. The style and the descriptions are read when
- * the piece starts, so a piece started after either changed uses the new one.
- * With no person it is the prompt as it always was.
+ * What Omni Flash is told for one piece. It opens with Google's tags saying
+ * which picture is which: Image1 is the first frame, and any after it are
+ * references. Then the project's style line, the direction, the person and
+ * what they wear, hold and stand in, and the rule about the first frame. The
+ * style and the descriptions are read when the piece starts, so a piece
+ * started after either changed uses the new one.
  */
-export function veoPrompt(style: string | null, direction: string, person?: VeoPerson) {
+export function videoPrompt(style: string | null, direction: string, person?: ShotPerson) {
+  const references = referenceCount(person)
+  const tags = [
+    "[# Sources <FIRST_FRAME>@Image1]",
+    ...(references
+      ? [
+          `[# References ${Array.from(
+            { length: references },
+            (_, index) => `<IMAGE_REF_${index}>@Image${index + 2}`
+          ).join(" ")}]`,
+        ]
+      : []),
+  ].join(" ")
   const middle = person
     ? [
         person.lines.join("\n"),
-        ...(person.references ? [veoReferenceLine(person.references)] : []),
+        ...(person.references ? [videoReferenceLine(person.references)] : []),
       ]
     : []
-  return styledPrompt(
-    { style },
-    [
-      direction,
-      ...middle,
-      "Use the supplied image as the exact first frame. Do not add captions or on-screen text.",
-    ].join("\n\n")
-  )
+  const rule = references
+    ? "Use Image1 as the exact first frame. Use the reference images as references only, never as frames. Do not add captions or on-screen text."
+    : "Use Image1 as the exact first frame. Do not add captions or on-screen text."
+  return `${tags}\n\n${styledPrompt({ style }, [direction, ...middle, rule].join("\n\n"))}`
+}
+
+/**
+ * The request that starts one piece on Omni Flash: the first frame, then the
+ * reference pictures, then the words. It runs in the background on Google's
+ * side and is checked on later passes. The shape is asked for natively, 9:16
+ * included, and the size is the one picked.
+ */
+export function omniRequestBody(options: {
+  prompt: string
+  firstFrame: InlinePicture
+  references: InlinePicture[]
+  aspectRatio: AssetAspectRatio
+  quality: VideoQuality
+  seconds: number
+}) {
+  const picture = (item: InlinePicture) => ({
+    type: "image",
+    data: item.data,
+    mime_type: item.mimeType,
+  })
+  return {
+    model: VIDEO_MODEL,
+    input: [
+      picture(options.firstFrame),
+      ...options.references.map(picture),
+      { type: "text", text: options.prompt },
+    ],
+    response_format: {
+      type: "video",
+      aspect_ratio: options.aspectRatio,
+      resolution: options.quality,
+      duration: `${options.seconds}s`,
+    },
+    background: true,
+  }
 }
 
 /** A piece after the first is "waiting" until the piece before it is ready. */
@@ -140,7 +203,15 @@ export type GenerationItem = {
   status: GenerationStatus
   error_message: string | null
   pieces: GenerationPiece[]
-  /** The actor Veo was told about. Null on shots asked for before 19 Oct 2026. */
+  /** The model in plain words: "Omni Flash", or "Veo 3.1" on a shot asked for before the switch. */
+  model_name: string
+  /** The size in plain words, such as "Normal 720p". */
+  quality: string
+  /** What Google has been paid for the pieces made so far, in cents. */
+  charged_cents: number
+  /** What the whole shot is expected to cost, in cents. */
+  expected_cents: number
+  /** The actor the shot was told about. Null on shots asked for before 19 Oct 2026. */
   actor_name: string | null
   /** How many pictures went on the person board, 0 when only words were sent. */
   board_pictures: number
@@ -152,17 +223,23 @@ export type GenerationItem = {
 type ShotNames = {
   actors: { id: string; name: string }[]
   extras: { id: string; name: string }[]
+  /** What the meter holds for each shot, in cents, by shot id. */
+  charged: Map<string, number>
 }
 
-type VeoOperation = {
-  name?: string
-  done?: boolean
+/** Google's answer about one piece, as much of it as is read. */
+type OmniInteraction = {
+  id?: string
+  status?: string
   error?: { message?: string }
-  response?: {
-    generatedVideos?: Array<{ video?: { uri?: string } }>
-    generateVideoResponse?: {
-      generatedSamples?: Array<{ video?: { uri?: string } }>
-    }
+  steps?: Array<{
+    type?: string
+    content?: Array<{ type?: string; data?: string; uri?: string; mime_type?: string }>
+  }>
+  usage?: {
+    total_input_tokens?: number
+    total_output_tokens?: number
+    total_thought_tokens?: number
   }
 }
 
@@ -191,7 +268,8 @@ async function shotNames(userId: string, rows: GenerationJoin[]): Promise<ShotNa
   const actorIds = [
     ...new Set(rows.flatMap((row) => (row.generation.actorId ? [row.generation.actorId] : []))),
   ]
-  const [actors, extras] = await Promise.all([
+  const shotIds = [...new Set(rows.map((row) => row.generation.shotId))]
+  const [actors, extras, charged] = await Promise.all([
     actorIds.length
       ? db
           .select({ id: videoActors.id, name: videoActors.name })
@@ -202,8 +280,36 @@ async function shotNames(userId: string, rows: GenerationJoin[]): Promise<ShotNa
       userId,
       rows.flatMap((row) => row.generation.extras.map((extra) => extra.extra_id))
     ),
+    chargedByShot(userId, shotIds),
   ])
-  return { actors, extras }
+  return { actors, extras, charged }
+}
+
+/**
+ * What each shot has cost so far, read off the AI meter, which records every
+ * piece's charge with its shot's id when the piece arrives. The meter is the
+ * record of what was paid, so nothing is copied onto the shot itself.
+ */
+async function chargedByShot(userId: string, shotIds: string[]) {
+  const charged = new Map<string, number>()
+  if (!shotIds.length) return charged
+  const shotId = sql<string>`${customShellAiUsageEvents.metadata} ->> 'shotId'`
+  const rows = await db
+    .select({
+      shotId,
+      cents: sql<number>`coalesce(sum(${customShellAiUsageEvents.costCents}), 0)::int`,
+    })
+    .from(customShellAiUsageEvents)
+    .where(
+      and(
+        eq(customShellAiUsageEvents.userId, userId),
+        eq(customShellAiUsageEvents.feature, "video-generation"),
+        inArray(shotId, shotIds)
+      )
+    )
+    .groupBy(shotId)
+  for (const row of rows) charged.set(row.shotId, row.cents)
+  return charged
 }
 
 async function serializeShot(
@@ -230,6 +336,14 @@ async function serializeShot(
     status,
     error_message: failed?.error_message ?? null,
     pieces,
+    model_name: videoModelName(first.generation.model),
+    quality: videoQualityName(first.generation.resolution),
+    charged_cents: names.charged.get(first.generation.shotId) ?? 0,
+    expected_cents: rows.reduce(
+      (sum, row) =>
+        sum + pieceCostCents(row.generation.model, row.generation.durationSeconds),
+      0
+    ),
     actor_name:
       names.actors.find((actor) => actor.id === first.generation.actorId)?.name ?? null,
     board_pictures: boardPictureIds(first.generation).length,
@@ -287,11 +401,13 @@ export async function listGenerations(userId: string, projectId: string) {
     asc(videoAiGenerations.shotId),
     asc(videoAiGenerations.shotIndex)
   )
-  const names = await shotNames(userId, rows)
+  const [names, defaults] = await Promise.all([shotNames(userId, rows), getAiDefaults()])
   return {
     generations: await Promise.all(
       groupShots(rows).map((shot) => serializeShot(shot, names))
     ),
+    /** The size the last shot was made at, which the next one starts on. */
+    quality: defaults.videoQuality ?? DEFAULT_VIDEO_QUALITY,
   }
 }
 
@@ -329,7 +445,7 @@ async function shotsBeingMade(userId: string, projectId: string) {
   const runningShots = new Set(running.map((row) => row.shotId))
   const owed = rows.filter((row) => runningShots.has(row.shotId))
   const cents = (list: typeof rows) =>
-    list.reduce((sum, row) => sum + aiUnitCostCents(row.model, row.durationSeconds), 0)
+    list.reduce((sum, row) => sum + pieceCostCents(row.model, row.durationSeconds), 0)
   return {
     projectShots: running.filter((row) => row.projectId === projectId).length,
     personShots: running.length,
@@ -396,6 +512,7 @@ export async function createGeneration(
     firstFrameId: string
     prompts: string[]
     lengthSeconds: ShotLengthSeconds
+    quality: VideoQuality
   }
 ) {
   const pieces = shotPieces(payload.lengthSeconds)
@@ -440,31 +557,25 @@ export async function createGeneration(
   if (!(await getAiKey("gemini"))) {
     throw new Error("Add a Google Gemini key in Settings first")
   }
-  await requireRoomForShot(
-    userId,
-    project.id,
-    aiUnitCostCents(VEO_MODEL, payload.lengthSeconds)
-  )
+  await requireRoomForShot(userId, project.id, shotCostCents(payload.lengthSeconds))
 
   // Each piece is sent what the frame was made from: the actor's angles and
   // the extras worn or held on one board, then the backdrop. A frame made
   // before its angles were written down is sent the actor's main picture.
-  // Veo takes reference pictures on 8 second clips only, so a 4 or 6 second
-  // piece records none and is sent the words alone.
   const sentExtras = sendingOrder(frame.frame.extras)
   const backdrop = sentExtras.find((extra) => extra.kind === "backdrop")
-  const referenceMediaIds =
-    pieces.seconds === VEO_REFERENCE_SECONDS
-      ? [
-          ...(frame.frame.actorMediaIds.length
-            ? frame.frame.actorMediaIds
-            : [frame.actorMainMediaId]),
-          ...sentExtras
-            .filter((extra) => extra.kind !== "backdrop")
-            .map((extra) => extra.media_id),
-          ...(backdrop ? [backdrop.media_id] : []),
-        ]
-      : []
+  const referenceMediaIds = [
+    ...(frame.frame.actorMediaIds.length
+      ? frame.frame.actorMediaIds
+      : [frame.actorMainMediaId]),
+    ...sentExtras
+      .filter((extra) => extra.kind !== "backdrop")
+      .map((extra) => extra.media_id),
+    ...(backdrop ? [backdrop.media_id] : []),
+  ]
+  // The next shot starts on this size. Saved before the shot is written, so
+  // a save that fails never leaves a shot made behind an error.
+  await saveAiDefaults({ videoQuality: payload.quality })
 
   const at = now()
   const shotId = uuid()
@@ -481,9 +592,10 @@ export async function createGeneration(
         firstFrameId: frame.frame.id,
         firstFrameMediaId: index === 0 ? frame.media.id : null,
         prompt,
-        model: VEO_MODEL,
+        model: VIDEO_MODEL,
         aspectRatio: frame.frame.aspectRatio,
         durationSeconds: pieces.seconds,
+        resolution: payload.quality,
         shotId,
         shotIndex: index + 1,
         shotPieces: pieces.count,
@@ -515,12 +627,10 @@ export async function retryGeneration(userId: string, shotId: string) {
     .where(failed)
     .limit(1)
   if (!piece) throw new Error("Only failed generations can be retried")
-  // The failed piece and every piece waiting behind it will be paid for.
+  // The failed piece and every piece waiting behind it will be paid for, on
+  // today's model even when the shot was asked for on Veo.
   const left = await db
-    .select({
-      model: videoAiGenerations.model,
-      durationSeconds: videoAiGenerations.durationSeconds,
-    })
+    .select({ durationSeconds: videoAiGenerations.durationSeconds })
     .from(videoAiGenerations)
     .where(
       and(
@@ -532,7 +642,7 @@ export async function retryGeneration(userId: string, shotId: string) {
   await requireRoomForShot(
     userId,
     piece.projectId,
-    left.reduce((sum, row) => sum + aiUnitCostCents(row.model, row.durationSeconds), 0)
+    left.reduce((sum, row) => sum + pieceCostCents(VIDEO_MODEL, row.durationSeconds), 0)
   )
   const [updated] = await db
     .update(videoAiGenerations)
@@ -610,7 +720,7 @@ async function failJob(job: ClaimedGeneration, error: unknown) {
   await recordAiUsage({
     userId: job.userId,
     provider: "gemini",
-    model: VEO_MODEL,
+    model: VIDEO_MODEL,
     feature: "video-generation",
     inputTokens: 0,
     outputTokens: 0,
@@ -640,12 +750,12 @@ async function startJob(job: ClaimedGeneration) {
       .limit(1)
     if (!frame) throw new Error("First frame image is missing")
     const style = await readProjectStyle(job.userId, job.projectId)
-    const person = job.actorId ? await veoPersonFor(job) : null
+    const person = job.actorId ? await personFor(job) : null
     const object = await getFromR2(frame.media.storagePath)
     const bytes = await object.Body?.transformToByteArray()
     if (!bytes?.byteLength) throw new Error("First frame image could not be read")
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${VEO_MODEL}:predictLongRunning`,
+      "https://generativelanguage.googleapis.com/v1beta/interactions",
       {
         method: "POST",
         signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
@@ -653,28 +763,19 @@ async function startJob(job: ClaimedGeneration) {
           "Content-Type": "application/json",
           "x-goog-api-key": apiKey,
         },
-        body: JSON.stringify({
-          instances: [
-            {
-              prompt: veoPrompt(style, job.prompt, person?.prompt),
-              image: {
-                inlineData: {
-                  mimeType: frame.media.mimeType,
-                  data: Buffer.from(bytes).toString("base64"),
-                },
-              },
-              ...(person?.referenceImages.length
-                ? { referenceImages: person.referenceImages }
-                : {}),
+        body: JSON.stringify(
+          omniRequestBody({
+            prompt: videoPrompt(style, job.prompt, person?.prompt),
+            firstFrame: {
+              mimeType: frame.media.mimeType,
+              data: Buffer.from(bytes).toString("base64"),
             },
-          ],
-          parameters: {
-            aspectRatio: job.aspectRatio,
-            durationSeconds: String(job.durationSeconds),
-            resolution: "720p",
-            personGeneration: "allow_adult",
-          },
-        }),
+            references: person?.referenceImages ?? [],
+            aspectRatio: job.aspectRatio as AssetAspectRatio,
+            quality: job.resolution as VideoQuality,
+            seconds: job.durationSeconds,
+          })
+        ),
       }
     )
     if (
@@ -691,12 +792,14 @@ async function startJob(job: ClaimedGeneration) {
       const detail = providerMessage(await response.text())
       throw new Error(`Google could not start the video${detail ? `: ${detail}` : "."}`)
     }
-    const operation = (await response.json()) as VeoOperation
-    if (!operation.name) throw new Error("Google did not return a video job")
+    const interaction = (await response.json()) as OmniInteraction
+    if (!interaction.id) throw new Error("Google did not return a video job")
     const [updated] = await db
       .update(videoAiGenerations)
       .set({
-        operationName: operation.name,
+        operationName: interaction.id,
+        // A piece asked for on Veo before the switch is made on Omni Flash.
+        model: VIDEO_MODEL,
         leaseToken: null,
         leaseExpiresAt: null,
         // Google's 15 minutes count from here, not from a wait in the queue.
@@ -726,7 +829,7 @@ async function startJob(job: ClaimedGeneration) {
  * board left with one picture sends that picture alone, and with no picture
  * of the person left the backdrop is not sent either.
  */
-async function veoPersonFor(job: ClaimedGeneration) {
+async function personFor(job: ClaimedGeneration) {
   const [actor] = await db
     .select({ prompt: videoActors.prompt })
     .from(videoActors)
@@ -768,16 +871,11 @@ async function veoPersonFor(job: ClaimedGeneration) {
     pictures.push(await readStoredPicture(backdrop.storagePath))
   }
   const referenceImages = await Promise.all(
-    pictures.map(async (picture) => {
+    pictures.map(async (picture): Promise<InlinePicture> => {
       const shrunk = await shrinkReference(picture)
       return {
-        image: {
-          inlineData: {
-            mimeType: shrunk.mimeType,
-            data: Buffer.from(shrunk.bytes).toString("base64"),
-          },
-        },
-        referenceType: "asset",
+        mimeType: shrunk.mimeType,
+        data: Buffer.from(shrunk.bytes).toString("base64"),
       }
     })
   )
@@ -787,14 +885,14 @@ async function veoPersonFor(job: ClaimedGeneration) {
       references: tiles.length
         ? { board: tiles.length > 1, backdrop: Boolean(backdrop) }
         : null,
-    } satisfies VeoPerson,
+    } satisfies ShotPerson,
     referenceImages,
   }
 }
 
-async function readBytes(response: Response) {
+async function readBytes(response: Response, limit = MAX_VIDEO_BYTES) {
   const declared = Number(response.headers.get("content-length") ?? 0)
-  if (declared > MAX_VIDEO_BYTES) throw new Error("Google returned a video larger than 100MB")
+  if (declared > limit) throw new Error("Google returned a video larger than 100MB")
   const reader = response.body?.getReader()
   if (!reader) throw new Error("Google returned an empty video")
   const chunks: Uint8Array[] = []
@@ -803,7 +901,7 @@ async function readBytes(response: Response) {
     const { done, value } = await reader.read()
     if (done) break
     size += value.byteLength
-    if (size > MAX_VIDEO_BYTES) {
+    if (size > limit) {
       await reader.cancel()
       throw new Error("Google returned a video larger than 100MB")
     }
@@ -819,12 +917,53 @@ async function readBytes(response: Response) {
   return bytes
 }
 
-function videoUri(operation: VeoOperation) {
-  return (
-    operation.response?.generatedVideos?.[0]?.video?.uri ??
-    operation.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri ??
-    null
-  )
+/** The finished clip in Google's answer: inline as base64, or an address. */
+function videoPart(interaction: OmniInteraction) {
+  for (const step of interaction.steps ?? []) {
+    for (const part of step.content ?? []) {
+      if (part.type === "video" && (part.data || part.uri)) return part
+    }
+  }
+  return null
+}
+
+/**
+ * The tokens Google counted for a finished piece. Thinking is billed as
+ * output. An answer with no count is charged what the seconds are expected
+ * to cost, so a piece is never free on the meter.
+ */
+function omniUsage(interaction: OmniInteraction, seconds: number) {
+  const output =
+    (interaction.usage?.total_output_tokens ?? 0) +
+    (interaction.usage?.total_thought_tokens ?? 0)
+  if (!output) return { inputTokens: 0, outputTokens: videoTokens(seconds) }
+  return { inputTokens: interaction.usage?.total_input_tokens ?? 0, outputTokens: output }
+}
+
+/** Reads the clip's bytes out of a finished answer. */
+async function videoBytes(interaction: OmniInteraction, apiKey: string) {
+  const part = videoPart(interaction)
+  if (!part) throw new Error("Google finished without returning a video")
+  if (part.data) {
+    const video = new Uint8Array(Buffer.from(part.data, "base64"))
+    if (video.byteLength > MAX_VIDEO_BYTES) {
+      throw new Error("Google returned a video larger than 100MB")
+    }
+    if (!video.byteLength) throw new Error("Google returned an empty video")
+    return video
+  }
+  const url = new URL(part.uri ?? "")
+  if (url.protocol !== "https:" || url.hostname !== "generativelanguage.googleapis.com") {
+    throw new Error("Google returned an invalid video address")
+  }
+  const download = await fetch(url, {
+    headers: { "x-goog-api-key": apiKey },
+    signal: AbortSignal.timeout(VIDEO_DOWNLOAD_TIMEOUT_MS),
+  })
+  if (!download.ok) {
+    throw new Error(`Google could not download the video: ${providerMessage(await download.text())}`)
+  }
+  return await readBytes(download)
 }
 
 /**
@@ -894,43 +1033,46 @@ async function pollJob(job: ClaimedGeneration) {
     ) {
       throw new Error("Google took longer than 15 minutes. Retry the video.")
     }
+    // A Veo job still running when Omni Flash took over. Veo's own address
+    // for it goes dark on 22 Oct 2026, so the piece is made again instead.
+    if (job.operationName.startsWith("models/")) {
+      throw new Error(
+        "Google switched Veo off before this piece arrived. Press Try again to make it with Omni Flash."
+      )
+    }
     const apiKey = await getAiKey("gemini")
     if (!apiKey) throw new Error("Add a Google Gemini key in Settings first")
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/${job.operationName}`,
+      `https://generativelanguage.googleapis.com/v1beta/interactions/${encodeURIComponent(job.operationName)}`,
       {
         headers: { "x-goog-api-key": apiKey },
-        signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(VIDEO_DOWNLOAD_TIMEOUT_MS),
       }
     )
+    if (response.status === 429) {
+      // Google limits how often it is asked. The piece is asked about again
+      // on a later pass, inside the same 15 minutes.
+      await releaseJob(job)
+      return
+    }
     if (!response.ok) {
       const detail = providerMessage(await response.text())
       throw new Error(`Google could not check the video${detail ? `: ${detail}` : "."}`)
     }
-    const operation = (await response.json()) as VeoOperation
-    if (operation.error) {
-      throw new Error(
-        `Google could not generate the video${operation.error.message ? `: ${operation.error.message}` : "."}`
-      )
-    }
-    if (!operation.done) {
+    // A finished answer carries the clip itself, so it is read with the same
+    // size limit as a download.
+    const interaction = JSON.parse(
+      new TextDecoder().decode(await readBytes(response, MAX_ANSWER_BYTES))
+    ) as OmniInteraction
+    if (interaction.status === "in_progress") {
       await releaseJob(job)
       return
     }
-    const uri = videoUri(operation)
-    if (!uri) throw new Error("Google finished without returning a video")
-    const url = new URL(uri)
-    if (url.protocol !== "https:" || url.hostname !== "generativelanguage.googleapis.com") {
-      throw new Error("Google returned an invalid video address")
+    if (interaction.status !== "completed") {
+      const detail = interaction.error?.message ?? interaction.status
+      throw new Error(`Google could not generate the video${detail ? `: ${detail}` : "."}`)
     }
-    const download = await fetch(url, {
-      headers: { "x-goog-api-key": apiKey },
-      signal: AbortSignal.timeout(VIDEO_DOWNLOAD_TIMEOUT_MS),
-    })
-    if (!download.ok) {
-      throw new Error(`Google could not download the video: ${providerMessage(await download.text())}`)
-    }
-    const video = await readBytes(download)
+    const video = await videoBytes(interaction, apiKey)
     const hasNext = job.shotIndex < job.shotPieces
     // Taken before anything is saved, so a frame that cannot be read fails
     // this piece, whose Retry makes it again, rather than leaving a ready
@@ -1004,15 +1146,16 @@ async function pollJob(job: ClaimedGeneration) {
       {
         userId: job.userId,
         provider: "gemini",
-        model: VEO_MODEL,
+        model: VIDEO_MODEL,
         feature: "video-generation",
         metadata: {
           ...projectSpendMetadata(job.projectId),
           generationId: job.id,
           shotId: job.shotId,
+          resolution: job.resolution,
         },
       },
-      { inputTokens: 0, outputTokens: 0, units: job.durationSeconds }
+      omniUsage(interaction, job.durationSeconds)
     )
   } catch (error) {
     if (generatedMedia) await discardGeneratedAsset(generatedMedia)

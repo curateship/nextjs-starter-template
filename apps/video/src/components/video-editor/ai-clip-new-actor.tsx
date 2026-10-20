@@ -24,7 +24,12 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { ImageModelId } from "@/lib/video/asset-factories"
 
-const EMPTY_DRAFT = { name: "", prompt: "", model: DEFAULT_IMAGE_MODEL, photo: "" }
+const EMPTY_DRAFT: { name: string; prompt: string; model: ImageModelId; photo: string } = {
+  name: "",
+  prompt: "",
+  model: DEFAULT_IMAGE_MODEL,
+  photo: "",
+}
 
 /**
  * New actor in step 1 of the AI clip panel: a box that drops down from the

@@ -1,3 +1,4 @@
+import { aiCostCents, aiUnitCostCents, isUnitPricedModel } from "@/lib/ai/ai-models"
 import { formatCents } from "@/lib/video/project-spend"
 
 export const IMAGE_MODELS = [
@@ -57,7 +58,7 @@ export type AssetAspectRatio = (typeof ASSET_ASPECT_RATIOS)[number]
 
 /**
  * The shape a project's first frames and clips are made in: the project's own
- * when the picture models and Veo can make it, otherwise null, and the person
+ * when the picture models and the video model can make it, otherwise null, and the person
  * picks 9:16 or 16:9 for a square or 4:3 project.
  */
 export function projectClipAspect(projectAspect: string): AssetAspectRatio | null {
@@ -75,7 +76,75 @@ export function sceneName(scene: string): string {
 export const VIDEO_DURATIONS = [4, 6, 8] as const
 export type VideoDurationSeconds = (typeof VIDEO_DURATIONS)[number]
 
-export const VEO_MODEL = "veo-3.1-generate-preview"
+/**
+ * The model every AI shot is made with. Google switched Veo 3.1 off on
+ * 22 Oct 2026, so shots asked for before then name a Veo model on their rows
+ * and are listed under it; `workspace/docs/longer-ai-clips.md` has the story.
+ */
+export const VIDEO_MODEL = "gemini-omni-1.1-flash"
+
+const VIDEO_MODEL_NAMES: Record<string, string> = {
+  [VIDEO_MODEL]: "Omni Flash",
+  "veo-3.1-generate-preview": "Veo 3.1",
+}
+
+/** A shot's model in plain words, such as "Omni Flash". */
+export function videoModelName(model: string) {
+  return VIDEO_MODEL_NAMES[model] ?? model
+}
+
+/**
+ * The picture sizes a shot can be made at. Draft is for trying directions
+ * cheaply and Sharp for the take that is kept. Google's page calls 1080p
+ * "upscaled": a bigger file that takes longer to make.
+ */
+export const VIDEO_QUALITIES = [
+  { id: "360p", label: "Draft" },
+  { id: "720p", label: "Normal" },
+  { id: "1080p", label: "Sharp" },
+] as const
+export type VideoQuality = (typeof VIDEO_QUALITIES)[number]["id"]
+export const VIDEO_QUALITY_IDS = VIDEO_QUALITIES.map((item) => item.id) as [
+  VideoQuality,
+  ...VideoQuality[],
+]
+export const DEFAULT_VIDEO_QUALITY: VideoQuality = "720p"
+
+/** "Normal 720p", or the size alone for one not on the list. */
+export function videoQualityName(quality: string) {
+  const known = VIDEO_QUALITIES.find((item) => item.id === quality)
+  return known ? `${known.label} ${known.id}` : quality
+}
+
+/**
+ * Omni Flash is billed by the tokens of video it makes, and Google's price
+ * page (read 19 Oct 2026) gives one rate: 5,792 tokens a second at 720p. It
+ * gives none for 360p or 1080p, so those are counted at the 720p rate until a
+ * real bill says otherwise. The charge itself is always Google's own count.
+ */
+const OMNI_TOKENS_PER_SECOND = 5792
+export const PRICED_VIDEO_QUALITY: VideoQuality = "720p"
+
+/** The tokens of video Google is expected to count for this many seconds. */
+export function videoTokens(seconds: number) {
+  return seconds * OMNI_TOKENS_PER_SECOND
+}
+
+/**
+ * What one piece of a shot is expected to cost, in cents. A Veo piece from
+ * before the switch is priced by the second, the way Veo charged it.
+ */
+export function pieceCostCents(model: string, seconds: number) {
+  return isUnitPricedModel(model)
+    ? aiUnitCostCents(model, seconds)
+    : aiCostCents(model, 0, videoTokens(seconds))
+}
+
+/** What a whole new shot is expected to cost, piece by piece, in cents. */
+export function shotCostCents(length: ShotLengthSeconds) {
+  const pieces = shotPieces(length)
+  return pieces.count * pieceCostCents(VIDEO_MODEL, pieces.seconds)
+}
 
 /**
  * The lengths a person can ask for. Google stops one clip at 8 seconds, so a

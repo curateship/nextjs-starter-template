@@ -3,7 +3,7 @@
 An extra is something an actor wears, holds or stands in: a clothing item, a
 backdrop, a prop, or a hair and makeup look. Each one is a name, one picture
 and a written description. You pick extras beside the actor in the editor's
-AI clip panel, and the first frame and the Veo clip made from it are both sent
+AI clip panel, and the first frame and the shot made from it are both sent
 the pictures and the words. That way the presenter keeps the same green jacket
 in the same kitchen from shot to shot.
 
@@ -29,11 +29,12 @@ answers to the follow-up questions set the rules below.
 - **A board holds 4 pictures**, a 2 by 2 grid.
 - **The picks are kept per project**, so a series keeps the same outfit and
   kitchen until they are changed.
-- **A first frame remembers its extras**, and the Veo clip made from that
-  frame sends the same ones with no extra clicks.
-- **If Veo refuses reference pictures alongside a first frame:** "Stop and ask
-  me." Nothing in the Veo request changes until Tyler decides.
-- **If reference pictures make a Veo clip cost more**, the Make the shot price
+- **A first frame remembers its extras**, and the shot made from that frame
+  sends the same ones with no extra clicks.
+- **If Google refuses reference pictures alongside a first frame:** "Stop and
+  ask me." Nothing in the request changes until Tyler decides. He set this for
+  Veo, and it holds for Omni Flash, which replaced Veo on 19 Oct 2026.
+- **If reference pictures make a shot cost more**, the Make the shot price
   shows the higher figure and the references are still sent every time.
 
 ## The tabs
@@ -136,33 +137,33 @@ board and the backdrop, with the look picture as the third.
 ## What a first frame records
 
 - **The extras it was sent**, in order, as kind, extra id and the picture's
-  Media id (`video_first_frames.extras`). The picture's id is kept so the Veo
-  clip sends the same picture even after the extra is redrawn or deleted.
+  Media id (`video_first_frames.extras`). The picture's id is kept so the
+  shot sends the same picture even after the extra is redrawn or deleted.
 - **Under the frame's name** in the panel, after "From main picture, Side", it
   says "With Green wool jacket, Bright kitchen". An extra deleted since shows
   as "a removed extra". Frames made before 19 Oct 2026 show no such line.
 
-## What Veo is sent
+## What the shot is sent
 
 When Make the shot is pressed, each piece of the shot copies what the frame
 was made from (`video_ai_generations.actor_id`, `reference_media_ids` and
 `extras`). A frame from before its angles were recorded sends the actor's main
-picture.
+picture. Shots are made with Gemini Omni Flash since 19 Oct 2026, because
+Google switches Veo off on 22 Oct 2026 (`longer-ai-clips.md`).
 
 - **The words:** after the direction and before the first-frame sentence, one
   line for the person ("The person is: …") and one per extra, read as they are
   when the piece starts.
-- **The pictures:** the same person board as the frame (or the actor's one
-  picture), then the backdrop, as Veo reference pictures
-  (`instances[0].referenceImages`, each `referenceType: "asset"`). The prompt
-  says "The first reference picture is a board of one person from several
-  sides and what they wear and hold: show that one person, never the board.
-  The last reference picture is the place."
-- **8 second pieces only.** Google's Veo page (read 19 Oct 2026) says reference
-  pictures need `durationSeconds` of 8. A 4 or 6 second shot records no
-  pictures and is sent the words alone, and step 3 says so under the price.
-  Every piece of a 16, 24 or 32 second shot is 8 seconds, so each one gets the
-  pictures.
+- **The pictures:** the first frame, then the same person board as the frame
+  (or the actor's one picture), then the backdrop, in that order in the
+  request. Google's tags at the top of the prompt say which is which:
+  "[# Sources <FIRST_FRAME>@Image1] [# References <IMAGE_REF_0>@Image2
+  <IMAGE_REF_1>@Image3]". The prompt then says "<IMAGE_REF_0> is a board of
+  one person from several sides and what they wear and hold: show that one
+  person, never the board. <IMAGE_REF_1> is the place."
+- **Every length gets the pictures.** Veo took reference pictures on 8 second
+  pieces only, so a 4 or 6 second Veo shot was sent the words alone. Omni
+  Flash's page sets no such rule, so every piece now gets them.
 - **Size:** each reference picture is redrawn to at most 1536 pixels on its
   longest side as a JPEG before it goes, so three 4 MB photos come to well
   under 4 MB together.
@@ -170,25 +171,24 @@ picture.
   picture sends that one alone, and with no picture of the person left the
   backdrop is not sent either.
 - **Shots asked for before 19 Oct 2026** have no actor on record and are sent
-  exactly what they always were.
+  the first frame and the words alone.
 - **The shot's row** in the panel says what was sent, such as "Mia, 3 pictures
-  on one board, with Green wool jacket, Bright kitchen", or "words only" for a
-  4 or 6 second shot.
-- **Price:** Google's page says nothing about reference pictures changing the
-  price, so the app shows the same $0.40 a second. If a real bill says
-  otherwise, Tyler's rule above applies.
+  on one board, with Green wool jacket, Bright kitchen". A 4 or 6 second shot
+  made on Veo says "words only".
+- **Price:** Google bills Omni Flash by tokens, and the pictures sent are
+  tokens in at $1.50 a million, a fraction of a cent a shot. The real charge
+  is Google's own count.
 
 ## Not checked yet
 
-- **Veo with a first frame and reference pictures together.** Google's Veo page
-  shows reference pictures only in requests without a first frame, and never
-  says whether the two can go together. The local Gemini key had no quota left
-  on 19 Oct 2026 ("You exceeded your current quota"), so no real request has
-  been sent. If Google refuses the pair, the shot fails with Google's reason on
-  its row and nothing is charged. Tyler's rule is to stop and ask him then.
-- **How often a model draws the board.** Part 7 of the task makes five first
-  frames and two Veo clips with a full board and a backdrop, for Tyler to look
-  at and decide whether the board stays. It needs a Gemini key with quota.
+- **Omni Flash with a first frame and reference pictures together.** Google's
+  Omni page shows both in one request, but no real request has been sent: the
+  local Gemini key is a free key, and Google gives free keys 0 Omni Flash
+  shots a day. If Google refuses the pair, the shot fails with Google's reason
+  on its row and nothing is charged. Tyler's rule is to stop and ask him then.
+- **How often a model draws the board.** Part 7 of task 04 makes five first
+  frames and two clips with a full board and a backdrop, for Tyler to look at
+  and decide whether the board stays. It needs a paid Gemini key.
 
 ## Where it lives
 

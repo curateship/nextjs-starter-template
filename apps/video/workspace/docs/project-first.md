@@ -81,9 +81,9 @@ project's.
 - **The refusal:** says what is spent, what the call costs, the limit and how
   far short the limit is. In the AI clip panel the message has a Raise limit
   button that opens the project's settings.
-- **Shots still being made:** a Veo shot is charged when it arrives, so a shot
+- **Shots still being made:** an AI shot is charged when it arrives, so a shot
   check adds the price of every shot the project is still making, and says
-  so: "shots still being made will add $3.20". Several shots started back to
+  so: "shots still being made will add $0.81". Several shots started back to
   back cannot pass the limit between them (see `several-ai-clips.md`).
 - **Why a call can still pass the limit a little:** a call priced by the
   words it writes has no price until it is made, so it is refused only once
