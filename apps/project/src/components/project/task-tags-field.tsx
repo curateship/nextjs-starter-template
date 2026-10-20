@@ -190,6 +190,25 @@ export function TaskTagsField({
   )
 }
 
+/**
+ * The task's tags under its title in the side panel, as pills to read. They
+ * are added and taken off in the three-dot button's Add tags (Tyler, 20 Oct
+ * 2026). With none, nothing shows.
+ */
+export function TaskTagList({ tags }: { tags: TagPill[] }) {
+  if (tags.length === 0) return null
+  return (
+    <div role="group" aria-label="Tags" className="flex flex-wrap items-center gap-1">
+      {tags.map((tag) => (
+        <Badge key={tag.id ?? tag.name} variant="outline" className="max-w-48 gap-1">
+          <ProjectDot color={tag.color} className="size-2" />
+          <span className="truncate">{tag.name}</span>
+        </Badge>
+      ))}
+    </div>
+  )
+}
+
 /** Makes the typed tags New task held, and gives back every tag's id. */
 export async function tagIdsFor(tags: TagPill[], teamId: string | undefined) {
   const ids: string[] = []

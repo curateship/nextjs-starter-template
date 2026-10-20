@@ -476,6 +476,7 @@ describe("the project page", () => {
       </TooltipProvider>
     )
     expect(plain).not.toContain("<img")
+    expect(plain).not.toContain("border-b-transparent")
 
     const html = renderToStaticMarkup(
       <TooltipProvider>
@@ -488,6 +489,8 @@ describe("the project page", () => {
       </TooltipProvider>
     )
     expect(html).toMatch(/src="\/b\.jpg" alt="" class="[^"]*opacity-30/)
+    // No line under the header across the banner (Tyler, 20 Oct 2026).
+    expect(html).toContain("border-b-transparent")
     expect(html).toMatch(/rounded-full[^>]*><img src="\/a\.jpg"/)
     // The client is listed once, beside the lead, not under the name (Tyler, 19 Oct 2026).
     expect(html.match(/Hart Dental/g)).toHaveLength(1)

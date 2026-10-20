@@ -7,6 +7,7 @@ import {
   viewFilters,
   viewHasFilters,
   type saveViewSchema,
+  type updateViewSchema,
   type SavedViewFilters,
   type SavedViewNames,
 } from "@/lib/project/saved-views"
@@ -70,10 +71,7 @@ export async function saveView(
   const membership = input.projectId
     ? (await requireProjectAccess(userId, input.projectId, database)).membership
     : await requireMembership(userId, database)
-  const filters = viewFilters(input.filters)
-  if (!viewHasFilters(filters)) throw new Error(PROJECT_ERRORS.viewNeedsFilters)
-  // My tasks has no Person filter: every task there is the person's own.
-  if (input.projectId === null) delete filters.person
+  const filters = keptFilters(input.projectId, input.filters)
 
   const [{ total }] = await database
     .select({ total: count() })
@@ -102,6 +100,43 @@ export async function saveView(
   }
   await database.insert(projectSavedViews).values(view)
   return { id: view.id, name: view.name, filters, names }
+}
+
+/**
+ * Edit view: the name and filters of one of the person's own views. It stays
+ * on its project or on My tasks, and the person must still see that project.
+ */
+export async function updateView(
+  userId: string,
+  input: z.output<typeof updateViewSchema>,
+  database = db
+): Promise<SavedView> {
+  const [row] = await database
+    .select({ teamId: projectSavedViews.teamId, projectId: projectSavedViews.projectId })
+    .from(projectSavedViews)
+    .where(and(eq(projectSavedViews.id, input.viewId), eq(projectSavedViews.userId, userId)))
+  if (!row) throw new Error(PROJECT_ERRORS.viewNotFound)
+  if (row.projectId) await requireProjectAccess(userId, row.projectId, database)
+  const filters = keptFilters(row.projectId, input.filters)
+  const names = await namesOf(row.teamId, filters, database)
+  await database
+    .update(projectSavedViews)
+    .set({ name: input.name, filters, names })
+    .where(and(eq(projectSavedViews.id, input.viewId), eq(projectSavedViews.userId, userId)))
+  return { id: input.viewId, name: input.name, filters, names }
+}
+
+/** What a view keeps of the filters given, refused when that is nothing. */
+function keptFilters(projectId: string | null, given: SavedViewFilters) {
+  const filters = viewFilters(given)
+  // My tasks has no Person filter, every task there being the person's own,
+  // and no Group row.
+  if (projectId === null) {
+    delete filters.person
+    delete filters.group
+  }
+  if (!viewHasFilters(filters)) throw new Error(PROJECT_ERRORS.viewNeedsFilters)
+  return filters
 }
 
 export async function deleteView(userId: string, viewId: string, database = db) {

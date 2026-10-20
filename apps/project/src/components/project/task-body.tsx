@@ -14,7 +14,7 @@ import { StepListActions } from "@/components/project/step-list-actions"
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { TaskPlanCard } from "@/components/project/task-plan-card"
 import { StepMenu } from "@/components/project/step-menu"
-import { TaskTagsField } from "@/components/project/task-tags-field"
+import { TaskTagList, TaskTagsField } from "@/components/project/task-tags-field"
 import { TaskLinkButton, TaskLinkField } from "@/components/project/task-link"
 import {
   DueDate,
@@ -142,7 +142,9 @@ export type TaskSide = {
   /** The title at the top of the panel, edited where it is written. */
   title: React.ReactNode
   status: React.ReactNode
-  /** The tags box, right under the title so it is easy to find (Tyler, 19 Oct 2026). */
+  /** The tags under the title, to read; nothing while there are none. */
+  tagList: React.ReactNode
+  /** The tags box, in the three-dot button's Add tags (Tyler, 20 Oct 2026). */
   tags: React.ReactNode
   /** The button that opens the task's Video or Promo record, or who may open it. */
   link: React.ReactNode
@@ -917,6 +919,7 @@ function TaskForm({
       />
     ),
     status: statusPill,
+    tagList: <TaskTagList tags={task.labels} />,
     tags: tagsField,
     link: linkButton,
     notices: (
