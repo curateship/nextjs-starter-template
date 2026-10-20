@@ -29,6 +29,8 @@ const TOOL_LABELS: Record<string, string> = {
   translation_voice: "Another language voice",
   script_check: "Script check",
   brief_script: "Brief script",
+  broll_phrases: "B-roll phrases",
+  broll_transcript: "B-roll transcript",
   viral_keyword_ideas: "Keyword ideas",
   viral_topic_match: "Topic match",
   viral_breakdown: "Breakdowns",

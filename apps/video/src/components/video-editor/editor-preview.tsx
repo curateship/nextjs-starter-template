@@ -164,6 +164,22 @@ function seekPreviewMedia(
   requests.set(element, { mode, targetS })
 }
 
+/** How far before its end a file is parked to hold its last frame. */
+const HOLD_LAST_FRAME_S = 0.05
+
+/**
+ * Whether a clip that runs on past the end of its file has used the file up
+ * at this point. It then holds the last frame (B-roll shorter than its
+ * sentence does this, see b-roll.md), the way the export's overlay does.
+ */
+function holdsLastFrame(element: HTMLMediaElement, targetS: number) {
+  return (
+    Number.isFinite(element.duration) &&
+    element.duration > 0 &&
+    targetS >= element.duration - HOLD_LAST_FRAME_S
+  )
+}
+
 // Flatten the lanes into draw order (the top lane covers the ones below it),
 // working out the blend entering each clip from the one before it on its lane.
 function flattenTracks(tracks: EditorTrack[]) {
@@ -515,7 +531,14 @@ export function EditorPreview() {
       const [url, entry] = source
       const element = videoRefs.current.get(url)
       if (!element) return timeMs
-      if (element.ended) return entry.clip.startMs + entry.clip.durationMs
+      // A file that has run out, whether or not its clip has, leaves the
+      // playhead on ordinary wall time, so a held last frame keeps time.
+      if (
+        element.ended ||
+        holdsLastFrame(element, sourceMsAt(entry.clip, timeMs - entry.clip.startMs) / 1000)
+      ) {
+        return null
+      }
       if (element.seeking || element.readyState < 2 || element.paused) {
         return timeMs
       }
@@ -719,10 +742,14 @@ export function EditorPreview() {
         if (element.playbackRate !== rate) element.playbackRate = rate
         // Hold the first frame through the blend, so the picture is continuous
         // once real playback starts at the seam.
-        const targetS = reaching
+        const wantedS = reaching
           ? clip.trimStartMs / 1000
           : sourceMsAt(clip, timeMs - clip.startMs) / 1000
-        if ((!playing || reaching) && !element.paused) element.pause()
+        // Past the end of its file the clip is parked on its last frame and
+        // left paused: playing an ended file would start it from the top.
+        const holding = holdsLastFrame(element, wantedS)
+        const targetS = holding ? element.duration - HOLD_LAST_FRAME_S : wantedS
+        if ((!playing || reaching || holding) && !element.paused) element.pause()
         // A different piece of the same file: jump to it exactly. Letting the
         // usual drift allowance decide would play a short cut straight through
         // — the very thing that was just taken out.
@@ -731,11 +758,13 @@ export function EditorPreview() {
         seekPreviewMedia(
           element,
           targetS,
-          crossedIntoNewPiece ? "precise" : seekMode,
+          // A fast seek lands on the nearest keyframe, which can be a
+          // fraction of a second before the frame meant to be held.
+          crossedIntoNewPiece || holding ? "precise" : seekMode,
           crossedIntoNewPiece ? 0.001 : seekToleranceS,
           mediaSeekRequests
         )
-        if (playing && !reaching && element.paused) {
+        if (playing && !reaching && !holding && element.paused) {
           void element.play().catch(() => undefined)
         }
       }

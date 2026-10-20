@@ -14,6 +14,7 @@ import {
   type BriefLanding,
   type SceneWithFiles,
 } from "@/lib/video/brief"
+import { landBroll, type BrollPlacement } from "@/lib/video/b-roll"
 import type { ClipboardClip } from "@/lib/video/clip-clipboard"
 import { LEFT_OF_CUT, RIGHT_OF_CUT } from "@/lib/video/clip-fades"
 import { landMovingShot, type MovingPiece } from "@/lib/video/moving-still"
@@ -112,6 +113,9 @@ export type EditorAction =
   // A brief's made scenes, each a still, its voice and its captions, laid in
   // order on the brief's lanes (brief.ts). One action, one Undo.
   | { type: "LAND_BRIEF_SCENES"; scenes: SceneWithFiles[]; landing: BriefLanding }
+  // Pexels clips picked in the B-roll window, on one new lane under their
+  // sentences (b-roll.ts). One action, one Undo.
+  | { type: "PLACE_BROLL"; placements: BrollPlacement[] }
   | { type: "ADD_TRACK" }
   // Cut several pieces out of one clip at once, closing the gaps. What comes
   // after on the same lane shuffles back by however much was taken out.
@@ -823,6 +827,12 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       const landed = landMovingShot(state.tracks, { ...action, newId: editorId })
       if (landed.outcome === "gone") return state
       return pushUndo(state, landed.tracks)
+    }
+
+    case "PLACE_BROLL": {
+      const tracks = landBroll(state.tracks, action.placements, editorId)
+      if (!tracks || tracks === state.tracks) return state
+      return pushUndo(state, tracks)
     }
 
     case "LAND_BRIEF_SCENES": {

@@ -27,6 +27,8 @@ export async function saveGeneratedAsset(options: {
   mimeType: string
   fileType: GeneratedFileType
   name: string
+  /** Left out, a picture's alt text is its name and a video has none. */
+  altText?: string
 }) {
   validateMediaFile(options.mimeType, options.bytes.byteLength)
   validateMediaContent(options.mimeType, options.bytes)
@@ -45,7 +47,8 @@ export async function saveGeneratedAsset(options: {
     userId: options.userId,
     filename,
     originalName: `${options.name.replace(/[^a-zA-Z0-9 ._-]+/g, "").trim() || "Generated asset"}.${extension}`,
-    altText: options.fileType === "image" ? options.name : null,
+    altText:
+      options.altText ?? (options.fileType === "image" ? options.name : null),
     fileSize: options.bytes.byteLength,
     mimeType: options.mimeType,
     fileType: options.fileType,

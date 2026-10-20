@@ -248,6 +248,47 @@ export function briefScriptCostCents({
 }
 
 /**
+ * The B-roll phrase prompt's own wording, before the sentences go in
+ * (`brollPhrasesPrompt` in `src/server/video/b-roll.ts`).
+ */
+const BROLL_PROMPT_CHARACTERS = 1_600
+
+/** A sentence of narration runs about four seconds. */
+const BROLL_MS_PER_SENTENCE = 4_000
+
+/**
+ * The thinking GPT and Claude are billed for on a list of short phrases.
+ * Estimates until one is run.
+ */
+const BROLL_THINKING_TOKENS: Record<WriterId, number> = {
+  gemini: 0,
+  openai: 1_200,
+  anthropic: 800,
+}
+
+/**
+ * One search phrase per sentence of a voice line this long. The sentences go
+ * in numbered, and each phrase comes back as about eight tokens.
+ */
+export function brollPhrasesCostCents({
+  writer,
+  talkMs,
+}: {
+  writer: WriterId
+  talkMs: number
+}) {
+  const model = WRITERS.find((one) => one.id === writer)?.model
+  if (!model || !Number.isFinite(talkMs) || talkMs <= 0) return 0
+  const sentences = Math.max(1, Math.round(talkMs / BROLL_MS_PER_SENTENCE))
+  const said = (talkMs / 60_000) * CHARACTERS_PER_MINUTE_OF_TALK
+  return tokenCostCents(
+    model,
+    (BROLL_PROMPT_CHARACTERS + said + sentences * 6) / CHARACTERS_PER_TOKEN,
+    sentences * 8 + 30 + BROLL_THINKING_TOKENS[writer]
+  )
+}
+
+/**
  * What a button says after its label: "no charge" for nothing at all,
  * otherwise `formatCheckCost`'s "about 4¢", and dollars from a dollar up.
  */
