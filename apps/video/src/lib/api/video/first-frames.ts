@@ -6,6 +6,11 @@ import {
   ASSET_ASPECT_RATIOS,
   SHEET_PICTURE_NOT_FOUND_MESSAGE,
 } from "@/lib/video/asset-factories"
+import {
+  BOARD_FULL_MESSAGE,
+  EXTRA_NOT_FOUND_MESSAGE,
+} from "@/lib/video/extras"
+import { extraPicksSchema } from "@/lib/api/video/extras"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { isProjectSpendLimitMessage } from "@/lib/video/project-spend"
 import { userGet, userPost } from "@/server/guards"
@@ -24,6 +29,7 @@ const payloadSchema = z.object({
   prompt: z.string().trim().min(1).max(5000),
   variants: z.number().int().min(1).max(4),
   sheetPictureIds: z.array(z.string().min(1).max(36)).max(4).nullable().optional(),
+  extras: extraPicksSchema.nullable().optional(),
   aspectRatio: z.enum(ASSET_ASPECT_RATIOS).nullable().optional(),
 })
 
@@ -31,7 +37,6 @@ export function getFirstFrameErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ""
   if (message.startsWith("Google ")) return message
   if (isProjectSpendLimitMessage(message)) return message
-  if (message.startsWith("This picture model takes up to ")) return message
   if (
     [
       PROJECT_NOT_FOUND_MESSAGE,
@@ -42,6 +47,8 @@ export function getFirstFrameErrorMessage(error: unknown) {
       "Add a Google Gemini key in Settings first",
       "Wait for this first frame's video generation to finish",
       SHEET_PICTURE_NOT_FOUND_MESSAGE,
+      BOARD_FULL_MESSAGE,
+      EXTRA_NOT_FOUND_MESSAGE,
     ].includes(message)
   ) return message
   if (message.includes("AI_LIMIT_REACHED")) return "Your monthly AI allowance is used up."

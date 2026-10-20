@@ -14,6 +14,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
+import type { ExtraPicks, SentExtra } from "@/lib/video/extras"
 import { customShellMedia, customShellUsers } from "@/server/schema"
 
 /**
@@ -366,6 +367,9 @@ export const videoProjects = pgTable(
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     // The most AI spending the project may reach, in cents. Null is no limit.
     spendLimitCents: integer("spend_limit_cents"),
+    // The extras picked in the AI clip panel, one extra id per kind, so a
+    // series keeps the same outfit and place (drizzle/0124).
+    extraPicks: jsonb("extra_picks").$type<ExtraPicks>().notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -701,6 +705,41 @@ export const videoActorSheetPictures = pgTable(
 )
 
 /**
+ * A clothing item, backdrop, prop or hair look: a name, one Media picture and
+ * a description, picked for a first frame beside the actor. Deleting it keeps
+ * the file; the file cannot be deleted while an extra uses it. drizzle/0124.
+ */
+export const videoExtras = pgTable(
+  "video_extras",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 16 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    prompt: text("prompt").notNull(),
+    imageMediaId: varchar("image_media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_extras_kind_check",
+      sql`${table.kind} in ('clothing', 'backdrop', 'prop', 'hair')`
+    ),
+    index("ix_video_extras_user_kind_created").on(
+      table.userId,
+      table.kind,
+      table.createdAt
+    ),
+    index("ix_video_extras_image_media_id").on(table.imageMediaId),
+  ]
+)
+
+/**
  * An opening image of an actor, made inside one project and belonging to it
  * alone. Deleting the project deletes it. `projectId` is null only on frames
  * made before 0112 that no timeline used; nothing shows those.
@@ -733,6 +772,8 @@ export const videoFirstFrames = pgTable(
     }).references(() => customShellMedia.id, { onDelete: "set null" }),
     /** The actor's pictures this frame was drawn from, in the order sent. */
     actorMediaIds: jsonb("actor_media_ids").$type<string[]>().notNull().default([]),
+    /** The extras it was made with, in the order sent (drizzle/0124). */
+    extras: jsonb("extras").$type<SentExtra[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -799,6 +840,18 @@ export const videoAiGenerations = pgTable(
     ),
     errorMessage: text("error_message"),
     attempts: integer("attempts").notNull().default(0),
+    // What the piece is sent beyond its first frame, copied from the frame
+    // when the shot is asked for. A null actor is a piece asked for before
+    // drizzle/0124, sent exactly what it always was.
+    actorId: varchar("actor_id", { length: 36 }).references(
+      () => videoActors.id,
+      { onDelete: "set null" }
+    ),
+    referenceMediaIds: jsonb("reference_media_ids")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    extras: jsonb("extras").$type<SentExtra[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -996,6 +1049,7 @@ export type VideoCarouselRow = typeof videoCarousels.$inferSelect
 export type VideoRenderJobRow = typeof videoRenderJobs.$inferSelect
 export type VideoActorRow = typeof videoActors.$inferSelect
 export type VideoActorSheetPictureRow = typeof videoActorSheetPictures.$inferSelect
+export type VideoExtraRow = typeof videoExtras.$inferSelect
 export type VideoFirstFrameRow = typeof videoFirstFrames.$inferSelect
 export type VideoAiGenerationRow = typeof videoAiGenerations.$inferSelect
 

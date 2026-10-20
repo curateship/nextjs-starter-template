@@ -153,8 +153,11 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   made count against the allowance and the spend limit, and how the worker
   keeps every shot moving.
 - [actors.md](actors.md) — an actor's character sheet: several pictures of
-  one person with one main picture, which ones a first frame sends and how
-  many each picture model takes, and what removing or deleting keeps.
+  one person with one main picture, which ones a first frame sends on the
+  person board, and what removing or deleting keeps.
+- [extras.md](extras.md) — clothing, backdrops, props and hair looks: the tabs
+  on the Actors dashboard, the Extras button, the 4-picture person board, and
+  what the first frame and the Veo clip are sent.
 - [ai-clip.md](ai-clip.md) — the editor's AI clip panel: an actor, a first
   frame, a shot, then dragging it onto the timeline; what each step costs,
   where frames and shots are kept, and a carousel from first frames.

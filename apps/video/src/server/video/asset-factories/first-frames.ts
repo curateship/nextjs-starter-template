@@ -3,17 +3,23 @@ import { alias } from "drizzle-orm/pg-core"
 
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import {
-  actorPicturesPerRequest,
   assetName,
   assetPrompt,
   DEFAULT_IMAGE_MODEL,
   describeActorPictures,
   projectClipAspect,
   sceneName,
-  tooManyActorPicturesMessage,
   type AssetAspectRatio,
   type GeminiImageModelId,
 } from "@/lib/video/asset-factories"
+import {
+  BOARD_FULL_MESSAGE,
+  BOARD_TILES,
+  describeExtras,
+  extraLine,
+  firstFramePictureLines,
+  type ExtraPicks,
+} from "@/lib/video/extras"
 import { withLook } from "@/lib/video/visual-style"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
@@ -32,7 +38,9 @@ import {
   videoFirstFrames,
 } from "@/server/video/schema"
 import { requireOwnedActor, sheetLabels, sheetPicturesToSend } from "./actors"
-import { generateImage } from "./images"
+import { extrasByIds, extrasToSend, sentExtras } from "./extras"
+import { generateImage, type ImageReference } from "./images"
+import { buildPersonBoard } from "./person-board"
 import { discardGeneratedAsset, saveGeneratedAsset } from "./media"
 
 const frameImage = alias(customShellMedia, "first_frame_image")
@@ -55,6 +63,8 @@ export type FirstFrameItem = {
    * Empty for frames made before this was written down.
    */
   made_from: string[]
+  /** The extras it was made with, by their names today. */
+  made_with: string[]
   created_at: string
 }
 
@@ -66,6 +76,8 @@ export type FirstFramePayload = {
   variants: number
   /** Sheet pictures to send. None means the actor's main picture alone. */
   sheetPictureIds?: string[] | null
+  /** The extras picked, one per kind. */
+  extras?: ExtraPicks | null
   /**
    * Only for a square or 4:3 project, whose shape no picture model makes.
    * Any other project's frames take the project's own shape.
@@ -122,6 +134,10 @@ async function serializeFrames(
     userId,
     [...new Set(rows.map((row) => row.actor.id))]
   )
+  const extras = await extrasByIds(
+    userId,
+    rows.flatMap((row) => row.frame.extras.map((extra) => extra.extra_id))
+  )
   return Promise.all(
     rows.map(async (row, index) => ({
       id: row.frame.id,
@@ -139,6 +155,7 @@ async function serializeFrames(
         sheets.get(row.actor.id) ?? [],
         row.actor.imageMediaId
       ),
+      made_with: describeExtras(row.frame.extras, extras),
       created_at: row.frame.createdAt.toISOString(),
     }))
   )
@@ -173,6 +190,11 @@ export async function createFirstFrames(
     actor,
     payload.sheetPictureIds
   )
+  const extras = await extrasToSend(userId, payload.extras)
+  const onBoard = extras.filter((item) => item.kind !== "backdrop")
+  const backdrop = extras.find((item) => item.kind === "backdrop")
+  const tiles = [...actorPictures, ...onBoard.map((item) => item.media)]
+  if (tiles.length > BOARD_TILES) throw new Error(BOARD_FULL_MESSAGE)
   const prompt = assetPrompt(payload.prompt)
   const name = assetName(sceneName(prompt), "First frame")
   const model: GeminiImageModelId = DEFAULT_IMAGE_MODEL
@@ -182,15 +204,26 @@ export async function createFirstFrames(
     aiUnitCostCents(model, payload.variants)
   )
   const look = await readProjectLook(userId, project.id)
-  const pictureLimit = actorPicturesPerRequest(model, look.picture !== null)
-  if (actorPictures.length > pictureLimit) {
-    throw new Error(tooManyActorPicturesMessage(pictureLimit))
-  }
-  // One picture keeps the request exactly as it always was.
-  const samePerson =
-    actorPictures.length > 1
-      ? ` The first ${actorPictures.length} pictures all show ${actor.name}: keep that one person's face, hair and build.`
-      : ""
+  // Everything worn or held goes on one board with the actor's angles, and
+  // the backdrop as its own picture, so with the look picture a request never
+  // passes the 3 pictures Google takes. One picture of the actor and no
+  // extras keeps the request exactly as it always was.
+  const person = tiles.length > 1 ? await buildPersonBoard(tiles) : tiles[0]
+  const references: ImageReference[] = backdrop ? [person, backdrop.media] : [person]
+  const sheet = (await sheetLabels(userId, [actor.id])).get(actor.id) ?? []
+  const pictureLines = firstFramePictureLines({
+    actorName: actor.name,
+    angles: describeActorPictures(
+      actorPictures.map((picture) => picture.id),
+      sheet,
+      actor.imageMediaId
+    ),
+    extras: extras.map((item) => ({ kind: item.kind, name: item.extra.name })),
+  })
+  const pictures = pictureLines.map((line) => ` ${line}`).join("")
+  const extraWords = extras
+    .map((item) => ` ${extraLine(item.kind, item.extra.prompt)}`)
+    .join("")
 
   const createdIds: string[] = []
   let warning: string | null = null
@@ -201,10 +234,10 @@ export async function createFirstFrames(
         model,
         aspectRatio,
         projectId: project.id,
-        ...withLook(
+        ...withLook<ImageReference>(
           look,
-          `Create a polished opening frame for a short video. Preserve the actor's identity.${samePerson} Actor: ${actor.name}. Actor description: ${actor.prompt}. Direction: ${prompt}. Variant ${variant} of ${payload.variants}.`,
-          actorPictures
+          `Create a polished opening frame for a short video. Preserve the actor's identity.${pictures} Actor: ${actor.name}. Actor description: ${actor.prompt}.${extraWords} Direction: ${prompt}. Variant ${variant} of ${payload.variants}.`,
+          references
         ),
       })
       const variantName = payload.variants > 1 ? `${name} ${variant}` : name
@@ -231,6 +264,7 @@ export async function createFirstFrames(
             pinned: false,
             imageMediaId: media.id,
             actorMediaIds: actorPictures.map((picture) => picture.id),
+            extras: sentExtras(extras),
             createdAt: at,
             updatedAt: at,
           })

@@ -4,6 +4,10 @@
 - Do not introduce custom modal, select, dropdown, button, input, table, or sheet styling when the shell already has a shadcn component for it.
 - If a required shadcn component does not exist in `src/components/ui/`, add it there first, then use it in the page/component.
 - All custom Ui changes will be in global.css and not in the Ui Component
+- **Three-column dashboards** (left, middle and right panels) follow one pattern:
+  the "Three-column dashboards" section of `.agents/skills/Ui-standards/SKILL.md`,
+  with the project page in Project as the reference. Its tab rule: three or more
+  tabs in a row are underlined, one or two are pills (Tyler, 19 Oct 2026).
 
 ## Picking several things from a list
 

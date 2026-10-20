@@ -120,7 +120,7 @@ in `src/lib/custom-shell.tsx` and are applied by
   `src/components/shared/dashboard-card-header.tsx`. The component owns the
   57px height, 12px padding and bottom divider. Title, tab and custom
   header rows compose it instead of repeating those values.
-- **A workspace screen's right-hand options panel uses `InspectorCard`** from
+- **An editor's right-hand options panel uses `InspectorCard`** from
   `src/components/shared/inspector-card.tsx`, not the white
   `CollapsibleSettingsCard`. It is a grey box with a border, a 15px heading and
   an arrow that is always drawn. The difference is what the card sits on: a
@@ -128,7 +128,8 @@ in `src/lib/custom-shell.tsx` and are applied by
   panel is a white panel beside a canvas, and a white card on a white panel
   reads as one long list rather than a set of groups. The newsletter editor and
   the page editor both use it; a third panel joins them rather than inventing a
-  card of its own.
+  card of its own. A three-column dashboard's side panels use `PanelCard`
+  instead (see Three-column dashboards).
 - **Every border follows the border settings in Settings → Styling. No
   component draws its own.** Divider and frame lines are a plain `border`,
   `border-b`, or `border-t` with no color class. They then take `--border`,
@@ -164,6 +165,146 @@ in `src/lib/custom-shell.tsx` and are applied by
   separately.
 - Modal rules use the shared dialog slots. Do not restate modal padding,
   borders, backgrounds, or overlay opacity in a feature component.
+
+## Three-column dashboards
+
+Tyler, 19 Oct 2026: every three-column dashboard follows one pattern, as alike
+as possible, and the project page in Project is the reference
+(`apps/project/src/components/project/project-workspace.tsx`). Where a screen
+needs something this pattern doesn't cover, or the pattern needs a piece that
+doesn't exist yet, he picks between building it and leaving it off; the open
+picks are in the shell's task "Three-column dashboards" (workspace-4,
+`apps/shell/workspace/tasks/three-column-dashboards.md`).
+
+**Which screens.** Project's project page, My dashboard, Team dashboard and
+Task types; Contacts with its segments (`/admin/contacts`, every app, once
+rebuilt as one three-column page, before CRM) and CRM (`/admin/crm`, every app); Trade's social feed, creator
+dashboard, backtest run and live flow run; Video's viral project and
+favourites. Editors are not dashboards and are left out: the automation,
+broadcast and system email editors, Video's studio and carousel studio,
+Trade's recipe editor, the front page editor, and Trade's exchange desk.
+
+- **Layout.** Left 22% (16 to 36), middle 54% (at least 32), right 24% (16 to
+  36). A side panel collapses to nothing and comes back from a
+  `PanelReopenTab` on the middle panel's edge; a double-click on blank space
+  toggles it. Widths are remembered per browser through
+  `useRememberedPanelLayout`, with the key listed in `panelLayoutKey`
+  (`src/lib/layout/panel-layout.ts`). Each panel is a `WorkspacePanel`. The
+  reference is `ThreePanels` in
+  `apps/project/src/components/project/three-panels.tsx`.
+- **Under 1280px, one panel at a time.** A pill row of the three panel names
+  sits above them; all three stay mounted and the hidden two are `inert`.
+  Opening a record switches to the right panel. This row is navigation, not
+  content tabs, so it stays pills whatever the tab rule below says.
+- **Every panel starts with `DashboardCardHeader`** (57px). The left panel's is
+  `DashboardCardTitleHeader`: a back arrow or an icon, the title, then the pin
+  and the cog. Tabs sit inside a header, never in a second row under it.
+- **A left panel about one record has a banner and an avatar**, drawn as the
+  project page does (`project-details-panel.tsx`). A record is one project,
+  team, person, creator and the like.
+  - The banner lies behind the header and the top of the panel at 30 out of
+    100 strength, fading into the panel, so the header still reads over it.
+  - The avatar is a circle with a 2px edge at the banner's foot. Beside it are
+    the record's name, one muted line (its client, team or handle) and its
+    status if it has one.
+  - Both are set in the record's settings window, in a Pictures card holding
+    the shell's `ImageUpload` fields, by whoever may change the record's
+    settings, from pictures they uploaded to the media library.
+  - With neither picture there is no banner and no avatar row; nothing stands
+    in for them. An avatar from elsewhere (a creator's X picture) shows with no
+    upload.
+  - A left panel that is a list or figures (an inbox, a list of types, a run's
+    stats) has neither.
+- **Tabs follow their count.** A row of 3 or more tabs is `UnderlineTabs`,
+  drawn on the header's bottom line. A row of 1 or 2 is the shell's pill
+  `Tabs`. Tyler, 19 Oct 2026: "if there are more than 2 tabs then we use the
+  bottom border underline. If not then we use regular tabs."
+  - A "More" dropdown drawn as a tab counts as a tab.
+  - A row whose length depends on who is looking takes its style from the
+    most tabs it can show, so it never changes style between people.
+  - Words only, no icons. A count goes after the word, as `TabsCount`.
+  - `UnderlineTabs` lives in
+    `apps/project/src/components/project/task-header-controls.tsx` until it
+    moves to the shell.
+- **The middle header's toolbar**, right of the tabs, in this order: the "N
+  selected" button while rows are ticked, the search toggle, Filter, Views,
+  the people filter, then the one primary "New …" button. In a narrow panel
+  (`@max-3xl`) the button keeps its icon and drops its word, and Filter and
+  Views keep their icons.
+- **The primary "New …" button opens a dropdown, not a window** (Tyler, 19 Oct
+  2026: "Every dashboard probably need to add something that belongs to it").
+  It names the thing the screen holds: New task, New meeting, New field.
+  - The dropdown holds the title first, then the thing's own fields in pairs:
+    who, when, its status and priority where it has them, then its tags and
+    the like. "Create …" sits at the bottom right; Enter in the title makes it.
+  - It has no "More options". The full window opens on its own only for what a
+    dropdown can't hold: pasting several lines at once, or a kind that asks
+    for fields when it is made.
+  - A "+" on a column, a group heading or a person's row opens the same
+    dropdown already set to that column, group or person.
+  - Clicking away keeps the typed title for the next opening; the rest starts
+    again from where it was opened.
+  - Adding something small inside a side panel's card (a milestone, a step) is
+    that card's own + with a `CardDropdown`, not this button.
+  - A screen whose records only arrive from outside (incoming messages,
+    imported posts, a finished run) has no New button.
+  - The reference is `QuickNewTask`
+    (`apps/project/src/components/project/quick-new-task.tsx`) until its frame
+    moves to the shell.
+- **A middle panel that lists records has search, Filter and Views** (Tyler,
+  19 Oct 2026: "I think most dashboard needs those"). Records are tasks,
+  conversations, posts, videos and the like. A middle panel that is a chart, a
+  calendar or a canvas has none, and a list short enough to read whole may
+  leave them off.
+  - **Filter** is a ghost button that counts the filters set ("Filter 2") and
+    opens a popover: a row per filter (a label, then its Select), then the
+    Group row where the panel groups, then Clear and "Save as view". Clear
+    empties the filters and leaves Group alone. The filters live in the
+    address, so a pasted link opens the same view. The people filter stays a
+    dropdown of its own in the toolbar.
+  - **Views** are filter sets saved per person with a name. The Views button
+    lists them and applies one, "Save as view" in Filter makes one, and a view
+    whose person or tag has since gone says so instead of failing.
+  - The reference is `TaskFilterPopover` (`task-filter-popover.tsx`) and
+    `SavedViewsControls` (`saved-views.tsx`) in
+    `apps/project/src/components/project/`, until they move to the shell.
+- **A middle list whose rows can change together has mass select** (Tyler,
+  19 Oct 2026: "the mass select function as well"). It replaces the Tables
+  rule's always-shown tick box column on these screens.
+  - The tick boxes, and drag handles where rows reorder, stay hidden until a
+    "Mass select" chip is pressed. The chip sits beside the first column's
+    heading and shows while that heading is pointed at; on a phone it always
+    shows. Pressed, it reads "Hide select", which hides them again and clears
+    the ticks.
+  - Ticked rows gather in one "N selected" button in the header, left of the
+    search, with a 1px moving rainbow edge that holds still for anyone whose
+    device asks for less motion.
+  - Its menu holds the most common change first (Mark Done), then each other
+    change as a row that steps into its own list with a back arrow, then
+    "Clear selection". Escape on a list goes back; on the first page it closes.
+  - Each change is one request; the result names how many changed and each
+    one refused with its reason.
+  - A list nobody changes in bulk (a read-only feed, a run's results) has
+    none.
+  - The reference is `TaskList` (`task-list.tsx`) and `TaskBulkMenu`
+    (`task-bulk-bar.tsx`) in `apps/project/src/components/project/`, until
+    they move to the shell.
+- **Side panel bodies** are a `ScrollArea` holding `grid gap-3 p-3`. Groups in
+  them are `PanelCard` (`apps/project/src/components/project/panel-card.tsx`
+  until it moves to the shell): a grey box that folds and remembers it, with a
+  note after the title, a badge, a cog or + of its own, and a footer of
+  buttons. Small-caps headings use one shared heading, never a copied class.
+- **The right panel** with nothing open has a `DashboardCardTitleHeader` naming
+  what will show there, then a centred icon and one line, such as "Click a task
+  to see its steps and chat here." With a record open, its header holds the
+  status or title on the left, the record's action icons, a cog, then an × that
+  closes it.
+- **Settings.** The cog in a panel's header opens the settings window for the
+  panel's subject (a project, a team, a type). A card's own small options open
+  a `CardDropdown` from the card's cog or +.
+- **Loading, empty and error states** stay inside the panel: `LoadingRow`
+  (`src/components/ui/loading-row.tsx`) while loading, a muted line saying what
+  is missing and what to do when empty, never a page-level spinner.
 
 ## Controls and forms
 
@@ -243,18 +384,19 @@ card in the rail on `/admin/settings`.
 - Use the shared segmented `Tabs` style: a muted container with a raised active
   tab.
 - The list may fill available width, but triggers stay content-width.
-- Do not add underline or plain-text tabs to a new or modified group.
-- Tabs in a dashboard card header are these same pills, with words only and no
-  icons. Tyler asked for this on 25 Sep 2026, and the underline tabs were
-  deleted.
-- **One exception: the Project app's tasks headers** (the project page's
-  Board, List, Calendar, Timeline, More, My dashboard's same four views, and
-  the Team dashboard's right-panel Check-ins, Workload, Attention) are
-  underlined, because Tyler drew them that way and chose it over the pills
-  on 14 Oct 2026. It is `UnderlineTabs` in
-  `apps/project/src/components/project/task-header-controls.tsx`. No other
-  screen copies it without his say-so.
-- **The same header's bottom line is the one border that names its own shade**
+- Tabs in a dashboard card header have words only and no icons (Tyler, 25 Sep
+  2026).
+- **In a three-column dashboard, the count decides.** Three or more tabs in a
+  row are `UnderlineTabs`; one or two are these pills (Tyler, 19 Oct 2026; see
+  Three-column dashboards). Elsewhere, tabs are pills, and no other screen
+  draws underline or plain-text tabs.
+- **One exception outside a dashboard: Video's Extras box** in the AI clip
+  panel (Clothing, Backdrop, Props, Hair and makeup) uses underlined tabs with
+  the search as a magnifying glass at the row's right end. Tyler asked for it
+  on 19 Oct 2026 by pointing at the Project tabs ("use this type of tabs"). It
+  is `apps/video/src/components/video-editor/ai-clip-extras.tsx`.
+- **The project page's tasks header (List, Board, Calendar, Timeline, More)
+  has the one bottom line that names its own shade**
   (`border-b-muted-foreground/10`, `project-tasks-panel.tsx`). At the Divider
   lines setting Tyler keeps (5), it vanished against the List's grey table
   header; he asked for that line alone to show and every other line to stay as
@@ -267,7 +409,9 @@ card in the rail on `/admin/settings`.
   `src/components/ui/table.tsx`, and `TableSurface`. The reference screen is
   `src/components/admin/admin-users-dashboard.tsx`.
 - Every table has a selection checkbox first, sortable data columns, and an
-  actions column last. Selection and actions are not sortable.
+  actions column last. Selection and actions are not sortable. A three-column dashboard's
+  middle list hides its checkboxes behind Mass select instead (see
+  Three-column dashboards).
 - The header checkbox selects all visible rows and shows an indeterminate state
   when only some are selected.
 - Use `TableSortButton` with `useTableSort`; do not build a separate sorting

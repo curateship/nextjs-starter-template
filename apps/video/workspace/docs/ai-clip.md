@@ -10,11 +10,16 @@ because each needs what the last one made. Tyler drew it this way on 17 Oct
 Each step is a grey card like the inspector's on the right, and each can be
 shut. A shut card stays shut for that browser.
 
-1. **Pick an actor.** Your active actors, as small faces. If there are none,
-   or you press New actor, the same window as the Actors dashboard opens on
-   top of the editor, and the new actor is picked when it saves. An actor made
-   here is made in this project's look and its picture goes on this project's
-   spend line.
+1. **Pick an actor.** Your active actors, as small faces. New actor drops a
+   box down from the button rather than opening a window (Tyler, 19 Oct
+   2026), with Name, Description, an optional Photo from Media and the Model.
+   The new actor is active with no tags, and both can be changed on the
+   Actors dashboard. What is typed stays when the box shuts, until Create
+   actor makes the actor, which is then picked. An actor made here is made in
+   this project's look and its picture goes on this project's spend line
+   (`src/components/video-editor/ai-clip-new-actor.tsx`). Under them, the Extras button picks one clothing item,
+   backdrop, prop and hair look for the frames, kept on the project
+   (`extras.md`).
 2. **Make a first frame.** Type the scene, such as "Holding a coffee in a
    bright kitchen", and pick how many, 1 to 4. The frame comes out in the
    project's shape and look without asking. A square or 4:3 project asks for
@@ -22,13 +27,16 @@ shut. A shut card stays shut for that browser.
    line above the button says which shape and look it will use and what it
    costs: $0.039 a picture, so two are about $0.08. An actor with more than
    one picture on its character sheet shows "Pictures of <name> to send":
-   the main picture is picked to start with, and others can be added up to
-   what the picture model takes (see `actors.md`). Each frame says under its
-   name which pictures it was made from.
+   the main picture is picked to start with, and others can be added until
+   the person board holds 4 pictures with the extras (see `extras.md`). Each
+   frame says under its name which pictures and extras it was made from.
 3. **Make the shot.** Veo brings the picked first frame to life. Pick the
    length (4 to 32 seconds) and say what happens; a shot longer than 8 seconds
    asks what happens in each 8 seconds (see `longer-ai-clips.md`). The price
-   shows first: $0.40 a second, so 8 seconds is $3.20.
+   shows first: $0.40 a second, so 8 seconds is $3.20. Veo is sent the
+   actor's pictures and the extras the frame was made with, on 8 second
+   pieces only; a 4 or 6 second shot gets their descriptions alone
+   (`extras.md`).
 4. **Drag it onto the timeline.** The finished shot drags onto a lane and
    lands where it is dropped, the same way a Media file does. A long shot's
    pieces land end to end on one lane, and one Undo takes them all back.

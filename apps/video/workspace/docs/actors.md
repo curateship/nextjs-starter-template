@@ -46,11 +46,14 @@ more to hold the face steady.
 - **Picking more:** when the actor's sheet has more than one picture, step 2
   of the AI clip panel shows "Pictures of <name> to send". Tap a picture to
   add it or take it off. At least one stays picked.
+- **One board:** more than one picture is stitched into one person board,
+  with any clothing, hair or prop picked in Extras, so the actor takes one of
+  the 3 places Google gives a request. `extras.md` explains the board.
 - **Order:** the main picture goes first when it is picked, then the others,
   oldest on the sheet first. A project's look picture always goes last.
-- **The prompt** gains one sentence when more than one picture is sent: "The
-  first 2 pictures all show Mia: keep that one person's face, hair and
-  build."
+- **The prompt** names each tile when a board is sent: "The first picture is
+  a board of one person, Mia: tile 1 main picture, tile 2 Side. Draw one
+  person, not the board."
 - **The record:** each first frame keeps the Media ids of the actor pictures
   it was sent, in order (`video_first_frames.actor_media_ids`). Under its name
   in the panel it says "From main picture, Side". Frames made before 19 Oct
@@ -58,21 +61,20 @@ more to hold the face steady.
 - **A picture taken off the sheet later** still shows on the frames made from
   it, as "a removed picture".
 
-## How many pictures a model takes
+## How many pictures go at once
 
-From Google's pages, read 19 Oct 2026. The numbers live in
-`actorPicturesPerRequest` in `src/lib/video/asset-factories.ts`.
+Nano Banana (`gemini-2.5-flash-image`), which draws every first frame, takes 3
+pictures in one request (Google's page, read 19 Oct 2026). The person board,
+the backdrop and the project's look picture fill those 3 at most.
 
-| Model | Pictures of the actor at once |
-| --- | --- |
-| Nano Banana (`gemini-2.5-flash-image`), used for every first frame | 3, or 2 when the project has a look picture, because the look picture takes one of the 3 places |
-| Nano Banana 2 (`gemini-3.1-flash-image`) | 4, apart from a look picture |
+The board holds 4 pictures, counting the actor's angles and the clothing, hair
+and prop picked in Extras together. The panel refuses a pick past that with "A
+board holds 4 pictures. Take one off first.", and the server checks the same
+number again before anything is paid for (`BOARD_TILES` in
+`src/lib/video/extras.ts`).
 
-The panel refuses a pick past the limit and says the number. The server
-checks the same number again before anything is paid for.
-
-Each extra picture is billed by Google as a little more input on a request
-that costs $0.039 a picture anyway.
+The board is one picture, so it costs no more than one picture would on a
+request that costs $0.039 anyway.
 
 ## Re-pose
 
@@ -107,5 +109,6 @@ replaces stays on the sheet, where it can be made main again or taken off.
 
 These are later parts of task `features/42-actor-character-sheets.md`:
 making the sheet's missing angles in one press, adding a first frame to the
-sheet, sending the sheet on Re-pose and to Veo, the same-person check, and a
-description kept apart from the pose.
+sheet, sending the sheet on Re-pose, the same-person check, and a description
+kept apart from the pose. Sending the sheet to Veo was built by task
+`ai-generation/04-veo-keeps-the-character.md`; `extras.md` says how.

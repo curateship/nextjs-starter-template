@@ -19,6 +19,14 @@ import {
   type ShotLengthSeconds,
   type VideoDurationSeconds,
 } from "@/lib/video/asset-factories"
+import {
+  describeExtras,
+  extraLine,
+  personLine,
+  sendingOrder,
+  VEO_REFERENCE_SECONDS,
+  veoReferenceLine,
+} from "@/lib/video/extras"
 import { styledPrompt } from "@/lib/video/visual-style"
 import {
   aiMonthSpendCents,
@@ -46,11 +54,18 @@ import {
 } from "@/server/video/project-spend"
 import { getOwnedProject } from "@/server/video/projects"
 import {
+  videoActors,
   videoAiGenerations,
   videoFirstFrames,
   type VideoAiGenerationRow,
 } from "@/server/video/schema"
+import { extrasByIds } from "./extras"
 import { discardGeneratedAsset, saveGeneratedAsset } from "./media"
+import {
+  buildPersonBoard,
+  readStoredPicture,
+  shrinkReference,
+} from "./person-board"
 
 const outputMedia = alias(customShellMedia, "generation_output_media")
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024
@@ -68,14 +83,35 @@ const VIDEO_DOWNLOAD_TIMEOUT_MS = 4 * 60 * 1000
 type ClaimedGeneration = VideoAiGenerationRow & { leaseToken: string }
 
 /**
- * What Veo is told for one piece: the project's style line first, then the
- * direction, then the rule about the first frame. The style is read when the
- * piece starts, so a piece started after the style changed uses the new one.
+ * The actor and extras a piece is told about: one line each, and what its
+ * reference pictures are when it has any.
  */
-export function veoPrompt(style: string | null, direction: string) {
+export type VeoPerson = {
+  lines: string[]
+  references: { board: boolean; backdrop: boolean } | null
+}
+
+/**
+ * What Veo is told for one piece: the project's style line first, then the
+ * direction, then the person and what they wear, hold and stand in, then the
+ * rule about the first frame. The style and the descriptions are read when
+ * the piece starts, so a piece started after either changed uses the new one.
+ * With no person it is the prompt as it always was.
+ */
+export function veoPrompt(style: string | null, direction: string, person?: VeoPerson) {
+  const middle = person
+    ? [
+        person.lines.join("\n"),
+        ...(person.references ? [veoReferenceLine(person.references)] : []),
+      ]
+    : []
   return styledPrompt(
     { style },
-    `${direction}\n\nUse the supplied image as the exact first frame. Do not add captions or on-screen text.`
+    [
+      direction,
+      ...middle,
+      "Use the supplied image as the exact first frame. Do not add captions or on-screen text.",
+    ].join("\n\n")
   )
 }
 
@@ -104,6 +140,18 @@ export type GenerationItem = {
   status: GenerationStatus
   error_message: string | null
   pieces: GenerationPiece[]
+  /** The actor Veo was told about. Null on shots asked for before 19 Oct 2026. */
+  actor_name: string | null
+  /** How many pictures went on the person board, 0 when only words were sent. */
+  board_pictures: number
+  /** The extras sent, by their names today. */
+  extras: string[]
+}
+
+/** Actor and extra names for a list of shots, read once for all of them. */
+type ShotNames = {
+  actors: { id: string; name: string }[]
+  extras: { id: string; name: string }[]
 }
 
 type VeoOperation = {
@@ -139,7 +187,29 @@ async function serializePiece(row: GenerationJoin): Promise<GenerationPiece> {
  * one piece has been made it counts as generating until then, even in the
  * moment its next piece is queued. `rows` is one shot's pieces in order.
  */
-async function serializeShot(rows: GenerationJoin[]): Promise<GenerationItem> {
+async function shotNames(userId: string, rows: GenerationJoin[]): Promise<ShotNames> {
+  const actorIds = [
+    ...new Set(rows.flatMap((row) => (row.generation.actorId ? [row.generation.actorId] : []))),
+  ]
+  const [actors, extras] = await Promise.all([
+    actorIds.length
+      ? db
+          .select({ id: videoActors.id, name: videoActors.name })
+          .from(videoActors)
+          .where(and(eq(videoActors.userId, userId), inArray(videoActors.id, actorIds)))
+      : [],
+    extrasByIds(
+      userId,
+      rows.flatMap((row) => row.generation.extras.map((extra) => extra.extra_id))
+    ),
+  ])
+  return { actors, extras }
+}
+
+async function serializeShot(
+  rows: GenerationJoin[],
+  names: ShotNames
+): Promise<GenerationItem> {
   const [first] = rows
   const pieces = await Promise.all(rows.map(serializePiece))
   const failed = pieces.find((piece) => piece.status === "error")
@@ -160,7 +230,19 @@ async function serializeShot(rows: GenerationJoin[]): Promise<GenerationItem> {
     status,
     error_message: failed?.error_message ?? null,
     pieces,
+    actor_name:
+      names.actors.find((actor) => actor.id === first.generation.actorId)?.name ?? null,
+    board_pictures: boardPictureIds(first.generation).length,
+    extras: describeExtras(first.generation.extras, names.extras),
   }
+}
+
+/** The Media ids on a piece's person board: its references bar the backdrop. */
+function boardPictureIds(
+  generation: Pick<VideoAiGenerationRow, "referenceMediaIds" | "extras">
+) {
+  const backdrop = generation.extras.find((extra) => extra.kind === "backdrop")
+  return generation.referenceMediaIds.filter((id) => id !== backdrop?.media_id)
 }
 
 function generationRows(
@@ -205,7 +287,12 @@ export async function listGenerations(userId: string, projectId: string) {
     asc(videoAiGenerations.shotId),
     asc(videoAiGenerations.shotIndex)
   )
-  return { generations: await Promise.all(groupShots(rows).map(serializeShot)) }
+  const names = await shotNames(userId, rows)
+  return {
+    generations: await Promise.all(
+      groupShots(rows).map((shot) => serializeShot(shot, names))
+    ),
+  }
 }
 
 async function getShot(userId: string, shotId: string) {
@@ -319,13 +406,24 @@ export async function createGeneration(
   const project = await getOwnedProject(userId, payload.projectId)
 
   const [frame] = await db
-    .select({ frame: videoFirstFrames, media: customShellMedia })
+    .select({
+      frame: videoFirstFrames,
+      media: customShellMedia,
+      actorMainMediaId: videoActors.imageMediaId,
+    })
     .from(videoFirstFrames)
     .innerJoin(
       customShellMedia,
       and(
         eq(videoFirstFrames.imageMediaId, customShellMedia.id),
         eq(customShellMedia.userId, userId)
+      )
+    )
+    .innerJoin(
+      videoActors,
+      and(
+        eq(videoFirstFrames.actorId, videoActors.id),
+        eq(videoActors.userId, userId)
       )
     )
     .where(
@@ -347,6 +445,26 @@ export async function createGeneration(
     project.id,
     aiUnitCostCents(VEO_MODEL, payload.lengthSeconds)
   )
+
+  // Each piece is sent what the frame was made from: the actor's angles and
+  // the extras worn or held on one board, then the backdrop. A frame made
+  // before its angles were written down is sent the actor's main picture.
+  // Veo takes reference pictures on 8 second clips only, so a 4 or 6 second
+  // piece records none and is sent the words alone.
+  const sentExtras = sendingOrder(frame.frame.extras)
+  const backdrop = sentExtras.find((extra) => extra.kind === "backdrop")
+  const referenceMediaIds =
+    pieces.seconds === VEO_REFERENCE_SECONDS
+      ? [
+          ...(frame.frame.actorMediaIds.length
+            ? frame.frame.actorMediaIds
+            : [frame.actorMainMediaId]),
+          ...sentExtras
+            .filter((extra) => extra.kind !== "backdrop")
+            .map((extra) => extra.media_id),
+          ...(backdrop ? [backdrop.media_id] : []),
+        ]
+      : []
 
   const at = now()
   const shotId = uuid()
@@ -371,15 +489,17 @@ export async function createGeneration(
         shotPieces: pieces.count,
         status: index === 0 ? "queued" : "waiting",
         attempts: 0,
+        actorId: frame.frame.actorId,
+        referenceMediaIds,
+        extras: sentExtras,
         createdAt: at,
         updatedAt: at,
       }))
     )
     .returning()
     .catch(rethrowShotsFull)
-  return await serializeShot(
-    created.map((generation) => ({ generation, output: null }))
-  )
+  const rows = created.map((generation) => ({ generation, output: null }))
+  return await serializeShot(rows, await shotNames(userId, rows))
 }
 
 /** Runs a shot's failed piece again. The pieces after it carry on from there. */
@@ -431,7 +551,8 @@ export async function retryGeneration(userId: string, shotId: string) {
     .returning({ id: videoAiGenerations.id })
     .catch(rethrowShotsFull)
   if (!updated) throw new Error("Only failed generations can be retried")
-  return await serializeShot(await getShot(userId, shotId))
+  const rows = await getShot(userId, shotId)
+  return await serializeShot(rows, await shotNames(userId, rows))
 }
 
 /** Deletes whole shots, every piece of each. */
@@ -519,6 +640,7 @@ async function startJob(job: ClaimedGeneration) {
       .limit(1)
     if (!frame) throw new Error("First frame image is missing")
     const style = await readProjectStyle(job.userId, job.projectId)
+    const person = job.actorId ? await veoPersonFor(job) : null
     const object = await getFromR2(frame.media.storagePath)
     const bytes = await object.Body?.transformToByteArray()
     if (!bytes?.byteLength) throw new Error("First frame image could not be read")
@@ -534,13 +656,16 @@ async function startJob(job: ClaimedGeneration) {
         body: JSON.stringify({
           instances: [
             {
-              prompt: veoPrompt(style, job.prompt),
+              prompt: veoPrompt(style, job.prompt, person?.prompt),
               image: {
                 inlineData: {
                   mimeType: frame.media.mimeType,
                   data: Buffer.from(bytes).toString("base64"),
                 },
               },
+              ...(person?.referenceImages.length
+                ? { referenceImages: person.referenceImages }
+                : {}),
             },
           ],
           parameters: {
@@ -591,6 +716,79 @@ async function startJob(job: ClaimedGeneration) {
     }
   } catch (error) {
     await failJob(job, error)
+  }
+}
+
+/**
+ * The words and reference pictures for a piece made from an actor's frame.
+ * The descriptions are read as they are now; the pictures are the ones the
+ * frame recorded. A picture deleted from Media since is left out, a person
+ * board left with one picture sends that picture alone, and with no picture
+ * of the person left the backdrop is not sent either.
+ */
+async function veoPersonFor(job: ClaimedGeneration) {
+  const [actor] = await db
+    .select({ prompt: videoActors.prompt })
+    .from(videoActors)
+    .where(and(eq(videoActors.id, job.actorId ?? ""), eq(videoActors.userId, job.userId)))
+    .limit(1)
+  const extras = await extrasByIds(
+    job.userId,
+    job.extras.map((extra) => extra.extra_id)
+  )
+  const lines = [
+    ...(actor ? [personLine(actor.prompt)] : []),
+    ...sendingOrder(job.extras).flatMap((sent) => {
+      const extra = extras.find((candidate) => candidate.id === sent.extra_id)
+      return extra ? [extraLine(sent.kind, extra.prompt)] : []
+    }),
+  ]
+
+  const backdropId = job.extras.find((extra) => extra.kind === "backdrop")?.media_id
+  const stored = job.referenceMediaIds.length
+    ? await db
+        .select()
+        .from(customShellMedia)
+        .where(
+          and(
+            eq(customShellMedia.userId, job.userId),
+            eq(customShellMedia.fileType, "image"),
+            inArray(customShellMedia.id, job.referenceMediaIds)
+          )
+        )
+    : []
+  const tiles = boardPictureIds(job).flatMap(
+    (id) => stored.find((media) => media.id === id) ?? []
+  )
+  const backdrop = stored.find((media) => media.id === backdropId)
+  const pictures: Uint8Array[] = []
+  if (tiles.length > 1) pictures.push((await buildPersonBoard(tiles)).bytes)
+  else if (tiles.length === 1) pictures.push(await readStoredPicture(tiles[0].storagePath))
+  if (backdrop && tiles.length) {
+    pictures.push(await readStoredPicture(backdrop.storagePath))
+  }
+  const referenceImages = await Promise.all(
+    pictures.map(async (picture) => {
+      const shrunk = await shrinkReference(picture)
+      return {
+        image: {
+          inlineData: {
+            mimeType: shrunk.mimeType,
+            data: Buffer.from(shrunk.bytes).toString("base64"),
+          },
+        },
+        referenceType: "asset",
+      }
+    })
+  )
+  return {
+    prompt: {
+      lines,
+      references: tiles.length
+        ? { board: tiles.length > 1, backdrop: Boolean(backdrop) }
+        : null,
+    } satisfies VeoPerson,
+    referenceImages,
   }
 }
 

@@ -11,8 +11,8 @@ import {
   SHEET_DUPLICATE_MESSAGE,
   SHEET_FULL_MESSAGE,
   SHEET_PICTURE_NOT_FOUND_MESSAGE,
-  tooManyActorPicturesMessage,
 } from "@/lib/video/asset-factories"
+import { BOARD_FULL_MESSAGE } from "@/lib/video/extras"
 import { now, uuid } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { customShellMedia, type CustomShellUser } from "@/server/schema"
@@ -51,18 +51,27 @@ vi.mock("@/server/media/storage", async (importOriginal) => ({
 }))
 
 // No picture model is called: each request is recorded and answered with a
-// new Media row, the way a saved AI picture lands.
+// new Media row, the way a saved AI picture lands. A person board is
+// recorded by the files on it; person-board.test.ts stitches real ones.
+type SentReference = { id?: string; tileMediaIds?: string[] }
 const requests = vi.hoisted(
-  () => [] as { prompt: string; references: { id: string }[] }[]
+  () => [] as { prompt: string; references: SentReference[] }[]
 )
 vi.mock("@/server/video/asset-factories/images", () => ({
   generateImage: async (options: {
     prompt: string
-    references: { id: string }[]
+    references: SentReference[]
   }) => {
     requests.push({ prompt: options.prompt, references: options.references })
     return { bytes: new Uint8Array([1]), mimeType: "image/png" }
   },
+}))
+vi.mock("@/server/video/asset-factories/person-board", () => ({
+  buildPersonBoard: async (tiles: { id: string }[]) => ({
+    bytes: new Uint8Array([1]),
+    mimeType: "image/jpeg",
+    tileMediaIds: tiles.map((tile) => tile.id),
+  }),
 }))
 vi.mock("@/server/video/asset-factories/media", () => ({
   saveGeneratedAsset: async (options: { userId: string }) => {
@@ -330,7 +339,7 @@ describe("first frames from the sheet", () => {
     expect(firstFrames[0].made_from).toEqual(["main picture"])
   })
 
-  it("sends the picked pictures main first, and records them on the frame", async () => {
+  it("sends the picked pictures main first on one board, and records them on the frame", async () => {
     const { actor, side, sheet, project } = await setup()
     const sidePicture = sheet.find((picture) => picture.media_id === side)!
     const { firstFrames } = await createFirstFrames(user.id, {
@@ -340,11 +349,14 @@ describe("first frames from the sheet", () => {
       variants: 1,
       sheetPictureIds: [sidePicture.id, sheet[0].id],
     })
-    expect(requests[0].references.map((reference) => reference.id)).toEqual([
+    expect(requests[0].references).toHaveLength(1)
+    expect(requests[0].references[0].tileMediaIds).toEqual([
       actor.image_media_id,
       side,
     ])
-    expect(requests[0].prompt).toContain("The first 2 pictures all show Mia")
+    expect(requests[0].prompt).toContain(
+      "The first picture is a board of one person, Mia: tile 1 main picture, tile 2 Side. Draw one person, not the board."
+    )
     const [row] = await database.select().from(videoFirstFrames)
     expect(row.actorMediaIds).toEqual([actor.image_media_id, side])
     expect(firstFrames[0].made_from).toEqual(["main picture", "Side"])
@@ -357,7 +369,7 @@ describe("first frames from the sheet", () => {
     ])
   })
 
-  it("refuses more pictures than the model takes, counting the look picture", async () => {
+  it("sends all three angles on one board even with a look picture, which goes last", async () => {
     const { actor, sheet, project } = await setup()
     const lookPicture = await insertPicture()
     await database
@@ -365,15 +377,34 @@ describe("first frames from the sheet", () => {
       .set({ styleMediaId: lookPicture })
       .where(eq(videoProjects.id, project.id))
 
+    await createFirstFrames(user.id, {
+      projectId: project.id,
+      actorId: actor.id,
+      prompt: "In a kitchen",
+      variants: 1,
+      sheetPictureIds: sheet.map((picture) => picture.id),
+    })
+    expect(requests[0].references).toHaveLength(2)
+    expect(requests[0].references[0].tileMediaIds).toHaveLength(3)
+    expect(requests[0].references[1].id).toBe(lookPicture)
+  })
+
+  it("refuses a fifth picture on the board before anything is paid for", async () => {
+    const { actor, project } = await setup()
+    for (const label of ["Back", "Smiling"]) {
+      await addSheetPicture(user.id, actor.id, { mediaId: await insertPicture(), label })
+    }
+    const [listed] = (await listActors(user.id)).actors
+    expect(listed.sheet).toHaveLength(5)
     await expect(
       createFirstFrames(user.id, {
         projectId: project.id,
         actorId: actor.id,
         prompt: "In a kitchen",
         variants: 1,
-        sheetPictureIds: sheet.map((picture) => picture.id),
+        sheetPictureIds: listed.sheet.map((picture) => picture.id),
       })
-    ).rejects.toThrow(tooManyActorPicturesMessage(2))
+    ).rejects.toThrow(BOARD_FULL_MESSAGE)
     expect(requests).toEqual([])
     expect(await database.select().from(videoFirstFrames)).toEqual([])
   })
