@@ -29,13 +29,8 @@ import {
   type AspectRatio,
 } from "@/lib/video/timeline-schema"
 import { userGet, userPost } from "@/server/guards"
-import {
-  actorFor,
-  actorForExport,
-  editorGet,
-  editorPost,
-  signedInActor,
-} from "@/server/video/project-guests"
+import { editorGet, editorPost } from "@/server/video/editor-guards"
+import { actorFor, actorForExport, signedInActor } from "@/server/video/project-guests"
 import {
   clearOutOldExports,
   previewExportClearOut,

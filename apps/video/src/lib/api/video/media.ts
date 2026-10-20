@@ -10,14 +10,8 @@ import {
 import { CAROUSEL_NOT_FOUND_MESSAGE } from "@/lib/video/carousel-schema"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { userGet, userPost } from "@/server/guards"
-import {
-  actorFor,
-  actorForMedia,
-  editorGet,
-  editorPost,
-  projectMediaIds,
-  signedInActor,
-} from "@/server/video/project-guests"
+import { editorGet, editorPost } from "@/server/video/editor-guards"
+import { actorFor, actorForMedia, projectMediaIds, signedInActor } from "@/server/video/project-guests"
 import {
   addMediaToOwnedCollection,
   createOwnedCollection,

@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   check,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -15,6 +16,7 @@ import {
 } from "drizzle-orm/pg-core"
 
 import type { ExtraPicks, SentExtra } from "@/lib/video/extras"
+import type { ClipOutcome } from "@/lib/video/moving-still"
 import { customShellMedia, customShellUsers } from "@/server/schema"
 
 /**
@@ -823,9 +825,12 @@ export const videoAiGenerations = pgTable(
     projectId: varchar("project_id", { length: 36 })
       .notNull()
       .references(() => videoProjects.id, { onDelete: "cascade" }),
-    firstFrameId: varchar("first_frame_id", { length: 36 })
-      .notNull()
-      .references(() => videoFirstFrames.id, { onDelete: "cascade" }),
+    // Null on a shot made from a picture already on the timeline, which
+    // names that clip below instead (drizzle/0126).
+    firstFrameId: varchar("first_frame_id", { length: 36 }).references(
+      () => videoFirstFrames.id,
+      { onDelete: "cascade" }
+    ),
     firstFrameMediaId: varchar("first_frame_media_id", {
       length: 36,
     }).references(() => customShellMedia.id, { onDelete: "set null" }),
@@ -860,6 +865,13 @@ export const videoAiGenerations = pgTable(
       .notNull()
       .default([]),
     extras: jsonb("extras").$type<SentExtra[]>().notNull().default([]),
+    // A shot made from a picture on the timeline (drizzle/0126): the clip it
+    // replaces, where it sat and how long it ran when asked for, and whether
+    // it has landed. Null on every shot made in the AI clip panel.
+    clipId: varchar("clip_id", { length: 64 }),
+    clipStartMs: doublePrecision("clip_start_ms"),
+    clipDurationMs: doublePrecision("clip_duration_ms"),
+    clipOutcome: varchar("clip_outcome", { length: 8 }).$type<ClipOutcome>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -884,6 +896,18 @@ export const videoAiGenerations = pgTable(
     ),
     check("video_ai_generations_attempts_check", sql`${table.attempts} >= 0`),
     check(
+      "video_ai_generations_clip_check",
+      sql`(${table.clipId} is null and ${table.clipStartMs} is null and ${table.clipDurationMs} is null and ${table.clipOutcome} is null) or (${table.clipId} is not null and ${table.clipStartMs} is not null and ${table.clipDurationMs} is not null)`
+    ),
+    check(
+      "video_ai_generations_source_check",
+      sql`${table.firstFrameId} is not null or ${table.clipId} is not null`
+    ),
+    check(
+      "video_ai_generations_clip_outcome_check",
+      sql`${table.clipOutcome} is null or ${table.clipOutcome} in ('replaced', 'gone')`
+    ),
+    check(
       "video_ai_generations_ready_check",
       sql`${table.status} <> 'ready' or ${table.outputMediaId} is not null`
     ),
@@ -902,6 +926,9 @@ export const videoAiGenerations = pgTable(
     ),
     index("ix_video_ai_generations_first_frame_id").on(table.firstFrameId),
     index("ix_video_ai_generations_shot").on(table.shotId, table.shotIndex),
+    index("ix_video_ai_generations_unlanded")
+      .on(table.projectId)
+      .where(sql`${table.clipId} is not null and ${table.clipOutcome} is null`),
     index("ix_video_ai_generations_output_media_id").on(table.outputMediaId),
     index("ix_video_ai_generations_processing_lease").on(
       table.status,

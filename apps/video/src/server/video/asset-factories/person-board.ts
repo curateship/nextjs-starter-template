@@ -35,6 +35,21 @@ export async function readStoredPicture(storagePath: string) {
 }
 
 /**
+ * A picture's width and height as it is shown, so a phone photo stored on its
+ * side with a turn-it-upright flag counts as upright.
+ */
+export async function pictureSize(bytes: Uint8Array) {
+  const { width, height, orientation } = await sharp(bytes, {
+    failOn: "error",
+    limitInputPixels: MAX_INPUT_PIXELS,
+  }).metadata()
+  if (!width || !height) throw new Error("The picture could not be read")
+  return orientation && orientation >= 5
+    ? { width: height, height: width }
+    : { width, height }
+}
+
+/**
  * Lays pictures out on a plain white grid, two to a row, each tile the same
  * size. A picture is shrunk to fit its tile whole, never cropped, so a whole
  * outfit stays in view. No text is drawn on it, because a model copies text.

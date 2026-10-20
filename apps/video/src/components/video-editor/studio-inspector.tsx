@@ -103,6 +103,7 @@ import {
 } from "@/lib/video/text-fonts"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { cn } from "@/lib/utils"
+import { MakeItMoveCard } from "@/components/video-editor/moving-stills"
 import { ProjectSpendRow } from "@/components/video-editor/project-settings"
 import {
   ReplaceMediaDialog,
@@ -793,6 +794,8 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
           Replace media
         </Button>
       </InspectorCard>
+
+      <MakeItMoveCard clip={clip} />
 
       <FrameFitSection clip={clip} />
 

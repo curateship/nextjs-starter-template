@@ -48,10 +48,14 @@ like it belongs with scene one, instead of drifting from photo to cartoon to 3D.
   `src/lib/video/visual-style.ts`. The prompt starts with `Style: <the line>`,
   then one sentence naming the look picture when one is sent, then the
   request's own prompt. With no look the request is exactly what it was before.
-- **What reads it next:** animating a still where it sits, regenerating a
-  scene, and brief to video (AI generation tasks 06, 07 and 08) are inside a
-  project, so they read the look with `readProjectLook` in
-  `src/server/video/project-look.ts` and build the request with `withLook`.
+- **A picture made to move:** Make it move on a timeline picture is an AI
+  video like any other, so it gets the style line in the same place and no
+  look picture. Its window shows the line as "Sent with it"
+  (`animate-a-still.md`).
+- **What reads it next:** regenerating a scene and brief to video (AI
+  generation tasks 07 and 08) are inside a project, so they read the look
+  with `readProjectLook` in `src/server/video/project-look.ts` and build the
+  request with `withLook`.
 
 ## When the look picture is gone
 

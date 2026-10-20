@@ -13,7 +13,8 @@ import {
   FRAME_FAILED_MESSAGE,
 } from "@/lib/video/saved-frames"
 import { SAVED_TIMELINE_INVALID_MESSAGE } from "@/lib/video/timeline-schema"
-import { actorFor, actorForExport, editorPost } from "@/server/video/project-guests"
+import { editorPost } from "@/server/video/editor-guards"
+import { actorFor, actorForExport } from "@/server/video/project-guests"
 import {
   saveOwnedExportFrame,
   saveOwnedProjectFrame,

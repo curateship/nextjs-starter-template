@@ -1027,3 +1027,44 @@ describe("restoring a version from History", () => {
     expect(store.getSnapshot().state.tracks).toEqual(START.tracks)
   })
 })
+
+describe("a moving shot landing on its picture", () => {
+  const still = createInitialEditorState({
+    aspect: "9:16",
+    tracks: [
+      {
+        id: "pictures",
+        muted: false,
+        clips: [
+          {
+            id: "seven",
+            kind: "image",
+            name: "Lighthouse",
+            mediaId: "still",
+            startMs: 5_000,
+            durationMs: 4_000,
+            trimStartMs: 0,
+            motion: "push-in",
+          },
+        ],
+      },
+    ],
+  })
+  const land = {
+    type: "LAND_MOVING_SHOT" as const,
+    clipId: "seven",
+    stillMediaId: "still",
+    pieces: [{ mediaId: "shot", url: "https://example.test/shot", durationMs: 4_000 }],
+  }
+
+  it("swaps the picture in one step, and one Undo brings it back", () => {
+    const landed = editorReducer(still, land)
+    expect(landed.tracks[0].clips[0]).toMatchObject({ id: "seven", kind: "video", mediaId: "shot" })
+    expect(editorReducer(landed, { type: "UNDO" }).tracks).toEqual(still.tracks)
+  })
+
+  it("changes nothing when the picture has gone", () => {
+    const gone = editorReducer(still, { type: "DELETE_CLIP", clipId: "seven" })
+    expect(editorReducer(gone, land)).toBe(gone)
+  })
+})

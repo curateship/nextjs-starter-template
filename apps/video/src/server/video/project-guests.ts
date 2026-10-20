@@ -1,11 +1,8 @@
-import { createMiddleware } from "@tanstack/react-start"
 import { eq } from "drizzle-orm"
 
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
-import { requireAppOrigin } from "@/server/auth/origin"
 import { findCurrentUser } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { ensureBackgroundTicker } from "@/server/ticker"
 import { mediaIdsForScope } from "@/server/video/media-list"
 import { findBrowserGuests } from "@/server/video/project-handoff"
 import {
@@ -20,7 +17,7 @@ import {
  * shell's `userGet`/`userPost`/`adminPost`, which a guest never passes
  * because a guest has no session.
  *
- * - `editorGet` and `editorPost` let in a signed-in person, as `userGet` and
+ * - `editorGet` and `editorPost` (in `editor-guards.ts`) let in a signed-in person, as `userGet` and
  *   `userPost` do, or a browser holding a guest sign-in. They hand the
  *   handler both on `context.caller`. `editorPost` also checks the request
  *   came from this app's own pages, as `userPost` does.
@@ -44,24 +41,12 @@ async function readEditorCaller(): Promise<EditorCaller> {
   return { user, guests }
 }
 
-async function findEditorCaller(): Promise<EditorCaller> {
+/** The caller `editorGet` and `editorPost` (editor-guards.ts) hand on. */
+export async function findEditorCaller(): Promise<EditorCaller> {
   const caller = await readEditorCaller()
   if (!caller.user && caller.guests.length === 0) throw new Error("AUTH_REQUIRED")
   return caller
 }
-
-/** Reads a signed-in person or a guest may make. */
-export const editorGet = createMiddleware({ type: "function" }).server(async ({ next }) => {
-  ensureBackgroundTicker()
-  return next({ context: { caller: await findEditorCaller() } })
-})
-
-/** Changes a signed-in person or a guest may make. */
-export const editorPost = createMiddleware({ type: "function" }).server(async ({ next }) => {
-  ensureBackgroundTicker()
-  requireAppOrigin()
-  return next({ context: { caller: await findEditorCaller() } })
-})
 
 /** Who a call about one project acts as, and the guest behind it if there is one. */
 export type EditorActor = {

@@ -166,6 +166,34 @@ export function shotPieces(length: ShotLengthSeconds): {
 }
 
 /**
+ * A size's price beside its name in the Quality list. Google prices only
+ * 720p, so Draft says the most it can cost and Sharp says it is unpriced.
+ */
+export function qualityPrice(quality: VideoQuality, secondCents: number, shotCents: number) {
+  if (quality === PRICED_VIDEO_QUALITY) {
+    return `${formatCents(secondCents)} a second, ${formatCents(shotCents)}`
+  }
+  return quality === "360p"
+    ? `up to ${formatCents(shotCents)}`
+    : "no price from Google yet"
+}
+
+/** The line under Quality: what this shot costs and what the size means. */
+export function shotPriceLine(
+  quality: VideoQuality,
+  lengthSeconds: number,
+  secondCents: number,
+  shotCents: number
+) {
+  const price = `Costs about ${formatCents(shotCents)}: ${lengthSeconds} seconds at ${formatCents(secondCents)} a second.`
+  if (quality === PRICED_VIDEO_QUALITY) return price
+  const unpriced = `Google prices only 720p, so this counts as ${formatCents(shotCents)} against the allowance, and the bill is what Google counts.`
+  return quality === "360p"
+    ? `Draft is quicker and costs less than Normal. ${unpriced}`
+    : `Sharp makes a bigger file and takes longer. ${unpriced}`
+}
+
+/**
  * How many shots may be made at once: three in one project and six across one
  * person's projects. Every shot is paid for when it arrives, so without a cap
  * a run of presses is a bill nobody added up. Migration
@@ -230,6 +258,18 @@ export function normalizeAssetTags(value: string): string[] {
     })
     .slice(0, MAX_ASSET_TAGS)
 }
+
+/**
+ * What a free Gemini key is told about Omni Flash: "Rate limit exceeded for
+ * model gemini-omni-1.1-flash (limit: 0 input tokens per minute on Free
+ * Tier)", read on 19 Oct 2026. A limit of 0 is never lifted by waiting.
+ */
+export function isFreeTierRefusal(message: string) {
+  return /free tier/i.test(message) && /limit: 0\b/.test(message)
+}
+
+export const FREE_KEY_MESSAGE =
+  "Google refused because the Gemini key in Settings is a free key, and Google makes no AI videos on a free key. Add a key from a paid Google account, then press Try again."
 
 export function providerMessage(body: string): string {
   try {

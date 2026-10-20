@@ -85,11 +85,12 @@ import {
   DEFAULT_IMAGE_MODEL,
   DEFAULT_VIDEO_QUALITY,
   pieceCostCents,
-  PRICED_VIDEO_QUALITY,
   PROJECT_SHOTS_FULL_MESSAGE,
   projectClipAspect,
+  qualityPrice,
   shotCostCents,
   shotPieces,
+  shotPriceLine,
   SHOTS_AT_ONCE_PER_PROJECT,
   VIDEO_MODEL,
   VIDEO_QUALITIES,
@@ -1040,34 +1041,6 @@ function shotProgress(shot: GenerationItem) {
   const part = shot.pieces.findIndex((piece) => piece.status !== "ready") + 1
   const parts = shot.pieces.length > 1 ? `, part ${part} of ${shot.pieces.length}` : ""
   return `${shot.duration_seconds} second shot${parts}, being made since ${started}`
-}
-
-/**
- * A size's price beside its name in the Quality list. Google prices only
- * 720p, so Draft says the most it can cost and Sharp says it is unpriced.
- */
-function qualityPrice(quality: VideoQuality, secondCents: number, shotCents: number) {
-  if (quality === PRICED_VIDEO_QUALITY) {
-    return `${formatCents(secondCents)} a second, ${formatCents(shotCents)}`
-  }
-  return quality === "360p"
-    ? `up to ${formatCents(shotCents)}`
-    : "no price from Google yet"
-}
-
-/** The line under Quality: what this shot costs and what the size means. */
-function shotPriceLine(
-  quality: VideoQuality,
-  lengthSeconds: number,
-  secondCents: number,
-  shotCents: number
-) {
-  const price = `Costs about ${formatCents(shotCents)}: ${lengthSeconds} seconds at ${formatCents(secondCents)} a second.`
-  if (quality === PRICED_VIDEO_QUALITY) return price
-  const unpriced = `Google prices only 720p, so this counts as ${formatCents(shotCents)} against the allowance, and the bill is what Google counts.`
-  return quality === "360p"
-    ? `Draft is quicker and costs less than Normal. ${unpriced}`
-    : `Sharp makes a bigger file and takes longer. ${unpriced}`
 }
 
 /**

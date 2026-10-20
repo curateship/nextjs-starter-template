@@ -17,7 +17,8 @@ import {
 import { deleteFromR2, getPublicMediaUrl, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
 import { attachMediaToScope } from "@/server/video/media-list"
-import { actorFor, editorGet, editorPost } from "@/server/video/project-guests"
+import { editorGet, editorPost } from "@/server/video/editor-guards"
+import { actorFor } from "@/server/video/project-guests"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 /**

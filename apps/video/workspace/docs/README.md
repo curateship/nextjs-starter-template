@@ -164,6 +164,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [extras.md](extras.md) — clothing, backdrops, props and hair looks: the tabs
   on the Actors dashboard, the Extras button, the 4-picture person board, and
   what the first frame and the shot are sent.
+- [animate-a-still.md](animate-a-still.md) — Make it move on a timeline
+  picture: the right-click window, what is sent, how the moving shot takes
+  the picture's place as one Undo step, who lands it when the tab is closed,
+  and what happens when the picture is gone.
 - [ai-clip.md](ai-clip.md) — the editor's AI clip panel: an actor, a first
   frame, a shot, then dragging it onto the timeline; what each step costs,
   where frames and shots are kept, and a carousel from first frames.

@@ -68,7 +68,7 @@ signed-in layout, so there is no left menu and no other page to reach.
 ## How the server keeps a guest to one project
 
 The editor's server calls a guest can use go through `editorGet` and
-`editorPost` (`src/server/video/project-guests.ts`) instead of the shell's
+`editorPost` (`src/server/video/editor-guards.ts`) instead of the shell's
 `userGet` and `userPost`. They let in a signed-in person or a browser holding
 a guest sign-in. The handler then asks `actorFor` who to act as:
 
@@ -110,7 +110,13 @@ never in the database or the page.
 
 - `src/server/video/project-handoff.ts`: checking the note, the one-time ids,
   the guest sign-in and its cookie.
-- `src/server/video/project-guests.ts`: `editorGet`, `editorPost` and the
+- `src/server/video/editor-guards.ts`: `editorGet` and `editorPost`, in a
+  file of their own like the shell's `guards.ts`. A server call's middleware
+  goes to the browser with it, and only its `.server()` part is left out.
+  While they sat in `project-guests.ts` they took that file's database and
+  sign-in code into the browser, and the editor page never started (fixed 20
+  Oct 2026).
+- `src/server/video/project-guests.ts`: who the caller is, and the
   `actorFor` checks.
 - `src/routes/handoff.project.ts`: the address Project sends people to.
 - `src/routes/guest.video-editor.$projectId.tsx` and `src/routes/guest.ended.tsx`:

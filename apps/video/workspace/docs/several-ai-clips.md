@@ -15,6 +15,9 @@ one in turn.
   meter. With no cap, a run of presses could promise far more than anyone
   added up. At six shots the most that can be promised at once is six 32
   second shots, 6 × $12.80 = $76.80.
+- **Pictures made to move count too.** Make it move on a timeline picture
+  (`animate-a-still.md`) makes an ordinary shot, so it takes a place and is
+  checked against the money the same way.
 - **What counts:** a shot counts while one of its pieces is waiting for its
   turn or being made. A long shot's pieces run one after another, so it only
   ever takes one place. A shot stopped by a failed piece takes no place until
