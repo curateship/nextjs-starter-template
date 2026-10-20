@@ -232,6 +232,8 @@ function Line({
       )
     case "review_confirmed":
       return <>{who} confirmed the review of {task}</>
+    case "took":
+      return <>{who} took {task}</>
     case "due_moved": {
       const move = readDueMove(entry.reason)
       return (

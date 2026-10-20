@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { fieldColumnsKey } from "@/lib/project/panel-keys"
+import { LIST_TIME_COLUMN_KEY, fieldColumnsKey } from "@/lib/project/panel-keys"
 import { LIMITS } from "@/lib/project/rules"
 
 /**
@@ -63,4 +63,26 @@ export function useFieldColumns(typeId: string | undefined) {
   )
 
   return [ids, choose] as const
+}
+
+function readTime() {
+  try {
+    return window.localStorage.getItem(LIST_TIME_COLUMN_KEY) === "on"
+  } catch {
+    return false
+  }
+}
+
+/** Whether the List shows the Time column, the same in every project. Off until picked. */
+export function useTimeColumn() {
+  const on = React.useSyncExternalStore(subscribe, readTime, () => false)
+  const choose = React.useCallback((next: boolean) => {
+    try {
+      window.localStorage.setItem(LIST_TIME_COLUMN_KEY, next ? "on" : "off")
+    } catch {
+      // A browser that won't store the choice keeps the column it had.
+    }
+    listeners.forEach((listener) => listener())
+  }, [])
+  return [on, choose] as const
 }

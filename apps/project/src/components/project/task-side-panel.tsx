@@ -25,7 +25,7 @@ import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { plural } from "@/lib/format/plural"
@@ -41,6 +41,9 @@ import { cn } from "@/lib/utils"
  * cross, since closing the task there is the way back to the inbox. Notes show above Steps once a task has some. On 14
  * Oct he moved Follow into the cog and gave the chat the notes' pattern: an
  * icon that opens a dropdown while it's empty.
+ * Later on 20 Oct the task's name took the status's place in the header, and
+ * the status moved to a footer pinned to the panel's bottom with the clock,
+ * Start and Completed (`task-clock.tsx`).
  * The cog opens a dropdown with every other field (Tyler's second drawing,
  * `pasted-image-1791937217887403000.png`), and the paperclip opens the
  * task's files. The Board stays in view beside it, with
@@ -99,7 +102,7 @@ function SidePanel({
   const picked = React.useRef<"move" | "remind" | null>(null)
   const { remove } = parts
 
-  // Opening a task moves the keyboard into it, so Tab starts from the status.
+  // Opening a task moves the keyboard into it, so Tab starts from the title.
   React.useEffect(() => {
     frame.current?.focus({ preventScroll: true })
   }, [])
@@ -112,51 +115,47 @@ function SidePanel({
       aria-label={parts.title}
       role="region"
     >
-      {/* Anything too wide for a narrow panel scrolls sideways. The status and
-          the icon buttons have no border or background (Tyler, 14 Oct 2026). */}
-      <DashboardCardHeader className="@container/task-head">
-        <ScrollArea className="min-w-0 flex-1">
-          {side ? (
-            // The status on the left, the three dots and the cog at the right (Tyler, 20 Oct 2026).
-            <div className="flex w-max min-w-full items-center gap-1">
-              {side.status}
-              <span className="flex-1" />
-              <TaskAddMenu side={side} />
-              <TaskSettingsMenu
-                side={side}
-                open={settingsOpen}
-                onOpenChange={setSettingsOpen}
-                onDelete={
-                  remove
-                    ? () => {
-                        setSettingsOpen(false)
-                        setConfirmDelete(true)
-                      }
-                    : null
-                }
-                onMove={() => {
-                  picked.current = "move"
-                  side.move()
-                }}
-                onRemind={() => {
-                  picked.current = "remind"
-                  side.remind()
-                }}
-                onCloseAutoFocus={(event) => {
-                  const card = picked.current
-                  if (!card) return
-                  picked.current = null
-                  event.preventDefault()
-                  // The reminder's calendar opens by itself and holds the keyboard.
-                  if (card === "move") document.getElementById(MOVE_PICKER_ID)?.focus()
-                }}
-              />
-            </div>
-          ) : (
-            <h2 className="text-sm font-medium">{parts.title}</h2>
-          )}
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+      {/* The task's name on the left, where the status was, then the three dots
+          and the cog (Tyler, 20 Oct 2026). The icon buttons have no border or
+          background (Tyler, 14 Oct 2026). */}
+      <DashboardCardHeader>
+        {side ? (
+          <div className="flex min-w-0 flex-1 items-start gap-1">
+            <div className="min-w-0 flex-1">{side.title}</div>
+            <TaskAddMenu side={side} />
+            <TaskSettingsMenu
+              side={side}
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}
+              onDelete={
+                remove
+                  ? () => {
+                      setSettingsOpen(false)
+                      setConfirmDelete(true)
+                    }
+                  : null
+              }
+              onMove={() => {
+                picked.current = "move"
+                side.move()
+              }}
+              onRemind={() => {
+                picked.current = "remind"
+                side.remind()
+              }}
+              onCloseAutoFocus={(event) => {
+                const card = picked.current
+                if (!card) return
+                picked.current = null
+                event.preventDefault()
+                // The reminder's calendar opens by itself and holds the keyboard.
+                if (card === "move") document.getElementById(MOVE_PICKER_ID)?.focus()
+              }}
+            />
+          </div>
+        ) : (
+          <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{parts.title}</h2>
+        )}
         {closeButton ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -173,6 +172,8 @@ function SidePanel({
           {side ? <SideBody side={side} /> : parts.body}
         </div>
       </ScrollArea>
+      {/* Stays at the bottom while the rest scrolls (Tyler, 20 Oct 2026). */}
+      {side?.footer}
       {remove ? (
         <ConfirmDialog
           open={confirmDelete}
@@ -198,7 +199,6 @@ function SidePanel({
 function SideBody({ side }: { side: TaskSide }) {
   return (
     <>
-      {side.title}
       {side.tagList}
       {side.link}
       {side.notices}

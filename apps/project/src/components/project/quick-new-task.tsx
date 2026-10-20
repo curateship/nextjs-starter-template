@@ -7,6 +7,7 @@ import { DueDayPicker } from "@/components/project/due-day-picker"
 import { NOBODY, type NewTaskStart } from "@/components/project/new-task-dialog"
 import { PersonAvatar, ProjectDot, StatusDot } from "@/components/project/task-bits"
 import { TagsBox, tagIdsFor, type TagPill } from "@/components/project/task-tags-field"
+import { TypeIconGlyph } from "@/components/project/task-type-icon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,6 +36,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 const authenticatedRoute = getRouteApi("/_authenticated")
 const NO_TAG_IDS: readonly string[] = []
 const NO_MILESTONE = "none"
+const NO_TYPE = "none"
 
 /**
  * New task as a dropdown under its button, as Tyler asked on 14 Oct 2026:
@@ -119,6 +121,8 @@ export function QuickNewTask({
   const [priority, setPriority] = React.useState<TaskPriority>(startingPriority)
   const [pills, setPills] = React.useState<TagPill[]>(startingPills)
   const [milestoneId, setMilestoneId] = React.useState<string | null>(null)
+  // A type picked here; left unpicked, the task starts on the opener's or the project's own.
+  const [pickedTypeId, setPickedTypeId] = React.useState<string | null | undefined>(undefined)
   const [stuckReason, setStuckReason] = React.useState("")
   const [invalid, setInvalid] = React.useState<"title" | "reason" | null>(null)
   const [run, saving] = useAsyncAction(getProjectErrorMessage)
@@ -139,10 +143,12 @@ export function QuickNewTask({
     }
   }
 
+  const offeredTypes = types.filter((t) => project?.typeIds.includes(t.id))
+  const startTypeId = pickedTypeId !== undefined ? pickedTypeId : startingTypeId
   const typeId =
-    startingTypeId !== undefined
-      ? startingTypeId && project?.typeIds.includes(startingTypeId)
-        ? startingTypeId
+    startTypeId !== undefined
+      ? startTypeId && project?.typeIds.includes(startTypeId)
+        ? startTypeId
         : null
       : project?.defaultTypeId && project.typeIds.includes(project.defaultTypeId)
         ? project.defaultTypeId
@@ -153,6 +159,7 @@ export function QuickNewTask({
 
   function pickProject(id: string) {
     setProjectId(id)
+    setPickedTypeId(undefined)
     const next = projects.find((p) => p.id === id)
     if (person !== NOBODY && !next?.members.some((m) => m.userId === person)) setPerson(personFor(next))
   }
@@ -164,6 +171,7 @@ export function QuickNewTask({
     setPriority(startingPriority)
     setPills(startingPills())
     setMilestoneId(null)
+    setPickedTypeId(undefined)
     setStuckReason("")
     setInvalid(null)
     setPerson(personFor(project))
@@ -181,6 +189,7 @@ export function QuickNewTask({
       priority,
       tags: pills,
       milestoneId,
+      typeId,
     })
     reset()
     onOpenChange(false)
@@ -363,7 +372,30 @@ export function QuickNewTask({
               </Select>
             </div>
           </div>
-{milestones?.length ? (
+          {/* The type brings its starting steps and notes (Tyler, 20 Oct 2026). */}
+          {offeredTypes.length ? (
+            <div className="grid gap-2">
+              <Label htmlFor="quick-task-type">Type</Label>
+              <Select
+                value={typeId ?? NO_TYPE}
+                onValueChange={(value) => setPickedTypeId(value === NO_TYPE ? null : value)}
+              >
+                <SelectTrigger id="quick-task-type" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_TYPE}>Plain task</SelectItem>
+                  {offeredTypes.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      <TypeIconGlyph icon={option.icon} color={option.color} />
+                      {option.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          {milestones?.length ? (
             <div className="grid gap-2">
               <Label htmlFor="quick-task-milestone">Milestone</Label>
               <Select value={milestoneId ?? NO_MILESTONE} onValueChange={(value) => setMilestoneId(value === NO_MILESTONE ? null : value)}>

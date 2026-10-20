@@ -34,6 +34,7 @@ import {
   WaitingOnBadge,
 } from "@/components/project/task-bits"
 import { TaskBulkMenu, type BulkTargets } from "@/components/project/task-bulk-bar"
+import { ClockReadout, ClockRunningChip } from "@/components/project/task-clock"
 import {
   AssigneeCellMenu,
   DueCellMenu,
@@ -62,6 +63,7 @@ import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { todayKey } from "@/lib/project/dates"
+import { clockSeconds } from "@/lib/project/clock"
 import { TASK_STATUSES, priorityRank } from "@/lib/project/rules"
 import { fieldSortValue, fieldValueText, type FieldRule } from "@/lib/project/task-fields"
 import type { TaskGroup } from "@/lib/project/task-groups"
@@ -81,6 +83,7 @@ export type TaskColumn =
   | "assignee"
   | "due"
   | "steps"
+  | "time"
   | `field:${string}`
 
 /** A task type's field drawn as a column, with the words for each task's value. */
@@ -120,6 +123,10 @@ function compare(a: TaskCard, b: TaskCard, column: TaskColumn, fieldColumns: rea
       return (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999")
     case "steps":
       return a.steps.total - b.steps.total
+    case "time": {
+      const now = Date.now()
+      return clockSeconds(a.clock, now) - clockSeconds(b.clock, now)
+    }
     case "order":
       return byPosition(a, b)
     default:
@@ -157,6 +164,7 @@ export function TaskList({
   orderLabel = "the project's order",
   bulk = NO_TARGETS,
   fieldColumns = NO_FIELD_COLUMNS,
+  showTime = false,
   selectedSlot,
   onDelete,
   canDelete,
@@ -179,6 +187,8 @@ export function TaskList({
   bulk?: BulkTargets
   /** Up to 3 of a task type's fields, when the List is filtered to that type. */
   fieldColumns?: readonly FieldColumn[]
+  /** Each task's time on the clock as a column, picked in the Columns menu. */
+  showTime?: boolean
   /** Where the "3 selected" button goes, such as the project header; above the table without one. */
   selectedSlot?: HTMLElement | null
   /** A bin in each row's Actions, on the tasks `canDelete` allows; the caller asks first. */
@@ -249,6 +259,7 @@ export function TaskList({
     ...(showProject ? [] : [{ key: "assignee" as const, label: "Assigned to", column: "preview" as const }]),
     { key: "due", label: "Due", column: "preview" },
     { key: "steps", label: "Steps", column: "preview" },
+    ...(showTime ? [{ key: "time" as const, label: "Time", column: "preview" as const }] : []),
     ...fieldColumns.map((spec) => ({
       key: `field:${spec.field.id}` as const,
       label: spec.field.name,
@@ -370,6 +381,7 @@ export function TaskList({
                             onDelete && !readOnly && (canDelete?.(task) ?? true) ? () => onDelete(task) : undefined
                           }
                           fieldColumns={fieldColumns}
+                          showTime={showTime}
                         />
                       ))}
                     </SortableContext>
@@ -399,6 +411,7 @@ function TaskRow({
   onOpen,
   onDelete,
   fieldColumns,
+  showTime,
 }: {
   task: TaskCard
   showProject: boolean
@@ -414,6 +427,7 @@ function TaskRow({
   onOpen: () => void
   onDelete?: () => void
   fieldColumns: readonly FieldColumn[]
+  showTime: boolean
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id, disabled: !canDrag || dragLocked })
@@ -452,6 +466,7 @@ function TaskRow({
           <span className={cn("truncate font-medium", task.priority === "low" && "text-muted-foreground")}>
             {task.title}
           </span>
+          <ClockRunningChip task={task} />
           <UnreadBadge count={task.unread} />
           <TypeChip type={task.type} />
           {task.waiting ? <WaitingBadge /> : null}
@@ -497,6 +512,12 @@ function TaskRow({
       <TableCell column="preview">
         <StepsChip steps={task.steps} />
       </TableCell>
+      {showTime ? (
+        // Blank for a task whose clock never ran; ticking while it runs.
+        <TableCell column="preview">
+          <ClockReadout clock={task.clock} className="text-foreground" />
+        </TableCell>
+      ) : null}
       {fieldColumns.map((spec) => (
         // A blank cell for a task that left the field empty.
         <TableCell key={spec.field.id} column="preview" className="max-w-48 truncate">

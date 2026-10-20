@@ -19,6 +19,7 @@ import { listStepLists, type StepList } from "@/server/project/step-lists"
 import { listTemplates } from "@/server/project/templates"
 import type { TemplateRow } from "@/lib/project/templates"
 import { clearPersonValues } from "@/server/project/task-types"
+import { pauseClocksOf } from "@/server/project/task-clock-runs"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
 import {
   findMembership,
@@ -410,6 +411,8 @@ export async function clearAssignee(
     .from(customShellUsers)
     .where(eq(customShellUsers.id, userId))
     .limit(1)
+  // Their clock on those tasks stops with them.
+  await pauseClocksOf(tx, userId, null, where)
   await tx
     .update(projectTasks)
     .set({

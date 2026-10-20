@@ -59,7 +59,7 @@ import { overDoingLimit } from "@/lib/project/doing-limit"
 import { TASK_GROUPINGS, groupTasks, type TaskGrouping } from "@/lib/project/task-groups"
 import { placesAfterReorder } from "@/lib/project/task-order"
 import { offeredTypes } from "@/lib/project/task-types"
-import { useFieldColumns } from "@/lib/project/use-field-columns"
+import { useFieldColumns, useTimeColumn } from "@/lib/project/use-field-columns"
 import { useProjectLive } from "@/lib/project/use-project-live"
 import { viewHasFilters } from "@/lib/project/saved-views"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -206,6 +206,7 @@ export function ProjectTasksPanel({
   // Filtered to one type, the List can show up to 3 of its fields as columns.
   const filteredType = page.taskTypes.find((type) => type.id === filters.type)
   const [columnIds, setColumnIds] = useFieldColumns(filteredType?.id)
+  const [timeColumn, setTimeColumn] = useTimeColumn()
   const fieldColumns = React.useMemo(() => {
     const names = new Map(page.members.map((m) => [m.userId, m.name]))
     return columnIds.flatMap((id) => {
@@ -482,11 +483,12 @@ export function ProjectTasksPanel({
                       : undefined
                 }
                 extra={
-                  (view === "list" || view === "board") && filteredType?.fields.length ? (
+                  view === "list" || (view === "board" && filteredType?.fields.length) ? (
                     <FieldColumnsMenu
-                      fields={filteredType.fields}
+                      fields={filteredType?.fields ?? []}
                       chosen={fieldColumns.map((column) => column.field.id)}
                       onChange={setColumnIds}
+                      time={view === "list" ? { on: timeColumn, onChange: setTimeColumn } : undefined}
                       label={view === "board" ? "Fields on cards" : "Columns"}
                     />
                   ) : null
@@ -612,6 +614,7 @@ export function ProjectTasksPanel({
           onReorder={readOnly || grouping === "tags" ? undefined : (taskIds) => void reorder(taskIds)}
           bulk={{ people, projects: page.otherProjects }}
           fieldColumns={fieldColumns}
+          showTime={timeColumn}
           selectedSlot={selectedSlot}
           onDelete={(task) => setDeleting(task)}
           canDelete={canDelete}

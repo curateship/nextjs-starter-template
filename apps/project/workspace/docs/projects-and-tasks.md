@@ -620,6 +620,9 @@ goes, so it no longer ends up on whatever task was open.
   pasted link opens the page filtered the same way.
 - **Field columns.** Filtered to one task type, the List's Columns menu adds
   up to 3 of that type's fields as columns (see [Task types](task-types.md)).
+  The menu is always on the List for Time, each task's time on the clock,
+  off until picked and remembered in this browser for every project (see
+  [The task clock](task-clock.md)).
 - **Old Done tasks fold away.** The Board's Done column shows tasks finished
   in the last 14 days, then "Show 34 older" for the rest. The List tab shows
   every task. A task's finish time is saved when it becomes Done
@@ -650,9 +653,12 @@ beside the Board or My tasks (Tyler, 13 Oct 2026, from his drawing). On My
 dashboard it takes the inbox's place, and closing it brings the inbox back.
 Neither puts a window over the page.
 
-- **The task panel.** Along the top: the status as a pill with its dot at
-  the left, then the three-dot button and the cog at the right (Tyler, 20
-  Oct 2026, `assets/pasted-image-1792504237260017000.png`). The three dots
+- **The task panel.** Along the top: the task's name at the left, then the
+  three-dot button and the cog at the right (Tyler, 20 Oct 2026; the status
+  sat there earlier that day, `assets/pasted-image-1792504237260017000.png`).
+  Along the bottom, pinned while the rest scrolls: the status as a pill with
+  its dot, the task clock, Start or Pause, and Completed (see
+  [The task clock](task-clock.md)). The three dots
   open a dropdown of Add tags, Add note (only while the task has no notes),
   Add comment (only while the chat has no messages) and Add files with the
   number of files; the one picked takes the dropdown's place, with an arrow
@@ -663,15 +669,16 @@ Neither puts a window over the page.
   hand-over to accept, a review, the Stuck reason row, the Move and Remind
   me cards), then Notes once the task has some, Steps ("Steps · 0 of 2
   done") and Chat ("Chat · 4") once it has a message, each a card that folds shut and stays shut
-  in this browser. The task's title is the panel's first line, in bold
-  (Tyler, 14 Oct 2026, `assets/pasted-image-1792006071437749000.png`).
+  in this browser. The task's title is in the header, in bold (it was the
+  panel's first line from 14 Oct 2026, `assets/pasted-image-1792006071437749000.png`,
+  until 20 Oct); a long one wraps and the header grows.
   Clicking it edits it in place: Enter or clicking away saves it, and an
   empty title is refused and put back. It left the cog's Details tab, so
   the title is edited in one place. An archived project's title can't be
   edited. The open card is outlined on the Board.
-- **The panel's header buttons have no border or background**, the status
-  included, so the status, the three dots and the cog are plain until
-  pointed at (Tyler, 14 Oct 2026).
+- **The panel's header buttons have no border or background**, so the three
+  dots and the cog are plain until pointed at, and so is the status in the
+  footer (Tyler, 14 Oct 2026).
 - **A card's arrow and cog show only while it is pointed at**, folded or
   open (Tyler, 14 Oct 2026, `assets/pasted-image-1791995305794293000.png`).
   The cog has no background. Clicking it, and only it, opens the card's
@@ -832,7 +839,8 @@ Neither puts a window over the page.
   (see [Task types](task-types.md)).
 - **New task opens a dropdown**, not a window (Tyler, 14 Oct 2026): the
   title, who it is for (me, when I'm on the project), a due date, then
-  Status, Priority and, on a project's page, Milestone and Tags (Tyler,
+  Status, Priority, Type (when the project offers any, from 20 Oct 2026)
+  and, on a project's page, Milestone and Tags (Tyler,
   19 Oct 2026: "there should be a way to add tags here as well as priority
   and status", and "Add the milestone selection here"). Milestone lists the
   project's milestones and No milestone, and shows only when the project has
@@ -840,8 +848,10 @@ Neither puts a window over the page.
   Due date.
   Tags work as under a task's title: type and press Enter for a pill with an
   ×; a new name becomes the team's tag when the task is made. Enter in the
-  title or Create task makes it, with the project's own type and that type's
-  steps and notes, and with its priority and tags in the same save. Picking
+  title or Create task makes it, with the type picked (the project's own
+  until another is picked, or Plain task) and that type's steps and notes,
+  and with its priority and tags in the same save. A type that needs fields
+  when made opens the full window on that same type. Picking
   Stuck asks why. There is no "More options" (Tyler, 19 Oct 2026: "we dont
   need the 'more option' to open up a modal. Just keep it all in the
   dropdown"). The full New task window, which has the same fields, still

@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt, or, type Column, type SQL } from "drizzle-orm"
+import { and, desc, eq, isNull, lt, notInArray, or, type Column, type SQL } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import type { ProjectColor, ProjectHealth, TaskEventKind } from "@/lib/project/rules"
@@ -177,6 +177,8 @@ async function projectActivity(
   }))
 }
 
+const CLOCK_KINDS: TaskEventKind[] = ["clock_started", "clock_paused", "clock_fixed"]
+
 async function taskActivity(
   where: SQL | undefined,
   visible: Set<string>,
@@ -213,7 +215,14 @@ async function taskActivity(
       movedFrom,
       and(eq(projectTaskEvents.kind, "moved"), eq(movedFrom.id, projectTaskEvents.reason))
     )
-    .where(and(where, olderThan(before, { at: projectTaskEvents.createdAt, id: projectTaskEvents.id })))
+    .where(
+      and(
+        where,
+        // Every Start and Pause would bury the rest; they stay in the task's own History.
+        notInArray(projectTaskEvents.kind, CLOCK_KINDS),
+        olderThan(before, { at: projectTaskEvents.createdAt, id: projectTaskEvents.id })
+      )
+    )
     .orderBy(desc(projectTaskEvents.createdAt), desc(projectTaskEvents.id))
     .limit(PAGE + 1)
   return rows.map((row) => ({

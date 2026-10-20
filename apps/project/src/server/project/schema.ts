@@ -333,6 +333,28 @@ export const projectTasks = pgTable("project_tasks", {
   linkedApp: varchar("linked_app", { length: 16 }),
   linkedRecordId: varchar("linked_record_id", { length: 64 }),
   linkedAddress: text("linked_address"),
+  /** A guess at how long it takes, in minutes; null is no guess (`drizzle/0125_project_task_clock.sql`). */
+  guessMinutes: integer("guess_minutes"),
+})
+
+/**
+ * The task clock (`drizzle/0125_project_task_clock.sql`). A "run" is one
+ * stretch between Start and Pause, counted for the person doing the task;
+ * `stoppedAt` and `seconds` stay empty while it runs. A "fix" is a total set
+ * by hand: it holds the difference in `seconds`, which may be below zero. A
+ * task's time is the sum of its rows. How it works is in
+ * `workspace/docs/task-clock.md`.
+ */
+export const projectTaskClockRuns = pgTable("project_task_clock_runs", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  taskId: varchar("task_id", { length: 36 })
+    .notNull()
+    .references(() => projectTasks.id, { onDelete: "cascade" }),
+  userId: varchar("user_id", { length: 36 }).references(userRef, { onDelete: "set null" }),
+  kind: varchar("kind", { length: 8 }).$type<"run" | "fix">().notNull().default("run"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+  seconds: integer("seconds"),
 })
 
 /**

@@ -110,6 +110,8 @@ export type NewTaskStart = {
   /** Picked tags, and typed ones not made yet (no id). */
   tags: TagPill[]
   milestoneId: string | null
+  /** The type picked in the dropdown; left out, the project's own. Null is a plain task. */
+  typeId?: string | null
 }
 
 /**
@@ -241,7 +243,15 @@ export function NewTaskDialog({
     }
     // Each opening starts on the project's default type, with its steps and notes.
     if (open) {
-      applyType(startingType(target), { steps: [], notes: emptyWrittenPageBody() })
+      const fromDropdown = start?.typeId
+      applyType(
+        fromDropdown === undefined
+          ? startingType(target)
+          : fromDropdown && target?.typeIds.includes(fromDropdown)
+            ? fromDropdown
+            : NO_TYPE,
+        { steps: [], notes: emptyWrittenPageBody() }
+      )
       setTitle((start?.title ?? initialTitle).slice(0, LIMITS.taskTitle))
       if (start) {
         setPasted(start.lines)

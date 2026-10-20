@@ -14,6 +14,7 @@ import {
   type WorkloadRow,
 } from "@/lib/api/project/team-running"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { clockTotal } from "@/lib/project/clock"
 import { cn } from "@/lib/utils"
 import { useTeamId } from "@/lib/project/team-scope"
 
@@ -290,12 +291,19 @@ function WorkloadLine({
     <li className="grid gap-3 px-4 py-3">
       <div className="flex min-w-0 items-center gap-3">
         <PersonAvatar name={row.person.name} avatarUrl={row.person.avatarUrl} size="default" />
-        <div className="grid min-w-0">
+        <div className="grid min-w-0 flex-1">
           <span className="truncate text-sm font-medium">{row.person.name}</span>
           {row.person.title ? (
             <span className="truncate text-xs text-muted-foreground">{row.person.title}</span>
           ) : null}
         </div>
+        {/* Their time on the task clock since Monday (Task panel task 01, part 10). */}
+        <span className="shrink-0 text-xs text-muted-foreground">
+          <span className={cn("font-medium tabular-nums", row.weekSeconds && "text-foreground")}>
+            {clockTotal(row.weekSeconds)}
+          </span>{" "}
+          this week
+        </span>
       </div>
       {/* Five figures in one white strip; pressing one lists those tasks under it. */}
       <div className="grid grid-cols-5 overflow-hidden rounded-lg border bg-background">

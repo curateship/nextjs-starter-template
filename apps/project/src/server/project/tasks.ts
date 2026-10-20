@@ -9,6 +9,7 @@ import { taskNotesText } from "@/lib/project/notes"
 import { LIMITS, runsTheTeam, type TaskPriority, type TaskStatus } from "@/lib/project/rules"
 import type { FieldValues } from "@/lib/project/task-fields"
 import type { TaskTypeChip } from "@/lib/project/task-types"
+import type { TaskClock } from "@/lib/project/clock"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import {
@@ -36,6 +37,7 @@ import {
   resolveTaskLinks,
 } from "@/server/project/task-links"
 import { listTaskFiles, type TaskFile } from "@/server/project/task-files"
+import { clocksFor, pauseTaskClock } from "@/server/project/task-clock-runs"
 import { resolveProjectId } from "@/server/project/personal"
 import {
   repeatRuleOf,
@@ -166,6 +168,10 @@ export type TaskCard = {
   type: TaskTypeChip | null
   /** What it holds in its type's fields, for the List's field columns. A File field holds its file count. */
   fieldValues: FieldValues
+  /** Its time on the task clock (`workspace/docs/task-clock.md`). */
+  clock: TaskClock
+  /** How long it is guessed to take, in minutes; null with no guess. */
+  guessMinutes: number | null
 }
 
 const assignee = alias(customShellUsers, "assignee")
@@ -228,6 +234,7 @@ export async function listTaskCards(
     database
   )
   const fieldValues = await valuesForTasks(tasks, database)
+  const clocks = await clocksFor(ids, database)
 
   return rows.map(({ task, ...row }) => {
     const steps = stepRows.filter((step) => step.taskId === task.id)
@@ -289,6 +296,8 @@ export async function listTaskCards(
       repeat: repeatRuleOf(task),
       type: task.typeId ? (types.get(task.typeId) ?? null) : null,
       fieldValues: fieldValues.get(task.id) ?? {},
+      clock: clocks.get(task.id) ?? { seconds: 0, runningSince: null },
+      guessMinutes: task.guessMinutes,
     }
   })
 }
@@ -389,6 +398,13 @@ export type TaskDetail = {
   link: TaskLink | null
   /** I may point it at a record: the site admin, on an open project. */
   canSetLink: boolean
+  /**
+   * I may start and pause its clock: the person assigned and the site admin.
+   * Anyone on the project may start a task nobody has, which makes it theirs.
+   */
+  canRunClock: boolean
+  /** I may set its time by hand: the person assigned and the site admin only. */
+  canFixClock: boolean
 }
 
 export async function loadTaskDetail(
@@ -500,6 +516,8 @@ export async function loadTaskDetail(
     milestones: await listMilestones(project.id, database),
     link: taskLinkFor(task, { userId, siteAdmin: membership.siteAdmin }),
     canSetLink: membership.siteAdmin && !archived,
+    canRunClock: !archived && (!task.assigneeUserId || task.assigneeUserId === userId || membership.siteAdmin),
+    canFixClock: !archived && (task.assigneeUserId === userId || membership.siteAdmin),
   }
 }
 
@@ -674,6 +692,8 @@ export async function updateTask(
     startDate?: string | null
     snoozedUntil?: string | null
     priority?: TaskPriority
+    /** How long it is guessed to take, in minutes; null takes the guess off. */
+    guessMinutes?: number | null
   },
   database: ProjectDb = db
 ) {
@@ -761,6 +781,8 @@ export async function setTaskStatus(
         reason: input.status,
       })
     }
+    // The clock runs only while the task is Doing: Stuck pauses it and Done stops it.
+    if (input.status !== "doing") await pauseTaskClock(tx, task.id, actor.id)
 
     // Stuck, Done and leaving Stuck each tell whoever handed the task out (or
     // made it, when nobody did), its followers and the project's lead, once
@@ -821,6 +843,8 @@ export async function assignTask(
     const at = now()
     const handedToSomeoneElse = Boolean(input.assigneeUserId) && input.assigneeUserId !== actor.id
     const note = handedToSomeoneElse ? (input.note ?? null) : null
+    // The clock counts for the person assigned, so a new person pauses it.
+    await pauseTaskClock(tx, task.id, actor.id)
     await tx
       .update(projectTasks)
       .set({
@@ -891,6 +915,7 @@ export async function handBackTask(
     if (!giver || giver === actor.id) throw new Error(PROJECT_ERRORS.nothingToHandBack)
     const giverStillHere = await isProjectMember(task.projectId, giver, tx)
     const at = now()
+    await pauseTaskClock(tx, task.id, actor.id)
     await tx
       .update(projectTasks)
       .set({
@@ -940,6 +965,7 @@ export async function deleteTask(actor: Actor, taskId: string, database = db) {
       .update(projectTasks)
       .set({ deletedAt: now(), deletedByUserId: actor.id })
       .where(eq(projectTasks.id, task.id))
+    await pauseTaskClock(tx, task.id, actor.id)
     await recordTaskEvent(tx, { taskId: task.id, kind: "deleted", actorUserId: actor.id })
   })
 }

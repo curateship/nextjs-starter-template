@@ -170,6 +170,10 @@ opening one switches to it, and closing it goes back to My tasks. The
 address is `?task=<id>`. How a task opens is in
 [Projects and tasks](projects-and-tasks.md#opening-a-task).
 
+A task whose clock is running shows the ticking time and a Pause button at
+the end of its row, so it pauses without being opened (Tyler, 20 Oct 2026;
+see [The task clock](task-clock.md)).
+
 ## Right: my inbox, or the open task
 
 While a task is open it takes this panel (see Middle above). Otherwise:

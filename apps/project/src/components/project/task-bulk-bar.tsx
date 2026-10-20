@@ -2,6 +2,7 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
+import { RainbowEdge } from "@/components/project/rainbow-edge"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { ProjectDot, RoomNote } from "@/components/project/task-bits"
 import {
@@ -265,13 +266,8 @@ export function TaskBulkMenu({
   return (
     <>
       <Popover open={open} onOpenChange={openChange}>
-        {/* A rainbow runs round the button so the eye finds it (Tyler, 19 Oct 2026);
-            it holds still for anyone whose device asks for less motion. */}
-        <span className="relative inline-flex shrink-0 overflow-hidden rounded-lg p-px">
-          <span
-            aria-hidden
-            className="absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 animate-spin bg-[conic-gradient(#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#8b5cf6,#ec4899,#ef4444)] [animation-duration:2.5s] motion-reduce:animate-none"
-          />
+        {/* A rainbow runs round the button so the eye finds it (Tyler, 19 Oct 2026). */}
+        <RainbowEdge className="rounded-lg">
           <PopoverTrigger asChild>
             <DashboardToolbarButton
               type="button"
@@ -284,7 +280,7 @@ export function TaskBulkMenu({
               <ChevronDownIcon className="size-4 text-muted-foreground" />
             </DashboardToolbarButton>
           </PopoverTrigger>
-        </span>
+        </RainbowEdge>
         <PopoverContent
           ref={content}
           align="end"

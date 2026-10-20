@@ -30,6 +30,11 @@ A task ends with a History card, oldest first, wherever it opens.
 - **A move**: "Anna moved it here from Website", from 10 Oct 2026.
 - **Made, marked and binned**: "Anna made it", "Ben marked it Done", "Anna put
   it in the bin", "Anna brought it back from the bin", from 11 Oct 2026.
+- **The task clock**, from 20 Oct 2026: "Ben started the clock", "Ben paused
+  the clock after 45m", "The clock paused itself at midnight after 3h", "Anna
+  changed the time from 3h to 1h 10m" and "Ben took it" for Start on a
+  task nobody had. The Activity tab shows "took" and leaves the clock's own
+  lines out (see [The task clock](task-clock.md)).
 - **Due date moves**: "Anna moved the due date from Nov 3 to Nov 10", from
   12 Oct 2026, in the History card and the Activity tabs. Only a move from
   one day to another is written; setting a first date or clearing one isn't.
