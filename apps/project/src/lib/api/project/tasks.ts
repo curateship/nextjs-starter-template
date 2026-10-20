@@ -7,6 +7,8 @@ import {
   assignTaskSchema,
   needsReviewSchema,
   reviewSchema,
+  answerTimeSchema,
+  askForTimeSchema,
   bulkChangeSchema,
   createTasksFromLinesSchema,
   setRepeatSchema,
@@ -38,6 +40,7 @@ import {
 } from "@/server/project/planning"
 import { followTask, unfollowTask } from "@/server/project/task-followers"
 import { listNoteVersions, restoreNoteVersion } from "@/server/project/task-note-versions"
+import { answerMoreTime, askForMoreTime } from "@/server/project/more-time"
 import { reviewTask, setNeedsReview } from "@/server/project/task-review"
 import { thankForTask } from "@/server/project/task-thanks"
 import { listTeamTypes } from "@/server/project/task-types"
@@ -329,6 +332,16 @@ const reviewFn = createServerFn({ method: "POST" })
   .inputValidator(reviewSchema)
   .handler(async ({ data, context }) => reviewTask(context.user, data))
 
+const askForTimeFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(askForTimeSchema)
+  .handler(async ({ data, context }) => askForMoreTime(context.user, data))
+
+const answerTimeFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(answerTimeSchema)
+  .handler(async ({ data, context }) => answerMoreTime(context.user, data))
+
 const thankFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ taskId: id }))
@@ -342,6 +355,14 @@ export function setTaskNeedsReview(taskId: string, on: boolean) {
 }
 export function reviewProjectTask(data: z.input<typeof reviewSchema>) {
   return reviewFn({ data })
+}
+/** Ask for a later due date, with why (Seven features, part 2). */
+export function askForMoreTaskTime(data: z.input<typeof askForTimeSchema>) {
+  return askForTimeFn({ data })
+}
+/** Yes moves the due date to the day asked for; No keeps it. */
+export function answerMoreTaskTime(data: z.input<typeof answerTimeSchema>) {
+  return answerTimeFn({ data })
 }
 export function thankForProjectTask(taskId: string) {
   return thankFn({ data: { taskId } })

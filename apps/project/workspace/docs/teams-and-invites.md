@@ -50,6 +50,17 @@ two kinds of people, both ordinary shell accounts signing in on the one
   one its dashboard opens, kept in the address (`/teams?settings=<id>`) so
   each change made in it shows straight away. The site admin landing on `/team` or My dashboard
   goes to `/teams`.
+- **Every team's morning on the Teams dashboard** (Tyler, 20 Oct 2026: three
+  columns rather than a page of their own). "Checked in today" reads "5 of 6",
+  counted the way the team's own calendar counts today; "Not yet" before the
+  team's check-in time; "Day off" on a day that isn't one of its work days or
+  is a team holiday; and "Nobody expected" for a team with nobody on it.
+  "Stuck" and "Overdue" count open tasks in its shared, open projects, with
+  overdue read on the team's own calendar, the way its Needs attention reads
+  it; above zero they are red. Clicking a number opens that team's dashboard
+  on the matching tab: its check-ins, or Attention for Stuck and Overdue. The
+  columns sort (`listTeams` in `teams.ts`). Each team's count of today is
+  read one team at a time, which is fine for a handful of teams.
 - **Each page names its team.** A project's page uses the project's team, and
   a team's page the team in its address, sent with every request it makes
   (`inTeam` in `src/server/project/access.ts`, `TeamScope` in

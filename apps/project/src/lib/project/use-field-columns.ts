@@ -65,24 +65,30 @@ export function useFieldColumns(typeId: string | undefined) {
   return [ids, choose] as const
 }
 
-function readTime() {
+function readOn(key: string) {
   try {
-    return window.localStorage.getItem(LIST_TIME_COLUMN_KEY) === "on"
+    return window.localStorage.getItem(key) === "on"
   } catch {
     return false
   }
 }
 
-/** Whether the List shows the Time column, the same in every project. Off until picked. */
-export function useTimeColumn() {
-  const on = React.useSyncExternalStore(subscribe, readTime, () => false)
-  const choose = React.useCallback((next: boolean) => {
-    try {
-      window.localStorage.setItem(LIST_TIME_COLUMN_KEY, next ? "on" : "off")
-    } catch {
-      // A browser that won't store the choice keeps the column it had.
-    }
-    listeners.forEach((listener) => listener())
-  }, [])
+/**
+ * Whether a table shows its Time column, off until picked: the List's, the
+ * same in every project, by default, or the Projects table's with its key.
+ */
+export function useTimeColumn(key = LIST_TIME_COLUMN_KEY) {
+  const on = React.useSyncExternalStore(subscribe, () => readOn(key), () => false)
+  const choose = React.useCallback(
+    (next: boolean) => {
+      try {
+        window.localStorage.setItem(key, next ? "on" : "off")
+      } catch {
+        // A browser that won't store the choice keeps the column it had.
+      }
+      listeners.forEach((listener) => listener())
+    },
+    [key]
+  )
   return [on, choose] as const
 }

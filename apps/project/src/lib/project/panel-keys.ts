@@ -18,6 +18,8 @@ export const fieldColumnsKey = (typeId: string) => `project-type-columns-${typeI
 
 /** Whether every project's List shows the Time column (Task panel task 01, part 9). */
 export const LIST_TIME_COLUMN_KEY = "project-list-time-column"
+/** The Projects table's Time column, off until picked (Seven features, part 4). */
+export const PROJECTS_TIME_COLUMN_KEY = "project-projects-time-column"
 
 /** The project New task in the header chose last, so it is chosen first next time. */
 export const NEW_TASK_PROJECT_KEY = "project-new-task-project"

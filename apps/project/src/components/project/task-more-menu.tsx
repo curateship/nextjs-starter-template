@@ -1,6 +1,13 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { BellRingIcon, CopyIcon, FolderInputIcon, Loader2Icon, MoreHorizontalIcon } from "lucide-react"
+import {
+  BellRingIcon,
+  CalendarClockIcon,
+  CopyIcon,
+  FolderInputIcon,
+  Loader2Icon,
+  MoreHorizontalIcon,
+} from "lucide-react"
 
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import type { Change } from "@/components/project/task-body"
@@ -14,6 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -23,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  askForMoreTaskTime,
   duplicateProjectTask,
   moveProjectTask,
   type TaskDetail,
@@ -30,30 +39,35 @@ import {
 import { setReminder } from "@/lib/api/project/planning"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { shortDayLabel } from "@/lib/project/days"
-import { getProjectErrorMessage } from "@/lib/project/errors"
+import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
+import { LIMITS } from "@/lib/project/rules"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
 
 export const MOVE_PICKER_ID = "move-task-project"
+export const ASK_TIME_DAY_ID = "ask-time-day"
 
 /**
- * Duplicate, Move to project and Remind me, behind one button beside Follow.
- * A copy opens straight away. Move and Remind me open a card inside the task,
- * never a window on top of it.
+ * Duplicate, Move to project, Remind me and Ask for more time, behind one
+ * button beside Follow. A copy opens straight away. The others open a card
+ * inside the task, never a window on top of it.
  */
 export function TaskMoreMenu({
   detail,
   onMove,
   onRemind,
+  onAskTime,
 }: {
   detail: TaskDetail
   onMove: () => void
   onRemind: () => void
+  onAskTime: () => void
 }) {
   const { duplicate, busy } = useDuplicateTask(detail)
   const cantMove = detail.moveTargets.length === 0
   // Choosing Move or Remind me hands the keyboard to its card, so the menu
   // mustn't take it back to its own button as it closes.
-  const picked = React.useRef<"move" | "remind" | null>(null)
+  const picked = React.useRef<"move" | "remind" | "ask" | null>(null)
 
   return (
     <DropdownMenu>
@@ -71,6 +85,7 @@ export function TaskMoreMenu({
           event.preventDefault()
           // The reminder's calendar is already open and holds the keyboard.
           if (card === "move") document.getElementById(MOVE_PICKER_ID)?.focus()
+          if (card === "ask") document.getElementById(ASK_TIME_DAY_ID)?.focus()
         }}
       >
         <DropdownMenuItem onSelect={() => void duplicate()}>
@@ -99,6 +114,17 @@ export function TaskMoreMenu({
           <BellRingIcon className="size-4" />
           {detail.myReminder ? "Change my reminder" : "Remind me"}
         </DropdownMenuItem>
+        {detail.canAskForTime ? (
+          <DropdownMenuItem
+            onSelect={() => {
+              picked.current = "ask"
+              onAskTime()
+            }}
+          >
+            <CalendarClockIcon className="size-4" />
+            Ask for more time
+          </DropdownMenuItem>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -135,11 +161,13 @@ export function TaskMoreRows({
   detail,
   onMove,
   onRemind,
+  onAskTime,
   onPicked,
 }: {
   detail: TaskDetail
   onMove: () => void
   onRemind: () => void
+  onAskTime: () => void
   onPicked: () => void
 }) {
   const { duplicate, busy } = useDuplicateTask(detail)
@@ -186,6 +214,20 @@ export function TaskMoreRows({
         <BellRingIcon className="size-4" />
         {detail.myReminder ? "Change my reminder" : "Remind me"}
       </Button>
+      {detail.canAskForTime ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="justify-start"
+          onClick={() => {
+            onPicked()
+            onAskTime()
+          }}
+        >
+          <CalendarClockIcon className="size-4" />
+          Ask for more time
+        </Button>
+      ) : null}
     </>
   )
 }
@@ -334,6 +376,105 @@ export function ReminderCard({
               </Button>
             </div>
           </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Ask for more time, inside the task like Remind me (Seven features, part 2):
+ * a later day and one line of why, sent to whoever handed the task out, or
+ * the site admin when nobody did. Nothing changes until they answer.
+ */
+export function AskTimeCard({
+  detail,
+  change,
+  onDone,
+}: {
+  detail: TaskDetail
+  change: Change
+  onDone: () => void
+}) {
+  const { task } = detail
+  const frame = React.useRef<HTMLDivElement>(null)
+  const [day, setDay] = React.useState<string | null>(detail.moreTime?.day ?? null)
+  const [reason, setReason] = React.useState("")
+  const [invalid, setInvalid] = React.useState<"day" | "reason" | null>(null)
+  useEscapeCancels(frame, onDone)
+  React.useEffect(() => {
+    frame.current?.scrollIntoView({ block: "nearest" })
+  }, [])
+  const answerer =
+    task.assignedBy && task.assignedBy.id !== task.assignee?.id ? task.assignedBy.name : "the site admin"
+
+  async function ask() {
+    if (!day || (task.dueDate && day <= task.dueDate)) {
+      setInvalid("day")
+      showErrorToast(PROJECT_ERRORS.askForLaterDay)
+      return
+    }
+    if (!reason.trim()) {
+      setInvalid("reason")
+      showErrorToast("Say in a line why it needs more time.")
+      return
+    }
+    const ok = await change(
+      () => askForMoreTaskTime({ taskId: task.id, day, reason: reason.trim() }),
+      `Asked ${answerer} for ${shortDayLabel(day)}.`
+    )
+    if (ok) onDone()
+  }
+
+  return (
+    <Card size="sm" ref={frame}>
+      <CardHeader>
+        <CardTitle>Ask for more time</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <p className="text-sm text-muted-foreground">
+          {task.dueDate ? `It's due ${shortDayLabel(task.dueDate)}. ` : ""}
+          {answerer === "the site admin" ? "The site admin" : answerer} gets a notice and says yes or no. The date
+          only moves on a yes.
+        </p>
+        <div className="grid gap-2">
+          <Label htmlFor={ASK_TIME_DAY_ID}>New due date</Label>
+          <DueDayPicker
+            id={ASK_TIME_DAY_ID}
+            value={day}
+            placeholder="Pick a later day"
+            className="sm:w-fit"
+            aria-invalid={invalid === "day"}
+            onChange={(next) => {
+              setDay(next)
+              setInvalid(null)
+            }}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="ask-time-reason">Why</Label>
+          <Input
+            id="ask-time-reason"
+            value={reason}
+            maxLength={LIMITS.reason}
+            placeholder="Waiting on the client's photos"
+            aria-invalid={invalid === "reason" || undefined}
+            onChange={(event) => {
+              setReason(event.target.value)
+              setInvalid(null)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void ask()
+            }}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" onClick={() => void ask()}>
+            Ask for more time
+          </Button>
+          <Button type="button" variant="outline" onClick={onDone}>
+            Cancel
+          </Button>
         </div>
       </CardContent>
     </Card>

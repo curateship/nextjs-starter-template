@@ -60,6 +60,11 @@
 - **The Projects table's columns** are Project, Team (site admin only),
   Progress, Status, Lead, Open tasks and Actions. Tyler took off the Stuck
   and Members columns on 19 Oct 2026.
+- **A Time column, off until picked** (Tyler, 20 Oct 2026). Columns in the
+  table's header switches it on: each project's time on the clock, every
+  stretch and time set by hand on its tasks plus any clock running now, with
+  tasks in the bin left out. It sorts, and this browser remembers the choice
+  (`projectClockSeconds` in `task-clock-runs.ts`).
 - **A Projects row's actions**, for the site admin: the pin, Copy, Archive
   (or Bring back), then a cog that opens the project's settings over the
   table, the same window as the project page's cog (Tyler, 19 Oct 2026:
@@ -173,7 +178,13 @@ So a long project shows whether it's on time well before its end date.
   who can change the project can do all three, up to 30 per project.
 - **Each reads "3 of 5 done, Nov 15"** with a bar, and turns red with
   "Overdue" once its date has passed with tasks still open. Tasks in the bin
-  don't count, and a milestone with no tasks reads "No tasks yet".
+  don't count, and a milestone with no tasks reads "No tasks yet". Once its
+  tasks have a minute or more on the clock it adds that time: "3 of 5 done,
+  Nov 15, 6h 40m clocked".
+- **Time on the left panel.** Beside Lead and Client, a Time heading reads
+  "14h 20m clocked" once anyone has clocked a minute (`timeOnTasks` in
+  `lib/project/clock.ts`). It sets nothing against the guesses: Tyler took
+  that line out on 20 Oct 2026 ("remove the guesses time. dont need it").
 - **A task joins one from its Plan card** (the Milestone field, shown once
   the project has milestones). A task belongs to at most one. Moving a task
   to another project takes it off; Duplicate keeps it; a repeating task's
@@ -723,9 +734,12 @@ Neither puts a window over the page.
   (`assets/pasted-image-1791937217887403000.png`). Follow (or Following) sits
   at the right of its Details and History tabs (Tyler, 14 Oct 2026,
   `assets/pasted-image-1791997051267604000.png`). Its Details tab is a stack
-  of cards that fold open (Tyler, 14 Oct 2026, from Trade's order window and
+  of rows that fold open (Tyler, 14 Oct 2026, from Trade's order window and
   the Broadcast dashboard's settings, `assets/pasted-image-1792015687885493000.png`
-  and `assets/pasted-image-1792016136552647000.png`). Shut, a card shows its
+  and `assets/pasted-image-1792016136552647000.png`). The rows are flat, with
+  no box, and a line between them runs to the dropdown's edges (Tyler, 20 Oct
+  2026, `assets/pasted-image-1792539542274887000.png`: "move all of these
+  outside the cards (flatten it)"). Shut, a row shows its
   name and its answer on the right with an arrow; open, a line saying what
   it is for and its fields one per row. Person ("Admin", or "· waiting")
   holds Assigned to, the hand-over note and Hand back; Dates ("Oct 14 to Oct
@@ -897,11 +911,19 @@ Neither puts a window over the page.
   puts a "3 selected" button in the header, left of the search, with a rainbow
   running round its edge so the eye finds it (Tyler, 19 Oct 2026; it holds
   still when the device asks for less motion). Its dropdown holds Mark Done,
-  Status, Hand to (with one optional note for all of them), Due date and Move
-  to project, each of the last four stepping into its own list with a back
-  arrow, then Clear selection. Due date offers No due date, the quick days and
+  Status, Hand to (with one optional note for all of them), Due date,
+  Priority, Add tag, Remove tag, Type and Move to project, each after Mark
+  Done stepping into its own list with a back arrow, then Clear selection.
+  Add tag and Remove tag touch only that one tag and leave the rest. Type
+  follows the one-task rule: only whoever first handed a task out and the
+  site admin change its type, so the rest are refused with that reason, and
+  a project that doesn't offer the type refuses it for its own tasks (Tyler
+  asked for priority, tags and type on 20 Oct 2026). Add tag, Remove tag and
+  Type only show when the team has tags or types. Due date offers No due date, the quick days and
   the month. Escape on a list goes back to the first one; Escape there
-  closes the menu. My tasks keeps these as a row of pickers beside Mark Done. Mark Done reports the same way as the rest, naming each
+  closes the menu. My tasks keeps these as a row of pickers beside Mark Done.
+  A due date that lands on someone's day off says so once it has saved: "2
+  of the 12 tasks are now due on someone's day off." Mark Done reports the same way as the rest, naming each
   refused task with its reason, such as "Fill in Final cut first." My tasks has the same bar without Move to project. Stuck asks for one reason
   for all of them ("Why is it stuck?" for one task, "Why are they stuck?" for
   more). Each task is changed on its own, as if alone, so each still writes
@@ -1069,6 +1091,17 @@ Each task has a Plan card with three fields that save the moment they change.
   Client wants it by Thursday", shows on the task beside Waiting until it's
   accepted, and stays in the History line. An empty note changes nothing.
   Bulk Hand to says the one note goes with every ticked task.
+- **A due date on a day off says so** (Tyler, 20 Oct 2026, the warning
+  line only, with no greyed days on the calendar). When a task's due date
+  falls on its person's time off or on a team holiday, a line in amber under
+  the date reads "Leo Hart is away Dec 4." or "Dec 25 is a team holiday,
+  Christmas Day.": in New task's dropdown and window, in the task's Dates,
+  and beside the note when handing a task to someone away that day. The
+  List's Due cell and the bulk Due date close as soon as a day is picked, so
+  they say it in a message once the date has saved. It only warns: the date
+  still saves. Only the dates of time off travel, never a reason
+  (`loadDaysOff` in `team-running.ts`, `lib/project/days-off.ts`). A Done
+  task shows no line.
 - **Who has room.** Each name in every hand-to picker shows "6 open", and
   "Away until Dec 4" when today falls in their time off. The count is the
   Workload tab's for the same viewer, so a member counts only their own
@@ -1083,6 +1116,37 @@ Each task has a Plan card with three fields that save the moment they change.
   project, the task is left with nobody assigned.
 - **Deleting** is for whoever made the task and the site admin. It moves
   the task to its project's bin (see The bin below).
+
+## Asking for more time
+
+So a new date is agreed between the two people instead of quietly moved
+(Tyler picked this on 20 Oct 2026).
+
+- **Who asks:** the person doing the task, from "Ask for more time" in the
+  task's cog and its three-dot menu, on a task that isn't Done and has a due
+  date. A card opens at the top of the task with "New due date", which must
+  be after the current one, and "Why", one line. Nothing changes yet.
+- **Who answers:** whoever handed the task out. When nobody did, or they
+  made it themselves, the site admin answers (Tyler's pick). The site admin
+  can always answer. They get "Ben asked you for more time on a task" in the
+  bell with the two dates and the reason.
+- **The card on the task** reads "Asked for Fri, Dec 5" and "Ben asks to
+  move the due date from Wed, Dec 3 to Fri, Dec 5: Waiting on the client's
+  photos". The person answering gets Yes, move it, and No, keep the date with
+  an optional line of why. Everyone else reads "Waiting for Anna to answer."
+- **Yes** moves the due date to the day asked for, all day, and counts toward
+  "Date moved 3 times" like any other move. **No** keeps the date. Either way
+  the asker gets "Anna answered your ask for more time" with the answer.
+  Both write History, and both have a switch in My notices.
+- **One ask at a time.** A new ask replaces the open one. The ask ends by
+  itself when the task is Done, handed to someone else, put in the bin, or
+  its date is moved to the day asked for or later by anyone.
+- **It's never a lock.** Anyone on the project can still change the date
+  directly, as before.
+- **Where it lives:** `more_time_day`, `more_time_reason`,
+  `more_time_by_user_id` and `more_time_asked_at` on `project_tasks`
+  (`drizzle/0130_project_more_time.sql`), rules in
+  `src/server/project/more-time.ts`.
 
 ## Asking for a review
 

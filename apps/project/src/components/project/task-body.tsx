@@ -8,7 +8,7 @@ import { TaskFieldsCard, TaskTypeField } from "@/components/project/task-fields-
 import { TaskFileDrop, TaskFilesCard } from "@/components/project/task-files-card"
 import { TaskHistoryCard } from "@/components/project/task-history-card"
 import { TaskNotesField } from "@/components/project/task-notes"
-import { MoveTaskCard, ReminderCard, TaskMoreMenu } from "@/components/project/task-more-menu"
+import { AskTimeCard, MoveTaskCard, ReminderCard, TaskMoreMenu } from "@/components/project/task-more-menu"
 import { PanelCardFooter } from "@/components/project/panel-card"
 import { StepListActions } from "@/components/project/step-list-actions"
 import { DueDayPicker } from "@/components/project/due-day-picker"
@@ -19,6 +19,7 @@ import { TaskLinkButton, TaskLinkField } from "@/components/project/task-link"
 import { TaskClockFooter } from "@/components/project/task-clock"
 import {
   DueDate,
+  DayOffNote,
   DueMovesMark,
   PersonAvatar,
   PickedDaysBadge,
@@ -48,6 +49,7 @@ import { Switch } from "@/components/ui/switch"
 import {
   acceptProjectTask,
   addTaskStep,
+  answerMoreTaskTime,
   assignProjectTask,
   deleteProjectTask,
   followProjectTask,
@@ -69,10 +71,11 @@ import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 import { plural } from "@/lib/format/plural"
 import { localTimeOf, momentOnDay } from "@/lib/project/dates"
-import { clockLabel, dayLabel } from "@/lib/project/days"
+import { clockLabel, dayLabel, shortDayLabel } from "@/lib/project/days"
 import { OptionCard } from "@/components/project/option-card"
 import { setProjectTaskLink } from "@/lib/api/project/linked-records"
 import { LINKED_APP_INFO } from "@/lib/project/linked-records"
+import { dayOffNote } from "@/lib/project/days-off"
 import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
 import {
   BIN_DAYS,
@@ -86,6 +89,7 @@ import {
 } from "@/lib/project/rules"
 import { readTaskNotes, taskNotesAreEmpty } from "@/lib/project/notes"
 import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
+import { useDaysOff } from "@/lib/project/use-days-off"
 import { usePeopleRoom } from "@/lib/project/use-people-room"
 import { useProjectLive } from "@/lib/project/use-project-live"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -177,6 +181,8 @@ export type TaskSide = {
   move: () => void
   /** Opens the Remind me card at the top of the panel. */
   remind: () => void
+  /** Opens the Ask for more time card at the top of the panel (Seven features, part 2). */
+  askTime: () => void
 }
 
 type Loaded =
@@ -287,6 +293,78 @@ export function TaskView({
   })
 }
 
+/**
+ * An open ask for more time (Seven features, part 2): who asked, for which
+ * day and why. Whoever answers gets Yes, which moves the date, and No, with
+ * an optional line of why; everyone else reads who will answer.
+ */
+function MoreTimeCard({
+  ask,
+  dueDate,
+  busy,
+  keeping,
+  keepReason,
+  onKeepReason,
+  onYes,
+  onNo,
+  onKeep,
+  onCancelKeep,
+}: {
+  ask: NonNullable<TaskDetail["moreTime"]>
+  dueDate: string | null
+  busy: boolean
+  keeping: boolean
+  keepReason: string
+  onKeepReason: (reason: string) => void
+  onYes: () => void
+  onNo: () => void
+  onKeep: () => Promise<void>
+  onCancelKeep: () => void
+}) {
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Asked for {shortDayLabel(ask.day)}</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <p className="text-sm break-words">
+          {ask.askedByName} asks to move the due date{dueDate ? ` from ${shortDayLabel(dueDate)}` : ""} to{" "}
+          {shortDayLabel(ask.day)}: {ask.reason}
+        </p>
+        {ask.canAnswer ? (
+          keeping ? (
+            <ReasonRow
+              id="keep-date-reason"
+              label={`Why does it stay ${dueDate ? shortDayLabel(dueDate) : "as it is"}? (optional)`}
+              value={keepReason}
+              onChange={onKeepReason}
+              confirmLabel="Keep the date"
+              busy={busy}
+              optional
+              onConfirm={() => void onKeep()}
+              onCancel={onCancelKeep}
+            />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" disabled={busy} onClick={onYes}>
+                <CheckIcon className="size-4" />
+                Yes, move it
+              </Button>
+              <Button type="button" variant="outline" disabled={busy} onClick={onNo}>
+                No, keep the date
+              </Button>
+            </div>
+          )
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Waiting for {ask.answererName ?? "the site admin"} to answer.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 /** Answers that no retry can change. */
 const GONE = new Set<string>([PROJECT_ERRORS.taskNotFound, PROJECT_ERRORS.taskInBin])
 
@@ -314,12 +392,17 @@ function TaskForm({
   const [handBackReason, setHandBackReason] = React.useState("")
   const [moving, setMoving] = React.useState(false)
   const [reminding, setReminding] = React.useState(false)
+  const [askingTime, setAskingTime] = React.useState(false)
+  const [keepingDate, setKeepingDate] = React.useState(false)
+  const [keepReason, setKeepReason] = React.useState("")
   // Handing to someone else asks for an optional note before it goes.
   const [handingTo, setHandingTo] = React.useState<{ id: string; name: string } | null>(null)
   const [handoverNote, setHandoverNote] = React.useState("")
   const [sendingBack, setSendingBack] = React.useState(false)
   const [sendBackReason, setSendBackReason] = React.useState("")
   const room = usePeopleRoom()
+  // A due date on the person's day off or a team holiday says so (Seven features, part 1).
+  const daysOff = useDaysOff()
 
   const isMine = task.assignee?.id === myUserId
   const canHandBack = isMine && Boolean(task.assignedBy) && task.assignedBy?.id !== myUserId
@@ -437,6 +520,40 @@ function TaskForm({
   const notices = (
     <>
       {moving && !readOnly ? <MoveTaskCard detail={detail} onDone={() => setMoving(false)} /> : null}
+      {askingTime && detail.canAskForTime ? (
+        <AskTimeCard detail={detail} change={change} onDone={() => setAskingTime(false)} />
+      ) : null}
+      {detail.moreTime ? (
+        <MoreTimeCard
+          ask={detail.moreTime}
+          dueDate={task.dueDate}
+          busy={busy}
+          keeping={keepingDate}
+          keepReason={keepReason}
+          onKeepReason={setKeepReason}
+          onYes={() =>
+            void change(
+              () => answerMoreTaskTime({ taskId: task.id, answer: "yes" }),
+              `It's now due ${shortDayLabel(detail.moreTime!.day)}.`
+            )
+          }
+          onNo={() => setKeepingDate(true)}
+          onKeep={async () => {
+            const ok = await change(
+              () => answerMoreTaskTime({ taskId: task.id, answer: "no", reason: keepReason.trim() || null }),
+              "The due date stays."
+            )
+            if (ok) {
+              setKeepingDate(false)
+              setKeepReason("")
+            }
+          }}
+          onCancelKeep={() => {
+            setKeepingDate(false)
+            setKeepReason("")
+          }}
+        />
+      ) : null}
       {reminding && !readOnly ? (
         <ReminderCard detail={detail} change={change} onDone={() => setReminding(false)} />
       ) : null}
@@ -679,22 +796,25 @@ function TaskForm({
   )
 
   const handoverRow = handingTo ? (
-    <ReasonRow
-      id="handover-note"
-      label={`Note for ${handingTo.name} (optional)`}
-      value={handoverNote}
-      onChange={setHandoverNote}
-      confirmLabel="Hand over"
-      busy={busy}
-      optional
-      maxLength={LIMITS.handoverNote}
-      placeholder="Client wants it by Thursday"
-      onConfirm={() => void handOver()}
-      onCancel={() => {
-        setHandingTo(null)
-        setHandoverNote("")
-      }}
-    />
+    <>
+      <DayOffNote note={dayOffNote(daysOff, task.dueDate, handingTo)} />
+      <ReasonRow
+        id="handover-note"
+        label={`Note for ${handingTo.name} (optional)`}
+        value={handoverNote}
+        onChange={setHandoverNote}
+        confirmLabel="Hand over"
+        busy={busy}
+        optional
+        maxLength={LIMITS.handoverNote}
+        placeholder="Client wants it by Thursday"
+        onConfirm={() => void handOver()}
+        onCancel={() => {
+          setHandingTo(null)
+          setHandoverNote("")
+        }}
+      />
+    </>
   ) : null
 
   const stuckRow = pendingStuck ? (
@@ -745,6 +865,7 @@ function TaskForm({
         />
         <DueMovesMark moves={task.dueMoves} status={task.status} />
       </div>
+      {task.status === "done" ? null : <DayOffNote note={dayOffNote(daysOff, task.dueDate, task.assignee)} />}
     </div>
   )
 
@@ -1089,6 +1210,7 @@ function TaskForm({
     readOnly,
     move: () => setMoving(true),
     remind: () => setReminding(true),
+    askTime: () => setAskingTime(true),
   }
 
   return children({
@@ -1128,7 +1250,12 @@ function TaskForm({
       </Button>
     ),
     more: readOnly ? null : (
-      <TaskMoreMenu detail={detail} onMove={() => setMoving(true)} onRemind={() => setReminding(true)} />
+      <TaskMoreMenu
+        detail={detail}
+        onMove={() => setMoving(true)}
+        onRemind={() => setReminding(true)}
+        onAskTime={() => setAskingTime(true)}
+      />
     ),
     remove: detail.canDelete && !readOnly ? { busy, run: remove } : null,
   })

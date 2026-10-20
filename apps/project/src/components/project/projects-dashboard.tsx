@@ -4,6 +4,7 @@ import { ArchiveIcon, ArchiveRestoreIcon, ChevronDownIcon, CopyIcon, Loader2Icon
 import { toast } from "sonner"
 
 import { CopyProjectDialog } from "@/components/project/copy-project-dialog"
+import { FieldColumnsMenu } from "@/components/project/field-columns-menu"
 import { NewProjectDialog } from "@/components/project/new-project-dialog"
 import { ProjectPaceMark } from "@/components/project/project-pace"
 import { ProjectProgress } from "@/components/project/project-progress"
@@ -49,13 +50,16 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { clockTotal } from "@/lib/project/clock"
+import { PROJECTS_TIME_COLUMN_KEY } from "@/lib/project/panel-keys"
 import { countLate, projectPace } from "@/lib/project/project-pace"
+import { useTimeColumn } from "@/lib/project/use-field-columns"
 import { runsTheTeam } from "@/lib/project/rules"
 import { TeamScope } from "@/lib/project/team-scope"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-type Column = "name" | "team" | "progress" | "status" | "lead" | "open"
+type Column = "name" | "team" | "progress" | "status" | "lead" | "open" | "time"
 type Group = "active" | "archived"
 
 const NAME_COLUMN: SortableColumn<Column> = {
@@ -72,6 +76,8 @@ const OTHER_COLUMNS: SortableColumn<Column>[] = [
   { key: "lead", label: "Lead", column: "preview" },
   { key: "open", label: "Open tasks", column: "preview" },
 ]
+/** Each project's time on the clock, off until picked from Columns (Seven features, part 4). */
+const TIME_COLUMN: SortableColumn<Column> = { key: "time", label: "Time", column: "preview" }
 
 const openTasks = (row: ProjectListRow) => row.counts.todo + row.counts.doing + row.counts.stuck
 
@@ -159,7 +165,13 @@ function ProjectsTable({
   onTeamFilter: (teamId: string | null) => void
   onSettings: (projectId: string) => Promise<void>
 }) {
-  const columns = teams.length ? [NAME_COLUMN, TEAM_COLUMN, ...OTHER_COLUMNS] : [NAME_COLUMN, ...OTHER_COLUMNS]
+  const [timeColumn, setTimeColumn] = useTimeColumn(PROJECTS_TIME_COLUMN_KEY)
+  const columns = [
+    NAME_COLUMN,
+    ...(teams.length ? [TEAM_COLUMN] : []),
+    ...OTHER_COLUMNS,
+    ...(timeColumn ? [TIME_COLUMN] : []),
+  ]
   const navigate = useNavigate()
   const router = useRouter()
   const { config } = useShellRuntime()
@@ -197,7 +209,9 @@ function ProjectsTable({
         ? row.counts.done / Math.max(1, openTasks(row) + row.counts.done)
         : sort === "status"
           ? paceRank(row)
-          : openTasks(row)
+          : sort === "time"
+            ? row.clockSeconds
+            : openTasks(row)
     return projects
       .filter((row) => row.archived === (group === "archived"))
       .filter((row) => !needle || row.name.toLowerCase().includes(needle))
@@ -346,6 +360,7 @@ function ProjectsTable({
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
+            <FieldColumnsMenu fields={[]} chosen={[]} onChange={() => {}} time={{ on: timeColumn, onChange: setTimeColumn }} />
             {siteAdmin ? (
               <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
                 <PlusIcon className="size-4" />
@@ -442,6 +457,11 @@ function ProjectsTable({
                 ) : null}
               </TableCell>
               <TableCell column="preview">{openTasks(row)}</TableCell>
+              {timeColumn ? (
+                <TableCell column="preview" className="tabular-nums">
+                  {row.clockSeconds >= 60 ? clockTotal(row.clockSeconds) : ""}
+                </TableCell>
+              ) : null}
               <TableCell column="actions">
                 <PinButton project={row} />
                 {siteAdmin && !row.personal ? (

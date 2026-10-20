@@ -2,7 +2,7 @@ import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
-import { PersonAvatar, ProjectDot, RoomNote, StatusDot } from "@/components/project/task-bits"
+import { DayOffNote, PersonAvatar, ProjectDot, RoomNote, StatusDot } from "@/components/project/task-bits"
 import { TagsBox, tagIdsFor, type TagPill } from "@/components/project/task-tags-field"
 import { FieldControl } from "@/components/project/task-fields-card"
 import { TypeIconGlyph } from "@/components/project/task-type-icon"
@@ -39,6 +39,7 @@ import {
   type WrittenPageNode,
 } from "@/lib/pages/written-page-body"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { dayOffNote } from "@/lib/project/days-off"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { notesForEditor, readTaskNotes } from "@/lib/project/notes"
 import { moveNewTasks } from "@/lib/project/new-task-status"
@@ -63,6 +64,7 @@ import {
 } from "@/lib/project/task-fields"
 import type { TaskType } from "@/lib/project/task-types"
 import { linesToTitles } from "@/lib/project/paste-lines"
+import { useDaysOff } from "@/lib/project/use-days-off"
 import { usePeopleRoom } from "@/lib/project/use-people-room"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -175,6 +177,10 @@ export function NewTaskDialog({
   const [handoverNote, setHandoverNote] = React.useState("")
   const room = usePeopleRoom(open)
   const [due, setDue] = React.useState<string | null>(null)
+  // A due date on the person's day off or a team holiday says so (Seven features, part 1).
+  const daysOff = useDaysOff(open)
+  const assigneeName = project?.members.find((member) => member.userId === assignee)?.name
+  const dueNote = dayOffNote(daysOff, due, assigneeName ? { id: assignee, name: assigneeName } : null)
   const [steps, setSteps] = React.useState<string[]>([])
   const [stepText, setStepText] = React.useState("")
   const [invalid, setInvalid] = React.useState(false)
@@ -546,6 +552,7 @@ export function NewTaskDialog({
                       <DueDayPicker id="new-task-due" value={due} onChange={setDue} placeholder="No due date" clearLabel="Clear the due date" />
                     </div>
                   </div>
+                  <DayOffNote note={dueNote} />
                   {assignee !== NOBODY && assignee !== me.id ? (
                     <div className="grid gap-2">
                       <Label htmlFor="new-task-handover-note">

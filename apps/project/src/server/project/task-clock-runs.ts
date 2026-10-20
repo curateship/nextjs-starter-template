@@ -36,6 +36,39 @@ export async function clocksFor(taskIds: readonly string[], database: ProjectDb)
 }
 
 /**
+ * Each project's time on the clock, for the Projects table's Time column
+ * (Seven features, part 4): every finished stretch and fix on its tasks, and
+ * any stretch going now counted up to `at`. Tasks in the bin don't count.
+ */
+export async function projectClockSeconds(projectIds: readonly string[], database: ProjectDb, at = new Date()) {
+  const totals = new Map<string, number>()
+  if (projectIds.length === 0) return totals
+  const onTheirTasks = and(inArray(projectTasks.projectId, [...projectIds]), isNull(projectTasks.deletedAt))
+  // A finished stretch and a fix carry their seconds; a running one has none yet.
+  const finished = await database
+    .select({
+      projectId: projectTasks.projectId,
+      seconds: sql<number>`coalesce(sum(${projectTaskClockRuns.seconds}), 0)::int`,
+    })
+    .from(projectTaskClockRuns)
+    .innerJoin(projectTasks, eq(projectTasks.id, projectTaskClockRuns.taskId))
+    .where(onTheirTasks)
+    .groupBy(projectTasks.projectId)
+  for (const row of finished) totals.set(row.projectId, Number(row.seconds))
+  const running = await database
+    .select({ projectId: projectTasks.projectId, startedAt: projectTaskClockRuns.startedAt })
+    .from(projectTaskClockRuns)
+    .innerJoin(projectTasks, eq(projectTasks.id, projectTaskClockRuns.taskId))
+    .where(and(onTheirTasks, eq(projectTaskClockRuns.kind, "run"), isNull(projectTaskClockRuns.stoppedAt)))
+  for (const row of running) {
+    const seconds = Math.max(0, Math.floor((at.getTime() - row.startedAt.getTime()) / 1000))
+    totals.set(row.projectId, (totals.get(row.projectId) ?? 0) + seconds)
+  }
+  for (const [id, total] of totals) totals.set(id, Math.max(0, total))
+  return totals
+}
+
+/**
  * Stops the task's running stretch at `at`, and writes "Paused the clock
  * after 45m" in its history. `actorId` is whoever's change paused it; a pause
  * nobody pressed, at midnight or as someone leaves, names the clock's own

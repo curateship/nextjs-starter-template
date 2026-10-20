@@ -26,16 +26,29 @@ import { deleteProjectTeam, type TeamDashboard, type TeamListRow } from "@/lib/a
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { TEAM_RIGHT_TAB_KEY } from "@/lib/project/panel-keys"
 import { TeamScope } from "@/lib/project/team-scope"
+import { cn } from "@/lib/utils"
 
-type Column = "name" | "people" | "projects" | "checkin"
+type Column = "name" | "people" | "projects" | "checkin" | "today" | "stuck" | "overdue"
 
 const COLUMNS: SortableColumn<Column>[] = [
   { key: "name", label: "Team", column: "main" },
   { key: "people", label: "People", column: "preview" },
   { key: "projects", label: "Projects", column: "preview" },
   { key: "checkin", label: "Check-in", column: "preview" },
+  // Every team's morning on one page (Seven features, part 3).
+  { key: "today", label: "Checked in today", column: "preview" },
+  { key: "stuck", label: "Stuck", column: "preview" },
+  { key: "overdue", label: "Overdue", column: "preview" },
 ]
+
+/** How far through its check-ins a team is today, for sorting: a day off last, then not yet. */
+function todayRank(today: TeamListRow["today"]) {
+  if (today.state === "day_off") return -2
+  if (today.state === "not_yet") return -1
+  return today.expected ? today.checkedIn / today.expected : 1
+}
 
 function compare(a: TeamListRow, b: TeamListRow, column: Column) {
   switch (column) {
@@ -45,9 +58,43 @@ function compare(a: TeamListRow, b: TeamListRow, column: Column) {
       return a.openProjects - b.openProjects || a.archivedProjects - b.archivedProjects
     case "checkin":
       return a.checkinTime.localeCompare(b.checkinTime)
+    case "today":
+      return todayRank(a.today) - todayRank(b.today)
+    case "stuck":
+      return a.stuck - b.stuck
+    case "overdue":
+      return a.overdue - b.overdue
     default:
       return a.name.localeCompare(b.name)
   }
+}
+
+/** A count in a Teams row that opens the team on the tab listing it. */
+function CountButton({
+  label,
+  late = false,
+  onClick,
+  children,
+}: {
+  label: string
+  late?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      // The row leaves a click on a button inside it alone (`TableRow`).
+      onClick={onClick}
+      className={cn(
+        "rounded-sm tabular-nums underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        late && "font-medium text-red-600 dark:text-red-400"
+      )}
+    >
+      {children}
+    </button>
+  )
 }
 
 function plural(count: number, one: string, many: string) {
@@ -111,6 +158,15 @@ export function TeamsDashboard({
       >
         {rows.map((team) => {
           const open = () => void navigate({ to: "/teams/$teamId", params: { teamId: team.id } })
+          // A number opens the team on the tab that lists it: its check-ins, or Needs attention.
+          const openOn = (tab: "checkins" | "attention") => {
+            try {
+              window.localStorage.setItem(TEAM_RIGHT_TAB_KEY, tab)
+            } catch {
+              // Without storage the team opens on the tab it last had.
+            }
+            open()
+          }
           return (
             <TableRow key={team.id} className="group" rowAction={open}>
               <TableCell column="main">
@@ -129,6 +185,38 @@ export function TeamsDashboard({
               <TableCell column="preview">
                 {team.checkinTime}
                 <span className="text-muted-foreground"> · {team.timeZone}</span>
+              </TableCell>
+              <TableCell column="preview">
+                {team.today.state === "counted" && team.today.expected === 0 ? (
+                  <span className="text-muted-foreground">Nobody expected</span>
+                ) : team.today.state === "counted" ? (
+                  <CountButton
+                    label={`${team.name}: ${team.today.checkedIn} of ${team.today.expected} checked in today`}
+                    onClick={() => openOn("checkins")}
+                  >
+                    {team.today.checkedIn} of {team.today.expected}
+                  </CountButton>
+                ) : (
+                  <span className="text-muted-foreground">{team.today.state === "day_off" ? "Day off" : "Not yet"}</span>
+                )}
+              </TableCell>
+              <TableCell column="preview">
+                <CountButton
+                  label={`${team.name}: ${team.stuck} stuck`}
+                  late={team.stuck > 0}
+                  onClick={() => openOn("attention")}
+                >
+                  {team.stuck}
+                </CountButton>
+              </TableCell>
+              <TableCell column="preview">
+                <CountButton
+                  label={`${team.name}: ${team.overdue} overdue`}
+                  late={team.overdue > 0}
+                  onClick={() => openOn("attention")}
+                >
+                  {team.overdue}
+                </CountButton>
               </TableCell>
               <TableCell column="actions">
                 <Button

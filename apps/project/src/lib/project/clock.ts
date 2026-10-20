@@ -41,6 +41,11 @@ export function clockTotal(seconds: number) {
   return left ? `${hours}h ${left}m` : `${hours}h`
 }
 
+/** Every task's clock added up, for a project's left panel and its milestones (Seven features, part 4). */
+export function timeOnTasks(tasks: readonly { clock: TaskClock }[], nowMs: number) {
+  return tasks.reduce((sum, task) => sum + clockSeconds(task.clock, nowMs), 0)
+}
+
 /** The time against a guess: "20m over", "10m left", or "On the guess". */
 export function guessGap(seconds: number, guessMinutes: number) {
   const gap = Math.floor(Math.max(0, seconds) / 60) - guessMinutes

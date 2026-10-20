@@ -18,6 +18,7 @@ import { inTeam } from "@/server/project/access"
 import { addHoliday, removeHoliday } from "@/server/project/holidays"
 import {
   handOverAllTasks,
+  loadDaysOff,
   loadPeopleRoom,
   joinTeamByLink,
   loadJoinOffer,
@@ -148,6 +149,11 @@ export function saveMemberTitle(data: z.input<typeof memberTitleSchema>, teamId?
   return setTitleFn({ data: { ...data, teamId } })
 }
 
+const loadDaysOffFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => loadDaysOff(context.user.id)))
+
 const loadPeopleRoomFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object(teamScope))
@@ -162,6 +168,11 @@ const removeHolidayFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ holidayId: z.string().min(1).max(36), ...teamScope }))
   .handler(async ({ data, context }) => inTeam(data.teamId, () => removeHoliday(context.user.id, data.holidayId)))
+
+/** The team's coming days off, for the warning under a due date. */
+export function loadTeamDaysOff(teamId?: string) {
+  return loadDaysOffFn({ data: { teamId } })
+}
 
 /** Each teammate's open tasks and time off, for the hand-to pickers. */
 export function loadRoom(teamId?: string) {

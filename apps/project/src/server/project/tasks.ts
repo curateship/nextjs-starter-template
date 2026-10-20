@@ -50,6 +50,7 @@ import {
 import { myReminderOn } from "@/server/project/task-reminders"
 import { listStepLists, type StepList } from "@/server/project/step-lists"
 import { taskLinkFor, type TaskLink } from "@/server/project/linked-records"
+import { canAskForTime, loadMoreTimeAsk, type MoreTimeAsk } from "@/server/project/more-time"
 import { canAskForReview, canReview, reviewerFor } from "@/server/project/task-review"
 import { hasThanked } from "@/server/project/task-thanks"
 import { listMoveTargets, type MoveTarget } from "@/server/project/task-changes"
@@ -324,12 +325,20 @@ function waitingOnOf(projectId: string, waits: WaitRow[]) {
   }
 }
 
-/** How many times each task's due date moved, read from its history. */
+/**
+ * How many times each task's due date moved, read from its history. A Yes to
+ * an ask for more time is a move too (Seven features, part 2).
+ */
 function dueMovesFor(taskIds: string[], database: ProjectDb) {
   return database
     .select({ taskId: projectTaskEvents.taskId, moves: count() })
     .from(projectTaskEvents)
-    .where(and(inArray(projectTaskEvents.taskId, taskIds), eq(projectTaskEvents.kind, "due_moved")))
+    .where(
+      and(
+        inArray(projectTaskEvents.taskId, taskIds),
+        inArray(projectTaskEvents.kind, ["due_moved", "time_agreed"])
+      )
+    )
     .groupBy(projectTaskEvents.taskId)
 }
 
@@ -405,7 +414,14 @@ export type TaskDetail = {
   canRunClock: boolean
   /** I may set its time by hand: the person assigned and the site admin only. */
   canFixClock: boolean
+  /** The open ask for a later due date, and whether I may answer it (Seven features, part 2). */
+  moreTime: MoreTimeAsk | null
+  /** I may ask for more time: the person assigned, on a task not Done with a due date. */
+  canAskForTime: boolean
 }
+
+/** The columns of an ask for more time, emptied. */
+const NO_TIME_ASK = { moreTimeDay: null, moreTimeReason: null, moreTimeByUserId: null, moreTimeAskedAt: null }
 
 export async function loadTaskDetail(
   userId: string,
@@ -518,6 +534,8 @@ export async function loadTaskDetail(
     canSetLink: membership.siteAdmin && !archived,
     canRunClock: !archived && (!task.assigneeUserId || task.assigneeUserId === userId || membership.siteAdmin),
     canFixClock: !archived && (task.assigneeUserId === userId || membership.siteAdmin),
+    moreTime: archived ? null : await loadMoreTimeAsk(task, viewer, database),
+    canAskForTime: !archived && canAskForTime(task, userId),
   }
 }
 
@@ -770,6 +788,8 @@ export async function setTaskStatus(
         completedAt: input.status === "done" ? (task.status === "done" ? task.completedAt : now()) : null,
         reviewWaitingSince:
           input.status !== "done" ? null : becameDone ? (reviewer ? now() : null) : task.reviewWaitingSince,
+        // A Done task needs no more time, so an open ask ends with it.
+        ...(input.status === "done" ? NO_TIME_ASK : {}),
         updatedAt: now(),
       })
       .where(eq(projectTasks.id, task.id))
@@ -855,6 +875,8 @@ export async function assignTask(
         handedBackByUserId: null,
         formerAssigneeName: null,
         handoverNote: note,
+        // An ask for more time belongs to the person who asked, so it ends here.
+        ...NO_TIME_ASK,
         // The first hand-out stays: later hand-overs never take over the brief.
         firstHandedOutByUserId:
           task.firstHandedOutByUserId ?? (handedToSomeoneElse ? actor.id : null),

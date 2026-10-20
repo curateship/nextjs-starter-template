@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/project/task-bits"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { TaskDetail } from "@/lib/api/project/tasks"
 import { dayLabel, shortDayLabel, shortDayTimeLabel } from "@/lib/project/days"
-import { readDueMove } from "@/lib/project/due-moves"
+import { readDueMove, readTimeAsk } from "@/lib/project/due-moves"
 import { clockTotal, readClockFix, readClockPause } from "@/lib/project/clock"
 import { isTaskStatus } from "@/lib/project/rules"
 
@@ -154,6 +154,32 @@ function EntryText({ entry }: { entry: Entry }) {
     }
     case "took":
       return <span>{entry.actorName} took it</span>
+    case "time_asked": {
+      const ask = readTimeAsk(entry.reason)
+      return (
+        <span className="break-words">
+          {entry.actorName} asked for more time{ask ? `, until ${dayLabel(ask.day)}: ${ask.text}` : ""}
+        </span>
+      )
+    }
+    case "time_agreed": {
+      const move = readDueMove(entry.reason)
+      return (
+        <span>
+          {entry.actorName} agreed to more time
+          {move ? `, from ${dayLabel(move.from)} to ${dayLabel(move.to)}` : ""}
+        </span>
+      )
+    }
+    case "time_kept": {
+      const ask = readTimeAsk(entry.reason)
+      return (
+        <span className="break-words">
+          {entry.actorName} kept the due date{ask ? `, not ${dayLabel(ask.day)}` : ""}
+          {ask?.text ? `: ${ask.text}` : ""}
+        </span>
+      )
+    }
     case "clock_started":
       return <span>{entry.actorName} started the clock</span>
     case "clock_paused": {

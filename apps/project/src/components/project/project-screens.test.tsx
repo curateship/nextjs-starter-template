@@ -239,7 +239,7 @@ describe("the list", () => {
     const html = renderToStaticMarkup(
       <TaskBulkMenu
         taskIds={["a", "b"]}
-        targets={{ people: [], projects: [] }}
+        targets={{ people: [], projects: [], tags: [], types: [] }}
         onDone={() => {}}
       />
     )
@@ -323,7 +323,7 @@ describe("My tasks rows (Task panel task 01, part 6)", () => {
     ]
     const html = renderToStaticMarkup(
       <TooltipProvider>
-        <MyTaskRows tasks={rows} onOpenTask={() => {}} bulk={{ people: [], projects: [] }} emptyText="None" />
+        <MyTaskRows tasks={rows} onOpenTask={() => {}} bulk={{ people: [], projects: [], tags: [], types: [] }} emptyText="None" />
       </TooltipProvider>
     )
     expect(html).toContain('aria-label="Pause the clock on Running"')
@@ -400,6 +400,7 @@ describe("the Projects dashboard", () => {
               lead: { id: "u2", name: "Priya", avatarUrl: "" },
               client: "Hart Dental",
               team: { id: "team", name: "Acme" },
+              clockSeconds: 0,
             },
             {
               id: "p2",
@@ -415,6 +416,7 @@ describe("the Projects dashboard", () => {
               lead: null,
               client: null,
               team: { id: "team2", name: "Beta" },
+              clockSeconds: 0,
             },
           ],
         }}

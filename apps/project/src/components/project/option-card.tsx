@@ -10,11 +10,16 @@ import { cn } from "@/lib/utils"
 
 /**
  * One group of settings in a cog's dropdown, as Tyler drew it on 14 Oct 2026.
- * Shut, it is Trade's order-window card (`apps/trade/src/components/trade/option-card.tsx`):
- * its name, what it is set to on the right, and an arrow. Open, it is the
- * shell's `InspectorCard` inside: a 15px heading, an optional line saying what
- * it is for, then its fields one per row on white boxes. The shell card has no
- * answer on the right and no tick box, so this is Project's own.
+ * Shut, it reads like Trade's order-window card (`apps/trade/src/components/trade/option-card.tsx`):
+ * its name, what it is set to on the right, and an arrow. Open, a 15px
+ * heading, an optional line saying what it is for, then its fields one per
+ * row. The shell card has no answer on the right and no tick box, so this is
+ * Project's own.
+ *
+ * It is flat, with no box: rows sit straight on the dropdown with a line
+ * between them that runs to its edges (Tyler, 20 Oct 2026: "move all of these
+ * outside the cards (flatten it)"). The dropdown holding them has no padding
+ * or gap of its own, so the lines reach its sides.
  *
  * Each card starts shut and remembers in this browser whether it was left
  * open. `toggle` puts a tick box before the name for a setting that is on or
@@ -50,12 +55,8 @@ export function OptionCard({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className={cn(
-        // min-w-0: a long answer is cut short rather than pushing the card past the dropdown's edge.
-        "group/option min-w-0 rounded-lg border bg-muted/40 p-4",
-        // Fields on white, as in the shell's InspectorCard, so a box to type in never looks greyed out.
-        "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
-      )}
+      // min-w-0: a long answer is cut short rather than pushing the row past the dropdown's edge.
+      className="group/option min-w-0 border-b px-4 py-3 last:border-b-0"
     >
       <div
         className={cn("flex min-h-6 items-center gap-2", canFold && "cursor-pointer")}

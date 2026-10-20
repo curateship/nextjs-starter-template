@@ -368,9 +368,9 @@ function MySettingsMenu({ dashboard }: { dashboard: MyDashboardData }) {
         className="w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
       >
         <ScrollArea className="min-h-0" viewportClassName="max-h-[min(75vh,44rem)]">
-          {/* Each setting a card that folds open, its answer on the right (Tyler, 14 Oct 2026). */}
-          <div className="grid gap-2 p-3">
-            <p className="px-1 pb-1 text-sm text-muted-foreground">
+          {/* Each setting a flat row that folds open, its answer on the right (Tyler, 14 and 20 Oct 2026). */}
+          <div className="grid">
+            <p className="border-b px-4 py-3 text-sm text-muted-foreground">
               {me.email} · joined {formatDate(me.joinedAt)}
             </p>
             <OptionCard
@@ -451,7 +451,14 @@ function MyTasksPanel({
   const overdue = overdueTasks.length
   const [catchingUp, setCatchingUp] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
-  const bulk = { people: checkin.people, projects: [] }
+  // Tasks here come from many projects, so every live type is offered and a
+  // project that doesn't offer one refuses it for its own tasks.
+  const bulk = {
+    people: checkin.people,
+    projects: [],
+    tags: dashboard.labels,
+    types: dashboard.taskTypes.filter((type) => !type.archived),
+  }
   const clients = clientChoices([...open, ...done].map((task) => task.projectClient))
   const here = { screen: dashboard.viewScreen, labels: dashboard.labels, types: dashboard.taskTypes, clients }
 

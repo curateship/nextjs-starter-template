@@ -20,7 +20,7 @@ import {
   type TaskSide,
 } from "@/components/project/task-body"
 import { PanelCard } from "@/components/project/panel-card"
-import { MOVE_PICKER_ID, TaskMoreRows } from "@/components/project/task-more-menu"
+import { ASK_TIME_DAY_ID, MOVE_PICKER_ID, TaskMoreRows } from "@/components/project/task-more-menu"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -99,7 +99,7 @@ function SidePanel({
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   // A pick in Task settings that opens a card in the panel: the keyboard goes
   // there instead of back to the cog as the window closes.
-  const picked = React.useRef<"move" | "remind" | null>(null)
+  const picked = React.useRef<"move" | "remind" | "ask" | null>(null)
   const { remove } = parts
 
   // Opening a task moves the keyboard into it, so Tab starts from the title.
@@ -143,6 +143,10 @@ function SidePanel({
                 picked.current = "remind"
                 side.remind()
               }}
+              onAskTime={() => {
+                picked.current = "ask"
+                side.askTime()
+              }}
               onCloseAutoFocus={(event) => {
                 const card = picked.current
                 if (!card) return
@@ -150,6 +154,7 @@ function SidePanel({
                 event.preventDefault()
                 // The reminder's calendar opens by itself and holds the keyboard.
                 if (card === "move") document.getElementById(MOVE_PICKER_ID)?.focus()
+                if (card === "ask") document.getElementById(ASK_TIME_DAY_ID)?.focus()
               }}
             />
           </div>
@@ -362,6 +367,7 @@ function TaskSettingsMenu({
   onDelete,
   onMove,
   onRemind,
+  onAskTime,
   onCloseAutoFocus,
 }: {
   side: TaskSide
@@ -370,6 +376,7 @@ function TaskSettingsMenu({
   onDelete: (() => void) | null
   onMove: () => void
   onRemind: () => void
+  onAskTime: () => void
   onCloseAutoFocus: (event: Event) => void
 }) {
   const [tab, setTab] = React.useState<"details" | "history">("details")
@@ -417,10 +424,17 @@ function TaskSettingsMenu({
         <ScrollArea className="min-h-0" viewportClassName="max-h-[min(70vh,44rem)]">
           {tab === "details" ? (
             <div className="grid [&_[data-slot=select-trigger]]:w-full">
-              <div className="grid gap-2 p-3">{side.settings}</div>
+              {/* Flat rows with lines between them, edge to edge (Tyler, 20 Oct 2026). */}
+              <div className="grid">{side.settings}</div>
               <div className="grid gap-1 border-t p-2 empty:hidden">
                 {side.readOnly ? null : (
-                  <TaskMoreRows detail={side.detail} onMove={onMove} onRemind={onRemind} onPicked={close} />
+                  <TaskMoreRows
+                    detail={side.detail}
+                    onMove={onMove}
+                    onRemind={onRemind}
+                    onAskTime={onAskTime}
+                    onPicked={close}
+                  />
                 )}
                 {onDelete ? (
                   <Button
